@@ -1,26 +1,40 @@
 {
-  "name": "HVO WebSite",
-  "image": "mcr.microsoft.com/devcontainers/dotnet:9.0",
-  "features": {
-    "ghcr.io/devcontainers/features/docker-from-docker:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+  "name": "HVO.WebSite Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile"
   },
-  "containerEnv": {
-    "HVO_SECRET__WEBSITEV9__DB_CONNECTION": "${localEnv:HVO_SECRET__WEBSITEV9__DB_CONNECTION:}",
-    "HVO_SECRET__WEBSITEPLAYGROUND__DB_CONNECTION": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__DB_CONNECTION:}",
-    "HVO_SECRET__WEBSITEPLAYGROUND__NINA_API_KEY": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__NINA_API_KEY:}",
-    "HVO_SECRET__WEBSITEPLAYGROUND__AZDO_PAT": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__AZDO_PAT:}"
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb",
+    "storage": "16gb"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {
+      "ppa": true,
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "installDirectlyFromGitHubRelease": true,
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "installOhMyZsh": true,
+      "configureZshAsDefaultShell": true,
+      "username": "vscode",
+      "userUid": "automatic",
+      "userGid": "automatic",
+      "upgradePackages": false
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "moby": true,
+      "dockerDashComposeVersion": "v2",
+      "installDockerComposeSwitch": false
+    }
   },
   "customizations": {
     "vscode": {
-      "settings": {
-        "dotnet.defaultSolution": "HVO.WebSite.sln",
-        "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true,
-        "csharp.semanticHighlighting.enabled": true,
-        "editor.tabSize": 2,
-        "editor.insertSpaces": true,
-        "editor.formatOnSave": true
-      },
       "extensions": [
         "ms-dotnettools.csdevkit",
         "ms-dotnettools.csharp",
@@ -28,16 +42,84 @@
         "ms-dotnettools.blazorwasm-companion",
         "ms-mssql.mssql",
         "ms-azuretools.vscode-docker",
-        "GitHub.vscode-pull-request-github"
-      ]
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "github.vscode-github-actions"
+      ],
+      "settings": {
+        "dotnet.defaultSolution": "HVO.WebSite.sln",
+        "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true,
+        "omnisharp.enableRoslynAnalyzers": true,
+        "omnisharp.enableEditorConfigSupport": true,
+        "omnisharp.enableImportCompletion": true,
+        "csharp.semanticHighlighting.enabled": true,
+        "editor.formatOnSave": true,
+        "editor.formatOnType": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll": "explicit",
+          "source.organizeImports": "explicit"
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "zsh": { "path": "/bin/zsh" },
+          "bash": { "path": "/bin/bash" }
+        }
+      }
     }
   },
+  "containerEnv": {
+    "ASPNETCORE_ENVIRONMENT": "Development",
+    "DOTNET_ENVIRONMENT": "Development",
+    "HVO_SECRET__WEBSITEV9__DB_CONNECTION": "${localEnv:HVO_SECRET__WEBSITEV9__DB_CONNECTION:}",
+    "HVO_SECRET__WEBSITEPLAYGROUND__DB_CONNECTION": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__DB_CONNECTION:}",
+    "HVO_SECRET__WEBSITEPLAYGROUND__NINA_API_KEY": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__NINA_API_KEY:}",
+    "HVO_SECRET__WEBSITEPLAYGROUND__AZDO_PAT": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__AZDO_PAT:}"
+  },
   "forwardPorts": [
-    5136,
-    7151,
     5000,
     5001,
+    5136,
+    7151,
     8080
   ],
-  "postCreateCommand": "dotnet restore HVO.WebSite.sln --configfile src/NuGet.config && dotnet tool install --global dotnet-ef || dotnet tool update --global dotnet-ef"
+  "portsAttributes": {
+    "5000": {
+      "onAutoForward": "silent",
+      "elevateIfNeeded": true
+    },
+    "5001": {
+      "onAutoForward": "silent",
+      "elevateIfNeeded": true
+    },
+    "5136": {
+      "onAutoForward": "silent",
+      "elevateIfNeeded": true
+    },
+    "7151": {
+      "onAutoForward": "silent",
+      "elevateIfNeeded": true
+    },
+    "8080": {
+      "onAutoForward": "silent",
+      "elevateIfNeeded": true
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "silent"
+  },
+  "initializeCommand": "mkdir -p \"$HOME/.microsoft/usersecrets\"",
+  "mounts": [
+    {
+      "type": "volume",
+      "source": "x509stores",
+      "target": "/home/vscode/.dotnet/corefx/cryptography/x509stores"
+    },
+    {
+      "type": "bind",
+      "source": "${localEnv:HOME}/.microsoft/usersecrets",
+      "target": "/home/vscode/.microsoft/usersecrets"
+    }
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "remoteUser": "vscode"
 }
