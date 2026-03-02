@@ -1,0 +1,67 @@
+@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Welcome to HVO Playground</h1>
+    <p class="lead">Test API endpoints with both MVC and Blazor approaches</p>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h5 class="card-title">🌐 MVC Approach</h5>
+                <p class="card-text">
+                    Traditional MVC view with JavaScript for API calls. 
+                    Uses Fetch API and Bootstrap for UI interactions.
+                </p>
+                <a href="@Url.Action("PingTest", "Home")" class="btn btn-primary">Test with MVC</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h5 class="card-title">⚡ Blazor Approach</h5>
+                <p class="card-text">
+                    Server-side Blazor component with C# code-behind.
+                    Real-time UI updates via SignalR.
+                </p>
+                <a href="/ping-test" class="btn btn-success">Test with Blazor</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">📋 Features Comparison</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>MVC + JavaScript</h6>
+                        <ul class="list-unstyled">
+                            <li>✅ Traditional web development</li>
+                            <li>✅ Client-side JavaScript</li>
+                            <li>✅ Fetch API for HTTP requests</li>
+                            <li>✅ Bootstrap for styling</li>
+                            <li>✅ DOM manipulation</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Blazor Server</h6>
+                        <ul class="list-unstyled">
+                            <li>✅ C# code-behind</li>
+                            <li>✅ Server-side rendering</li>
+                            <li>✅ Real-time updates</li>
+                            <li>✅ Component-based architecture</li>
+                            <li>✅ SignalR communication</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,29 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## NuGet
+*.nupkg
+!.LocalPackages/*.nupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Visual Studio
+.vs/
+*.rsuser
+launchSettings.json
+
+## Rider
+.idea/
+
+## macOS
+.DS_Store
+
+## Test Results
+TestResults/
+coverage-report/

@@ -1,0 +1,132 @@
+@page "/health-check-blazor"
+@using System.Net.Http
+@using System.Text.Json
+@rendermode InteractiveServer
+
+<PageTitle>Health Check Blazor Test</PageTitle>
+
+<div class="container mt-4">
+    <h1>🏥 Health Check API Test (Blazor)</h1>
+    <p class="lead">Test the health check endpoint using Blazor Server with C# code-behind.</p>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">API Endpoint Test</h5>
+                    <p class="card-text">
+                        Click the button below to call the <code>/health</code> endpoint and see the response.
+                    </p>
+                    
+                    <button class="btn btn-primary btn-lg" @onclick="CallHealthCheckApi" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <span>Testing...</span>
+                        }
+                        else
+                        {
+                            <span>🏥 Test Health Check API</span>
+                        }
+                    </button>
+                    
+                    @if (showResult || showError)
+                    {
+                        <button class="btn btn-secondary ms-2" @onclick="ClearResult">Clear Result</button>
+                    }
+                </div>
+            </div>
+            
+            @if (showResult && apiResponse != null)
+            {
+                <div class="card mt-4 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">✅ Health Check Response</h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-sm-3">Overall Status:</dt>
+                            <dd class="col-sm-9">@apiResponse.Status</dd>
+                            
+                            <dt class="col-sm-3">Total Duration:</dt>
+                            <dd class="col-sm-9">@apiResponse.TotalDuration</dd>
+                        </dl>
+                        
+                        <h6 class="mt-3">Individual Health Checks:</h6>
+                        @if (apiResponse.Checks != null && apiResponse.Checks.Any())
+                        {
+                            @foreach (var check in apiResponse.Checks)
+                            {
+                                <div class="alert @(check.Status == "Healthy" ? "alert-success" : "alert-warning") alert-sm mb-2">
+                                    <strong>@check.Name:</strong> @check.Status 
+                                    <small class="text-muted">(@check.Duration)</small>
+                                    @if (!string.IsNullOrEmpty(check.Exception))
+                                    {
+                                        <br><small class="text-danger">@check.Exception</small>
+                                    }
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="alert alert-info alert-sm">No individual check details available</div>
+                        }
+                    </div>
+                    <div class="card-footer">
+                        <h6>Raw JSON Response:</h6>
+                        <pre class="bg-light p-3 border rounded"><code>@rawJsonResponse</code></pre>
+                    </div>
+                </div>
+            }
+            
+            @if (showError && !string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="card mt-4 border-danger">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">❌ Error</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">
+                            <strong>Error:</strong> @errorMessage
+                        </p>
+                        @if (statusCode > 0)
+                        {
+                            <p class="card-text">
+                                <strong>Status:</strong> @statusCode @statusText
+                            </p>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">About This Test</h5>
+                    <p class="card-text">
+                        This page demonstrates:
+                    </p>
+                    <ul class="list-unstyled">
+                        <li>✅ Blazor Server Components</li>
+                        <li>✅ C# Code-Behind Logic</li>
+                        <li>✅ HttpClientFactory Pattern</li>
+                        <li>✅ JSON Deserialization</li>
+                        <li>✅ Interactive UI Updates</li>
+                        <li>✅ Exception Handling</li>
+                        <li>✅ Health Check API Integration</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Key Features:</h6>
+                    <ul class="list-unstyled">
+                        <li>🔄 Real-time status updates</li>
+                        <li>⚡ Server-side rendering</li>
+                        <li>🎨 Bootstrap styling</li>
+                        <li>📊 Detailed health metrics</li>
+                        <li>🐛 Comprehensive error handling</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
