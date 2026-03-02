@@ -8,7 +8,6 @@ obj/
 
 ## NuGet
 *.nupkg
-!.LocalPackages/*.nupkg
 project.lock.json
 project.fragment.lock.json
 artifacts/

@@ -6,8 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
-### Added
+### Changed
 
+- Removed `.LocalPackages` directory — all HVO packages now sourced from nuget.org
+- Removed `LocalPackages` NuGet source from `NuGet.config`
+- Removed `.LocalPackages` COPY from Dockerfile
 - Repository documentation standardization
 - `CONTRIBUTING.md` with PR workflow and coding standards
 - `CHANGELOG.md` (this file)
