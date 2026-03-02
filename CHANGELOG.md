@@ -1,0 +1,34 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
+
+## [Unreleased]
+
+### Added
+
+- Repository documentation standardization
+- `CONTRIBUTING.md` with PR workflow and coding standards
+- `CHANGELOG.md` (this file)
+- `LICENSE` file
+- `.editorconfig` for consistent formatting
+- GitHub issue templates (bug report, feature request)
+- GitHub pull request template
+- `.github/copilot-instructions.md` with project context
+- `.github/dependabot.yml` for automated dependency updates
+
+### Changed
+
+- Rewrote `README.md` to serve as a documentation hub
+
+## [1.0.0]
+
+### Added
+
+- Initial extraction from HVOv9 monorepo
+- HVO.WebSite.v9 — main observatory website (Blazor SSR + ASP.NET Core API)
+- HVO.DataModels — Entity Framework Core data models and DbContext
+- HVO.WebSite.Themes — shared CSS themes and fonts (Razor Class Library)
+- CI/CD workflow (`ci.yml`)
+- Dev container configuration
