@@ -4,7 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- HVO SDK -->
-    <PackageVersion Include="HVO.Core" Version="1.1.0" />
+    <PackageVersion Include="HVO.Core" Version="1.1.1" />
     <PackageVersion Include="HVO.Core.SourceGenerators" Version="1.1.0" />
 
     <!-- ASP.NET Core / Web -->
