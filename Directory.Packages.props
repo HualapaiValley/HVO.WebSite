@@ -19,7 +19,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.13" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.13" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.13" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.13" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.6" />
 
     <!-- Microsoft.Extensions -->
     <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.13" />
