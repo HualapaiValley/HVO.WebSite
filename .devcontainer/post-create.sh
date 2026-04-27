@@ -132,6 +132,14 @@ fi
 # Install .NET global tools
 echo "Installing .NET global tools..."
 
+# Ensure dotnet tools directory is on PATH for this session and future shells
+export PATH="$HOME/.dotnet/tools:$PATH"
+for _rc in /home/vscode/.bashrc /home/vscode/.zshrc; do
+	if [[ -f "$_rc" ]] && ! grep -q '\.dotnet/tools' "$_rc" 2>/dev/null; then
+		printf '\nexport PATH="$HOME/.dotnet/tools:$PATH"\n' >> "$_rc"
+	fi
+done
+
 # Entity Framework Core CLI (for database migrations)
 if dotnet tool list -g | grep -q '^dotnet-ef\s'; then
 	dotnet tool update --global dotnet-ef
