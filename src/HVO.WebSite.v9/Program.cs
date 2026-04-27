@@ -81,7 +81,7 @@ namespace HVO.WebSite.v9
                 // Add request information for debugging
                 var activity = context.HttpContext.Features.Get<IHttpActivityFeature>()?.Activity;
                 context.ProblemDetails.Extensions.TryAdd("activityId", activity?.Id);
-                
+
                 if (context.HttpContext.Request.Headers.ContainsKey("User-Agent"))
                 {
                     context.ProblemDetails.Extensions["userAgent"] = context.HttpContext.Request.Headers["User-Agent"].ToString();
@@ -211,7 +211,7 @@ namespace HVO.WebSite.v9
             // Add health check endpoints
             // IMPORTANT: These are the RECOMMENDED ASP.NET Core health check endpoints
             // Do NOT duplicate these with custom controllers - use these built-in endpoints:
-            
+
             // Detailed health endpoint with comprehensive information
             // Use this for: monitoring dashboards, detailed health reporting, troubleshooting
             app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions

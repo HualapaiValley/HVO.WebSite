@@ -701,7 +701,7 @@ public partial class HvoDbContext : DbContext
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 
-public virtual async Task<RawModels.WeatherRecordHighLowSummary?> GetWeatherRecordHighLowSummary(DateTimeOffset startRecordDateTime, DateTimeOffset endRecordDateTime)
+    public virtual async Task<RawModels.WeatherRecordHighLowSummary?> GetWeatherRecordHighLowSummary(DateTimeOffset startRecordDateTime, DateTimeOffset endRecordDateTime)
     {
         var p = new Microsoft.Data.SqlClient.SqlParameter[]
         {
@@ -729,5 +729,5 @@ public virtual async Task<RawModels.WeatherRecordHighLowSummary?> GetWeatherReco
             .AsNoTracking()
             .ToListAsync()
             .ConfigureAwait(false);
-    }    
+    }
 }

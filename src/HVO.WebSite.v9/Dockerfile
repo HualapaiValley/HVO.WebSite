@@ -42,12 +42,12 @@ WORKDIR /app
 # Install minimal native dependencies for fonts and health checks
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        fontconfig \
-        fonts-dejavu-core \
-        fonts-liberation2 \
-        fonts-noto-core && \
+    ca-certificates \
+    curl \
+    fontconfig \
+    fonts-dejavu-core \
+    fonts-liberation2 \
+    fonts-noto-core && \
     rm -rf /var/lib/apt/lists/* && \
     fc-cache -f
 
