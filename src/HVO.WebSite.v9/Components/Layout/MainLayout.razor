@@ -17,6 +17,29 @@
                                 <i class="bi bi-house-door"></i> Home
                             </a>
                         </li>
+                        <AuthorizeView>
+                            <Authorized>
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                        <i class="bi bi-person-circle"></i> @context.User.Identity?.Name
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li>
+                                            <a class="dropdown-item" href="MicrosoftIdentity/Account/SignOut">
+                                                <i class="bi bi-box-arrow-right"></i> Sign out
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </Authorized>
+                            <NotAuthorized>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="MicrosoftIdentity/Account/SignIn">
+                                        <i class="bi bi-person"></i> Sign in
+                                    </a>
+                                </li>
+                            </NotAuthorized>
+                        </AuthorizeView>
                     </ul>
                 </div>
             </div>

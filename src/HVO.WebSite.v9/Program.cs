@@ -11,6 +11,9 @@ using HVO.DataModels.Data;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using System.Net.Http;
+using Azure.Identity;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.UI;
 
 namespace HVO.WebSite.v9
 {
@@ -26,6 +29,20 @@ namespace HVO.WebSite.v9
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            // Load secrets from Azure Key Vault when a URI is configured.
+            // DefaultAzureCredential resolves credentials in order:
+            //   1. Environment vars (AZURE_CLIENT_ID / SECRET / TENANT_ID) — devcontainer SP
+            //   2. Azure CLI (az login) — local bare-metal dev
+            //   3. Managed Identity — when deployed to Azure
+            var kvUri = builder.Configuration["KeyVault:Uri"];
+            if (!string.IsNullOrWhiteSpace(kvUri))
+            {
+                builder.Configuration.AddAzureKeyVault(
+                    new Uri(kvUri),
+                    new DefaultAzureCredential());
+            }
+
             ConfigureServices(builder.Services, builder.Configuration);
 
             var app = builder.Build();
@@ -59,8 +76,16 @@ namespace HVO.WebSite.v9
             services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
-            // Add MVC and API services
+            // Add Microsoft Entra ID authentication (OpenID Connect + cookie auth)
+            // Client secret is loaded from Key Vault at startup (AzureAd--ClientSecret)
+            services.AddMicrosoftIdentityWebAppAuthentication(configuration, "AzureAd");
+
+            // Add authorization services
+            services.AddAuthorization();
+
+            // Add MVC controllers (includes Microsoft Identity UI controllers for sign-in/sign-out)
             services.AddControllersWithViews()
+                .AddMicrosoftIdentityUI()
                 .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
             services.AddControllers()
                 .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -205,6 +230,8 @@ namespace HVO.WebSite.v9
                 app.UseHttpsRedirection();
             }
             app.UseRouting();
+            app.UseAuthentication();
+            app.UseAuthorization();
             app.UseAntiforgery();
             app.MapStaticAssets();
 
