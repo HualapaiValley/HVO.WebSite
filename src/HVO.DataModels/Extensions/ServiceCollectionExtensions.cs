@@ -22,15 +22,15 @@ namespace HVO.DataModels.Extensions
             IConfiguration configuration,
             string connectionStringName = "HualapaiValleyObservatory")
         {
-            // Add Entity Framework DbContext
+            var connectionString = configuration.GetConnectionString(connectionStringName);
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                throw new InvalidOperationException($"Connection string '{connectionStringName}' not found in configuration.");
+            }
+
+            // Legacy dbo schema — read-only reference
             services.AddDbContext<HvoDbContext>(options =>
             {
-                var connectionString = configuration.GetConnectionString(connectionStringName);
-                if (string.IsNullOrEmpty(connectionString))
-                {
-                    throw new InvalidOperationException($"Connection string '{connectionStringName}' not found in configuration.");
-                }
-
                 options.UseSqlServer(connectionString, sqlOptions =>
                 {
                     sqlOptions.EnableRetryOnFailure(
@@ -41,7 +41,26 @@ namespace HVO.DataModels.Extensions
                     sqlOptions.CommandTimeout(60);
                 });
 
-                // Enable sensitive data logging in development
+                if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
+                {
+                    options.EnableSensitiveDataLogging();
+                }
+            });
+
+            // v9 schema — EF Core migrations owned by HvoV9DbContext
+            services.AddDbContext<HvoV9DbContext>(options =>
+            {
+                options.UseSqlServer(connectionString, sqlOptions =>
+                {
+                    sqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 3,
+                        maxRetryDelay: TimeSpan.FromSeconds(30),
+                        errorNumbersToAdd: null);
+
+                    sqlOptions.CommandTimeout(60);
+                    sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "v9");
+                });
+
                 if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
                 {
                     options.EnableSensitiveDataLogging();
@@ -100,16 +119,15 @@ namespace HVO.DataModels.Extensions
             bool ensureCreated = false)
         {
             using var scope = serviceProvider.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<HvoDbContext>();
 
+            var legacyContext = scope.ServiceProvider.GetRequiredService<HvoDbContext>();
             if (ensureCreated)
-            {
-                await context.Database.EnsureCreatedAsync();
-            }
+                await legacyContext.Database.EnsureCreatedAsync();
             else
-            {
-                await context.Database.MigrateAsync();
-            }
+                await legacyContext.Database.MigrateAsync();
+
+            var v9Context = scope.ServiceProvider.GetRequiredService<HvoV9DbContext>();
+            await v9Context.Database.MigrateAsync();
         }
     }
 }

@@ -121,7 +121,8 @@ namespace HVO.WebSite.v9
             // - /health/live (liveness probes for container orchestration)
             // Do NOT create duplicate HealthController - use the built-in functionality
             services.AddHealthChecks()
-                .AddDbContextCheck<HvoDbContext>("database", tags: new[] { "database", "ef" });
+                .AddDbContextCheck<HvoDbContext>("database-legacy", tags: new[] { "database", "ef" })
+                .AddDbContextCheck<HvoV9DbContext>("database-v9", tags: new[] { "database", "ef" });
 
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             // NOTE: Use built-in OpenAPI/Swagger functionality instead of custom documentation endpoints
