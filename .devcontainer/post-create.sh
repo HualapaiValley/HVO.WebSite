@@ -64,6 +64,19 @@ if compgen -G "/home/vscode/.ssh/id_*" >/dev/null 2>&1; then
 	done
 fi
 
+# Authenticate GitHub CLI if token is available
+echo "Setting up GitHub CLI authentication..."
+if [[ -n "${GH_PAT:-}" ]]; then
+	(unset GITHUB_TOKEN GH_TOKEN 2>/dev/null; echo "${GH_PAT}" | gh auth login --with-token 2>/dev/null) || true
+	gh auth setup-git 2>/dev/null || true
+	echo "gh CLI authenticated with GH_PAT"
+elif [[ -n "${GH_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]]; then
+	echo "No GH_PAT set — using existing token (GH_TOKEN/GITHUB_TOKEN)"
+	gh auth setup-git 2>/dev/null || true
+else
+	echo "Warning: No GitHub credentials detected — set GH_PAT in /etc/environment on hvo-dev-host and rebuild."
+fi
+
 # Install .NET global tools
 echo "Installing .NET global tools..."
 

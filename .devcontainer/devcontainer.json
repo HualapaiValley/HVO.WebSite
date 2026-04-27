@@ -9,6 +9,9 @@
     "storage": "16gb"
   },
   "features": {
+    "ghcr.io/devcontainers/features/dotnet:2": {
+      "version": "10.0"
+    },
     "ghcr.io/devcontainers/features/git:1": {
       "ppa": true,
       "version": "latest"
@@ -68,13 +71,16 @@
       }
     }
   },
-  "containerEnv": {
+  "remoteEnv": {
     "ASPNETCORE_ENVIRONMENT": "Development",
     "DOTNET_ENVIRONMENT": "Development",
-    "HVO_SECRET__WEBSITEV9__DB_CONNECTION": "${localEnv:HVO_SECRET__WEBSITEV9__DB_CONNECTION:}",
-    "HVO_SECRET__WEBSITEPLAYGROUND__DB_CONNECTION": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__DB_CONNECTION:}",
-    "HVO_SECRET__WEBSITEPLAYGROUND__NINA_API_KEY": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__NINA_API_KEY:}",
-    "HVO_SECRET__WEBSITEPLAYGROUND__AZDO_PAT": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__AZDO_PAT:}"
+    // A classic PAT with `repo` + `workflow` scopes.
+    // Set GH_PAT in /etc/environment on hvo-dev-host so VS Code Server picks it up.
+    "GH_PAT": "${localEnv:GH_PAT}",
+    "HVO_SECRET__WEBSITEV9__DB_CONNECTION": "${localEnv:HVO_SECRET__WEBSITEV9__DB_CONNECTION}",
+    "HVO_SECRET__WEBSITEPLAYGROUND__DB_CONNECTION": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__DB_CONNECTION}",
+    "HVO_SECRET__WEBSITEPLAYGROUND__NINA_API_KEY": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__NINA_API_KEY}",
+    "HVO_SECRET__WEBSITEPLAYGROUND__AZDO_PAT": "${localEnv:HVO_SECRET__WEBSITEPLAYGROUND__AZDO_PAT}"
   },
   "forwardPorts": [
     5000,

@@ -1,9 +1,7 @@
-# See here for image contents: https://github.com/devcontainers/images/tree/main/src/dotnet
-FROM mcr.microsoft.com/devcontainers/dotnet:1-9.0
+# Use a plain Ubuntu base — .NET SDK is installed via the devcontainer dotnet
+# feature so the exact SDK version is always controlled by devcontainer.json,
+# not by whatever version happens to be baked into a dotnet-specific image.
+FROM mcr.microsoft.com/devcontainers/base:ubuntu
 
-# The base image may include a Yarn APT source without the signing key,
-# causing apt failures. Remove it since we don't need it.
-RUN set -e; \
-    rm -f /etc/apt/sources.list.d/yarn.list || true; \
-    rm -f /etc/apt/sources.list.d/yarn.sources || true; \
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# Skip XML doc extraction for faster NuGet restores
+ENV NUGET_XMLDOC_MODE=skip
