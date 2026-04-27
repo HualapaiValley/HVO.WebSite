@@ -158,14 +158,38 @@ fi
 echo "Restoring NuGet packages..."
 dotnet restore HVO.WebSite.sln --configfile NuGet.config || true
 
+# Install Azure CLI
+echo "Installing Azure CLI..."
+if ! command_exists az; then
+	curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+else
+	echo "az CLI already installed: $(az version --query '\"azure-cli\"' -o tsv 2>/dev/null)"
+fi
+
+# Authenticate Azure CLI using service principal from .env
+# Requires AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID in .env
+echo "Configuring Azure CLI authentication..."
+if [[ -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_CLIENT_SECRET:-}" && -n "${AZURE_TENANT_ID:-}" ]]; then
+	az login --service-principal \
+		--username "${AZURE_CLIENT_ID}" \
+		--password "${AZURE_CLIENT_SECRET}" \
+		--tenant "${AZURE_TENANT_ID}" \
+		--output none 2>/dev/null && echo "az CLI authenticated with service principal" || echo "Warning: az login failed — check AZURE_CLIENT_ID/SECRET/TENANT_ID in .env"
+	[[ -n "${AZURE_SUBSCRIPTION_ID:-}" ]] && az account set --subscription "${AZURE_SUBSCRIPTION_ID}" --output none 2>/dev/null || true
+elif command_exists az; then
+	echo "No Azure service principal in .env — add AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID to the shared gist to enable auto-login."
+	echo "You can run 'az login' manually after container startup."
+fi
+
 # Generate HTTPS developer certificate
 echo "Generating HTTPS developer certificate..."
 dotnet dev-certs https --clean
 dotnet dev-certs https
 
 echo "Tool versions:"
-echo "dotnet-ef: $(dotnet ef --version 2>/dev/null || echo 'not installed')"
+echo "dotnet-ef:  $(dotnet ef --version 2>/dev/null || echo 'not installed')"
 echo "sqlpackage: $(sqlpackage --version 2>/dev/null || echo 'not installed')"
-echo "gh: $(gh --version 2>/dev/null | head -1 || echo 'not installed')"
+echo "gh:         $(gh --version 2>/dev/null | head -1 || echo 'not installed')"
+echo "az:         $(az version --query '\"azure-cli\"' -o tsv 2>/dev/null || echo 'not installed')"
 
 echo "Post-create setup completed successfully!"

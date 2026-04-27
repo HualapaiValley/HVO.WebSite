@@ -67,13 +67,14 @@ Follow this process for every issue. **Never auto-start the next issue unless ex
 
 ## Dev Container Tool Policy
 
-The dev container does **not** include Node.js, Python, or Azure CLI. Do **not** attempt to use these tools or suggest installing them.
+The dev container does **not** include Node.js or Python. Do **not** attempt to use these tools or suggest installing them.
 
-- **Scripting & automation**: Use `bash`/`zsh` shell scripts, `gh` CLI, or `dotnet` CLI
+- **Scripting & automation**: Use `bash`/`zsh` shell scripts, `gh` CLI, `dotnet` CLI, or `az` CLI
 - **JSON processing**: Use `jq` (installed) or .NET `System.Text.Json`
 - **Issue/PR management**: Use `gh issue create`, `gh pr create`, etc.
+- **Azure resources**: Use `az` CLI (installed) for Entra ID, App Service, Container Apps, subscriptions, etc.
 - **Search**: Use `rg` (ripgrep, installed) for text search
-- **Never** suggest `npm`, `npx`, `pip`, `python`, `az`, or `dotnet-script` commands
+- **Never** suggest `npm`, `npx`, `pip`, `python`, or `dotnet-script` commands
 
 ### Heredoc / Multi-Line String Warning
 
