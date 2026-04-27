@@ -26,12 +26,7 @@
       "userGid": "automatic",
       "upgradePackages": false
     },
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {
-      "version": "latest",
-      "moby": true,
-      "dockerDashComposeVersion": "v2",
-      "installDockerComposeSwitch": false
-    }
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
   "customizations": {
     "vscode": {
@@ -121,8 +116,8 @@
       "target": "/home/vscode/.dotnet/corefx/cryptography/x509stores"
     },
     {
-      "type": "bind",
-      "source": "${localEnv:HOME}/.microsoft/usersecrets",
+      "source": "hvo-website-usersecrets",
+      "type": "volume",
       "target": "/home/vscode/.microsoft/usersecrets"
     }
   ],
