@@ -63,7 +63,7 @@ HVO.WebSite v9 is a clean-slate rebuild of the Hualapai Valley Observatory websi
 - [x] Add test projects: unit (MSTest + Moq), API (WebApplicationFactory), E2E (Playwright)
 - [ ] Create `HvoV9DbContext` with initial EF Core migration
 - [ ] Define v9 schema entities listed above
-- [ ] Configure Entra ID integration in `Program.cs` via `Microsoft.Identity.Web`
+- [x] Configure Entra ID integration in `Program.cs` via `Microsoft.Identity.Web`
 - [ ] Implement API key middleware for ingest endpoints
 - [ ] Implement base ingest endpoints (`POST /api/v1/weather/raw`, `POST /api/v1/images`)
 - [ ] Implement base read endpoints (`GET /api/v1/weather/latest`, `GET /api/v1/weather/highs-lows`)
@@ -113,7 +113,8 @@ All tests must pass (`dotnet test`) before any PR is created. E2E tests are skip
 
 - .NET SDK `10.0.203` (pinned in `global.json`)
 - Zero build warnings, zero build errors — mandatory
-- No `az` CLI, `npm`, `npx`, Node.js, or Python
+- No `npm`, `npx`, Node.js, or Python
+- `az` CLI is available for Azure/Entra resource management
 - No heredoc syntax in shell scripts (use file-creation tools instead)
 - Central package management via `Directory.Packages.props`
 - Branch naming: `feature/<issue#>-<short-desc>`, `fix/<issue#>-<short-desc>`
