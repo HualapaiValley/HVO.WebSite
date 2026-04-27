@@ -74,6 +74,13 @@ else
 	dotnet tool install --global dotnet-ef
 fi
 
+# SQLPackage CLI (for SQL project extract/deploy workflows)
+if dotnet tool list -g | grep -q '^microsoft.sqlpackage\s'; then
+	dotnet tool update --global microsoft.sqlpackage
+else
+	dotnet tool install --global microsoft.sqlpackage
+fi
+
 # Restore NuGet packages
 echo "Restoring NuGet packages..."
 dotnet restore HVO.WebSite.sln --configfile src/NuGet.config || true
@@ -82,5 +89,10 @@ dotnet restore HVO.WebSite.sln --configfile src/NuGet.config || true
 echo "Generating HTTPS developer certificate..."
 dotnet dev-certs https --clean
 dotnet dev-certs https
+
+echo "Tool versions:"
+echo "dotnet-ef: $(dotnet ef --version 2>/dev/null || echo 'not installed')"
+echo "sqlpackage: $(sqlpackage --version 2>/dev/null || echo 'not installed')"
+echo "gh: $(gh --version 2>/dev/null | head -1 || echo 'not installed')"
 
 echo "Post-create setup completed successfully!"

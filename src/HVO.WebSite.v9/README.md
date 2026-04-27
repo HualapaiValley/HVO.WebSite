@@ -12,7 +12,7 @@ A production-style ASP.NET Core + Blazor Server application for HVO v9. It expos
 
 ## Technologies Used
 
-- .NET 9.0 / ASP.NET Core
+- .NET 10.0 / ASP.NET Core
 - Blazor Server (Interactive Server components)
 - MVC Controllers for API endpoints
 - Entity Framework Core (SQL Server) via `HVO.DataModels` and `HvoDbContext`

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Asp.Versioning;
 using HVO.DataModels.Extensions;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Components.Web;
 using HVO.WebSite.v9.Middleware;
 using Microsoft.AspNetCore.Http.Features;

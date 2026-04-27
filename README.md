@@ -1,7 +1,7 @@
 # HVO.WebSite
 
 [![CI](https://github.com/RoySalisbury/HVO.WebSite/actions/workflows/ci.yml/badge.svg)](https://github.com/RoySalisbury/HVO.WebSite/actions/workflows/ci.yml)
-![.NET](https://img.shields.io/badge/.NET-9.0-blue)
+![.NET](https://img.shields.io/badge/.NET-10.0-blue)
 ![License](https://img.shields.io/badge/license-proprietary-lightgrey)
 
 Observatory dashboard and monitoring web application built with ASP.NET Core and Blazor Server (SSR). Provides real-time observatory status, weather monitoring, imaging session tracking, and equipment control interfaces.

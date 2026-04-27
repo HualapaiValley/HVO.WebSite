@@ -1,0 +1,18 @@
+CREATE TABLE [dbo].[AllSkyCameraRecords] (
+    [Id]              INT                IDENTITY (1, 1) NOT NULL,
+    [RecordDateTime]  DATETIMEOFFSET (7) NOT NULL,
+    [ImageType]       TINYINT            NOT NULL,
+    [CameraNumber]    TINYINT            NOT NULL,
+    [StorageLocation] VARCHAR (MAX)      NOT NULL,
+    CONSTRAINT [PK_AllSkyCameraRecords] PRIMARY KEY CLUSTERED ([Id] ASC)
+);
+
+
+GO
+
+CREATE NONCLUSTERED INDEX [IX_AllSkyCameraRecords]
+    ON [dbo].[AllSkyCameraRecords]([RecordDateTime] ASC, [CameraNumber] ASC, [ImageType] ASC);
+
+
+GO
+

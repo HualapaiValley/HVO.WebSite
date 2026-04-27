@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-**HVO.WebSite** is a .NET 9 observatory dashboard and monitoring web application built with ASP.NET Core and Blazor Server (SSR). It provides real-time observatory status, weather monitoring, imaging session tracking, and equipment control interfaces.
+**HVO.WebSite** is a .NET 10 observatory dashboard and monitoring web application built with ASP.NET Core and Blazor Server (SSR). It provides real-time observatory status, weather monitoring, imaging session tracking, and equipment control interfaces.
 
-- **Runtime**: .NET 9 / ASP.NET Core + Blazor Server (SSR)
+- **Runtime**: .NET 10 / ASP.NET Core + Blazor Server (SSR)
 - **ORM**: Entity Framework Core
 - **Dependencies**: HVO.Core, HVO.Core.SourceGenerators (NuGet from HVO.SDK)
 

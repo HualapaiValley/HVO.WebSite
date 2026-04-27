@@ -3,28 +3,27 @@
 # -------------------------
 # Build the application
 # -------------------------
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG WEBSITE_RUNTIME=linux-arm64
 WORKDIR /src
 
 # Copy solution metadata and project files to warm the restore cache
-COPY ["src/global.json", "./"]
-COPY ["src/NuGet.config", "./"]
-COPY ["Directory.Build.props", "../"]
-COPY ["Directory.Packages.props", "../"]
-COPY ["src/HVO/HVO.csproj", "HVO/"]
-COPY ["src/HVO.DataModels/HVO.DataModels.csproj", "HVO.DataModels/"]
-COPY ["src/HVO.WebSite.Themes/HVO.WebSite.Themes.csproj", "HVO.WebSite.Themes/"]
-COPY ["src/HVO.WebSite/HVO.WebSite.v9/HVO.WebSite.v9.csproj", "HVO.WebSite/HVO.WebSite.v9/"]
+COPY ["global.json", "./"]
+COPY ["NuGet.config", "./"]
+COPY ["Directory.Build.props", "./"]
+COPY ["Directory.Packages.props", "./"]
+COPY ["src/HVO.DataModels/HVO.DataModels.csproj", "src/HVO.DataModels/"]
+COPY ["src/HVO.WebSite.Themes/HVO.WebSite.Themes.csproj", "src/HVO.WebSite.Themes/"]
+COPY ["src/HVO.WebSite.v9/HVO.WebSite.v9.csproj", "src/HVO.WebSite.v9/"]
 
 # Restore dependencies
-RUN dotnet restore "HVO.WebSite/HVO.WebSite.v9/HVO.WebSite.v9.csproj" \
+RUN dotnet restore "src/HVO.WebSite.v9/HVO.WebSite.v9.csproj" \
     --runtime ${WEBSITE_RUNTIME} \
     --disable-parallel
 
 # Copy the remainder of the source tree and publish the app
-COPY src/ ./
-WORKDIR /src/HVO.WebSite/HVO.WebSite.v9
+COPY . ./
+WORKDIR /src/src/HVO.WebSite.v9
 
 RUN dotnet publish "HVO.WebSite.v9.csproj" \
     --configuration Release \
@@ -37,7 +36,7 @@ RUN dotnet publish "HVO.WebSite.v9.csproj" \
 # -------------------------
 # Runtime image
 # -------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # Install minimal native dependencies for fonts and health checks

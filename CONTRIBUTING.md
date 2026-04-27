@@ -60,7 +60,7 @@ Always branch from `main`. Use the `feature/` or `fix/` pattern for all work, in
 
 ## Coding Standards
 
-- **Language**: C# / .NET 9
+- **Language**: C# / .NET 10
 - **Style**: Follow existing conventions in the codebase
 - **Warnings**: Build must produce **zero warnings and zero errors**
 - **Blazor Components**: Follow file structure conventions (`.razor`, `.razor.cs`, `.razor.css`)

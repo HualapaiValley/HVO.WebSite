@@ -41,6 +41,8 @@
         "ms-dotnettools.vscode-dotnet-runtime",
         "ms-dotnettools.blazorwasm-companion",
         "ms-mssql.mssql",
+        "ms-mssql.sql-database-projects-vscode",
+        "ms-playwright.playwright",
         "ms-azuretools.vscode-docker",
         "GitHub.copilot",
         "GitHub.copilot-chat",

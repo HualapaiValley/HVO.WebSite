@@ -4,7 +4,7 @@ Entity Framework Core data access layer providing database contexts, entity mode
 
 ## 📦 Package Information
 
-- **Target Framework**: .NET 9.0
+- **Target Framework**: .NET 10.0
 - **Namespace**: `HVO.DataModels`
 - **Type**: Data Access Library
 - **Database**: SQLite (configurable)
@@ -314,7 +314,6 @@ Assert.NotNull(latest);
 ## 📚 Used By
 
 - `HVO.WebSite.v9` - Main website data access
-- `HVO.WebSite.Playground` - Test website
 - `HVO.SkyMonitorV5.RPi` - Sky monitoring data (may migrate to separate context)
 - `HVO.RoofControllerV4.RPi` - Equipment status logging
 

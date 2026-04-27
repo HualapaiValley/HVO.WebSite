@@ -4,7 +4,7 @@ Razor Class Library providing the **HVO Dark** design system, shared web assets,
 
 ## 📦 Package Information
 
-- **Target Framework**: .NET 9.0
+- **Target Framework**: .NET 10.0
 - **Type**: Razor Class Library (RCL)
 - **Static Web Assets**: CSS themes, fonts, icons
 - **Package Name**: `HVO.WebSite.Themes` (future NuGet)
@@ -282,7 +282,6 @@ Use Bootstrap Icons (already integrated via CDN in consuming apps) or add custom
 ## 📚 Used By
 
 - `HVO.WebSite.v9` - Main observatory website
-- `HVO.WebSite.Playground` - Development/testing site
 - `HVO.RoofControllerV4.iPad` - iPad control app (future)
 - `HVO.SkyMonitorV5.Viewer` - WASM sky monitor viewer (future)
 
