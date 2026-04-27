@@ -64,6 +64,17 @@ if compgen -G "/home/vscode/.ssh/id_*" >/dev/null 2>&1; then
 	done
 fi
 
+# Configure git identity from environment
+echo "Configuring git identity..."
+if [[ -n "${GIT_AUTHOR_NAME:-}" ]]; then
+	git config --global user.name "${GIT_AUTHOR_NAME}"
+	git config --global user.email "${GIT_AUTHOR_EMAIL}"
+	echo "Git identity set to: ${GIT_AUTHOR_NAME} <${GIT_AUTHOR_EMAIL}>"
+else
+	echo "Warning: GIT_AUTHOR_NAME not set — git commits will need manual identity config."
+fi
+git config --global commit.gpgsign false
+
 # Authenticate GitHub CLI if token is available
 echo "Setting up GitHub CLI authentication..."
 if [[ -n "${GH_PAT:-}" ]]; then
