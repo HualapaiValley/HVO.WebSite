@@ -6,6 +6,10 @@ obj/
 *.userosscache
 *.sln.docstates
 
+## Secrets — never commit
+.env
+*.env
+
 ## NuGet
 *.nupkg
 project.lock.json

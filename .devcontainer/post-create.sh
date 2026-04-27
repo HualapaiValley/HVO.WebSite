@@ -88,6 +88,47 @@ else
 	echo "Warning: No GitHub credentials detected — set GH_PAT in /etc/environment on hvo-dev-host and rebuild."
 fi
 
+# Bootstrap .env from GitHub Gist
+# Shared secrets gist: ADO PAT, GH PAT, Azure details, SSH keys, host credentials
+ENV_GIST="1f014918502877f0c37738fa733dad65"
+ENV_FILE="/workspaces/HVO.WebSite/.env"
+echo "Bootstrapping .env from GitHub Gist..."
+if [[ -f "$ENV_FILE" ]]; then
+	echo ".env already exists — loading it"
+else
+	_gist_token="${GH_PAT:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
+	if [[ -z "$_gist_token" ]] && command_exists gh; then
+		_gist_token=$(gh auth token 2>/dev/null) || true
+	fi
+	if [[ -n "$_gist_token" ]]; then
+		if GH_TOKEN="$_gist_token" gh gist view "$ENV_GIST" --raw --filename .env \
+				> "$ENV_FILE" 2>/dev/null; then
+			chmod 600 "$ENV_FILE"
+			echo ".env fetched from Gist successfully"
+		else
+			echo "Warning: Could not fetch .env from Gist — secrets will not be available"
+			rm -f "$ENV_FILE"
+		fi
+	else
+		echo "Warning: No GitHub token available — cannot fetch .env from Gist"
+	fi
+fi
+
+if [[ -f "$ENV_FILE" ]]; then
+	set -a
+	# shellcheck disable=SC1090
+	source "$ENV_FILE"
+	set +a
+	# Persist .env sourcing into shell profiles so it's available in new terminals
+	for _rc in /home/vscode/.bashrc /home/vscode/.zshrc; do
+		if [[ -f "$_rc" ]] && ! grep -qF "# >>> devcontainer-env >>>" "$_rc" 2>/dev/null; then
+			printf '\n# >>> devcontainer-env >>>\nif [ -f %s ]; then set -a; source %s; set +a; fi\n# <<< devcontainer-env <<<\n' \
+				"$ENV_FILE" "$ENV_FILE" >> "$_rc"
+		fi
+	done
+	echo ".env sourced and added to shell profiles"
+fi
+
 # Install .NET global tools
 echo "Installing .NET global tools..."
 
