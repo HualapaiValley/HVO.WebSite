@@ -22,6 +22,12 @@ public class HvoV9DbContext : DbContext
 
     public DbSet<SiteConfiguration> SiteConfiguration { get; set; }
 
+    public DbSet<ApiKey> ApiKeys { get; set; }
+
+    public DbSet<ApiKeyClaim> ApiKeyClaims { get; set; }
+
+    public DbSet<ApiKeyOwner> ApiKeyOwners { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -67,6 +73,35 @@ public class HvoV9DbContext : DbContext
         modelBuilder.Entity<SiteConfiguration>(entity =>
         {
             entity.Property(e => e.UpdatedAt).HasColumnType("datetime2");
+        });
+
+        modelBuilder.Entity<ApiKeyOwner>(entity =>
+        {
+            entity.HasIndex(e => e.EntraObjectId).IsUnique();
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
+        });
+
+        modelBuilder.Entity<ApiKey>(entity =>
+        {
+            entity.HasIndex(e => e.KeyHash).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
+            entity.Property(e => e.ExpiresAt).HasColumnType("datetime2");
+            entity.Property(e => e.LastUsedAt).HasColumnType("datetime2");
+            entity.Property(e => e.Type).HasConversion<int>();
+            entity.HasOne(e => e.Owner)
+                  .WithMany(o => o.ApiKeys)
+                  .HasForeignKey(e => e.OwnerId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ApiKeyClaim>(entity =>
+        {
+            entity.HasIndex(e => new { e.ApiKeyId, e.ClaimType });
+            entity.HasOne(e => e.ApiKey)
+                  .WithMany(k => k.Claims)
+                  .HasForeignKey(e => e.ApiKeyId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

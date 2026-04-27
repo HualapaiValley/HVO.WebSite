@@ -80,8 +80,17 @@ namespace HVO.WebSite.v9
             // Client secret is loaded from Key Vault at startup (AzureAd--ClientSecret)
             services.AddMicrosoftIdentityWebAppAuthentication(configuration, "AzureAd");
 
-            // Add authorization services
-            services.AddAuthorization();
+            // Add authorization services with API key scope policies
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("WeatherIngest", p => p.RequireClaim("scope", ApiScopes.WeatherIngest));
+                options.AddPolicy("ImageIngest",   p => p.RequireClaim("scope", ApiScopes.ImageIngest));
+                options.AddPolicy("PowerIngest",   p => p.RequireClaim("scope", ApiScopes.PowerIngest));
+                options.AddPolicy("WeatherRead",   p => p.RequireClaim("scope", ApiScopes.WeatherRead, ApiScopes.ApiRead));
+            });
+
+            // API key cache — short-lived to avoid DB hit on every request
+            services.AddMemoryCache();
 
             // Add MVC controllers (includes Microsoft Identity UI controllers for sign-in/sign-out)
             services.AddControllersWithViews()
@@ -232,6 +241,7 @@ namespace HVO.WebSite.v9
             }
             app.UseRouting();
             app.UseAuthentication();
+            app.UseMiddleware<ApiKeyAuthMiddleware>();
             app.UseAuthorization();
             app.UseAntiforgery();
             app.MapStaticAssets();
