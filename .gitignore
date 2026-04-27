@@ -30,3 +30,4 @@ launchSettings.json
 ## Test Results
 TestResults/
 coverage-report/
+core.*
