@@ -96,7 +96,7 @@ fi
 
 # Restore NuGet packages
 echo "Restoring NuGet packages..."
-dotnet restore HVO.WebSite.sln --configfile src/NuGet.config || true
+dotnet restore HVO.WebSite.sln --configfile NuGet.config || true
 
 # Generate HTTPS developer certificate
 echo "Generating HTTPS developer certificate..."
