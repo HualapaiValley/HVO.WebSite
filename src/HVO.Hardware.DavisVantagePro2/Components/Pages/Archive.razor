@@ -41,3 +41,85 @@ else
     <div class="alert @(_isError ? "alert-error" : "alert-success")" style="margin-top:.75rem">@_msg</div>
 }
 
+<h2 style="margin-top:2rem">Archive History</h2>
+<div class="form-row">
+    <label>Since</label>
+    <input type="datetime-local"
+           value="@_since.ToString("yyyy-MM-ddTHH:mm")"
+           @onchange="e => _since = DateTime.Parse(e.Value!.ToString()!)"
+           style="font-size:.875rem" />
+    <button class="btn btn-primary" @onclick="LoadHistoryAsync" disabled="@_historyLoading">
+        @if (_historyLoading) { <span>Loading…</span> } else { <span>Load</span> }
+    </button>
+    <button class="btn" @onclick='() => { _since = DateTime.Now.AddDays(-1); }' disabled="@_historyLoading"
+            style="margin-left:.25rem">
+        Last 24 h
+    </button>
+</div>
+
+@if (_historyLoading)
+{
+    <p style="margin-top:.75rem;color:#cdd6f4">⏳ Fetching archive records from console…</p>
+}
+else if (_historyError is not null)
+{
+    <div class="alert alert-error" style="margin-top:.75rem">@_historyError</div>
+}
+else if (_historyRecords is not null)
+{
+    <p style="margin-top:.5rem;font-size:.875rem;color:#a6adc8">
+        @_historyRecords.Count record@(_historyRecords.Count == 1 ? "" : "s") loaded
+        since @_since.ToString("yyyy-MM-dd HH:mm")
+    </p>
+
+    @if (_historyRecords.Count == 0)
+    {
+        <p style="color:#a6adc8">No records found for the selected time range.</p>
+    }
+    else
+    {
+        <div style="overflow-x:auto;margin-top:.5rem">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date / Time</th>
+                        <th>Outside Temp °F<br /><small>avg / high / low</small></th>
+                        <th>Inside Temp °F</th>
+                        <th>Outside Humidity %</th>
+                        <th>Inside Humidity %</th>
+                        <th>Pressure inHg</th>
+                        <th>Wind Speed mph</th>
+                        <th>Wind Gust mph</th>
+                        <th>Rain in</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in _historyRecords)
+                    {
+                        <tr>
+                            <td>@r.DateTimeLocal.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>
+                                @Fmt(r.OutsideTemperatureF) /
+                                @Fmt(r.HighOutsideTemperatureF) /
+                                @Fmt(r.LowOutsideTemperatureF)
+                            </td>
+                            <td>@Fmt(r.InsideTemperatureF)</td>
+                            <td>@Fmt(r.OutsideHumidityPercent)</td>
+                            <td>@Fmt(r.InsideHumidityPercent)</td>
+                            <td>@Fmt(r.BarometricPressureInHg, "F3")</td>
+                            <td>@Fmt(r.WindSpeedMph)</td>
+                            <td>@Fmt(r.WindGustMph)</td>
+                            <td>@Fmt(r.RainInches, "F2")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private static string Fmt(double? v, string fmt = "F1") =>
+        v.HasValue ? v.Value.ToString(fmt) : "—";
+}
+
