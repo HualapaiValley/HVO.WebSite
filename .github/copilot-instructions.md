@@ -34,7 +34,9 @@ Follow this process for every issue. **Never auto-start the next issue unless ex
 ### 2. Implement
 
 - Work the issue on the branch.
+- Write appropriate tests for **all new and modified code**.
 - Ensure the project builds with **zero warnings and zero errors**.
+- Ensure all tests pass with **zero failures and zero warnings**.
 
 ### 3. Submit
 
@@ -47,7 +49,7 @@ Follow this process for every issue. **Never auto-start the next issue unless ex
 - Rebuild the project — **zero warnings and zero errors**.
 - Commit and push the fixes.
 
-> **Hard rule:** Never create a PR or merge that has warnings or errors unless specifically instructed otherwise.
+> **Hard rule:** Never create a PR or merge that has warnings or errors unless specifically instructed otherwise. Never create a PR or merge with failing tests or test warnings.
 
 ### 5. Merge & Clean Up
 
