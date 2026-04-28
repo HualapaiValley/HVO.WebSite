@@ -54,7 +54,7 @@ HVO.WebSite v9 is a clean-slate rebuild of the Hualapai Valley Observatory websi
 
 ## Phase Plan
 
-### Phase 1 — Foundation (Current)
+### Phase 1 — Foundation (Complete)
 
 - [x] Upgrade to .NET 10, zero warnings/errors
 - [x] Remove hardcoded credentials; use environment variables
@@ -69,14 +69,167 @@ HVO.WebSite v9 is a clean-slate rebuild of the Hualapai Valley Observatory websi
 - [x] Implement base read endpoints (`GET /api/v1/weather/v9/raw/recent`, `GET /api/v1/weather/v9/hourly/recent`)
 - [x] Implement Admin and User Entra app roles with `[Authorize(Policy = "AdminOnly")]` protected page
 - [x] Integration tests for `/admin` page authorization (unauthenticated → OIDC challenge, wrong role → AccessDenied, Admin role → 200)
-- [ ] Data retention background jobs (prune raw after 2 months, prune minute after 6 months)
-- [ ] Image ingest endpoint (`POST /api/v1/images`)
+
+---
+
+### Phase 1.1 — Weather Station Data Acquisition
+
+**Goal:** Live weather data flows from the Davis Vantage Pro 2 console → SQLite outbox → web API → database.
+
+#### New project: `src/HVO.Hardware.DavisVantagePro2`
+
+A .NET Worker Service deployed as a Docker container (multi-arch: `linux/amd64` + `linux/arm64` for Raspberry Pi).
+
+**Connection:** WeatherLink IP adapter at `192.168.2.121:22222` — TCP socket tunneling the Davis serial binary protocol. `TcpClient` replaces `SerialPort`; the binary framing (LOOP2, DMPAFT, CRC-CCITT-16) is identical to serial.
+
+**Components:**
+
+| Component | Purpose |
+|---|---|
+| `DavisConsoleClient` | TCP connection management — wake, send commands, read binary frames, CRC validation |
+| `DavisLoop2Packet` | Maps the 99-byte LOOP2 binary structure (little-endian, `struct`-style) |
+| `DavisArchiveRecord` | Maps 52-byte archive records from DMPAFT (used for catchup on startup) |
+| `DavisProtocolConstants` | CRC table, magic bytes, packet type codes |
+| `WeatherStationWorker` | `BackgroundService` — polls LOOP2 every N seconds, runs DMPAFT catchup on start |
+| `OutboxForwarder` | `BackgroundService` — sweeps pending outbox records, POSTs to web API, marks sent |
+| `OutboxDbContext` | EF Core + SQLite — owns the `OutboxRecord` table |
+| `StationStatusController` | Minimal local API: `GET /status` returns latest record + outbox stats |
+| Blazor/Razor status page | Single-page local UI: latest reading, station health, pending/sent counts |
+
+**Offline-first outbox (transactional, FIFO, guaranteed delivery):**
+
+```
+READ LOOP2 from TCP
+  │
+  ├─ BEGIN TRANSACTION
+  │    INSERT OutboxRecord (payload, status='Pending', sequence_id=AUTOINCREMENT)
+  │  COMMIT  ← durable; crash-safe from this point
+  │
+OutboxForwarder (background sweep):
+  │
+  ├─ SELECT TOP 1 WHERE status='Pending' ORDER BY sequence_id ASC
+  ├─ POST /api/v1/weather/v9/raw  (X-Api-Key header)
+  │    on HTTP 2xx  → UPDATE status='Sent', sent_at=now
+  │    on failure   → UPDATE attempt_count++, next_retry_at=now+exponential_backoff
+  │    (row never deleted — audit trail preserved)
+```
+
+No row is deleted or marked sent until HTTP 2xx is confirmed. Process crash → restart picks up from last `Pending` row. Exponential backoff with a configurable max (e.g., 5 minutes) prevents thundering herd on reconnect.
+
+**LOOP2 fields captured → `WeatherRaw` (see schema changes below):**
+
+From the Davis serial protocol spec (verified against WeeWX vantage driver):
+
+| LOOP2 field | Meaning | `WeatherRaw` column |
+|---|---|---|
+| `outTemp` | Outside temperature (°F × 10, signed) | `TemperatureF` |
+| `outHumidity` | Outside relative humidity (%) | `HumidityPercent` |
+| `dewpoint` | Dew point (°F, console-computed) | `DewPointF` |
+| `heatindex` | Heat index (°F, console-computed) | `HeatIndexF` *(new)* |
+| `windchill` | Wind chill (°F, console-computed) | `WindChillF` *(new)* |
+| `barometer` | Station-corrected barometric pressure (inHg × 1000) | `BarometricPressureInHg` |
+| `windSpeed` | Instantaneous wind speed (mph) | `WindSpeedMph` |
+| `windGust10` | 10-min wind gust (mph) | `WindGustMph` |
+| `windDir` | Instantaneous wind direction (degrees) | `WindDirectionDegrees` |
+| `rainRate` | Instantaneous rain rate (in/hr, decoded from bucket tips) | `RainRateInchesPerHour` *(renamed)* |
+| `dayRain` | Cumulative rain since midnight (in, decoded from bucket tips) | `DailyRainInches` *(renamed)* |
+| `UV` | UV index (× 10) | `UvIndex` |
+| `radiation` | Solar radiation (W/m²) | `SolarRadiationWm2` |
+| `inTemp` | Inside console temperature (°F × 10) | `InsideTemperatureF` *(new)* |
+| `inHumidity` | Inside console humidity (%) | `InsideHumidityPercent` *(new)* |
+
+> **Note on `RainfallInches` rename:** The legacy field was ambiguous (rate? daily? storm?). Per the Davis serial protocol, `rainRate` is instantaneous rate and `dayRain` is daily cumulative. These become two separate columns. The existing `RainfallInches` column is removed in the migration.
+
+**`WeatherRaw` schema changes required (new EF Core migration):**
+
+- Remove: `RainfallInches`
+- Add: `RainRateInchesPerHour`, `DailyRainInches`, `HeatIndexF`, `WindChillF`, `InsideTemperatureF`, `InsideHumidityPercent`
+- Add unique index on `(StationId, RecordedAt)` — enables idempotent ingest (DMPAFT catchup retries)
+- Ingest endpoint handles unique constraint violation as HTTP 200/idempotent (not 500)
+
+**Local web UI (no auth — LAN-only):**
+
+Single Blazor/Razor page at the container's HTTP port showing:
+- Latest reading (all fields, timestamp, age)
+- Station connectivity status (connected / last seen)
+- Outbox: pending count, last-sent timestamp, last error
+
+**Docker:**
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+# multi-arch: --platform linux/amd64 or linux/arm64
+```
+
+`docker-compose.yml` for local dev with environment overrides for host IP, API endpoint, API key.
+
+**Configuration (environment variables / appsettings):**
+
+| Setting | Purpose |
+|---|---|
+| `Davis:Host` | WeatherLink IP address (`192.168.2.121`) |
+| `Davis:Port` | TCP port (`22222`) |
+| `Davis:PollingIntervalSeconds` | How often to request LOOP2 (default: `10`) |
+| `Davis:ArchiveCatchupOnStartup` | Run DMPAFT on startup (`true`) |
+| `Api:Endpoint` | Ingest API URL |
+| `Api:Key` | API key (with `ingest:weather` scope) |
+| `Outbox:MaxRetryAttempts` | Before giving up on a record |
+| `Outbox:MaxBackoffSeconds` | Cap for exponential backoff |
+
+**Tests:**
+
+| Test | Type |
+|---|---|
+| LOOP2 binary packet parsing (known byte sequence → expected field values) | Unit |
+| CRC-CCITT-16 validation (valid and corrupt packet) | Unit |
+| Rain bucket tip decoding (all 3 bucket types) | Unit |
+| Outbox: record inserted on read, not deleted on forward failure | Unit |
+| Outbox: record marked sent only on HTTP 2xx | Unit |
+| Outbox: FIFO ordering (sequence_id respected) | Unit |
+| Outbox: exponential backoff increments correctly | Unit |
+| End-to-end: LOOP2 parsed → outbox written → forwarded → `WeatherRaw` in DB | Integration |
+
+#### Web app changes for Phase 1.1
+
+- `WeatherAggregationService` (`BackgroundService` in `HVO.WebSite.v9`):
+  - Every 60 seconds: aggregate `WeatherRaw` rows in the last completed minute → upsert `WeatherMinute`
+  - Every 60 minutes: aggregate `WeatherMinute` rows in the last completed hour → upsert `WeatherHourly`
+  - Dominant wind direction: vector average (sin/cos), not scalar average
+  - Idempotent: upsert by `(StationId, PeriodStart)` — safe to re-run
+
+**Phase 1.1 checklist:**
+
+- [ ] `WeatherRaw` schema migration — add/rename rainfall and inside sensor fields, unique index
+- [ ] Update ingest endpoint to handle unique constraint as idempotent (200 if duplicate)
+- [ ] Create `src/HVO.Hardware.DavisVantagePro2` Worker Service project
+- [ ] Implement `DavisConsoleClient` (TCP, wake, LOOP2, DMPAFT, CRC-CCITT-16)
+- [ ] Implement `DavisLoop2Packet` binary parser
+- [ ] Implement `DavisArchiveRecord` binary parser
+- [ ] Implement SQLite transactional outbox (`OutboxDbContext`, `OutboxRecord`)
+- [ ] Implement `WeatherStationWorker` (poll LOOP2, write to outbox)
+- [ ] Implement `OutboxForwarder` (sweep outbox, POST to API, exponential backoff)
+- [ ] Local status page (latest reading + outbox health)
+- [ ] Dockerfile (multi-arch: amd64 + arm64)
+- [ ] Implement `WeatherAggregationService` in web app (minute + hourly rollups)
+- [ ] Unit tests: packet parsing, CRC, rain decoding, outbox behavior
+- [ ] Integration tests: ingest duplicate → idempotent; aggregation correctness
+- [ ] Zero warnings, zero errors
+
+---
+
+### Phase 1.5 — Data Retention
+
+- [ ] Background job: prune `WeatherRaw` rows older than 2 months
+- [ ] Background job: prune `WeatherMinute` rows older than 6 months
+- [ ] Tests: retention jobs delete correct rows, leave in-window rows intact
+
+---
 
 ### Phase 2 — Weather Dashboard
 
 - [ ] Weather summary page (current conditions, 24h trend)
 - [ ] Historical weather charts (hourly/daily/monthly)
-- [ ] Data retention background jobs (prune raw after 2 months, prune minute after 6 months)
+- [ ] Image ingest endpoint (`POST /api/v1/images`)
 - [ ] Weather station health/status indicator
 
 ### Phase 3 — Power Dashboard
