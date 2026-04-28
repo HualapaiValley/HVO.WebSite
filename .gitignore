@@ -19,7 +19,6 @@ artifacts/
 ## Visual Studio
 .vs/
 *.rsuser
-launchSettings.json
 
 ## Rider
 .idea/
