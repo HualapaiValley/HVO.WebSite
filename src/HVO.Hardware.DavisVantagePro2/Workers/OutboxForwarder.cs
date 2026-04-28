@@ -120,6 +120,8 @@ public sealed class OutboxForwarder(
         {
             record.LastError = "Request timed out";
             ScheduleRetry(record);
+            LastError = record.LastError;
+            logger.LogWarning("Request timed out for record {Id}", record.Id);
         }
     }
 

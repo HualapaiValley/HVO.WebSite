@@ -1,7 +1,6 @@
 @page "/rain"
 @rendermode InteractiveServer
 @using HVO.Hardware.DavisVantagePro2.Station
-@using HVO.Hardware.DavisVantagePro2.Station.Models
 @inject VantageStation Station
 
 <h1>Rain Settings</h1>
@@ -45,45 +44,3 @@ else if (_settings is not null)
     <div class="alert @(_isError ? "alert-error" : "alert-success")" style="margin-top:.75rem">@_msg</div>
 }
 
-@code {
-    private StationSettings? _settings;
-    private bool _loading;
-    private string? _loadError;
-    private string? _msg;
-    private bool _isError;
-    private int _bucketType;
-    private int _rainYearStart = 1;
-
-    protected override async Task OnInitializedAsync()
-    {
-        _loading = true;
-        try
-        {
-            _settings = await Station.GetStationSettingsAsync();
-            _bucketType   = _settings.RainBucketType;
-            _rainYearStart = _settings.RainYearStartMonth;
-        }
-        catch (Exception ex) { _loadError = ex.Message; }
-        finally { _loading = false; }
-    }
-
-    private async Task SaveBucketAsync()
-    {
-        try
-        {
-            await Station.SetRainBucketTypeAsync(_bucketType);
-            _msg = "Rain bucket type saved."; _isError = false;
-        }
-        catch (Exception ex) { _msg = ex.Message; _isError = true; }
-    }
-
-    private async Task SaveRainYearAsync()
-    {
-        try
-        {
-            await Station.SetRainYearStartAsync(_rainYearStart);
-            _msg = "Rain year start saved."; _isError = false;
-        }
-        catch (Exception ex) { _msg = ex.Message; _isError = true; }
-    }
-}

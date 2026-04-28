@@ -176,7 +176,7 @@ public sealed class DavisConsoleClient : IDisposable
         {
             try
             {
-                await WakeAsync(maxTries, ct);
+                await WakeAsync(maxTries: 1, ct);
                 await WriteAsync(cmdBytes, ct);
                 await Task.Delay(500, ct); // console reaction time
 

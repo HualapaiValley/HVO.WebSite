@@ -30,18 +30,3 @@ else if (_info is not null)
 
 <button class="btn btn-primary" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
 
-@code {
-    private HVO.Hardware.DavisVantagePro2.Station.Models.StationInfo? _info;
-    private bool _loading;
-    private string? _error;
-
-    protected override async Task OnInitializedAsync() => await LoadAsync();
-
-    private async Task LoadAsync()
-    {
-        _loading = true; _error = null;
-        try { _info = await Station.GetStationInfoAsync(); }
-        catch (Exception ex) { _error = ex.Message; }
-        finally { _loading = false; }
-    }
-}

@@ -7,7 +7,6 @@
 @inject VantageStation Station
 @inject WeatherStationWorker Worker
 @inject OutboxForwarder Forwarder
-@implements IDisposable
 
 <h1>Station Status</h1>
 
@@ -90,24 +89,3 @@ else
     <span class="value" style="color:#f38ba8">@(Worker.LastError ?? "none")</span>
 </div>
 
-@code {
-    private Loop2Packet? _reading;
-    private System.Threading.Timer? _timer;
-
-    protected override void OnAfterRender(bool firstRender)
-    {
-        if (firstRender)
-            _timer = new System.Threading.Timer(_ => InvokeAsync(Refresh), null, 0, 10_000);
-    }
-
-    private void Refresh()
-    {
-        _reading = Worker.LatestReading;
-        StateHasChanged();
-    }
-
-    public void Dispose() => _timer?.Dispose();
-
-    private static string? F(double? v) => v?.ToString("F1");
-    private static string? F0(double? v) => v?.ToString("F0");
-}

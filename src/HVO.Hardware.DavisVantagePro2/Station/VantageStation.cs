@@ -574,9 +574,9 @@ public sealed class VantageStation : IAsyncDisposable
             {
                 "inTemp"   => 0x32,
                 "outTemp"  => 0x34,
-                string v when v.StartsWith("extraTemp") && int.TryParse(v[9..], out int ei) => (ushort)(0x34 + ei),
-                string v when v.StartsWith("soilTemp")  && int.TryParse(v[8..], out int si) => (ushort)(0x3B + si),
-                string v when v.StartsWith("leafTemp")  && int.TryParse(v[8..], out int li) => (ushort)(0x3F + li),
+                string v when v.StartsWith("extraTemp") && int.TryParse(v[9..], out int ei) && ei >= 1 && ei <= 7 => (ushort)(0x34 + ei),
+                string v when v.StartsWith("soilTemp")  && int.TryParse(v[8..], out int si) && si >= 1 && si <= 4 => (ushort)(0x3B + si),
+                string v when v.StartsWith("leafTemp")  && int.TryParse(v[8..], out int li) && li >= 1 && li <= 4 => (ushort)(0x3F + li),
                 _ => throw new ArgumentException($"Unknown temperature variable: {variable}")
             };
 
@@ -608,7 +608,7 @@ public sealed class VantageStation : IAsyncDisposable
             {
                 "inHumid"  => DavisProtocol.EepromInHumidCalib,
                 "outHumid" => DavisProtocol.EepromOutHumidCalib,
-                string v when v.StartsWith("extraHumid") && int.TryParse(v[10..], out int hi) =>
+                string v when v.StartsWith("extraHumid") && int.TryParse(v[10..], out int hi) && hi >= 1 && hi <= 7 =>
                     (ushort)(DavisProtocol.EepromOutHumidCalib + hi),
                 _ => throw new ArgumentException($"Unknown humidity variable: {variable}")
             };

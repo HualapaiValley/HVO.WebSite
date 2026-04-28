@@ -1,7 +1,6 @@
 @page "/barometer"
 @rendermode InteractiveServer
 @using HVO.Hardware.DavisVantagePro2.Station
-@using HVO.Hardware.DavisVantagePro2.Station.Models
 @inject VantageStation Station
 
 <h1>Barometer</h1>
@@ -48,33 +47,3 @@ else if (_bar is not null)
 
 <button class="btn btn-primary" style="margin-top:1rem" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
 
-@code {
-    private BarometerData? _bar;
-    private bool _loading;
-    private string? _loadError;
-    private string? _msg;
-    private bool _isError;
-    private double _setPressure = 29.92;
-    private double _setAlt;
-
-    protected override async Task OnInitializedAsync() => await LoadAsync();
-
-    private async Task LoadAsync()
-    {
-        _loading = true; _loadError = null;
-        try { _bar = await Station.GetBarometerDataAsync(); _setAlt = _bar.AltitudeFeet; }
-        catch (Exception ex) { _loadError = ex.Message; }
-        finally { _loading = false; }
-    }
-
-    private async Task SaveAsync()
-    {
-        try
-        {
-            await Station.SetBarometerAsync(_setPressure, _setAlt);
-            await LoadAsync();
-            _msg = "Barometer calibration saved."; _isError = false;
-        }
-        catch (Exception ex) { _msg = ex.Message; _isError = true; }
-    }
-}

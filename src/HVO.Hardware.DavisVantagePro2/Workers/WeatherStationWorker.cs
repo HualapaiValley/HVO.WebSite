@@ -148,24 +148,18 @@ public sealed class WeatherStationWorker(
     {
         var payload = new
         {
-            IsArchiveRecord = true,
-            RecordedAtUtc = rec.DateTimeLocal.ToUniversalTime(),
-            rec.OutsideTemperatureF,
-            rec.HighOutsideTemperatureF,
-            rec.LowOutsideTemperatureF,
-            rec.InsideTemperatureF,
-            rec.OutsideHumidityPercent,
-            rec.InsideHumidityPercent,
+            StationId = _options.StationId,
+            RecordedAt = rec.DateTimeLocal.ToUniversalTime(),
+            TemperatureF = rec.OutsideTemperatureF,
+            HumidityPercent = rec.OutsideHumidityPercent,
             rec.BarometricPressureInHg,
             rec.WindSpeedMph,
-            rec.WindGustMph,
-            rec.WindDirectionDegrees,
-            rec.RainInches,
-            rec.RainRateInchesPerHour,
+            WindGustMph = rec.WindGustMph,
+            WindDirectionDegrees = rec.WindDirectionDegrees.HasValue
+                ? (int?)(int)rec.WindDirectionDegrees.Value : null,
+            RainfallInches = rec.RainInches,
             rec.SolarRadiationWm2,
             rec.UvIndex,
-            rec.EtInches,
-            rec.ArchiveIntervalMinutes,
         };
         await EnqueueAsync(rec.DateTimeLocal.ToUniversalTime(), JsonSerializer.Serialize(payload), isArchiveRecord: true, ct);
     }
