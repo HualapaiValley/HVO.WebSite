@@ -19,6 +19,15 @@
                         </li>
                         <AuthorizeView>
                             <Authorized>
+                                <AuthorizeView Roles="Admin" Context="adminContext">
+                                    <Authorized>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="/admin">
+                                                <i class="bi bi-gear"></i> Admin
+                                            </a>
+                                        </li>
+                                    </Authorized>
+                                </AuthorizeView>
                                 <li class="nav-item dropdown">
                                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                                         <i class="bi bi-person-circle"></i> @context.User.Identity?.Name

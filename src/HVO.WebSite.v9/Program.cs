@@ -73,20 +73,25 @@ namespace HVO.WebSite.v9
             // ============================================================================
 
             // Add Razor Components for Blazor Server
+            // AddCascadingAuthenticationState registers authentication state as a cascading value
+            // so AuthorizeView and AuthorizeRouteView can access it in both SSR and interactive modes
             services.AddRazorComponents()
                 .AddInteractiveServerComponents();
+            services.AddCascadingAuthenticationState();
 
             // Add Microsoft Entra ID authentication (OpenID Connect + cookie auth)
             // Client secret is loaded from Key Vault at startup (AzureAd--ClientSecret)
             services.AddMicrosoftIdentityWebAppAuthentication(configuration, "AzureAd");
 
-            // Add authorization services with API key scope policies
+            // Add authorization services with API key scope policies and Entra app role policies
             services.AddAuthorization(options =>
             {
                 options.AddPolicy("WeatherIngest", p => p.RequireClaim("scope", ApiScopes.WeatherIngest));
                 options.AddPolicy("ImageIngest", p => p.RequireClaim("scope", ApiScopes.ImageIngest));
                 options.AddPolicy("PowerIngest", p => p.RequireClaim("scope", ApiScopes.PowerIngest));
                 options.AddPolicy("WeatherRead", p => p.RequireClaim("scope", ApiScopes.WeatherRead, ApiScopes.ApiRead));
+                options.AddPolicy("AdminOnly", p => p.RequireRole(AppRoles.Admin));
+                options.AddPolicy("UserOrAdmin", p => p.RequireRole(AppRoles.User, AppRoles.Admin));
             });
 
             // API key cache — short-lived to avoid DB hit on every request

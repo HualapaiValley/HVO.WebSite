@@ -1,0 +1,8 @@
+@page "/admin"
+@attribute [Authorize(Policy = "AdminOnly")]
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>Admin — HVO Dashboard</PageTitle>
+
+<h1>Administration</h1>
+<p>This page is only accessible to users with the <strong>Admin</strong> role.</p>
