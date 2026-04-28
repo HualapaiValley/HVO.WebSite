@@ -1,5 +1,7 @@
 namespace HVO.Hardware.DavisVantagePro2.Station.Models;
 
+using HVO.Hardware.DavisVantagePro2.Protocol;
+
 /// <summary>Hardware and firmware identification returned by WRD + NVER + VER commands.</summary>
 public sealed record StationInfo
 {
@@ -47,6 +49,16 @@ public sealed record StationSettings
     };
 
     public int ArchiveIntervalMinutes => ArchiveIntervalSeconds / 60;
+
+    /// <summary>Human-readable timezone label, e.g. "Mountain (UTC-7)".</summary>
+    public string TimeZoneLabel => UseTimezoneCode
+        ? DavisTimeZoneTable.GetLabel(TimezoneCode)
+        : $"GMT {(GmtOffsetHours >= 0 ? "+" : "")}{GmtOffsetHours:F2} h";
+
+    /// <summary>UTC offset for the console's configured timezone.</summary>
+    public TimeSpan UtcOffset => UseTimezoneCode
+        ? DavisTimeZoneTable.GetOffset(TimezoneCode) ?? TimeSpan.Zero
+        : TimeSpan.FromHours(GmtOffsetHours);
 }
 
 /// <summary>Transmitter configuration for one of the eight Davis ISS channels.</summary>

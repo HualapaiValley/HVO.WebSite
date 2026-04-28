@@ -28,7 +28,24 @@ public sealed class VantageStation : IAsyncDisposable
     public int ArchiveIntervalSeconds { get; private set; } = 300;
     public int ModelType { get; private set; } = 2;
     public int HardwareType { get; private set; }
+    public bool UseTimezoneCode { get; private set; } = true;
+    public int TimezoneCode { get; private set; }
+    public double GmtOffsetHours { get; private set; }
     public bool IsConnected => _client.IsConnected;
+
+    /// <summary>
+    /// UTC offset of the console's configured timezone, derived from EEPROM at connect time.
+    /// Uses the timezone code table when <see cref="UseTimezoneCode"/> is <c>true</c>;
+    /// otherwise uses the manual GMT offset.
+    /// </summary>
+    public TimeSpan ConsoleUtcOffset => UseTimezoneCode
+        ? DavisTimeZoneTable.GetOffset(TimezoneCode) ?? TimeSpan.Zero
+        : TimeSpan.FromHours(GmtOffsetHours);
+
+    /// <summary>Human-readable timezone label, e.g. "Mountain (UTC-7)".</summary>
+    public string ConsoleTimeZoneLabel => UseTimezoneCode
+        ? DavisTimeZoneTable.GetLabel(TimezoneCode)
+        : $"GMT {(GmtOffsetHours >= 0 ? "+" : "")}{GmtOffsetHours:F2} h";
 
     public VantageStation(DavisConsoleClient client, ILogger<VantageStation> logger, int maxTries = 4)
     {
@@ -733,9 +750,16 @@ public sealed class VantageStation : IAsyncDisposable
     private async Task ReadSetupFromEepromAsync(CancellationToken ct)
     {
         byte[] setupBits = await ReadEepromAsync(DavisProtocol.EepromSetupBits, 1, ct);
-        byte[] archByte = await ReadEepromAsync(DavisProtocol.EepromArchiveInterval, 1, ct);
-        RainBucketType = (setupBits[0] & 0x30) >> 4;
+        byte[] archByte  = await ReadEepromAsync(DavisProtocol.EepromArchiveInterval, 1, ct);
+        byte[] gmtOrZone = await ReadEepromAsync(DavisProtocol.EepromGmtOrZone, 1, ct);
+        byte[] tzCode    = await ReadEepromAsync(DavisProtocol.EepromTimezoneCode, 1, ct);
+        byte[] gmtOffB   = await ReadEepromAsync(DavisProtocol.EepromGmtOffset, 2, ct);
+
+        RainBucketType        = (setupBits[0] & 0x30) >> 4;
         ArchiveIntervalSeconds = archByte[0] * 60;
+        UseTimezoneCode       = gmtOrZone[0] == 0;
+        TimezoneCode          = tzCode[0];
+        GmtOffsetHours        = BinaryPrimitives.ReadInt16LittleEndian(gmtOffB) / 100.0;
     }
 
     private async Task<DateTime> GetConsoleTimeInternalAsync(CancellationToken ct)

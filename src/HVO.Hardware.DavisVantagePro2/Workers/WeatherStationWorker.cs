@@ -146,10 +146,15 @@ public sealed class WeatherStationWorker(
 
     private async Task WriteArchiveToOutboxAsync(ArchiveRecord rec, CancellationToken ct)
     {
+        // Convert the console's local time to UTC using the timezone configured in EEPROM.
+        // Strip DateTimeKind.Local first: the console clock is not the host OS timezone,
+        // and DateTimeOffset rejects a Local DateTime whose offset doesn't match the host offset.
+        var consoleLocal = DateTime.SpecifyKind(rec.DateTimeLocal, DateTimeKind.Unspecified);
+        var recordedAtUtc = new DateTimeOffset(consoleLocal, station.ConsoleUtcOffset).UtcDateTime;
         var payload = new
         {
             StationId = _options.StationId,
-            RecordedAt = rec.DateTimeLocal.ToUniversalTime(),
+            RecordedAt = recordedAtUtc,
             TemperatureF = rec.OutsideTemperatureF,
             HumidityPercent = rec.OutsideHumidityPercent,
             rec.BarometricPressureInHg,
@@ -161,7 +166,7 @@ public sealed class WeatherStationWorker(
             rec.SolarRadiationWm2,
             rec.UvIndex,
         };
-        await EnqueueAsync(rec.DateTimeLocal.ToUniversalTime(), JsonSerializer.Serialize(payload), isArchiveRecord: true, ct);
+        await EnqueueAsync(recordedAtUtc, JsonSerializer.Serialize(payload), isArchiveRecord: true, ct);
     }
 
     private async Task EnqueueAsync(DateTime recordedAtUtc, string json, bool isArchiveRecord, CancellationToken ct)

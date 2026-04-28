@@ -236,6 +236,34 @@ public static class PacketBuilder
         CrcCalculator.AppendCrc(data);
 
     /// <summary>
+    /// Build a 6-byte DMPAFT header response:
+    /// nPages (2 bytes LE) + startIndex (2 bytes LE) + 2 CRC bytes.
+    /// </summary>
+    public static byte[] BuildDmpaftHeader(int nPages, int startIndex = 0)
+    {
+        var data = new byte[4];
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(0), (ushort)nPages);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(2), (ushort)startIndex);
+        return CrcCalculator.AppendCrc(data); // 6 bytes total
+    }
+
+    /// <summary>
+    /// Build a 267-byte archive page:
+    /// 1 seq byte + 5 × 52-byte records + 4 unused + 2 CRC.
+    /// Pass up to 5 record buffers (52 bytes each).
+    /// Unset record slots are zeroed (first 4 bytes = 0x00 = null sentinel).
+    /// </summary>
+    public static byte[] BuildArchivePage(int seqByte = 0, params byte[][] records)
+    {
+        // 265 bytes of payload (without 2 CRC bytes)
+        var page = new byte[265];
+        page[0] = (byte)seqByte;
+        for (int i = 0; i < Math.Min(records.Length, DavisProtocol.ArchiveRecordsPerPage); i++)
+            records[i].CopyTo(page, 1 + i * DavisProtocol.ArchiveRecordBytes);
+        return CrcCalculator.AppendCrc(page); // 267 bytes total
+    }
+
+    /// <summary>
     /// Prepend a single ACK byte (0x06) before a CRC-appended data block.
     /// The client reads the ACK via SendDataAsync then the data via GetDataWithCrc16Async.
     /// </summary>

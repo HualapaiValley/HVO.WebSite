@@ -194,26 +194,48 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 - `WeatherAggregationService` (`BackgroundService` in `HVO.WebSite.v9`):
   - Every 60 seconds: aggregate `WeatherRaw` rows in the last completed minute → upsert `WeatherMinute`
   - Every 60 minutes: aggregate `WeatherMinute` rows in the last completed hour → upsert `WeatherHourly`
-  - Dominant wind direction: vector average (sin/cos), not scalar average
   - Idempotent: upsert by `(StationId, PeriodStart)` — safe to re-run
+
+**Aggregation strategy per field** (derived from legacy stored procedures in `dbo`):
+
+| Field | Method | Rationale |
+|-------|--------|-----------|
+| `TemperatureF` | AVG + MIN + MAX | Range matters for daily extremes |
+| `InsideTemperatureF` | AVG | Stable, no extremes needed |
+| `HumidityPercent` | AVG | |
+| `InsideHumidityPercent` | AVG | |
+| `DewPointF` | AVG | Console-computed derived value |
+| `HeatIndexF` | AVG | Console-computed derived value |
+| `WindChillF` | AVG | Console-computed derived value |
+| `BarometricPressureInHg` | AVG | |
+| `WindSpeedMph` | AVG + MIN + MAX | Range captures calm and peak |
+| `WindGustMph` | MAX | Highest gust in the period is the meaningful value |
+| `WindDirectionDegrees` | Vector average (sin/cos) | Scalar average is meaningless across 0°/360° boundary |
+| `RainRateInchesPerHour` | AVG | Instantaneous rate |
+| `DailyRainInches` | MAX | Running cumulative total from console — last (highest) value in period |
+| `SolarRadiationWm2` | AVG | |
+| `UvIndex` | AVG | |
+
+> **Note:** `WeatherMinute` and `WeatherHourly` entities will need additional columns to hold min/max alongside avg (e.g., `TemperatureFMin`, `TemperatureFMax`, `WindSpeedMphMin`, `WindSpeedMphMax`). If there are questions about how any specific field should roll up, ask before implementing.
 
 **Phase 1.1 checklist:**
 
 - [ ] `WeatherRaw` schema migration — add/rename rainfall and inside sensor fields, unique index
 - [ ] Update ingest endpoint to handle unique constraint as idempotent (200 if duplicate)
-- [ ] Create `src/HVO.Hardware.DavisVantagePro2` Worker Service project
-- [ ] Implement `DavisConsoleClient` (TCP, wake, LOOP2, DMPAFT, CRC-CCITT-16)
-- [ ] Implement `DavisLoop2Packet` binary parser
-- [ ] Implement `DavisArchiveRecord` binary parser
-- [ ] Implement SQLite transactional outbox (`OutboxDbContext`, `OutboxRecord`)
-- [ ] Implement `WeatherStationWorker` (poll LOOP2, write to outbox)
-- [ ] Implement `OutboxForwarder` (sweep outbox, POST to API, exponential backoff)
-- [ ] Local status page (latest reading + outbox health)
-- [ ] Dockerfile (multi-arch: amd64 + arm64)
+- [x] Create `src/HVO.Hardware.DavisVantagePro2` Worker Service project
+- [x] Implement `DavisConsoleClient` (TCP, wake, LOOP2, DMPAFT, CRC-CCITT-16)
+- [x] Implement `DavisLoop2Packet` binary parser
+- [x] Implement `DavisArchiveRecord` binary parser
+- [x] Implement SQLite transactional outbox (`OutboxDbContext`, `OutboxRecord`)
+- [x] Implement `WeatherStationWorker` (poll LOOP2, write to outbox)
+- [x] Implement `OutboxForwarder` (sweep outbox, POST to API, exponential backoff)
+- [x] Local status page (latest reading + outbox health)
+- [x] Dockerfile (multi-arch: amd64 + arm64)
 - [ ] Implement `WeatherAggregationService` in web app (minute + hourly rollups)
-- [ ] Unit tests: packet parsing, CRC, rain decoding, outbox behavior
+- [x] Unit tests: packet parsing, CRC, rain decoding (`Loop2PacketTests`, `CrcCalculatorTests`, `ArchiveRecordTests`)
+- [ ] Unit tests: outbox behavior (insert-on-read, no-delete-on-failure, sent-on-2xx, FIFO, backoff)
 - [ ] Integration tests: ingest duplicate → idempotent; aggregation correctness
-- [ ] Zero warnings, zero errors
+- [x] Zero warnings, zero errors
 
 ---
 
