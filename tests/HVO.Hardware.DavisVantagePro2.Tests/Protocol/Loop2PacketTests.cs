@@ -204,7 +204,7 @@ public class Loop2PacketTests
     public void Parse_WrongPacketType_ThrowsDavisUnknownPacketTypeException()
     {
         byte[] buf = PacketBuilder.BuildLoop2DataBytes();
-        buf[4] = DavisProtocol.PacketTypeLoop1; // LOOP1, not LOOP2
+        buf[4] = 0x02; // not LOOP1 (0x00) or LOOP2 (0x01) — truly unknown type
         Action act = () => Loop2Packet.Parse(buf, bucketType: 0);
         act.Should().Throw<DavisUnknownPacketTypeException>();
     }
