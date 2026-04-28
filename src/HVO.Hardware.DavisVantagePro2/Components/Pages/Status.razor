@@ -39,7 +39,7 @@
         <span class="value">@F0(_reading.InsideHumidityPercent) %</span>
 
         <span class="label">Barometer</span>
-        <span class="value">@_reading.BarometricPressureInHg?.ToString("F3") inHg</span>
+        <span class="value">@(_reading.BarometricPressureInHg is not null ? $"{_reading.BarometricPressureInHg:F3} inHg" : "—")</span>
 
         <span class="label">Wind Speed</span>
         <span class="value">@F0(_reading.WindSpeedMph) mph @@ @F0(_reading.WindDirectionDegrees)°</span>
@@ -54,7 +54,7 @@
         <span class="value">@(_reading.DailyRainInches?.ToString("F2") ?? "—") in</span>
 
         <span class="label">Solar Radiation</span>
-        <span class="value">@_reading.SolarRadiationWm2 W/m²</span>
+        <span class="value">@(_reading.SolarRadiationWm2 is not null ? $"{_reading.SolarRadiationWm2} W/m²" : "—")</span>
 
         <span class="label">UV Index</span>
         <span class="value">@(_reading.UvIndex?.ToString("F1") ?? "—")</span>

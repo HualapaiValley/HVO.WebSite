@@ -193,6 +193,8 @@ public sealed class VantageStation : IAsyncDisposable
 
             return new StationInfo
             {
+                HardwareName    = hwType == DavisProtocol.HardwareVantageVue ? "Vantage Vue"
+                                : model == 1 ? "Vantage Pro" : "Vantage Pro 2",
                 HardwareType    = hwType,
                 ModelType       = model,
                 FirmwareVersion = fwVer,

@@ -44,7 +44,7 @@ internal static class DavisProtocol
     // Packet sizes
     public const int LoopPacketTotalBytes   = 99; // 95 data + 2 CRC + 2 end bytes
     public const int LoopPacketDataBytes    = 95;
-    public const int ArchivePageBytes       = 267; // 1 page byte + 5 records × 52 + 2 CRC
+    public const int ArchivePageBytes       = 267; // 1 page byte + 5 records × 52 + 4 unused bytes + 2 CRC
     public const int ArchiveRecordBytes     = 52;
     public const int ArchiveRecordsPerPage  = 5;
     public const int DmpaftResponseBytes    = 6;  // 2 pages + 2 start index + 2 CRC
