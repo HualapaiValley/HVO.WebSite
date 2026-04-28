@@ -399,4 +399,72 @@ public class VantageStationTests
         client.Dispose();
         await station.DisposeAsync();
     }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_ZeroPagesNonMinValue_WithFallback_RetryYieldsRecords()
+    {
+        // First DMPAFT (specific date) returns 0 pages — firmware quirk for old dates.
+        // Second DMPAFT (all-zeros fallback) returns 1 page with a valid record.
+        var recordTime = new DateTime(2026, 4, 19, 8, 0, 0, DateTimeKind.Local);
+        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: recordTime, outsideTempF: 72.0);
+        byte[] page = PacketBuilder.BuildArchivePage(0, rec0);
+
+        var since = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Local); // older than the record
+
+        await using var server = new FakeDavisServer();
+        server
+            // First DMPAFT: returns 0 pages (firmware quirk)
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
+            .Step(6, [DavisProtocol.Ack])               // date stamp + CRC
+            .Step(0, PacketBuilder.BuildDmpaftHeader(0)) // nPages=0
+            // Fallback DMPAFT: returns 1 page
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
+            .Step(6, [DavisProtocol.Ack])               // all-zeros date stamp + CRC
+            .Step(0, PacketBuilder.BuildDmpaftHeader(1)) // nPages=1
+            .Step(1, page)                               // ACK prompt → 267-byte page
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(since, fallbackOnEmpty: true))
+            records.Add(r);
+
+        records.Should().HaveCount(1);
+        records[0].OutsideTemperatureF.Should().BeApproximately(72.0, 0.1);
+        records[0].DateTimeLocal.Should().Be(recordTime);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_ZeroPagesNonMinValue_WithoutFallback_YieldsNoRecords()
+    {
+        // Without fallbackOnEmpty the zero-pages response must be respected as-is.
+        var since = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Local);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(0))
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(since))
+            records.Add(r);
+
+        records.Should().BeEmpty();
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
 }

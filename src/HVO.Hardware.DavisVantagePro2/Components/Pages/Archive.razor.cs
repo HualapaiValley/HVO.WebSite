@@ -65,7 +65,7 @@ public partial class Archive
         {
             var records = new List<ArchiveRecord>();
             int batchCount = 0;
-            await foreach (var rec in Station.GetArchiveSinceAsync(_since, FetchSize))
+            await foreach (var rec in Station.GetArchiveSinceAsync(_since, FetchSize, fallbackOnEmpty: true))
             {
                 records.Add(rec);
                 if (++batchCount % 5 == 0)
@@ -78,7 +78,9 @@ public partial class Archive
             if (records.Count >= FetchSize)
             {
                 _hasMore = true;
-                _continuationTimestamp = records[^1].DateTimeLocal;
+                // AddMinutes(1) steps past the last record so the next DMPAFT request
+                // (which returns records >= the given timestamp) does not re-fetch it.
+                _continuationTimestamp = records[^1].DateTimeLocal.AddMinutes(1);
             }
         }
         catch (Exception ex)
@@ -101,7 +103,7 @@ public partial class Archive
         {
             var records = _historyRecords ?? [];
             int batchCount = 0;
-            await foreach (var rec in Station.GetArchiveSinceAsync(_continuationTimestamp.Value, FetchSize))
+            await foreach (var rec in Station.GetArchiveSinceAsync(_continuationTimestamp.Value, FetchSize, fallbackOnEmpty: true))
             {
                 records.Add(rec);
                 if (++batchCount % 5 == 0)
@@ -114,7 +116,7 @@ public partial class Archive
             if (batchCount >= FetchSize)
             {
                 _hasMore = true;
-                _continuationTimestamp = records[^1].DateTimeLocal;
+                _continuationTimestamp = records[^1].DateTimeLocal.AddMinutes(1);
             }
             else
             {

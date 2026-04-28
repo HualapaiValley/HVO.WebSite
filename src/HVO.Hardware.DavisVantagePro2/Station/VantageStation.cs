@@ -115,8 +115,16 @@ public sealed class VantageStation : IAsyncDisposable
     /// Callers can issue a second request starting from the last yielded record's
     /// timestamp to fetch the next batch. Defaults to <see cref="int.MaxValue"/>.
     /// </param>
+    /// <param name="fallbackOnEmpty">
+    /// When <c>true</c> and the console reports 0 pages for the given <paramref name="since"/>
+    /// timestamp, automatically retry with a full-archive request (<c>DateTime.MinValue</c>).
+    /// Some Davis firmware versions return 0 pages when <paramref name="since"/> predates the
+    /// entire circular buffer (all records are newer than <paramref name="since"/>).
+    /// Defaults to <c>false</c> to preserve existing catchup-worker behaviour.
+    /// </param>
     public async IAsyncEnumerable<ArchiveRecord> GetArchiveSinceAsync(DateTime since,
         int maxRecords = int.MaxValue,
+        bool fallbackOnEmpty = false,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct);
@@ -135,6 +143,21 @@ public sealed class VantageStation : IAsyncDisposable
             int nPages = BinaryPrimitives.ReadUInt16LittleEndian(resp[0..]);
             int startIndex = BinaryPrimitives.ReadUInt16LittleEndian(resp[2..]);
             _logger.LogDebug("DMPAFT: {Pages} pages, start index {Idx}", nPages, startIndex);
+
+            // Some Davis firmware returns 0 pages when 'since' predates the entire circular
+            // buffer (all stored records are newer).  Re-issue with an all-records request so
+            // the oldest available records are returned.
+            if (nPages == 0 && since != DateTime.MinValue && fallbackOnEmpty)
+            {
+                _logger.LogDebug("DMPAFT: 0 pages for {Since}; retrying with full archive", since);
+                await _client.WakeAsync(_maxTries, ct);
+                await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdDmpaft}\n"), ct);
+                await _client.SendDataWithCrc16Async(EncodeDmpaftDate(DateTime.MinValue), ct, maxTries: 1);
+                resp = await _client.GetDataWithCrc16Async(DavisProtocol.DmpaftResponseBytes, ct, maxTries: 1);
+                nPages = BinaryPrimitives.ReadUInt16LittleEndian(resp[0..]);
+                startIndex = BinaryPrimitives.ReadUInt16LittleEndian(resp[2..]);
+                _logger.LogDebug("DMPAFT full archive: {Pages} pages, start index {Idx}", nPages, startIndex);
+            }
 
             DateTime lastGoodTs = since;
 
