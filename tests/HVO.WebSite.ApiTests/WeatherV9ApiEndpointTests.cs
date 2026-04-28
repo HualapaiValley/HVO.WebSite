@@ -220,7 +220,7 @@ public sealed class WeatherV9ApiEndpointTests
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            builder.UseEnvironment("Development");
+            builder.UseEnvironment("Testing");
 
             // Override config to prevent Key Vault and Azure SQL connections at test startup
             builder.ConfigureAppConfiguration((_, configBuilder) =>
