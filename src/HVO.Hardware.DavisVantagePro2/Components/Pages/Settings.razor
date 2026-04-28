@@ -1,0 +1,37 @@
+@page "/settings"
+@rendermode InteractiveServer
+@using HVO.Hardware.DavisVantagePro2.Station
+@inject VantageStation Station
+
+<h1>Station Settings</h1>
+<p style="color:#6c7086;font-size:.85rem">Read-only summary. Edit individual settings on their dedicated pages.</p>
+
+@if (_loading)
+{
+    <p><span class="spinner"></span> Loading…</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-error">@_error</div>
+}
+else if (_s is not null)
+{
+    <div class="data-grid">
+        <span class="label">Archive Interval</span>  <span class="value">@(_s.ArchiveIntervalSeconds / 60) min</span>
+        <span class="label">Latitude</span>           <span class="value">@(_s.LatitudeDegrees?.ToString("F4") ?? "—") °</span>
+        <span class="label">Longitude</span>          <span class="value">@(_s.LongitudeDegrees?.ToString("F4") ?? "—") °</span>
+        <span class="label">Altitude</span>           <span class="value">@(_s.AltitudeFeet?.ToString("F0") ?? "—") ft</span>
+        <span class="label">Rain Bucket</span>        <span class="value">@RainBucketLabel(_s.RainBucketType)</span>
+        <span class="label">Rain Year Start</span>    <span class="value">@_s.RainYearStartMonth</span>
+        <span class="label">DST</span>                <span class="value">@_s.DstSetting</span>
+        <span class="label">Timezone Mode</span>      <span class="value">@(_s.UseTimezoneCode ? $"Code {_s.TimezoneCode}" : $"GMT {(_s.GmtOffsetHours >= 0 ? "+" : "")}{_s.GmtOffsetHours:F2} h")</span>
+        <span class="label">Temp Logging</span>       <span class="value">@_s.TemperatureLogging</span>
+        <span class="label">Barometer Units</span>    <span class="value">@_s.BarometerUnits</span>
+        <span class="label">Temperature Units</span>  <span class="value">@_s.TemperatureUnits</span>
+        <span class="label">Rain Units</span>         <span class="value">@_s.RainUnits</span>
+        <span class="label">Wind Units</span>         <span class="value">@_s.WindUnits</span>
+    </div>
+}
+
+<button class="btn btn-primary" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+

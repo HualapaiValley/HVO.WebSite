@@ -1,0 +1,37 @@
+@page "/clock"
+@rendermode InteractiveServer
+@using HVO.Hardware.DavisVantagePro2.Station
+@inject VantageStation Station
+
+<h1>Console Clock</h1>
+
+@if (_loading)
+{
+    <p><span class="spinner"></span> Loading…</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-error">@_error</div>
+}
+else
+{
+    <div class="data-grid">
+        <span class="label">Console Time</span><span class="value">@_consoleTime.ToString("yyyy-MM-dd HH:mm:ss")</span>
+        <span class="label">System Time</span> <span class="value">@_systemTime.ToString("yyyy-MM-dd HH:mm:ss")</span>
+        <span class="label">Drift</span>
+        <span class="value" style="color:@(_absDrift > 30 ? "#f38ba8" : "#a6e3a1")">
+            @_drift.ToString("F1") s (@(_absDrift > 30 ? "⚠ sync recommended" : "OK"))
+        </span>
+    </div>
+    <button class="btn btn-primary" @onclick="SyncAsync" disabled="@_syncing">
+        @(_syncing ? "Syncing…" : "Sync Console to System Time")
+    </button>
+}
+
+@if (_msg is not null)
+{
+    <div class="alert @(_isError ? "alert-error" : "alert-success")" style="margin-top:.75rem">@_msg</div>
+}
+
+<button class="btn btn-primary" style="margin-top:1rem" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+

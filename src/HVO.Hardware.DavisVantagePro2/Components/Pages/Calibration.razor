@@ -1,0 +1,54 @@
+@page "/calibration"
+@rendermode InteractiveServer
+@using HVO.Hardware.DavisVantagePro2.Station
+@inject VantageStation Station
+
+<h1>Calibration</h1>
+
+@if (_loading)
+{
+    <p><span class="spinner"></span> Loading…</p>
+}
+else if (_loadError is not null)
+{
+    <div class="alert alert-error">@_loadError</div>
+}
+else if (_cal is not null)
+{
+    <h2>Temperature Offsets (°F)</h2>
+    <div class="form-row">
+        <label>Inside Temp</label>
+        <input type="number" step="0.1" @bind="_inTempOff" />
+        <button class="btn btn-primary" @onclick='() => SaveTempAsync("inTemp", _inTempOff)'>Save</button>
+    </div>
+    <div class="form-row">
+        <label>Outside Temp</label>
+        <input type="number" step="0.1" @bind="_outTempOff" />
+        <button class="btn btn-primary" @onclick='() => SaveTempAsync("outTemp", _outTempOff)'>Save</button>
+    </div>
+
+    <h2>Humidity Offsets (%)</h2>
+    <div class="form-row">
+        <label>Inside Humidity</label>
+        <input type="number" step="1" @bind="_inHumOff" />
+        <button class="btn btn-primary" @onclick='() => SaveHumAsync("inHumid", _inHumOff)'>Save</button>
+    </div>
+    <div class="form-row">
+        <label>Outside Humidity</label>
+        <input type="number" step="1" @bind="_outHumOff" />
+        <button class="btn btn-primary" @onclick='() => SaveHumAsync("outHumid", _outHumOff)'>Save</button>
+    </div>
+
+    <h2>Wind Direction Offset (°)</h2>
+    <div class="form-row">
+        <label>Wind Direction</label>
+        <input type="number" step="1" @bind="_windDirOff" />
+        <button class="btn btn-primary" @onclick="SaveWindAsync">Save</button>
+    </div>
+}
+
+@if (_msg is not null)
+{
+    <div class="alert @(_isError ? "alert-error" : "alert-success")">@_msg</div>
+}
+
