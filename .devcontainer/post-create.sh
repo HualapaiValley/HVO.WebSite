@@ -2,69 +2,91 @@
 set -e
 set -o pipefail
 
-command_exists() {
-	command -v "$1" >/dev/null 2>&1
+echo "Running HVO.WebSite post-create setup..."
+
+# ─────────────────────────────────────────────────────────────────────
+# Load shared devcontainer base script (common to all RoySalisbury repos)
+# Gist: https://gist.github.com/RoySalisbury/bceb71a9120e4d393b68308a03399ca5
+# Provides: dc_bootstrap_env, dc_setup_dotnet, dc_install_cli,
+#           dc_setup_docker, dc_setup_ssh, dc_create_contexts, dc_scan_hosts
+# ─────────────────────────────────────────────────────────────────────
+BASE_GIST="bceb71a9120e4d393b68308a03399ca5"
+
+_load_base_script() {
+	local token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+	if [ -z "$token" ] && command -v gh >/dev/null 2>&1; then
+		token=$(gh auth token 2>/dev/null) || true
+	fi
+	if [ -z "$token" ] && command -v git >/dev/null 2>&1; then
+		token=$(printf 'protocol=https\nhost=github.com\n' \
+			| GIT_TERMINAL_PROMPT=0 git credential fill 2>/dev/null \
+			| grep '^password=' | head -1 | cut -d= -f2-) || true
+	fi
+	if command -v gh >/dev/null 2>&1 && [ -n "$token" ]; then
+		GH_TOKEN="$token" gh gist view "$BASE_GIST" --raw --filename devcontainer-base.sh 2>/dev/null && return 0
+	fi
+	curl -fsSL "https://gist.githubusercontent.com/RoySalisbury/${BASE_GIST}/raw/devcontainer-base.sh" 2>/dev/null && return 0
+	return 1
 }
 
-echo "Running post-create setup..."
+BASE_SCRIPT=$(_load_base_script || true)
+if [ -n "$BASE_SCRIPT" ]; then
+	eval "$BASE_SCRIPT"
+else
+	echo "⚠  Could not load devcontainer-base.sh from gist. Continuing without shared setup."
+fi
 
-# Fix .dotnet directory ownership
-echo "Fixing .dotnet directory ownership..."
-sudo chown -R vscode:vscode /home/vscode/.dotnet || true
+# ─────────────────────────────────────────────────────────────────────
+# Resolve and export a GitHub token so base script functions can use it
+# ─────────────────────────────────────────────────────────────────────
+if [ -z "${GH_TOKEN:-}" ] && [ -z "${GITHUB_TOKEN:-}" ]; then
+	_resolved_token=""
+	if command -v gh >/dev/null 2>&1; then
+		_resolved_token=$(gh auth token 2>/dev/null) || true
+	fi
+	if [ -z "$_resolved_token" ] && command -v git >/dev/null 2>&1; then
+		_resolved_token=$(printf 'protocol=https\nhost=github.com\n' \
+			| GIT_TERMINAL_PROMPT=0 git credential fill 2>/dev/null \
+			| grep '^password=' | head -1 | cut -d= -f2-) || true
+	fi
+	if [ -n "$_resolved_token" ]; then
+		export GH_TOKEN="$_resolved_token"
+	fi
+	unset _resolved_token
+fi
 
-# Display .NET version
-echo "Checking .NET installation..."
-dotnet --info
-echo "Installed SDKs:"
-dotnet --list-sdks || true
+# ─────────────────────────────────────────────────────────────────────
+# Shared setup — .NET, CLI tools, Docker, SSH, .env bootstrap
+# ─────────────────────────────────────────────────────────────────────
 
-# Install development CLI utilities
-echo "Installing development CLI utilities..."
-sudo apt-get update -y
+# [CUSTOMIZE] .env gist ID for this repo
+ENV_GIST="1f014918502877f0c37738fa733dad65"
+
+if type dc_bootstrap_env >/dev/null 2>&1; then
+	dc_bootstrap_env "$ENV_GIST" "/workspaces/HVO.WebSite"
+	dc_setup_dotnet
+	dc_install_cli
+	dc_setup_docker
+	dc_setup_ssh
+else
+	echo "⚠  Base script not loaded — running inline fallback..."
+	sudo chown -R vscode:vscode /home/vscode/.dotnet || true
+	dotnet --info
+	sudo apt-get update -y && sudo apt-get install -y jq ripgrep || true
+	if getent group docker >/dev/null 2>&1; then sudo usermod -aG docker vscode || true; fi
+	if [ -S /var/run/docker.sock ]; then sudo chmod 666 /var/run/docker.sock || true; fi
+fi
+
+# Install fonts (not in base script — needed for the website's PDF/chart rendering)
 sudo apt-get install -y --no-install-recommends \
-	jq ripgrep \
-	fontconfig fonts-dejavu-core fonts-open-sans \
-	|| echo "Warning: Some package installations failed, continuing..."
-sudo fc-cache -f || true
+	fontconfig fonts-dejavu-core fonts-open-sans 2>/dev/null || true
+sudo fc-cache -f 2>/dev/null || true
 
-# Add vscode user to docker group
-echo "Adding vscode user to docker group..."
-if getent group docker >/dev/null 2>&1; then
-	sudo usermod -aG docker vscode || true
-else
-	echo "Docker group not present; skipping usermod"
-fi
+# ─────────────────────────────────────────────────────────────────────
+# HVO.WebSite-specific setup
+# ─────────────────────────────────────────────────────────────────────
 
-# Set docker socket permissions
-if [ -S /var/run/docker.sock ]; then
-	sudo chmod 666 /var/run/docker.sock || true
-fi
-
-# Verify docker is working
-if command_exists docker; then
-	docker --version
-else
-	echo "Warning: docker CLI not found on PATH"
-fi
-
-# Setup SSH agent
-echo "Setting up SSH agent..."
-if [ -z "$SSH_AUTH_SOCK" ]; then
-	eval "$(ssh-agent -s)"
-else
-	echo "Using existing SSH agent at $SSH_AUTH_SOCK"
-fi
-
-# Load SSH keys if available
-if compgen -G "/home/vscode/.ssh/id_*" >/dev/null 2>&1; then
-	for key in /home/vscode/.ssh/id_*; do
-		if [[ -f "$key" && "$key" != *.pub ]]; then
-			ssh-add "$key" >/dev/null 2>&1 && echo "Loaded SSH key: $key" || true
-		fi
-	done
-fi
-
-# Configure git identity from environment
+# Configure git identity from environment (set via remoteEnv from /etc/environment on host)
 echo "Configuring git identity..."
 if [[ -n "${GIT_AUTHOR_NAME:-}" ]]; then
 	git config --global user.name "${GIT_AUTHOR_NAME}"
@@ -75,7 +97,7 @@ else
 fi
 git config --global commit.gpgsign false
 
-# Authenticate GitHub CLI if token is available
+# Authenticate GitHub CLI
 echo "Setting up GitHub CLI authentication..."
 if [[ -n "${GH_PAT:-}" ]]; then
 	(unset GITHUB_TOKEN GH_TOKEN 2>/dev/null; echo "${GH_PAT}" | gh auth login --with-token 2>/dev/null) || true
@@ -88,46 +110,73 @@ else
 	echo "Warning: No GitHub credentials detected — set GH_PAT in /etc/environment on hvo-dev-host and rebuild."
 fi
 
-# Bootstrap .env from GitHub Gist
-# Shared secrets gist: ADO PAT, GH PAT, Azure details, SSH keys, host credentials
-ENV_GIST="1f014918502877f0c37738fa733dad65"
-ENV_FILE="/workspaces/HVO.WebSite/.env"
-echo "Bootstrapping .env from GitHub Gist..."
-if [[ -f "$ENV_FILE" ]]; then
-	echo ".env already exists — loading it"
+# Ensure dotnet tools directory is on PATH for this session and future shells
+export PATH="$HOME/.dotnet/tools:$PATH"
+for _rc in /home/vscode/.bashrc /home/vscode/.zshrc; do
+	if [[ -f "$_rc" ]] && ! grep -q '\.dotnet/tools' "$_rc" 2>/dev/null; then
+		printf '\nexport PATH="$HOME/.dotnet/tools:$PATH"\n' >> "$_rc"
+	fi
+done
+
+# Install .NET global tools
+echo "Installing .NET global tools..."
+
+# Entity Framework Core CLI (for database migrations)
+if dotnet tool list -g | grep -q '^dotnet-ef\s'; then
+	dotnet tool update --global dotnet-ef
 else
-	_gist_token="${GH_PAT:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
-	if [[ -z "$_gist_token" ]] && command_exists gh; then
-		_gist_token=$(gh auth token 2>/dev/null) || true
-	fi
-	if [[ -n "$_gist_token" ]]; then
-		if GH_TOKEN="$_gist_token" gh gist view "$ENV_GIST" --raw --filename .env \
-				> "$ENV_FILE" 2>/dev/null; then
-			chmod 600 "$ENV_FILE"
-			echo ".env fetched from Gist successfully"
-		else
-			echo "Warning: Could not fetch .env from Gist — secrets will not be available"
-			rm -f "$ENV_FILE"
-		fi
-	else
-		echo "Warning: No GitHub token available — cannot fetch .env from Gist"
-	fi
+	dotnet tool install --global dotnet-ef
 fi
 
-if [[ -f "$ENV_FILE" ]]; then
-	set -a
-	# shellcheck disable=SC1090
-	source "$ENV_FILE"
-	set +a
-	# Persist .env sourcing into shell profiles so it's available in new terminals
-	for _rc in /home/vscode/.bashrc /home/vscode/.zshrc; do
-		if [[ -f "$_rc" ]] && ! grep -qF "# >>> devcontainer-env >>>" "$_rc" 2>/dev/null; then
-			printf '\n# >>> devcontainer-env >>>\nif [ -f %s ]; then set -a; source %s; set +a; fi\n# <<< devcontainer-env <<<\n' \
-				"$ENV_FILE" "$ENV_FILE" >> "$_rc"
-		fi
-	done
-	echo ".env sourced and added to shell profiles"
+# SQLPackage CLI (for SQL project extract/deploy workflows)
+if dotnet tool list -g | grep -q '^microsoft.sqlpackage\s'; then
+	dotnet tool update --global microsoft.sqlpackage
+else
+	dotnet tool install --global microsoft.sqlpackage
 fi
+
+# Restore NuGet packages
+echo "Restoring NuGet packages..."
+dotnet restore HVO.WebSite.sln --configfile NuGet.config || true
+
+# Install Azure CLI
+echo "Installing Azure CLI..."
+if ! command -v az >/dev/null 2>&1; then
+	curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+else
+	echo "az CLI already installed: $(az version --query '"azure-cli"' -o tsv 2>/dev/null)"
+fi
+
+# Authenticate Azure CLI using service principal from .env
+# Requires AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID in .env
+echo "Configuring Azure CLI authentication..."
+if [[ -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_CLIENT_SECRET:-}" && -n "${AZURE_TENANT_ID:-}" ]]; then
+	az login --service-principal \
+		--username "${AZURE_CLIENT_ID}" \
+		--password "${AZURE_CLIENT_SECRET}" \
+		--tenant "${AZURE_TENANT_ID}" \
+		--output none 2>/dev/null \
+		&& echo "az CLI authenticated with service principal" \
+		|| echo "Warning: az login failed — check AZURE_CLIENT_ID/SECRET/TENANT_ID in .env"
+	[[ -n "${AZURE_SUBSCRIPTION_ID:-}" ]] \
+		&& az account set --subscription "${AZURE_SUBSCRIPTION_ID}" --output none 2>/dev/null \
+		|| true
+else
+	echo "No Azure service principal in .env — add AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID to enable auto-login."
+fi
+
+# Generate HTTPS developer certificate
+echo "Generating HTTPS developer certificate..."
+dotnet dev-certs https --clean
+dotnet dev-certs https
+
+echo "Tool versions:"
+echo "dotnet-ef:  $(dotnet ef --version 2>/dev/null || echo 'not installed')"
+echo "sqlpackage: $(sqlpackage --version 2>/dev/null || echo 'not installed')"
+echo "gh:         $(gh --version 2>/dev/null | head -1 || echo 'not installed')"
+echo "az:         $(az version --query '"azure-cli"' -o tsv 2>/dev/null || echo 'not installed')"
+
+echo "Post-create setup completed successfully!"
 
 # Install .NET global tools
 echo "Installing .NET global tools..."
