@@ -228,8 +228,8 @@ public sealed class VantageStation : IAsyncDisposable
         {
             await _client.WakeAsync(_maxTries, ct);
 
-            // Hardware type: WRD command
-            await _client.WriteAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdWrd}{(char)0x12}{(char)0x4D}\n"), ct);
+            // Hardware type: WRD command — response is ACK then 1 hardware-type byte
+            await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdWrd}{(char)0x12}{(char)0x4D}\n"), ct);
             byte[] hwByte = await _client.ReadExactAsync(1, ct);
             int hwType = hwByte[0];
             int model = hwType == DavisProtocol.HardwareVantageVue ? 2 : ModelType;
