@@ -121,6 +121,9 @@ public sealed record Loop2Packet
         if (buffer[0] != 'L' || buffer[1] != 'O' || buffer[2] != 'O')
             throw new DavisProtocolException("LOOP2 packet missing 'LOO' marker");
 
+        if (buffer[4] == DavisProtocol.PacketTypeLoop1)
+            return ParseLoop1(buffer, bucketType);
+
         if (buffer[4] != DavisProtocol.PacketTypeLoop2)
             throw new DavisUnknownPacketTypeException(buffer[4]);
 
@@ -135,42 +138,79 @@ public sealed record Loop2Packet
             AltimeterInHg = ReadUshort(buffer, 69) is ushort alt and > 0
                 ? alt / 1000.0 : null,
 
-            InsideTemperatureF  = DecodeSignedTemp(buffer, 9),
+            InsideTemperatureF = DecodeSignedTemp(buffer, 9),
             InsideHumidityPercent = buffer[11] != 0xFF ? (double)buffer[11] : null,
 
-            OutsideTemperatureF   = DecodeSignedTemp(buffer, 12),
-            DewPointF             = DecodeSignedFahrenheit(buffer, 30),
-            HeatIndexF            = DecodeSignedFahrenheit(buffer, 35),
-            WindChillF            = DecodeWindChill(buffer, 37),
-            ThswF                 = DecodeSignedFahrenheit(buffer, 39),
+            OutsideTemperatureF = DecodeSignedTemp(buffer, 12),
+            DewPointF = DecodeSignedFahrenheit(buffer, 30),
+            HeatIndexF = DecodeSignedFahrenheit(buffer, 35),
+            WindChillF = DecodeWindChill(buffer, 37),
+            ThswF = DecodeSignedFahrenheit(buffer, 39),
 
             OutsideHumidityPercent = buffer[33] != 0xFF ? (double)buffer[33] : null,
 
-            WindSpeedMph           = buffer[14] != 0xFF ? (double)buffer[14] : null,
-            WindDirectionDegrees   = DecodeWindDir16(buffer, 16),
-            WindSpeed10MinAvgMph   = DecodeWindSpeedLoop2(buffer, 18),
-            WindSpeed2MinAvgMph    = DecodeWindSpeedLoop2(buffer, 20),
-            WindGust10MinMph       = buffer[22] != 0xFF ? (double)buffer[22] : null,
+            WindSpeedMph = buffer[14] != 0xFF ? (double)buffer[14] : null,
+            WindDirectionDegrees = DecodeWindDir16(buffer, 16),
+            WindSpeed10MinAvgMph = DecodeWindSpeedLoop2(buffer, 18),
+            WindSpeed2MinAvgMph = DecodeWindSpeedLoop2(buffer, 20),
+            WindGust10MinMph = buffer[22] != 0xFF ? (double)buffer[22] : null,
             WindGust10MinDirectionDegrees = DecodeWindDir16(buffer, 24),
 
-            RainRateInchesPerHour  = DecodeRain(ReadUshort(buffer, 41), bucketType),
-            StormRainInches        = DecodeRain(ReadUshort(buffer, 46), bucketType),
-            StormStartDate         = DecodeStormStart(ReadUshort(buffer, 48)),
-            DailyRainInches        = DecodeRain(ReadUshort(buffer, 50), bucketType),
-            Rain15MinInches        = DecodeRain(ReadUshort(buffer, 52), bucketType),
-            HourRainInches         = DecodeRain(ReadUshort(buffer, 54), bucketType),
-            Rain24HourInches       = DecodeRain(ReadUshort(buffer, 58), bucketType),
+            RainRateInchesPerHour = DecodeRain(ReadUshort(buffer, 41), bucketType),
+            StormRainInches = DecodeRain(ReadUshort(buffer, 46), bucketType),
+            StormStartDate = DecodeStormStart(ReadUshort(buffer, 48)),
+            DailyRainInches = DecodeRain(ReadUshort(buffer, 50), bucketType),
+            Rain15MinInches = DecodeRain(ReadUshort(buffer, 52), bucketType),
+            HourRainInches = DecodeRain(ReadUshort(buffer, 54), bucketType),
+            Rain24HourInches = DecodeRain(ReadUshort(buffer, 58), bucketType),
 
-            DailyEtInches          = ReadUshort(buffer, 56) / 1000.0,
+            DailyEtInches = ReadUshort(buffer, 56) / 1000.0,
 
-            UvIndex                = buffer[43] != 0xFF ? buffer[43] / 10.0 : null,
-            SolarRadiationWm2      = ReadUshort(buffer, 44) is ushort rad and not 0x7FFF
+            UvIndex = buffer[43] != 0xFF ? buffer[43] / 10.0 : null,
+            SolarRadiationWm2 = ReadUshort(buffer, 44) is ushort rad and not 0x7FFF
                 ? (double)rad : null,
 
-            BarometricTrend        = (sbyte)buffer[3] is sbyte trend
+            BarometricTrend = (sbyte)buffer[3] is sbyte trend
                 and (>= -3 and <= 3) ? (int)trend : null,
         };
     }
+
+    // ── Decode helpers ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Parse a LOOP (LOOP1) packet. Field offsets differ from LOOP2.
+    /// LOOP2-only fields (dew point, heat index, wind chill, raw pressure, etc.) are returned as null.
+    /// </summary>
+    private static Loop2Packet ParseLoop1(ReadOnlySpan<byte> buffer, int bucketType) =>
+        new()
+        {
+            RecordedAtUtc = DateTime.UtcNow,
+
+            BarometricPressureInHg = ReadUshort(buffer, 7) is ushort bar and > 0
+                ? bar / 1000.0 : null,
+
+            InsideTemperatureF = DecodeSignedTemp(buffer, 9),
+            InsideHumidityPercent = buffer[11] != 0xFF ? (double)buffer[11] : null,
+
+            OutsideTemperatureF = DecodeSignedTemp(buffer, 12),
+
+            WindSpeedMph = buffer[14] != 0xFF ? (double)buffer[14] : null,
+            WindSpeed10MinAvgMph = buffer[15] != 0xFF ? (double)buffer[15] : null,
+            WindDirectionDegrees = DecodeWindDir16(buffer, 16),
+
+            OutsideHumidityPercent = buffer[30] != 0xFF ? (double)buffer[30] : null,
+
+            RainRateInchesPerHour = DecodeRain(ReadUshort(buffer, 38), bucketType),
+            UvIndex = buffer[40] != 0xFF ? buffer[40] / 10.0 : null,
+            SolarRadiationWm2 = ReadUshort(buffer, 41) is ushort rad and not 0x7FFF
+                ? (double)rad : null,
+
+            StormRainInches = DecodeRain(ReadUshort(buffer, 43), bucketType),
+            StormStartDate = DecodeStormStart(ReadUshort(buffer, 45)),
+            DailyRainInches = DecodeRain(ReadUshort(buffer, 47), bucketType),
+            DailyEtInches = ReadUshort(buffer, 53) is ushort et and > 0
+                ? et / 1000.0 : null,
+        };
 
     // ── Decode helpers ────────────────────────────────────────────────────────
 
@@ -225,8 +265,8 @@ public sealed record Loop2Packet
         return bucketType switch
         {
             DavisProtocol.BucketType001Inch => clicks / 100.0,
-            DavisProtocol.BucketType02Mm    => clicks * 0.0078740157,
-            DavisProtocol.BucketType01Mm    => clicks * 0.00393700787,
+            DavisProtocol.BucketType02Mm => clicks * 0.0078740157,
+            DavisProtocol.BucketType01Mm => clicks * 0.00393700787,
             _ => null
         };
     }
@@ -238,9 +278,9 @@ public sealed record Loop2Packet
     private static DateTime? DecodeStormStart(ushort raw)
     {
         if (raw == 0xFFFF) return null;
-        int year  = (raw & 0x007F) + 2000;
+        int year = (raw & 0x007F) + 2000;
         int month = (raw & 0xF000) >> 12;
-        int day   = (raw & 0x0F80) >> 7;
+        int day = (raw & 0x0F80) >> 7;
         try { return new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Local); }
         catch { return null; }
     }

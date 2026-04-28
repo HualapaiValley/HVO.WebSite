@@ -32,8 +32,8 @@ public sealed class VantageStation : IAsyncDisposable
 
     public VantageStation(DavisConsoleClient client, ILogger<VantageStation> logger, int maxTries = 4)
     {
-        _client   = client;
-        _logger   = logger;
+        _client = client;
+        _logger = logger;
         _maxTries = maxTries;
     }
 
@@ -76,7 +76,7 @@ public sealed class VantageStation : IAsyncDisposable
         try
         {
             await _client.WakeAsync(_maxTries, ct);
-            string cmd = $"{DavisProtocol.CmdLps} {DavisProtocol.PacketTypeLoop2} {count}\n";
+            string cmd = $"{DavisProtocol.CmdLoop} {count}\n";
             await _client.SendDataAsync(Encoding.ASCII.GetBytes(cmd), ct);
 
             for (int i = 0; i < count && !ct.IsCancellationRequested; i++)
@@ -95,7 +95,7 @@ public sealed class VantageStation : IAsyncDisposable
         try
         {
             await _client.WakeAsync(_maxTries, ct);
-            string cmd = $"{DavisProtocol.CmdLps} {DavisProtocol.PacketTypeLoop2} 1\n";
+            string cmd = $"{DavisProtocol.CmdLoop} 1\n";
             await _client.SendDataAsync(Encoding.ASCII.GetBytes(cmd), ct);
             byte[] raw = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
             return Loop2Packet.Parse(raw[..DavisProtocol.LoopPacketDataBytes], RainBucketType);
@@ -124,8 +124,8 @@ public sealed class VantageStation : IAsyncDisposable
 
             // Read page/index response
             byte[] resp = await _client.GetDataWithCrc16Async(DavisProtocol.DmpaftResponseBytes, ct, maxTries: 1);
-            int nPages       = BinaryPrimitives.ReadUInt16LittleEndian(resp[0..]);
-            int startIndex   = BinaryPrimitives.ReadUInt16LittleEndian(resp[2..]);
+            int nPages = BinaryPrimitives.ReadUInt16LittleEndian(resp[0..]);
+            int startIndex = BinaryPrimitives.ReadUInt16LittleEndian(resp[2..]);
             _logger.LogDebug("DMPAFT: {Pages} pages, start index {Idx}", nPages, startIndex);
 
             DateTime lastGoodTs = since;
@@ -193,13 +193,13 @@ public sealed class VantageStation : IAsyncDisposable
 
             return new StationInfo
             {
-                HardwareName    = hwType == DavisProtocol.HardwareVantageVue ? "Vantage Vue"
+                HardwareName = hwType == DavisProtocol.HardwareVantageVue ? "Vantage Vue"
                                 : model == 1 ? "Vantage Pro" : "Vantage Pro 2",
-                HardwareType    = hwType,
-                ModelType       = model,
+                HardwareType = hwType,
+                ModelType = model,
                 FirmwareVersion = fwVer,
-                FirmwareDate    = fwDate,
-                ConsoleTime     = consoleTime,
+                FirmwareDate = fwDate,
+                ConsoleTime = consoleTime,
             };
         }
         finally { _lock.Release(); }
@@ -213,46 +213,46 @@ public sealed class VantageStation : IAsyncDisposable
         {
             await _client.WakeAsync(_maxTries, ct);
 
-            byte unitBits    = (await ReadEepromAsync(DavisProtocol.EepromUnitBits, 1, ct))[0];
-            byte setupBits   = (await ReadEepromAsync(DavisProtocol.EepromSetupBits, 1, ct))[0];
-            byte ryStart     = (await ReadEepromAsync(DavisProtocol.EepromRainYearStart, 1, ct))[0];
-            byte archMin     = (await ReadEepromAsync(DavisProtocol.EepromArchiveInterval, 1, ct))[0];
-            byte gmtOrZone   = (await ReadEepromAsync(DavisProtocol.EepromGmtOrZone, 1, ct))[0];
-            byte manOrAuto   = (await ReadEepromAsync(DavisProtocol.EepromManOrAuto, 1, ct))[0];
-            byte dst         = (await ReadEepromAsync(DavisProtocol.EepromDaylightSavings, 1, ct))[0];
-            byte tzCode      = (await ReadEepromAsync(DavisProtocol.EepromTimezoneCode, 1, ct))[0];
-            byte tempLog     = (await ReadEepromAsync(DavisProtocol.EepromTempLogging, 1, ct))[0];
+            byte unitBits = (await ReadEepromAsync(DavisProtocol.EepromUnitBits, 1, ct))[0];
+            byte setupBits = (await ReadEepromAsync(DavisProtocol.EepromSetupBits, 1, ct))[0];
+            byte ryStart = (await ReadEepromAsync(DavisProtocol.EepromRainYearStart, 1, ct))[0];
+            byte archMin = (await ReadEepromAsync(DavisProtocol.EepromArchiveInterval, 1, ct))[0];
+            byte gmtOrZone = (await ReadEepromAsync(DavisProtocol.EepromGmtOrZone, 1, ct))[0];
+            byte manOrAuto = (await ReadEepromAsync(DavisProtocol.EepromManOrAuto, 1, ct))[0];
+            byte dst = (await ReadEepromAsync(DavisProtocol.EepromDaylightSavings, 1, ct))[0];
+            byte tzCode = (await ReadEepromAsync(DavisProtocol.EepromTimezoneCode, 1, ct))[0];
+            byte tempLog = (await ReadEepromAsync(DavisProtocol.EepromTempLogging, 1, ct))[0];
 
-            byte[] latBytes  = await ReadEepromAsync(DavisProtocol.EepromLatitude, 2, ct);
-            byte[] lonBytes  = await ReadEepromAsync(DavisProtocol.EepromLongitude, 2, ct);
-            byte[] altBytes  = await ReadEepromAsync(DavisProtocol.EepromAltitude, 2, ct);
-            byte[] gmtOffB   = await ReadEepromAsync(DavisProtocol.EepromGmtOffset, 2, ct);
+            byte[] latBytes = await ReadEepromAsync(DavisProtocol.EepromLatitude, 2, ct);
+            byte[] lonBytes = await ReadEepromAsync(DavisProtocol.EepromLongitude, 2, ct);
+            byte[] altBytes = await ReadEepromAsync(DavisProtocol.EepromAltitude, 2, ct);
+            byte[] gmtOffB = await ReadEepromAsync(DavisProtocol.EepromGmtOffset, 2, ct);
 
-            short lat  = BinaryPrimitives.ReadInt16LittleEndian(latBytes);
-            short lon  = BinaryPrimitives.ReadInt16LittleEndian(lonBytes);
-            short alt  = BinaryPrimitives.ReadInt16LittleEndian(altBytes);
-            short gmt  = BinaryPrimitives.ReadInt16LittleEndian(gmtOffB);
+            short lat = BinaryPrimitives.ReadInt16LittleEndian(latBytes);
+            short lon = BinaryPrimitives.ReadInt16LittleEndian(lonBytes);
+            short alt = BinaryPrimitives.ReadInt16LittleEndian(altBytes);
+            short gmt = BinaryPrimitives.ReadInt16LittleEndian(gmtOffB);
 
-            int bucketType   = (setupBits & 0x30) >> 4;
-            string dstMode   = manOrAuto == 0 ? "AUTO" : (dst != 0 ? "ON" : "OFF");
+            int bucketType = (setupBits & 0x30) >> 4;
+            string dstMode = manOrAuto == 0 ? "AUTO" : (dst != 0 ? "ON" : "OFF");
 
             return new StationSettings
             {
                 ArchiveIntervalSeconds = archMin * 60,
-                LatitudeDegrees        = lat / 10.0,
-                LongitudeDegrees       = lon / 10.0,
-                AltitudeFeet           = (double)alt,
-                RainYearStartMonth     = ryStart,
-                RainBucketType         = bucketType,
-                DstSetting             = dstMode,
-                UseTimezoneCode        = gmtOrZone == 0,
-                TimezoneCode           = tzCode,
-                GmtOffsetHours         = gmt / 100.0,
-                TemperatureLogging     = tempLog != 0 ? "LAST" : "AVERAGE",
-                BarometerUnits         = BaroUnitName(unitBits & 0x03),
-                TemperatureUnits       = TempUnitName((unitBits & 0x0C) >> 2),
-                RainUnits              = (unitBits & 0x20) != 0 ? "mm" : "inch",
-                WindUnits              = WindUnitName((unitBits & 0xC0) >> 6),
+                LatitudeDegrees = lat / 10.0,
+                LongitudeDegrees = lon / 10.0,
+                AltitudeFeet = (double)alt,
+                RainYearStartMonth = ryStart,
+                RainBucketType = bucketType,
+                DstSetting = dstMode,
+                UseTimezoneCode = gmtOrZone == 0,
+                TimezoneCode = tzCode,
+                GmtOffsetHours = gmt / 100.0,
+                TemperatureLogging = tempLog != 0 ? "LAST" : "AVERAGE",
+                BarometerUnits = BaroUnitName(unitBits & 0x03),
+                TemperatureUnits = TempUnitName((unitBits & 0x0C) >> 2),
+                RainUnits = (unitBits & 0x20) != 0 ? "mm" : "inch",
+                WindUnits = WindUnitName((unitBits & 0xC0) >> 6),
             };
         }
         finally { _lock.Release(); }
@@ -265,35 +265,35 @@ public sealed class VantageStation : IAsyncDisposable
         try
         {
             await _client.WakeAsync(_maxTries, ct);
-            byte useTx     = (await ReadEepromAsync(DavisProtocol.EepromUseTx, 1, ct))[0];
+            byte useTx = (await ReadEepromAsync(DavisProtocol.EepromUseTx, 1, ct))[0];
             byte retransmit = (await ReadEepromAsync(DavisProtocol.EepromRetransmit, 1, ct))[0];
-            byte[] txData  = await ReadEepromAsync(DavisProtocol.EepromTransmitters, 16, ct);
+            byte[] txData = await ReadEepromAsync(DavisProtocol.EepromTransmitters, 16, ct);
 
             var configs = new List<TransmitterConfig>(8);
             for (int ch = 1; ch <= 8; ch++)
             {
                 byte lower = txData[(ch - 1) * 2];
                 byte upper = txData[(ch - 1) * 2 + 1];
-                int txType    = lower & 0x0F;
+                int txType = lower & 0x0F;
                 int repeaterNo = lower >> 4;
                 string? repeaterId = repeaterNo != 0 ? ((char)(repeaterNo - 8 + 'A')).ToString() : null;
-                bool active   = (useTx & 1) != 0;
-                bool reTx     = (retransmit & 1) != 0;
+                bool active = (useTx & 1) != 0;
+                bool reTx = (retransmit & 1) != 0;
                 useTx >>= 1;
                 retransmit >>= 1;
 
-                int? extraTemp  = txType is 1 or 3 ? (upper & 0x0F) + 1 : null;
+                int? extraTemp = txType is 1 or 3 ? (upper & 0x0F) + 1 : null;
                 int? extraHumid = txType is 2 or 3 ? (upper >> 4) + 1 : null;
 
                 configs.Add(new TransmitterConfig
                 {
-                    Channel          = ch,
-                    TransmitterType  = TxTypeName(txType),
-                    RepeaterId       = repeaterId,
-                    IsActive         = active,
+                    Channel = ch,
+                    TransmitterType = TxTypeName(txType),
+                    RepeaterId = repeaterId,
+                    IsActive = active,
                     IsRetransmitting = reTx,
                     ExtraTemperatureId = extraTemp,
-                    ExtraHumidityId    = extraHumid,
+                    ExtraHumidityId = extraHumid,
                 });
             }
             return configs.AsReadOnly();
@@ -310,23 +310,23 @@ public sealed class VantageStation : IAsyncDisposable
             await _client.WakeAsync(_maxTries, ct);
             // 27 signed bytes: inTemp, inTempComp, outTemp, extra×7, soil×4, leaf×4
             byte[] temps = await ReadEepromAsync(DavisProtocol.EepromTempCalib, 27, ct);
-            byte[] inHumB  = await ReadEepromAsync(DavisProtocol.EepromInHumidCalib, 1, ct);
+            byte[] inHumB = await ReadEepromAsync(DavisProtocol.EepromInHumidCalib, 1, ct);
             byte[] outHumB = await ReadEepromAsync(DavisProtocol.EepromOutHumidCalib, 1, ct);
-            byte[] windB   = await ReadEepromAsync(DavisProtocol.EepromWindDirCalib, 2, ct);
+            byte[] windB = await ReadEepromAsync(DavisProtocol.EepromWindDirCalib, 2, ct);
             // Extra humidity calibrations (7 channels after outHumid)
-            byte[] exHumB  = await ReadEepromAsync((ushort)(DavisProtocol.EepromOutHumidCalib + 1), 7, ct);
+            byte[] exHumB = await ReadEepromAsync((ushort)(DavisProtocol.EepromOutHumidCalib + 1), 7, ct);
 
             return new CalibrationData
             {
-                InsideTempOffsetF    = (sbyte)temps[0] / 10.0,
-                OutsideTempOffsetF   = (sbyte)temps[2] / 10.0,
+                InsideTempOffsetF = (sbyte)temps[0] / 10.0,
+                OutsideTempOffsetF = (sbyte)temps[2] / 10.0,
                 InsideHumidOffsetPct = (sbyte)inHumB[0],
                 OutsideHumidOffsetPct = (sbyte)outHumB[0],
                 WindDirOffsetDegrees = BinaryPrimitives.ReadInt16LittleEndian(windB),
-                ExtraTempOffsets     = [.. Enumerable.Range(0, 7).Select(i => (sbyte)temps[3 + i] / 10.0)],
-                SoilTempOffsets      = [.. Enumerable.Range(0, 4).Select(i => (sbyte)temps[10 + i] / 10.0)],
-                LeafTempOffsets      = [.. Enumerable.Range(0, 4).Select(i => (sbyte)temps[14 + i] / 10.0)],
-                ExtraHumidOffsets    = [.. Enumerable.Range(0, 7).Select(i => (sbyte)exHumB[i] * 1.0)],
+                ExtraTempOffsets = [.. Enumerable.Range(0, 7).Select(i => (sbyte)temps[3 + i] / 10.0)],
+                SoilTempOffsets = [.. Enumerable.Range(0, 4).Select(i => (sbyte)temps[10 + i] / 10.0)],
+                LeafTempOffsets = [.. Enumerable.Range(0, 4).Select(i => (sbyte)temps[14 + i] / 10.0)],
+                ExtraHumidOffsets = [.. Enumerable.Range(0, 7).Select(i => (sbyte)exHumB[i] * 1.0)],
             };
         }
         finally { _lock.Release(); }
@@ -344,15 +344,15 @@ public sealed class VantageStation : IAsyncDisposable
             //        "C  2.3", "R  1.003", "BARCAL  0.012", "GAIN  1", "OFFSET  0"
             return new BarometerData
             {
-                CurrentPressureInHg    = ParseDouble(lines, 0, 1),
-                AltitudeFeet           = ParseDouble(lines, 1, 1),
-                DewPointF              = ParseDouble(lines, 2, 2),
-                VirtualTemperatureF    = ParseDouble(lines, 3, 2),
-                CorrectionFactor       = ParseDouble(lines, 4, 1),
-                CorrectionRatio        = ParseDouble(lines, 5, 1),
+                CurrentPressureInHg = ParseDouble(lines, 0, 1),
+                AltitudeFeet = ParseDouble(lines, 1, 1),
+                DewPointF = ParseDouble(lines, 2, 2),
+                VirtualTemperatureF = ParseDouble(lines, 3, 2),
+                CorrectionFactor = ParseDouble(lines, 4, 1),
+                CorrectionRatio = ParseDouble(lines, 5, 1),
                 CorrectionConstantInHg = ParseDouble(lines, 6, 1),
-                Gain                   = ParseDouble(lines, 7, 1),
-                ErrorOffset            = ParseDouble(lines, 8, 1),
+                Gain = ParseDouble(lines, 7, 1),
+                ErrorOffset = ParseDouble(lines, 8, 1),
             };
         }
         finally { _lock.Release(); }
@@ -370,11 +370,11 @@ public sealed class VantageStation : IAsyncDisposable
             string[] parts = (lines.Length > 0 ? lines[0] : "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
             return new ReceptionStats
             {
-                TotalPacketsReceived       = parts.Length > 0 ? int.Parse(parts[0]) : 0,
-                TotalPacketsMissed         = parts.Length > 1 ? int.Parse(parts[1]) : 0,
+                TotalPacketsReceived = parts.Length > 0 ? int.Parse(parts[0]) : 0,
+                TotalPacketsMissed = parts.Length > 1 ? int.Parse(parts[1]) : 0,
                 NumberOfResynchronizations = parts.Length > 2 ? int.Parse(parts[2]) : 0,
-                LongestGoodStretch         = parts.Length > 3 ? int.Parse(parts[3]) : 0,
-                NumberOfCrcErrors          = parts.Length > 4 ? int.Parse(parts[4]) : 0,
+                LongestGoodStretch = parts.Length > 3 ? int.Parse(parts[3]) : 0,
+                NumberOfCrcErrors = parts.Length > 4 ? int.Parse(parts[4]) : 0,
             };
         }
         finally { _lock.Release(); }
@@ -574,11 +574,11 @@ public sealed class VantageStation : IAsyncDisposable
             await _client.WakeAsync(_maxTries, ct);
             ushort addr = variable switch
             {
-                "inTemp"   => 0x32,
-                "outTemp"  => 0x34,
+                "inTemp" => 0x32,
+                "outTemp" => 0x34,
                 string v when v.StartsWith("extraTemp") && int.TryParse(v[9..], out int ei) && ei >= 1 && ei <= 7 => (ushort)(0x34 + ei),
-                string v when v.StartsWith("soilTemp")  && int.TryParse(v[8..], out int si) && si >= 1 && si <= 4 => (ushort)(0x3B + si),
-                string v when v.StartsWith("leafTemp")  && int.TryParse(v[8..], out int li) && li >= 1 && li <= 4 => (ushort)(0x3F + li),
+                string v when v.StartsWith("soilTemp") && int.TryParse(v[8..], out int si) && si >= 1 && si <= 4 => (ushort)(0x3B + si),
+                string v when v.StartsWith("leafTemp") && int.TryParse(v[8..], out int li) && li >= 1 && li <= 4 => (ushort)(0x3F + li),
                 _ => throw new ArgumentException($"Unknown temperature variable: {variable}")
             };
 
@@ -608,7 +608,7 @@ public sealed class VantageStation : IAsyncDisposable
             await _client.WakeAsync(_maxTries, ct);
             ushort addr = variable switch
             {
-                "inHumid"  => DavisProtocol.EepromInHumidCalib,
+                "inHumid" => DavisProtocol.EepromInHumidCalib,
                 "outHumid" => DavisProtocol.EepromOutHumidCalib,
                 string v when v.StartsWith("extraHumid") && int.TryParse(v[10..], out int hi) && hi >= 1 && hi <= 7 =>
                     (ushort)(DavisProtocol.EepromOutHumidCalib + hi),
@@ -640,8 +640,8 @@ public sealed class VantageStation : IAsyncDisposable
             if (repeaterCode != 0) typeBits |= repeaterCode << 4;
 
             byte extraIdBits = 0xFF;
-            if (extraTempId.HasValue)  extraIdBits = (byte)((extraIdBits & 0xF0) | ((extraTempId.Value - 1) & 0x0F));
-            if (extraHumId.HasValue)   extraIdBits = (byte)((extraIdBits & 0x0F) | ((extraHumId.Value - 1) << 4));
+            if (extraTempId.HasValue) extraIdBits = (byte)((extraIdBits & 0xF0) | ((extraTempId.Value - 1) & 0x0F));
+            if (extraHumId.HasValue) extraIdBits = (byte)((extraIdBits & 0x0F) | ((extraHumId.Value - 1) << 4));
 
             ushort startByte = (ushort)(DavisProtocol.EepromTransmitters + (channel - 1) * 2);
             await WriteEepromAsync(startByte, [(byte)typeBits, extraIdBits], ct);
@@ -696,8 +696,8 @@ public sealed class VantageStation : IAsyncDisposable
     private async Task ReadSetupFromEepromAsync(CancellationToken ct)
     {
         byte[] setupBits = await ReadEepromAsync(DavisProtocol.EepromSetupBits, 1, ct);
-        byte[] archByte  = await ReadEepromAsync(DavisProtocol.EepromArchiveInterval, 1, ct);
-        RainBucketType       = (setupBits[0] & 0x30) >> 4;
+        byte[] archByte = await ReadEepromAsync(DavisProtocol.EepromArchiveInterval, 1, ct);
+        RainBucketType = (setupBits[0] & 0x30) >> 4;
         ArchiveIntervalSeconds = archByte[0] * 60;
     }
 
@@ -775,8 +775,17 @@ public sealed class VantageStation : IAsyncDisposable
     private static string WindUnitName(int code) => code switch { 1 => "m/s", 2 => "km/h", 3 => "knots", _ => "mph" };
     private static string TxTypeName(int code) => code switch
     {
-        0 => "iss", 1 => "temp", 2 => "hum", 3 => "temp_hum", 4 => "wind",
-        5 => "rain", 6 => "leaf", 7 => "soil", 8 => "leaf_soil", 9 => "sensorlink", _ => "none"
+        0 => "iss",
+        1 => "temp",
+        2 => "hum",
+        3 => "temp_hum",
+        4 => "wind",
+        5 => "rain",
+        6 => "leaf",
+        7 => "soil",
+        8 => "leaf_soil",
+        9 => "sensorlink",
+        _ => "none"
     };
 
     public async ValueTask DisposeAsync()

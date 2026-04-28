@@ -30,3 +30,8 @@ artifacts/
 TestResults/
 coverage-report/
 core.*
+
+## SQLite — local outbox databases
+*.db
+*.db-shm
+*.db-wal

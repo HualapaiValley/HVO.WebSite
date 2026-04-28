@@ -120,6 +120,9 @@
     "onAutoForward": "silent"
   },
   "initializeCommand": "mkdir -p \"$HOME/.microsoft/usersecrets\"",
+  "runArgs": [
+    "--network=host"
+  ],
   "mounts": [
     {
       "type": "volume",

@@ -37,7 +37,7 @@ public sealed class DavisConsoleClient : IDisposable
         CloseInternal();
         _tcp = new TcpClient();
         _tcp.ReceiveTimeout = (int)_socketTimeout.TotalMilliseconds;
-        _tcp.SendTimeout    = (int)_socketTimeout.TotalMilliseconds;
+        _tcp.SendTimeout = (int)_socketTimeout.TotalMilliseconds;
         await _tcp.ConnectAsync(_host, _port, ct);
         _stream = _tcp.GetStream();
         _logger.LogInformation("Connected to Davis console at {Host}:{Port}", _host, _port);
@@ -55,7 +55,7 @@ public sealed class DavisConsoleClient : IDisposable
         _stream?.Close();
         _tcp?.Close();
         _stream = null;
-        _tcp    = null;
+        _tcp = null;
     }
 
     // ── Wake sequence ────────────────────────────────────────────────────────
@@ -131,12 +131,21 @@ public sealed class DavisConsoleClient : IDisposable
     /// <summary>
     /// Send data and wait for ACK. Throws <see cref="DavisProtocolException"/> if no ACK received.
     /// </summary>
+    /// <remarks>
+    /// The WeatherLink IP adapter prefixes the console's ACK with \n\r (0x0A 0x0D).
+    /// This method skips that prefix when present before checking for ACK.
+    /// </remarks>
     public async Task SendDataAsync(byte[] data, CancellationToken ct)
     {
         await WriteAsync(data, ct);
-        byte[] ack = await ReadExactAsync(1, ct);
-        if (ack[0] != DavisProtocol.Ack)
-            throw new DavisProtocolException($"Expected ACK (0x06), got 0x{ack[0]:X2}");
+        byte b = (await ReadExactAsync(1, ct))[0];
+        if (b == DavisProtocol.Lf)
+        {
+            await ReadExactAsync(1, ct);              // discard \r
+            b = (await ReadExactAsync(1, ct))[0];     // read actual ACK
+        }
+        if (b != DavisProtocol.Ack)
+            throw new DavisProtocolException($"Expected ACK (0x06), got 0x{b:X2}");
     }
 
     /// <summary>
