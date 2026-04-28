@@ -70,6 +70,7 @@ else if (_historyRecords is not null)
     <p style="margin-top:.5rem;font-size:.875rem;color:#a6adc8">
         @_historyRecords.Count record@(_historyRecords.Count == 1 ? "" : "s") loaded
         since @_since.ToString("yyyy-MM-dd HH:mm")
+        @if (_hasMore) { <span> — more available</span> }
     </p>
 
     @if (_historyRecords.Count == 0)
@@ -94,7 +95,7 @@ else if (_historyRecords is not null)
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var r in _historyRecords)
+                    @foreach (var r in PagedRecords)
                     {
                         <tr>
                             <td>@r.DateTimeLocal.ToString("yyyy-MM-dd HH:mm")</td>
@@ -115,6 +116,37 @@ else if (_historyRecords is not null)
                 </tbody>
             </table>
         </div>
+
+        @* ── Pagination controls ─────────────────────────────────────────── *@
+        @if (TotalPages > 1 || _hasMore)
+        {
+            <div style="display:flex;align-items:center;gap:.5rem;margin-top:.75rem;flex-wrap:wrap">
+                @if (TotalPages > 1)
+                {
+                    <button class="btn" @onclick='() => _displayPage = 1'
+                            disabled="@(_displayPage == 1)">«</button>
+                    <button class="btn" @onclick='() => _displayPage--'
+                            disabled="@(_displayPage == 1)">‹</button>
+                    <span style="font-size:.875rem;color:#cdd6f4">
+                        Page @_displayPage of @TotalPages
+                        &nbsp;(@((_displayPage - 1) * PageSize + 1)–@(Math.Min(_displayPage * PageSize, _historyRecords.Count))
+                        of @_historyRecords.Count)
+                    </span>
+                    <button class="btn" @onclick='() => _displayPage++'
+                            disabled="@(_displayPage >= TotalPages)">›</button>
+                    <button class="btn" @onclick='() => _displayPage = TotalPages'
+                            disabled="@(_displayPage >= TotalPages)">»</button>
+                }
+
+                @if (_hasMore)
+                {
+                    <button class="btn btn-primary" @onclick="LoadMoreAsync"
+                            disabled="@_historyLoading" style="margin-left:auto">
+                        Load more from console…
+                    </button>
+                }
+            </div>
+        }
     }
 }
 

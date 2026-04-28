@@ -34,23 +34,92 @@ public partial class Archive
 
     // ── Archive History ──────────────────────────────────────────────────────
 
+    private const int FetchSize = 96;  // records per hardware round-trip (≈2 days at 30-min interval)
+    private const int PageSize = 48;   // rows shown per display page (≈1 day at 30-min interval)
+
     private DateTime _since = DateTime.Now.AddDays(-1);
     private bool _historyLoading;
     private string? _historyError;
     private List<ArchiveRecord>? _historyRecords;
+    private int _displayPage = 1;
+    private DateTime? _continuationTimestamp;  // start of next hardware fetch
+    private bool _hasMore;
+
+    private int TotalPages => _historyRecords is null ? 0
+        : Math.Max(1, (int)Math.Ceiling(_historyRecords.Count / (double)PageSize));
+
+    private IEnumerable<ArchiveRecord> PagedRecords =>
+        _historyRecords?.Skip((_displayPage - 1) * PageSize).Take(PageSize)
+        ?? [];
 
     private async Task LoadHistoryAsync()
     {
         _historyLoading = true;
         _historyError = null;
         _historyRecords = null;
+        _displayPage = 1;
+        _continuationTimestamp = null;
+        _hasMore = false;
         StateHasChanged();
         try
         {
             var records = new List<ArchiveRecord>();
-            await foreach (var rec in Station.GetArchiveSinceAsync(_since))
+            int batchCount = 0;
+            await foreach (var rec in Station.GetArchiveSinceAsync(_since, FetchSize))
+            {
                 records.Add(rec);
+                if (++batchCount % 5 == 0)
+                {
+                    _historyRecords = [.. records];
+                    StateHasChanged();
+                }
+            }
             _historyRecords = records;
+            if (records.Count >= FetchSize)
+            {
+                _hasMore = true;
+                _continuationTimestamp = records[^1].DateTimeLocal;
+            }
+        }
+        catch (Exception ex)
+        {
+            _historyError = ex.Message;
+        }
+        finally
+        {
+            _historyLoading = false;
+        }
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        if (_continuationTimestamp is null || _historyLoading) return;
+        _historyLoading = true;
+        _hasMore = false;
+        StateHasChanged();
+        try
+        {
+            var records = _historyRecords ?? [];
+            int batchCount = 0;
+            await foreach (var rec in Station.GetArchiveSinceAsync(_continuationTimestamp.Value, FetchSize))
+            {
+                records.Add(rec);
+                if (++batchCount % 5 == 0)
+                {
+                    _historyRecords = [.. records];
+                    StateHasChanged();
+                }
+            }
+            _historyRecords = records;
+            if (batchCount >= FetchSize)
+            {
+                _hasMore = true;
+                _continuationTimestamp = records[^1].DateTimeLocal;
+            }
+            else
+            {
+                _continuationTimestamp = null;
+            }
         }
         catch (Exception ex)
         {

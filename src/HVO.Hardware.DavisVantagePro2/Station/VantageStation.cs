@@ -106,13 +106,21 @@ public sealed class VantageStation : IAsyncDisposable
     // ── Archive — DMPAFT ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// Yield all archive records since <paramref name="since"/> using DMPAFT.
-    /// Passes <c>DateTime.MinValue</c> to get all records.
+    /// Yield archive records since <paramref name="since"/> using DMPAFT.
+    /// Pass <c>DateTime.MinValue</c> to get all records.
     /// </summary>
+    /// <param name="since">Earliest record timestamp to return (local time).</param>
+    /// <param name="maxRecords">
+    /// Maximum number of records to yield before releasing the console lock.
+    /// Callers can issue a second request starting from the last yielded record's
+    /// timestamp to fetch the next batch. Defaults to <see cref="int.MaxValue"/>.
+    /// </param>
     public async IAsyncEnumerable<ArchiveRecord> GetArchiveSinceAsync(DateTime since,
+        int maxRecords = int.MaxValue,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct);
+        int yielded = 0;
         try
         {
             await _client.WakeAsync(_maxTries, ct);
@@ -157,6 +165,12 @@ public sealed class VantageStation : IAsyncDisposable
 
                     lastGoodTs = rec.DateTimeLocal;
                     yield return rec;
+
+                    if (++yielded >= maxRecords)
+                    {
+                        _logger.LogDebug("DMPAFT: maxRecords {Max} reached, stopping early", maxRecords);
+                        yield break;
+                    }
                 }
                 startIndex = 0; // Only the first page uses the returned start index
             }

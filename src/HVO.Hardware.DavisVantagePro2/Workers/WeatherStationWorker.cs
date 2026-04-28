@@ -102,7 +102,7 @@ public sealed class WeatherStationWorker(
         logger.LogInformation("DMPAFT catchup since {Since}", since == DateTime.MinValue ? "beginning" : since.ToString("g"));
 
         int count = 0;
-        await foreach (var rec in station.GetArchiveSinceAsync(since, ct))
+        await foreach (var rec in station.GetArchiveSinceAsync(since, ct: ct))
         {
             await WriteArchiveToOutboxAsync(rec, ct);
             count++;
