@@ -37,7 +37,7 @@ namespace HVO.DataModels.Extensions
                         maxRetryCount: 3,
                         maxRetryDelay: TimeSpan.FromSeconds(30),
                         errorNumbersToAdd: null);
-                    
+
                     sqlOptions.CommandTimeout(60);
                 });
 
@@ -94,7 +94,7 @@ namespace HVO.DataModels.Extensions
                         maxRetryCount: 3,
                         maxRetryDelay: TimeSpan.FromSeconds(30),
                         errorNumbersToAdd: null);
-                    
+
                     sqlOptions.CommandTimeout(60);
                 });
 

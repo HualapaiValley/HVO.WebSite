@@ -70,18 +70,18 @@ public class WeatherV9Controller : ControllerBase
     {
         var record = new WeatherRaw
         {
-            RecordedAt             = request.RecordedAt?.ToUniversalTime() ?? DateTime.UtcNow,
-            StationId              = request.StationId,
-            TemperatureF           = request.TemperatureF,
-            HumidityPercent        = request.HumidityPercent,
-            DewPointF              = request.DewPointF,
+            RecordedAt = request.RecordedAt?.ToUniversalTime() ?? DateTime.UtcNow,
+            StationId = request.StationId,
+            TemperatureF = request.TemperatureF,
+            HumidityPercent = request.HumidityPercent,
+            DewPointF = request.DewPointF,
             BarometricPressureInHg = request.BarometricPressureInHg,
-            WindSpeedMph           = request.WindSpeedMph,
-            WindGustMph            = request.WindGustMph,
-            WindDirectionDegrees   = request.WindDirectionDegrees,
-            RainfallInches         = request.RainfallInches,
-            SolarRadiationWm2      = request.SolarRadiationWm2,
-            UvIndex                = request.UvIndex
+            WindSpeedMph = request.WindSpeedMph,
+            WindGustMph = request.WindGustMph,
+            WindDirectionDegrees = request.WindDirectionDegrees,
+            RainfallInches = request.RainfallInches,
+            SolarRadiationWm2 = request.SolarRadiationWm2,
+            UvIndex = request.UvIndex
         };
 
         _db.WeatherRaw.Add(record);
@@ -169,37 +169,37 @@ public class WeatherV9Controller : ControllerBase
 
     private static WeatherRawResponse MapToResponse(WeatherRaw r) => new()
     {
-        Id                     = r.Id,
-        StationId              = r.StationId,
-        RecordedAt             = r.RecordedAt,
-        TemperatureF           = r.TemperatureF,
-        HumidityPercent        = r.HumidityPercent,
-        DewPointF              = r.DewPointF,
+        Id = r.Id,
+        StationId = r.StationId,
+        RecordedAt = r.RecordedAt,
+        TemperatureF = r.TemperatureF,
+        HumidityPercent = r.HumidityPercent,
+        DewPointF = r.DewPointF,
         BarometricPressureInHg = r.BarometricPressureInHg,
-        WindSpeedMph           = r.WindSpeedMph,
-        WindGustMph            = r.WindGustMph,
-        WindDirectionDegrees   = r.WindDirectionDegrees,
-        RainfallInches         = r.RainfallInches,
-        SolarRadiationWm2      = r.SolarRadiationWm2,
-        UvIndex                = r.UvIndex
+        WindSpeedMph = r.WindSpeedMph,
+        WindGustMph = r.WindGustMph,
+        WindDirectionDegrees = r.WindDirectionDegrees,
+        RainfallInches = r.RainfallInches,
+        SolarRadiationWm2 = r.SolarRadiationWm2,
+        UvIndex = r.UvIndex
     };
 
     private static WeatherHourlyResponse MapToHourlyResponse(WeatherHourly r) => new()
     {
-        Id                            = r.Id,
-        StationId                     = r.StationId,
-        PeriodStart                   = r.PeriodStart,
-        AvgTemperatureF               = r.AvgTemperatureF,
-        MinTemperatureF               = r.MinTemperatureF,
-        MaxTemperatureF               = r.MaxTemperatureF,
-        AvgHumidityPercent            = r.AvgHumidityPercent,
-        AvgDewPointF                  = r.AvgDewPointF,
-        AvgBarometricPressureInHg     = r.AvgBarometricPressureInHg,
-        AvgWindSpeedMph               = r.AvgWindSpeedMph,
-        MaxWindGustMph                = r.MaxWindGustMph,
-        DominantWindDirectionDegrees  = r.DominantWindDirectionDegrees,
-        TotalRainfallInches           = r.TotalRainfallInches,
-        AvgSolarRadiationWm2          = r.AvgSolarRadiationWm2,
-        MaxUvIndex                    = r.MaxUvIndex
+        Id = r.Id,
+        StationId = r.StationId,
+        PeriodStart = r.PeriodStart,
+        AvgTemperatureF = r.AvgTemperatureF,
+        MinTemperatureF = r.MinTemperatureF,
+        MaxTemperatureF = r.MaxTemperatureF,
+        AvgHumidityPercent = r.AvgHumidityPercent,
+        AvgDewPointF = r.AvgDewPointF,
+        AvgBarometricPressureInHg = r.AvgBarometricPressureInHg,
+        AvgWindSpeedMph = r.AvgWindSpeedMph,
+        MaxWindGustMph = r.MaxWindGustMph,
+        DominantWindDirectionDegrees = r.DominantWindDirectionDegrees,
+        TotalRainfallInches = r.TotalRainfallInches,
+        AvgSolarRadiationWm2 = r.AvgSolarRadiationWm2,
+        MaxUvIndex = r.MaxUvIndex
     };
 }
