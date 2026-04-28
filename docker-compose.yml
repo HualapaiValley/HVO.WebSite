@@ -1,0 +1,80 @@
+# HVO.WebSite — local Docker Compose stack
+#
+# Deploys two services onto a shared Docker network:
+#   hvo-website   — ASP.NET Core / Blazor Server web application
+#   hvo-davis     — Davis Vantage Pro 2 hardware driver (sidecar)
+#
+# Both images are built locally from the repo. No registry is required.
+#
+# Prerequisites:
+#   1. All variables below must be set in .env (see .env for reference).
+#   2. An API key with the ingest:weather scope must exist in the v9.ApiKeys
+#      table. Set DAVIS_API_KEY to the raw (unhashed) key value.
+#
+# Deploy to a remote Docker host:
+#   docker compose --context lxc up -d --build
+#
+# Deploy to the Mac Mini (ARM64 — set WEBSITE_RUNTIME=linux-arm64 in .env):
+#   docker compose --context mac up -d --build
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # HVO Website — Blazor Server + ASP.NET Core API
+  # ---------------------------------------------------------------------------
+  hvo-website:
+    build:
+      context: .
+      dockerfile: src/HVO.WebSite.v9/Dockerfile
+      args:
+        WEBSITE_RUNTIME: ${WEBSITE_RUNTIME:-linux-x64}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Key Vault — loaded by DefaultAzureCredential using the SP below
+      KeyVault__Uri: ${AZURE_KEYVAULT_URI}
+      # Azure service principal used to authenticate to Key Vault
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+      # Disable HTTPS redirect — TLS is terminated upstream (reverse proxy / host)
+      EnableHttpsRedirect: "false"
+      TrustDevCertificates: "false"
+      # Seeds the Davis ingest API key into the DB on first start
+      Seeding__DavisApiKey: ${DAVIS_API_KEY}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Davis Vantage Pro 2 driver — reads from the console, posts to hvo-website
+  # ---------------------------------------------------------------------------
+  hvo-davis:
+    build:
+      context: .
+      dockerfile: src/HVO.Hardware.DavisVantagePro2/Dockerfile
+    depends_on:
+      hvo-website:
+        condition: service_healthy
+    environment:
+      # Station TCP address (network-connected console)
+      Station__Host: ${DAVIS_STATION_HOST:-192.168.0.121}
+      Station__Port: ${DAVIS_STATION_PORT:-22222}
+      Station__ArchiveCatchupOnStartup: "true"
+      # Post readings to the website container — use the service name, not localhost
+      Outbox__ApiEndpoint: "http://hvo-website:8080/api/v1/weather/v9/raw"
+      Outbox__ApiKey: ${DAVIS_API_KEY}
+      # Persist the outbox SQLite DB across restarts
+      Outbox__DbPath: /app/data/outbox.db
+      DOTNET_ENVIRONMENT: Production
+    volumes:
+      - davis-outbox:/app/data
+    restart: unless-stopped
+
+volumes:
+  davis-outbox:

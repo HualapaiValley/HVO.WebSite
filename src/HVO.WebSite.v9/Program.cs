@@ -199,6 +199,9 @@ namespace HVO.WebSite.v9
             });
 
             services.AddHttpContextAccessor();
+
+            // Runs DB migrations and seeds system API keys on startup
+            services.AddHostedService<Services.ApiKeySeedService>();
         }
 
         private static void Configure(WebApplication app)
