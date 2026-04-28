@@ -82,6 +82,24 @@ sudo apt-get install -y --no-install-recommends \
 	fontconfig fonts-dejavu-core fonts-open-sans 2>/dev/null || true
 sudo fc-cache -f 2>/dev/null || true
 
+# Install mssql-tools18 (sqlcmd) — needed for Azure SQL querying and diagnostics
+echo "Installing mssql-tools18 (sqlcmd)..."
+if ! command -v /opt/mssql-tools18/bin/sqlcmd >/dev/null 2>&1; then
+	curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+		| sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+	echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" \
+		| sudo tee /etc/apt/sources.list.d/mssql.list > /dev/null
+	sudo apt-get update -qq
+	sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev -qq 2>/dev/null || \
+		echo "Warning: mssql-tools18 installation failed"
+fi
+# Persist /opt/mssql-tools18/bin on PATH
+for _rc in /home/vscode/.bashrc /home/vscode/.zshrc; do
+	if [[ -f "$_rc" ]] && ! grep -q 'mssql-tools18' "$_rc" 2>/dev/null; then
+		printf '\nexport PATH="$PATH:/opt/mssql-tools18/bin"\n' >> "$_rc"
+	fi
+done
+
 # ─────────────────────────────────────────────────────────────────────
 # HVO.WebSite-specific setup
 # ─────────────────────────────────────────────────────────────────────
