@@ -4,11 +4,9 @@
 @using HVO.Hardware.DavisVantagePro2.Protocol.Packets
 @using HVO.Hardware.DavisVantagePro2.Station
 @using HVO.Hardware.DavisVantagePro2.Workers
-@using Microsoft.EntityFrameworkCore
 @inject VantageStation Station
 @inject WeatherStationWorker Worker
 @inject OutboxForwarder Forwarder
-@inject IServiceScopeFactory ScopeFactory
 @implements IDisposable
 
 <h1>Station Status</h1>

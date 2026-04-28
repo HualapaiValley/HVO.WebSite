@@ -105,6 +105,7 @@ public sealed class OutboxForwarder(
                 string body = await response.Content.ReadAsStringAsync(ct);
                 record.LastError = $"HTTP {(int)response.StatusCode}: {body[..Math.Min(200, body.Length)]}";
                 ScheduleRetry(record);
+                LastError = record.LastError;
                 logger.LogWarning("Forward failed for record {Id}: {Err}", record.Id, record.LastError);
             }
         }

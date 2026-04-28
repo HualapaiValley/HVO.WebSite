@@ -26,6 +26,10 @@ public sealed class StationOptions
     /// <summary>How many consecutive errors before the worker pauses and retries the connection.</summary>
     [Range(1, 100)]
     public int MaxConsecutiveErrors { get; set; } = 5;
+
+    /// <summary>Station identifier sent to the API with each reading (e.g. "hvo-davis-01").</summary>
+    [Required]
+    public string StationId { get; set; } = "hvo-davis-01";
 }
 
 /// <summary>Configuration for the outbox forwarder that POSTs readings to the web API.</summary>
@@ -34,7 +38,7 @@ public sealed class OutboxOptions
     public const string SectionName = "Outbox";
 
     [Required, Url]
-    public string ApiEndpoint { get; set; } = "https://localhost:5001/api/v1/weather/raw";
+    public string ApiEndpoint { get; set; } = "https://localhost:5001/api/v1/weather/v9/raw";
 
     [Required]
     public string ApiKey { get; set; } = string.Empty;
@@ -49,4 +53,7 @@ public sealed class OutboxOptions
     /// <summary>How often the forwarder sweeps pending records (seconds).</summary>
     [Range(1, 60)]
     public int SweepIntervalSeconds { get; set; } = 5;
+
+    /// <summary>Path to the SQLite database file. Defaults to outbox.db in the content root when empty.</summary>
+    public string DbPath { get; set; } = string.Empty;
 }

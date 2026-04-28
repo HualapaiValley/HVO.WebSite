@@ -33,6 +33,9 @@ public sealed class OutboxRecord
 
     /// <summary>UTC time this record was created.</summary>
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>True if this record originated from a DMPAFT archive record; false for live LOOP2 readings.</summary>
+    public bool IsArchiveRecord { get; set; }
 }
 
 public enum OutboxStatus { Pending, Sent, Failed }
@@ -50,6 +53,7 @@ public sealed class OutboxDbContext(DbContextOptions<OutboxDbContext> options) :
             e.Property(r => r.Id).ValueGeneratedOnAdd();
             e.HasIndex(r => r.Status);
             e.HasIndex(r => r.RecordedAtUtc).IsUnique();
+            e.HasIndex(r => r.IsArchiveRecord);
             e.Property(r => r.Payload).IsRequired();
         });
     }

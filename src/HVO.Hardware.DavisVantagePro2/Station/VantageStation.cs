@@ -149,7 +149,7 @@ public sealed class VantageStation : IAsyncDisposable
                         yield break;
                     }
 
-                    if (rec.DateTimeLocal <= lastGoodTs.AddSeconds(-7200))
+                    if (lastGoodTs != DateTime.MinValue && rec.DateTimeLocal <= lastGoodTs.AddSeconds(-7200))
                     {
                         _logger.LogDebug("DMPAFT: timestamp declining, done");
                         yield break;
@@ -639,7 +639,7 @@ public sealed class VantageStation : IAsyncDisposable
 
             byte extraIdBits = 0xFF;
             if (extraTempId.HasValue)  extraIdBits = (byte)((extraIdBits & 0xF0) | ((extraTempId.Value - 1) & 0x0F));
-            if (extraHumId.HasValue)   extraIdBits = (byte)((extraIdBits & 0x0F) | ((extraHumId.Value) << 4));
+            if (extraHumId.HasValue)   extraIdBits = (byte)((extraIdBits & 0x0F) | ((extraHumId.Value - 1) << 4));
 
             ushort startByte = (ushort)(DavisProtocol.EepromTransmitters + (channel - 1) * 2);
             await WriteEepromAsync(startByte, [(byte)typeBits, extraIdBits], ct);

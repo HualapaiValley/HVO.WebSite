@@ -55,7 +55,6 @@ public sealed class WeatherStationWorker(
             }
             catch (Exception ex)
             {
-                ConsecutiveErrors++;
                 LastError = ex.Message;
                 logger.LogError(ex, "Station error (consecutive: {N}). Reconnecting in 30s…", ConsecutiveErrors);
                 try { await Task.Delay(30_000, stoppingToken); } catch (OperationCanceledException) { break; }
@@ -117,7 +116,7 @@ public sealed class WeatherStationWorker(
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
         var last = await db.OutboxRecords
-            .Where(r => r.Payload.Contains("\"IsArchiveRecord\":true"))
+            .Where(r => r.IsArchiveRecord)
             .OrderByDescending(r => r.RecordedAtUtc)
             .Select(r => (DateTime?)r.RecordedAtUtc)
             .FirstOrDefaultAsync(ct);
@@ -128,28 +127,21 @@ public sealed class WeatherStationWorker(
     {
         var payload = new
         {
-            IsArchiveRecord = false,
-            reading.RecordedAtUtc,
-            reading.OutsideTemperatureF,
-            reading.InsideTemperatureF,
-            reading.OutsideHumidityPercent,
-            reading.InsideHumidityPercent,
+            StationId = _options.StationId,
+            RecordedAt = reading.RecordedAtUtc,
+            TemperatureF = reading.OutsideTemperatureF,
+            HumidityPercent = reading.OutsideHumidityPercent,
             reading.DewPointF,
-            reading.HeatIndexF,
-            reading.WindChillF,
             reading.BarometricPressureInHg,
             reading.WindSpeedMph,
-            reading.WindDirectionDegrees,
-            reading.WindGust10MinMph,
-            reading.WindGust10MinDirectionDegrees,
-            reading.RainRateInchesPerHour,
-            reading.DailyRainInches,
-            reading.HourRainInches,
-            reading.Rain24HourInches,
+            WindGustMph = reading.WindGust10MinMph,
+            WindDirectionDegrees = reading.WindDirectionDegrees.HasValue
+                ? (int?)(int)reading.WindDirectionDegrees.Value : null,
+            RainfallInches = reading.DailyRainInches,
             reading.SolarRadiationWm2,
             reading.UvIndex,
         };
-        await EnqueueAsync(reading.RecordedAtUtc, JsonSerializer.Serialize(payload), ct);
+        await EnqueueAsync(reading.RecordedAtUtc, JsonSerializer.Serialize(payload), isArchiveRecord: false, ct);
     }
 
     private async Task WriteArchiveToOutboxAsync(ArchiveRecord rec, CancellationToken ct)
@@ -175,10 +167,10 @@ public sealed class WeatherStationWorker(
             rec.EtInches,
             rec.ArchiveIntervalMinutes,
         };
-        await EnqueueAsync(rec.DateTimeLocal.ToUniversalTime(), JsonSerializer.Serialize(payload), ct);
+        await EnqueueAsync(rec.DateTimeLocal.ToUniversalTime(), JsonSerializer.Serialize(payload), isArchiveRecord: true, ct);
     }
 
-    private async Task EnqueueAsync(DateTime recordedAtUtc, string json, CancellationToken ct)
+    private async Task EnqueueAsync(DateTime recordedAtUtc, string json, bool isArchiveRecord, CancellationToken ct)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
@@ -189,10 +181,11 @@ public sealed class WeatherStationWorker(
 
         db.OutboxRecords.Add(new OutboxRecord
         {
-            RecordedAtUtc = recordedAtUtc,
-            Payload       = json,
-            Status        = OutboxStatus.Pending,
-            CreatedAtUtc  = DateTime.UtcNow,
+            RecordedAtUtc    = recordedAtUtc,
+            Payload          = json,
+            IsArchiveRecord  = isArchiveRecord,
+            Status           = OutboxStatus.Pending,
+            CreatedAtUtc     = DateTime.UtcNow,
         });
         await db.SaveChangesAsync(ct);
     }
