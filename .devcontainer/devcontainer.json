@@ -71,7 +71,7 @@
       }
     }
   },
-  // Non-secret env vars available in the container at build time
+  // Non-secret env vars available in the running container environment
   "containerEnv": {
     "ASPNETCORE_ENVIRONMENT": "Development",
     "DOTNET_ENVIRONMENT": "Development"
