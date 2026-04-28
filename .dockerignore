@@ -1,0 +1,27 @@
+## Build outputs — must be excluded so dotnet restore inside the container
+## is not overwritten by the host's obj/bin directories
+**/bin/
+**/obj/
+
+## Secrets and local config
+.env
+*.env
+.env.*
+
+## Git
+.git/
+.gitignore
+
+## Dev container
+.devcontainer/
+
+## Test projects
+tests/
+
+## IDE
+.vs/
+.vscode/
+.idea/
+
+## OS
+.DS_Store

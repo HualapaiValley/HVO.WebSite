@@ -41,6 +41,8 @@ services:
       TrustDevCertificates: "false"
       # Seeds the Davis ingest API key into the DB on first start
       Seeding__DavisApiKey: ${DAVIS_API_KEY}
+      # Connection string — passed directly so Key Vault is not required
+      ConnectionStrings__HualapaiValleyObservatory: ${ConnectionStrings__HualapaiValleyObservatory}
     ports:
       - "8080:8080"
     restart: unless-stopped
