@@ -61,12 +61,16 @@ HVO.WebSite v9 is a clean-slate rebuild of the Hualapai Valley Observatory websi
 - [x] Remove Playground project
 - [x] Audit and snapshot legacy `dbo` schema (`HVO.Database` SQL project)
 - [x] Add test projects: unit (MSTest + Moq), API (WebApplicationFactory), E2E (Playwright)
-- [ ] Create `HvoV9DbContext` with initial EF Core migration
-- [ ] Define v9 schema entities listed above
+- [x] Create `HvoV9DbContext` with initial EF Core migration
+- [x] Define v9 schema entities listed above
 - [x] Configure Entra ID integration in `Program.cs` via `Microsoft.Identity.Web`
-- [ ] Implement API key middleware for ingest endpoints
-- [ ] Implement base ingest endpoints (`POST /api/v1/weather/raw`, `POST /api/v1/images`)
-- [ ] Implement base read endpoints (`GET /api/v1/weather/latest`, `GET /api/v1/weather/highs-lows`)
+- [x] Implement API key middleware for ingest endpoints
+- [x] Implement base ingest endpoints (`POST /api/v1/weather/raw`)
+- [x] Implement base read endpoints (`GET /api/v1/weather/v9/raw/recent`, `GET /api/v1/weather/v9/hourly/recent`)
+- [x] Implement Admin and User Entra app roles with `[Authorize(Policy = "AdminOnly")]` protected page
+- [x] Integration tests for `/admin` page authorization (unauthenticated → OIDC challenge, wrong role → AccessDenied, Admin role → 200)
+- [ ] Data retention background jobs (prune raw after 2 months, prune minute after 6 months)
+- [ ] Image ingest endpoint (`POST /api/v1/images`)
 
 ### Phase 2 — Weather Dashboard
 
