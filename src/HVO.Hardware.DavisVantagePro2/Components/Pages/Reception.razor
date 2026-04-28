@@ -1,0 +1,48 @@
+@page "/reception"
+@rendermode InteractiveServer
+@using HVO.Hardware.DavisVantagePro2.Station
+@using HVO.Hardware.DavisVantagePro2.Station.Models
+@inject VantageStation Station
+
+<h1>ISS Reception Statistics</h1>
+
+@if (_loading)
+{
+    <p><span class="spinner"></span> Loading…</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-error">@_error</div>
+}
+else if (_stats is not null)
+{
+    <div class="data-grid">
+        <span class="label">Total Packets Received</span>  <span class="value">@_stats.TotalPacketsReceived</span>
+        <span class="label">Total Packets Missed</span>    <span class="value">@_stats.TotalPacketsMissed</span>
+        <span class="label">Reception Rate</span>
+        <span class="value" style="color:@(_stats.ReceptionPercent >= 99 ? "#a6e3a1" : _stats.ReceptionPercent >= 95 ? "#f9e2af" : "#f38ba8")">
+            @_stats.ReceptionPercent.ToString("F2") %
+        </span>
+        <span class="label">Resynchronizations</span>     <span class="value">@_stats.NumberOfResynchronizations</span>
+        <span class="label">Longest Good Stretch</span>   <span class="value">@_stats.LongestGoodStretch</span>
+        <span class="label">CRC Errors</span>              <span class="value">@_stats.NumberOfCrcErrors</span>
+    </div>
+}
+
+<button class="btn btn-primary" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+
+@code {
+    private ReceptionStats? _stats;
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try { _stats = await Station.GetReceptionStatsAsync(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+}

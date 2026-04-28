@@ -1,0 +1,138 @@
+@page "/transmitters"
+@rendermode InteractiveServer
+@using HVO.Hardware.DavisVantagePro2.Station
+@using HVO.Hardware.DavisVantagePro2.Station.Models
+@inject VantageStation Station
+
+<h1>Transmitters</h1>
+
+@if (_loading)
+{
+    <p><span class="spinner"></span> Loading…</p>
+}
+else if (_loadError is not null)
+{
+    <div class="alert alert-error">@_loadError</div>
+}
+else if (_transmitters is not null)
+{
+    <table class="station-table">
+        <thead>
+            <tr>
+                <th>Ch</th>
+                <th>Type</th>
+                <th>Repeater</th>
+                <th>Active</th>
+                <th>Retransmit</th>
+                <th>Extra Temp ID</th>
+                <th>Extra Humid ID</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var tx in _transmitters)
+            {
+                <tr>
+                    <td>@tx.Channel</td>
+                    <td>@tx.TransmitterType</td>
+                    <td>@(tx.RepeaterId ?? "—")</td>
+                    <td>
+                        <span class="badge @(tx.IsActive ? "badge-green" : "badge-grey")">
+                            @(tx.IsActive ? "Active" : "Off")
+                        </span>
+                    </td>
+                    <td>@(tx.IsRetransmitting ? "Yes" : "No")</td>
+                    <td>@(tx.ExtraTemperatureId?.ToString() ?? "—")</td>
+                    <td>@(tx.ExtraHumidityId?.ToString() ?? "—")</td>
+                    <td>
+                        <button class="btn btn-primary"
+                                @onclick="() => BeginEdit(tx)">Edit</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (_editing is not null)
+{
+    <h2>Edit Channel @_editing.Channel</h2>
+    <div class="form-row">
+        <label>Type</label>
+        <select @bind="_editType">
+            @foreach (var t in Enum.GetValues<TransmitterType>())
+            {
+                <option value="@t">@t</option>
+            }
+        </select>
+    </div>
+    <div class="form-row">
+        <label>Repeater ID (A–H, or blank)</label>
+        <input type="text" maxlength="1" @bind="_editRepeater" placeholder="—" />
+    </div>
+    <div class="form-row">
+        <label>Extra Temp ID (1–7)</label>
+        <input type="number" min="1" max="7" @bind="_editExtraTemp" />
+    </div>
+    <div class="form-row">
+        <label>Extra Humid ID (1–7)</label>
+        <input type="number" min="1" max="7" @bind="_editExtraHumid" />
+    </div>
+    <button class="btn btn-primary" @onclick="SaveEditAsync">Save</button>
+    <button class="btn" style="margin-left:.5rem" @onclick="() => _editing = null">Cancel</button>
+}
+
+@if (_msg is not null)
+{
+    <div class="alert @(_isError ? "alert-error" : "alert-success")" style="margin-top:.75rem">@_msg</div>
+}
+
+<button class="btn btn-primary" style="margin-top:1rem" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+
+@code {
+    private IReadOnlyList<TransmitterConfig>? _transmitters;
+    private bool _loading;
+    private string? _loadError;
+    private string? _msg;
+    private bool _isError;
+
+    private TransmitterConfig? _editing;
+    private TransmitterType _editType;
+    private string? _editRepeater;
+    private int? _editExtraTemp;
+    private int? _editExtraHumid;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _loadError = null; _editing = null;
+        try { _transmitters = await Station.GetTransmittersAsync(); }
+        catch (Exception ex) { _loadError = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private void BeginEdit(TransmitterConfig tx)
+    {
+        _editing = tx;
+        _editType = Enum.TryParse<TransmitterType>(tx.TransmitterType, true, out var t) ? t : TransmitterType.Iss;
+        _editRepeater  = tx.RepeaterId;
+        _editExtraTemp  = tx.ExtraTemperatureId;
+        _editExtraHumid = tx.ExtraHumidityId;
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (_editing is null) return;
+        try
+        {
+            await Station.SetTransmitterAsync(
+                _editing.Channel, _editType,
+                _editExtraTemp, _editExtraHumid,
+                string.IsNullOrWhiteSpace(_editRepeater) ? null : _editRepeater);
+            _msg = $"Channel {_editing.Channel} saved."; _isError = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _msg = ex.Message; _isError = true; }
+    }
+}

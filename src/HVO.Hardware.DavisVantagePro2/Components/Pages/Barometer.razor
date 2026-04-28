@@ -1,0 +1,80 @@
+@page "/barometer"
+@rendermode InteractiveServer
+@using HVO.Hardware.DavisVantagePro2.Station
+@using HVO.Hardware.DavisVantagePro2.Station.Models
+@inject VantageStation Station
+
+<h1>Barometer</h1>
+
+@if (_loading)
+{
+    <p><span class="spinner"></span> Loading…</p>
+}
+else if (_loadError is not null)
+{
+    <div class="alert alert-error">@_loadError</div>
+}
+else if (_bar is not null)
+{
+    <h2>Current Calibration</h2>
+    <div class="data-grid">
+        <span class="label">Pressure (inHg)</span>        <span class="value">@_bar.CurrentPressureInHg.ToString("F3")</span>
+        <span class="label">Altitude (ft)</span>          <span class="value">@_bar.AltitudeFeet.ToString("F0")</span>
+        <span class="label">Dew Point (°F)</span>         <span class="value">@_bar.DewPointF.ToString("F1")</span>
+        <span class="label">Virtual Temp (°F)</span>      <span class="value">@_bar.VirtualTemperatureF.ToString("F1")</span>
+        <span class="label">Correction Factor</span>      <span class="value">@_bar.CorrectionFactor.ToString("F3")</span>
+        <span class="label">Correction Ratio</span>       <span class="value">@_bar.CorrectionRatio.ToString("F3")</span>
+        <span class="label">Correction Const (inHg)</span><span class="value">@_bar.CorrectionConstantInHg.ToString("F3")</span>
+        <span class="label">Gain</span>                   <span class="value">@_bar.Gain.ToString("F3")</span>
+        <span class="label">Error Offset</span>           <span class="value">@_bar.ErrorOffset.ToString("F3")</span>
+    </div>
+
+    <h2>Set Calibration</h2>
+    <div class="form-row">
+        <label>Known Pressure (inHg)</label>
+        <input type="number" step="0.001" @bind="_setPressure" />
+    </div>
+    <div class="form-row">
+        <label>Altitude (ft)</label>
+        <input type="number" step="1" @bind="_setAlt" />
+    </div>
+    <button class="btn btn-primary" @onclick="SaveAsync">Set Barometer</button>
+}
+
+@if (_msg is not null)
+{
+    <div class="alert @(_isError ? "alert-error" : "alert-success") " style="margin-top:.75rem">@_msg</div>
+}
+
+<button class="btn btn-primary" style="margin-top:1rem" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+
+@code {
+    private BarometerData? _bar;
+    private bool _loading;
+    private string? _loadError;
+    private string? _msg;
+    private bool _isError;
+    private double _setPressure = 29.92;
+    private double _setAlt;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _loadError = null;
+        try { _bar = await Station.GetBarometerDataAsync(); _setAlt = _bar.AltitudeFeet; }
+        catch (Exception ex) { _loadError = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Station.SetBarometerAsync(_setPressure, _setAlt);
+            await LoadAsync();
+            _msg = "Barometer calibration saved."; _isError = false;
+        }
+        catch (Exception ex) { _msg = ex.Message; _isError = true; }
+    }
+}

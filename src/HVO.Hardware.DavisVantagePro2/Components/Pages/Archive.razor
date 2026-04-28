@@ -1,0 +1,70 @@
+@page "/archive"
+@rendermode InteractiveServer
+@using HVO.Hardware.DavisVantagePro2.Station
+@inject VantageStation Station
+
+<h1>Archive</h1>
+
+<h2>Archive Interval</h2>
+<div class="form-row">
+    <label>Interval (minutes)</label>
+    <select @bind="_interval">
+        <option value="1">1 min</option>
+        <option value="5">5 min</option>
+        <option value="10">10 min</option>
+        <option value="15">15 min</option>
+        <option value="30">30 min</option>
+        <option value="60">60 min</option>
+        <option value="120">120 min</option>
+    </select>
+    <button class="btn btn-primary" @onclick="SaveIntervalAsync">Set Interval</button>
+</div>
+
+<h2 style="margin-top:2rem">Clear Archive Memory</h2>
+<p style="color:#f38ba8;font-size:.875rem">
+    ⚠ This permanently erases all archived data on the console. This cannot be undone.
+</p>
+
+@if (!_confirmClear)
+{
+    <button class="btn btn-danger" @onclick="() => _confirmClear = true">Clear Archive…</button>
+}
+else
+{
+    <p style="color:#f38ba8;font-size:.875rem;font-weight:600">Are you absolutely sure?</p>
+    <button class="btn btn-danger" @onclick="ClearAsync">Yes, clear all archive data</button>
+    <button class="btn" style="margin-left:.5rem" @onclick="() => _confirmClear = false">Cancel</button>
+}
+
+@if (_msg is not null)
+{
+    <div class="alert @(_isError ? "alert-error" : "alert-success")" style="margin-top:.75rem">@_msg</div>
+}
+
+@code {
+    private int _interval = 5;
+    private bool _confirmClear;
+    private string? _msg;
+    private bool _isError;
+
+    private async Task SaveIntervalAsync()
+    {
+        try
+        {
+            await Station.SetArchiveIntervalAsync(_interval);
+            _msg = $"Archive interval set to {_interval} min."; _isError = false;
+        }
+        catch (Exception ex) { _msg = ex.Message; _isError = true; }
+    }
+
+    private async Task ClearAsync()
+    {
+        _confirmClear = false;
+        try
+        {
+            await Station.ClearArchiveAsync();
+            _msg = "Archive memory cleared."; _isError = false;
+        }
+        catch (Exception ex) { _msg = ex.Message; _isError = true; }
+    }
+}

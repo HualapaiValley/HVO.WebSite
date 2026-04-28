@@ -1,0 +1,89 @@
+@page "/rain"
+@rendermode InteractiveServer
+@using HVO.Hardware.DavisVantagePro2.Station
+@using HVO.Hardware.DavisVantagePro2.Station.Models
+@inject VantageStation Station
+
+<h1>Rain Settings</h1>
+
+@if (_loading)
+{
+    <p><span class="spinner"></span> Loading…</p>
+}
+else if (_loadError is not null)
+{
+    <div class="alert alert-error">@_loadError</div>
+}
+else if (_settings is not null)
+{
+    <h2>Rain Bucket Type</h2>
+    <div class="form-row">
+        <label>Bucket Type</label>
+        <select @bind="_bucketType">
+            <option value="0">0 — 0.01 in (tippling bucket)</option>
+            <option value="1">1 — 0.2 mm</option>
+            <option value="2">2 — 0.1 mm</option>
+        </select>
+        <button class="btn btn-primary" @onclick="SaveBucketAsync">Save</button>
+    </div>
+
+    <h2>Rain Year Start</h2>
+    <div class="form-row">
+        <label>Start Month</label>
+        <select @bind="_rainYearStart">
+            @for (int m = 1; m <= 12; m++)
+            {
+                <option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>
+            }
+        </select>
+        <button class="btn btn-primary" @onclick="SaveRainYearAsync">Save</button>
+    </div>
+}
+
+@if (_msg is not null)
+{
+    <div class="alert @(_isError ? "alert-error" : "alert-success")" style="margin-top:.75rem">@_msg</div>
+}
+
+@code {
+    private StationSettings? _settings;
+    private bool _loading;
+    private string? _loadError;
+    private string? _msg;
+    private bool _isError;
+    private int _bucketType;
+    private int _rainYearStart = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            _settings = await Station.GetStationSettingsAsync();
+            _bucketType   = _settings.RainBucketType;
+            _rainYearStart = _settings.RainYearStartMonth;
+        }
+        catch (Exception ex) { _loadError = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveBucketAsync()
+    {
+        try
+        {
+            await Station.SetRainBucketTypeAsync(_bucketType);
+            _msg = "Rain bucket type saved."; _isError = false;
+        }
+        catch (Exception ex) { _msg = ex.Message; _isError = true; }
+    }
+
+    private async Task SaveRainYearAsync()
+    {
+        try
+        {
+            await Station.SetRainYearStartAsync(_rainYearStart);
+            _msg = "Rain year start saved."; _isError = false;
+        }
+        catch (Exception ex) { _msg = ex.Message; _isError = true; }
+    }
+}

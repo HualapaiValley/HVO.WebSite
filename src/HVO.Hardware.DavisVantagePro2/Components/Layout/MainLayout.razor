@@ -1,0 +1,25 @@
+@inherits LayoutComponentBase
+
+<div class="admin-shell">
+    <nav class="admin-nav">
+        <div class="nav-header">
+            <span class="nav-title">Davis Station</span>
+        </div>
+        <ul>
+            <li><NavLink href="/">Status</NavLink></li>
+            <li><NavLink href="/info">Station Info</NavLink></li>
+            <li><NavLink href="/settings">Settings</NavLink></li>
+            <li><NavLink href="/calibration">Calibration</NavLink></li>
+            <li><NavLink href="/barometer">Barometer</NavLink></li>
+            <li><NavLink href="/clock">Clock</NavLink></li>
+            <li><NavLink href="/rain">Rain Settings</NavLink></li>
+            <li><NavLink href="/transmitters">Transmitters</NavLink></li>
+            <li><NavLink href="/reception">Reception</NavLink></li>
+            <li><NavLink href="/archive">Archive</NavLink></li>
+        </ul>
+    </nav>
+
+    <main class="admin-content">
+        @Body
+    </main>
+</div>

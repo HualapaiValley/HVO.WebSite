@@ -1,0 +1,111 @@
+@page "/calibration"
+@rendermode InteractiveServer
+@using HVO.Hardware.DavisVantagePro2.Station
+@using HVO.Hardware.DavisVantagePro2.Station.Models
+@inject VantageStation Station
+
+<h1>Calibration</h1>
+
+@if (_loading)
+{
+    <p><span class="spinner"></span> Loading…</p>
+}
+else if (_loadError is not null)
+{
+    <div class="alert alert-error">@_loadError</div>
+}
+else if (_cal is not null)
+{
+    <h2>Temperature Offsets (°F)</h2>
+    <div class="form-row">
+        <label>Inside Temp</label>
+        <input type="number" step="0.1" @bind="_inTempOff" />
+        <button class="btn btn-primary" @onclick='() => SaveTempAsync("inTemp", _inTempOff)'>Save</button>
+    </div>
+    <div class="form-row">
+        <label>Outside Temp</label>
+        <input type="number" step="0.1" @bind="_outTempOff" />
+        <button class="btn btn-primary" @onclick='() => SaveTempAsync("outTemp", _outTempOff)'>Save</button>
+    </div>
+
+    <h2>Humidity Offsets (%)</h2>
+    <div class="form-row">
+        <label>Inside Humidity</label>
+        <input type="number" step="1" @bind="_inHumOff" />
+        <button class="btn btn-primary" @onclick='() => SaveHumAsync("inHumid", _inHumOff)'>Save</button>
+    </div>
+    <div class="form-row">
+        <label>Outside Humidity</label>
+        <input type="number" step="1" @bind="_outHumOff" />
+        <button class="btn btn-primary" @onclick='() => SaveHumAsync("outHumid", _outHumOff)'>Save</button>
+    </div>
+
+    <h2>Wind Direction Offset (°)</h2>
+    <div class="form-row">
+        <label>Wind Direction</label>
+        <input type="number" step="1" @bind="_windDirOff" />
+        <button class="btn btn-primary" @onclick="SaveWindAsync">Save</button>
+    </div>
+}
+
+@if (_msg is not null)
+{
+    <div class="alert @(_isError ? "alert-error" : "alert-success")">@_msg</div>
+}
+
+@code {
+    private CalibrationData? _cal;
+    private bool _loading;
+    private string? _loadError;
+    private string? _msg;
+    private bool _isError;
+
+    private double _inTempOff, _outTempOff;
+    private int _inHumOff, _outHumOff, _windDirOff;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            _cal = await Station.GetCalibrationAsync();
+            _inTempOff  = _cal.InsideTempOffsetF;
+            _outTempOff = _cal.OutsideTempOffsetF;
+            _inHumOff   = (int)_cal.InsideHumidOffsetPct;
+            _outHumOff  = (int)_cal.OutsideHumidOffsetPct;
+            _windDirOff = _cal.WindDirOffsetDegrees;
+        }
+        catch (Exception ex) { _loadError = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveTempAsync(string variable, double offset)
+    {
+        try
+        {
+            await Station.SetCalibrationTempAsync(variable, offset);
+            _msg = $"{variable} offset saved."; _isError = false;
+        }
+        catch (Exception ex) { _msg = ex.Message; _isError = true; }
+    }
+
+    private async Task SaveHumAsync(string variable, int offset)
+    {
+        try
+        {
+            await Station.SetCalibrationHumidityAsync(variable, offset);
+            _msg = $"{variable} offset saved."; _isError = false;
+        }
+        catch (Exception ex) { _msg = ex.Message; _isError = true; }
+    }
+
+    private async Task SaveWindAsync()
+    {
+        try
+        {
+            await Station.SetCalibrationWindDirAsync(_windDirOff);
+            _msg = "Wind direction offset saved."; _isError = false;
+        }
+        catch (Exception ex) { _msg = ex.Message; _isError = true; }
+    }
+}

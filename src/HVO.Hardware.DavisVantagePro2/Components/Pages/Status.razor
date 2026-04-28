@@ -1,0 +1,115 @@
+@page "/"
+@rendermode InteractiveServer
+@using HVO.Hardware.DavisVantagePro2.Outbox
+@using HVO.Hardware.DavisVantagePro2.Protocol.Packets
+@using HVO.Hardware.DavisVantagePro2.Station
+@using HVO.Hardware.DavisVantagePro2.Workers
+@using Microsoft.EntityFrameworkCore
+@inject VantageStation Station
+@inject WeatherStationWorker Worker
+@inject OutboxForwarder Forwarder
+@inject IServiceScopeFactory ScopeFactory
+@implements IDisposable
+
+<h1>Station Status</h1>
+
+@if (_reading is not null)
+{
+    <h2>Current Conditions</h2>
+    <div class="data-grid">
+        <span class="label">Updated</span>
+        <span class="value">@(Worker.LastReadingAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</span>
+
+        <span class="label">Outside Temp</span>
+        <span class="value">@F(_reading.OutsideTemperatureF) °F</span>
+
+        <span class="label">Outside Humidity</span>
+        <span class="value">@F0(_reading.OutsideHumidityPercent) %</span>
+
+        <span class="label">Dew Point</span>
+        <span class="value">@F(_reading.DewPointF) °F</span>
+
+        <span class="label">Heat Index</span>
+        <span class="value">@F(_reading.HeatIndexF) °F</span>
+
+        <span class="label">Wind Chill</span>
+        <span class="value">@F(_reading.WindChillF) °F</span>
+
+        <span class="label">Inside Temp</span>
+        <span class="value">@F(_reading.InsideTemperatureF) °F</span>
+
+        <span class="label">Inside Humidity</span>
+        <span class="value">@F0(_reading.InsideHumidityPercent) %</span>
+
+        <span class="label">Barometer</span>
+        <span class="value">@_reading.BarometricPressureInHg?.ToString("F3") inHg</span>
+
+        <span class="label">Wind Speed</span>
+        <span class="value">@F0(_reading.WindSpeedMph) mph @@ @F0(_reading.WindDirectionDegrees)°</span>
+
+        <span class="label">Wind Gust (10m)</span>
+        <span class="value">@F0(_reading.WindGust10MinMph) mph @@ @F0(_reading.WindGust10MinDirectionDegrees)°</span>
+
+        <span class="label">Rain Rate</span>
+        <span class="value">@(_reading.RainRateInchesPerHour?.ToString("F2") ?? "—") in/hr</span>
+
+        <span class="label">Daily Rain</span>
+        <span class="value">@(_reading.DailyRainInches?.ToString("F2") ?? "—") in</span>
+
+        <span class="label">Solar Radiation</span>
+        <span class="value">@_reading.SolarRadiationWm2 W/m²</span>
+
+        <span class="label">UV Index</span>
+        <span class="value">@(_reading.UvIndex?.ToString("F1") ?? "—")</span>
+    </div>
+}
+else
+{
+    <p>No data yet. Worker may be connecting.</p>
+}
+
+<h2>Outbox</h2>
+<div class="data-grid">
+    <span class="label">Pending records</span>
+    <span class="value">@Forwarder.PendingCount</span>
+
+    <span class="label">Last sent</span>
+    <span class="value">@(Forwarder.LastSentAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</span>
+
+    <span class="label">Last forward error</span>
+    <span class="value" style="color:#f38ba8">@(Forwarder.LastError ?? "none")</span>
+</div>
+
+<h2>Worker Health</h2>
+<div class="data-grid">
+    <span class="label">Connected</span>
+    <span class="value">@(Station.IsConnected ? "Yes" : "No")</span>
+
+    <span class="label">Consecutive errors</span>
+    <span class="value">@Worker.ConsecutiveErrors</span>
+
+    <span class="label">Last error</span>
+    <span class="value" style="color:#f38ba8">@(Worker.LastError ?? "none")</span>
+</div>
+
+@code {
+    private Loop2Packet? _reading;
+    private System.Threading.Timer? _timer;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _timer = new System.Threading.Timer(_ => InvokeAsync(Refresh), null, 0, 10_000);
+    }
+
+    private void Refresh()
+    {
+        _reading = Worker.LatestReading;
+        StateHasChanged();
+    }
+
+    public void Dispose() => _timer?.Dispose();
+
+    private static string? F(double? v) => v?.ToString("F1");
+    private static string? F0(double? v) => v?.ToString("F0");
+}
