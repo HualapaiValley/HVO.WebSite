@@ -5,21 +5,20 @@ namespace HVO.Hardware.DavisVantagePro2.Components.Pages;
 public partial class Status : IDisposable
 {
     private Loop2Packet? _reading;
-    private System.Threading.Timer? _timer;
 
-    protected override void OnAfterRender(bool firstRender)
-    {
-        if (firstRender)
-            _timer = new System.Threading.Timer(_ => InvokeAsync(Refresh), null, 0, 5_000);
-    }
-
-    private void Refresh()
+    protected override void OnInitialized()
     {
         _reading = Worker.LatestReading;
-        StateHasChanged();
+        Worker.ReadingUpdated += OnReadingUpdated;
     }
 
-    public void Dispose() => _timer?.Dispose();
+    private void OnReadingUpdated(Loop2Packet reading)
+    {
+        _reading = reading;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Worker.ReadingUpdated -= OnReadingUpdated;
 
     private string? ToConsoleTime(DateTime? utc) =>
         utc.HasValue

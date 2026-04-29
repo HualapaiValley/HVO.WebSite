@@ -30,11 +30,17 @@ public sealed class WeatherStationWorker(
 {
     private readonly StationOptions _options = options.Value;
 
-    // Expose the latest reading for the status page
+    // Expose the latest reading and fire an event so subscribers update immediately
     public Loop2Packet? LatestReading { get; private set; }
     public DateTime? LastReadingAt { get; private set; }
     public int ConsecutiveErrors { get; private set; }
     public string? LastError { get; private set; }
+
+    /// <summary>
+    /// Raised on the worker thread each time a new reading is available.
+    /// Subscribers (e.g. Blazor status page) should marshal to the UI thread via InvokeAsync.
+    /// </summary>
+    public event Action<Loop2Packet>? ReadingUpdated;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -106,6 +112,7 @@ public sealed class WeatherStationWorker(
                     LatestReading = reading;
                     LastReadingAt = DateTime.UtcNow;
                     ConsecutiveErrors = 0;
+                    ReadingUpdated?.Invoke(reading);
 
                     await WriteToOutboxAsync(reading, ct);
                     logger.LogDebug("LOOP2: {T:F1}°F, {H:F0}%RH, {P:F3} inHg",
@@ -155,55 +162,55 @@ public sealed class WeatherStationWorker(
     {
         var payload = new
         {
-            StationId  = _options.StationId,
+            StationId = _options.StationId,
             RecordedAt = reading.RecordedAtUtc,
             // Temperature
-            TemperatureF       = reading.OutsideTemperatureF,
+            TemperatureF = reading.OutsideTemperatureF,
             InsideTemperatureF = reading.InsideTemperatureF,
-            DewPointF          = reading.DewPointF,
-            HeatIndexF         = reading.HeatIndexF,
-            WindChillF         = reading.WindChillF,
-            ThswF              = reading.ThswF,
+            DewPointF = reading.DewPointF,
+            HeatIndexF = reading.HeatIndexF,
+            WindChillF = reading.WindChillF,
+            ThswF = reading.ThswF,
             // Humidity
-            HumidityPercent       = reading.OutsideHumidityPercent,
+            HumidityPercent = reading.OutsideHumidityPercent,
             InsideHumidityPercent = reading.InsideHumidityPercent,
             // Barometer
             BarometricPressureInHg = reading.BarometricPressureInHg,
-            PressureRawInHg        = reading.PressureRawInHg,
-            AltimeterInHg          = reading.AltimeterInHg,
-            BarometricTrend        = reading.BarometricTrend,
+            PressureRawInHg = reading.PressureRawInHg,
+            AltimeterInHg = reading.AltimeterInHg,
+            BarometricTrend = reading.BarometricTrend,
             // Wind
             WindSpeedMph = reading.WindSpeedMph,
             WindDirectionDegrees = reading.WindDirectionDegrees.HasValue
                 ? (int?)(int)reading.WindDirectionDegrees.Value : null,
             WindSpeed10MinAvgMph = reading.WindSpeed10MinAvgMph,
-            WindSpeed2MinAvgMph  = reading.WindSpeed2MinAvgMph,
-            WindGust10MinMph     = reading.WindGust10MinMph,
+            WindSpeed2MinAvgMph = reading.WindSpeed2MinAvgMph,
+            WindGust10MinMph = reading.WindGust10MinMph,
             WindGust10MinDirectionDegrees = reading.WindGust10MinDirectionDegrees.HasValue
                 ? (int?)(int)reading.WindGust10MinDirectionDegrees.Value : null,
             // Rain
             RainRateInchesPerHour = reading.RainRateInchesPerHour,
-            DailyRainInches       = reading.DailyRainInches,
-            Rain15MinInches       = reading.Rain15MinInches,
-            HourRainInches        = reading.HourRainInches,
-            Rain24HourInches      = reading.Rain24HourInches,
-            StormRainInches       = reading.StormRainInches,
-            StormStartDate        = reading.StormStartDate,
-            MonthlyRainInches     = reading.MonthlyRainInches,
-            YearlyRainInches      = reading.YearlyRainInches,
+            DailyRainInches = reading.DailyRainInches,
+            Rain15MinInches = reading.Rain15MinInches,
+            HourRainInches = reading.HourRainInches,
+            Rain24HourInches = reading.Rain24HourInches,
+            StormRainInches = reading.StormRainInches,
+            StormStartDate = reading.StormStartDate,
+            MonthlyRainInches = reading.MonthlyRainInches,
+            YearlyRainInches = reading.YearlyRainInches,
             // Solar / UV / ET
             SolarRadiationWm2 = reading.SolarRadiationWm2,
-            UvIndex           = reading.UvIndex,
-            DailyEtInches     = reading.DailyEtInches,
-            MonthlyEtInches   = reading.MonthlyEtInches,
-            YearlyEtInches    = reading.YearlyEtInches,
+            UvIndex = reading.UvIndex,
+            DailyEtInches = reading.DailyEtInches,
+            MonthlyEtInches = reading.MonthlyEtInches,
+            YearlyEtInches = reading.YearlyEtInches,
             // Console status (LOOP1-sourced)
-            ConsoleBatteryVoltage    = reading.ConsoleBatteryVoltage,
+            ConsoleBatteryVoltage = reading.ConsoleBatteryVoltage,
             TransmitterBatteryStatus = reading.TransmitterBatteryStatus,
-            ForecastRule             = reading.ForecastRule,
-            ForecastString           = reading.ForecastString,
-            SunriseTime              = reading.SunriseDisplay,
-            SunsetTime               = reading.SunsetDisplay,
+            ForecastRule = reading.ForecastRule,
+            ForecastString = reading.ForecastString,
+            SunriseTime = reading.SunriseDisplay,
+            SunsetTime = reading.SunsetDisplay,
         };
         await EnqueueAsync(reading.RecordedAtUtc, JsonSerializer.Serialize(payload), isArchiveRecord: false, ct);
     }
@@ -217,48 +224,48 @@ public sealed class WeatherStationWorker(
         var recordedAtUtc = new DateTimeOffset(consoleLocal, station.ConsoleUtcOffset).UtcDateTime;
         var payload = new
         {
-            StationId              = _options.StationId,
-            RecordedAt             = recordedAtUtc,
+            StationId = _options.StationId,
+            RecordedAt = recordedAtUtc,
             ArchiveIntervalMinutes = rec.ArchiveIntervalMinutes,
             // Temperature
-            TemperatureF     = rec.OutsideTemperatureF,
+            TemperatureF = rec.OutsideTemperatureF,
             HighTemperatureF = rec.HighOutsideTemperatureF,
-            LowTemperatureF  = rec.LowOutsideTemperatureF,
+            LowTemperatureF = rec.LowOutsideTemperatureF,
             InsideTemperatureF = rec.InsideTemperatureF,
             // Humidity
-            HumidityPercent       = rec.OutsideHumidityPercent,
+            HumidityPercent = rec.OutsideHumidityPercent,
             InsideHumidityPercent = rec.InsideHumidityPercent,
             // Barometer
             BarometricPressureInHg = rec.BarometricPressureInHg,
             // Wind
             WindSpeedMph = rec.WindSpeedMph,
-            WindGustMph  = rec.WindGustMph,
+            WindGustMph = rec.WindGustMph,
             WindDirectionDegrees = rec.WindDirectionDegrees.HasValue
                 ? (int?)(int)rec.WindDirectionDegrees.Value : null,
             WindGustDirectionDegrees = rec.WindGustDirectionDegrees.HasValue
                 ? (int?)(int)rec.WindGustDirectionDegrees.Value : null,
             WindSamples = rec.WindSamples,
             // Rain
-            RainfallInches        = rec.RainInches,
+            RainfallInches = rec.RainInches,
             RainRateInchesPerHour = rec.RainRateInchesPerHour,
             // Solar / UV / ET
-            SolarRadiationWm2     = rec.SolarRadiationWm2,
+            SolarRadiationWm2 = rec.SolarRadiationWm2,
             HighSolarRadiationWm2 = rec.HighSolarRadiationWm2,
-            UvIndex               = rec.UvIndex,
-            HighUvIndex           = rec.HighUvIndex,
-            EtInches              = rec.EtInches,
+            UvIndex = rec.UvIndex,
+            HighUvIndex = rec.HighUvIndex,
+            EtInches = rec.EtInches,
             // Forecast
-            ForecastRule   = rec.ForecastRule,
+            ForecastRule = rec.ForecastRule,
             ForecastString = rec.ForecastRule.HasValue
                 ? DavisForecastTable.GetForecastString(rec.ForecastRule.Value) : null,
             // Extra sensors (rec_B layout: bytes 34–51)
-            LeafTemp1F           = rec.LeafTemp1F,
-            LeafTemp2F           = rec.LeafTemp2F,
-            LeafWetnessScaled    = rec.LeafWetnessScaled,
-            SoilTemperaturesF    = rec.SoilTemperaturesF,
+            LeafTemp1F = rec.LeafTemp1F,
+            LeafTemp2F = rec.LeafTemp2F,
+            LeafWetnessScaled = rec.LeafWetnessScaled,
+            SoilTemperaturesF = rec.SoilTemperaturesF,
             ExtraHumiditiesPercent = rec.ExtraHumiditiesPercent,
-            ExtraTemperaturesF   = rec.ExtraTemperaturesF,
-            SoilMoisturesCb      = rec.SoilMoisturesCb,
+            ExtraTemperaturesF = rec.ExtraTemperaturesF,
+            SoilMoisturesCb = rec.SoilMoisturesCb,
         };
         await EnqueueAsync(recordedAtUtc, JsonSerializer.Serialize(payload), isArchiveRecord: true, ct);
     }
@@ -274,11 +281,11 @@ public sealed class WeatherStationWorker(
 
         db.OutboxRecords.Add(new OutboxRecord
         {
-            RecordedAtUtc    = recordedAtUtc,
-            Payload          = json,
-            IsArchiveRecord  = isArchiveRecord,
-            Status           = OutboxStatus.Pending,
-            CreatedAtUtc     = DateTime.UtcNow,
+            RecordedAtUtc = recordedAtUtc,
+            Payload = json,
+            IsArchiveRecord = isArchiveRecord,
+            Status = OutboxStatus.Pending,
+            CreatedAtUtc = DateTime.UtcNow,
         });
         await db.SaveChangesAsync(ct);
     }
