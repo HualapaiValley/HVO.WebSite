@@ -79,13 +79,18 @@ public sealed class OutboxForwarder(
 
         PendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
         FailedCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
-        SweptCompleted?.Invoke();
 
-        if (pending.Count == 0) return;
+        if (pending.Count == 0)
+        {
+            SweptCompleted?.Invoke();
+            return;
+        }
 
         var client = httpFactory.CreateClient("WeatherApi");
         await ForwardBatchAsync(db, client, pending, ct);
         await db.SaveChangesAsync(ct);
+
+        SweptCompleted?.Invoke();
     }
 
     private async Task ForwardBatchAsync(OutboxDbContext db, HttpClient client,
@@ -111,7 +116,22 @@ public sealed class OutboxForwarder(
             {
                 // Parse per-record result to identify permanent failures
                 var result = await response.Content.ReadFromJsonAsync<BatchResponseDto>(ct);
-                var failedTimes = result?.Failed?.ToHashSet() ?? [];
+
+                if (result is null)
+                {
+                    // Null deserialization result is unexpected — schedule a retry for all records
+                    string error = "Null response body from batch endpoint";
+                    foreach (var record in records)
+                    {
+                        record.LastError = error;
+                        ScheduleRetry(record);
+                    }
+                    LastError = error;
+                    logger.LogWarning("Batch forward returned success status but null body ({Count} records scheduled for retry)", records.Count);
+                    return;
+                }
+
+                var failedTimes = result.Failed?.ToHashSet() ?? [];
 
                 var sentAt = DateTime.UtcNow;
                 int sentCount = 0;

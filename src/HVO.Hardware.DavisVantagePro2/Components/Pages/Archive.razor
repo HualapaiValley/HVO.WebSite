@@ -46,7 +46,7 @@ else
     <label>Since</label>
     <input type="datetime-local"
            value="@_since.ToString("yyyy-MM-ddTHH:mm")"
-           @onchange="e => _since = DateTime.Parse(e.Value!.ToString()!)"
+           @onchange="e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _since = d; }"
            style="font-size:.875rem" />
     <button class="btn btn-primary" @onclick="LoadHistoryAsync" disabled="@_historyLoading">
         @if (_historyLoading) { <span>Loading…</span> } else { <span>Load</span> }
@@ -69,7 +69,7 @@ else if (_historyRecords is not null)
 {
     <p style="margin-top:.5rem;font-size:.875rem;color:#a6adc8">
         @_historyRecords.Count record@(_historyRecords.Count == 1 ? "" : "s") loaded
-        since @_since.ToString("yyyy-MM-dd HH:mm")
+        since @_historySince.ToString("yyyy-MM-dd HH:mm")
         @if (_hasMore) { <span> — more available</span> }
     </p>
 
@@ -148,10 +148,5 @@ else if (_historyRecords is not null)
             </div>
         }
     }
-}
-
-@code {
-    private static string Fmt(double? v, string fmt = "F1") =>
-        v.HasValue ? v.Value.ToString(fmt) : "—";
 }
 

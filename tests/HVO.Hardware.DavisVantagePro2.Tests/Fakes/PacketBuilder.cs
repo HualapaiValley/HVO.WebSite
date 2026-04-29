@@ -376,33 +376,48 @@ public static class PacketBuilder
         buf[34] = leafTemp1Raw;
         buf[35] = leafTemp2Raw;
 
-        // [36-37] leafWet1-2
-        var leafWetness = leafWetnessRaw ?? new byte[2];
-        if (leafWetness.Length < 2) Array.Resize(ref leafWetness, 2);
-        for (int i = 0; i < 2; i++) buf[36 + i] = leafWetness[i] == 0 ? (byte)0xFF : leafWetness[i];
+        // [36-37] leafWet1-2 (0xFF = absent/not connected by default)
+        var leafWetness = new byte[] { 0xFF, 0xFF };
+        if (leafWetnessRaw is not null)
+        {
+            for (int i = 0; i < Math.Min(leafWetnessRaw.Length, 2); i++) leafWetness[i] = leafWetnessRaw[i];
+        }
+        leafWetness.CopyTo(buf, 36);
 
-        // [38-41] soilTemp1-4
-        var soilTemps = soilTempsRaw ?? new byte[4];
-        if (soilTemps.Length < 4) Array.Resize(ref soilTemps, 4);
-        for (int i = 0; i < 4; i++) buf[38 + i] = soilTemps[i] == 0 ? (byte)0xFF : soilTemps[i];
+        // [38-41] soilTemp1-4 (0xFF = absent by default)
+        var soilTemps = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF };
+        if (soilTempsRaw is not null)
+        {
+            for (int i = 0; i < Math.Min(soilTempsRaw.Length, 4); i++) soilTemps[i] = soilTempsRaw[i];
+        }
+        soilTemps.CopyTo(buf, 38);
 
         // [42] download_record_type = 1 (valid)
         buf[42] = 1;
 
-        // [43-44] extraHumid1-2
-        var extraHumids = extraHumiditiesRaw ?? new byte[2];
-        if (extraHumids.Length < 2) Array.Resize(ref extraHumids, 2);
-        for (int i = 0; i < 2; i++) buf[43 + i] = extraHumids[i] == 0 ? (byte)0xFF : extraHumids[i];
+        // [43-44] extraHumid1-2 (0xFF = absent by default)
+        var extraHumids = new byte[] { 0xFF, 0xFF };
+        if (extraHumiditiesRaw is not null)
+        {
+            for (int i = 0; i < Math.Min(extraHumiditiesRaw.Length, 2); i++) extraHumids[i] = extraHumiditiesRaw[i];
+        }
+        extraHumids.CopyTo(buf, 43);
 
-        // [45-47] extraTemp1-3
-        var extraTemps = extraTempsRaw ?? new byte[3];
-        if (extraTemps.Length < 3) Array.Resize(ref extraTemps, 3);
-        for (int i = 0; i < 3; i++) buf[45 + i] = extraTemps[i] == 0 ? (byte)0xFF : extraTemps[i];
+        // [45-47] extraTemp1-3 (0xFF = absent by default)
+        var extraTemps = new byte[] { 0xFF, 0xFF, 0xFF };
+        if (extraTempsRaw is not null)
+        {
+            for (int i = 0; i < Math.Min(extraTempsRaw.Length, 3); i++) extraTemps[i] = extraTempsRaw[i];
+        }
+        extraTemps.CopyTo(buf, 45);
 
-        // [48-51] soilMoist1-4
-        var soilMoistures = soilMoisturesRaw ?? new byte[4];
-        if (soilMoistures.Length < 4) Array.Resize(ref soilMoistures, 4);
-        for (int i = 0; i < 4; i++) buf[48 + i] = soilMoistures[i] == 0 ? (byte)0xFF : soilMoistures[i];
+        // [48-51] soilMoist1-4 (0xFF = absent by default)
+        var soilMoistures = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF };
+        if (soilMoisturesRaw is not null)
+        {
+            for (int i = 0; i < Math.Min(soilMoisturesRaw.Length, 4); i++) soilMoistures[i] = soilMoisturesRaw[i];
+        }
+        soilMoistures.CopyTo(buf, 48);
 
         return buf;
     }

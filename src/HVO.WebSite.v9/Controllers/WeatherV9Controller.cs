@@ -5,6 +5,7 @@ using HVO.DataModels.Models.V9;
 using HVO.WebSite.v9.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace HVO.WebSite.v9.Controllers;
@@ -85,7 +86,17 @@ public class WeatherV9Controller : ControllerBase
         };
 
         _db.WeatherRaw.Add(record);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            // Duplicate record — already in DB, treat as success (idempotent)
+            _logger.LogDebug("Duplicate raw weather record from station {StationId} at {RecordedAt} — skipped",
+                record.StationId, record.RecordedAt);
+            return CreatedAtAction(nameof(GetRecentRaw), new { }, MapToResponse(record));
+        }
 
         _logger.LogInformation(
             "Ingested raw weather record {Id} from station {StationId} at {RecordedAt}",
@@ -138,11 +149,19 @@ public class WeatherV9Controller : ControllerBase
         var toInsert = new List<WeatherRaw>();
         var failures = new List<WeatherRawBatchFailure>();
         int skipped = 0;
+        var seenInBatch = new HashSet<(string?, DateTime)>();
 
         foreach (var (request, recordedAt) in resolved)
         {
             // Skip duplicates — already in DB, treat as success
             if (existingKeys.Contains((request.StationId, recordedAt)))
+            {
+                skipped++;
+                continue;
+            }
+
+            // Skip intra-batch duplicates by (StationId, RecordedAt)
+            if (!seenInBatch.Add((request.StationId, recordedAt)))
             {
                 skipped++;
                 continue;
@@ -184,9 +203,18 @@ public class WeatherV9Controller : ControllerBase
             {
                 await _db.SaveChangesAsync(ct);
             }
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+            {
+                // Race condition — another process inserted the same record between our check and insert.
+                // Treat as idempotent success; caller gets accurate counts on the next sweep.
+                _logger.LogDebug(ex, "Unique constraint violation in batch ingest (race condition) — treating as success");
+                skipped += toInsert.Count;
+                toInsert.Clear();
+            }
             catch (DbUpdateException ex)
             {
-                _logger.LogError(ex, "Batch ingest failed during SaveChanges for station {StationId}", requests[0].StationId);
+                var distinctStations = string.Join(", ", resolved.Select(x => x.Request.StationId).Distinct());
+                _logger.LogError(ex, "Batch ingest failed during SaveChanges for stations {StationIds}", distinctStations);
                 return Problem(
                     detail: "An error occurred while persisting the batch. Retry is safe — duplicate records will be skipped.",
                     statusCode: StatusCodes.Status500InternalServerError,
@@ -194,9 +222,10 @@ public class WeatherV9Controller : ControllerBase
             }
         }
 
+        var logStations = string.Join(", ", resolved.Select(x => x.Request.StationId).Distinct());
         _logger.LogInformation(
-            "Batch ingest: {Inserted} inserted, {Skipped} skipped, {Failed} failed. Station: {StationId}",
-            toInsert.Count, skipped, failures.Count, requests[0].StationId);
+            "Batch ingest: {Inserted} inserted, {Skipped} skipped, {Failed} failed. Stations: {StationIds}",
+            toInsert.Count, skipped, failures.Count, logStations);
 
         return CreatedAtAction(nameof(GetRecentRaw), new { },
             new WeatherRawBatchResponse { Inserted = toInsert.Count, Skipped = skipped, Failed = failures });
@@ -269,6 +298,14 @@ public class WeatherV9Controller : ControllerBase
 
         return Ok(records.Select(MapToHourlyResponse).ToList());
     }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
+        ex.InnerException is SqlException sqlEx &&
+        (sqlEx.Number == 2601 || sqlEx.Number == 2627);
 
     // -------------------------------------------------------------------------
     // Mapping helpers
