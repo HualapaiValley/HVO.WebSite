@@ -82,6 +82,25 @@ public sealed class VantageStation : IAsyncDisposable
     // ── Live data — LOOP2 streaming ───────────────────────────────────────────
 
     /// <summary>
+    /// Request a single LOOP1 packet using <c>LPS 1 1</c>.
+    /// Returns console-status fields (battery, forecast, sunrise/sunset, monthly/yearly
+    /// rain/ET totals) that are only present in LOOP1 packets.
+    /// Called before each LOOP2 streaming batch to refresh the worker's LOOP1 cache.
+    /// </summary>
+    public async Task<Loop2Packet> GetLoop1Async(CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            await _client.WakeAsync(_maxTries, ct);
+            await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdLps} 1 1\n"), ct);
+            byte[] raw = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
+            return Loop2Packet.Parse(raw[..DavisProtocol.LoopPacketDataBytes], RainBucketType);
+        }
+        finally { _lock.Release(); }
+    }
+
+    /// <summary>
     /// Request a batch of LOOP2 packets from the console using the LPS 2 command.
     /// Each packet is yielded as it arrives. The caller must release the lock by
     /// cancelling the token or consuming all packets.
@@ -132,7 +151,7 @@ public sealed class VantageStation : IAsyncDisposable
     /// LOOP2 fields take precedence for weather data (higher precision for wind, plus derived values).
     /// LOOP1-only fields (battery, forecast, extended rain/ET, extra sensors) come from LOOP1.
     /// </summary>
-    private static Loop2Packet MergePackets(Loop2Packet loop1, Loop2Packet loop2) => new()
+    internal static Loop2Packet MergePackets(Loop2Packet loop1, Loop2Packet loop2) => new()
     {
         RecordedAtUtc = loop2.RecordedAtUtc,
 

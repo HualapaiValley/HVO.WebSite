@@ -16,10 +16,6 @@ public sealed class StationOptions
     [Range(4, 60)]
     public int SocketTimeoutSeconds { get; set; } = 8;
 
-    /// <summary>How often to request a LOOP2 packet (seconds). Minimum 5.</summary>
-    [Range(5, 3600)]
-    public int PollingIntervalSeconds { get; set; } = 5;
-
     /// <summary>Run DMPAFT on startup to catch up any missed archive records.</summary>
     public bool ArchiveCatchupOnStartup { get; set; } = true;
 

@@ -13,8 +13,12 @@ using Microsoft.Extensions.Options;
 namespace HVO.Hardware.DavisVantagePro2.Workers;
 
 /// <summary>
-/// Background service that polls the Davis console for LOOP2 packets on a
-/// configurable interval and writes each reading to the SQLite outbox.
+/// Background service that continuously streams LOOP2 packets from the Davis console
+/// and writes each reading to the SQLite outbox.
+///
+/// Uses the LPS 2 command to stream packets at the console's native ~2-second cadence,
+/// keeping the TCP connection live. LOOP1-only fields (battery, forecast, sunrise/sunset)
+/// are refreshed once per batch via a single LPS 1 1 request before each stream batch.
 ///
 /// On startup, optionally runs DMPAFT to catch up archive records missed while offline.
 /// </summary>
@@ -67,36 +71,56 @@ public sealed class WeatherStationWorker(
 
     private async Task PollLoopAsync(CancellationToken ct)
     {
-        var interval = TimeSpan.FromSeconds(_options.PollingIntervalSeconds);
+        // Number of LOOP2 packets per LPS 2 command (~60 s at the console's native 2 s/packet
+        // cadence). After each batch the console returns to command mode; LOOP1 is refreshed
+        // and the next LPS command is issued immediately to keep the TCP connection live.
+        const int BatchSize = 30;
+
+        Loop2Packet? loop1Cache = null;
 
         while (!ct.IsCancellationRequested)
         {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
+            // Refresh LOOP1-only fields (battery, forecast, sunrise/sunset, monthly totals)
+            // once per batch. Keeps the LOOP2 stream alive while limiting LOOP1 overhead.
             try
             {
-                Loop2Packet reading = await station.GetCurrentConditionsAsync(ct);
-                LatestReading = reading;
-                LastReadingAt = DateTime.UtcNow;
+                loop1Cache = await station.GetLoop1Async(ct);
                 ConsecutiveErrors = 0;
-
-                await WriteToOutboxAsync(reading, ct);
-                logger.LogDebug("LOOP2 read: {T:F1}°F, {H:F0}%RH, {P:F3} inHg",
-                    reading.OutsideTemperatureF, reading.OutsideHumidityPercent, reading.BarometricPressureInHg);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 ConsecutiveErrors++;
                 LastError = ex.Message;
-                logger.LogWarning(ex, "LOOP2 read failed ({N} consecutive)", ConsecutiveErrors);
-
-                if (ConsecutiveErrors >= _options.MaxConsecutiveErrors)
-                    throw; // Bubble up to reconnect logic
+                logger.LogWarning(ex, "LOOP1 refresh failed ({N} consecutive)", ConsecutiveErrors);
+                if (loop1Cache is null || ConsecutiveErrors >= _options.MaxConsecutiveErrors)
+                    throw; // No cached data or too many failures — trigger reconnect
             }
 
-            var remaining = interval - sw.Elapsed;
-            if (remaining > TimeSpan.Zero)
-                await Task.Delay(remaining, ct);
+            // Stream LOOP2 packets. The console sends one every ~2 s; no sleep needed.
+            try
+            {
+                await foreach (var loop2 in station.StreamLoop2Async(BatchSize, ct))
+                {
+                    Loop2Packet reading = VantageStation.MergePackets(loop1Cache!, loop2);
+                    LatestReading = reading;
+                    LastReadingAt = DateTime.UtcNow;
+                    ConsecutiveErrors = 0;
+
+                    await WriteToOutboxAsync(reading, ct);
+                    logger.LogDebug("LOOP2: {T:F1}°F, {H:F0}%RH, {P:F3} inHg",
+                        reading.OutsideTemperatureF, reading.OutsideHumidityPercent, reading.BarometricPressureInHg);
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex)
+            {
+                ConsecutiveErrors++;
+                LastError = ex.Message;
+                logger.LogWarning(ex, "LOOP2 stream failed ({N} consecutive)", ConsecutiveErrors);
+                if (ConsecutiveErrors >= _options.MaxConsecutiveErrors)
+                    throw; // Trigger reconnect
+            }
         }
     }
 

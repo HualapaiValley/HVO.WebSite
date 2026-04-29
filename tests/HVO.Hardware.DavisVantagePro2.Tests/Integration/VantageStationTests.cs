@@ -35,6 +35,73 @@ public class VantageStationTests
         return (client, station);
     }
 
+    // ── GetLoop1Async ─────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task GetLoop1Async_ReturnsLoop1OnlyFields()
+    {
+        byte[] loop1 = PacketBuilder.BuildLoop1Packet(
+            outsideTempF:    72.5,
+            outsideHumidity: 55,
+            forecastRule:    7,
+            sunriseHhmm:     638,
+            sunsetHhmm:      2012);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()                                    // wake before LPS
+            .Step(8, [DavisProtocol.Ack, ..loop1])         // "LPS 1 1\n" (8 b) → ACK + LOOP1
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var result = await station.GetLoop1Async();
+
+        result.OutsideTemperatureF.Should().BeApproximately(72.5, 0.1);
+        result.OutsideHumidityPercent.Should().Be(55);
+        result.ForecastRule.Should().Be(7);
+        result.SunriseTime.Should().Be(638);
+        result.SunsetTime.Should().Be(2012);
+        result.ConsoleBatteryVoltage.Should().NotBeNull(); // LOOP1-only field
+        // LOOP2-only derived fields must be absent in a LOOP1 packet
+        result.DewPointF.Should().BeNull();
+        result.HeatIndexF.Should().BeNull();
+        result.WindChillF.Should().BeNull();
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    // ── StreamLoop2Async ──────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task StreamLoop2Async_YieldsAllPacketsInOrder()
+    {
+        byte[] loop2a = PacketBuilder.BuildLoop2Packet(outsideTempF: 65.0);
+        byte[] loop2b = PacketBuilder.BuildLoop2Packet(outsideTempF: 70.0);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()                                               // wake before LPS
+            .Step(8, [DavisProtocol.Ack, ..loop2a, ..loop2b])        // "LPS 2 2\n" (8 b) → ACK + 2×LOOP2
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var packets = new List<Loop2Packet>();
+        await foreach (var p in station.StreamLoop2Async(2))
+            packets.Add(p);
+
+        packets.Should().HaveCount(2);
+        packets[0].OutsideTemperatureF.Should().BeApproximately(65.0, 0.1);
+        packets[1].OutsideTemperatureF.Should().BeApproximately(70.0, 0.1);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
     // ── GetCurrentConditionsAsync ─────────────────────────────────────────────
 
     [TestMethod]
