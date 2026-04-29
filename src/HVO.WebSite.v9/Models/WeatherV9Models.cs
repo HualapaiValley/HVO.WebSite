@@ -44,6 +44,26 @@ public class IngestWeatherRawRequest
     public double? UvIndex { get; init; }
 }
 
+/// <summary>Response body for a batch ingest request.</summary>
+public class WeatherRawBatchResponse
+{
+    /// <summary>Number of records successfully inserted (new records only).</summary>
+    public int Inserted { get; init; }
+
+    /// <summary>Number of records skipped because they already existed (duplicate StationId+RecordedAt).</summary>
+    public int Skipped { get; init; }
+
+    /// <summary>Records that could not be inserted due to permanent validation errors.</summary>
+    public IReadOnlyList<WeatherRawBatchFailure> Failed { get; init; } = [];
+}
+
+/// <summary>Describes a single record that failed validation within a batch ingest.</summary>
+public class WeatherRawBatchFailure
+{
+    public DateTime RecordedAt { get; init; }
+    public string Error { get; init; } = string.Empty;
+}
+
 /// <summary>
 /// A single raw weather observation returned from the API.
 /// </summary>

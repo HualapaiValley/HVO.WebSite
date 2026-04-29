@@ -5,6 +5,7 @@ using HVO.DataModels.Models.V9;
 using HVO.WebSite.v9.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace HVO.WebSite.v9.Controllers;
@@ -85,7 +86,17 @@ public class WeatherV9Controller : ControllerBase
         };
 
         _db.WeatherRaw.Add(record);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            // Duplicate record — already in DB, treat as success (idempotent)
+            _logger.LogDebug("Duplicate raw weather record from station {StationId} at {RecordedAt} — skipped",
+                record.StationId, record.RecordedAt);
+            return CreatedAtAction(nameof(GetRecentRaw), new { }, MapToResponse(record));
+        }
 
         _logger.LogInformation(
             "Ingested raw weather record {Id} from station {StationId} at {RecordedAt}",
@@ -93,6 +104,131 @@ public class WeatherV9Controller : ControllerBase
 
         var response = MapToResponse(record);
         return CreatedAtAction(nameof(GetRecentRaw), new { }, response);
+    }
+
+    /// <summary>
+    /// Ingest a batch of raw weather observations from a station device.
+    /// </summary>
+    /// <remarks>
+    /// Idempotent: duplicate records (same StationId + RecordedAt) are silently skipped.
+    /// Per-record validation failures are returned in the response body rather than failing
+    /// the entire request, so the caller can dead-letter those records and retry the rest.
+    /// Requires an API key with the <c>ingest:weather</c> scope claim.
+    /// </remarks>
+    /// <response code="201">Batch processed. See Inserted/Skipped/Failed counts in response body.</response>
+    /// <response code="400">Empty batch or malformed request body.</response>
+    /// <response code="401">Missing or invalid API key.</response>
+    /// <response code="403">API key does not have the ingest:weather scope.</response>
+    [HttpPost("raw/batch")]
+    [Authorize(Policy = "WeatherIngest")]
+    [ProducesResponseType(typeof(WeatherRawBatchResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<WeatherRawBatchResponse>> IngestRawBatch(
+        [FromBody] IReadOnlyList<IngestWeatherRawRequest> requests,
+        CancellationToken ct)
+    {
+        if (requests.Count == 0)
+            return ValidationProblem(detail: "Batch must contain at least one record.");
+
+        // Resolve timestamps up-front (null RecordedAt → server time)
+        var resolved = requests.Select(r => (Request: r, RecordedAt: r.RecordedAt?.ToUniversalTime() ?? DateTime.UtcNow)).ToList();
+
+        // One query to find which (StationId, RecordedAt) pairs already exist
+        var stationIds = resolved.Select(x => x.Request.StationId).Distinct().ToList();
+        var timestamps = resolved.Select(x => x.RecordedAt).Distinct().ToList();
+        var existing = await _db.WeatherRaw
+            .Where(r => r.StationId != null && stationIds.Contains(r.StationId) && timestamps.Contains(r.RecordedAt))
+            .Select(r => new { r.StationId, r.RecordedAt })
+            .ToListAsync(ct);
+        var existingKeys = existing.Select(x => (x.StationId, x.RecordedAt)).ToHashSet();
+
+        var toInsert = new List<WeatherRaw>();
+        var failures = new List<WeatherRawBatchFailure>();
+        int skipped = 0;
+        var seenInBatch = new HashSet<(string?, DateTime)>();
+
+        foreach (var (request, recordedAt) in resolved)
+        {
+            // Skip duplicates — already in DB, treat as success
+            if (existingKeys.Contains((request.StationId, recordedAt)))
+            {
+                skipped++;
+                continue;
+            }
+
+            // Skip intra-batch duplicates by (StationId, RecordedAt)
+            if (!seenInBatch.Add((request.StationId, recordedAt)))
+            {
+                skipped++;
+                continue;
+            }
+
+            // Validate individual record (data annotations)
+            var validationResults = new List<ValidationResult>();
+            if (!Validator.TryValidateObject(request, new ValidationContext(request), validationResults, validateAllProperties: true))
+            {
+                failures.Add(new WeatherRawBatchFailure
+                {
+                    RecordedAt = recordedAt,
+                    Error = string.Join("; ", validationResults.Select(r => r.ErrorMessage))
+                });
+                continue;
+            }
+
+            toInsert.Add(new WeatherRaw
+            {
+                RecordedAt = recordedAt,
+                StationId = request.StationId,
+                TemperatureF = request.TemperatureF,
+                HumidityPercent = request.HumidityPercent,
+                DewPointF = request.DewPointF,
+                BarometricPressureInHg = request.BarometricPressureInHg,
+                WindSpeedMph = request.WindSpeedMph,
+                WindGustMph = request.WindGustMph,
+                WindDirectionDegrees = request.WindDirectionDegrees,
+                RainfallInches = request.RainfallInches,
+                SolarRadiationWm2 = request.SolarRadiationWm2,
+                UvIndex = request.UvIndex
+            });
+        }
+
+        if (toInsert.Count > 0)
+        {
+            _db.WeatherRaw.AddRange(toInsert);
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+            {
+                // Race condition — another process inserted the same record between our check and insert.
+                // Treat as idempotent success; caller gets accurate counts on the next sweep.
+                _logger.LogDebug(ex, "Unique constraint violation in batch ingest (race condition) — treating as success");
+                skipped += toInsert.Count;
+                toInsert.Clear();
+            }
+            catch (DbUpdateException ex)
+            {
+                var distinctStations = string.Join(", ", resolved.Select(x => x.Request.StationId).Distinct());
+                _logger.LogError(ex, "Batch ingest failed during SaveChanges for stations {StationIds}", distinctStations);
+                return Problem(
+                    detail: "An error occurred while persisting the batch. Retry is safe — duplicate records will be skipped.",
+                    statusCode: StatusCodes.Status500InternalServerError,
+                    title: "Batch Ingest Failed");
+            }
+        }
+
+        var logStations = string.Join(", ", resolved.Select(x => x.Request.StationId).Distinct());
+        _logger.LogInformation(
+            "Batch ingest: {Inserted} inserted, {Skipped} skipped, {Failed} failed. Stations: {StationIds}",
+            toInsert.Count, skipped, failures.Count, logStations);
+
+        return CreatedAtAction(nameof(GetRecentRaw), new { },
+            new WeatherRawBatchResponse { Inserted = toInsert.Count, Skipped = skipped, Failed = failures });
     }
 
     // -------------------------------------------------------------------------
@@ -162,6 +298,14 @@ public class WeatherV9Controller : ControllerBase
 
         return Ok(records.Select(MapToHourlyResponse).ToList());
     }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
+        ex.InnerException is SqlException sqlEx &&
+        (sqlEx.Number == 2601 || sqlEx.Number == 2627);
 
     // -------------------------------------------------------------------------
     // Mapping helpers

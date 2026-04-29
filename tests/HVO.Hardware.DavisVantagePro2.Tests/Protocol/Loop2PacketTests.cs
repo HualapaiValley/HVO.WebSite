@@ -204,8 +204,107 @@ public class Loop2PacketTests
     public void Parse_WrongPacketType_ThrowsDavisUnknownPacketTypeException()
     {
         byte[] buf = PacketBuilder.BuildLoop2DataBytes();
-        buf[4] = DavisProtocol.PacketTypeLoop1; // LOOP1, not LOOP2
+        buf[4] = 0x02; // not LOOP1 (0x00) or LOOP2 (0x01) — truly unknown type
         Action act = () => Loop2Packet.Parse(buf, bucketType: 0);
         act.Should().Throw<DavisUnknownPacketTypeException>();
+    }
+
+    // ── LOOP1-specific fields ─────────────────────────────────────────────────
+
+    [TestMethod]
+    public void ParseLoop1_ConsoleBatteryVoltage_DecodesCorrectly()
+    {
+        // raw 5120 × 300 / 51200 = 30.0 V
+        byte[] buf = PacketBuilder.BuildLoop1DataBytes(consoleBatteryRaw: 5120);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.ConsoleBatteryVoltage.Should().BeApproximately(5120 * 300.0 / 51200.0, 0.001);
+    }
+
+    [TestMethod]
+    public void ParseLoop1_ConsoleBattery_ZeroRaw_ReturnsZeroVolts()
+    {
+        byte[] buf = PacketBuilder.BuildLoop1DataBytes(consoleBatteryRaw: 0);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.ConsoleBatteryVoltage.Should().Be(0.0);
+    }
+
+    [TestMethod]
+    public void ParseLoop1_TransmitterBatteryStatus_AllOk_LowChannelsEmpty()
+    {
+        byte[] buf = PacketBuilder.BuildLoop1DataBytes(txBatteryStatus: 0x0000);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.TransmitterBatteryStatus.Should().Be(0);
+        packet.TransmitterLowBatteryChannels.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public void ParseLoop1_TransmitterBatteryStatus_Channel1And3Low_Correct()
+    {
+        // Bit 0 = channel 1, bit 2 = channel 3
+        byte[] buf = PacketBuilder.BuildLoop1DataBytes(txBatteryStatus: 0x0005);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.TransmitterLowBatteryChannels.Should().BeEquivalentTo(new[] { 1, 3 });
+    }
+
+    [TestMethod]
+    public void ParseLoop1_ForecastRule_DecodesCorrectly()
+    {
+        byte[] buf = PacketBuilder.BuildLoop1DataBytes(forecastRule: 7);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.ForecastRule.Should().Be(7);
+        packet.ForecastString.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [TestMethod]
+    public void ParseLoop1_ForecastIconNames_SunnyBit_ContainsSunny()
+    {
+        // 0x08 = bit 3 = Sunny
+        byte[] buf = PacketBuilder.BuildLoop1DataBytes(forecastIcons: 0x08);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.ForecastIconNames.Should().Contain("Sunny");
+    }
+
+    [TestMethod]
+    public void ParseLoop1_ForecastIconNames_RainAndCloudy_ContainsBoth()
+    {
+        // 0x01 = Rain, 0x02 = Cloudy
+        byte[] buf = PacketBuilder.BuildLoop1DataBytes(forecastIcons: 0x03);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.ForecastIconNames.Should().Contain("Rain").And.Contain("Cloudy");
+    }
+
+    [TestMethod]
+    public void ParseLoop1_SunriseTime_DecodesCorrectly()
+    {
+        // 638 = 06:38 → "06:38"
+        byte[] buf = PacketBuilder.BuildLoop1DataBytes(sunriseHhmm: 638);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.SunriseDisplay.Should().Be("06:38");
+    }
+
+    [TestMethod]
+    public void ParseLoop1_SunsetTime_DecodesCorrectly()
+    {
+        // 2012 = 20:12 → "20:12"
+        byte[] buf = PacketBuilder.BuildLoop1DataBytes(sunsetHhmm: 2012);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.SunsetDisplay.Should().Be("20:12");
+    }
+
+    [TestMethod]
+    public void ParseLoop1_MonthlyRainInches_DecodesCorrectly()
+    {
+        // 10 clicks × 0.01 in/click = 0.10 in
+        byte[] buf = PacketBuilder.BuildLoop1DataBytes(monthlyRainClicks: 10);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.MonthlyRainInches.Should().BeApproximately(0.10, 0.001);
+    }
+
+    [TestMethod]
+    public void ParseLoop1_YearlyRainInches_DecodesCorrectly()
+    {
+        byte[] buf = PacketBuilder.BuildLoop1DataBytes(yearlyRainClicks: 250);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.YearlyRainInches.Should().BeApproximately(2.50, 0.001);
     }
 }

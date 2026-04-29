@@ -28,7 +28,24 @@ public sealed class VantageStation : IAsyncDisposable
     public int ArchiveIntervalSeconds { get; private set; } = 300;
     public int ModelType { get; private set; } = 2;
     public int HardwareType { get; private set; }
+    public bool UseTimezoneCode { get; private set; } = true;
+    public int TimezoneCode { get; private set; }
+    public double GmtOffsetHours { get; private set; }
     public bool IsConnected => _client.IsConnected;
+
+    /// <summary>
+    /// UTC offset of the console's configured timezone, derived from EEPROM at connect time.
+    /// Uses the timezone code table when <see cref="UseTimezoneCode"/> is <c>true</c>;
+    /// otherwise uses the manual GMT offset.
+    /// </summary>
+    public TimeSpan ConsoleUtcOffset => UseTimezoneCode
+        ? DavisTimeZoneTable.GetOffset(TimezoneCode) ?? TimeSpan.Zero
+        : TimeSpan.FromHours(GmtOffsetHours);
+
+    /// <summary>Human-readable timezone label, e.g. "Mountain (UTC-7)".</summary>
+    public string ConsoleTimeZoneLabel => UseTimezoneCode
+        ? DavisTimeZoneTable.GetLabel(TimezoneCode)
+        : $"GMT {(GmtOffsetHours >= 0 ? "+" : "")}{GmtOffsetHours:F2} h";
 
     public VantageStation(DavisConsoleClient client, ILogger<VantageStation> logger, int maxTries = 4)
     {
@@ -65,7 +82,26 @@ public sealed class VantageStation : IAsyncDisposable
     // ── Live data — LOOP2 streaming ───────────────────────────────────────────
 
     /// <summary>
-    /// Request a batch of LOOP2 packets from the console using the LPS command.
+    /// Request a single LOOP1 packet using <c>LPS 1 1</c>.
+    /// Returns console-status fields (battery, forecast, sunrise/sunset, monthly/yearly
+    /// rain/ET totals) that are only present in LOOP1 packets.
+    /// Called before each LOOP2 streaming batch to refresh the worker's LOOP1 cache.
+    /// </summary>
+    public async Task<Loop2Packet> GetLoop1Async(CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            await _client.WakeAsync(_maxTries, ct);
+            await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdLps} 1 1\n"), ct);
+            byte[] raw = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
+            return Loop2Packet.Parse(raw[..DavisProtocol.LoopPacketDataBytes], RainBucketType);
+        }
+        finally { _lock.Release(); }
+    }
+
+    /// <summary>
+    /// Request a batch of LOOP2 packets from the console using the LPS 2 command.
     /// Each packet is yielded as it arrives. The caller must release the lock by
     /// cancelling the token or consuming all packets.
     /// </summary>
@@ -76,7 +112,7 @@ public sealed class VantageStation : IAsyncDisposable
         try
         {
             await _client.WakeAsync(_maxTries, ct);
-            string cmd = $"{DavisProtocol.CmdLoop} {count}\n";
+            string cmd = $"{DavisProtocol.CmdLps} 2 {count}\n";
             await _client.SendDataAsync(Encoding.ASCII.GetBytes(cmd), ct);
 
             for (int i = 0; i < count && !ct.IsCancellationRequested; i++)
@@ -88,31 +124,121 @@ public sealed class VantageStation : IAsyncDisposable
         finally { _lock.Release(); }
     }
 
-    /// <summary>Request exactly one LOOP2 packet.</summary>
+    /// <summary>
+    /// Request one merged LOOP1+LOOP2 reading using <c>LPS 3 2</c>.
+    /// The LOOP1 packet provides battery, forecast, sunrise/sunset, and extended rain/ET.
+    /// The LOOP2 packet provides dew point, heat index, wind chill, altimeter, and precision wind.
+    /// </summary>
     public async Task<Loop2Packet> GetCurrentConditionsAsync(CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct);
         try
         {
             await _client.WakeAsync(_maxTries, ct);
-            string cmd = $"{DavisProtocol.CmdLoop} 1\n";
-            await _client.SendDataAsync(Encoding.ASCII.GetBytes(cmd), ct);
-            byte[] raw = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
-            return Loop2Packet.Parse(raw[..DavisProtocol.LoopPacketDataBytes], RainBucketType);
+            // LPS 3 N → N alternating packets: LOOP1, LOOP2, LOOP1, LOOP2, …
+            await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdLps} 3 2\n"), ct);
+            byte[] raw1 = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
+            byte[] raw2 = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
+            var loop1 = Loop2Packet.Parse(raw1[..DavisProtocol.LoopPacketDataBytes], RainBucketType);
+            var loop2 = Loop2Packet.Parse(raw2[..DavisProtocol.LoopPacketDataBytes], RainBucketType);
+            return MergePackets(loop1, loop2);
         }
         finally { _lock.Release(); }
     }
 
+    /// <summary>
+    /// Merge a LOOP1 and LOOP2 packet into a single packet.
+    /// LOOP2 fields take precedence for weather data (higher precision for wind, plus derived values).
+    /// LOOP1-only fields (battery, forecast, extended rain/ET, extra sensors) come from LOOP1.
+    /// </summary>
+    internal static Loop2Packet MergePackets(Loop2Packet loop1, Loop2Packet loop2) => new()
+    {
+        RecordedAtUtc = loop2.RecordedAtUtc,
+
+        // Atmosphere — prefer LOOP2 (altimeter + raw pressure only in LOOP2)
+        BarometricPressureInHg = loop2.BarometricPressureInHg ?? loop1.BarometricPressureInHg,
+        PressureRawInHg = loop2.PressureRawInHg,
+        AltimeterInHg = loop2.AltimeterInHg,
+        BarometricTrend = loop2.BarometricTrend ?? loop1.BarometricTrend,
+
+        // Temperature — LOOP2 adds dew point, heat index, wind chill, THSW
+        InsideTemperatureF = loop2.InsideTemperatureF ?? loop1.InsideTemperatureF,
+        OutsideTemperatureF = loop2.OutsideTemperatureF ?? loop1.OutsideTemperatureF,
+        DewPointF = loop2.DewPointF,
+        HeatIndexF = loop2.HeatIndexF,
+        WindChillF = loop2.WindChillF,
+        ThswF = loop2.ThswF,
+
+        // Humidity
+        InsideHumidityPercent = loop2.InsideHumidityPercent ?? loop1.InsideHumidityPercent,
+        OutsideHumidityPercent = loop2.OutsideHumidityPercent ?? loop1.OutsideHumidityPercent,
+
+        // Wind — LOOP2 has ×10 precision for avg, plus 2-min avg and gust direction
+        WindSpeedMph = loop2.WindSpeedMph ?? loop1.WindSpeedMph,
+        WindDirectionDegrees = loop2.WindDirectionDegrees ?? loop1.WindDirectionDegrees,
+        WindSpeed10MinAvgMph = loop2.WindSpeed10MinAvgMph ?? loop1.WindSpeed10MinAvgMph,
+        WindSpeed2MinAvgMph = loop2.WindSpeed2MinAvgMph,
+        WindGust10MinMph = loop2.WindGust10MinMph,
+        WindGust10MinDirectionDegrees = loop2.WindGust10MinDirectionDegrees,
+
+        // Rain — LOOP2 adds 15-min, hourly, 24-hr buckets
+        RainRateInchesPerHour = loop2.RainRateInchesPerHour ?? loop1.RainRateInchesPerHour,
+        DailyRainInches = loop2.DailyRainInches ?? loop1.DailyRainInches,
+        Rain15MinInches = loop2.Rain15MinInches,
+        HourRainInches = loop2.HourRainInches,
+        Rain24HourInches = loop2.Rain24HourInches,
+        StormRainInches = loop2.StormRainInches ?? loop1.StormRainInches,
+        StormStartDate = loop2.StormStartDate ?? loop1.StormStartDate,
+
+        // Solar / UV / ET
+        SolarRadiationWm2 = loop2.SolarRadiationWm2 ?? loop1.SolarRadiationWm2,
+        UvIndex = loop2.UvIndex ?? loop1.UvIndex,
+        DailyEtInches = loop2.DailyEtInches ?? loop1.DailyEtInches,
+
+        // LOOP1-only fields
+        MonthlyRainInches = loop1.MonthlyRainInches,
+        YearlyRainInches = loop1.YearlyRainInches,
+        MonthlyEtInches = loop1.MonthlyEtInches,
+        YearlyEtInches = loop1.YearlyEtInches,
+        ConsoleBatteryVoltage = loop1.ConsoleBatteryVoltage,
+        TransmitterBatteryStatus = loop1.TransmitterBatteryStatus,
+        ForecastIcons = loop1.ForecastIcons,
+        ForecastRule = loop1.ForecastRule,
+        SunriseTime = loop1.SunriseTime,
+        SunsetTime = loop1.SunsetTime,
+        ExtraTemperaturesF = loop1.ExtraTemperaturesF,
+        SoilTemperaturesF = loop1.SoilTemperaturesF,
+        ExtraHumiditiesPercent = loop1.ExtraHumiditiesPercent,
+        SoilMoisturesCb = loop1.SoilMoisturesCb,
+        LeafWetnessScaled = loop1.LeafWetnessScaled,
+    };
+
     // ── Archive — DMPAFT ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// Yield all archive records since <paramref name="since"/> using DMPAFT.
-    /// Passes <c>DateTime.MinValue</c> to get all records.
+    /// Yield archive records since <paramref name="since"/> using DMPAFT.
+    /// Pass <c>DateTime.MinValue</c> to get all records.
     /// </summary>
+    /// <param name="since">Earliest record timestamp to return (local time).</param>
+    /// <param name="maxRecords">
+    /// Maximum number of records to yield before releasing the console lock.
+    /// Callers can issue a second request starting from the last yielded record's
+    /// timestamp to fetch the next batch. Defaults to <see cref="int.MaxValue"/>.
+    /// </param>
+    /// <param name="fallbackOnEmpty">
+    /// When <c>true</c> and the console reports 0 pages for the given <paramref name="since"/>
+    /// timestamp, automatically retry with a full-archive request (<c>DateTime.MinValue</c>).
+    /// Some Davis firmware versions return 0 pages when <paramref name="since"/> predates the
+    /// entire circular buffer (all records are newer than <paramref name="since"/>).
+    /// Defaults to <c>false</c> to preserve existing catchup-worker behaviour.
+    /// </param>
     public async IAsyncEnumerable<ArchiveRecord> GetArchiveSinceAsync(DateTime since,
+        int maxRecords = int.MaxValue,
+        bool fallbackOnEmpty = false,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct);
+        int yielded = 0;
         try
         {
             await _client.WakeAsync(_maxTries, ct);
@@ -127,6 +253,21 @@ public sealed class VantageStation : IAsyncDisposable
             int nPages = BinaryPrimitives.ReadUInt16LittleEndian(resp[0..]);
             int startIndex = BinaryPrimitives.ReadUInt16LittleEndian(resp[2..]);
             _logger.LogDebug("DMPAFT: {Pages} pages, start index {Idx}", nPages, startIndex);
+
+            // Some Davis firmware returns 0 pages when 'since' predates the entire circular
+            // buffer (all stored records are newer).  Re-issue with an all-records request so
+            // the oldest available records are returned.
+            if (nPages == 0 && since != DateTime.MinValue && fallbackOnEmpty)
+            {
+                _logger.LogDebug("DMPAFT: 0 pages for {Since}; retrying with full archive", since);
+                await _client.WakeAsync(_maxTries, ct);
+                await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdDmpaft}\n"), ct);
+                await _client.SendDataWithCrc16Async(EncodeDmpaftDate(DateTime.MinValue), ct, maxTries: 1);
+                resp = await _client.GetDataWithCrc16Async(DavisProtocol.DmpaftResponseBytes, ct, maxTries: 1);
+                nPages = BinaryPrimitives.ReadUInt16LittleEndian(resp[0..]);
+                startIndex = BinaryPrimitives.ReadUInt16LittleEndian(resp[2..]);
+                _logger.LogDebug("DMPAFT full archive: {Pages} pages, start index {Idx}", nPages, startIndex);
+            }
 
             DateTime lastGoodTs = since;
 
@@ -157,6 +298,12 @@ public sealed class VantageStation : IAsyncDisposable
 
                     lastGoodTs = rec.DateTimeLocal;
                     yield return rec;
+
+                    if (++yielded >= maxRecords)
+                    {
+                        _logger.LogDebug("DMPAFT: maxRecords {Max} reached, stopping early", maxRecords);
+                        yield break;
+                    }
                 }
                 startIndex = 0; // Only the first page uses the returned start index
             }
@@ -174,8 +321,8 @@ public sealed class VantageStation : IAsyncDisposable
         {
             await _client.WakeAsync(_maxTries, ct);
 
-            // Hardware type: WRD command
-            await _client.WriteAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdWrd}{(char)0x12}{(char)0x4D}\n"), ct);
+            // Hardware type: WRD command — response is ACK then 1 hardware-type byte
+            await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdWrd}{(char)0x12}{(char)0x4D}\n"), ct);
             byte[] hwByte = await _client.ReadExactAsync(1, ct);
             int hwType = hwByte[0];
             int model = hwType == DavisProtocol.HardwareVantageVue ? 2 : ModelType;
@@ -697,8 +844,15 @@ public sealed class VantageStation : IAsyncDisposable
     {
         byte[] setupBits = await ReadEepromAsync(DavisProtocol.EepromSetupBits, 1, ct);
         byte[] archByte = await ReadEepromAsync(DavisProtocol.EepromArchiveInterval, 1, ct);
+        byte[] gmtOrZone = await ReadEepromAsync(DavisProtocol.EepromGmtOrZone, 1, ct);
+        byte[] tzCode = await ReadEepromAsync(DavisProtocol.EepromTimezoneCode, 1, ct);
+        byte[] gmtOffB = await ReadEepromAsync(DavisProtocol.EepromGmtOffset, 2, ct);
+
         RainBucketType = (setupBits[0] & 0x30) >> 4;
         ArchiveIntervalSeconds = archByte[0] * 60;
+        UseTimezoneCode = gmtOrZone[0] == 0;
+        TimezoneCode = tzCode[0];
+        GmtOffsetHours = BinaryPrimitives.ReadInt16LittleEndian(gmtOffB) / 100.0;
     }
 
     private async Task<DateTime> GetConsoleTimeInternalAsync(CancellationToken ct)

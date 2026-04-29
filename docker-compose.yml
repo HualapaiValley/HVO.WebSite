@@ -47,7 +47,7 @@ services:
       - "8080:8080"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health/live" ]
       interval: 30s
       timeout: 10s
       start_period: 30s
@@ -63,6 +63,8 @@ services:
     depends_on:
       hvo-website:
         condition: service_healthy
+    ports:
+      - "5100:8080"
     environment:
       # Station TCP address (network-connected console)
       Station__Host: ${DAVIS_STATION_HOST:-192.168.0.121}

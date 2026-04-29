@@ -31,8 +31,11 @@ public sealed class ApiKeySeedService : IHostedService
         await using var scope = _services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<HvoV9DbContext>();
 
-        // Apply any pending v9 migrations before seeding
-        await db.Database.MigrateAsync(cancellationToken);
+        // Apply any pending v9 migrations before seeding.
+        // Guard is required so integration tests using InMemory providers don't throw;
+        // InMemory databases don't need migrations — the test factory calls EnsureCreated instead.
+        if (db.Database.IsRelational())
+            await db.Database.MigrateAsync(cancellationToken);
 
         await SeedSystemKeyAsync(
             db,

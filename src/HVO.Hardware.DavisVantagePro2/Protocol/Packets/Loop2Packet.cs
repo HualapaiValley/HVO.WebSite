@@ -103,6 +103,92 @@ public sealed record Loop2Packet
     /// <summary>Barometric trend icon (-2=FF, -1=F, 0=S, 1=R, 2=RR). Null = unknown.</summary>
     public int? BarometricTrend { get; init; }
 
+    // ── Console status (LOOP1 only) ───────────────────────────────────────────
+
+    /// <summary>Console battery voltage (V). Present in LOOP1 only.</summary>
+    public double? ConsoleBatteryVoltage { get; init; }
+
+    /// <summary>
+    /// Transmitter battery status bitmask (bit N = channel N+1 has low battery).
+    /// Present in LOOP1 only. 0 = all batteries OK.
+    /// </summary>
+    public ushort? TransmitterBatteryStatus { get; init; }
+
+    /// <summary>Forecast icon bitmask. See <see cref="ForecastIconNames"/>. LOOP1 only.</summary>
+    public byte? ForecastIcons { get; init; }
+
+    /// <summary>Forecast rule number (0–195). See <see cref="ForecastString"/>. LOOP1 only.</summary>
+    public int? ForecastRule { get; init; }
+
+    /// <summary>Sunrise time encoded as HHMM integer (e.g. 630 = 06:30). LOOP1 only.</summary>
+    public int? SunriseTime { get; init; }
+
+    /// <summary>Sunset time encoded as HHMM integer (e.g. 2015 = 20:15). LOOP1 only.</summary>
+    public int? SunsetTime { get; init; }
+
+    // ── Extended rain / ET (LOOP1 only) ──────────────────────────────────────
+
+    /// <summary>Monthly cumulative rain (in). LOOP1 only.</summary>
+    public double? MonthlyRainInches { get; init; }
+
+    /// <summary>Yearly cumulative rain (in). LOOP1 only.</summary>
+    public double? YearlyRainInches { get; init; }
+
+    /// <summary>Monthly ET (in). LOOP1 only.</summary>
+    public double? MonthlyEtInches { get; init; }
+
+    /// <summary>Yearly ET (in). LOOP1 only.</summary>
+    public double? YearlyEtInches { get; init; }
+
+    // ── Extra sensor arrays (LOOP1 only, null element = sensor absent) ────────
+
+    /// <summary>Extra temperatures 1–7 (°F). LOOP1 only.</summary>
+    public double?[]? ExtraTemperaturesF { get; init; }
+
+    /// <summary>Soil temperatures 1–4 (°F). LOOP1 only.</summary>
+    public double?[]? SoilTemperaturesF { get; init; }
+
+    /// <summary>Extra relative humidities 1–7 (%). LOOP1 only.</summary>
+    public double?[]? ExtraHumiditiesPercent { get; init; }
+
+    /// <summary>Soil moisture levels 1–4 (centibars). LOOP1 only.</summary>
+    public double?[]? SoilMoisturesCb { get; init; }
+
+    /// <summary>Leaf wetness levels 1–4 (0–15 scale). LOOP1 only.</summary>
+    public double?[]? LeafWetnessScaled { get; init; }
+
+    // ── Computed display properties ───────────────────────────────────────────
+
+    /// <summary>Channel numbers (1–8) with low transmitter battery. Empty if status unknown.</summary>
+    public IReadOnlyList<int> TransmitterLowBatteryChannels =>
+        TransmitterBatteryStatus.HasValue
+            ? Enumerable.Range(0, 8)
+                        .Where(i => (TransmitterBatteryStatus.Value & (1 << i)) != 0)
+                        .Select(i => i + 1)
+                        .ToList()
+            : [];
+
+    /// <summary>Active forecast icon names derived from <see cref="ForecastIcons"/> bitmask.</summary>
+    public IReadOnlyList<string> ForecastIconNames =>
+        ForecastIcons.HasValue ? DavisForecastTable.GetIconNames(ForecastIcons.Value) : [];
+
+    /// <summary>Human-readable forecast text for <see cref="ForecastRule"/>.</summary>
+    public string? ForecastString =>
+        ForecastRule.HasValue ? DavisForecastTable.GetForecastString(ForecastRule.Value) : null;
+
+    /// <summary>Sunrise as "HH:MM", or null if unavailable.</summary>
+    public string? SunriseDisplay => DecodeTimeDisplay(SunriseTime);
+
+    /// <summary>Sunset as "HH:MM", or null if unavailable.</summary>
+    public string? SunsetDisplay => DecodeTimeDisplay(SunsetTime);
+
+    private static string? DecodeTimeDisplay(int? hhmm)
+    {
+        if (hhmm is null or 0 or 0x7FFF or >= 0xFFFF) return null;
+        int h = hhmm.Value / 100, m = hhmm.Value % 100;
+        return (h is >= 0 and <= 23 && m is >= 0 and <= 59) ? $"{h:D2}:{m:D2}" : null;
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     //  Factory — parse from raw 95-byte LOOP2 data buffer
     // ─────────────────────────────────────────────────────────────────────────
@@ -198,18 +284,52 @@ public sealed record Loop2Packet
             WindSpeed10MinAvgMph = buffer[15] != 0xFF ? (double)buffer[15] : null,
             WindDirectionDegrees = DecodeWindDir16(buffer, 16),
 
-            OutsideHumidityPercent = buffer[30] != 0xFF ? (double)buffer[30] : null,
+            // Extra temps 1–7 (bytes 18–24, raw − 90 = °F, 0xFF = absent)
+            ExtraTemperaturesF = DecodeByteArrayMinus90(buffer, 18, 7),
+            // Soil temps 1–4 (bytes 25–28, raw − 90 = °F, 0xFF = absent)
+            SoilTemperaturesF = DecodeByteArrayMinus90(buffer, 25, 4),
 
-            RainRateInchesPerHour = DecodeRain(ReadUshort(buffer, 38), bucketType),
-            UvIndex = buffer[40] != 0xFF ? buffer[40] / 10.0 : null,
-            SolarRadiationWm2 = ReadUshort(buffer, 41) is ushort rad and not 0x7FFF
+            // Outside humidity [33] — leaf temps 1–4 occupy bytes 29–32
+            OutsideHumidityPercent = buffer[33] != 0xFF ? (double)buffer[33] : null,
+
+            // Extra humidities 1–7 (bytes 34–40, direct %, 0xFF = absent)
+            ExtraHumiditiesPercent = DecodeByteArrayDirect(buffer, 34, 7),
+
+            RainRateInchesPerHour = DecodeRain(ReadUshort(buffer, 41), bucketType),
+            UvIndex = buffer[43] != 0xFF ? buffer[43] / 10.0 : null,
+            SolarRadiationWm2 = ReadUshort(buffer, 44) is ushort rad and not 0x7FFF
                 ? (double)rad : null,
 
-            StormRainInches = DecodeRain(ReadUshort(buffer, 43), bucketType),
-            StormStartDate = DecodeStormStart(ReadUshort(buffer, 45)),
-            DailyRainInches = DecodeRain(ReadUshort(buffer, 47), bucketType),
-            DailyEtInches = ReadUshort(buffer, 53) is ushort et and > 0
+            StormRainInches = DecodeRain(ReadUshort(buffer, 46), bucketType),
+            StormStartDate = DecodeStormStart(ReadUshort(buffer, 48)),
+            DailyRainInches = DecodeRain(ReadUshort(buffer, 50), bucketType),
+            MonthlyRainInches = DecodeRain(ReadUshort(buffer, 52), bucketType),
+            YearlyRainInches = DecodeRain(ReadUshort(buffer, 54), bucketType),
+
+            DailyEtInches = ReadUshort(buffer, 56) is ushort et and > 0
                 ? et / 1000.0 : null,
+            MonthlyEtInches = ReadUshort(buffer, 58) is ushort met and > 0
+                ? met / 100.0 : null,
+            YearlyEtInches = ReadUshort(buffer, 60) is ushort yet and > 0
+                ? yet / 100.0 : null,
+
+            // Soil moisture 1–4 (bytes 62–65, centibars, 0xFF = absent)
+            SoilMoisturesCb = DecodeByteArrayDirect(buffer, 62, 4),
+            // Leaf wetness 1–4 (bytes 66–69, 0–15 scale, 0xFF = absent)
+            LeafWetnessScaled = DecodeByteArrayDirect(buffer, 66, 4),
+
+            // Console status (alarm bytes occupy 70–85)
+            // TX battery: single byte at 86 (bit N = channel N+1 low battery)
+            TransmitterBatteryStatus = (ushort)buffer[86],
+            // Console battery: raw × 300 / 51200 V (≈ 0.005859375 V/bit)
+            ConsoleBatteryVoltage = ReadUshort(buffer, 87) * 300.0 / 51200.0,
+            ForecastIcons = buffer[89],
+            ForecastRule = buffer[90],
+            SunriseTime = ReadUshort(buffer, 91),
+            SunsetTime = ReadUshort(buffer, 93),
+
+            BarometricTrend = (sbyte)buffer[3] is sbyte trend
+                and (>= -3 and <= 3) ? (int)trend : null,
         };
 
     // ── Decode helpers ────────────────────────────────────────────────────────
@@ -219,6 +339,24 @@ public sealed record Loop2Packet
 
     private static short ReadShort(ReadOnlySpan<byte> b, int offset) =>
         BinaryPrimitives.ReadInt16LittleEndian(b[offset..]);
+
+    /// <summary>Decode <paramref name="count"/> bytes as °F with −90 offset. 0xFF = absent.</summary>
+    private static double?[] DecodeByteArrayMinus90(ReadOnlySpan<byte> b, int offset, int count)
+    {
+        var result = new double?[count];
+        for (int i = 0; i < count; i++)
+            result[i] = b[offset + i] != 0xFF ? (double?)(b[offset + i] - 90) : null;
+        return result;
+    }
+
+    /// <summary>Decode <paramref name="count"/> bytes as direct numeric values. 0xFF = absent.</summary>
+    private static double?[] DecodeByteArrayDirect(ReadOnlySpan<byte> b, int offset, int count)
+    {
+        var result = new double?[count];
+        for (int i = 0; i < count; i++)
+            result[i] = b[offset + i] != 0xFF ? (double?)b[offset + i] : null;
+        return result;
+    }
 
     /// <summary>Decode a signed 16-bit temperature: value × 10 = °F. 0x7FFF = null.</summary>
     private static double? DecodeSignedTemp(ReadOnlySpan<byte> b, int offset)

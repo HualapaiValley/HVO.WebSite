@@ -151,4 +151,84 @@ public class ArchiveRecordTests
         Action act = () => ArchiveRecord.Parse(shortBuf, bucketType: 0, archiveIntervalMinutes: 5);
         act.Should().Throw<DavisProtocolException>();
     }
+
+    // ── Extra sensor fields ───────────────────────────────────────────────────
+
+    [TestMethod]
+    public void Parse_LeafTemp1_DecodesCorrectly()
+    {
+        // raw 108 → 108 - 90 = 18 °F
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes(leafTemp1Raw: 108);
+        var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
+        rec!.LeafTemp1F.Should().Be(18.0);
+    }
+
+    [TestMethod]
+    public void Parse_LeafTemp1_NullSentinel_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes(leafTemp1Raw: 0xFF);
+        var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
+        rec!.LeafTemp1F.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_LeafTemp2_DecodesCorrectly()
+    {
+        // raw 100 → 100 - 90 = 10 °F
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes(leafTemp2Raw: 100);
+        var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
+        rec!.LeafTemp2F.Should().Be(10.0);
+    }
+
+    [TestMethod]
+    public void Parse_ExtraTemperatures_DecodesFirstValue()
+    {
+        // extra temp 1 raw = 130 → 130 - 90 = 40 °F
+        var extras = new byte[] { 130, 0xFF, 0xFF };
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes(extraTempsRaw: extras);
+        var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
+        rec!.ExtraTemperaturesF[0].Should().Be(40.0);
+        rec.ExtraTemperaturesF[1].Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_SoilMoisture_DecodesCorrectly()
+    {
+        // raw 30 = 30 centibars
+        var soils = new byte[] { 30, 0xFF, 0xFF, 0xFF };
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes(soilMoisturesRaw: soils);
+        var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
+        rec!.SoilMoisturesCb[0].Should().Be(30.0);
+        rec.SoilMoisturesCb[1].Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_LeafWetness_DecodesCorrectly()
+    {
+        // raw 7 = scale 7 (0–15)
+        var wetness = new byte[] { 7, 0xFF };
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes(leafWetnessRaw: wetness);
+        var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
+        rec!.LeafWetnessScaled[0].Should().Be(7.0);
+        rec.LeafWetnessScaled[1].Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_ExtraHumidity1_DecodesCorrectly()
+    {
+        var humids = new byte[] { 78, 0xFF };
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes(extraHumiditiesRaw: humids);
+        var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
+        rec!.ExtraHumiditiesPercent[0].Should().Be(78.0);
+        rec.ExtraHumiditiesPercent[1].Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_ExtraHumidity1_NullSentinel_ReturnsNull()
+    {
+        var humids = new byte[] { 0xFF, 0xFF };
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes(extraHumiditiesRaw: humids);
+        var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
+        rec!.ExtraHumiditiesPercent[0].Should().BeNull();
+    }
 }

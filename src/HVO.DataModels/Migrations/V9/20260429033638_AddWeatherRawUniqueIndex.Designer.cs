@@ -4,6 +4,7 @@ using HVO.DataModels.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HVO.DataModels.Migrations.V9
 {
     [DbContext(typeof(HvoV9DbContext))]
-    partial class HvoV9DbContextModelSnapshot : ModelSnapshot
+    [Migration("20260429033638_AddWeatherRawUniqueIndex")]
+    partial class AddWeatherRawUniqueIndex
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -403,9 +406,7 @@ namespace HVO.DataModels.Migrations.V9
 
                     b.HasIndex("RecordedAt");
 
-                    b.HasIndex("StationId", "RecordedAt")
-                        .IsUnique()
-                        .HasFilter("[StationId] IS NOT NULL");
+                    b.HasIndex("StationId", "RecordedAt");
 
                     b.ToTable("WeatherRaw", "v9");
                 });

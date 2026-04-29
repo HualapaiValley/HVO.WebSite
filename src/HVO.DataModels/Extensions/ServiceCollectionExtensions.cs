@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,10 +29,12 @@ namespace HVO.DataModels.Extensions
                 throw new InvalidOperationException($"Connection string '{connectionStringName}' not found in configuration.");
             }
 
+            var marsConnectionString = WithMars(connectionString);
+
             // Legacy dbo schema — read-only reference
             services.AddDbContext<HvoDbContext>(options =>
             {
-                options.UseSqlServer(connectionString, sqlOptions =>
+                options.UseSqlServer(marsConnectionString, sqlOptions =>
                 {
                     sqlOptions.EnableRetryOnFailure(
                         maxRetryCount: 3,
@@ -50,7 +53,7 @@ namespace HVO.DataModels.Extensions
             // v9 schema — EF Core migrations owned by HvoV9DbContext
             services.AddDbContext<HvoV9DbContext>(options =>
             {
-                options.UseSqlServer(connectionString, sqlOptions =>
+                options.UseSqlServer(marsConnectionString, sqlOptions =>
                 {
                     sqlOptions.EnableRetryOnFailure(
                         maxRetryCount: 3,
@@ -85,10 +88,12 @@ namespace HVO.DataModels.Extensions
                 throw new ArgumentNullException(nameof(connectionString));
             }
 
+            var marsConnectionString = WithMars(connectionString);
+
             // Add Entity Framework DbContext
             services.AddDbContext<HvoDbContext>(options =>
             {
-                options.UseSqlServer(connectionString, sqlOptions =>
+                options.UseSqlServer(marsConnectionString, sqlOptions =>
                 {
                     sqlOptions.EnableRetryOnFailure(
                         maxRetryCount: 3,
@@ -128,6 +133,19 @@ namespace HVO.DataModels.Extensions
 
             var v9Context = scope.ServiceProvider.GetRequiredService<HvoV9DbContext>();
             await v9Context.Database.MigrateAsync();
+        }
+
+        /// <summary>
+        /// Returns a copy of the connection string with MultipleActiveResultSets enabled.
+        /// Required when EF Core and authentication middleware share a connection scope.
+        /// </summary>
+        private static string WithMars(string connectionString)
+        {
+            var builder = new SqlConnectionStringBuilder(connectionString)
+            {
+                MultipleActiveResultSets = true
+            };
+            return builder.ConnectionString;
         }
     }
 }

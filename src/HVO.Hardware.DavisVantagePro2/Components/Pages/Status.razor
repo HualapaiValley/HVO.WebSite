@@ -15,7 +15,7 @@
     <h2>Current Conditions</h2>
     <div class="data-grid">
         <span class="label">Updated</span>
-        <span class="value">@(Worker.LastReadingAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</span>
+        <span class="value">@(ToConsoleTime(Worker.LastReadingAt) ?? "—")</span>
 
         <span class="label">Outside Temp</span>
         <span class="value">@F(_reading.OutsideTemperatureF) °F</span>
@@ -58,6 +58,38 @@
 
         <span class="label">UV Index</span>
         <span class="value">@(_reading.UvIndex?.ToString("F1") ?? "—")</span>
+
+        <span class="label">Daily ET</span>
+        <span class="value">@(_reading.DailyEtInches?.ToString("F3") ?? "—") in</span>
+
+        <span class="label">Monthly Rain</span>
+        <span class="value">@(_reading.MonthlyRainInches?.ToString("F2") ?? "—") in</span>
+
+        <span class="label">Yearly Rain</span>
+        <span class="value">@(_reading.YearlyRainInches?.ToString("F2") ?? "—") in</span>
+
+        <span class="label">Console Battery</span>
+        <span class="value">@(_reading.ConsoleBatteryVoltage?.ToString("F2") ?? "—") V</span>
+
+        <span class="label">Transmitter Battery</span>
+        @if (_reading.TransmitterBatteryStatus is not null)
+        {
+            var lowChannels = _reading.TransmitterLowBatteryChannels;
+            <span class="value">@(lowChannels.Count == 0 ? "OK" : $"Low: ch {string.Join(", ", lowChannels)}")</span>
+        }
+        else
+        {
+            <span class="value">—</span>
+        }
+
+        <span class="label">Forecast</span>
+        <span class="value">@(_reading.ForecastString ?? "—")</span>
+
+        <span class="label">Sunrise</span>
+        <span class="value">@(_reading.SunriseDisplay ?? "—")</span>
+
+        <span class="label">Sunset</span>
+        <span class="value">@(_reading.SunsetDisplay ?? "—")</span>
     </div>
 }
 else
@@ -70,8 +102,14 @@ else
     <span class="label">Pending records</span>
     <span class="value">@Forwarder.PendingCount</span>
 
+    <span class="label">Dead-lettered records</span>
+    <span class="value" style="@(Forwarder.FailedCount > 0 ? "color:#f38ba8" : "")">@Forwarder.FailedCount</span>
+
     <span class="label">Last sent</span>
-    <span class="value">@(Forwarder.LastSentAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</span>
+    <span class="value">@(ToConsoleTime(Forwarder.LastSentAt) ?? "—")</span>
+
+    <span class="label">Last batch size</span>
+    <span class="value">@Forwarder.LastBatchCount</span>
 
     <span class="label">Last forward error</span>
     <span class="value" style="color:#f38ba8">@(Forwarder.LastError ?? "none")</span>

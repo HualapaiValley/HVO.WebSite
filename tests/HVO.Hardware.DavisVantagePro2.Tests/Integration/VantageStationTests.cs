@@ -1,5 +1,6 @@
 using FluentAssertions;
 using HVO.Hardware.DavisVantagePro2.Protocol;
+using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using HVO.Hardware.DavisVantagePro2.Station;
 using HVO.Hardware.DavisVantagePro2.Tests.Fakes;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -34,24 +35,92 @@ public class VantageStationTests
         return (client, station);
     }
 
+    // ── GetLoop1Async ─────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task GetLoop1Async_ReturnsLoop1OnlyFields()
+    {
+        byte[] loop1 = PacketBuilder.BuildLoop1Packet(
+            outsideTempF: 72.5,
+            outsideHumidity: 55,
+            forecastRule: 7,
+            sunriseHhmm: 638,
+            sunsetHhmm: 2012);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()                                    // wake before LPS
+            .Step(8, [DavisProtocol.Ack, .. loop1])         // "LPS 1 1\n" (8 b) → ACK + LOOP1
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var result = await station.GetLoop1Async();
+
+        result.OutsideTemperatureF.Should().BeApproximately(72.5, 0.1);
+        result.OutsideHumidityPercent.Should().Be(55);
+        result.ForecastRule.Should().Be(7);
+        result.SunriseTime.Should().Be(638);
+        result.SunsetTime.Should().Be(2012);
+        result.ConsoleBatteryVoltage.Should().NotBeNull(); // LOOP1-only field
+        // LOOP2-only derived fields must be absent in a LOOP1 packet
+        result.DewPointF.Should().BeNull();
+        result.HeatIndexF.Should().BeNull();
+        result.WindChillF.Should().BeNull();
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    // ── StreamLoop2Async ──────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task StreamLoop2Async_YieldsAllPacketsInOrder()
+    {
+        byte[] loop2a = PacketBuilder.BuildLoop2Packet(outsideTempF: 65.0);
+        byte[] loop2b = PacketBuilder.BuildLoop2Packet(outsideTempF: 70.0);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()                                               // wake before LPS
+            .Step(8, [DavisProtocol.Ack, .. loop2a, .. loop2b])        // "LPS 2 2\n" (8 b) → ACK + 2×LOOP2
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var packets = new List<Loop2Packet>();
+        await foreach (var p in station.StreamLoop2Async(2))
+            packets.Add(p);
+
+        packets.Should().HaveCount(2);
+        packets[0].OutsideTemperatureF.Should().BeApproximately(65.0, 0.1);
+        packets[1].OutsideTemperatureF.Should().BeApproximately(70.0, 0.1);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
     // ── GetCurrentConditionsAsync ─────────────────────────────────────────────
 
     [TestMethod]
     public async Task GetCurrentConditionsAsync_ReturnsDecodedLoop2Fields()
     {
+        byte[] loop1 = PacketBuilder.BuildLoop1Packet();
         byte[] loop2 = PacketBuilder.BuildLoop2Packet(
-            outsideTempF:     65.3,
-            insideTempF:      71.0,
-            outsideHumidity:  58,
+            outsideTempF: 65.3,
+            insideTempF: 71.0,
+            outsideHumidity: 58,
             baroPressureInHg: 29.850,
-            windSpeedMph:     5,
-            windDirDeg:       180,
-            dewPointF:        50.0);
+            windSpeedMph: 5,
+            windDirDeg: 180,
+            dewPointF: 50.0);
 
         await using var server = new FakeDavisServer();
         server
-            .WakeStep()                              // wake before LPS
-            .Step(8, [DavisProtocol.Ack, ..loop2])  // "LPS 1 1\n" (8 b) → ACK + 99-byte LOOP2
+            .WakeStep()                                            // wake before LPS
+            .Step(8, [DavisProtocol.Ack, .. loop1, .. loop2])  // "LPS 3 2\n" (8 b) → ACK + LOOP1 + LOOP2
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -76,12 +145,13 @@ public class VantageStationTests
     public async Task GetCurrentConditionsAsync_SolarAndUvAbsent_ReturnsNull()
     {
         // The builder initialises solar and UV to their null sentinels by default
+        byte[] loop1 = PacketBuilder.BuildLoop1Packet();
         byte[] loop2 = PacketBuilder.BuildLoop2Packet();
 
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .Step(8, [DavisProtocol.Ack, ..loop2])
+            .Step(8, [DavisProtocol.Ack, .. loop1, .. loop2])
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -107,7 +177,7 @@ public class VantageStationTests
         await using var server = new FakeDavisServer();
         server
             .WakeStep()                                          // wake before GETTIME
-            .Step(8, [DavisProtocol.Ack, ..timeResp])           // "GETTIME\n" (8 b) → ACK + time
+            .Step(8, [DavisProtocol.Ack, .. timeResp])           // "GETTIME\n" (8 b) → ACK + time
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -167,15 +237,17 @@ public class VantageStationTests
     {
         // Two GetCurrentConditionsAsync tasks race to acquire the internal
         // SemaphoreSlim(1,1).  Script two full wake+LPS interactions.
+        byte[] loop1a = PacketBuilder.BuildLoop1Packet();
         byte[] loop2a = PacketBuilder.BuildLoop2Packet(outsideTempF: 65.0);
+        byte[] loop1b = PacketBuilder.BuildLoop1Packet();
         byte[] loop2b = PacketBuilder.BuildLoop2Packet(outsideTempF: 70.0);
 
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .Step(8, [DavisProtocol.Ack, ..loop2a]) // 1st call
+            .Step(8, [DavisProtocol.Ack, .. loop1a, .. loop2a]) // 1st call
             .WakeStep()
-            .Step(8, [DavisProtocol.Ack, ..loop2b]) // 2nd call
+            .Step(8, [DavisProtocol.Ack, .. loop1b, .. loop2b]) // 2nd call
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -196,6 +268,272 @@ public class VantageStationTests
 
         temps[0].Should().BeApproximately(65.0, 0.1);
         temps[1].Should().BeApproximately(70.0, 0.1);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    // ── GetArchiveSinceAsync ──────────────────────────────────────────────────
+    //
+    // DMPAFT exchange (per GetArchiveSinceAsync implementation):
+    //   WakeAsync                         → WakeStep
+    //   SendDataAsync("DMPAFT\n", 7 b)    → Step(7, [ACK])
+    //   SendDataWithCrc16Async(4+2=6 b)   → Step(6, [ACK])
+    //   GetDataWithCrc16Async(6)          → Step(0, DmpaftHeader)
+    //   per page: GetDataWithCrc16Async(267, prompt:[ACK])
+    //                                     → Step(1, ArchivePage)
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_SinglePage_YieldsDecodedRecord()
+    {
+        var recordTime = new DateTime(2025, 6, 15, 14, 30, 0, DateTimeKind.Local);
+        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(
+            dateTime: recordTime,
+            outsideTempF: 68.5,
+            highOutsideTempF: 72.0,
+            lowOutsideTempF: 65.0,
+            insideTempF: 74.0,
+            outsideHumidity: 55,
+            insideHumidity: 42,
+            barometricPressureInHg: 29.850,
+            windSpeedMph: 6,
+            windGustMph: 12);
+
+        byte[] page = PacketBuilder.BuildArchivePage(0, rec0);  // remaining 4 slots = zeros (null)
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
+            .Step(6, [DavisProtocol.Ack])               // date stamp + CRC
+            .Step(0, PacketBuilder.BuildDmpaftHeader(1)) // nPages=1, startIndex=0
+            .Step(1, page)                               // ACK prompt → 267-byte page
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(DateTime.MinValue))
+            records.Add(r);
+
+        records.Should().HaveCount(1);
+        records[0].DateTimeLocal.Should().Be(recordTime);
+        records[0].OutsideTemperatureF.Should().BeApproximately(68.5, 0.1);
+        records[0].HighOutsideTemperatureF.Should().BeApproximately(72.0, 0.1);
+        records[0].LowOutsideTemperatureF.Should().BeApproximately(65.0, 0.1);
+        records[0].InsideTemperatureF.Should().BeApproximately(74.0, 0.1);
+        records[0].OutsideHumidityPercent.Should().Be(55);
+        records[0].InsideHumidityPercent.Should().Be(42);
+        records[0].BarometricPressureInHg.Should().BeApproximately(29.850, 0.001);
+        records[0].WindSpeedMph.Should().Be(6);
+        records[0].WindGustMph.Should().Be(12);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_ZeroPages_YieldsNoRecords()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
+            .Step(6, [DavisProtocol.Ack])               // date stamp + CRC
+            .Step(0, PacketBuilder.BuildDmpaftHeader(0)) // nPages=0
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(DateTime.MinValue))
+            records.Add(r);
+
+        records.Should().BeEmpty();
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_NullRecordInPage_TerminatesEnumerationEarly()
+    {
+        var baseTime = new DateTime(2025, 6, 15, 14, 0, 0, DateTimeKind.Local);
+        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime, outsideTempF: 65.0);
+        byte[] rec1 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime.AddMinutes(5), outsideTempF: 66.0);
+        // rec2 is intentionally omitted → zeros (null sentinel → yield break)
+
+        byte[] page = PacketBuilder.BuildArchivePage(0, rec0, rec1);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(1))
+            .Step(1, page)
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(DateTime.MinValue))
+            records.Add(r);
+
+        records.Should().HaveCount(2);
+        records[0].OutsideTemperatureF.Should().BeApproximately(65.0, 0.1);
+        records[1].OutsideTemperatureF.Should().BeApproximately(66.0, 0.1);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_MaxRecordsLessThanPage_StopsAfterLimit()
+    {
+        // Page has 3 valid records; maxRecords=2 should yield break after the second.
+        var baseTime = new DateTime(2025, 6, 15, 14, 0, 0, DateTimeKind.Local);
+        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime, outsideTempF: 61.0);
+        byte[] rec1 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime.AddMinutes(30), outsideTempF: 62.0);
+        byte[] rec2 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime.AddMinutes(60), outsideTempF: 63.0);
+        byte[] page = PacketBuilder.BuildArchivePage(0, rec0, rec1, rec2);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(1))
+            .Step(1, page)
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(DateTime.MinValue, maxRecords: 2))
+            records.Add(r);
+
+        records.Should().HaveCount(2);
+        records[0].OutsideTemperatureF.Should().BeApproximately(61.0, 0.1);
+        records[1].OutsideTemperatureF.Should().BeApproximately(62.0, 0.1);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_MaxRecords_SemaphoreReleasedAfterEarlyExit()
+    {
+        // After a maxRecords early exit the semaphore must be released so a
+        // subsequent station call can acquire it without deadlocking.
+        var baseTime = new DateTime(2025, 6, 15, 14, 0, 0, DateTimeKind.Local);
+        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime, outsideTempF: 64.0);
+        byte[] rec1 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime.AddMinutes(30), outsideTempF: 65.0);
+        byte[] page = PacketBuilder.BuildArchivePage(0, rec0, rec1);
+
+        await using var server = new FakeDavisServer();
+        server
+            // First call: GetArchiveSinceAsync(maxRecords=1) — early exit after rec0
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
+            .Step(6, [DavisProtocol.Ack])               // date stamp + CRC
+            .Step(0, PacketBuilder.BuildDmpaftHeader(1)) // nPages=1
+            .Step(1, page)                               // ACK prompt → 267-byte page
+                                                         // Second call: GetArchiveSinceAsync — nPages=0, proves lock was released
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(0)) // nPages=0 → yields nothing
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var firstBatch = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(DateTime.MinValue, maxRecords: 1))
+            firstBatch.Add(r);
+
+        firstBatch.Should().HaveCount(1);
+        firstBatch[0].OutsideTemperatureF.Should().BeApproximately(64.0, 0.1);
+
+        // If the lock was not released this await hangs — MSTest will time it out
+        var secondBatch = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(DateTime.MinValue))
+            secondBatch.Add(r);
+
+        secondBatch.Should().BeEmpty();
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_ZeroPagesNonMinValue_WithFallback_RetryYieldsRecords()
+    {
+        // First DMPAFT (specific date) returns 0 pages — firmware quirk for old dates.
+        // Second DMPAFT (all-zeros fallback) returns 1 page with a valid record.
+        var recordTime = new DateTime(2026, 4, 19, 8, 0, 0, DateTimeKind.Local);
+        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: recordTime, outsideTempF: 72.0);
+        byte[] page = PacketBuilder.BuildArchivePage(0, rec0);
+
+        var since = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Local); // older than the record
+
+        await using var server = new FakeDavisServer();
+        server
+            // First DMPAFT: returns 0 pages (firmware quirk)
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
+            .Step(6, [DavisProtocol.Ack])               // date stamp + CRC
+            .Step(0, PacketBuilder.BuildDmpaftHeader(0)) // nPages=0
+                                                         // Fallback DMPAFT: returns 1 page
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
+            .Step(6, [DavisProtocol.Ack])               // all-zeros date stamp + CRC
+            .Step(0, PacketBuilder.BuildDmpaftHeader(1)) // nPages=1
+            .Step(1, page)                               // ACK prompt → 267-byte page
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(since, fallbackOnEmpty: true))
+            records.Add(r);
+
+        records.Should().HaveCount(1);
+        records[0].OutsideTemperatureF.Should().BeApproximately(72.0, 0.1);
+        records[0].DateTimeLocal.Should().Be(recordTime);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_ZeroPagesNonMinValue_WithoutFallback_YieldsNoRecords()
+    {
+        // Without fallbackOnEmpty the zero-pages response must be respected as-is.
+        var since = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Local);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(0))
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(since))
+            records.Add(r);
+
+        records.Should().BeEmpty();
 
         client.Dispose();
         await station.DisposeAsync();

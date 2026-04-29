@@ -41,3 +41,112 @@ else
     <div class="alert @(_isError ? "alert-error" : "alert-success")" style="margin-top:.75rem">@_msg</div>
 }
 
+<h2 style="margin-top:2rem">Archive History</h2>
+<div class="form-row">
+    <label>Since</label>
+    <input type="datetime-local"
+           value="@_since.ToString("yyyy-MM-ddTHH:mm")"
+           @onchange="e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _since = d; }"
+           style="font-size:.875rem" />
+    <button class="btn btn-primary" @onclick="LoadHistoryAsync" disabled="@_historyLoading">
+        @if (_historyLoading) { <span>Loading…</span> } else { <span>Load</span> }
+    </button>
+    <button class="btn" @onclick='() => { _since = DateTime.Now.AddDays(-1); }' disabled="@_historyLoading"
+            style="margin-left:.25rem">
+        Last 24 h
+    </button>
+</div>
+
+@if (_historyLoading)
+{
+    <p style="margin-top:.75rem;color:#cdd6f4">⏳ Fetching archive records from console…</p>
+}
+else if (_historyError is not null)
+{
+    <div class="alert alert-error" style="margin-top:.75rem">@_historyError</div>
+}
+else if (_historyRecords is not null)
+{
+    <p style="margin-top:.5rem;font-size:.875rem;color:#a6adc8">
+        @_historyRecords.Count record@(_historyRecords.Count == 1 ? "" : "s") loaded
+        since @_historySince.ToString("yyyy-MM-dd HH:mm")
+        @if (_hasMore) { <span> — more available</span> }
+    </p>
+
+    @if (_historyRecords.Count == 0)
+    {
+        <p style="color:#a6adc8">No records found for the selected time range.</p>
+    }
+    else
+    {
+        <div style="overflow-x:auto;margin-top:.5rem">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date / Time<br /><small>@Station.ConsoleTimeZoneLabel</small></th>
+                        <th>Outside Temp °F<br /><small>avg / high / low</small></th>
+                        <th>Inside Temp °F</th>
+                        <th>Outside Humidity %</th>
+                        <th>Inside Humidity %</th>
+                        <th>Pressure inHg</th>
+                        <th>Wind Speed mph</th>
+                        <th>Wind Gust mph</th>
+                        <th>Rain in</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in PagedRecords)
+                    {
+                        <tr>
+                            <td>@r.DateTimeLocal.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>
+                                @Fmt(r.OutsideTemperatureF) /
+                                @Fmt(r.HighOutsideTemperatureF) /
+                                @Fmt(r.LowOutsideTemperatureF)
+                            </td>
+                            <td>@Fmt(r.InsideTemperatureF)</td>
+                            <td>@Fmt(r.OutsideHumidityPercent)</td>
+                            <td>@Fmt(r.InsideHumidityPercent)</td>
+                            <td>@Fmt(r.BarometricPressureInHg, "F3")</td>
+                            <td>@Fmt(r.WindSpeedMph)</td>
+                            <td>@Fmt(r.WindGustMph)</td>
+                            <td>@Fmt(r.RainInches, "F2")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @* ── Pagination controls ─────────────────────────────────────────── *@
+        @if (TotalPages > 1 || _hasMore)
+        {
+            <div style="display:flex;align-items:center;gap:.5rem;margin-top:.75rem;flex-wrap:wrap">
+                @if (TotalPages > 1)
+                {
+                    <button class="btn" @onclick='() => _displayPage = 1'
+                            disabled="@(_displayPage == 1)">«</button>
+                    <button class="btn" @onclick='() => _displayPage--'
+                            disabled="@(_displayPage == 1)">‹</button>
+                    <span style="font-size:.875rem;color:#cdd6f4">
+                        Page @_displayPage of @TotalPages
+                        &nbsp;(@((_displayPage - 1) * PageSize + 1)–@(Math.Min(_displayPage * PageSize, _historyRecords.Count))
+                        of @_historyRecords.Count)
+                    </span>
+                    <button class="btn" @onclick='() => _displayPage++'
+                            disabled="@(_displayPage >= TotalPages)">›</button>
+                    <button class="btn" @onclick='() => _displayPage = TotalPages'
+                            disabled="@(_displayPage >= TotalPages)">»</button>
+                }
+
+                @if (_hasMore)
+                {
+                    <button class="btn btn-primary" @onclick="LoadMoreAsync"
+                            disabled="@_historyLoading" style="margin-left:auto">
+                        Load more from console…
+                    </button>
+                }
+            </div>
+        }
+    }
+}
+

@@ -47,6 +47,13 @@ public sealed class WeatherApiEndpointsTests
 
             builder.ConfigureServices(services =>
             {
+                // ApiKeySeedService attempts database migrations at startup;
+                // remove it so this test factory does not need a real SQL Server.
+                var seedDescriptor = services.FirstOrDefault(
+                    d => d.ImplementationType == typeof(ApiKeySeedService));
+                if (seedDescriptor is not null)
+                    services.Remove(seedDescriptor);
+
                 services.RemoveAll<IWeatherService>();
                 services.AddScoped<IWeatherService, FakeWeatherService>();
             });

@@ -24,7 +24,7 @@ else if (_s is not null)
         <span class="label">Rain Bucket</span>        <span class="value">@RainBucketLabel(_s.RainBucketType)</span>
         <span class="label">Rain Year Start</span>    <span class="value">@_s.RainYearStartMonth</span>
         <span class="label">DST</span>                <span class="value">@_s.DstSetting</span>
-        <span class="label">Timezone Mode</span>      <span class="value">@(_s.UseTimezoneCode ? $"Code {_s.TimezoneCode}" : $"GMT {(_s.GmtOffsetHours >= 0 ? "+" : "")}{_s.GmtOffsetHours:F2} h")</span>
+        <span class="label">Timezone Mode</span>      <span class="value">@_s.TimeZoneLabel</span>
         <span class="label">Temp Logging</span>       <span class="value">@_s.TemperatureLogging</span>
         <span class="label">Barometer Units</span>    <span class="value">@_s.BarometerUnits</span>
         <span class="label">Temperature Units</span>  <span class="value">@_s.TemperatureUnits</span>

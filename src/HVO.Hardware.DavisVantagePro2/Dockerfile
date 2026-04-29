@@ -20,5 +20,6 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 VOLUME /app/data
-ENV OUTBOX__DBPATH=/app/data/outbox.db
+ENV ASPNETCORE_URLS=http://+:8080 \
+    OUTBOX__DBPATH=/app/data/outbox.db
 ENTRYPOINT ["dotnet", "HVO.Hardware.DavisVantagePro2.dll"]
