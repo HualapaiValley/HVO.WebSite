@@ -42,6 +42,12 @@ public sealed class WeatherStationWorker(
     /// </summary>
     public event Action<Loop2Packet>? ReadingUpdated;
 
+    /// <summary>
+    /// Raised when the worker's health state changes: connected, disconnected, or error count updated.
+    /// Lets the status page refresh the health section even when readings have stopped flowing.
+    /// </summary>
+    public event Action? WorkerStateChanged;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("WeatherStationWorker starting. Connecting to {Host}:{Port}",
@@ -54,6 +60,7 @@ public sealed class WeatherStationWorker(
                 await station.ConnectAsync(stoppingToken);
                 ConsecutiveErrors = 0;
                 LastError = null;
+                WorkerStateChanged?.Invoke();
 
                 if (_options.ArchiveCatchupOnStartup)
                     await CatchUpArchiveAsync(stoppingToken);
@@ -67,6 +74,7 @@ public sealed class WeatherStationWorker(
             catch (Exception ex)
             {
                 LastError = ex.Message;
+                WorkerStateChanged?.Invoke();
                 logger.LogError(ex, "Station error (consecutive: {N}). Reconnecting in 30s…", ConsecutiveErrors);
                 try { await Task.Delay(30_000, stoppingToken); } catch (OperationCanceledException) { break; }
             }
@@ -98,6 +106,7 @@ public sealed class WeatherStationWorker(
             {
                 ConsecutiveErrors++;
                 LastError = ex.Message;
+                WorkerStateChanged?.Invoke();
                 logger.LogWarning(ex, "LOOP1 refresh failed ({N} consecutive)", ConsecutiveErrors);
                 if (loop1Cache is null || ConsecutiveErrors >= _options.MaxConsecutiveErrors)
                     throw; // No cached data or too many failures — trigger reconnect
@@ -124,6 +133,7 @@ public sealed class WeatherStationWorker(
             {
                 ConsecutiveErrors++;
                 LastError = ex.Message;
+                WorkerStateChanged?.Invoke();
                 logger.LogWarning(ex, "LOOP2 stream failed ({N} consecutive)", ConsecutiveErrors);
                 if (ConsecutiveErrors >= _options.MaxConsecutiveErrors)
                     throw; // Trigger reconnect

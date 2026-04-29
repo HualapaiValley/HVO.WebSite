@@ -30,6 +30,12 @@ public sealed class OutboxForwarder(
     public string? LastError { get; private set; }
     public int LastBatchCount { get; private set; }
 
+    /// <summary>
+    /// Raised after each outbox sweep completes (whether or not records were sent).
+    /// Lets the status page refresh outbox counts independently of the weather reading cadence.
+    /// </summary>
+    public event Action? SweptCompleted;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("OutboxForwarder starting. Endpoint: {Endpoint}", _options.ApiEndpoint);
@@ -72,7 +78,8 @@ public sealed class OutboxForwarder(
             .ToListAsync(ct);
 
         PendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
-        FailedCount  = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
+        FailedCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
+        SweptCompleted?.Invoke();
 
         if (pending.Count == 0) return;
 
@@ -97,14 +104,14 @@ public sealed class OutboxForwarder(
 
         try
         {
-            using var content  = new StringContent(batchJson, Encoding.UTF8, "application/json");
+            using var content = new StringContent(batchJson, Encoding.UTF8, "application/json");
             using var response = await client.PostAsync(batchEndpoint, content, ct);
 
             if (response.IsSuccessStatusCode)
             {
                 // Parse per-record result to identify permanent failures
-                var result       = await response.Content.ReadFromJsonAsync<BatchResponseDto>(ct);
-                var failedTimes  = result?.Failed?.ToHashSet() ?? [];
+                var result = await response.Content.ReadFromJsonAsync<BatchResponseDto>(ct);
+                var failedTimes = result?.Failed?.ToHashSet() ?? [];
 
                 var sentAt = DateTime.UtcNow;
                 int sentCount = 0;
@@ -115,7 +122,7 @@ public sealed class OutboxForwarder(
                     if (failure is not null)
                     {
                         // Permanent validation failure — dead-letter it
-                        record.Status    = OutboxStatus.Failed;
+                        record.Status = OutboxStatus.Failed;
                         record.LastError = failure.Error;
                         logger.LogWarning(
                             "Dead-lettering record {Id} ({RecordedAt}): {Error}",
@@ -124,14 +131,14 @@ public sealed class OutboxForwarder(
                     else
                     {
                         // Inserted or skipped-as-duplicate — both mean the data is safely in the DB
-                        record.Status    = OutboxStatus.Sent;
+                        record.Status = OutboxStatus.Sent;
                         record.SentAtUtc = sentAt;
                         record.LastError = null;
                         sentCount++;
                     }
                 }
 
-                LastSentAt     = sentAt;
+                LastSentAt = sentAt;
                 LastBatchCount = sentCount;
 
                 if (result?.Failed?.Count > 0)
@@ -143,7 +150,7 @@ public sealed class OutboxForwarder(
             else
             {
                 // Transient HTTP failure — retry all with backoff
-                string body  = await response.Content.ReadAsStringAsync(ct);
+                string body = await response.Content.ReadAsStringAsync(ct);
                 string error = $"HTTP {(int)response.StatusCode}: {body[..Math.Min(200, body.Length)]}";
                 foreach (var record in records)
                 {
@@ -196,7 +203,7 @@ public sealed class OutboxForwarder(
     {
         if (record.AttemptCount >= _options.MaxRetryAttempts)
         {
-            record.Status    = OutboxStatus.Failed;
+            record.Status = OutboxStatus.Failed;
             record.LastError = $"Giving up after {record.AttemptCount} attempts. Last error: {record.LastError}";
             logger.LogError("Record {Id} permanently failed after {N} attempts", record.Id, record.AttemptCount);
             return;

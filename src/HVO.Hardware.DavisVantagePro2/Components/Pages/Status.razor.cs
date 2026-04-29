@@ -10,6 +10,8 @@ public partial class Status : IDisposable
     {
         _reading = Worker.LatestReading;
         Worker.ReadingUpdated += OnReadingUpdated;
+        Worker.WorkerStateChanged += OnStateChanged;
+        Forwarder.SweptCompleted += OnStateChanged;
     }
 
     private void OnReadingUpdated(Loop2Packet reading)
@@ -18,7 +20,14 @@ public partial class Status : IDisposable
         InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose() => Worker.ReadingUpdated -= OnReadingUpdated;
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Worker.ReadingUpdated -= OnReadingUpdated;
+        Worker.WorkerStateChanged -= OnStateChanged;
+        Forwarder.SweptCompleted -= OnStateChanged;
+    }
 
     private string? ToConsoleTime(DateTime? utc) =>
         utc.HasValue
