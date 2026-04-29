@@ -95,30 +95,30 @@ public sealed record ArchiveRecord
 
         return new ArchiveRecord
         {
-            DateTimeLocal          = dt.Value,
+            DateTimeLocal = dt.Value,
             ArchiveIntervalMinutes = archiveIntervalMinutes,
-            OutsideTemperatureF     = DecodeTemp(BinaryPrimitives.ReadInt16LittleEndian(buffer[4..])),
+            OutsideTemperatureF = DecodeTemp(BinaryPrimitives.ReadInt16LittleEndian(buffer[4..])),
             HighOutsideTemperatureF = DecodeTemp(BinaryPrimitives.ReadInt16LittleEndian(buffer[6..])),
-            LowOutsideTemperatureF  = DecodeTemp(BinaryPrimitives.ReadInt16LittleEndian(buffer[8..])),
+            LowOutsideTemperatureF = DecodeTemp(BinaryPrimitives.ReadInt16LittleEndian(buffer[8..])),
 
-            RainInches             = Loop2Packet.DecodeRain(BinaryPrimitives.ReadUInt16LittleEndian(buffer[10..]), bucketType),
-            RainRateInchesPerHour  = Loop2Packet.DecodeRain(BinaryPrimitives.ReadUInt16LittleEndian(buffer[12..]), bucketType),
+            RainInches = Loop2Packet.DecodeRain(BinaryPrimitives.ReadUInt16LittleEndian(buffer[10..]), bucketType),
+            RainRateInchesPerHour = Loop2Packet.DecodeRain(BinaryPrimitives.ReadUInt16LittleEndian(buffer[12..]), bucketType),
 
             BarometricPressureInHg = BinaryPrimitives.ReadUInt16LittleEndian(buffer[14..]) is ushort b and > 0 ? b / 1000.0 : null,
-            SolarRadiationWm2      = BinaryPrimitives.ReadUInt16LittleEndian(buffer[16..]) is ushort rad and not 0x7FFF ? (double)rad : null,
-            WindSamples            = BinaryPrimitives.ReadUInt16LittleEndian(buffer[18..]),
+            SolarRadiationWm2 = BinaryPrimitives.ReadUInt16LittleEndian(buffer[16..]) is ushort rad and not 0x7FFF ? (double)rad : null,
+            WindSamples = BinaryPrimitives.ReadUInt16LittleEndian(buffer[18..]),
 
-            InsideTemperatureF    = DecodeTemp(BinaryPrimitives.ReadInt16LittleEndian(buffer[20..])),
+            InsideTemperatureF = DecodeTemp(BinaryPrimitives.ReadInt16LittleEndian(buffer[20..])),
             InsideHumidityPercent = buffer[22] != 0xFF ? (double)buffer[22] : null,
             OutsideHumidityPercent = buffer[23] != 0xFF ? (double)buffer[23] : null,
 
-            WindSpeedMph              = buffer[24] != 0xFF ? (double)buffer[24] : null,
-            WindGustMph               = buffer[25] != 0xFF ? (double)buffer[25] : null,
-            WindGustDirectionDegrees  = buffer[26] != 0xFF ? buffer[26] * 22.5 : null,
-            WindDirectionDegrees      = buffer[27] != 0xFF ? buffer[27] * 22.5 : null,
+            WindSpeedMph = buffer[24] != 0xFF ? (double)buffer[24] : null,
+            WindGustMph = buffer[25] != 0xFF ? (double)buffer[25] : null,
+            WindGustDirectionDegrees = buffer[26] != 0xFF ? buffer[26] * 22.5 : null,
+            WindDirectionDegrees = buffer[27] != 0xFF ? buffer[27] * 22.5 : null,
 
-            UvIndex            = buffer[28] != 0xFF ? buffer[28] / 10.0 : null,
-            EtInches           = buffer[29] / 1000.0,
+            UvIndex = buffer[28] != 0xFF ? buffer[28] / 10.0 : null,
+            EtInches = buffer[29] / 1000.0,
 
             // Bytes 30–51 per rec_B_schema:
             //   [30-31] highRadiation  [32] highUV  [33] forecastRule
@@ -126,17 +126,17 @@ public sealed record ArchiveRecord
             //   [38-41] soilTemp1-4  [42] download_record_type
             //   [43-44] extraHumid1-2  [45-47] extraTemp1-3  [48-51] soilMoist1-4
             HighSolarRadiationWm2 = BinaryPrimitives.ReadUInt16LittleEndian(buffer[30..]) is ushort hrs and not 0x7FFF ? (double)hrs : null,
-            HighUvIndex        = buffer[32] != 0xFF ? buffer[32] / 10.0 : null,
-            ForecastRule       = buffer[33],
+            HighUvIndex = buffer[32] != 0xFF ? buffer[32] / 10.0 : null,
+            ForecastRule = buffer[33],
             DownloadRecordType = buffer[42],
 
-            LeafTemp1F        = buffer[34] != 0xFF ? (double?)(buffer[34] - 90) : null,
-            LeafTemp2F        = buffer[35] != 0xFF ? (double?)(buffer[35] - 90) : null,
-            LeafWetnessScaled  = DecodeBytesDirect(buffer, 36, 2),
-            SoilTemperaturesF  = DecodeBytesMinus90(buffer, 38, 4),
+            LeafTemp1F = buffer[34] != 0xFF ? (double?)(buffer[34] - 90) : null,
+            LeafTemp2F = buffer[35] != 0xFF ? (double?)(buffer[35] - 90) : null,
+            LeafWetnessScaled = DecodeBytesDirect(buffer, 36, 2),
+            SoilTemperaturesF = DecodeBytesMinus90(buffer, 38, 4),
             ExtraHumiditiesPercent = DecodeBytesDirect(buffer, 43, 2),
             ExtraTemperaturesF = DecodeBytesMinus90(buffer, 45, 3),
-            SoilMoisturesCb   = DecodeBytesDirect(buffer, 48, 4),
+            SoilMoisturesCb = DecodeBytesDirect(buffer, 48, 4),
         };
     }
 
@@ -163,10 +163,10 @@ public sealed record ArchiveRecord
     {
         try
         {
-            int year   = ((datestamp & 0xFE00) >> 9) + 2000;
-            int month  = (datestamp & 0x01E0) >> 5;
-            int day    = datestamp & 0x001F;
-            int hour   = timestamp / 100;
+            int year = ((datestamp & 0xFE00) >> 9) + 2000;
+            int month = (datestamp & 0x01E0) >> 5;
+            int day = datestamp & 0x001F;
+            int hour = timestamp / 100;
             int minute = timestamp % 100;
             return new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Local);
         }

@@ -127,9 +127,9 @@ public class WeatherV9Controller : ControllerBase
         var resolved = requests.Select(r => (Request: r, RecordedAt: r.RecordedAt?.ToUniversalTime() ?? DateTime.UtcNow)).ToList();
 
         // One query to find which (StationId, RecordedAt) pairs already exist
-        var stationIds  = resolved.Select(x => x.Request.StationId).Distinct().ToList();
-        var timestamps  = resolved.Select(x => x.RecordedAt).Distinct().ToList();
-        var existing    = await _db.WeatherRaw
+        var stationIds = resolved.Select(x => x.Request.StationId).Distinct().ToList();
+        var timestamps = resolved.Select(x => x.RecordedAt).Distinct().ToList();
+        var existing = await _db.WeatherRaw
             .Where(r => r.StationId != null && stationIds.Contains(r.StationId) && timestamps.Contains(r.RecordedAt))
             .Select(r => new { r.StationId, r.RecordedAt })
             .ToListAsync(ct);
@@ -137,7 +137,7 @@ public class WeatherV9Controller : ControllerBase
 
         var toInsert = new List<WeatherRaw>();
         var failures = new List<WeatherRawBatchFailure>();
-        int skipped  = 0;
+        int skipped = 0;
 
         foreach (var (request, recordedAt) in resolved)
         {
@@ -162,18 +162,18 @@ public class WeatherV9Controller : ControllerBase
 
             toInsert.Add(new WeatherRaw
             {
-                RecordedAt              = recordedAt,
-                StationId               = request.StationId,
-                TemperatureF            = request.TemperatureF,
-                HumidityPercent         = request.HumidityPercent,
-                DewPointF               = request.DewPointF,
-                BarometricPressureInHg  = request.BarometricPressureInHg,
-                WindSpeedMph            = request.WindSpeedMph,
-                WindGustMph             = request.WindGustMph,
-                WindDirectionDegrees    = request.WindDirectionDegrees,
-                RainfallInches          = request.RainfallInches,
-                SolarRadiationWm2       = request.SolarRadiationWm2,
-                UvIndex                 = request.UvIndex
+                RecordedAt = recordedAt,
+                StationId = request.StationId,
+                TemperatureF = request.TemperatureF,
+                HumidityPercent = request.HumidityPercent,
+                DewPointF = request.DewPointF,
+                BarometricPressureInHg = request.BarometricPressureInHg,
+                WindSpeedMph = request.WindSpeedMph,
+                WindGustMph = request.WindGustMph,
+                WindDirectionDegrees = request.WindDirectionDegrees,
+                RainfallInches = request.RainfallInches,
+                SolarRadiationWm2 = request.SolarRadiationWm2,
+                UvIndex = request.UvIndex
             });
         }
 

@@ -324,9 +324,9 @@ public sealed record Loop2Packet
             // Console battery: raw × 300 / 51200 V (≈ 0.005859375 V/bit)
             ConsoleBatteryVoltage = ReadUshort(buffer, 87) * 300.0 / 51200.0,
             ForecastIcons = buffer[89],
-            ForecastRule  = buffer[90],
-            SunriseTime   = ReadUshort(buffer, 91),
-            SunsetTime    = ReadUshort(buffer, 93),
+            ForecastRule = buffer[90],
+            SunriseTime = ReadUshort(buffer, 91),
+            SunsetTime = ReadUshort(buffer, 93),
 
             BarometricTrend = (sbyte)buffer[3] is sbyte trend
                 and (>= -3 and <= 3) ? (int)trend : null,

@@ -157,60 +157,60 @@ public sealed class VantageStation : IAsyncDisposable
 
         // Atmosphere — prefer LOOP2 (altimeter + raw pressure only in LOOP2)
         BarometricPressureInHg = loop2.BarometricPressureInHg ?? loop1.BarometricPressureInHg,
-        PressureRawInHg        = loop2.PressureRawInHg,
-        AltimeterInHg          = loop2.AltimeterInHg,
-        BarometricTrend        = loop2.BarometricTrend ?? loop1.BarometricTrend,
+        PressureRawInHg = loop2.PressureRawInHg,
+        AltimeterInHg = loop2.AltimeterInHg,
+        BarometricTrend = loop2.BarometricTrend ?? loop1.BarometricTrend,
 
         // Temperature — LOOP2 adds dew point, heat index, wind chill, THSW
-        InsideTemperatureF     = loop2.InsideTemperatureF ?? loop1.InsideTemperatureF,
-        OutsideTemperatureF    = loop2.OutsideTemperatureF ?? loop1.OutsideTemperatureF,
-        DewPointF              = loop2.DewPointF,
-        HeatIndexF             = loop2.HeatIndexF,
-        WindChillF             = loop2.WindChillF,
-        ThswF                  = loop2.ThswF,
+        InsideTemperatureF = loop2.InsideTemperatureF ?? loop1.InsideTemperatureF,
+        OutsideTemperatureF = loop2.OutsideTemperatureF ?? loop1.OutsideTemperatureF,
+        DewPointF = loop2.DewPointF,
+        HeatIndexF = loop2.HeatIndexF,
+        WindChillF = loop2.WindChillF,
+        ThswF = loop2.ThswF,
 
         // Humidity
-        InsideHumidityPercent  = loop2.InsideHumidityPercent ?? loop1.InsideHumidityPercent,
+        InsideHumidityPercent = loop2.InsideHumidityPercent ?? loop1.InsideHumidityPercent,
         OutsideHumidityPercent = loop2.OutsideHumidityPercent ?? loop1.OutsideHumidityPercent,
 
         // Wind — LOOP2 has ×10 precision for avg, plus 2-min avg and gust direction
-        WindSpeedMph                  = loop2.WindSpeedMph ?? loop1.WindSpeedMph,
-        WindDirectionDegrees          = loop2.WindDirectionDegrees ?? loop1.WindDirectionDegrees,
-        WindSpeed10MinAvgMph          = loop2.WindSpeed10MinAvgMph ?? loop1.WindSpeed10MinAvgMph,
-        WindSpeed2MinAvgMph           = loop2.WindSpeed2MinAvgMph,
-        WindGust10MinMph              = loop2.WindGust10MinMph,
+        WindSpeedMph = loop2.WindSpeedMph ?? loop1.WindSpeedMph,
+        WindDirectionDegrees = loop2.WindDirectionDegrees ?? loop1.WindDirectionDegrees,
+        WindSpeed10MinAvgMph = loop2.WindSpeed10MinAvgMph ?? loop1.WindSpeed10MinAvgMph,
+        WindSpeed2MinAvgMph = loop2.WindSpeed2MinAvgMph,
+        WindGust10MinMph = loop2.WindGust10MinMph,
         WindGust10MinDirectionDegrees = loop2.WindGust10MinDirectionDegrees,
 
         // Rain — LOOP2 adds 15-min, hourly, 24-hr buckets
         RainRateInchesPerHour = loop2.RainRateInchesPerHour ?? loop1.RainRateInchesPerHour,
-        DailyRainInches       = loop2.DailyRainInches ?? loop1.DailyRainInches,
-        Rain15MinInches       = loop2.Rain15MinInches,
-        HourRainInches        = loop2.HourRainInches,
-        Rain24HourInches      = loop2.Rain24HourInches,
-        StormRainInches       = loop2.StormRainInches ?? loop1.StormRainInches,
-        StormStartDate        = loop2.StormStartDate ?? loop1.StormStartDate,
+        DailyRainInches = loop2.DailyRainInches ?? loop1.DailyRainInches,
+        Rain15MinInches = loop2.Rain15MinInches,
+        HourRainInches = loop2.HourRainInches,
+        Rain24HourInches = loop2.Rain24HourInches,
+        StormRainInches = loop2.StormRainInches ?? loop1.StormRainInches,
+        StormStartDate = loop2.StormStartDate ?? loop1.StormStartDate,
 
         // Solar / UV / ET
         SolarRadiationWm2 = loop2.SolarRadiationWm2 ?? loop1.SolarRadiationWm2,
-        UvIndex           = loop2.UvIndex ?? loop1.UvIndex,
-        DailyEtInches     = loop2.DailyEtInches ?? loop1.DailyEtInches,
+        UvIndex = loop2.UvIndex ?? loop1.UvIndex,
+        DailyEtInches = loop2.DailyEtInches ?? loop1.DailyEtInches,
 
         // LOOP1-only fields
-        MonthlyRainInches        = loop1.MonthlyRainInches,
-        YearlyRainInches         = loop1.YearlyRainInches,
-        MonthlyEtInches          = loop1.MonthlyEtInches,
-        YearlyEtInches           = loop1.YearlyEtInches,
-        ConsoleBatteryVoltage    = loop1.ConsoleBatteryVoltage,
+        MonthlyRainInches = loop1.MonthlyRainInches,
+        YearlyRainInches = loop1.YearlyRainInches,
+        MonthlyEtInches = loop1.MonthlyEtInches,
+        YearlyEtInches = loop1.YearlyEtInches,
+        ConsoleBatteryVoltage = loop1.ConsoleBatteryVoltage,
         TransmitterBatteryStatus = loop1.TransmitterBatteryStatus,
-        ForecastIcons            = loop1.ForecastIcons,
-        ForecastRule             = loop1.ForecastRule,
-        SunriseTime              = loop1.SunriseTime,
-        SunsetTime               = loop1.SunsetTime,
-        ExtraTemperaturesF       = loop1.ExtraTemperaturesF,
-        SoilTemperaturesF        = loop1.SoilTemperaturesF,
-        ExtraHumiditiesPercent   = loop1.ExtraHumiditiesPercent,
-        SoilMoisturesCb          = loop1.SoilMoisturesCb,
-        LeafWetnessScaled        = loop1.LeafWetnessScaled,
+        ForecastIcons = loop1.ForecastIcons,
+        ForecastRule = loop1.ForecastRule,
+        SunriseTime = loop1.SunriseTime,
+        SunsetTime = loop1.SunsetTime,
+        ExtraTemperaturesF = loop1.ExtraTemperaturesF,
+        SoilTemperaturesF = loop1.SoilTemperaturesF,
+        ExtraHumiditiesPercent = loop1.ExtraHumiditiesPercent,
+        SoilMoisturesCb = loop1.SoilMoisturesCb,
+        LeafWetnessScaled = loop1.LeafWetnessScaled,
     };
 
     // ── Archive — DMPAFT ─────────────────────────────────────────────────────
@@ -843,16 +843,16 @@ public sealed class VantageStation : IAsyncDisposable
     private async Task ReadSetupFromEepromAsync(CancellationToken ct)
     {
         byte[] setupBits = await ReadEepromAsync(DavisProtocol.EepromSetupBits, 1, ct);
-        byte[] archByte  = await ReadEepromAsync(DavisProtocol.EepromArchiveInterval, 1, ct);
+        byte[] archByte = await ReadEepromAsync(DavisProtocol.EepromArchiveInterval, 1, ct);
         byte[] gmtOrZone = await ReadEepromAsync(DavisProtocol.EepromGmtOrZone, 1, ct);
-        byte[] tzCode    = await ReadEepromAsync(DavisProtocol.EepromTimezoneCode, 1, ct);
-        byte[] gmtOffB   = await ReadEepromAsync(DavisProtocol.EepromGmtOffset, 2, ct);
+        byte[] tzCode = await ReadEepromAsync(DavisProtocol.EepromTimezoneCode, 1, ct);
+        byte[] gmtOffB = await ReadEepromAsync(DavisProtocol.EepromGmtOffset, 2, ct);
 
-        RainBucketType        = (setupBits[0] & 0x30) >> 4;
+        RainBucketType = (setupBits[0] & 0x30) >> 4;
         ArchiveIntervalSeconds = archByte[0] * 60;
-        UseTimezoneCode       = gmtOrZone[0] == 0;
-        TimezoneCode          = tzCode[0];
-        GmtOffsetHours        = BinaryPrimitives.ReadInt16LittleEndian(gmtOffB) / 100.0;
+        UseTimezoneCode = gmtOrZone[0] == 0;
+        TimezoneCode = tzCode[0];
+        GmtOffsetHours = BinaryPrimitives.ReadInt16LittleEndian(gmtOffB) / 100.0;
     }
 
     private async Task<DateTime> GetConsoleTimeInternalAsync(CancellationToken ct)

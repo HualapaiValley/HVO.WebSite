@@ -41,16 +41,16 @@ public class VantageStationTests
     public async Task GetLoop1Async_ReturnsLoop1OnlyFields()
     {
         byte[] loop1 = PacketBuilder.BuildLoop1Packet(
-            outsideTempF:    72.5,
+            outsideTempF: 72.5,
             outsideHumidity: 55,
-            forecastRule:    7,
-            sunriseHhmm:     638,
-            sunsetHhmm:      2012);
+            forecastRule: 7,
+            sunriseHhmm: 638,
+            sunsetHhmm: 2012);
 
         await using var server = new FakeDavisServer();
         server
             .WakeStep()                                    // wake before LPS
-            .Step(8, [DavisProtocol.Ack, ..loop1])         // "LPS 1 1\n" (8 b) → ACK + LOOP1
+            .Step(8, [DavisProtocol.Ack, .. loop1])         // "LPS 1 1\n" (8 b) → ACK + LOOP1
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -84,7 +84,7 @@ public class VantageStationTests
         await using var server = new FakeDavisServer();
         server
             .WakeStep()                                               // wake before LPS
-            .Step(8, [DavisProtocol.Ack, ..loop2a, ..loop2b])        // "LPS 2 2\n" (8 b) → ACK + 2×LOOP2
+            .Step(8, [DavisProtocol.Ack, .. loop2a, .. loop2b])        // "LPS 2 2\n" (8 b) → ACK + 2×LOOP2
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -109,18 +109,18 @@ public class VantageStationTests
     {
         byte[] loop1 = PacketBuilder.BuildLoop1Packet();
         byte[] loop2 = PacketBuilder.BuildLoop2Packet(
-            outsideTempF:     65.3,
-            insideTempF:      71.0,
-            outsideHumidity:  58,
+            outsideTempF: 65.3,
+            insideTempF: 71.0,
+            outsideHumidity: 58,
             baroPressureInHg: 29.850,
-            windSpeedMph:     5,
-            windDirDeg:       180,
-            dewPointF:        50.0);
+            windSpeedMph: 5,
+            windDirDeg: 180,
+            dewPointF: 50.0);
 
         await using var server = new FakeDavisServer();
         server
             .WakeStep()                                            // wake before LPS
-            .Step(8, [DavisProtocol.Ack, ..loop1, ..loop2])  // "LPS 3 2\n" (8 b) → ACK + LOOP1 + LOOP2
+            .Step(8, [DavisProtocol.Ack, .. loop1, .. loop2])  // "LPS 3 2\n" (8 b) → ACK + LOOP1 + LOOP2
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -151,7 +151,7 @@ public class VantageStationTests
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .Step(8, [DavisProtocol.Ack, ..loop1, ..loop2])
+            .Step(8, [DavisProtocol.Ack, .. loop1, .. loop2])
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -177,7 +177,7 @@ public class VantageStationTests
         await using var server = new FakeDavisServer();
         server
             .WakeStep()                                          // wake before GETTIME
-            .Step(8, [DavisProtocol.Ack, ..timeResp])           // "GETTIME\n" (8 b) → ACK + time
+            .Step(8, [DavisProtocol.Ack, .. timeResp])           // "GETTIME\n" (8 b) → ACK + time
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -245,9 +245,9 @@ public class VantageStationTests
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .Step(8, [DavisProtocol.Ack, ..loop1a, ..loop2a]) // 1st call
+            .Step(8, [DavisProtocol.Ack, .. loop1a, .. loop2a]) // 1st call
             .WakeStep()
-            .Step(8, [DavisProtocol.Ack, ..loop1b, ..loop2b]) // 2nd call
+            .Step(8, [DavisProtocol.Ack, .. loop1b, .. loop2b]) // 2nd call
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -288,16 +288,16 @@ public class VantageStationTests
     {
         var recordTime = new DateTime(2025, 6, 15, 14, 30, 0, DateTimeKind.Local);
         byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(
-            dateTime:               recordTime,
-            outsideTempF:           68.5,
-            highOutsideTempF:       72.0,
-            lowOutsideTempF:        65.0,
-            insideTempF:            74.0,
-            outsideHumidity:        55,
-            insideHumidity:         42,
+            dateTime: recordTime,
+            outsideTempF: 68.5,
+            highOutsideTempF: 72.0,
+            lowOutsideTempF: 65.0,
+            insideTempF: 74.0,
+            outsideHumidity: 55,
+            insideHumidity: 42,
             barometricPressureInHg: 29.850,
-            windSpeedMph:           6,
-            windGustMph:            12);
+            windSpeedMph: 6,
+            windGustMph: 12);
 
         byte[] page = PacketBuilder.BuildArchivePage(0, rec0);  // remaining 4 slots = zeros (null)
 
@@ -361,7 +361,7 @@ public class VantageStationTests
     public async Task GetArchiveSinceAsync_NullRecordInPage_TerminatesEnumerationEarly()
     {
         var baseTime = new DateTime(2025, 6, 15, 14, 0, 0, DateTimeKind.Local);
-        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime,               outsideTempF: 65.0);
+        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime, outsideTempF: 65.0);
         byte[] rec1 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime.AddMinutes(5), outsideTempF: 66.0);
         // rec2 is intentionally omitted → zeros (null sentinel → yield break)
 
@@ -396,7 +396,7 @@ public class VantageStationTests
     {
         // Page has 3 valid records; maxRecords=2 should yield break after the second.
         var baseTime = new DateTime(2025, 6, 15, 14, 0, 0, DateTimeKind.Local);
-        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime,                    outsideTempF: 61.0);
+        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime, outsideTempF: 61.0);
         byte[] rec1 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime.AddMinutes(30), outsideTempF: 62.0);
         byte[] rec2 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime.AddMinutes(60), outsideTempF: 63.0);
         byte[] page = PacketBuilder.BuildArchivePage(0, rec0, rec1, rec2);
@@ -431,7 +431,7 @@ public class VantageStationTests
         // After a maxRecords early exit the semaphore must be released so a
         // subsequent station call can acquire it without deadlocking.
         var baseTime = new DateTime(2025, 6, 15, 14, 0, 0, DateTimeKind.Local);
-        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime,                    outsideTempF: 64.0);
+        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime, outsideTempF: 64.0);
         byte[] rec1 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime.AddMinutes(30), outsideTempF: 65.0);
         byte[] page = PacketBuilder.BuildArchivePage(0, rec0, rec1);
 
@@ -443,7 +443,7 @@ public class VantageStationTests
             .Step(6, [DavisProtocol.Ack])               // date stamp + CRC
             .Step(0, PacketBuilder.BuildDmpaftHeader(1)) // nPages=1
             .Step(1, page)                               // ACK prompt → 267-byte page
-            // Second call: GetArchiveSinceAsync — nPages=0, proves lock was released
+                                                         // Second call: GetArchiveSinceAsync — nPages=0, proves lock was released
             .WakeStep()
             .Step(7, [DavisProtocol.Ack])
             .Step(6, [DavisProtocol.Ack])
@@ -489,7 +489,7 @@ public class VantageStationTests
             .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
             .Step(6, [DavisProtocol.Ack])               // date stamp + CRC
             .Step(0, PacketBuilder.BuildDmpaftHeader(0)) // nPages=0
-            // Fallback DMPAFT: returns 1 page
+                                                         // Fallback DMPAFT: returns 1 page
             .WakeStep()
             .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
             .Step(6, [DavisProtocol.Ack])               // all-zeros date stamp + CRC

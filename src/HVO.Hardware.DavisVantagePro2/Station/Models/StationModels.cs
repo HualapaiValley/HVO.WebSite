@@ -17,7 +17,7 @@ public sealed record StationInfo
         (16, 1) => "Vantage Pro",
         (16, _) => "Vantage Pro 2",
         (17, _) => "Vantage Vue",
-        _       => $"Unknown (type={HardwareType})"
+        _ => $"Unknown (type={HardwareType})"
     };
 }
 
