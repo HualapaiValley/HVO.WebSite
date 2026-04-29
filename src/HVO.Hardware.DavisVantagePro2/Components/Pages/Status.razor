@@ -15,7 +15,7 @@
     <h2>Current Conditions</h2>
     <div class="data-grid">
         <span class="label">Updated</span>
-        <span class="value">@(Worker.LastReadingAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</span>
+        <span class="value">@(ToConsoleTime(Worker.LastReadingAt) ?? "—")</span>
 
         <span class="label">Outside Temp</span>
         <span class="value">@F(_reading.OutsideTemperatureF) °F</span>
@@ -102,8 +102,14 @@ else
     <span class="label">Pending records</span>
     <span class="value">@Forwarder.PendingCount</span>
 
+    <span class="label">Dead-lettered records</span>
+    <span class="value" style="@(Forwarder.FailedCount > 0 ? "color:#f38ba8" : "")">@Forwarder.FailedCount</span>
+
     <span class="label">Last sent</span>
-    <span class="value">@(Forwarder.LastSentAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</span>
+    <span class="value">@(ToConsoleTime(Forwarder.LastSentAt) ?? "—")</span>
+
+    <span class="label">Last batch size</span>
+    <span class="value">@Forwarder.LastBatchCount</span>
 
     <span class="label">Last forward error</span>
     <span class="value" style="color:#f38ba8">@(Forwarder.LastError ?? "none")</span>

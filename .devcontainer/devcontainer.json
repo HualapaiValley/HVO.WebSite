@@ -91,6 +91,7 @@
   "forwardPorts": [
     5000,
     5001,
+    5100,
     5136,
     7151,
     8080
@@ -109,6 +110,10 @@
       "elevateIfNeeded": true
     },
     "7151": {
+      "onAutoForward": "silent",
+      "elevateIfNeeded": true
+    },
+    "5100": {
       "onAutoForward": "silent",
       "elevateIfNeeded": true
     },

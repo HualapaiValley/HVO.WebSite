@@ -5,12 +5,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json.Serialization;
 
 namespace HVO.Hardware.DavisVantagePro2.Workers;
 
 /// <summary>
 /// Background service that sweeps the outbox for pending records and POSTs them
-/// to the weather API. Uses exponential back-off on failure.
+/// to the weather API in batches. Uses exponential back-off on failure.
 /// </summary>
 public sealed class OutboxForwarder(
     IServiceScopeFactory scopeFactory,
@@ -22,8 +25,10 @@ public sealed class OutboxForwarder(
 
     // Expose stats for the status page
     public int PendingCount { get; private set; }
+    public int FailedCount { get; private set; }
     public DateTime? LastSentAt { get; private set; }
     public string? LastError { get; private set; }
+    public int LastBatchCount { get; private set; }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -63,73 +68,135 @@ public sealed class OutboxForwarder(
         var pending = await db.OutboxRecords
             .Where(r => r.Status == OutboxStatus.Pending && r.NextRetryAtUtc <= now)
             .OrderBy(r => r.RecordedAtUtc)
-            .Take(50)
+            .Take(_options.BatchSize)
             .ToListAsync(ct);
 
         PendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
+        FailedCount  = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
 
         if (pending.Count == 0) return;
 
         var client = httpFactory.CreateClient("WeatherApi");
-
-        foreach (var record in pending)
-        {
-            if (ct.IsCancellationRequested) break;
-            await ForwardRecordAsync(db, client, record, ct);
-        }
-
+        await ForwardBatchAsync(db, client, pending, ct);
         await db.SaveChangesAsync(ct);
     }
 
-    private async Task ForwardRecordAsync(OutboxDbContext db, HttpClient client,
-        OutboxRecord record, CancellationToken ct)
+    private async Task ForwardBatchAsync(OutboxDbContext db, HttpClient client,
+        List<OutboxRecord> records, CancellationToken ct)
     {
-        record.AttemptCount++;
-        record.LastAttemptedAtUtc = DateTime.UtcNow;
+        var batchEndpoint = _options.ApiEndpoint + "/batch";
+
+        // Build JSON array from the already-serialised per-record payloads
+        var batchJson = "[" + string.Join(",", records.Select(r => r.Payload)) + "]";
+
+        foreach (var record in records)
+        {
+            record.AttemptCount++;
+            record.LastAttemptedAtUtc = DateTime.UtcNow;
+        }
 
         try
         {
-            using var content = new StringContent(record.Payload, System.Text.Encoding.UTF8, "application/json");
-            using var response = await client.PostAsync(_options.ApiEndpoint, content, ct);
+            using var content  = new StringContent(batchJson, Encoding.UTF8, "application/json");
+            using var response = await client.PostAsync(batchEndpoint, content, ct);
 
             if (response.IsSuccessStatusCode)
             {
-                record.Status   = OutboxStatus.Sent;
-                record.SentAtUtc = DateTime.UtcNow;
-                record.LastError = null;
-                LastSentAt = DateTime.UtcNow;
-                logger.LogDebug("Forwarded record {Id}", record.Id);
+                // Parse per-record result to identify permanent failures
+                var result       = await response.Content.ReadFromJsonAsync<BatchResponseDto>(ct);
+                var failedTimes  = result?.Failed?.ToHashSet() ?? [];
+
+                var sentAt = DateTime.UtcNow;
+                int sentCount = 0;
+
+                foreach (var record in records)
+                {
+                    var failure = failedTimes.FirstOrDefault(f => f.RecordedAt == record.RecordedAtUtc);
+                    if (failure is not null)
+                    {
+                        // Permanent validation failure — dead-letter it
+                        record.Status    = OutboxStatus.Failed;
+                        record.LastError = failure.Error;
+                        logger.LogWarning(
+                            "Dead-lettering record {Id} ({RecordedAt}): {Error}",
+                            record.Id, record.RecordedAtUtc, failure.Error);
+                    }
+                    else
+                    {
+                        // Inserted or skipped-as-duplicate — both mean the data is safely in the DB
+                        record.Status    = OutboxStatus.Sent;
+                        record.SentAtUtc = sentAt;
+                        record.LastError = null;
+                        sentCount++;
+                    }
+                }
+
+                LastSentAt     = sentAt;
+                LastBatchCount = sentCount;
+
+                if (result?.Failed?.Count > 0)
+                    logger.LogWarning("Batch of {Total}: {Sent} sent/skipped, {Dead} dead-lettered",
+                        records.Count, sentCount, result.Failed.Count);
+                else
+                    logger.LogDebug("Forwarded batch of {Count} records", sentCount);
             }
             else
             {
-                string body = await response.Content.ReadAsStringAsync(ct);
-                record.LastError = $"HTTP {(int)response.StatusCode}: {body[..Math.Min(200, body.Length)]}";
-                ScheduleRetry(record);
-                LastError = record.LastError;
-                logger.LogWarning("Forward failed for record {Id}: {Err}", record.Id, record.LastError);
+                // Transient HTTP failure — retry all with backoff
+                string body  = await response.Content.ReadAsStringAsync(ct);
+                string error = $"HTTP {(int)response.StatusCode}: {body[..Math.Min(200, body.Length)]}";
+                foreach (var record in records)
+                {
+                    record.LastError = error;
+                    ScheduleRetry(record);
+                }
+                LastError = error;
+                logger.LogWarning("Batch forward failed ({Count} records): {Err}", records.Count, error);
             }
         }
         catch (HttpRequestException ex)
         {
-            record.LastError = ex.Message;
-            ScheduleRetry(record);
+            foreach (var record in records)
+            {
+                record.LastError = ex.Message;
+                ScheduleRetry(record);
+            }
             LastError = ex.Message;
-            logger.LogWarning(ex, "HTTP error forwarding record {Id}", record.Id);
+            logger.LogWarning(ex, "HTTP error forwarding batch of {Count} records", records.Count);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
-            record.LastError = "Request timed out";
-            ScheduleRetry(record);
-            LastError = record.LastError;
-            logger.LogWarning("Request timed out for record {Id}", record.Id);
+            foreach (var record in records)
+            {
+                record.LastError = "Request timed out";
+                ScheduleRetry(record);
+            }
+            LastError = "Request timed out";
+            logger.LogWarning("Batch request timed out for {Count} records", records.Count);
         }
+    }
+
+    // Minimal DTOs for deserialising the batch response — mirrors WeatherV9Models shapes
+    private sealed class BatchResponseDto
+    {
+        [JsonPropertyName("failed")]
+        public List<BatchFailureDto>? Failed { get; init; }
+    }
+
+    private sealed class BatchFailureDto
+    {
+        [JsonPropertyName("recordedAt")]
+        public DateTime RecordedAt { get; init; }
+
+        [JsonPropertyName("error")]
+        public string Error { get; init; } = string.Empty;
     }
 
     private void ScheduleRetry(OutboxRecord record)
     {
         if (record.AttemptCount >= _options.MaxRetryAttempts)
         {
-            record.Status   = OutboxStatus.Failed;
+            record.Status    = OutboxStatus.Failed;
             record.LastError = $"Giving up after {record.AttemptCount} attempts. Last error: {record.LastError}";
             logger.LogError("Record {Id} permanently failed after {N} attempts", record.Id, record.AttemptCount);
             return;

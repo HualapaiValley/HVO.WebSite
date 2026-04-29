@@ -95,6 +95,113 @@ public class WeatherV9Controller : ControllerBase
         return CreatedAtAction(nameof(GetRecentRaw), new { }, response);
     }
 
+    /// <summary>
+    /// Ingest a batch of raw weather observations from a station device.
+    /// </summary>
+    /// <remarks>
+    /// Idempotent: duplicate records (same StationId + RecordedAt) are silently skipped.
+    /// Per-record validation failures are returned in the response body rather than failing
+    /// the entire request, so the caller can dead-letter those records and retry the rest.
+    /// Requires an API key with the <c>ingest:weather</c> scope claim.
+    /// </remarks>
+    /// <response code="201">Batch processed. See Inserted/Skipped/Failed counts in response body.</response>
+    /// <response code="400">Empty batch or malformed request body.</response>
+    /// <response code="401">Missing or invalid API key.</response>
+    /// <response code="403">API key does not have the ingest:weather scope.</response>
+    [HttpPost("raw/batch")]
+    [Authorize(Policy = "WeatherIngest")]
+    [ProducesResponseType(typeof(WeatherRawBatchResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<WeatherRawBatchResponse>> IngestRawBatch(
+        [FromBody] IReadOnlyList<IngestWeatherRawRequest> requests,
+        CancellationToken ct)
+    {
+        if (requests.Count == 0)
+            return ValidationProblem(detail: "Batch must contain at least one record.");
+
+        // Resolve timestamps up-front (null RecordedAt → server time)
+        var resolved = requests.Select(r => (Request: r, RecordedAt: r.RecordedAt?.ToUniversalTime() ?? DateTime.UtcNow)).ToList();
+
+        // One query to find which (StationId, RecordedAt) pairs already exist
+        var stationIds  = resolved.Select(x => x.Request.StationId).Distinct().ToList();
+        var timestamps  = resolved.Select(x => x.RecordedAt).Distinct().ToList();
+        var existing    = await _db.WeatherRaw
+            .Where(r => r.StationId != null && stationIds.Contains(r.StationId) && timestamps.Contains(r.RecordedAt))
+            .Select(r => new { r.StationId, r.RecordedAt })
+            .ToListAsync(ct);
+        var existingKeys = existing.Select(x => (x.StationId, x.RecordedAt)).ToHashSet();
+
+        var toInsert = new List<WeatherRaw>();
+        var failures = new List<WeatherRawBatchFailure>();
+        int skipped  = 0;
+
+        foreach (var (request, recordedAt) in resolved)
+        {
+            // Skip duplicates — already in DB, treat as success
+            if (existingKeys.Contains((request.StationId, recordedAt)))
+            {
+                skipped++;
+                continue;
+            }
+
+            // Validate individual record (data annotations)
+            var validationResults = new List<ValidationResult>();
+            if (!Validator.TryValidateObject(request, new ValidationContext(request), validationResults, validateAllProperties: true))
+            {
+                failures.Add(new WeatherRawBatchFailure
+                {
+                    RecordedAt = recordedAt,
+                    Error = string.Join("; ", validationResults.Select(r => r.ErrorMessage))
+                });
+                continue;
+            }
+
+            toInsert.Add(new WeatherRaw
+            {
+                RecordedAt              = recordedAt,
+                StationId               = request.StationId,
+                TemperatureF            = request.TemperatureF,
+                HumidityPercent         = request.HumidityPercent,
+                DewPointF               = request.DewPointF,
+                BarometricPressureInHg  = request.BarometricPressureInHg,
+                WindSpeedMph            = request.WindSpeedMph,
+                WindGustMph             = request.WindGustMph,
+                WindDirectionDegrees    = request.WindDirectionDegrees,
+                RainfallInches          = request.RainfallInches,
+                SolarRadiationWm2       = request.SolarRadiationWm2,
+                UvIndex                 = request.UvIndex
+            });
+        }
+
+        if (toInsert.Count > 0)
+        {
+            _db.WeatherRaw.AddRange(toInsert);
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Batch ingest failed during SaveChanges for station {StationId}", requests[0].StationId);
+                return Problem(
+                    detail: "An error occurred while persisting the batch. Retry is safe — duplicate records will be skipped.",
+                    statusCode: StatusCodes.Status500InternalServerError,
+                    title: "Batch Ingest Failed");
+            }
+        }
+
+        _logger.LogInformation(
+            "Batch ingest: {Inserted} inserted, {Skipped} skipped, {Failed} failed. Station: {StationId}",
+            toInsert.Count, skipped, failures.Count, requests[0].StationId);
+
+        return CreatedAtAction(nameof(GetRecentRaw), new { },
+            new WeatherRawBatchResponse { Inserted = toInsert.Count, Skipped = skipped, Failed = failures });
+    }
+
     // -------------------------------------------------------------------------
     // READ
     // -------------------------------------------------------------------------

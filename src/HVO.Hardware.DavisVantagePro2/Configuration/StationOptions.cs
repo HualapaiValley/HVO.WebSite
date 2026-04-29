@@ -18,7 +18,7 @@ public sealed class StationOptions
 
     /// <summary>How often to request a LOOP2 packet (seconds). Minimum 5.</summary>
     [Range(5, 3600)]
-    public int PollingIntervalSeconds { get; set; } = 10;
+    public int PollingIntervalSeconds { get; set; } = 5;
 
     /// <summary>Run DMPAFT on startup to catch up any missed archive records.</summary>
     public bool ArchiveCatchupOnStartup { get; set; } = true;
@@ -53,6 +53,10 @@ public sealed class OutboxOptions
     /// <summary>How often the forwarder sweeps pending records (seconds).</summary>
     [Range(1, 60)]
     public int SweepIntervalSeconds { get; set; } = 5;
+
+    /// <summary>Maximum number of records sent to the API in a single batch POST.</summary>
+    [Range(1, 500)]
+    public int BatchSize { get; set; } = 50;
 
     /// <summary>Path to the SQLite database file. Defaults to outbox.db in the content root when empty.</summary>
     public string DbPath { get; set; } = string.Empty;

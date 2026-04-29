@@ -10,7 +10,7 @@ public partial class Status : IDisposable
     protected override void OnAfterRender(bool firstRender)
     {
         if (firstRender)
-            _timer = new System.Threading.Timer(_ => InvokeAsync(Refresh), null, 0, 10_000);
+            _timer = new System.Threading.Timer(_ => InvokeAsync(Refresh), null, 0, 5_000);
     }
 
     private void Refresh()
@@ -20,6 +20,13 @@ public partial class Status : IDisposable
     }
 
     public void Dispose() => _timer?.Dispose();
+
+    private string? ToConsoleTime(DateTime? utc) =>
+        utc.HasValue
+            ? new DateTimeOffset(utc.Value, TimeSpan.Zero)
+                  .ToOffset(Station.ConsoleUtcOffset)
+                  .ToString("HH:mm:ss")
+            : null;
 
     private static string? F(double? v) => v?.ToString("F1");
     private static string? F0(double? v) => v?.ToString("F0");

@@ -37,7 +37,7 @@ public class HvoV9DbContext : DbContext
         modelBuilder.Entity<WeatherRaw>(entity =>
         {
             entity.HasIndex(e => e.RecordedAt);
-            entity.HasIndex(e => new { e.StationId, e.RecordedAt });
+            entity.HasIndex(e => new { e.StationId, e.RecordedAt }).IsUnique();
             entity.Property(e => e.RecordedAt).HasColumnType("datetime2");
         });
 

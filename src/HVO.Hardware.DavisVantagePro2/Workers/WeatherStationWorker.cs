@@ -67,10 +67,11 @@ public sealed class WeatherStationWorker(
 
     private async Task PollLoopAsync(CancellationToken ct)
     {
-        var delay = TimeSpan.FromSeconds(_options.PollingIntervalSeconds);
+        var interval = TimeSpan.FromSeconds(_options.PollingIntervalSeconds);
 
         while (!ct.IsCancellationRequested)
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 Loop2Packet reading = await station.GetCurrentConditionsAsync(ct);
@@ -93,7 +94,9 @@ public sealed class WeatherStationWorker(
                     throw; // Bubble up to reconnect logic
             }
 
-            await Task.Delay(delay, ct);
+            var remaining = interval - sw.Elapsed;
+            if (remaining > TimeSpan.Zero)
+                await Task.Delay(remaining, ct);
         }
     }
 
