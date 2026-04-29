@@ -82,7 +82,7 @@ public sealed class VantageStation : IAsyncDisposable
     // ── Live data — LOOP2 streaming ───────────────────────────────────────────
 
     /// <summary>
-    /// Request a batch of LOOP2 packets from the console using the LPS command.
+    /// Request a batch of LOOP2 packets from the console using the LPS 2 command.
     /// Each packet is yielded as it arrives. The caller must release the lock by
     /// cancelling the token or consuming all packets.
     /// </summary>
@@ -93,7 +93,7 @@ public sealed class VantageStation : IAsyncDisposable
         try
         {
             await _client.WakeAsync(_maxTries, ct);
-            string cmd = $"{DavisProtocol.CmdLoop} {count}\n";
+            string cmd = $"{DavisProtocol.CmdLps} 2 {count}\n";
             await _client.SendDataAsync(Encoding.ASCII.GetBytes(cmd), ct);
 
             for (int i = 0; i < count && !ct.IsCancellationRequested; i++)
@@ -105,20 +105,94 @@ public sealed class VantageStation : IAsyncDisposable
         finally { _lock.Release(); }
     }
 
-    /// <summary>Request exactly one LOOP2 packet.</summary>
+    /// <summary>
+    /// Request one merged LOOP1+LOOP2 reading using <c>LPS 3 2</c>.
+    /// The LOOP1 packet provides battery, forecast, sunrise/sunset, and extended rain/ET.
+    /// The LOOP2 packet provides dew point, heat index, wind chill, altimeter, and precision wind.
+    /// </summary>
     public async Task<Loop2Packet> GetCurrentConditionsAsync(CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct);
         try
         {
             await _client.WakeAsync(_maxTries, ct);
-            string cmd = $"{DavisProtocol.CmdLoop} 1\n";
-            await _client.SendDataAsync(Encoding.ASCII.GetBytes(cmd), ct);
-            byte[] raw = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
-            return Loop2Packet.Parse(raw[..DavisProtocol.LoopPacketDataBytes], RainBucketType);
+            // LPS 3 N → N alternating packets: LOOP1, LOOP2, LOOP1, LOOP2, …
+            await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdLps} 3 2\n"), ct);
+            byte[] raw1 = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
+            byte[] raw2 = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
+            var loop1 = Loop2Packet.Parse(raw1[..DavisProtocol.LoopPacketDataBytes], RainBucketType);
+            var loop2 = Loop2Packet.Parse(raw2[..DavisProtocol.LoopPacketDataBytes], RainBucketType);
+            return MergePackets(loop1, loop2);
         }
         finally { _lock.Release(); }
     }
+
+    /// <summary>
+    /// Merge a LOOP1 and LOOP2 packet into a single packet.
+    /// LOOP2 fields take precedence for weather data (higher precision for wind, plus derived values).
+    /// LOOP1-only fields (battery, forecast, extended rain/ET, extra sensors) come from LOOP1.
+    /// </summary>
+    private static Loop2Packet MergePackets(Loop2Packet loop1, Loop2Packet loop2) => new()
+    {
+        RecordedAtUtc = loop2.RecordedAtUtc,
+
+        // Atmosphere — prefer LOOP2 (altimeter + raw pressure only in LOOP2)
+        BarometricPressureInHg = loop2.BarometricPressureInHg ?? loop1.BarometricPressureInHg,
+        PressureRawInHg        = loop2.PressureRawInHg,
+        AltimeterInHg          = loop2.AltimeterInHg,
+        BarometricTrend        = loop2.BarometricTrend ?? loop1.BarometricTrend,
+
+        // Temperature — LOOP2 adds dew point, heat index, wind chill, THSW
+        InsideTemperatureF     = loop2.InsideTemperatureF ?? loop1.InsideTemperatureF,
+        OutsideTemperatureF    = loop2.OutsideTemperatureF ?? loop1.OutsideTemperatureF,
+        DewPointF              = loop2.DewPointF,
+        HeatIndexF             = loop2.HeatIndexF,
+        WindChillF             = loop2.WindChillF,
+        ThswF                  = loop2.ThswF,
+
+        // Humidity
+        InsideHumidityPercent  = loop2.InsideHumidityPercent ?? loop1.InsideHumidityPercent,
+        OutsideHumidityPercent = loop2.OutsideHumidityPercent ?? loop1.OutsideHumidityPercent,
+
+        // Wind — LOOP2 has ×10 precision for avg, plus 2-min avg and gust direction
+        WindSpeedMph                  = loop2.WindSpeedMph ?? loop1.WindSpeedMph,
+        WindDirectionDegrees          = loop2.WindDirectionDegrees ?? loop1.WindDirectionDegrees,
+        WindSpeed10MinAvgMph          = loop2.WindSpeed10MinAvgMph ?? loop1.WindSpeed10MinAvgMph,
+        WindSpeed2MinAvgMph           = loop2.WindSpeed2MinAvgMph,
+        WindGust10MinMph              = loop2.WindGust10MinMph,
+        WindGust10MinDirectionDegrees = loop2.WindGust10MinDirectionDegrees,
+
+        // Rain — LOOP2 adds 15-min, hourly, 24-hr buckets
+        RainRateInchesPerHour = loop2.RainRateInchesPerHour ?? loop1.RainRateInchesPerHour,
+        DailyRainInches       = loop2.DailyRainInches ?? loop1.DailyRainInches,
+        Rain15MinInches       = loop2.Rain15MinInches,
+        HourRainInches        = loop2.HourRainInches,
+        Rain24HourInches      = loop2.Rain24HourInches,
+        StormRainInches       = loop2.StormRainInches ?? loop1.StormRainInches,
+        StormStartDate        = loop2.StormStartDate ?? loop1.StormStartDate,
+
+        // Solar / UV / ET
+        SolarRadiationWm2 = loop2.SolarRadiationWm2 ?? loop1.SolarRadiationWm2,
+        UvIndex           = loop2.UvIndex ?? loop1.UvIndex,
+        DailyEtInches     = loop2.DailyEtInches ?? loop1.DailyEtInches,
+
+        // LOOP1-only fields
+        MonthlyRainInches        = loop1.MonthlyRainInches,
+        YearlyRainInches         = loop1.YearlyRainInches,
+        MonthlyEtInches          = loop1.MonthlyEtInches,
+        YearlyEtInches           = loop1.YearlyEtInches,
+        ConsoleBatteryVoltage    = loop1.ConsoleBatteryVoltage,
+        TransmitterBatteryStatus = loop1.TransmitterBatteryStatus,
+        ForecastIcons            = loop1.ForecastIcons,
+        ForecastRule             = loop1.ForecastRule,
+        SunriseTime              = loop1.SunriseTime,
+        SunsetTime               = loop1.SunsetTime,
+        ExtraTemperaturesF       = loop1.ExtraTemperaturesF,
+        SoilTemperaturesF        = loop1.SoilTemperaturesF,
+        ExtraHumiditiesPercent   = loop1.ExtraHumiditiesPercent,
+        SoilMoisturesCb          = loop1.SoilMoisturesCb,
+        LeafWetnessScaled        = loop1.LeafWetnessScaled,
+    };
 
     // ── Archive — DMPAFT ─────────────────────────────────────────────────────
 

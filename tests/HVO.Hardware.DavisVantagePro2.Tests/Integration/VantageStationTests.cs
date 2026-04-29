@@ -40,6 +40,7 @@ public class VantageStationTests
     [TestMethod]
     public async Task GetCurrentConditionsAsync_ReturnsDecodedLoop2Fields()
     {
+        byte[] loop1 = PacketBuilder.BuildLoop1Packet();
         byte[] loop2 = PacketBuilder.BuildLoop2Packet(
             outsideTempF:     65.3,
             insideTempF:      71.0,
@@ -51,8 +52,8 @@ public class VantageStationTests
 
         await using var server = new FakeDavisServer();
         server
-            .WakeStep()                              // wake before LOOP
-            .Step(7, [DavisProtocol.Ack, ..loop2])  // "LOOP 1\n" (7 b) → ACK + 99-byte LOOP2
+            .WakeStep()                                            // wake before LPS
+            .Step(8, [DavisProtocol.Ack, ..loop1, ..loop2])  // "LPS 3 2\n" (8 b) → ACK + LOOP1 + LOOP2
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -77,12 +78,13 @@ public class VantageStationTests
     public async Task GetCurrentConditionsAsync_SolarAndUvAbsent_ReturnsNull()
     {
         // The builder initialises solar and UV to their null sentinels by default
+        byte[] loop1 = PacketBuilder.BuildLoop1Packet();
         byte[] loop2 = PacketBuilder.BuildLoop2Packet();
 
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .Step(7, [DavisProtocol.Ack, ..loop2])
+            .Step(8, [DavisProtocol.Ack, ..loop1, ..loop2])
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -168,15 +170,17 @@ public class VantageStationTests
     {
         // Two GetCurrentConditionsAsync tasks race to acquire the internal
         // SemaphoreSlim(1,1).  Script two full wake+LPS interactions.
+        byte[] loop1a = PacketBuilder.BuildLoop1Packet();
         byte[] loop2a = PacketBuilder.BuildLoop2Packet(outsideTempF: 65.0);
+        byte[] loop1b = PacketBuilder.BuildLoop1Packet();
         byte[] loop2b = PacketBuilder.BuildLoop2Packet(outsideTempF: 70.0);
 
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .Step(7, [DavisProtocol.Ack, ..loop2a]) // 1st call
+            .Step(8, [DavisProtocol.Ack, ..loop1a, ..loop2a]) // 1st call
             .WakeStep()
-            .Step(7, [DavisProtocol.Ack, ..loop2b]) // 2nd call
+            .Step(8, [DavisProtocol.Ack, ..loop1b, ..loop2b]) // 2nd call
             .Start();
 
         var (client, station) = CreatePair(server.Port);

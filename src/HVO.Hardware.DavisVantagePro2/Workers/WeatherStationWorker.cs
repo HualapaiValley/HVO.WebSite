@@ -1,6 +1,7 @@
 using System.Text.Json;
 using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.Outbox;
+using HVO.Hardware.DavisVantagePro2.Protocol;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using HVO.Hardware.DavisVantagePro2.Station;
 using Microsoft.EntityFrameworkCore;
@@ -127,19 +128,55 @@ public sealed class WeatherStationWorker(
     {
         var payload = new
         {
-            StationId = _options.StationId,
+            StationId  = _options.StationId,
             RecordedAt = reading.RecordedAtUtc,
-            TemperatureF = reading.OutsideTemperatureF,
-            HumidityPercent = reading.OutsideHumidityPercent,
-            reading.DewPointF,
-            reading.BarometricPressureInHg,
-            reading.WindSpeedMph,
-            WindGustMph = reading.WindGust10MinMph,
+            // Temperature
+            TemperatureF       = reading.OutsideTemperatureF,
+            InsideTemperatureF = reading.InsideTemperatureF,
+            DewPointF          = reading.DewPointF,
+            HeatIndexF         = reading.HeatIndexF,
+            WindChillF         = reading.WindChillF,
+            ThswF              = reading.ThswF,
+            // Humidity
+            HumidityPercent       = reading.OutsideHumidityPercent,
+            InsideHumidityPercent = reading.InsideHumidityPercent,
+            // Barometer
+            BarometricPressureInHg = reading.BarometricPressureInHg,
+            PressureRawInHg        = reading.PressureRawInHg,
+            AltimeterInHg          = reading.AltimeterInHg,
+            BarometricTrend        = reading.BarometricTrend,
+            // Wind
+            WindSpeedMph = reading.WindSpeedMph,
             WindDirectionDegrees = reading.WindDirectionDegrees.HasValue
                 ? (int?)(int)reading.WindDirectionDegrees.Value : null,
-            RainfallInches = reading.DailyRainInches,
-            reading.SolarRadiationWm2,
-            reading.UvIndex,
+            WindSpeed10MinAvgMph = reading.WindSpeed10MinAvgMph,
+            WindSpeed2MinAvgMph  = reading.WindSpeed2MinAvgMph,
+            WindGust10MinMph     = reading.WindGust10MinMph,
+            WindGust10MinDirectionDegrees = reading.WindGust10MinDirectionDegrees.HasValue
+                ? (int?)(int)reading.WindGust10MinDirectionDegrees.Value : null,
+            // Rain
+            RainRateInchesPerHour = reading.RainRateInchesPerHour,
+            DailyRainInches       = reading.DailyRainInches,
+            Rain15MinInches       = reading.Rain15MinInches,
+            HourRainInches        = reading.HourRainInches,
+            Rain24HourInches      = reading.Rain24HourInches,
+            StormRainInches       = reading.StormRainInches,
+            StormStartDate        = reading.StormStartDate,
+            MonthlyRainInches     = reading.MonthlyRainInches,
+            YearlyRainInches      = reading.YearlyRainInches,
+            // Solar / UV / ET
+            SolarRadiationWm2 = reading.SolarRadiationWm2,
+            UvIndex           = reading.UvIndex,
+            DailyEtInches     = reading.DailyEtInches,
+            MonthlyEtInches   = reading.MonthlyEtInches,
+            YearlyEtInches    = reading.YearlyEtInches,
+            // Console status (LOOP1-sourced)
+            ConsoleBatteryVoltage    = reading.ConsoleBatteryVoltage,
+            TransmitterBatteryStatus = reading.TransmitterBatteryStatus,
+            ForecastRule             = reading.ForecastRule,
+            ForecastString           = reading.ForecastString,
+            SunriseTime              = reading.SunriseDisplay,
+            SunsetTime               = reading.SunsetDisplay,
         };
         await EnqueueAsync(reading.RecordedAtUtc, JsonSerializer.Serialize(payload), isArchiveRecord: false, ct);
     }
@@ -153,18 +190,48 @@ public sealed class WeatherStationWorker(
         var recordedAtUtc = new DateTimeOffset(consoleLocal, station.ConsoleUtcOffset).UtcDateTime;
         var payload = new
         {
-            StationId = _options.StationId,
-            RecordedAt = recordedAtUtc,
-            TemperatureF = rec.OutsideTemperatureF,
-            HumidityPercent = rec.OutsideHumidityPercent,
-            rec.BarometricPressureInHg,
-            rec.WindSpeedMph,
-            WindGustMph = rec.WindGustMph,
+            StationId              = _options.StationId,
+            RecordedAt             = recordedAtUtc,
+            ArchiveIntervalMinutes = rec.ArchiveIntervalMinutes,
+            // Temperature
+            TemperatureF     = rec.OutsideTemperatureF,
+            HighTemperatureF = rec.HighOutsideTemperatureF,
+            LowTemperatureF  = rec.LowOutsideTemperatureF,
+            InsideTemperatureF = rec.InsideTemperatureF,
+            // Humidity
+            HumidityPercent       = rec.OutsideHumidityPercent,
+            InsideHumidityPercent = rec.InsideHumidityPercent,
+            // Barometer
+            BarometricPressureInHg = rec.BarometricPressureInHg,
+            // Wind
+            WindSpeedMph = rec.WindSpeedMph,
+            WindGustMph  = rec.WindGustMph,
             WindDirectionDegrees = rec.WindDirectionDegrees.HasValue
                 ? (int?)(int)rec.WindDirectionDegrees.Value : null,
-            RainfallInches = rec.RainInches,
-            rec.SolarRadiationWm2,
-            rec.UvIndex,
+            WindGustDirectionDegrees = rec.WindGustDirectionDegrees.HasValue
+                ? (int?)(int)rec.WindGustDirectionDegrees.Value : null,
+            WindSamples = rec.WindSamples,
+            // Rain
+            RainfallInches        = rec.RainInches,
+            RainRateInchesPerHour = rec.RainRateInchesPerHour,
+            // Solar / UV / ET
+            SolarRadiationWm2     = rec.SolarRadiationWm2,
+            HighSolarRadiationWm2 = rec.HighSolarRadiationWm2,
+            UvIndex               = rec.UvIndex,
+            HighUvIndex           = rec.HighUvIndex,
+            EtInches              = rec.EtInches,
+            // Forecast
+            ForecastRule   = rec.ForecastRule,
+            ForecastString = rec.ForecastRule.HasValue
+                ? DavisForecastTable.GetForecastString(rec.ForecastRule.Value) : null,
+            // Extra sensors (rec_B layout: bytes 34–51)
+            LeafTemp1F           = rec.LeafTemp1F,
+            LeafTemp2F           = rec.LeafTemp2F,
+            LeafWetnessScaled    = rec.LeafWetnessScaled,
+            SoilTemperaturesF    = rec.SoilTemperaturesF,
+            ExtraHumiditiesPercent = rec.ExtraHumiditiesPercent,
+            ExtraTemperaturesF   = rec.ExtraTemperaturesF,
+            SoilMoisturesCb      = rec.SoilMoisturesCb,
         };
         await EnqueueAsync(recordedAtUtc, JsonSerializer.Serialize(payload), isArchiveRecord: true, ct);
     }

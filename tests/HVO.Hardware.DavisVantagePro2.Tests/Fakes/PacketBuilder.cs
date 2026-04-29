@@ -10,6 +10,124 @@ namespace HVO.Hardware.DavisVantagePro2.Tests.Fakes;
 /// </summary>
 public static class PacketBuilder
 {
+    // ── LOOP1 ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Build a 95-byte LOOP1 data buffer with known field values.
+    /// All unset optional sensor fields are initialised to their null/dash sentinels.
+    /// </summary>
+    public static byte[] BuildLoop1DataBytes(
+        double outsideTempF      = 72.5,
+        double insideTempF       = 68.0,
+        int    outsideHumidity   = 55,
+        int    insideHumidity    = 45,
+        double baroPressureInHg  = 29.500,
+        int    windSpeedMph      = 8,
+        int    windDirDeg        = 270,
+        int    rainClicks        = 0,
+        byte   txBatteryStatus   = 0,          // bitmask: bit N = channel N+1 low
+        ushort consoleBatteryRaw = 5460,       // raw → ≈ 0.623 V × 300/51200
+        byte   forecastIcons     = 0x08,       // 0x08 = Sunny
+        byte   forecastRule      = 7,
+        ushort sunriseHhmm       = 638,        // 06:38
+        ushort sunsetHhmm        = 2012,       // 20:12
+        ushort monthlyRainClicks = 0,
+        ushort yearlyRainClicks  = 0)
+    {
+        var buf = new byte[95];
+
+        // "LOO" header + bar trend (steady = 0) + packet type (LOOP1 = 0)
+        buf[0] = (byte)'L'; buf[1] = (byte)'O'; buf[2] = (byte)'O';
+        buf[3] = 0;
+        buf[4] = DavisProtocol.PacketTypeLoop1;
+
+        // Barometric pressure  [7-8]  uint16 LE × 1000
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(7), (ushort)(baroPressureInHg * 1000));
+
+        // Inside temperature   [9-10] int16 LE × 10
+        BinaryPrimitives.WriteInt16LittleEndian(buf.AsSpan(9), (short)(insideTempF * 10));
+
+        // Inside humidity      [11]   byte (0xFF = null)
+        buf[11] = (byte)insideHumidity;
+
+        // Outside temperature  [12-13] int16 LE × 10
+        BinaryPrimitives.WriteInt16LittleEndian(buf.AsSpan(12), (short)(outsideTempF * 10));
+
+        // Wind speed           [14]   byte
+        buf[14] = (byte)windSpeedMph;
+
+        // Wind direction       [16-17] uint16 LE degrees
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(16), (ushort)windDirDeg);
+
+        // Extra temps [18-24] all 0xFF (absent)
+        for (int i = 18; i <= 24; i++) buf[i] = 0xFF;
+
+        // Soil temps [25-28] all 0xFF (absent)
+        for (int i = 25; i <= 28; i++) buf[i] = 0xFF;
+
+        // Leaf temps [29-32] all 0xFF (absent — 4 leaf temp bytes per Davis spec)
+        for (int i = 29; i <= 32; i++) buf[i] = 0xFF;
+
+        // Outside humidity     [33]   byte
+        buf[33] = (byte)outsideHumidity;
+
+        // Extra humidities [34-40] all 0xFF (absent)
+        for (int i = 34; i <= 40; i++) buf[i] = 0xFF;
+
+        // Rain rate   [41-42] uint16 LE clicks
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(41), 0);
+
+        // UV [43] = 0xFF (null), Solar [44-45] = 0x7FFF (null)
+        buf[43] = 0xFF;
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(44), 0x7FFF);
+
+        // Storm rain [46-47] = 0xFFFF (null), storm start [48-49] = 0xFFFF
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(46), 0xFFFF);
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(48), 0xFFFF);
+
+        // Daily rain  [50-51]
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(50), (ushort)rainClicks);
+
+        // Monthly rain [52-53]
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(52), monthlyRainClicks);
+
+        // Yearly rain  [54-55]
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(54), yearlyRainClicks);
+
+        // Daily ET    [56-57] = 0 (uint16 LE × 1000)
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(56), 0);
+
+        // Monthly ET  [58-59] = 0
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(58), 0);
+
+        // Yearly ET   [60-61] = 0
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(60), 0);
+
+        // Soil moistures [62-65] all 0xFF
+        for (int i = 62; i <= 65; i++) buf[i] = 0xFF;
+
+        // Leaf wetness   [66-69] all 0xFF
+        for (int i = 66; i <= 69; i++) buf[i] = 0xFF;
+
+        // Alarm bytes [70-85] default to 0 (no alarms)
+
+        // Transmitter battery [86] single byte (bit N = channel N+1 low)
+        buf[86] = txBatteryStatus;
+
+        // Console battery     [87-88] uint16 LE
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(87), consoleBatteryRaw);
+
+        // Forecast icons [89], rule [90]
+        buf[89] = forecastIcons;
+        buf[90] = forecastRule;
+
+        // Sunrise [91-92], sunset [93-94] uint16 LE HHMM
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(91), sunriseHhmm);
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(93), sunsetHhmm);
+
+        return buf;
+    }
+
     // ── LOOP2 ─────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -114,6 +232,39 @@ public static class PacketBuilder
     /// 95 data bytes + 2 zero end bytes + 2 CRC bytes
     /// (CRC is computed over the full 97-byte data frame).
     /// </summary>
+    /// <summary>
+    /// Build a valid 99-byte LOOP1 packet:
+    /// 95 data bytes + 2 end bytes (0x0A, 0x0D) + 2 CRC bytes.
+    /// </summary>
+    public static byte[] BuildLoop1Packet(
+        double outsideTempF      = 72.5,
+        double insideTempF       = 68.0,
+        int    outsideHumidity   = 55,
+        int    insideHumidity    = 45,
+        double baroPressureInHg  = 29.500,
+        int    windSpeedMph      = 8,
+        int    windDirDeg        = 270,
+        int    rainClicks        = 0,
+        byte   txBatteryStatus   = 0,
+        ushort consoleBatteryRaw = 5460,
+        byte   forecastIcons     = 0x08,
+        byte   forecastRule      = 7,
+        ushort sunriseHhmm       = 638,
+        ushort sunsetHhmm        = 2012)
+    {
+        byte[] data = BuildLoop1DataBytes(outsideTempF, insideTempF, outsideHumidity,
+            insideHumidity, baroPressureInHg, windSpeedMph, windDirDeg, rainClicks,
+            txBatteryStatus, consoleBatteryRaw, forecastIcons, forecastRule,
+            sunriseHhmm, sunsetHhmm);
+
+        var frame = new byte[97];
+        data.CopyTo(frame, 0);
+        frame[95] = 0x0A;
+        frame[96] = 0x0D;
+
+        return CrcCalculator.AppendCrc(frame); // 99 bytes
+    }
+
     public static byte[] BuildLoop2Packet(
         double outsideTempF     = 72.5,
         double insideTempF      = 68.0,
@@ -142,19 +293,27 @@ public static class PacketBuilder
 
     /// <summary>Build a valid 52-byte rec_B archive record buffer.</summary>
     public static byte[] BuildArchiveDataBytes(
-        DateTime dateTime             = default,
-        double   outsideTempF         = 65.5,
-        double   highOutsideTempF     = 70.0,
-        double   lowOutsideTempF      = 60.0,
-        double   insideTempF          = 72.0,
-        int      outsideHumidity      = 60,
-        int      insideHumidity       = 40,
-        double   barometricPressureInHg = 29.800,
-        int      windSpeedMph         = 5,
-        int      windGustMph          = 10,
-        int      windDirOctet         = 8,  // 8 × 22.5 = 180° (S)
-        int      windGustDirOctet     = 8,
-        int      rainClicks           = 0)
+        DateTime dateTime                = default,
+        double   outsideTempF            = 65.5,
+        double   highOutsideTempF        = 70.0,
+        double   lowOutsideTempF         = 60.0,
+        double   insideTempF             = 72.0,
+        int      outsideHumidity         = 60,
+        int      insideHumidity          = 40,
+        double   barometricPressureInHg  = 29.800,
+        int      windSpeedMph            = 5,
+        int      windGustMph             = 10,
+        int      windDirOctet            = 8,    // 8 × 22.5 = 180° (S)
+        int      windGustDirOctet        = 8,
+        int      rainClicks              = 0,
+        // Extra sensors per rec_B_schema (0xFF = absent)
+        byte     leafTemp1Raw            = 0xFF,  // byte 34
+        byte     leafTemp2Raw            = 0xFF,  // byte 35
+        byte[]?  leafWetnessRaw          = null,   // 2 bytes [36-37]
+        byte[]?  soilTempsRaw            = null,   // 4 bytes [38-41]
+        byte[]?  extraHumiditiesRaw      = null,   // 2 bytes [43-44]
+        byte[]?  extraTempsRaw           = null,   // 3 bytes [45-47]
+        byte[]?  soilMoisturesRaw        = null)   // 4 bytes [48-51]
     {
         if (dateTime == default)
             dateTime = new DateTime(2024, 6, 15, 14, 30, 0, DateTimeKind.Local);
@@ -205,15 +364,45 @@ public static class PacketBuilder
         buf[28] = 0xFF;
         buf[29] = 0;
 
-        // DownloadRecordType [30] = 1 (valid)
-        buf[30] = 1;
+        // High solar radiation [30-31] = 0x7FFF (null)
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(30), 0x7FFF);
 
-        // High solar radiation [31-32] = 0x7FFF (null)
-        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(31), 0x7FFF);
+        // High UV [32] = 0xFF (null), ForecastRule [33] = 0
+        buf[32] = 0xFF;
+        buf[33] = 0;
 
-        // High UV [33] = 0xFF (null), ForecastRule [34] = 0
-        buf[33] = 0xFF;
-        buf[34] = 0;
+        // Extra sensors per rec_B_schema:
+        // [34] leafTemp1  [35] leafTemp2
+        buf[34] = leafTemp1Raw;
+        buf[35] = leafTemp2Raw;
+
+        // [36-37] leafWet1-2
+        var leafWetness = leafWetnessRaw ?? new byte[2];
+        if (leafWetness.Length < 2) Array.Resize(ref leafWetness, 2);
+        for (int i = 0; i < 2; i++) buf[36 + i] = leafWetness[i] == 0 ? (byte)0xFF : leafWetness[i];
+
+        // [38-41] soilTemp1-4
+        var soilTemps = soilTempsRaw ?? new byte[4];
+        if (soilTemps.Length < 4) Array.Resize(ref soilTemps, 4);
+        for (int i = 0; i < 4; i++) buf[38 + i] = soilTemps[i] == 0 ? (byte)0xFF : soilTemps[i];
+
+        // [42] download_record_type = 1 (valid)
+        buf[42] = 1;
+
+        // [43-44] extraHumid1-2
+        var extraHumids = extraHumiditiesRaw ?? new byte[2];
+        if (extraHumids.Length < 2) Array.Resize(ref extraHumids, 2);
+        for (int i = 0; i < 2; i++) buf[43 + i] = extraHumids[i] == 0 ? (byte)0xFF : extraHumids[i];
+
+        // [45-47] extraTemp1-3
+        var extraTemps = extraTempsRaw ?? new byte[3];
+        if (extraTemps.Length < 3) Array.Resize(ref extraTemps, 3);
+        for (int i = 0; i < 3; i++) buf[45 + i] = extraTemps[i] == 0 ? (byte)0xFF : extraTemps[i];
+
+        // [48-51] soilMoist1-4
+        var soilMoistures = soilMoisturesRaw ?? new byte[4];
+        if (soilMoistures.Length < 4) Array.Resize(ref soilMoistures, 4);
+        for (int i = 0; i < 4; i++) buf[48 + i] = soilMoistures[i] == 0 ? (byte)0xFF : soilMoistures[i];
 
         return buf;
     }

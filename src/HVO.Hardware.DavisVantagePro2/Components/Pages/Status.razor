@@ -58,6 +58,38 @@
 
         <span class="label">UV Index</span>
         <span class="value">@(_reading.UvIndex?.ToString("F1") ?? "—")</span>
+
+        <span class="label">Daily ET</span>
+        <span class="value">@(_reading.DailyEtInches?.ToString("F3") ?? "—") in</span>
+
+        <span class="label">Monthly Rain</span>
+        <span class="value">@(_reading.MonthlyRainInches?.ToString("F2") ?? "—") in</span>
+
+        <span class="label">Yearly Rain</span>
+        <span class="value">@(_reading.YearlyRainInches?.ToString("F2") ?? "—") in</span>
+
+        <span class="label">Console Battery</span>
+        <span class="value">@(_reading.ConsoleBatteryVoltage?.ToString("F2") ?? "—") V</span>
+
+        <span class="label">Transmitter Battery</span>
+        @if (_reading.TransmitterBatteryStatus is not null)
+        {
+            var lowChannels = _reading.TransmitterLowBatteryChannels;
+            <span class="value">@(lowChannels.Count == 0 ? "OK" : $"Low: ch {string.Join(", ", lowChannels)}")</span>
+        }
+        else
+        {
+            <span class="value">—</span>
+        }
+
+        <span class="label">Forecast</span>
+        <span class="value">@(_reading.ForecastString ?? "—")</span>
+
+        <span class="label">Sunrise</span>
+        <span class="value">@(_reading.SunriseDisplay ?? "—")</span>
+
+        <span class="label">Sunset</span>
+        <span class="value">@(_reading.SunsetDisplay ?? "—")</span>
     </div>
 }
 else
