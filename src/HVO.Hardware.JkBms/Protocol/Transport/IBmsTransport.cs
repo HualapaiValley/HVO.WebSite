@@ -32,15 +32,4 @@ public interface IBmsTransport : IAsyncDisposable
     /// <exception cref="JkBmsTimeoutException">If the response is not received in time.</exception>
     /// <exception cref="JkBmsFrameException">If the assembled frame is structurally invalid.</exception>
     Task<byte[]> ExchangeAsync(byte[] command, CancellationToken ct);
-
-    /// <summary>
-    /// Wait for the next complete frame from the BLE notification stream
-    /// <em>without</em> sending any command. Use to drain spontaneous or buffered
-    /// frames after an <see cref="ExchangeAsync"/> call when the first response is
-    /// not the expected frame type.
-    /// </summary>
-    /// <returns>Complete raw frame bytes (header + data + CRC).</returns>
-    /// <exception cref="JkBmsTimeoutException">If no frame arrives within the connect timeout.</exception>
-    /// <exception cref="JkBmsFrameException">If the assembled frame is structurally invalid.</exception>
-    Task<byte[]> ReadNextFrameAsync(CancellationToken ct);
 }

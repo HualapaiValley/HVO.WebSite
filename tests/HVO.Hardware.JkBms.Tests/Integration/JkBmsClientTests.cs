@@ -74,41 +74,35 @@ public class JkBmsClientTests
             .WithMessage("Simulated exchange failure");
     }
 
-    // ── Wrong frame type → retry ──────────────────────────────────────────────
+    // ── Frame type tolerance ──────────────────────────────────────────────────
 
     [TestMethod]
-    public async Task PollCellInfoAsync_SettingsFrameFirst_RetriesAndReturnsCellInfo()
+    public async Task PollCellInfoAsync_SettingsFrameResponse_CallsExchangeOnceAndAttemptsParse()
     {
+        // Verifies the client no longer rejects frames based on type — it sends the
+        // command once and attempts to parse whatever the BMS returns.
+        // An all-zeros settings frame will fail CellInfoPacket.Parse (bitmask=0 is invalid),
+        // but the critical assertion is ExchangeCallCount == 1 (no re-command on wrong type).
         var settingsFrame = TestFrameBuilder.BuildMinimalFrame(JkBmsProtocol.FrameTypeSettings);
-        var cellInfoFrame = TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
-        var transport = new FakeBmsTransport(
-            TestAddress,
-            frameSequence: [settingsFrame, cellInfoFrame]);
+        var transport = new FakeBmsTransport(TestAddress, responseFrame: settingsFrame);
         var client = CreateClient(transport);
 
-        var packet = await client.PollCellInfoAsync(CancellationToken.None);
+        await FluentActions.Invoking(() => client.PollCellInfoAsync(CancellationToken.None))
+            .Should().ThrowAsync<JkBmsFrameException>();
 
-        packet.CellCount.Should().Be(15);
-        // Command sent once; second frame obtained via ReadNextFrameAsync (no re-command).
         transport.ExchangeCallCount.Should().Be(1);
-        transport.ReadNextFrameCallCount.Should().Be(1);
     }
 
     [TestMethod]
-    public async Task PollCellInfoAsync_OnlyWrongTypeFrames_ThrowsJkBmsFrameException()
+    public async Task PollCellInfoAsync_AnyValidFrame_CallsExchangeExactlyOnce()
     {
-        var wrongFrame = TestFrameBuilder.BuildMinimalFrame(JkBmsProtocol.FrameTypeSettings);
-        // 5 wrong frames: 1 consumed by ExchangeAsync + 4 by ReadNextFrameAsync (MaxAttempts=5).
-        var transport = new FakeBmsTransport(
-            TestAddress,
-            frameSequence: [wrongFrame, wrongFrame, wrongFrame, wrongFrame, wrongFrame]);
+        var transport = new FakeBmsTransport(TestAddress);
         var client = CreateClient(transport);
 
-        var act = async () => await client.PollCellInfoAsync(CancellationToken.None);
+        await client.PollCellInfoAsync(CancellationToken.None);
 
-        await act.Should().ThrowAsync<JkBmsFrameException>();
+        // Regardless of frame type, command is sent exactly once.
         transport.ExchangeCallCount.Should().Be(1);
-        transport.ReadNextFrameCallCount.Should().Be(4);
     }
 
     [TestMethod]

@@ -243,28 +243,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
         await _characteristic!.WriteValueAsync(command, new Dictionary<string, object>());
         _logger.LogTrace("BLE write {Bytes} bytes to {Address}", command.Length, DeviceAddress);
 
-        return await WaitForNextFrameAsync(ct);
-    }
-
-    // ── ReadNextFrameAsync ────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Wait for the next complete BLE notification frame without sending any command.
-    /// The BMS notification handler continues to accumulate incoming chunks; this method
-    /// simply waits for the semaphore to be released when the next 300-byte frame is ready.
-    /// </summary>
-    public Task<byte[]> ReadNextFrameAsync(CancellationToken ct)
-    {
-        if (!IsConnected)
-            throw new InvalidOperationException(
-                $"Cannot read next frame: not connected to {DeviceAddress}.");
-
-        _assembledFrame = null;
-        return WaitForNextFrameAsync(ct);
-    }
-
-    private async Task<byte[]> WaitForNextFrameAsync(CancellationToken ct)
-    {
+        // Wait for a complete frame to be assembled by OnNotificationReceived
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(_connectTimeout);
 

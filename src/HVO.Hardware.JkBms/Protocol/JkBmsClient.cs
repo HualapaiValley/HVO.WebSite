@@ -41,46 +41,38 @@ public sealed class JkBmsClient : IAsyncDisposable
     /// </summary>
     /// <exception cref="JkBmsConnectException">Thrown when the device cannot be reached.</exception>
     /// <exception cref="JkBmsTimeoutException">Thrown when the device does not respond in time.</exception>
-    /// <exception cref="JkBmsFrameException">Thrown when the device persistently sends wrong frame types.</exception>
     /// <exception cref="OperationCanceledException">Propagated when <paramref name="ct"/> is cancelled.</exception>
     public async Task<CellInfoPacket> PollCellInfoAsync(CancellationToken ct)
     {
         _logger.LogDebug("Polling cell info for {Address}", DeviceAddress);
 
-        // The BMS sends a spontaneous settings frame (type 0x01) before the cell info
-        // response (type 0x02). We send the command ONCE then drain frames from the
-        // notification stream until we get the expected type. Sending repeated commands
-        // causes the BMS to restart its burst sequence, yielding only settings frames.
-        const int MaxAttempts = 5;
+        // Send the command and accept the first response frame regardless of type.
+        // Some JK BMS firmware versions respond with type 0x01 instead of the
+        // documented 0x02. We log the frame type and raw data header so that
+        // post-run analysis can determine the correct offset mapping for this firmware.
         byte[] frame = await _transport.ExchangeAsync(JkBmsProtocol.BuildCellInfoCommand(), ct);
+        byte frameType = JkBmsProtocol.GetFrameType(frame);
+        var data = JkBmsProtocol.GetData(frame);
 
-        for (int attempt = 1; attempt <= MaxAttempts; attempt++)
-        {
-            byte frameType = JkBmsProtocol.GetFrameType(frame);
+        // Always log frame type + first 40 data bytes (hex) for protocol analysis.
+        _logger.LogDebug(
+            "Cell info response from {Address}: FrameType=0x{FrameType:X2} Data[0..39]={DataHex}",
+            DeviceAddress, frameType,
+            Convert.ToHexString(data[..Math.Min(40, data.Length)]));
 
-            if (frameType == JkBmsProtocol.FrameTypeCellInfo)
-            {
-                var data = JkBmsProtocol.GetData(frame);
-                var packet = CellInfoPacket.Parse(data);
+        if (frameType != JkBmsProtocol.FrameTypeCellInfo)
+            _logger.LogWarning(
+                "Expected cell info frame type 0x{Expected:X2} from {Address} but received 0x{Actual:X2}; " +
+                "parsing anyway — data may have different offsets on this firmware",
+                JkBmsProtocol.FrameTypeCellInfo, DeviceAddress, frameType);
 
-                _logger.LogDebug(
-                    "Cell info polled for {Address}: SOC={Soc}%, V={VoltageMv}mV, I={CurrentMa}mA",
-                    DeviceAddress, packet.StateOfChargePercent, packet.TotalVoltageMv, packet.CurrentMa);
+        var packet = CellInfoPacket.Parse(data);
 
-                return packet;
-            }
+        _logger.LogDebug(
+            "Cell info parsed for {Address}: SOC={Soc}%, V={VoltageMv}mV, I={CurrentMa}mA",
+            DeviceAddress, packet.StateOfChargePercent, packet.TotalVoltageMv, packet.CurrentMa);
 
-            _logger.LogDebug(
-                "Expected cell info frame (0x{Expected:X2}) from {Address} but received 0x{Actual:X2}; " +
-                "reading next frame (attempt {Attempt}/{Max})",
-                JkBmsProtocol.FrameTypeCellInfo, DeviceAddress, frameType, attempt, MaxAttempts);
-
-            if (attempt < MaxAttempts)
-                frame = await _transport.ReadNextFrameAsync(ct);
-        }
-
-        throw new JkBmsFrameException(
-            $"Failed to receive cell info frame from {DeviceAddress} after {MaxAttempts} attempt(s).");
+        return packet;
     }
 
     /// <summary>
@@ -89,35 +81,26 @@ public sealed class JkBmsClient : IAsyncDisposable
     /// The transport connects on the first call and reconnects automatically if
     /// the connection was lost since the previous call.
     /// </summary>
-    /// <exception cref="JkBmsFrameException">Thrown when the device persistently sends wrong frame types.</exception>
     public async Task<DeviceInfoPacket> PollDeviceInfoAsync(CancellationToken ct)
     {
         _logger.LogDebug("Polling device info for {Address}", DeviceAddress);
 
-        const int MaxAttempts = 5;
         byte[] frame = await _transport.ExchangeAsync(JkBmsProtocol.BuildDeviceInfoCommand(), ct);
+        byte frameType = JkBmsProtocol.GetFrameType(frame);
+        var data = JkBmsProtocol.GetData(frame);
 
-        for (int attempt = 1; attempt <= MaxAttempts; attempt++)
-        {
-            byte frameType = JkBmsProtocol.GetFrameType(frame);
+        _logger.LogDebug(
+            "Device info response from {Address}: FrameType=0x{FrameType:X2} Data[0..39]={DataHex}",
+            DeviceAddress, frameType,
+            Convert.ToHexString(data[..Math.Min(40, data.Length)]));
 
-            if (frameType == JkBmsProtocol.FrameTypeDeviceInfo)
-            {
-                var data = JkBmsProtocol.GetData(frame);
-                return DeviceInfoPacket.Parse(data);
-            }
+        if (frameType != JkBmsProtocol.FrameTypeDeviceInfo)
+            _logger.LogWarning(
+                "Expected device info frame type 0x{Expected:X2} from {Address} but received 0x{Actual:X2}; " +
+                "parsing anyway — data may have different offsets on this firmware",
+                JkBmsProtocol.FrameTypeDeviceInfo, DeviceAddress, frameType);
 
-            _logger.LogDebug(
-                "Expected device info frame (0x{Expected:X2}) from {Address} but received 0x{Actual:X2}; " +
-                "reading next frame (attempt {Attempt}/{Max})",
-                JkBmsProtocol.FrameTypeDeviceInfo, DeviceAddress, frameType, attempt, MaxAttempts);
-
-            if (attempt < MaxAttempts)
-                frame = await _transport.ReadNextFrameAsync(ct);
-        }
-
-        throw new JkBmsFrameException(
-            $"Failed to receive device info frame from {DeviceAddress} after {MaxAttempts} attempt(s).");
+        return DeviceInfoPacket.Parse(data);
     }
 
     public async ValueTask DisposeAsync()
