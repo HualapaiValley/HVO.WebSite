@@ -47,32 +47,36 @@ public sealed class JkBmsClient : IAsyncDisposable
     {
         _logger.LogDebug("Polling cell info for {Address}", DeviceAddress);
 
-        // The BMS may send a spontaneous settings frame (type 0x01) just before the
-        // cell info response (type 0x02). Retry the command up to MaxAttempts times,
-        // discarding any non-cell-info frames that arrive first.
-        const int MaxAttempts = 3;
+        // The BMS sends a spontaneous settings frame (type 0x01) before the cell info
+        // response (type 0x02). We send the command ONCE then drain frames from the
+        // notification stream until we get the expected type. Sending repeated commands
+        // causes the BMS to restart its burst sequence, yielding only settings frames.
+        const int MaxAttempts = 5;
+        byte[] frame = await _transport.ExchangeAsync(JkBmsProtocol.BuildCellInfoCommand(), ct);
+
         for (int attempt = 1; attempt <= MaxAttempts; attempt++)
         {
-            var command = JkBmsProtocol.BuildCellInfoCommand();
-            byte[] frame = await _transport.ExchangeAsync(command, ct);
             byte frameType = JkBmsProtocol.GetFrameType(frame);
 
-            if (frameType != JkBmsProtocol.FrameTypeCellInfo)
+            if (frameType == JkBmsProtocol.FrameTypeCellInfo)
             {
+                var data = JkBmsProtocol.GetData(frame);
+                var packet = CellInfoPacket.Parse(data);
+
                 _logger.LogDebug(
-                    "Expected cell info frame (0x{Expected:X2}) from {Address} but received 0x{Actual:X2}; retrying (attempt {Attempt}/{Max})",
-                    JkBmsProtocol.FrameTypeCellInfo, DeviceAddress, frameType, attempt, MaxAttempts);
-                continue;
+                    "Cell info polled for {Address}: SOC={Soc}%, V={VoltageMv}mV, I={CurrentMa}mA",
+                    DeviceAddress, packet.StateOfChargePercent, packet.TotalVoltageMv, packet.CurrentMa);
+
+                return packet;
             }
 
-            var data = JkBmsProtocol.GetData(frame);
-            var packet = CellInfoPacket.Parse(data);
-
             _logger.LogDebug(
-                "Cell info polled for {Address}: SOC={Soc}%, V={VoltageMv}mV, I={CurrentMa}mA",
-                DeviceAddress, packet.StateOfChargePercent, packet.TotalVoltageMv, packet.CurrentMa);
+                "Expected cell info frame (0x{Expected:X2}) from {Address} but received 0x{Actual:X2}; " +
+                "reading next frame (attempt {Attempt}/{Max})",
+                JkBmsProtocol.FrameTypeCellInfo, DeviceAddress, frameType, attempt, MaxAttempts);
 
-            return packet;
+            if (attempt < MaxAttempts)
+                frame = await _transport.ReadNextFrameAsync(ct);
         }
 
         throw new JkBmsFrameException(
@@ -90,23 +94,26 @@ public sealed class JkBmsClient : IAsyncDisposable
     {
         _logger.LogDebug("Polling device info for {Address}", DeviceAddress);
 
-        const int MaxAttempts = 3;
+        const int MaxAttempts = 5;
+        byte[] frame = await _transport.ExchangeAsync(JkBmsProtocol.BuildDeviceInfoCommand(), ct);
+
         for (int attempt = 1; attempt <= MaxAttempts; attempt++)
         {
-            var command = JkBmsProtocol.BuildDeviceInfoCommand();
-            byte[] frame = await _transport.ExchangeAsync(command, ct);
             byte frameType = JkBmsProtocol.GetFrameType(frame);
 
-            if (frameType != JkBmsProtocol.FrameTypeDeviceInfo)
+            if (frameType == JkBmsProtocol.FrameTypeDeviceInfo)
             {
-                _logger.LogDebug(
-                    "Expected device info frame (0x{Expected:X2}) from {Address} but received 0x{Actual:X2}; retrying (attempt {Attempt}/{Max})",
-                    JkBmsProtocol.FrameTypeDeviceInfo, DeviceAddress, frameType, attempt, MaxAttempts);
-                continue;
+                var data = JkBmsProtocol.GetData(frame);
+                return DeviceInfoPacket.Parse(data);
             }
 
-            var data = JkBmsProtocol.GetData(frame);
-            return DeviceInfoPacket.Parse(data);
+            _logger.LogDebug(
+                "Expected device info frame (0x{Expected:X2}) from {Address} but received 0x{Actual:X2}; " +
+                "reading next frame (attempt {Attempt}/{Max})",
+                JkBmsProtocol.FrameTypeDeviceInfo, DeviceAddress, frameType, attempt, MaxAttempts);
+
+            if (attempt < MaxAttempts)
+                frame = await _transport.ReadNextFrameAsync(ct);
         }
 
         throw new JkBmsFrameException(

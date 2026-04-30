@@ -28,6 +28,7 @@ public sealed class FakeBmsTransport : IBmsTransport
     public int ConnectCallCount { get; private set; }
     public int DisconnectCallCount { get; private set; }
     public int ExchangeCallCount { get; private set; }
+    public int ReadNextFrameCallCount { get; private set; }
     public int DisposeCallCount { get; private set; }
 
     /// <summary>
@@ -76,6 +77,20 @@ public sealed class FakeBmsTransport : IBmsTransport
     {
         ct.ThrowIfCancellationRequested();
         ExchangeCallCount++;
+
+        if (_exchangeException is not null)
+            throw _exchangeException;
+
+        var frame = _frameQueue.Count > 0
+            ? _frameQueue.Dequeue()
+            : _responseFrame ?? TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
+        return Task.FromResult(frame);
+    }
+
+    public Task<byte[]> ReadNextFrameAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        ReadNextFrameCallCount++;
 
         if (_exchangeException is not null)
             throw _exchangeException;

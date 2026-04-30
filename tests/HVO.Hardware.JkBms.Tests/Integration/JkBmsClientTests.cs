@@ -89,22 +89,26 @@ public class JkBmsClientTests
         var packet = await client.PollCellInfoAsync(CancellationToken.None);
 
         packet.CellCount.Should().Be(15);
-        transport.ExchangeCallCount.Should().Be(2);
+        // Command sent once; second frame obtained via ReadNextFrameAsync (no re-command).
+        transport.ExchangeCallCount.Should().Be(1);
+        transport.ReadNextFrameCallCount.Should().Be(1);
     }
 
     [TestMethod]
     public async Task PollCellInfoAsync_OnlyWrongTypeFrames_ThrowsJkBmsFrameException()
     {
         var wrongFrame = TestFrameBuilder.BuildMinimalFrame(JkBmsProtocol.FrameTypeSettings);
+        // 5 wrong frames: 1 consumed by ExchangeAsync + 4 by ReadNextFrameAsync (MaxAttempts=5).
         var transport = new FakeBmsTransport(
             TestAddress,
-            frameSequence: [wrongFrame, wrongFrame, wrongFrame]);
+            frameSequence: [wrongFrame, wrongFrame, wrongFrame, wrongFrame, wrongFrame]);
         var client = CreateClient(transport);
 
         var act = async () => await client.PollCellInfoAsync(CancellationToken.None);
 
         await act.Should().ThrowAsync<JkBmsFrameException>();
-        transport.ExchangeCallCount.Should().Be(3);
+        transport.ExchangeCallCount.Should().Be(1);
+        transport.ReadNextFrameCallCount.Should().Be(4);
     }
 
     [TestMethod]
