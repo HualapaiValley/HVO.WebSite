@@ -103,7 +103,21 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             // BlueZ handles the scan → initiating transition internally, so it is safe
             // (and required) to connect while the adapter is still in discovery mode.
             _logger.LogDebug("BLE starting discovery scan for {Address}", DeviceAddress);
-            await adapter.StartDiscoveryAsync();
+            bool ownedDiscovery = false;
+            try
+            {
+                await adapter.StartDiscoveryAsync();
+                ownedDiscovery = true;
+            }
+            catch (Tmds.DBus.DBusException ex) when (ex.ErrorName == "org.bluez.Error.InProgress")
+            {
+                // Another parallel connect already started discovery on this adapter.
+                // The HCI scan is already running — we can still wait for advertisements
+                // without needing to own (and later stop) the discovery session.
+                _logger.LogDebug(
+                    "BLE discovery already in progress on {Adapter} (shared); piggybacking for {Address}",
+                    _adapterName, DeviceAddress);
+            }
             var scanStart = Stopwatch.GetTimestamp();
             try
             {
@@ -159,7 +173,8 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             }
             finally
             {
-                try { await adapter.StopDiscoveryAsync(); } catch { /* best-effort */ }
+                if (ownedDiscovery)
+                    try { await adapter.StopDiscoveryAsync(); } catch { /* best-effort */ }
             }
 
             await _device.WaitForPropertyValueAsync("Connected", value: true, TimeSpan.FromSeconds(8));
@@ -347,18 +362,36 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
                 throw new JkBmsTimeoutException(DeviceAddress);
             }
 
+            // Filter by type BEFORE checking CRC. The BMS pushes a spontaneous 0x01 settings
+            // frame on every new connection; that frame may have a bad CRC (or may be partially
+            // assembled) and must be discarded without throwing, or the exchange never reaches
+            // the actual response frame.
+            if (expectedType != 0 && frame[4] != expectedType)
+            {
+                // Discard: this is a spontaneous frame (e.g. settings pushed on connection).
+                _logger.LogDebug(
+                    "Discarding spontaneous frame type 0x{Actual:X2} (CRC valid: {CrcValid}) while waiting for 0x{Expected:X2} from {Address}",
+                    frame[4], JkBmsProtocol.ValidateCrc(frame), expectedType, DeviceAddress);
+                continue;
+            }
+
             if (!JkBmsProtocol.ValidateCrc(frame))
+            {
+                var computed = CrcByteSum.Compute(frame.AsSpan(0, frame.Length - 1));
+                _logger.LogDebug(
+                    "CRC mismatch for 0x{Type:X2} frame from {Address}: computed=0x{Computed:X2} expected=0x{Expected:X2} len={Len} head=[{Head}] tail=[{Tail}]",
+                    frame.Length > 4 ? frame[4] : (byte)0,
+                    DeviceAddress,
+                    computed,
+                    frame[^1],
+                    frame.Length,
+                    BitConverter.ToString(frame, 0, Math.Min(8, frame.Length)),
+                    BitConverter.ToString(frame, Math.Max(0, frame.Length - 8), Math.Min(8, frame.Length)));
                 throw new JkBmsCrcException(
                     $"CRC validation failed for response from {DeviceAddress}.");
+            }
 
-            // Accept the frame if no expected type is known, or if types match.
-            if (expectedType == 0 || frame[4] == expectedType)
-                return frame;
-
-            // Discard: this is a spontaneous frame (e.g. settings pushed on connection).
-            _logger.LogDebug(
-                "Discarding spontaneous frame type 0x{Actual:X2} while waiting for 0x{Expected:X2} from {Address}",
-                frame[4], expectedType, DeviceAddress);
+            return frame;
         }
     }
 

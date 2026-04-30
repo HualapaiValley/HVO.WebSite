@@ -103,8 +103,9 @@ public sealed class BmsPollerWorker : BackgroundService
                 PollIntervalSeconds = d.PollIntervalSeconds > 0
                     ? d.PollIntervalSeconds
                     : _options.DefaultPollIntervalSeconds,
-                // Stagger first polls across devices to avoid simultaneous BLE contention on startup
-                NextPollAt = DateTime.UtcNow.AddSeconds(enabledDevices.IndexOf(d) * 3),
+                // All devices connect in parallel at startup; first polls are staggered
+                // slightly so the HCI adapter isn't hit with 7 simultaneous exchanges.
+                NextPollAt = DateTime.UtcNow.AddSeconds(enabledDevices.IndexOf(d) * 2),
             })
             .ToList();
     }
@@ -114,6 +115,30 @@ public sealed class BmsPollerWorker : BackgroundService
         _logger.LogInformation(
             "BmsPollerWorker starting. {Count} device(s).",
             _devices.Count);
+
+        // Connect all devices concurrently at startup so the first poll cycle
+        // doesn't block on sequential BLE scan + connect (3-10s per device).
+        // Failures are non-fatal here — ExchangeAsync will retry on the first poll.
+        _logger.LogInformation("BmsPollerWorker connecting all devices in parallel...");
+        await Task.WhenAll(_clients.Select(async kvp =>
+        {
+            var (address, client) = (kvp.Key, kvp.Value);
+            try
+            {
+                await client.ConnectAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutdown before all connections established — fine, the loop won't run.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Startup connect failed for {Address}; will retry on first poll.", address);
+            }
+        }));
+
+        _logger.LogInformation("BmsPollerWorker startup connect phase complete.");
 
         try
         {
