@@ -46,10 +46,9 @@ public sealed class JkBmsClient : IAsyncDisposable
     {
         _logger.LogDebug("Polling cell info for {Address}", DeviceAddress);
 
-        // Send the command and accept the first response frame regardless of type.
-        // Some JK BMS firmware versions respond with type 0x01 instead of the
-        // documented 0x02. We log the frame type and raw data header so that
-        // post-run analysis can determine the correct offset mapping for this firmware.
+        // Send the cell-info command and accept the response frame.
+        // NOTE: The JK BMS FFE1 characteristic requires GATT Write Command (write-without-response).
+        // The transport is configured with {"type","command"} in WriteValueAsync options.
         byte[] frame = await _transport.ExchangeAsync(JkBmsProtocol.BuildCellInfoCommand(), ct);
         byte frameType = JkBmsProtocol.GetFrameType(frame);
         var data = JkBmsProtocol.GetData(frame);

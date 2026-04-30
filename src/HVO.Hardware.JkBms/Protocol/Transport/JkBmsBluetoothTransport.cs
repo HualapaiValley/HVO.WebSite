@@ -28,7 +28,9 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     private readonly string _adapterName;
 
     private Device? _device;
-    private GattCharacteristic? _characteristic;
+    private IGattCharacteristic1? _writeCharacteristic;  // FFE1 (write + notify — same characteristic)
+    private IGattCharacteristic1? _notifyCharacteristic; // FFE1 (write + notify — same characteristic)
+    private IDisposable? _notifyWatcher;                  // property watcher for notifications
     private bool _isConnected;
     private bool _disposed;
 
@@ -38,7 +40,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     private byte[]? _assembledFrame;
 
     public string DeviceAddress { get; }
-    public bool IsConnected => _isConnected && _characteristic != null;
+    public bool IsConnected => _isConnected && _writeCharacteristic != null && _notifyCharacteristic != null;
 
     public JkBmsBluetoothTransport(
         string deviceAddress,
@@ -150,16 +152,76 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
                 ?? throw new JkBmsConnectException(DeviceAddress, 1,
                     new InvalidOperationException($"JK BMS service {serviceUuid} not found."));
 
-            var charUuid = JkBmsProtocol.CharacteristicUuid.ToString();
-            _characteristic = await GattExtensions.GetCharacteristicAsync(service, charUuid)
-                ?? throw new JkBmsConnectException(DeviceAddress, 1,
+            // The JK BMS "old BLE module" (MAC prefix C8:47:8C) exposes two characteristics
+            // in service FFE0:
+            //   - char000f: UUID FFE2, flags: write-without-response only
+            //   - char0011: UUID FFE1, flags: write + write-without-response + notify
+            //
+            // The esphome-jk-bms reference implementation writes commands to the FFE1
+            // characteristic (the one located via service/characteristic UUID lookup) and
+            // subscribes to the same FFE1 characteristic for notifications.  FFE2 exists on
+            // these devices but is NOT the correct command channel — writing to it produces no
+            // BMS response.  Both write and notify roles therefore use the FFE1 characteristic.
+            var charUuid = JkBmsProtocol.CharacteristicUuid.ToString();  // FFE1
+            var allServiceChars = await GattExtensions.GetCharacteristicsAsync(service) ?? [];
+            if (allServiceChars.Count == 0)
+                throw new JkBmsConnectException(DeviceAddress, 1,
+                    new InvalidOperationException($"JK BMS service {serviceUuid} has no characteristics."));
+
+            // Enumerate all characteristics for debug logging.
+            _notifyCharacteristic = null;
+            foreach (var c in allServiceChars)
+            {
+                var cUuid  = await c.GetUUIDAsync();
+                var flags  = await c.GetFlagsAsync();
+                _logger.LogDebug("  Service char UUID={Uuid} Flags=[{Flags}]",
+                    cUuid, string.Join(", ", flags ?? []));
+                if (string.Equals(cUuid, charUuid, StringComparison.OrdinalIgnoreCase))
+                    _notifyCharacteristic ??= c;
+            }
+
+            // Fall back to the first available characteristic if FFE1 was not found.
+            _notifyCharacteristic ??= allServiceChars.FirstOrDefault();
+
+            // Both write and notify use the same characteristic (FFE1), matching the
+            // esphome reference implementation.
+            _writeCharacteristic = _notifyCharacteristic;
+
+            if (_notifyCharacteristic == null)
+                throw new JkBmsConnectException(DeviceAddress, 1,
                     new InvalidOperationException($"JK BMS characteristic {charUuid} not found."));
 
-            // Subscribe to notifications
-            _characteristic.Value += OnNotificationReceived;
-            await _characteristic.StartNotifyAsync();
+            _logger.LogDebug("BLE characteristic (write + notify): {Uuid}", charUuid);
+
+            // Subscribe to property changes on the notify characteristic for BLE notifications.
+            _notifyWatcher = await _notifyCharacteristic.WatchPropertiesAsync(OnPropertyChanged);
+            await _notifyCharacteristic.StartNotifyAsync();
 
             _isConnected = true;
+
+            // The JK BMS old-module firmware requires a device-info request (0x97) immediately
+            // after notification subscription before it will respond to cell-info commands (0x96).
+            // This mirrors the esphome-jk-bms behaviour: it sends 0x97 on ESP_GATTC_REG_FOR_NOTIFY_EVT,
+            // waits for the 0x03 response, then begins issuing 0x96 on each update cycle.
+            // Any spontaneous 0x01 (settings) frame pushed by the BMS during this exchange is
+            // silently discarded by the discard loop in DoExchangeAsync.
+            _logger.LogDebug("BLE sending device-info init (0x97) to {Address}", DeviceAddress);
+            try
+            {
+                var initFrame = await DoExchangeAsync(JkBmsProtocol.BuildDeviceInfoCommand(), timeoutCts.Token);
+                _logger.LogDebug(
+                    "BLE device-info init response from {Address}: FrameType=0x{Type:X2}",
+                    DeviceAddress, initFrame[4]);
+            }
+            catch (Exception ex)
+            {
+                // Non-fatal: log and continue. If the BMS doesn't respond to 0x97 on this firmware,
+                // we'll still attempt 0x96 — this matches the esphome fallback behaviour.
+                _logger.LogWarning(ex,
+                    "BLE device-info init (0x97) did not complete for {Address}; continuing",
+                    DeviceAddress);
+            }
+
             _logger.LogInformation("BLE connected to {Address}", DeviceAddress);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
@@ -174,19 +236,20 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     {
         _isConnected = false;
 
-        if (_characteristic != null)
+        if (_notifyCharacteristic != null)
         {
             try
             {
-                _characteristic.Value -= OnNotificationReceived;
-                await _characteristic.StopNotifyAsync();
+                _notifyWatcher?.Dispose();
+                _notifyWatcher = null;
+                await _notifyCharacteristic.StopNotifyAsync();
             }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "Non-fatal error stopping BLE notifications for {Address}", DeviceAddress);
             }
-            _characteristic.Dispose();
-            _characteristic = null;
+            _notifyCharacteristic = null;
+            _writeCharacteristic  = null;
         }
 
         if (_device != null)
@@ -239,44 +302,82 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
         while (_frameSemaphore.CurrentCount > 0)
             _frameSemaphore.Wait();
 
-        // Write the command to the characteristic (write-without-response)
-        await _characteristic!.WriteValueAsync(command, new Dictionary<string, object>());
+        // Write the command using Write Command (GATT opcode 0x52, write-without-response).
+        // Commands are written to the FFE1 characteristic, which also carries notifications.
+        // This matches the esphome-jk-bms reference implementation.
+        await _writeCharacteristic!.WriteValueAsync(command,
+            new Dictionary<string, object> { { "type", "command" } });
         _logger.LogTrace("BLE write {Bytes} bytes to {Address}", command.Length, DeviceAddress);
 
-        // Wait for a complete frame to be assembled by OnNotificationReceived
+        // Derive the expected response frame type from the command function code so we
+        // can discard spontaneous frames (e.g. the settings frame the BMS pushes on
+        // every connection) that arrive before — or interleaved with — the actual response.
+        byte expectedType = GetExpectedResponseFrameType(command);
+
+        // Use the overall connect timeout for the whole wait loop, not per-frame.
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(_connectTimeout);
 
-        try
+        // Collect frames until we receive one with the expected type.
+        while (true)
         {
-            await _frameSemaphore.WaitAsync(timeoutCts.Token);
+            try
+            {
+                await _frameSemaphore.WaitAsync(timeoutCts.Token);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                throw new JkBmsTimeoutException(DeviceAddress);
+            }
+
+            var frame = _assembledFrame
+                ?? throw new JkBmsFrameException(
+                    $"Frame signal received but assembled frame is null for {DeviceAddress}.");
+
+            if (!JkBmsProtocol.ValidateCrc(frame))
+                throw new JkBmsCrcException(
+                    $"CRC validation failed for response from {DeviceAddress}.");
+
+            // Accept the frame if no expected type is known, or if types match.
+            if (expectedType == 0 || frame[4] == expectedType)
+                return frame;
+
+            // Discard: this is a spontaneous frame (e.g. settings pushed on connection).
+            _logger.LogDebug(
+                "Discarding spontaneous frame type 0x{Actual:X2} while waiting for 0x{Expected:X2} from {Address}",
+                frame[4], expectedType, DeviceAddress);
+            _assembledFrame = null;
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            throw new JkBmsTimeoutException(DeviceAddress);
-        }
-
-        var frame = _assembledFrame
-            ?? throw new JkBmsFrameException(
-                $"Frame signal received but assembled frame is null for {DeviceAddress}.");
-
-        if (!JkBmsProtocol.ValidateCrc(frame))
-            throw new JkBmsCrcException(
-                $"CRC validation failed for response from {DeviceAddress}.");
-
-        return frame;
     }
+
+    /// <summary>
+    /// Returns the BMS response frame type expected for the given command, derived from
+    /// the command function code at byte 4. Returns 0 if the type is unknown.
+    /// </summary>
+    private static byte GetExpectedResponseFrameType(byte[] command) =>
+        command.Length > 4 ? command[4] switch
+        {
+            0x95 => JkBmsProtocol.FrameTypeSettings,
+            0x96 => JkBmsProtocol.FrameTypeCellInfo,
+            0x97 => JkBmsProtocol.FrameTypeDeviceInfo,
+            _    => (byte)0,
+        } : (byte)0;
 
     // ── Notification handler ──────────────────────────────────────────────────
 
-    private Task OnNotificationReceived(GattCharacteristic sender, GattCharacteristicValueEventArgs e)
+    private void OnPropertyChanged(Tmds.DBus.PropertyChanges changes)
     {
-        if (JkBmsProtocol.TryAccumulateFrame(_rxBuffer, e.Value.AsSpan(), out var frame))
+        foreach (var pair in changes.Changed)
         {
-            _assembledFrame = frame;
-            try { _frameSemaphore.Release(); } catch { /* semaphore already at max, ignore */ }
+            if (pair.Key == "Value" && pair.Value is byte[] value)
+            {
+                if (JkBmsProtocol.TryAccumulateFrame(_rxBuffer, value.AsSpan(), out var frame))
+                {
+                    _assembledFrame = frame;
+                    try { _frameSemaphore.Release(); } catch { /* semaphore already at max, ignore */ }
+                }
+            }
         }
-        return Task.CompletedTask;
     }
 
     // ── IAsyncDisposable ──────────────────────────────────────────────────────

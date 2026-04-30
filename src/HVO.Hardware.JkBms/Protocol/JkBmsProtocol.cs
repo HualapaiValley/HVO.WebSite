@@ -25,8 +25,11 @@ public static class JkBmsProtocol
     /// <summary>JK BMS UART-over-BLE service UUID.</summary>
     public static readonly Guid ServiceUuid = new("0000ffe0-0000-1000-8000-00805f9b34fb");
 
-    /// <summary>JK BMS UART-over-BLE characteristic UUID (Write + Notify).</summary>
+    /// <summary>JK BMS UART-over-BLE notify/RX characteristic UUID (FFE1, with Notify).</summary>
     public static readonly Guid CharacteristicUuid = new("0000ffe1-0000-1000-8000-00805f9b34fb");
+
+    /// <summary>JK BMS UART-over-BLE write/TX characteristic UUID (FFE2, write-without-response only).</summary>
+    public static readonly Guid WriteCharacteristicUuid = new("0000ffe2-0000-1000-8000-00805f9b34fb");
 
     // ── Frame types ───────────────────────────────────────────────────────────
 
@@ -42,6 +45,15 @@ public static class JkBmsProtocol
     private const int CrcLength        = 1;   // 1-byte CRC8 at byte 299
 
     // ── Command building ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the 20-byte "activate" request frame (function code 0x95).
+    /// Some JK BMS firmware versions require this before cell info requests.
+    /// </summary>
+    public static byte[] BuildActivateCommand() =>
+        [0xAA, 0x55, 0x90, 0xEB, 0x95, 0x00, 0x00, 0x00,
+         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x00, 0x00, 0x00, 0x0F]; // CRC8: 0xAA+0x55+0x90+0xEB+0x95 = 0x30F → 0x0F
 
     /// <summary>
     /// Returns the 20-byte "get cell info" request frame.
