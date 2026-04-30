@@ -53,8 +53,22 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     private readonly Channel<byte[]> _frameChannel =
         Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions { SingleReader = true });
 
+    // Per-adapter reference count of concurrent ConnectAsync calls in the discovery phase.
+    // Prevents the first connection from stopping the BLE scan while later parallel
+    // connections (that piggybacked on the same scan) are still waiting for advertisements.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int>
+        s_discoveryRefCount = new();
+
     public string DeviceAddress { get; }
     public bool IsConnected => _isConnected && _writeCharacteristic != null && _notifyCharacteristic != null;
+
+    /// <summary>
+    /// The most recently captured raw settings frame (type 0x01).
+    /// Populated when the BMS pushes a 0x01 frame during an exchange (typically on connect).
+    /// Reset at the start of each new connection so stale settings from a prior session
+    /// are never returned after a reconnect.
+    /// </summary>
+    public byte[]? LastSettingsFrame { get; private set; }
 
     public JkBmsBluetoothTransport(
         string deviceAddress,
@@ -73,6 +87,10 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     public async Task ConnectAsync(CancellationToken ct)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(JkBmsBluetoothTransport));
+
+        // Reset stale settings from any prior connection so GetLatestSettings() cannot
+        // return settings captured before a disconnect/reconnect cycle.
+        LastSettingsFrame = null;
 
         _logger.LogDebug("BLE connecting to {Address}", DeviceAddress);
 
@@ -103,7 +121,23 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             // BlueZ handles the scan → initiating transition internally, so it is safe
             // (and required) to connect while the adapter is still in discovery mode.
             _logger.LogDebug("BLE starting discovery scan for {Address}", DeviceAddress);
-            await adapter.StartDiscoveryAsync();
+            // Increment the per-adapter ref count before entering the discovery phase.
+            // The last concurrent ConnectAsync to exit will stop the scan, preventing the
+            // first connection from halting discovery while later parallel connections
+            // (piggybacking on the same scan) still need advertisements.
+            s_discoveryRefCount.AddOrUpdate(_adapterName, 1, (_, n) => n + 1);
+            try
+            {
+                await adapter.StartDiscoveryAsync();
+            }
+            catch (Tmds.DBus.DBusException ex) when (ex.ErrorName == "org.bluez.Error.InProgress")
+            {
+                // Another parallel connect already started discovery on this adapter.
+                // The HCI scan is already running — we can still wait for advertisements.
+                _logger.LogDebug(
+                    "BLE discovery already in progress on {Adapter} (shared); piggybacking for {Address}",
+                    _adapterName, DeviceAddress);
+            }
             var scanStart = Stopwatch.GetTimestamp();
             try
             {
@@ -159,7 +193,14 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             }
             finally
             {
-                try { await adapter.StopDiscoveryAsync(); } catch { /* best-effort */ }
+                // Decrement the ref count. When this is the last concurrent ConnectAsync
+                // exiting the discovery phase, stop the scan. Any adapter proxy can issue
+                // StopDiscovery on the same BlueZ adapter object, so the task that stops
+                // need not be the one that originally started it.
+                var remaining = s_discoveryRefCount.AddOrUpdate(
+                    _adapterName, 0, (_, n) => Math.Max(0, n - 1));
+                if (remaining == 0)
+                    try { await adapter.StopDiscoveryAsync(); } catch { /* best-effort */ }
             }
 
             await _device.WaitForPropertyValueAsync("Connected", value: true, TimeSpan.FromSeconds(8));
@@ -347,18 +388,41 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
                 throw new JkBmsTimeoutException(DeviceAddress);
             }
 
+            // Filter by type BEFORE checking CRC. The BMS pushes a spontaneous 0x01 settings
+            // frame on every new connection; that frame may have a bad CRC (or may be partially
+            // assembled) and must be discarded without throwing, or the exchange never reaches
+            // the actual response frame.
+            if (expectedType != 0 && frame[4] != expectedType)
+            {
+                bool crcValid = JkBmsProtocol.ValidateCrc(frame);
+                // Capture the settings frame while discarding it — it contains all device
+                // configuration and will be exposed as LastSettingsFrame for the UI.
+                if (frame[4] == JkBmsProtocol.FrameTypeSettings && crcValid)
+                    LastSettingsFrame = frame;
+
+                _logger.LogDebug(
+                    "Discarding spontaneous frame type 0x{Actual:X2} (CRC valid: {CrcValid}) while waiting for 0x{Expected:X2} from {Address}",
+                    frame[4], crcValid, expectedType, DeviceAddress);
+                continue;
+            }
+
             if (!JkBmsProtocol.ValidateCrc(frame))
+            {
+                var computed = CrcByteSum.Compute(frame.AsSpan(0, frame.Length - 1));
+                _logger.LogDebug(
+                    "CRC mismatch for 0x{Type:X2} frame from {Address}: computed=0x{Computed:X2} expected=0x{Expected:X2} len={Len} head=[{Head}] tail=[{Tail}]",
+                    frame.Length > 4 ? frame[4] : (byte)0,
+                    DeviceAddress,
+                    computed,
+                    frame[^1],
+                    frame.Length,
+                    BitConverter.ToString(frame, 0, Math.Min(8, frame.Length)),
+                    BitConverter.ToString(frame, Math.Max(0, frame.Length - 8), Math.Min(8, frame.Length)));
                 throw new JkBmsCrcException(
                     $"CRC validation failed for response from {DeviceAddress}.");
+            }
 
-            // Accept the frame if no expected type is known, or if types match.
-            if (expectedType == 0 || frame[4] == expectedType)
-                return frame;
-
-            // Discard: this is a spontaneous frame (e.g. settings pushed on connection).
-            _logger.LogDebug(
-                "Discarding spontaneous frame type 0x{Actual:X2} while waiting for 0x{Expected:X2} from {Address}",
-                frame[4], expectedType, DeviceAddress);
+            return frame;
         }
     }
 

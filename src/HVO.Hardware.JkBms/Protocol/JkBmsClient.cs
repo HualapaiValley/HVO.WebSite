@@ -34,6 +34,12 @@ public sealed class JkBmsClient : IAsyncDisposable
     }
 
     /// <summary>
+    /// Explicitly establish the BLE connection.  Call this at startup to pre-connect
+    /// before the first poll — avoids lazy-connect latency in the poll loop.
+    /// </summary>
+    public Task ConnectAsync(CancellationToken ct) => _transport.ConnectAsync(ct);
+
+    /// <summary>
     /// Send the cell-info command and return the parsed response.
     ///
     /// The transport connects on the first call and reconnects automatically if
@@ -108,6 +114,27 @@ public sealed class JkBmsClient : IAsyncDisposable
         {
             _disposed = true;
             await _transport.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Returns the <see cref="SettingsPacket"/> parsed from the most recently captured
+    /// spontaneous settings frame (type 0x01), or <see langword="null"/> if no valid
+    /// settings frame has been received on the current connection.
+    /// </summary>
+    public SettingsPacket? GetLatestSettings()
+    {
+        var frame = _transport.LastSettingsFrame;
+        if (frame is null) return null;
+        try
+        {
+            var data = JkBmsProtocol.GetData(frame);
+            return SettingsPacket.Parse(data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse cached settings frame for {Address}", DeviceAddress);
+            return null;
         }
     }
 }

@@ -29,6 +29,12 @@ public sealed class DevicePollState
     public string? LastError { get; set; }
     public DateTime? LastPollAt { get; set; }
     public CellInfoPacket? LatestReading { get; set; }
+
+    /// <summary>Device configuration parsed from the spontaneous 0x01 settings frame.</summary>
+    public SettingsPacket? LatestSettings { get; set; }
+
+    /// <summary>Device info (firmware, serial number, etc.) from the 0x03 device-info frame.</summary>
+    public DeviceInfoPacket? LatestDeviceInfo { get; set; }
 }
 
 /// <summary>
@@ -103,8 +109,9 @@ public sealed class BmsPollerWorker : BackgroundService
                 PollIntervalSeconds = d.PollIntervalSeconds > 0
                     ? d.PollIntervalSeconds
                     : _options.DefaultPollIntervalSeconds,
-                // Stagger first polls across devices to avoid simultaneous BLE contention on startup
-                NextPollAt = DateTime.UtcNow.AddSeconds(enabledDevices.IndexOf(d) * 3),
+                // All devices connect in parallel at startup; first polls are staggered
+                // slightly so the HCI adapter isn't hit with 7 simultaneous exchanges.
+                NextPollAt = DateTime.UtcNow.AddSeconds(enabledDevices.IndexOf(d) * 2),
             })
             .ToList();
     }
@@ -114,6 +121,53 @@ public sealed class BmsPollerWorker : BackgroundService
         _logger.LogInformation(
             "BmsPollerWorker starting. {Count} device(s).",
             _devices.Count);
+
+        // Connect all devices concurrently at startup so the first poll cycle
+        // doesn't block on sequential BLE scan + connect (3-10s per device).
+        // Failures are non-fatal here — ExchangeAsync will retry on the first poll.
+        _logger.LogInformation("BmsPollerWorker connecting all devices in parallel...");
+        await Task.WhenAll(_clients.Select(async kvp =>
+        {
+            var (address, client) = (kvp.Key, kvp.Value);
+            try
+            {
+                await client.ConnectAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutdown before all connections established — fine, the loop won't run.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Startup connect failed for {Address}; will retry on first poll.", address);
+            }
+        }));
+
+        _logger.LogInformation("BmsPollerWorker startup connect phase complete.");
+
+        // Fetch device info and capture settings for each device that connected successfully.
+        // These are stored in DevicePollState so the UI can display configuration data.
+        await Task.WhenAll(_clients.Select(async kvp =>
+        {
+            var (address, client) = (kvp.Key, kvp.Value);
+            var state = _devices.First(d => d.Address == address);
+            try
+            {
+                state.LatestDeviceInfo = await client.PollDeviceInfoAsync(stoppingToken);
+                state.LatestSettings = client.GetLatestSettings();
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutdown before info fetch — fine.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Startup info fetch failed for {Alias} ({Address}); UI will show N/A.",
+                    state.Alias, address);
+            }
+        }));
 
         try
         {
@@ -166,6 +220,14 @@ public sealed class BmsPollerWorker : BackgroundService
             device.BackoffLevel = 0;
             device.LastError = null;
             device.NextPollAt = DateTime.UtcNow.AddSeconds(device.PollIntervalSeconds);
+
+            // Refresh settings from the spontaneous 0x01 frame the transport captures
+            // each time the BMS connects.  We update on every successful poll so that
+            // the UI eventually shows settings even if the frame wasn't in the buffer
+            // when GetLatestSettings() was called at startup.
+            var freshSettings = _clients[device.Address].GetLatestSettings();
+            if (freshSettings is not null)
+                device.LatestSettings = freshSettings;
 
             await WriteToOutboxAsync(device, packet, ct);
 

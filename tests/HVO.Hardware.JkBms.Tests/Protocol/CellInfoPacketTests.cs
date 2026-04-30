@@ -2,6 +2,7 @@ using FluentAssertions;
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Tests.Fakes;
+using ProductionCrc = HVO.Hardware.JkBms.Protocol.CrcByteSum;
 
 namespace HVO.Hardware.JkBms.Tests.Protocol;
 
@@ -47,6 +48,28 @@ public class CellInfoPacketTests
         var data = JkBmsProtocol.GetData(frame);
         var packet = CellInfoPacket.Parse(data);
         packet.CellVoltagesMv.Count.Should().Be(packet.CellCount);
+    }
+
+    [TestMethod]
+    public void Parse_CellResistances_MatchBuilderInput()
+    {
+        ushort[] resistances = [12, 11, 13, 10, 12, 14, 11, 13, 12, 10, 11, 12, 13, 14, 12];
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame(
+            cellCount: 15,
+            cellResistancesMOhm: resistances);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+
+        packet.CellResistancesMOhm.Should().Equal(resistances);
+    }
+
+    [TestMethod]
+    public void Parse_CellResistancesCount_EqualsCellCount()
+    {
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.CellResistancesMOhm.Count.Should().Be(packet.CellCount);
     }
 
     [TestMethod]
@@ -224,17 +247,122 @@ public class CellInfoPacketTests
     }
 
     [TestMethod]
-    public void Parse_ZeroCellCount_ThrowsJkBmsFrameException()
+    public void Parse_ZeroBitmask_FallsBackToVoltageCount()
     {
-        // Build a valid frame but zero out the enabled-cells bitmask (all 4 bytes)
+        // Newer JK BMS hardware (MAC prefix C8:47:8C:EC / EA) leaves the enabled-cells
+        // bitmask at 0x30 as 0x00000000. The parser must fall back to counting consecutive
+        // non-zero voltage entries and still produce a valid parse.
         byte[] frame = TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
-        // Bitmask is at header offset 6 + data offset 0x30; zero all 4 bytes
+        // Zero out the bitmask
         frame[6 + 0x30] = 0x00;
         frame[6 + 0x31] = 0x00;
         frame[6 + 0x32] = 0x00;
         frame[6 + 0x33] = 0x00;
+        // Recalculate CRC after mutating the frame
+        frame[299] = ProductionCrc.Compute(frame.AsSpan(0, 299));
+        byte[] data = JkBmsProtocol.GetData(frame).ToArray();
+        var packet = CellInfoPacket.Parse(data);
+        packet.CellCount.Should().Be(15);
+    }
+
+    [TestMethod]
+    public void Parse_ZeroBitmaskAndZeroVoltages_ThrowsJkBmsFrameException()
+    {
+        // When both the bitmask and all cell voltages are zero, no cell count can be
+        // determined — this should still throw a JkBmsFrameException.
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
+        // Zero bitmask
+        frame[6 + 0x30] = 0x00;
+        frame[6 + 0x31] = 0x00;
+        frame[6 + 0x32] = 0x00;
+        frame[6 + 0x33] = 0x00;
+        // Zero all 24 cell voltage slots (bytes 0–47 in data section)
+        for (int i = 0; i < 48; i++)
+            frame[6 + i] = 0x00;
+        // Recalculate CRC after mutating the frame
+        frame[299] = ProductionCrc.Compute(frame.AsSpan(0, 299));
         byte[] data = JkBmsProtocol.GetData(frame).ToArray();
         var act = () => CellInfoPacket.Parse(data);
         act.Should().Throw<JkBmsFrameException>();
+    }
+
+    // ── JK02_32S variant ──────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void Parse_32S_CellCount_DerivedFromVoltageEntries()
+    {
+        // 32S frames have enabledMask == 0; cell count is derived from consecutive
+        // non-zero voltage entries in the data section.
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(cellCount: 16);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.CellCount.Should().Be(16);
+    }
+
+    [TestMethod]
+    public void Parse_32S_TotalVoltage_ReadFromOffset0x90()
+    {
+        // In the 32S layout the pack voltage is at data offset 0x90 (not 0x70).
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(totalVoltageMv: 52_800);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.TotalVoltageMv.Should().Be(52_800);
+    }
+
+    [TestMethod]
+    public void Parse_32S_AverageCellVoltage_ReadFromOffset0x44()
+    {
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(averageCellVoltageMv: 3305);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.AverageCellVoltageMv.Should().Be(3305);
+    }
+
+    [TestMethod]
+    public void Parse_32S_CellResistances_ReadFromOffset0x4A()
+    {
+        // In the 32S layout resistances start at 0x4A (not 0x3A as in 24S).
+        ushort[] resistances = Enumerable.Range(1, 16).Select(i => (ushort)(10 + i)).ToArray();
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(
+            cellCount: 16,
+            cellResistancesMOhm: resistances);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.CellResistancesMOhm.Should().Equal(resistances);
+    }
+
+    [TestMethod]
+    public void Parse_32S_AlarmBitmask_ReadFromOffset0xA0_BigEndian()
+    {
+        // Alarm bitmask in the 32S layout is a BE uint16 at 0xA0.
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(alarmBitmask: 0x0008);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.AlarmBitmask.Should().Be(0x0008u);
+        packet.HasAlarms.Should().BeTrue();
+    }
+
+    [TestMethod]
+    public void Parse_32S_Temperatures_ReadFromCorrectOffsets()
+    {
+        // PowerTubeTemp at 0x8A, BatteryTemp1 at 0x9C, BatteryTemp2 at 0x9E.
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(
+            powerTubeRaw: 350,   // 35.0°C
+            battTemp1Raw: 280,   // 28.0°C
+            battTemp2Raw: 260);  // 26.0°C
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.PowerTubeTemperatureC.Should().BeApproximately(35.0, 0.001);
+        packet.BatteryTemperature1C.Should().BeApproximately(28.0, 0.001);
+        packet.BatteryTemperature2C.Should().BeApproximately(26.0, 0.001);
+    }
+
+    [TestMethod]
+    public void Parse_32S_StateOfCharge_ReadFromOffset0xA7()
+    {
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(socPercent: 73);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.StateOfChargePercent.Should().Be(73);
     }
 }
