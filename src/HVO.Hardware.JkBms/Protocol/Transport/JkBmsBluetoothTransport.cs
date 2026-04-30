@@ -56,6 +56,12 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     public string DeviceAddress { get; }
     public bool IsConnected => _isConnected && _writeCharacteristic != null && _notifyCharacteristic != null;
 
+    /// <summary>
+    /// The most recently captured raw settings frame (type 0x01).
+    /// Populated when the BMS pushes a 0x01 frame during an exchange (typically on connect).
+    /// </summary>
+    public byte[]? LastSettingsFrame { get; private set; }
+
     public JkBmsBluetoothTransport(
         string deviceAddress,
         string adapterName,
@@ -368,10 +374,15 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             // the actual response frame.
             if (expectedType != 0 && frame[4] != expectedType)
             {
-                // Discard: this is a spontaneous frame (e.g. settings pushed on connection).
+                bool crcValid = JkBmsProtocol.ValidateCrc(frame);
+                // Capture the settings frame while discarding it — it contains all device
+                // configuration and will be exposed as LastSettingsFrame for the UI.
+                if (frame[4] == JkBmsProtocol.FrameTypeSettings && crcValid)
+                    LastSettingsFrame = frame;
+
                 _logger.LogDebug(
                     "Discarding spontaneous frame type 0x{Actual:X2} (CRC valid: {CrcValid}) while waiting for 0x{Expected:X2} from {Address}",
-                    frame[4], JkBmsProtocol.ValidateCrc(frame), expectedType, DeviceAddress);
+                    frame[4], crcValid, expectedType, DeviceAddress);
                 continue;
             }
 

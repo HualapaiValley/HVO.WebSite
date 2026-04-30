@@ -29,6 +29,12 @@ public sealed class DevicePollState
     public string? LastError { get; set; }
     public DateTime? LastPollAt { get; set; }
     public CellInfoPacket? LatestReading { get; set; }
+
+    /// <summary>Device configuration parsed from the spontaneous 0x01 settings frame.</summary>
+    public SettingsPacket? LatestSettings { get; set; }
+
+    /// <summary>Device info (firmware, serial number, etc.) from the 0x03 device-info frame.</summary>
+    public DeviceInfoPacket? LatestDeviceInfo { get; set; }
 }
 
 /// <summary>
@@ -139,6 +145,29 @@ public sealed class BmsPollerWorker : BackgroundService
         }));
 
         _logger.LogInformation("BmsPollerWorker startup connect phase complete.");
+
+        // Fetch device info and capture settings for each device that connected successfully.
+        // These are stored in DevicePollState so the UI can display configuration data.
+        await Task.WhenAll(_clients.Select(async kvp =>
+        {
+            var (address, client) = (kvp.Key, kvp.Value);
+            var state = _devices.First(d => d.Address == address);
+            try
+            {
+                state.LatestDeviceInfo = await client.PollDeviceInfoAsync(stoppingToken);
+                state.LatestSettings = client.GetLatestSettings();
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutdown before info fetch — fine.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Startup info fetch failed for {Alias} ({Address}); UI will show N/A.",
+                    state.Alias, address);
+            }
+        }));
 
         try
         {

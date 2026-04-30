@@ -25,6 +25,9 @@ public sealed class FakeBmsTransport : IBmsTransport
     public string DeviceAddress { get; }
     public bool IsConnected { get; private set; }
 
+    /// <summary>Always null in the fake — tests that need a settings frame should set up the client differently.</summary>
+    public byte[]? LastSettingsFrame => null;
+
     public int ConnectCallCount { get; private set; }
     public int DisconnectCallCount { get; private set; }
     public int ExchangeCallCount { get; private set; }

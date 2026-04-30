@@ -86,7 +86,14 @@ public static class TestFrameBuilder
     public static byte[] BuildDeviceInfoFrame(
         string manufacturer = "JIKONG",
         string hardwareName = "JK-B2A24",
-        string firmwareVersion = "V10.2")
+        string firmwareVersion = "V10.2",
+        uint uptimeSeconds = 0,
+        uint powerOnCount = 0,
+        string deviceName = "",
+        string manufacturingDate = "",
+        string serialNumber = "",
+        string userData = "",
+        string setupPasscode = "")
     {
         const int dataLength = 293;
         byte[] data = new byte[dataLength];
@@ -94,8 +101,91 @@ public static class TestFrameBuilder
         WriteAscii(data, 0x00, manufacturer, 16);
         WriteAscii(data, 0x10, hardwareName, 8);
         WriteAscii(data, 0x18, firmwareVersion, 8);
+        WriteU32Le(data, 0x20, uptimeSeconds);
+        WriteU32Le(data, 0x24, powerOnCount);
+        WriteAscii(data, 0x28, deviceName, 16);
+        WriteAscii(data, 0x48, manufacturingDate, 8);
+        WriteAscii(data, 0x50, serialNumber, 11);
+        WriteAscii(data, 0x60, userData, 16);
+        WriteAscii(data, 0x70, setupPasscode, 16);
 
         return WrapInFrame(JkBmsProtocol.FrameTypeDeviceInfo, data);
+    }
+
+    /// <summary>
+    /// Build a complete settings frame (300 bytes: 6-byte header + 293-byte payload + CRC8).
+    /// Offset layout follows the JK02 settings frame specification.
+    /// </summary>
+    public static byte[] BuildSettingsFrame(
+        uint cellUvpMv = 2900,
+        uint cellUvprMv = 3000,
+        uint cellOvpMv = 4200,
+        uint cellOvprMv = 4100,
+        uint balanceDeltaMv = 10,
+        uint balanceStartMv = 3300,
+        bool balancingEnabled = true,
+        uint chargeOcpMa = 50_000,
+        uint chargeOcpDelayS = 2,
+        uint chargeOcpRecoveryS = 30,
+        uint dischargeOcpMa = 100_000,
+        uint dischargeOcpDelayS = 2,
+        uint dischargeOcpRecoveryS = 30,
+        uint scpRecoveryS = 30,
+        uint scpDelayUs = 150,
+        int chargeOtpRaw = 450,     // 45.0°C
+        int chargeOtprRaw = 400,    // 40.0°C
+        int dischargeOtpRaw = 600,  // 60.0°C
+        int dischargeOtprRaw = 550, // 55.0°C
+        int chargeUtpRaw = -100,    // -10.0°C
+        int chargeUtprRaw = 0,      // 0.0°C
+        int mosOtpRaw = 750,        // 75.0°C
+        int mosOtprRaw = 700,       // 70.0°C
+        byte cellCount = 16,
+        bool chargingEnabled = true,
+        bool dischargingEnabled = true,
+        uint nominalCapacityMah = 100_000)
+    {
+        const int dataLength = 293;
+        byte[] data = new byte[dataLength];
+
+        // Cell voltage protection (U32 LE, mV)
+        WriteU32Le(data, 0x04, cellUvpMv);
+        WriteU32Le(data, 0x08, cellUvprMv);
+        WriteU32Le(data, 0x0C, cellOvpMv);
+        WriteU32Le(data, 0x10, cellOvprMv);
+
+        // Balancing
+        WriteU32Le(data, 0x14, balanceDeltaMv);
+        WriteU32Le(data, 0x84, balanceStartMv);
+        data[0x78] = balancingEnabled ? (byte)1 : (byte)0;
+
+        // Overcurrent protection (U32 LE, mA or s)
+        WriteU32Le(data, 0x2C, chargeOcpMa);
+        WriteU32Le(data, 0x30, chargeOcpDelayS);
+        WriteU32Le(data, 0x34, chargeOcpRecoveryS);
+        WriteU32Le(data, 0x38, dischargeOcpMa);
+        WriteU32Le(data, 0x3C, dischargeOcpDelayS);
+        WriteU32Le(data, 0x40, dischargeOcpRecoveryS);
+        WriteU32Le(data, 0x44, scpRecoveryS);
+        WriteU32Le(data, 0x80, scpDelayUs);
+
+        // Temperature protection (I32 LE, × 0.1°C)
+        WriteI32Le(data, 0x4C, chargeOtpRaw);
+        WriteI32Le(data, 0x50, chargeOtprRaw);
+        WriteI32Le(data, 0x54, dischargeOtpRaw);
+        WriteI32Le(data, 0x58, dischargeOtprRaw);
+        WriteI32Le(data, 0x5C, chargeUtpRaw);
+        WriteI32Le(data, 0x60, chargeUtprRaw);
+        WriteI32Le(data, 0x64, mosOtpRaw);
+        WriteI32Le(data, 0x68, mosOtprRaw);
+
+        // Device configuration
+        data[0x6C] = cellCount;
+        data[0x70] = chargingEnabled ? (byte)1 : (byte)0;
+        data[0x74] = dischargingEnabled ? (byte)1 : (byte)0;
+        WriteU32Le(data, 0x7C, nominalCapacityMah);
+
+        return WrapInFrame(JkBmsProtocol.FrameTypeSettings, data);
     }
 
     /// <summary>

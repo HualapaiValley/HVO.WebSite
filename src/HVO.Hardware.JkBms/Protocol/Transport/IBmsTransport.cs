@@ -17,6 +17,14 @@ public interface IBmsTransport : IAsyncDisposable
     bool IsConnected { get; }
 
     /// <summary>
+    /// The most recently captured raw settings frame (type 0x01), or null if none has been
+    /// received since the last connection.  The BMS pushes this frame spontaneously on every
+    /// new connection, so it is typically available after the first <see cref="ConnectAsync"/>
+    /// call completes.
+    /// </summary>
+    byte[]? LastSettingsFrame { get; }
+
+    /// <summary>
     /// Establish the BLE connection to the device.
     /// </summary>
     /// <param name="ct">Cancellation token.</param>

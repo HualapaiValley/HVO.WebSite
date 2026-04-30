@@ -151,4 +151,181 @@ else
             }
         </div>
     }
+
+    <!-- Device Information (populated at startup from 0x03 device-info frame) -->
+    @if (_state.LatestDeviceInfo is { } info)
+    {
+        <h2>Device Information</h2>
+        <div class="data-grid">
+            <span class="label">Manufacturer</span>
+            <span class="value monospace">@info.ManufacturerName</span>
+
+            <span class="label">Hardware</span>
+            <span class="value monospace">@info.HardwareName</span>
+
+            <span class="label">Firmware</span>
+            <span class="value monospace">@info.FirmwareVersion</span>
+
+            @if (!string.IsNullOrEmpty(info.DeviceName))
+            {
+                <span class="label">Device Name</span>
+                <span class="value monospace">@info.DeviceName</span>
+            }
+
+            @if (!string.IsNullOrEmpty(info.SerialNumber))
+            {
+                <span class="label">Serial Number</span>
+                <span class="value monospace">@info.SerialNumber</span>
+            }
+
+            @if (!string.IsNullOrEmpty(info.ManufacturingDate))
+            {
+                <span class="label">Mfg. Date</span>
+                <span class="value monospace">@info.ManufacturingDate</span>
+            }
+
+            @if (!string.IsNullOrEmpty(info.UserData))
+            {
+                <span class="label">User Data</span>
+                <span class="value monospace">@info.UserData</span>
+            }
+
+            @if (info.UptimeSeconds > 0)
+            {
+                var uptime = TimeSpan.FromSeconds(info.UptimeSeconds);
+                <span class="label">Uptime</span>
+                <span class="value">@($"{(int)uptime.TotalDays}d {uptime.Hours:D2}h {uptime.Minutes:D2}m")</span>
+            }
+
+            @if (info.PowerOnCount > 0)
+            {
+                <span class="label">Power-On Count</span>
+                <span class="value">@info.PowerOnCount</span>
+            }
+        </div>
+    }
+
+    <!-- Device Configuration (populated from spontaneous 0x01 settings frame on connect) -->
+    @if (_state.LatestSettings is { } cfg)
+    {
+        <h2>Device Configuration</h2>
+        <div class="data-grid">
+            <span class="label">Cell Count</span>
+            <span class="value">@cfg.CellCount</span>
+
+            <span class="label">Nominal Capacity</span>
+            <span class="value">@((cfg.NominalCapacityMah / 1000.0).ToString("F0")) Ah</span>
+
+            <span class="label">Charging</span>
+            <span class="value">
+                @if (cfg.ChargingEnabled)
+                {
+                    <span class="badge badge-ok">Enabled</span>
+                }
+                else
+                {
+                    <span class="badge badge-error">Disabled</span>
+                }
+            </span>
+
+            <span class="label">Discharging</span>
+            <span class="value">
+                @if (cfg.DischargingEnabled)
+                {
+                    <span class="badge badge-ok">Enabled</span>
+                }
+                else
+                {
+                    <span class="badge badge-error">Disabled</span>
+                }
+            </span>
+
+            <span class="label">Balancing</span>
+            <span class="value">
+                @if (cfg.BalancingEnabled)
+                {
+                    <span class="badge badge-ok">Enabled</span>
+                }
+                else
+                {
+                    <span class="badge badge-none">Disabled</span>
+                }
+            </span>
+        </div>
+
+        <h3>Cell Voltage Protections</h3>
+        <div class="data-grid">
+            <span class="label">Undervoltage Protection</span>
+            <span class="value">@((cfg.CellUndervoltageProtectionMv / 1000.0).ToString("F3")) V</span>
+
+            <span class="label">Undervoltage Recovery</span>
+            <span class="value">@((cfg.CellUndervoltageRecoveryMv / 1000.0).ToString("F3")) V</span>
+
+            <span class="label">Overvoltage Protection</span>
+            <span class="value">@((cfg.CellOvervoltageProtectionMv / 1000.0).ToString("F3")) V</span>
+
+            <span class="label">Overvoltage Recovery</span>
+            <span class="value">@((cfg.CellOvervoltageRecoveryMv / 1000.0).ToString("F3")) V</span>
+
+            <span class="label">Balance Pressure Δ</span>
+            <span class="value">@cfg.BalancePressureDifferenceMv mV</span>
+
+            <span class="label">Balance Start Voltage</span>
+            <span class="value">@((cfg.BalanceStartingVoltageMv / 1000.0).ToString("F3")) V</span>
+        </div>
+
+        <h3>Current Protections</h3>
+        <div class="data-grid">
+            <span class="label">Charge OCP</span>
+            <span class="value">@((cfg.ChargingOvercurrentProtectionMa / 1000.0).ToString("F0")) A</span>
+
+            <span class="label">Charge OCP Delay</span>
+            <span class="value">@cfg.ChargingOvercurrentProtectionDelayS s</span>
+
+            <span class="label">Charge OCP Recovery</span>
+            <span class="value">@cfg.ChargingOvercurrentProtectionRecoveryS s</span>
+
+            <span class="label">Discharge OCP</span>
+            <span class="value">@((cfg.DischargingOvercurrentProtectionMa / 1000.0).ToString("F0")) A</span>
+
+            <span class="label">Discharge OCP Delay</span>
+            <span class="value">@cfg.DischargingOvercurrentProtectionDelayS s</span>
+
+            <span class="label">Discharge OCP Recovery</span>
+            <span class="value">@cfg.DischargingOvercurrentProtectionRecoveryS s</span>
+
+            <span class="label">Short Circuit Recovery</span>
+            <span class="value">@cfg.ShortCircuitProtectionRecoveryS s</span>
+
+            <span class="label">Short Circuit Delay</span>
+            <span class="value">@cfg.ShortCircuitProtectionDelayUs µs</span>
+        </div>
+
+        <h3>Temperature Protections</h3>
+        <div class="data-grid">
+            <span class="label">Charge OTP</span>
+            <span class="value">@cfg.ChargingOvertemperatureProtectionC.ToString("F1") °C</span>
+
+            <span class="label">Charge OTP Recovery</span>
+            <span class="value">@cfg.ChargingOvertemperatureRecoveryC.ToString("F1") °C</span>
+
+            <span class="label">Charge UTP</span>
+            <span class="value">@cfg.ChargingUndertemperatureProtectionC.ToString("F1") °C</span>
+
+            <span class="label">Charge UTP Recovery</span>
+            <span class="value">@cfg.ChargingUndertemperatureRecoveryC.ToString("F1") °C</span>
+
+            <span class="label">Discharge OTP</span>
+            <span class="value">@cfg.DischargingOvertemperatureProtectionC.ToString("F1") °C</span>
+
+            <span class="label">Discharge OTP Recovery</span>
+            <span class="value">@cfg.DischargingOvertemperatureRecoveryC.ToString("F1") °C</span>
+
+            <span class="label">Power Tube OTP</span>
+            <span class="value">@cfg.PowerTubeOvertemperatureProtectionC.ToString("F1") °C</span>
+
+            <span class="label">Power Tube OTP Recovery</span>
+            <span class="value">@cfg.PowerTubeOvertemperatureRecoveryC.ToString("F1") °C</span>
+        </div>
+    }
 }

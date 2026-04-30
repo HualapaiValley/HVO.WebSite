@@ -141,17 +141,18 @@ public sealed class CellInfoPacket
     /// </exception>
     public static CellInfoPacket Parse(ReadOnlySpan<byte> data)
     {
-        // Minimum length: SOH byte at 0x98 + 1 = 0x99 = 153 bytes
-        const int minLength = 0x99;
-        if (data.Length < minLength)
+        // Minimum for JK02_24S: SOH byte at 0x98 inclusive = 0x99 = 153 bytes.
+        // Minimum for JK02_32S: SOH byte at 0xB8 inclusive = 0xB9 = 185 bytes.
+        // The full data section is always 293 bytes, so both thresholds are met in practice.
+        const int minLength24S = 0x99;
+        if (data.Length < minLength24S)
             throw new JkBmsFrameException(
-                $"Cell info data section is {data.Length} bytes; expected at least {minLength}.");
+                $"Cell info data section is {data.Length} bytes; expected at least {minLength24S}.");
 
         // ── Cell count from bitmask ────────────────────────────────────────────
-        // Newer JK BMS hardware revisions (MAC prefix C8:47:8C:EC and EA) do not
-        // populate the enabled-cells bitmask at offset 0x30 — they leave it zero.
-        // Fall back to counting consecutive non-zero voltage entries from offset 0
-        // (unused cell slots are always 0x0000 in every known firmware version).
+        // JK02_24S: enabled-cells bitmask at 0x30 (frame byte 54); popcount = cell count.
+        // JK02_32S (newer EC/EA firmware): bitmask at 0x30 is zero; instead count
+        // consecutive non-zero U16 voltage entries from offset 0 (max 32 cells).
         uint enabledMask = ReadU32Le(data, 0x30);
         byte cellCount;
         if (enabledMask != 0)
@@ -160,23 +161,67 @@ public sealed class CellInfoPacket
         }
         else
         {
-            // Count leading non-zero U16 entries (max 24 cells, 2 bytes each).
+            // Count leading non-zero U16 entries (up to 32 for potential 32S devices).
             cellCount = 0;
-            for (int i = 0; i < 24; i++)
+            for (int i = 0; i < 32; i++)
             {
                 if (ReadU16Le(data, i * 2) == 0) break;
                 cellCount++;
             }
         }
-        if (cellCount is 0 or > 24)
+        if (cellCount is 0 or > 32)
             throw new JkBmsFrameException(
-                $"Invalid cell count {cellCount} derived from bitmask 0x{enabledMask:X8} (expected 1–24).");
+                $"Invalid cell count {cellCount} derived from bitmask 0x{enabledMask:X8} (expected 1–32).");
+
+        // ── Detect JK02_32S frame variant ──────────────────────────────────────
+        // When the bitmask is absent (enabledMask == 0), probe TotalVoltage at both
+        // the 24S offset (0x70) and the 32S offset (0x90).  If 0x70 is zero but 0x90
+        // is non-zero the frame follows the 32S layout (pack-level fields shifted +0x20).
+        // Reference: esphome-jk-bms decode_jk02_cell_info_ with offset variable (16→32).
+        bool is32S = enabledMask == 0
+                  && ReadU32Le(data, 0x70) == 0
+                  && data.Length >= 0xB9
+                  && ReadU32Le(data, 0x90) != 0;
 
         // ── Cell voltages (slots 0..cellCount-1) ──────────────────────────────
         var voltages = new ushort[cellCount];
         for (int i = 0; i < cellCount; i++)
             voltages[i] = ReadU16Le(data, i * 2);
 
+        if (is32S)
+        {
+            // JK02_32S pack-level field offsets (esphome field_offset = 32 = 0x20):
+            //   avg/delta/max/min: base + 0x10  (voltage section grows by 16 bytes)
+            //   TotalVoltage…CycleCapacity: base + 0x20  (both sections grow by 16 bytes)
+            //   PowerTubeTemp: 0x8A  (esphome data[112+32]=frame[144]=our[138])
+            //   AlarmBitmask (BE): 0xA0  (esphome data[134+32]=frame[166]=our[160])
+            return new CellInfoPacket
+            {
+                CellVoltagesMv         = voltages,
+                CellCount              = cellCount,
+                AverageCellVoltageMv   = ReadU16Le(data, 0x44),
+                DeltaCellVoltageMv     = ReadU16Le(data, 0x46),
+                MaxVoltageCellIndex    = data[0x48],
+                MinVoltageCellIndex    = data[0x49],
+                TotalVoltageMv         = ReadU32Le(data, 0x90),
+                CurrentMa              = ReadI32Le(data, 0x98),
+                BatteryTemperature1C   = DecodeTemperature(ReadI16Le(data, 0x9C)),
+                BatteryTemperature2C   = DecodeTemperature(ReadI16Le(data, 0x9E)),
+                PowerTubeTemperatureC  = DecodeTemperature(ReadI16Le(data, 0x8A)),
+                AlarmBitmask           = ReadU16Be(data, 0xA0),
+                BalancingCurrentMa     = ReadI16Le(data, 0xA4),
+                BalancingActive        = data[0xA6] != 0,
+                StateOfChargePercent   = data[0xA7],
+                RemainingCapacityMah   = ReadU32Le(data, 0xA8),
+                NominalCapacityMah     = ReadU32Le(data, 0xAC),
+                CycleCount             = ReadU32Le(data, 0xB0),
+                CycleCapacityMah       = ReadU32Le(data, 0xB4),
+                StateOfHealthPercent   = data[0xB8],
+                RecordedAtUtc          = DateTime.UtcNow,
+            };
+        }
+
+        // JK02_24S layout (standard offsets)
         return new CellInfoPacket
         {
             CellVoltagesMv         = voltages,
