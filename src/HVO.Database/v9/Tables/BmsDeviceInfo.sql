@@ -1,7 +1,7 @@
 CREATE TABLE [v9].[BmsDeviceInfo] (
     [id]                 BIGINT             IDENTITY (1, 1) NOT NULL,
     [deviceId]           INT                NOT NULL,
-    [recordedAt]         DATETIMEOFFSET (7) NOT NULL,
+    [recordedAt]         DATETIME2          NOT NULL,
     [manufacturer]       NVARCHAR (64)      NULL,
     [hardware]           NVARCHAR (32)      NULL,
     [firmware]           NVARCHAR (32)      NULL,

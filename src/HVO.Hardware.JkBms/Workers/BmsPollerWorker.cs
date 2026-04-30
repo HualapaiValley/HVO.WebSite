@@ -297,7 +297,10 @@ public sealed class BmsPollerWorker : BackgroundService
         var reading = MapToReading(device, packet);
 
         // Build config/deviceInfo snapshots only when they have changed.
+        // Track pending hashes separately — only commit them to device state AFTER the
+        // outbox record is successfully persisted to avoid skipping snapshots on retry.
         BmsConfigPayload? configPayload = null;
+        string? pendingConfigHash = null;
         if (device.LatestSettings is not null)
         {
             var cfg = MapToConfigPayload(device.LatestSettings);
@@ -305,11 +308,12 @@ public sealed class BmsPollerWorker : BackgroundService
             if (hash != device.LastSentConfigHash)
             {
                 configPayload = cfg;
-                device.LastSentConfigHash = hash;
+                pendingConfigHash = hash;
             }
         }
 
         BmsDeviceInfoPayload? infoPayload = null;
+        string? pendingInfoHash = null;
         if (device.LatestDeviceInfo is not null)
         {
             var info = MapToDeviceInfoPayload(device.LatestDeviceInfo);
@@ -317,7 +321,7 @@ public sealed class BmsPollerWorker : BackgroundService
             if (hash != device.LastSentDeviceInfoHash)
             {
                 infoPayload = info;
-                device.LastSentDeviceInfoHash = hash;
+                pendingInfoHash = hash;
             }
         }
 
@@ -349,6 +353,14 @@ public sealed class BmsPollerWorker : BackgroundService
                 CreatedAtUtc = DateTime.UtcNow,
             });
             await db.SaveChangesAsync(ct);
+
+            // Update hashes only after the outbox record is durably persisted.
+            // If SaveChangesAsync threw, the hashes stay unchanged so the next poll
+            // will re-include the config/deviceInfo snapshot.
+            if (pendingConfigHash is not null)
+                device.LastSentConfigHash = pendingConfigHash;
+            if (pendingInfoHash is not null)
+                device.LastSentDeviceInfoHash = pendingInfoHash;
         }
     }
 

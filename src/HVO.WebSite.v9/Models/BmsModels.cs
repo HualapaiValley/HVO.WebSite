@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace HVO.WebSite.v9.Models;
 
 // ── Ingest request ────────────────────────────────────────────────────────────
@@ -8,6 +10,7 @@ namespace HVO.WebSite.v9.Models;
 /// </summary>
 public class BmsIngestRequest
 {
+    [Required]
     public required BmsReadingRequest Reading { get; init; }
 
     /// <summary>Non-null only when config has changed since last send.</summary>
@@ -19,8 +22,14 @@ public class BmsIngestRequest
 
 public class BmsReadingRequest
 {
+    [Required]
+    [MaxLength(17)]
     public required string DeviceAddress { get; init; }
+
+    [Required]
+    [MaxLength(100)]
     public required string DeviceAlias { get; init; }
+
     public DateTime RecordedAtUtc { get; init; }
 
     // Pack electrical
@@ -35,7 +44,10 @@ public class BmsReadingRequest
     public int CurrentMa { get; init; }
 
     // State
+    [Range(0, 100)]
     public int SocPercent { get; init; }
+
+    [Range(0, 100)]
     public int SohPercent { get; init; }
 
     // Capacity
@@ -45,8 +57,13 @@ public class BmsReadingRequest
     public long CycleCapacityMah { get; init; }
 
     // Temperatures
+    [Range(-100.0, 200.0)]
     public double BatteryTemperature1C { get; init; }
+
+    [Range(-100.0, 200.0)]
     public double BatteryTemperature2C { get; init; }
+
+    [Range(-100.0, 200.0)]
     public double PowerTubeTemperatureC { get; init; }
 
     // Balancing
@@ -97,12 +114,25 @@ public class BmsConfigRequest
 
 public class BmsDeviceInfoRequest
 {
+    [MaxLength(100)]
     public string? Manufacturer { get; init; }
+
+    [MaxLength(50)]
     public string? Hardware { get; init; }
+
+    [MaxLength(50)]
     public string? Firmware { get; init; }
+
+    [MaxLength(50)]
     public string? SerialNumber { get; init; }
+
+    [MaxLength(100)]
     public string? DeviceName { get; init; }
+
+    [MaxLength(20)]
     public string? ManufacturingDate { get; init; }
+
+    [MaxLength(200)]
     public string? UserData { get; init; }
 }
 

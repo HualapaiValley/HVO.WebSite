@@ -3,7 +3,7 @@ CREATE TABLE [v9].[BmsDevice] (
     [siteId]      INT                NULL,
     [address]     NVARCHAR (17)      NOT NULL,
     [alias]       NVARCHAR (100)     NOT NULL,
-    [firstSeenAt] DATETIMEOFFSET (7) NOT NULL,
+    [firstSeenAt] DATETIME2          NOT NULL,
     [notes]       NVARCHAR (500)     NULL,
     CONSTRAINT [PK_BmsDevice] PRIMARY KEY CLUSTERED ([id] ASC),
     CONSTRAINT [FK_BmsDevice_BmsSite] FOREIGN KEY ([siteId]) REFERENCES [v9].[BmsSite] ([id]) ON DELETE SET NULL

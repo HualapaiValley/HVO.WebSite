@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace HVO.WebSite.v9.Controllers;
 
@@ -67,10 +68,16 @@ public class BmsController : ControllerBase
 
         // ── Resolve devices (upsert by address) ───────────────────────────────
 
-        var addresses = requests.Select(r => r.Reading.DeviceAddress).Distinct().ToList();
+        // Normalize addresses to uppercase so lookups are case-insensitive regardless of
+        // client casing or database collation differences.
+        var addresses = requests
+            .Select(r => r.Reading.DeviceAddress.ToUpperInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         var existingDevices = await _db.BmsDevices
             .Where(d => addresses.Contains(d.Address))
-            .ToDictionaryAsync(d => d.Address, ct);
+            .ToDictionaryAsync(d => d.Address, StringComparer.OrdinalIgnoreCase, ct);
 
         var now = DateTime.UtcNow;
         var devicesToAdd = new List<BmsDevice>();
@@ -78,7 +85,9 @@ public class BmsController : ControllerBase
         {
             if (!existingDevices.ContainsKey(address))
             {
-                var alias = requests.First(r => r.Reading.DeviceAddress == address).Reading.DeviceAlias;
+                var alias = requests
+                    .First(r => r.Reading.DeviceAddress.Equals(address, StringComparison.OrdinalIgnoreCase))
+                    .Reading.DeviceAlias;
                 var device = new BmsDevice
                 {
                     Address = address,
@@ -104,7 +113,7 @@ public class BmsController : ControllerBase
                 var raceAddresses = devicesToAdd.Select(d => d.Address).ToList();
                 var raceFetched = await _db.BmsDevices
                     .Where(d => raceAddresses.Contains(d.Address))
-                    .ToDictionaryAsync(d => d.Address, ct);
+                    .ToDictionaryAsync(d => d.Address, StringComparer.OrdinalIgnoreCase, ct);
                 foreach (var (addr, dev) in raceFetched)
                     existingDevices[addr] = dev;
             }
@@ -112,7 +121,8 @@ public class BmsController : ControllerBase
 
         // ── Pre-check which (DeviceId, RecordedAt) pairs already exist ────────
 
-        var deviceIdByAddress = existingDevices.ToDictionary(kv => kv.Key, kv => kv.Value.Id);
+        var deviceIdByAddress = existingDevices.ToDictionary(
+            kv => kv.Key, kv => kv.Value.Id, StringComparer.OrdinalIgnoreCase);
         var deviceIds = deviceIdByAddress.Values.Distinct().ToList();
         var timestamps = requests.Select(r => r.Reading.RecordedAtUtc.ToUniversalTime()).Distinct().ToList();
 
@@ -135,7 +145,7 @@ public class BmsController : ControllerBase
         {
             var readingReq = request.Reading;
             var recordedAt = readingReq.RecordedAtUtc.ToUniversalTime();
-            var deviceId = deviceIdByAddress[readingReq.DeviceAddress];
+            var deviceId = deviceIdByAddress[readingReq.DeviceAddress.ToUpperInvariant()];
 
             if (existingSet.Contains((deviceId, recordedAt)))
             {
@@ -149,8 +159,31 @@ public class BmsController : ControllerBase
                 continue;
             }
 
+            // Validate individual record (data annotations)
+            var validationResults = new List<ValidationResult>();
+            if (!Validator.TryValidateObject(
+                readingReq,
+                new ValidationContext(readingReq),
+                validationResults,
+                validateAllProperties: true))
+            {
+                failures.Add(new BmsIngestFailure
+                {
+                    DeviceAddress = readingReq.DeviceAddress,
+                    RecordedAtUtc = recordedAt,
+                    Error = string.Join("; ", validationResults.Select(r => r.ErrorMessage))
+                });
+                continue;
+            }
+
             try
             {
+                // Wrap all writes for this record in one transaction so that a failure
+                // in any step (config, reading, cells, alarm) leaves no partial state.
+                // A retry will not be blocked by the duplicate pre-check because the
+                // reading row is only committed once the whole transaction succeeds.
+                await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
                 // ── Config snapshot (change-detect on server) ─────────────────
 
                 if (request.Config is not null)
@@ -230,6 +263,8 @@ public class BmsController : ControllerBase
                 // ── Alarm change-detection ────────────────────────────────────
 
                 await HandleAlarmChangeAsync(deviceId, recordedAt, readingReq.AlarmBitmask, ct);
+
+                await tx.CommitAsync(ct);
 
                 inserted++;
 

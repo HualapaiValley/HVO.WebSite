@@ -5,22 +5,48 @@ using HVO.WebSite.v9.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace HVO.WebSite.UnitTests;
 
+/// <summary>
+/// Unit tests for <see cref="BmsController"/> using SQLite in-memory (which supports
+/// transactions) rather than the EF InMemory provider.
+/// MSTest creates a new class instance per test method, so [TestInitialize] /
+/// [TestCleanup] give each test a fully isolated database.
+/// </summary>
 [TestClass]
 public class BmsControllerTests
 {
     private const string DeviceA = "C8:47:8C:EC:1B:0A";
     private const string DeviceB = "C8:47:8C:EC:1B:0B";
 
-    private static HvoV9DbContext CreateDb() =>
-        new(new DbContextOptionsBuilder<HvoV9DbContext>()
-            .UseInMemoryDatabase($"BmsCtrl_{Guid.NewGuid()}")
-            .Options);
+    private SqliteConnection _conn = null!;
+    private HvoV9DbContext _db = null!;
+    private BmsController _ctrl = null!;
+
+    [TestInitialize]
+    public void Setup()
+    {
+        _conn = new SqliteConnection("DataSource=:memory:");
+        _conn.Open();
+        _db = new HvoV9DbContext(
+            new DbContextOptionsBuilder<HvoV9DbContext>()
+                .UseSqlite(_conn)
+                .Options);
+        _db.Database.EnsureCreated();
+        _ctrl = CreateController(_db);
+    }
+
+    [TestCleanup]
+    public void Teardown()
+    {
+        _db.Dispose();
+        _conn.Dispose();
+    }
 
     private static BmsController CreateController(HvoV9DbContext db)
     {
@@ -101,6 +127,20 @@ public class BmsControllerTests
             MosOtpRecoveryC = 75.0,
         };
 
+    private static BmsDeviceInfoRequest MakeDeviceInfo(
+        string firmware = "1.0.0",
+        string manufacturer = "JK") =>
+        new()
+        {
+            Manufacturer = manufacturer,
+            Hardware = "3.0",
+            Firmware = firmware,
+            SerialNumber = "SN001",
+            DeviceName = "JK-B2A24S",
+            ManufacturingDate = "2024-01",
+            UserData = null,
+        };
+
     // -------------------------------------------------------------------------
     // Empty batch
     // -------------------------------------------------------------------------
@@ -108,10 +148,7 @@ public class BmsControllerTests
     [TestMethod]
     public async Task IngestReadings_EmptyBatch_Returns400()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
-        var result = await ctrl.IngestReadings([], CancellationToken.None);
+        var result = await _ctrl.IngestReadings([], CancellationToken.None);
 
         result.Result.Should().BeOfType<BadRequestObjectResult>();
     }
@@ -123,10 +160,7 @@ public class BmsControllerTests
     [TestMethod]
     public async Task IngestReadings_SingleRecord_InsertsReadingAndCells()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
-        var result = await ctrl.IngestReadings(
+        var result = await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T00:00:00Z")],
             CancellationToken.None);
 
@@ -136,31 +170,28 @@ public class BmsControllerTests
         body.Skipped.Should().Be(0);
         body.Failed.Should().BeEmpty();
 
-        db.BmsReadings.Count().Should().Be(1);
-        db.BmsCellVoltages.Count().Should().Be(4);
-        db.BmsCellResistances.Count().Should().Be(4);
+        _db.BmsReadings.Count().Should().Be(1);
+        _db.BmsCellVoltages.Count().Should().Be(4);
+        _db.BmsCellResistances.Count().Should().Be(4);
     }
 
     [TestMethod]
     public async Task IngestReadings_MultipleDevices_RegistersEachDevice()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
         var batch = new[]
         {
             MakeRequest(DeviceA, "2026-01-01T00:00:00Z"),
             MakeRequest(DeviceB, "2026-01-01T00:00:00Z"),
         };
 
-        var result = await ctrl.IngestReadings(batch, CancellationToken.None);
+        var result = await _ctrl.IngestReadings(batch, CancellationToken.None);
 
         var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         var body = created.Value.Should().BeOfType<BmsIngestBatchResponse>().Subject;
         body.Inserted.Should().Be(2);
 
-        db.BmsDevices.Count().Should().Be(2);
-        db.BmsReadings.Count().Should().Be(2);
+        _db.BmsDevices.Count().Should().Be(2);
+        _db.BmsReadings.Count().Should().Be(2);
     }
 
     // -------------------------------------------------------------------------
@@ -170,15 +201,12 @@ public class BmsControllerTests
     [TestMethod]
     public async Task IngestReadings_PowerWatts_IsCalculatedCorrectly()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
         // 52V × 1A = 52W
         var req = MakeRequest(DeviceA, "2026-01-01T00:00:00Z");
 
-        await ctrl.IngestReadings([req], CancellationToken.None);
+        await _ctrl.IngestReadings([req], CancellationToken.None);
 
-        var reading = db.BmsReadings.Single();
+        var reading = _db.BmsReadings.Single();
         reading.PowerWatts.Should().BeApproximately(52.0, 0.001);
     }
 
@@ -189,29 +217,23 @@ public class BmsControllerTests
     [TestMethod]
     public async Task IngestReadings_DuplicateRecord_SkipsSecondInsert()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
         var batch = new[] { MakeRequest(DeviceA, "2026-01-01T01:00:00Z") };
 
-        await ctrl.IngestReadings(batch, CancellationToken.None);
+        await _ctrl.IngestReadings(batch, CancellationToken.None);
 
-        var result = await ctrl.IngestReadings(batch, CancellationToken.None);
+        var result = await _ctrl.IngestReadings(batch, CancellationToken.None);
 
         var body = ((CreatedAtActionResult)result.Result!).Value
             .Should().BeOfType<BmsIngestBatchResponse>().Subject;
         body.Inserted.Should().Be(0);
         body.Skipped.Should().Be(1);
 
-        db.BmsReadings.Count().Should().Be(1);
+        _db.BmsReadings.Count().Should().Be(1);
     }
 
     [TestMethod]
     public async Task IngestReadings_IntraBatchDuplicate_SkipsSecondOccurrence()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
         // Two records with the same device + timestamp in the same batch
         var batch = new[]
         {
@@ -219,14 +241,14 @@ public class BmsControllerTests
             MakeRequest(DeviceA, "2026-01-01T02:00:00Z"),
         };
 
-        var result = await ctrl.IngestReadings(batch, CancellationToken.None);
+        var result = await _ctrl.IngestReadings(batch, CancellationToken.None);
 
         var body = ((CreatedAtActionResult)result.Result!).Value
             .Should().BeOfType<BmsIngestBatchResponse>().Subject;
         body.Inserted.Should().Be(1);
         body.Skipped.Should().Be(1);
 
-        db.BmsReadings.Count().Should().Be(1);
+        _db.BmsReadings.Count().Should().Be(1);
     }
 
     // -------------------------------------------------------------------------
@@ -236,69 +258,114 @@ public class BmsControllerTests
     [TestMethod]
     public async Task IngestReadings_FirstConfig_InsertsSnapshot()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
         var cfg = MakeConfig();
         var req = MakeRequest(DeviceA, "2026-01-01T03:00:00Z", config: cfg);
 
-        await ctrl.IngestReadings([req], CancellationToken.None);
+        await _ctrl.IngestReadings([req], CancellationToken.None);
 
-        db.BmsDeviceConfigs.Count().Should().Be(1);
+        _db.BmsDeviceConfigs.Count().Should().Be(1);
     }
 
     [TestMethod]
     public async Task IngestReadings_SameConfigTwice_DoesNotInsertDuplicate()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
         var cfg = MakeConfig();
 
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T04:00:00Z", config: cfg)],
             CancellationToken.None);
 
         // Second call with identical config
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T04:00:30Z", config: cfg)],
             CancellationToken.None);
 
-        db.BmsDeviceConfigs.Count().Should().Be(1);
+        _db.BmsDeviceConfigs.Count().Should().Be(1);
     }
 
     [TestMethod]
     public async Task IngestReadings_ChangedConfig_InsertsNewSnapshot()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
         var cfg1 = MakeConfig(cellCount: 4, chargingEnabled: true);
         var cfg2 = MakeConfig(cellCount: 4, chargingEnabled: false);  // changed
 
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T05:00:00Z", config: cfg1)],
             CancellationToken.None);
 
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T05:00:30Z", config: cfg2)],
             CancellationToken.None);
 
-        db.BmsDeviceConfigs.Count().Should().Be(2);
+        _db.BmsDeviceConfigs.Count().Should().Be(2);
     }
 
     [TestMethod]
     public async Task IngestReadings_NullConfig_DoesNotInsertSnapshot()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
         // No config payload — steady-state record
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T06:00:00Z", config: null)],
             CancellationToken.None);
 
-        db.BmsDeviceConfigs.Count().Should().Be(0);
+        _db.BmsDeviceConfigs.Count().Should().Be(0);
+    }
+
+    // -------------------------------------------------------------------------
+    // DeviceInfo change detection
+    // -------------------------------------------------------------------------
+
+    [TestMethod]
+    public async Task IngestReadings_FirstDeviceInfo_InsertsSnapshot()
+    {
+        await _ctrl.IngestReadings(
+            [MakeRequest(DeviceA, "2026-01-01T07:00:00Z", deviceInfo: MakeDeviceInfo())],
+            CancellationToken.None);
+
+        _db.BmsDeviceInfos.Count().Should().Be(1);
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_SameDeviceInfoTwice_DoesNotInsertDuplicate()
+    {
+        var info = MakeDeviceInfo();
+
+        await _ctrl.IngestReadings(
+            [MakeRequest(DeviceA, "2026-01-01T07:00:00Z", deviceInfo: info)],
+            CancellationToken.None);
+
+        await _ctrl.IngestReadings(
+            [MakeRequest(DeviceA, "2026-01-01T07:00:30Z", deviceInfo: info)],
+            CancellationToken.None);
+
+        _db.BmsDeviceInfos.Count().Should().Be(1);
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_ChangedDeviceInfo_InsertsNewSnapshot()
+    {
+        var info1 = MakeDeviceInfo(firmware: "1.0.0");
+        var info2 = MakeDeviceInfo(firmware: "1.0.1");  // firmware updated
+
+        await _ctrl.IngestReadings(
+            [MakeRequest(DeviceA, "2026-01-01T07:01:00Z", deviceInfo: info1)],
+            CancellationToken.None);
+
+        await _ctrl.IngestReadings(
+            [MakeRequest(DeviceA, "2026-01-01T07:01:30Z", deviceInfo: info2)],
+            CancellationToken.None);
+
+        _db.BmsDeviceInfos.Count().Should().Be(2);
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_NullDeviceInfo_DoesNotInsertSnapshot()
+    {
+        await _ctrl.IngestReadings(
+            [MakeRequest(DeviceA, "2026-01-01T07:02:00Z", deviceInfo: null)],
+            CancellationToken.None);
+
+        _db.BmsDeviceInfos.Count().Should().Be(0);
     }
 
     // -------------------------------------------------------------------------
@@ -308,16 +375,13 @@ public class BmsControllerTests
     [TestMethod]
     public async Task IngestReadings_NewAlarm_OpensAlarmRow()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
         // First reading — alarm bit 0x01 appears
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T10:00:00Z", alarmBitmask: 0x01)],
             CancellationToken.None);
 
-        db.BmsAlarms.Count().Should().Be(1);
-        var alarm = db.BmsAlarms.Single();
+        _db.BmsAlarms.Count().Should().Be(1);
+        var alarm = _db.BmsAlarms.Single();
         alarm.AlarmBitmask.Should().Be(0x01);
         alarm.ClearedAt.Should().BeNull();
     }
@@ -325,23 +389,19 @@ public class BmsControllerTests
     [TestMethod]
     public async Task IngestReadings_AlarmClears_SetsAlarmClearedAt()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
-        var activateTime = DateTime.Parse("2026-01-01T11:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
         var clearTime = DateTime.Parse("2026-01-01T11:00:30Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
 
         // Alarm fires
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T11:00:00Z", alarmBitmask: 0x02)],
             CancellationToken.None);
 
         // Alarm clears
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T11:00:30Z", alarmBitmask: 0x00)],
             CancellationToken.None);
 
-        var alarm = db.BmsAlarms.Single();
+        var alarm = _db.BmsAlarms.Single();
         alarm.ClearedAt.Should().NotBeNull();
         alarm.ClearedAt.Should().Be(clearTime);
     }
@@ -349,35 +409,29 @@ public class BmsControllerTests
     [TestMethod]
     public async Task IngestReadings_NoAlarms_DoesNotCreateAlarmRow()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T12:00:00Z", alarmBitmask: 0x00)],
             CancellationToken.None);
 
-        db.BmsAlarms.Count().Should().Be(0);
+        _db.BmsAlarms.Count().Should().Be(0);
     }
 
     [TestMethod]
     public async Task IngestReadings_AlarmBitmaskChanges_ClosesOldAndOpensNew()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
         // First alarm
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T13:00:00Z", alarmBitmask: 0x01)],
             CancellationToken.None);
 
         // Alarm bitmask changes (different bits) without clearing first
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T13:00:30Z", alarmBitmask: 0x04)],
             CancellationToken.None);
 
-        db.BmsAlarms.Count().Should().Be(2);
+        _db.BmsAlarms.Count().Should().Be(2);
 
-        var alarms = db.BmsAlarms.OrderBy(a => a.ActivatedAt).ToList();
+        var alarms = _db.BmsAlarms.OrderBy(a => a.ActivatedAt).ToList();
         alarms[0].AlarmBitmask.Should().Be(0x01);
         alarms[0].ClearedAt.Should().NotBeNull();
         alarms[1].AlarmBitmask.Should().Be(0x04);
@@ -387,21 +441,18 @@ public class BmsControllerTests
     [TestMethod]
     public async Task IngestReadings_SameAlarmBitmask_DoesNotOpenDuplicateAlarm()
     {
-        using var db = CreateDb();
-        var ctrl = CreateController(db);
-
         // Alarm fires
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T14:00:00Z", alarmBitmask: 0x01)],
             CancellationToken.None);
 
         // Same alarm still active on next poll
-        await ctrl.IngestReadings(
+        await _ctrl.IngestReadings(
             [MakeRequest(DeviceA, "2026-01-01T14:00:30Z", alarmBitmask: 0x01)],
             CancellationToken.None);
 
         // Only one open alarm row
-        db.BmsAlarms.Count().Should().Be(1);
-        db.BmsAlarms.Single().ClearedAt.Should().BeNull();
+        _db.BmsAlarms.Count().Should().Be(1);
+        _db.BmsAlarms.Single().ClearedAt.Should().BeNull();
     }
 }
