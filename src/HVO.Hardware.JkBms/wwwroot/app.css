@@ -145,13 +145,17 @@ h3 {
 }
 
 /* ── Data table ──────────────────────────────────────────── */
+.data-table-wrapper {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-top: 4px;
+}
+
 .data-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
 }
 
 .data-table thead {
@@ -331,6 +335,8 @@ h3 {
 .text-ok    { color: var(--text-ok); }
 .text-warn  { color: var(--text-warn); }
 .text-error { color: var(--text-error); }
+.h1-subtitle  { font-size: 13px; font-weight: 400; }
+.section-meta { font-size: 12px; font-weight: 400; }
 
 /* ── Back navigation link ────────────────────────────────── */
 .back-link {

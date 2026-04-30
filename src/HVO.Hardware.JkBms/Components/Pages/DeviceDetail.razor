@@ -3,7 +3,6 @@
 @using HVO.Hardware.JkBms.Protocol.Packets
 @using HVO.Hardware.JkBms.Workers
 @inject BmsPollerWorker Poller
-@inject NavigationManager Nav
 
 <a class="back-link" href="/">Back to Status</a>
 
@@ -13,7 +12,7 @@
 }
 else
 {
-    <h1>@_state.Alias <span class="monospace text-secondary" style="font-size:13px;font-weight:400;">@_state.Address</span></h1>
+    <h1>@_state.Alias <span class="monospace text-secondary h1-subtitle">@_state.Address</span></h1>
 
     @if (_state.LatestReading is null)
     {
@@ -25,6 +24,7 @@ else
         var ageSeconds = (int)(DateTime.UtcNow - r.RecordedAtUtc).TotalSeconds;
         var currentA = r.CurrentMa / 1000.0;
         var isCharging = r.CurrentMa < 0;
+        var isIdle = r.CurrentMa == 0;
 
         <!-- Pack Summary Cards -->
         <div class="summary-cards">
@@ -38,7 +38,7 @@ else
             </div>
             <div class="summary-card @(isCharging ? "card-charging" : "")">
                 <div class="card-label">Current</div>
-                <div class="card-value">@Math.Abs(currentA).ToString("F1")<span class="card-unit">A @(isCharging ? "↑ chg" : "↓ dis")</span></div>
+                <div class="card-value">@Math.Abs(currentA).ToString("F1")<span class="card-unit">A @(isIdle ? "— idle" : isCharging ? "↑ chg" : "↓ dis")</span></div>
             </div>
             <div class="summary-card">
                 <div class="card-label">Δ Cell Voltage</div>
@@ -55,7 +55,7 @@ else
         </div>
 
         <!-- Cell Voltages -->
-        <h2>Cell Voltages <span class="text-muted" style="font-size:12px;font-weight:400;">(@r.CellCount cells · avg @r.AverageCellVoltageMv mV)</span></h2>
+        <h2>Cell Voltages <span class="text-muted section-meta">(@r.CellCount cells · avg @r.AverageCellVoltageMv mV)</span></h2>
         <div class="cell-grid">
             @for (int i = 0; i < r.CellVoltagesMv.Count; i++)
             {
