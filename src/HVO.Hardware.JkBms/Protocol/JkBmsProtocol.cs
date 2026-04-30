@@ -28,7 +28,11 @@ public static class JkBmsProtocol
     /// <summary>JK BMS UART-over-BLE notify/RX characteristic UUID (FFE1, with Notify).</summary>
     public static readonly Guid CharacteristicUuid = new("0000ffe1-0000-1000-8000-00805f9b34fb");
 
-    /// <summary>JK BMS UART-over-BLE write/TX characteristic UUID (FFE2, write-without-response only).</summary>
+    /// <summary>
+    /// JK BMS UART-over-BLE documented write/TX characteristic UUID (FFE2, write-without-response only).
+    /// Note: for the old-module devices targeted by this implementation (MAC prefix C8:47:8C), the
+    /// transport writes commands to FFE1 instead, because writes to FFE2 produce no BMS response.
+    /// </summary>
     public static readonly Guid WriteCharacteristicUuid = new("0000ffe2-0000-1000-8000-00805f9b34fb");
 
     // ── Frame types ───────────────────────────────────────────────────────────

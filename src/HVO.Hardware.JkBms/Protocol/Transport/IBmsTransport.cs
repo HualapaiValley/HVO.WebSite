@@ -2,9 +2,11 @@ namespace HVO.Hardware.JkBms.Protocol.Transport;
 
 /// <summary>
 /// Abstraction over the BLE transport layer for a single JK BMS device.
-/// Implementations must be single-use: create a new instance per poll cycle
-/// (or at least after a disconnect). Thread-safety within a single instance
-/// is not required — the caller serialises access via a semaphore.
+///
+/// Implementations are long-lived — create one instance per device at startup and
+/// hold it for the application lifetime.  <see cref="ExchangeAsync"/> connects on the
+/// first call and reconnects automatically if the connection is lost between calls.
+/// Thread-safety within a single instance is not required — the caller serialises access.
 /// </summary>
 public interface IBmsTransport : IAsyncDisposable
 {

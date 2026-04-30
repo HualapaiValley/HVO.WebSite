@@ -37,10 +37,10 @@ public sealed class BmsDeviceReading
     /// <summary>Spread between highest and lowest cell (mV).</summary>
     public ushort DeltaCellVoltageMv { get; init; }
 
-    /// <summary>0-based index of cell with highest voltage.</summary>
+    /// <summary>1-based cell number with highest voltage as reported by the BMS; 0 = none.</summary>
     public byte MaxVoltageCellIndex { get; init; }
 
-    /// <summary>0-based index of cell with lowest voltage.</summary>
+    /// <summary>1-based cell number with lowest voltage as reported by the BMS; 0 = none.</summary>
     public byte MinVoltageCellIndex { get; init; }
 
     // ── Balancing ─────────────────────────────────────────────────────────────

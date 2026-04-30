@@ -26,7 +26,7 @@ public sealed class JkBmsFrameException(string message)
     : JkBmsException(message);
 
 /// <summary>
-/// Thrown when a response frame fails CRC32 validation.
+/// Thrown when a response frame fails 1-byte byte-sum CRC validation.
 /// </summary>
 public sealed class JkBmsCrcException(string message)
     : JkBmsException(message);

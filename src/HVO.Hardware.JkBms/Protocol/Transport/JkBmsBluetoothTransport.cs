@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Threading.Channels;
 using Linux.Bluetooth;
 using Linux.Bluetooth.Extensions;
 using Microsoft.Extensions.Logging;
@@ -23,6 +24,10 @@ namespace HVO.Hardware.JkBms.Protocol.Transport;
 /// </summary>
 internal sealed class JkBmsBluetoothTransport : IBmsTransport
 {
+    private const int MaxConnectAttempts  = 3;
+    private const int ConnectRetryDelayMs = 2_000;
+    private const int MinScanMs           = 3_000;
+
     private readonly ILogger<JkBmsBluetoothTransport> _logger;
     private readonly TimeSpan _connectTimeout;
     private readonly string _adapterName;
@@ -34,10 +39,19 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     private bool _isConnected;
     private bool _disposed;
 
-    // Buffer for accumulating chunked BLE notifications
+    // Buffer for accumulating chunked BLE notifications.
+    // _rxBuffer is written only from OnPropertyChanged (D-Bus dispatch thread) and reset
+    // at the start of each DoExchangeAsync call on the worker thread. Both operations are
+    // never concurrent: the worker sends the write command then blocks on the channel;
+    // notifications arrive and are processed while the worker waits.
     private readonly List<byte> _rxBuffer = [];
-    private readonly SemaphoreSlim _frameSemaphore = new(0, 1);
-    private byte[]? _assembledFrame;
+
+    // Assembled frames are enqueued here. Using an unbounded Channel ensures that if
+    // multiple frames arrive before the consumer reads them, none are lost and the
+    // earlier frame is never silently overwritten — fixing the race in the prior
+    // SemaphoreSlim + single-field design.
+    private readonly Channel<byte[]> _frameChannel =
+        Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions { SingleReader = true });
 
     public string DeviceAddress { get; }
     public bool IsConnected => _isConnected && _writeCharacteristic != null && _notifyCharacteristic != null;
@@ -71,7 +85,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             var adapter = adapters.FirstOrDefault(
                     a => a.ObjectPath.ToString().EndsWith("/" + _adapterName,
                          StringComparison.OrdinalIgnoreCase))
-                ?? throw new JkBmsConnectException(DeviceAddress, 1,
+                ?? throw new JkBmsConnectException(DeviceAddress, 0,
                     new InvalidOperationException(
                         $"Bluetooth adapter '{_adapterName}' not found. " +
                         $"Available: {string.Join(", ", adapters.Select(a => a.ObjectPath.ToString().Split('/').Last()))}"));
@@ -96,7 +110,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
                 _device = await WaitForDeviceAdvertisementAsync(adapter, DeviceAddress, timeoutCts.Token);
 
                 if (_device is null)
-                    throw new JkBmsConnectException(DeviceAddress, 1,
+                    throw new JkBmsConnectException(DeviceAddress, 0,
                         new InvalidOperationException($"Device '{DeviceAddress}' not found after BLE discovery scan."));
 
                 // Ensure the scan has run long enough for the HCI controller to have built up
@@ -104,7 +118,6 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
                 // BlueZ may emit an immediate RSSI property update from its cache when discovery
                 // starts, which does not represent an advertisement actually received by the HCI
                 // controller. Connecting on that stale data causes le-connection-abort-by-local.
-                const int MinScanMs = 3_000;
                 var elapsed = Stopwatch.GetElapsedTime(scanStart);
                 if (elapsed.TotalMilliseconds < MinScanMs)
                 {
@@ -117,26 +130,32 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
                 // JK BMS devices use open BLE connections and do not support bonding.
                 // The scan MUST still be running at this point (see comment above).
                 //
-                // Retry up to 3 times with a pause between attempts. After a previous
-                // disconnect the HCI controller may need recovery time; a brief wait and
-                // retry (with the scan still running) reliably resolves this.
-                const int MaxConnectAttempts = 3;
-                const int ConnectRetryDelayMs = 2_000;
+                // Retry up to MaxConnectAttempts times with a pause between attempts. After a
+                // previous disconnect the HCI controller may need recovery time; a brief wait
+                // and retry (with the scan still running) reliably resolves this.
+                Exception? lastConnectEx = null;
                 for (int attempt = 1; attempt <= MaxConnectAttempts; attempt++)
                 {
                     try
                     {
                         await _device.ConnectAsync();
+                        lastConnectEx = null;
                         break;
                     }
-                    catch (Exception ex) when (attempt < MaxConnectAttempts)
+                    catch (Exception ex)
                     {
-                        _logger.LogWarning(
-                            "BLE connect attempt {Attempt}/{Max} failed ({Message}); retrying after {Delay}ms",
-                            attempt, MaxConnectAttempts, ex.Message, ConnectRetryDelayMs);
-                        await Task.Delay(ConnectRetryDelayMs, timeoutCts.Token);
+                        lastConnectEx = ex;
+                        if (attempt < MaxConnectAttempts)
+                        {
+                            _logger.LogWarning(
+                                "BLE connect attempt {Attempt}/{Max} failed ({Message}); retrying after {Delay}ms",
+                                attempt, MaxConnectAttempts, ex.Message, ConnectRetryDelayMs);
+                            await Task.Delay(ConnectRetryDelayMs, timeoutCts.Token);
+                        }
                     }
                 }
+                if (lastConnectEx is not null)
+                    throw new JkBmsConnectException(DeviceAddress, MaxConnectAttempts, lastConnectEx);
             }
             finally
             {
@@ -149,7 +168,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             // Discover the UART service and characteristic
             var serviceUuid = JkBmsProtocol.ServiceUuid.ToString();
             var service = await _device.GetServiceAsync(serviceUuid)
-                ?? throw new JkBmsConnectException(DeviceAddress, 1,
+                ?? throw new JkBmsConnectException(DeviceAddress, MaxConnectAttempts,
                     new InvalidOperationException($"JK BMS service {serviceUuid} not found."));
 
             // The JK BMS "old BLE module" (MAC prefix C8:47:8C) exposes two characteristics
@@ -165,7 +184,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             var charUuid = JkBmsProtocol.CharacteristicUuid.ToString();  // FFE1
             var allServiceChars = await GattExtensions.GetCharacteristicsAsync(service) ?? [];
             if (allServiceChars.Count == 0)
-                throw new JkBmsConnectException(DeviceAddress, 1,
+                throw new JkBmsConnectException(DeviceAddress, MaxConnectAttempts,
                     new InvalidOperationException($"JK BMS service {serviceUuid} has no characteristics."));
 
             // Enumerate all characteristics for debug logging.
@@ -188,7 +207,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             _writeCharacteristic = _notifyCharacteristic;
 
             if (_notifyCharacteristic == null)
-                throw new JkBmsConnectException(DeviceAddress, 1,
+                throw new JkBmsConnectException(DeviceAddress, MaxConnectAttempts,
                     new InvalidOperationException($"JK BMS characteristic {charUuid} not found."));
 
             _logger.LogDebug("BLE characteristic (write + notify): {Uuid}", charUuid);
@@ -295,12 +314,9 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
 
     private async Task<byte[]> DoExchangeAsync(byte[] command, CancellationToken ct)
     {
-        // Reset receive state
+        // Reset receive state and drain any frames left over from a previous exchange.
         _rxBuffer.Clear();
-        _assembledFrame = null;
-        // Drain any leftover permits from a previous exchange
-        while (_frameSemaphore.CurrentCount > 0)
-            _frameSemaphore.Wait();
+        while (_frameChannel.Reader.TryRead(out _)) { }
 
         // Write the command using Write Command (GATT opcode 0x52, write-without-response).
         // Commands are written to the FFE1 characteristic, which also carries notifications.
@@ -321,18 +337,15 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
         // Collect frames until we receive one with the expected type.
         while (true)
         {
+            byte[] frame;
             try
             {
-                await _frameSemaphore.WaitAsync(timeoutCts.Token);
+                frame = await _frameChannel.Reader.ReadAsync(timeoutCts.Token);
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
                 throw new JkBmsTimeoutException(DeviceAddress);
             }
-
-            var frame = _assembledFrame
-                ?? throw new JkBmsFrameException(
-                    $"Frame signal received but assembled frame is null for {DeviceAddress}.");
 
             if (!JkBmsProtocol.ValidateCrc(frame))
                 throw new JkBmsCrcException(
@@ -346,7 +359,6 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             _logger.LogDebug(
                 "Discarding spontaneous frame type 0x{Actual:X2} while waiting for 0x{Expected:X2} from {Address}",
                 frame[4], expectedType, DeviceAddress);
-            _assembledFrame = null;
         }
     }
 
@@ -372,10 +384,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             if (pair.Key == "Value" && pair.Value is byte[] value)
             {
                 if (JkBmsProtocol.TryAccumulateFrame(_rxBuffer, value.AsSpan(), out var frame))
-                {
-                    _assembledFrame = frame;
-                    try { _frameSemaphore.Release(); } catch { /* semaphore already at max, ignore */ }
-                }
+                    _frameChannel.Writer.TryWrite(frame);
             }
         }
     }
@@ -388,7 +397,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
         {
             _disposed = true;
             await DisconnectAsync();
-            _frameSemaphore.Dispose();
+            _frameChannel.Writer.TryComplete();
         }
     }
 

@@ -15,7 +15,8 @@ namespace HVO.Hardware.JkBms.Workers;
 
 /// <summary>
 /// Per-device mutable state tracked by the poller worker.
-/// Not thread-safe — accessed only from the worker's event loop.
+/// Written only by the worker's single event loop; read by Blazor UI components
+/// (single writer, multiple readers — no locking needed for individual field reads).
 /// </summary>
 public sealed class DevicePollState
 {
@@ -54,7 +55,12 @@ public sealed class BmsPollerWorker : BackgroundService
 
     // ── Public state (Blazor status page reads these) ─────────────────────────
 
-    /// <summary>Snapshot of device states for the status page. Replaced atomically on each poll.</summary>
+    /// <summary>
+    /// Device states for the status page. The list is created once at startup; individual
+    /// <see cref="DevicePollState"/> entries are updated in place by the worker event loop.
+    /// UI consumers read the current state without locking — reads of individual fields are
+    /// safe because the worker is the sole writer.
+    /// </summary>
     public IReadOnlyList<DevicePollState> DeviceStates => _devices;
 
     /// <summary>Raised after each poll attempt (success or failure). Subscribers update the UI.</summary>

@@ -22,9 +22,16 @@ public sealed class HttpApiForwarder : IReadingForwarder
 
     private static readonly HashSet<string> PlaceholderEndpoints =
     [
-        "https://localhost:5001/api/v1/bms/raw",
         string.Empty,
+        "https://localhost:5001/api/v1/bms/raw",
     ];
+
+    // True when the configured endpoint or key looks like a placeholder or is unset,
+    // indicating the forwarder should be a no-op until real values are supplied.
+    private bool IsPlaceholderConfig =>
+        PlaceholderEndpoints.Contains(_options.ApiEndpoint)
+        || string.IsNullOrWhiteSpace(_options.ApiKey)
+        || string.Equals(_options.ApiKey, "REPLACE_ME", StringComparison.OrdinalIgnoreCase);
 
     public string Name => "HttpApiForwarder";
 
@@ -42,7 +49,7 @@ public sealed class HttpApiForwarder : IReadingForwarder
     {
         if (batch.Count == 0) return;
 
-        if (PlaceholderEndpoints.Contains(_options.ApiEndpoint))
+        if (IsPlaceholderConfig)
         {
             _logger.LogDebug(
                 "HttpApiForwarder: no real endpoint configured, skipping {Count} record(s).",
