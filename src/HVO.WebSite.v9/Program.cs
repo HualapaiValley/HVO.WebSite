@@ -89,6 +89,7 @@ namespace HVO.WebSite.v9
                 options.AddPolicy("WeatherIngest", p => p.RequireClaim("scope", ApiScopes.WeatherIngest));
                 options.AddPolicy("ImageIngest", p => p.RequireClaim("scope", ApiScopes.ImageIngest));
                 options.AddPolicy("PowerIngest", p => p.RequireClaim("scope", ApiScopes.PowerIngest));
+                options.AddPolicy("BmsIngest", p => p.RequireClaim("scope", ApiScopes.BmsIngest));
                 options.AddPolicy("WeatherRead", p => p.RequireClaim("scope", ApiScopes.WeatherRead, ApiScopes.ApiRead));
                 options.AddPolicy("AdminOnly", p => p.RequireRole(AppRoles.Admin));
                 options.AddPolicy("UserOrAdmin", p => p.RequireRole(AppRoles.User, AppRoles.Admin));

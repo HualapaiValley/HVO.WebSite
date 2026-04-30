@@ -31,6 +31,9 @@ public sealed class BmsDeviceReading
     /// <summary>Cell voltages (mV), indexed from cell 1.</summary>
     public IReadOnlyList<ushort> CellVoltagesMv { get; init; } = [];
 
+    /// <summary>Per-cell internal resistance (mΩ), same indexing as <see cref="CellVoltagesMv"/>.</summary>
+    public IReadOnlyList<ushort> CellResistancesMOhm { get; init; } = [];
+
     /// <summary>Average cell voltage (mV) as reported by BMS.</summary>
     public ushort AverageCellVoltageMv { get; init; }
 
