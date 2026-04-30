@@ -9,6 +9,7 @@ public static class ApiScopes
     public const string WeatherIngest = "ingest:weather";
     public const string ImageIngest = "ingest:images";
     public const string PowerIngest = "ingest:power";
+    public const string BmsIngest = "ingest:bms";
     public const string WeatherRead = "read:weather";
     public const string ApiRead = "read:api";
 }

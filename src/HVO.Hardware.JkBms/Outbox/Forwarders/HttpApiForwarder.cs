@@ -24,6 +24,7 @@ public sealed class HttpApiForwarder : IReadingForwarder
     [
         string.Empty,
         "https://localhost:5001/api/v1/bms/raw",
+        "https://localhost:5001/api/v1/bms/readings",
     ];
 
     // True when the configured endpoint or key looks like a placeholder or is unset,

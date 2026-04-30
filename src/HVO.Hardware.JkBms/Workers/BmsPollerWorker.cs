@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using HVO.Hardware.JkBms.Bms;
 using HVO.Hardware.JkBms.Configuration;
@@ -35,6 +37,12 @@ public sealed class DevicePollState
 
     /// <summary>Device info (firmware, serial number, etc.) from the 0x03 device-info frame.</summary>
     public DeviceInfoPacket? LatestDeviceInfo { get; set; }
+
+    /// <summary>SHA-256 hash of the last config payload successfully written to the outbox.</summary>
+    public string? LastSentConfigHash { get; set; }
+
+    /// <summary>SHA-256 hash of the last device-info payload successfully written to the outbox.</summary>
+    public string? LastSentDeviceInfoHash { get; set; }
 }
 
 /// <summary>
@@ -287,7 +295,40 @@ public sealed class BmsPollerWorker : BackgroundService
     private async Task WriteToOutboxAsync(DevicePollState device, CellInfoPacket packet, CancellationToken ct)
     {
         var reading = MapToReading(device, packet);
-        var payload = JsonSerializer.Serialize(reading);
+
+        // Build config/deviceInfo snapshots only when they have changed.
+        BmsConfigPayload? configPayload = null;
+        if (device.LatestSettings is not null)
+        {
+            var cfg = MapToConfigPayload(device.LatestSettings);
+            var hash = ComputeHash(cfg);
+            if (hash != device.LastSentConfigHash)
+            {
+                configPayload = cfg;
+                device.LastSentConfigHash = hash;
+            }
+        }
+
+        BmsDeviceInfoPayload? infoPayload = null;
+        if (device.LatestDeviceInfo is not null)
+        {
+            var info = MapToDeviceInfoPayload(device.LatestDeviceInfo);
+            var hash = ComputeHash(info);
+            if (hash != device.LastSentDeviceInfoHash)
+            {
+                infoPayload = info;
+                device.LastSentDeviceInfoHash = hash;
+            }
+        }
+
+        var record = new BmsIngressRecord
+        {
+            Reading = reading,
+            Config = configPayload,
+            DeviceInfo = infoPayload,
+        };
+
+        var payload = JsonSerializer.Serialize(record);
 
         await using var scope = _scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
@@ -319,6 +360,7 @@ public sealed class BmsPollerWorker : BackgroundService
             RecordedAtUtc = packet.RecordedAtUtc,
             CellCount = packet.CellCount,
             CellVoltagesMv = packet.CellVoltagesMv,
+            CellResistancesMOhm = packet.CellResistancesMOhm,
             AverageCellVoltageMv = packet.AverageCellVoltageMv,
             DeltaCellVoltageMv = packet.DeltaCellVoltageMv,
             MaxVoltageCellIndex = packet.MaxVoltageCellIndex,
@@ -338,4 +380,55 @@ public sealed class BmsPollerWorker : BackgroundService
             StateOfHealthPercent = packet.StateOfHealthPercent,
             AlarmBitmask = packet.AlarmBitmask,
         };
+
+    private static BmsConfigPayload MapToConfigPayload(SettingsPacket s) =>
+        new()
+        {
+            CellCount = s.CellCount,
+            NominalCapacityMah = s.NominalCapacityMah,
+            ChargingEnabled = s.ChargingEnabled,
+            DischargingEnabled = s.DischargingEnabled,
+            BalancingEnabled = s.BalancingEnabled,
+            CellOvpMv = s.CellOvervoltageProtectionMv,
+            CellOvpRecoveryMv = s.CellOvervoltageRecoveryMv,
+            CellUvpMv = s.CellUndervoltageProtectionMv,
+            CellUvpRecoveryMv = s.CellUndervoltageRecoveryMv,
+            BalanceTriggerMv = s.BalancePressureDifferenceMv,
+            BalanceStartVoltageMv = s.BalanceStartingVoltageMv,
+            ChargeOcpMa = s.ChargingOvercurrentProtectionMa,
+            ChargeOcpDelayS = s.ChargingOvercurrentProtectionDelayS,
+            ChargeOcpRecoveryS = s.ChargingOvercurrentProtectionRecoveryS,
+            DischargeOcpMa = s.DischargingOvercurrentProtectionMa,
+            DischargeOcpDelayS = s.DischargingOvercurrentProtectionDelayS,
+            DischargeOcpRecoveryS = s.DischargingOvercurrentProtectionRecoveryS,
+            ShortCircuitDelayUs = s.ShortCircuitProtectionDelayUs,
+            ShortCircuitRecoveryS = s.ShortCircuitProtectionRecoveryS,
+            ChargeOtpC = s.ChargingOvertemperatureProtectionC,
+            ChargeOtpRecoveryC = s.ChargingOvertemperatureRecoveryC,
+            ChargeUtpC = s.ChargingUndertemperatureProtectionC,
+            ChargeUtpRecoveryC = s.ChargingUndertemperatureRecoveryC,
+            DischargeOtpC = s.DischargingOvertemperatureProtectionC,
+            DischargeOtpRecoveryC = s.DischargingOvertemperatureRecoveryC,
+            MosOtpC = s.PowerTubeOvertemperatureProtectionC,
+            MosOtpRecoveryC = s.PowerTubeOvertemperatureRecoveryC,
+        };
+
+    private static BmsDeviceInfoPayload MapToDeviceInfoPayload(DeviceInfoPacket d) =>
+        new()
+        {
+            Manufacturer = d.ManufacturerName,
+            Hardware = d.HardwareName,
+            Firmware = d.FirmwareVersion,
+            SerialNumber = d.SerialNumber,
+            DeviceName = d.DeviceName,
+            ManufacturingDate = d.ManufacturingDate,
+            UserData = d.UserData,
+        };
+
+    private static string ComputeHash<T>(T value)
+    {
+        var json = JsonSerializer.Serialize(value);
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
+        return Convert.ToHexString(bytes);
+    }
 }
