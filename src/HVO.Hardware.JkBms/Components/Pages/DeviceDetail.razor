@@ -1,0 +1,154 @@
+@page "/device/{address}"
+@rendermode InteractiveServer
+@using HVO.Hardware.JkBms.Protocol.Packets
+@using HVO.Hardware.JkBms.Workers
+@inject BmsPollerWorker Poller
+@inject NavigationManager Nav
+
+<a class="back-link" href="/">Back to Status</a>
+
+@if (_state is null)
+{
+    <p class="placeholder-message">Device '@Address' not found in configured devices.</p>
+}
+else
+{
+    <h1>@_state.Alias <span class="monospace text-secondary" style="font-size:13px;font-weight:400;">@_state.Address</span></h1>
+
+    @if (_state.LatestReading is null)
+    {
+        <p class="placeholder-message">Waiting for first reading…</p>
+    }
+    else
+    {
+        var r = _state.LatestReading;
+        var ageSeconds = (int)(DateTime.UtcNow - r.RecordedAtUtc).TotalSeconds;
+        var currentA = r.CurrentMa / 1000.0;
+        var isCharging = r.CurrentMa < 0;
+
+        <!-- Pack Summary Cards -->
+        <div class="summary-cards">
+            <div class="summary-card @(r.StateOfChargePercent < 20 ? "card-error" : r.StateOfChargePercent < 40 ? "card-warn" : "")">
+                <div class="card-label">State of Charge</div>
+                <div class="card-value">@r.StateOfChargePercent<span class="card-unit">%</span></div>
+            </div>
+            <div class="summary-card">
+                <div class="card-label">Pack Voltage</div>
+                <div class="card-value">@((r.TotalVoltageMv / 1000.0).ToString("F2"))<span class="card-unit">V</span></div>
+            </div>
+            <div class="summary-card @(isCharging ? "card-charging" : "")">
+                <div class="card-label">Current</div>
+                <div class="card-value">@Math.Abs(currentA).ToString("F1")<span class="card-unit">A @(isCharging ? "↑ chg" : "↓ dis")</span></div>
+            </div>
+            <div class="summary-card">
+                <div class="card-label">Δ Cell Voltage</div>
+                <div class="card-value @(r.DeltaCellVoltageMv > 50 ? "text-warn" : "")">@r.DeltaCellVoltageMv<span class="card-unit">mV</span></div>
+            </div>
+            <div class="summary-card">
+                <div class="card-label">Remaining</div>
+                <div class="card-value">@((r.RemainingCapacityMah / 1000.0).ToString("F1"))<span class="card-unit">Ah</span></div>
+            </div>
+            <div class="summary-card">
+                <div class="card-label">State of Health</div>
+                <div class="card-value">@r.StateOfHealthPercent<span class="card-unit">%</span></div>
+            </div>
+        </div>
+
+        <!-- Cell Voltages -->
+        <h2>Cell Voltages <span class="text-muted" style="font-size:12px;font-weight:400;">(@r.CellCount cells · avg @r.AverageCellVoltageMv mV)</span></h2>
+        <div class="cell-grid">
+            @for (int i = 0; i < r.CellVoltagesMv.Count; i++)
+            {
+                var mv = r.CellVoltagesMv[i];
+                var cellNum = i + 1;
+                var isHigh = cellNum == r.MaxVoltageCellIndex;
+                var isLow  = cellNum == r.MinVoltageCellIndex;
+                <div class="cell-tile @(isHigh ? "cell-highest" : isLow ? "cell-lowest" : "")">
+                    <div class="cell-num">C@(cellNum)</div>
+                    <div class="cell-mv">@mv</div>
+                    <div class="cell-v">@((mv / 1000.0).ToString("F3")) V</div>
+                </div>
+            }
+        </div>
+
+        <!-- Temperatures & Balancing -->
+        <h2>Temperatures &amp; Balancing</h2>
+        <div class="data-grid">
+            <span class="label">Battery Temp 1</span>
+            <span class="value">@r.BatteryTemperature1C.ToString("F1") °C</span>
+
+            <span class="label">Battery Temp 2</span>
+            <span class="value">@r.BatteryTemperature2C.ToString("F1") °C</span>
+
+            <span class="label">Power Tube Temp</span>
+            <span class="value @(r.PowerTubeTemperatureC > 60 ? "value-warn" : "")">@r.PowerTubeTemperatureC.ToString("F1") °C</span>
+
+            <span class="label">Balancing</span>
+            <span class="value">
+                @if (r.BalancingActive)
+                {
+                    <span class="badge badge-ok">Active</span>
+                    @(" ")@r.BalancingCurrentMa.ToString("F0") <span class="text-muted">mA</span>
+                }
+                else
+                {
+                    <span class="badge badge-none">Inactive</span>
+                }
+            </span>
+        </div>
+
+        <!-- Capacity & Cycles -->
+        <h2>Capacity &amp; Cycles</h2>
+        <div class="data-grid">
+            <span class="label">Remaining</span>
+            <span class="value">@r.RemainingCapacityMah mAh</span>
+
+            <span class="label">Nominal</span>
+            <span class="value">@r.NominalCapacityMah mAh</span>
+
+            <span class="label">Cycle Count</span>
+            <span class="value">@r.CycleCount</span>
+
+            <span class="label">Cycle Capacity</span>
+            <span class="value">@((r.CycleCapacityMah / 1000.0).ToString("F1")) Ah</span>
+        </div>
+
+        <!-- Alarms -->
+        <h2>Alarms</h2>
+        @if (r.AlarmBitmask == 0)
+        {
+            <ul class="alarm-list no-alarms"><li>No alarms active</li></ul>
+        }
+        else
+        {
+            <ul class="alarm-list">
+                @foreach (var name in DecodeAlarms(r.AlarmBitmask))
+                {
+                    <li>@name</li>
+                }
+            </ul>
+        }
+
+        <!-- Poll metadata -->
+        <h2>Poll Info</h2>
+        <div class="data-grid">
+            <span class="label">Last Poll</span>
+            <span class="value">@(_state.LastPollAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—") UTC</span>
+
+            <span class="label">Reading Age</span>
+            <span class="value @(ageSeconds > 120 ? "value-warn" : "")">@ageSeconds s ago</span>
+
+            <span class="label">Poll Interval</span>
+            <span class="value">@_state.PollIntervalSeconds s</span>
+
+            <span class="label">Consecutive Errors</span>
+            <span class="value @(_state.ConsecutiveErrors > 0 ? "value-error" : "")">@_state.ConsecutiveErrors</span>
+
+            @if (_state.LastError is not null)
+            {
+                <span class="label">Last Error</span>
+                <span class="value value-error">@_state.LastError</span>
+            }
+        </div>
+    }
+}

@@ -32,7 +32,7 @@ else
             {
                 var r = device.LatestReading;
                 <tr class="@(device.ConsecutiveErrors > 0 ? "row-error" : "")">
-                    <td>@device.Alias</td>
+                    <td><a href="/device/@device.Address">@device.Alias</a></td>
                     <td class="monospace">@device.Address</td>
                     @if (r is not null)
                     {
