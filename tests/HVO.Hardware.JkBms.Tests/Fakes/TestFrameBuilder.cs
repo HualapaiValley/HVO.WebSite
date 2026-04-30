@@ -193,6 +193,87 @@ public static class TestFrameBuilder
     }
 
     /// <summary>
+    /// Build a complete cell-info frame using the JK02_32S layout (for newer EC/EA prefix devices
+    /// that support 32 cells).  Key differences from the 24S layout:
+    /// <list type="bullet">
+    ///   <item>Enabled-cells bitmask at 0x30 is zero (32S devices don't set it).</item>
+    ///   <item>TotalVoltage at 0x70 is zero; the real pack voltage is at 0x90.</item>
+    ///   <item>Pack-level and capacity fields are shifted +0x20 relative to 24S.</item>
+    ///   <item>Cell resistances start at 0x4A (+0x10 relative to 24S).</item>
+    /// </list>
+    /// </summary>
+    public static byte[] BuildCellInfoFrame32S(
+        int cellCount = 16,
+        ushort[]? cellVoltagesMv = null,
+        ushort[]? cellResistancesMOhm = null,
+        ushort averageCellVoltageMv = 3300,
+        ushort deltaCellVoltageMv = 5,
+        byte maxCellIndex = 1,
+        byte minCellIndex = 2,
+        int balancingCurrentMa = 0,
+        byte balancingActive = 0,
+        short powerTubeRaw = 250,
+        short battTemp1Raw = 250,
+        short battTemp2Raw = 250,
+        uint totalVoltageMv = 52800,
+        int currentMa = 5000,
+        byte socPercent = 80,
+        uint remainingMah = 80_000,
+        uint nominalMah = 100_000,
+        uint cycleCount = 10,
+        uint cycleMah = 500_000,
+        byte sohPercent = 100,
+        ushort alarmBitmask = 0)
+    {
+        const int dataLength = 293;
+        byte[] data = new byte[dataLength];
+
+        // Cell voltages — up to 32 slots × 2 bytes each (0x00–0x3F)
+        var voltages = cellVoltagesMv ?? Enumerable.Repeat(averageCellVoltageMv, cellCount).ToArray();
+        for (int i = 0; i < Math.Min(cellCount, 32); i++)
+            WriteU16Le(data, i * 2, voltages[i]);
+
+        // Enabled-cells bitmask at 0x30 is 0 for 32S devices (parser falls back to voltage count)
+        // data[0x30..0x33] remain 0
+
+        // 32S avg/delta/max/min are at 0x44–0x49 (+0x10 vs 24S)
+        WriteU16Le(data, 0x44, averageCellVoltageMv);
+        WriteU16Le(data, 0x46, deltaCellVoltageMv);
+        data[0x48] = maxCellIndex;
+        data[0x49] = minCellIndex;
+
+        // Cell resistance slots 0x4A–0x89 (32 × uint16 LE, mΩ) — (+0x10 vs 24S)
+        if (cellResistancesMOhm is not null)
+            for (int i = 0; i < Math.Min(cellResistancesMOhm.Length, 32); i++)
+                WriteU16Le(data, 0x4A + i * 2, cellResistancesMOhm[i]);
+
+        // PowerTubeTemp at 0x8A (+0x0A vs 24S 0x80)
+        WriteI16Le(data, 0x8A, powerTubeRaw);
+
+        // TotalVoltage at 0x90 (24S field at 0x70 must be 0 to trigger 32S detection)
+        // data[0x70..0x73] remain 0
+        WriteU32Le(data, 0x90, totalVoltageMv);
+        WriteI32Le(data, 0x98, currentMa);
+        WriteI16Le(data, 0x9C, battTemp1Raw);
+        WriteI16Le(data, 0x9E, battTemp2Raw);
+
+        // AlarmBitmask at 0xA0 — big-endian uint16
+        data[0xA0] = (byte)((alarmBitmask >> 8) & 0xFF);
+        data[0xA1] = (byte)(alarmBitmask & 0xFF);
+
+        WriteI16Le(data, 0xA4, (short)balancingCurrentMa);
+        data[0xA6] = balancingActive;
+        data[0xA7] = socPercent;
+        WriteU32Le(data, 0xA8, remainingMah);
+        WriteU32Le(data, 0xAC, nominalMah);
+        WriteU32Le(data, 0xB0, cycleCount);
+        WriteU32Le(data, 0xB4, cycleMah);
+        data[0xB8] = sohPercent;
+
+        return WrapInFrame(JkBmsProtocol.FrameTypeCellInfo, data);
+    }
+
+    /// <summary>
     /// Build a minimal valid frame with the specified type and all-zero data.
     /// Useful for testing wrong-frame-type handling.
     /// </summary>

@@ -53,12 +53,20 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     private readonly Channel<byte[]> _frameChannel =
         Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions { SingleReader = true });
 
+    // Per-adapter reference count of concurrent ConnectAsync calls in the discovery phase.
+    // Prevents the first connection from stopping the BLE scan while later parallel
+    // connections (that piggybacked on the same scan) are still waiting for advertisements.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int>
+        s_discoveryRefCount = new();
+
     public string DeviceAddress { get; }
     public bool IsConnected => _isConnected && _writeCharacteristic != null && _notifyCharacteristic != null;
 
     /// <summary>
     /// The most recently captured raw settings frame (type 0x01).
     /// Populated when the BMS pushes a 0x01 frame during an exchange (typically on connect).
+    /// Reset at the start of each new connection so stale settings from a prior session
+    /// are never returned after a reconnect.
     /// </summary>
     public byte[]? LastSettingsFrame { get; private set; }
 
@@ -79,6 +87,10 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     public async Task ConnectAsync(CancellationToken ct)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(JkBmsBluetoothTransport));
+
+        // Reset stale settings from any prior connection so GetLatestSettings() cannot
+        // return settings captured before a disconnect/reconnect cycle.
+        LastSettingsFrame = null;
 
         _logger.LogDebug("BLE connecting to {Address}", DeviceAddress);
 
@@ -109,17 +121,19 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             // BlueZ handles the scan → initiating transition internally, so it is safe
             // (and required) to connect while the adapter is still in discovery mode.
             _logger.LogDebug("BLE starting discovery scan for {Address}", DeviceAddress);
-            bool ownedDiscovery = false;
+            // Increment the per-adapter ref count before entering the discovery phase.
+            // The last concurrent ConnectAsync to exit will stop the scan, preventing the
+            // first connection from halting discovery while later parallel connections
+            // (piggybacking on the same scan) still need advertisements.
+            s_discoveryRefCount.AddOrUpdate(_adapterName, 1, (_, n) => n + 1);
             try
             {
                 await adapter.StartDiscoveryAsync();
-                ownedDiscovery = true;
             }
             catch (Tmds.DBus.DBusException ex) when (ex.ErrorName == "org.bluez.Error.InProgress")
             {
                 // Another parallel connect already started discovery on this adapter.
-                // The HCI scan is already running — we can still wait for advertisements
-                // without needing to own (and later stop) the discovery session.
+                // The HCI scan is already running — we can still wait for advertisements.
                 _logger.LogDebug(
                     "BLE discovery already in progress on {Adapter} (shared); piggybacking for {Address}",
                     _adapterName, DeviceAddress);
@@ -179,7 +193,13 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             }
             finally
             {
-                if (ownedDiscovery)
+                // Decrement the ref count. When this is the last concurrent ConnectAsync
+                // exiting the discovery phase, stop the scan. Any adapter proxy can issue
+                // StopDiscovery on the same BlueZ adapter object, so the task that stops
+                // need not be the one that originally started it.
+                var remaining = s_discoveryRefCount.AddOrUpdate(
+                    _adapterName, 0, (_, n) => Math.Max(0, n - 1));
+                if (remaining == 0)
                     try { await adapter.StopDiscoveryAsync(); } catch { /* best-effort */ }
             }
 

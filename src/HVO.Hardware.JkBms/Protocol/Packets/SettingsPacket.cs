@@ -178,7 +178,7 @@ public sealed class SettingsPacket
             DischargingOvercurrentProtectionRecoveryS = ReadU32Le(data, 0x40),
             ShortCircuitProtectionRecoveryS         = ReadU32Le(data, 0x44),
 
-            // ── Temperature protection (I32 LE, × 0.1 °C) ──────────────────────── (I32 LE, × 0.1 °C) ────────────────────────
+            // ── Temperature protection (I32 LE, × 0.1 °C) ────────────────────────
             // esphome abs 82-85  → our 0x4C-0x4F  Charge OTP
             // esphome abs 86-89  → our 0x50-0x53  Charge OTRP
             // esphome abs 90-93  → our 0x54-0x57  Discharge OTP

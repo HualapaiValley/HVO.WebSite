@@ -285,4 +285,84 @@ public class CellInfoPacketTests
         var act = () => CellInfoPacket.Parse(data);
         act.Should().Throw<JkBmsFrameException>();
     }
+
+    // ── JK02_32S variant ──────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void Parse_32S_CellCount_DerivedFromVoltageEntries()
+    {
+        // 32S frames have enabledMask == 0; cell count is derived from consecutive
+        // non-zero voltage entries in the data section.
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(cellCount: 16);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.CellCount.Should().Be(16);
+    }
+
+    [TestMethod]
+    public void Parse_32S_TotalVoltage_ReadFromOffset0x90()
+    {
+        // In the 32S layout the pack voltage is at data offset 0x90 (not 0x70).
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(totalVoltageMv: 52_800);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.TotalVoltageMv.Should().Be(52_800);
+    }
+
+    [TestMethod]
+    public void Parse_32S_AverageCellVoltage_ReadFromOffset0x44()
+    {
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(averageCellVoltageMv: 3305);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.AverageCellVoltageMv.Should().Be(3305);
+    }
+
+    [TestMethod]
+    public void Parse_32S_CellResistances_ReadFromOffset0x4A()
+    {
+        // In the 32S layout resistances start at 0x4A (not 0x3A as in 24S).
+        ushort[] resistances = Enumerable.Range(1, 16).Select(i => (ushort)(10 + i)).ToArray();
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(
+            cellCount: 16,
+            cellResistancesMOhm: resistances);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.CellResistancesMOhm.Should().Equal(resistances);
+    }
+
+    [TestMethod]
+    public void Parse_32S_AlarmBitmask_ReadFromOffset0xA0_BigEndian()
+    {
+        // Alarm bitmask in the 32S layout is a BE uint16 at 0xA0.
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(alarmBitmask: 0x0008);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.AlarmBitmask.Should().Be(0x0008u);
+        packet.HasAlarms.Should().BeTrue();
+    }
+
+    [TestMethod]
+    public void Parse_32S_Temperatures_ReadFromCorrectOffsets()
+    {
+        // PowerTubeTemp at 0x8A, BatteryTemp1 at 0x9C, BatteryTemp2 at 0x9E.
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(
+            powerTubeRaw: 350,   // 35.0°C
+            battTemp1Raw: 280,   // 28.0°C
+            battTemp2Raw: 260);  // 26.0°C
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.PowerTubeTemperatureC.Should().BeApproximately(35.0, 0.001);
+        packet.BatteryTemperature1C.Should().BeApproximately(28.0, 0.001);
+        packet.BatteryTemperature2C.Should().BeApproximately(26.0, 0.001);
+    }
+
+    [TestMethod]
+    public void Parse_32S_StateOfCharge_ReadFromOffset0xA7()
+    {
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(socPercent: 73);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.StateOfChargePercent.Should().Be(73);
+    }
 }
