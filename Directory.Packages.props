@@ -44,6 +44,15 @@
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.7" />
     <PackageVersion Include="System.Text.Json" Version="10.0.7" />
 
+    <!-- Hardware / BLE -->
+    <PackageVersion Include="InTheHand.BluetoothLE" Version="4.0.44" />
+    <PackageVersion Include="Linux.Bluetooth" Version="5.67.1" />
+
+    <!-- Serilog -->
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
+
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
     <PackageVersion Include="MSTest" Version="4.1.0" />

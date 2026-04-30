@@ -1,0 +1,95 @@
+@page "/"
+@rendermode InteractiveServer
+@using HVO.Hardware.JkBms.Workers
+@inject BmsPollerWorker Poller
+@inject ForwarderCoordinator Forwarder
+
+<h1>BMS Status</h1>
+
+@if (!Poller.DeviceStates.Any())
+{
+    <p>No devices configured.</p>
+}
+else
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Alias</th>
+                <th>Address</th>
+                <th>SOC</th>
+                <th>Voltage</th>
+                <th>Current</th>
+                <th>Δ Cell</th>
+                <th>Temp (bat)</th>
+                <th>Errors</th>
+                <th>Last Poll</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var device in Poller.DeviceStates)
+            {
+                var r = device.LatestReading;
+                <tr class="@(device.ConsecutiveErrors > 0 ? "row-error" : "")">
+                    <td>@device.Alias</td>
+                    <td class="monospace">@device.Address</td>
+                    @if (r is not null)
+                    {
+                        <td>@r.StateOfChargePercent %</td>
+                        <td>@((r.TotalVoltageMv / 1000.0).ToString("F2")) V</td>
+                        <td>@F1(r.CurrentMa / 1000.0) A</td>
+                        <td class="@(r.DeltaCellVoltageMv > 50 ? "cell-warn" : "")">@r.DeltaCellVoltageMv mV</td>
+                        <td>@r.BatteryTemperature1C.ToString("F1") °C</td>
+                    }
+                    else
+                    {
+                        <td colspan="5" class="cell-none">—</td>
+                    }
+                    <td>@device.ConsecutiveErrors</td>
+                    <td>@(device.LastPollAt?.ToString("HH:mm:ss") ?? "—")</td>
+                    <td>
+                        @if (device.ConsecutiveErrors > 0)
+                        {
+                            <span class="badge badge-error">Error</span>
+                            <small>@device.LastError</small>
+                        }
+                        else if (r?.HasAlarms == true)
+                        {
+                            <span class="badge badge-warn">Alarm</span>
+                        }
+                        else if (r is not null)
+                        {
+                            <span class="badge badge-ok">OK</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-none">Waiting</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h2>Outbox</h2>
+<div class="data-grid">
+    <span class="label">Pending</span>
+    <span class="value">@Forwarder.PendingCount</span>
+
+    <span class="label">Failed</span>
+    <span class="value @(Forwarder.FailedCount > 0 ? "value-error" : "")">@Forwarder.FailedCount</span>
+
+    <span class="label">Last Sent</span>
+    <span class="value">@(Forwarder.LastSentAt?.ToString("HH:mm:ss") ?? "—")</span>
+
+    <span class="label">Last Batch</span>
+    <span class="value">@Forwarder.LastBatchCount</span>
+
+    @if (Forwarder.LastError is not null)
+    {
+        <span class="label">Last Error</span>
+        <span class="value value-error">@Forwarder.LastError</span>
+    }
+</div>

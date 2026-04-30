@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>HVO.Hardware.JkBms</RootNamespace>
+    <AssemblyName>HVO.Hardware.JkBms</AssemblyName>
+    <UserSecretsId>hvo-hardware-jkbms</UserSecretsId>
+    <!--
+      NU1903 suppression — GHSA-xrw6-gwf8-vvr9 (CVE-2026-39959, High):
+      Tmds.DBus < 0.92.0 is vulnerable to malicious D-Bus peers. This is a transitive
+      dependency from: Linux.Bluetooth 5.67.1 → Tmds.DBus 0.20.0
+      Overriding to 0.92.0 would break Linux.Bluetooth at runtime (complete API rewrite).
+      No patched Linux.Bluetooth release is available. Accepted risk: D-Bus is localhost-only.
+      Re-evaluate when Linux.Bluetooth ships a version targeting Tmds.DBus >= 0.92.0.
+    -->
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Linux.Bluetooth" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Formatting.Compact" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+  </ItemGroup>
+</Project>

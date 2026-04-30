@@ -85,6 +85,13 @@ sudo apt-get install -y --no-install-recommends \
 	fontconfig fonts-dejavu-core fonts-open-sans 2>/dev/null || true
 sudo fc-cache -f 2>/dev/null || true
 
+# Install Bluetooth development packages
+echo "Installing Bluetooth development packages..."
+sudo apt-get install -y --no-install-recommends \
+	bluez \
+	libbluetooth-dev \
+	bluetooth 2>/dev/null || true
+
 # Install mssql-tools18 (sqlcmd) — needed for Azure SQL querying and diagnostics
 echo "Installing mssql-tools18 (sqlcmd)..."
 if ! command -v /opt/mssql-tools18/bin/sqlcmd >/dev/null 2>&1; then

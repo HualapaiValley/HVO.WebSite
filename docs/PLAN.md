@@ -254,6 +254,205 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 - [ ] Image ingest endpoint (`POST /api/v1/images`)
 - [ ] Weather station health/status indicator
 
+### Phase 1.2 — JK BMS Battery Monitoring
+
+**Goal:** Live battery data flows from JK BMS units (BLE) → SQLite outbox → (future) web API for storage and dashboard display.
+
+#### New project: `src/HVO.Hardware.JkBms`
+
+A .NET Worker Service deployed as a Docker container (multi-arch: `linux/amd64` + `linux/arm64` for Raspberry Pi). Connects to JK BMS units via Bluetooth LE using the host BlueZ stack (D-Bus socket passthrough — same mechanism as the devcontainer).
+
+**Connection:** BLE UART-over-BLE profile:
+- Service UUID: `0000FFE0-0000-1000-8000-00805F9B34FB`
+- Characteristic UUID: `0000FFE1-0000-1000-8000-00805F9B34FB` (Write + Notify)
+- Request: fixed 20-byte command frame (`AA 55 90 EB 96 …`); response: ~300 bytes across multiple 20-byte BLE notifications requiring reassembly.
+- Library: `InTheHand.BluetoothLE` — cross-platform .NET BLE via BlueZ D-Bus.
+
+**BLE Connection Strategy (no persistent connections):**
+
+BLE adapters support only ~3–7 simultaneous connections. With 7+ BMS units, persistent connections are not viable:
+- Connect → request → read notifications → reassemble → disconnect per poll cycle.
+- `SemaphoreSlim(MaxConcurrentConnections)` limits simultaneous BLE sessions (configurable, default 2).
+- Each device maintains its own `NextPollAt` timestamp; a single `BmsPollerWorker` round-robins in priority order.
+
+**Wake-up / Retry Strategy:**
+
+JK BMS units are known to sleep and be unreliable to connect on the first attempt:
+- Inner retry loop: 3 attempts × 5 s connect timeout, 2 s pause between attempts (within one poll cycle).
+- Before each attempt: 1-second targeted BLE scan to wake the sleeping peripheral.
+- If all inner retries fail: mark device as failed, apply per-device exponential backoff (1 → 2 → 5 → 10 min cap).
+- Semaphore held only during the active connection, not during inter-attempt delays.
+- All connections closed in `try/finally` to prevent handle leaks.
+
+**Components:**
+
+| Component | Purpose |
+|---|---|
+| `JkBmsClient` | BLE connect/poll/disconnect lifecycle; inner wake-up retry loop |
+| `IBmsTransport` | Abstraction over BLE I/O — enables unit testing without hardware |
+| `JkBmsBluetoothTransport` | Real `InTheHand.BluetoothLE` implementation |
+| `JkBmsProtocol` | Build command frames; reassemble chunked BLE notifications; validate frame; parse |
+| `Crc32Calculator` | CRC32 (IEEE 802.3) used for response frame validation |
+| `CellInfoPacket` | Parsed cell info: voltages (variable count), pack V/I/SOC, temps, alarms |
+| `DeviceInfoPacket` | Parsed device info: firmware version, device name, capacity |
+| `BmsDeviceReading` | Domain model written to the SQLite outbox (JSON payload) |
+| `IBmsAlarmHandler` + `NullAlarmHandler` | Hook for V2 alarm actions; V1 is a no-op |
+| `BmsPollerWorker` | `BackgroundService` — round-robin scheduler, semaphore, per-device backoff |
+| `ForwarderCoordinator` | `BackgroundService` — drains outbox to all registered `IReadingForwarder`s |
+| `IReadingForwarder` / `HttpApiForwarder` | Fan-out forwarder interface; V1 ships HTTP; future: RabbitMQ, MQTT |
+| `OutboxDbContext` | EF Core + SQLite — same pattern as Davis |
+| Blazor status page | Live grid: device alias, cell count, SOC, pack voltage, delta mV, last seen, errors |
+| Blazor devices page | Configured device list with per-device status and last error |
+
+**Fan-out forwarder architecture:**
+
+```
+BmsPollerWorker → OutboxRecord (SQLite, Pending)
+                                │
+                  ForwarderCoordinator (background sweep)
+                                │
+                    ┌───────────┴────────────┐
+              HttpApiForwarder          (future: MqttForwarder, RabbitMqForwarder, …)
+```
+
+Each forwarder is independently registered (`IReadingForwarder`) and maintains its own delivery state. V1 ships `HttpApiForwarder` but it is disabled until the API endpoint is configured (sends nothing; outbox fills and holds).
+
+**JK BMS frame format:**
+
+```
+Request (CELL_INFO):   AA 55 90 EB  96 00 00 00  00 00 00 00  00 00 00 00  00 00 00 11
+Request (DEVICE_INFO): AA 55 90 EB  97 00 00 00  00 00 00 00  00 00 00 00  00 00 00 11
+
+Response SOF:  55 AA EB 90
+Byte 4:        frame_type  (0x01=device_info, 0x02=cell_info)
+Byte 5:        frame_counter
+Byte 6-7:      data_length (LE uint16)
+Byte 8+:       data payload (variable)
+Last 4 bytes:  CRC32 (LE uint32, IEEE 802.3, covers SOF through end of data)
+```
+
+Response arrives as a stream of 20-byte BLE notifications; the transport layer accumulates and reassembles before returning the complete frame.
+
+**Cell info data layout** (offsets relative to data start, byte 8 of full frame):
+
+| Offset | Length | Field |
+|---|---|---|
+| 0x00 | 48 bytes | 24 × cell voltage (uint16 LE, mV) — unused cells = 0 |
+| 0x30 | 1 | `CellCount` (uint8) |
+| 0x31 | 2 | `AverageCellVoltage` (uint16 LE, mV) |
+| 0x33 | 2 | `DeltaCellVoltage` (uint16 LE, mV) |
+| 0x35 | 1 | `MaxVoltageCellIndex` (uint8, 0-based) |
+| 0x36 | 1 | `MinVoltageCellIndex` (uint8, 0-based) |
+| 0x37 | 2 | `BalancingCurrentMa` (uint16 LE, mA/10) |
+| 0x39 | 1 | `BalancingActive` (uint8: 0=none, 1=active) |
+| 0x3A | 2 | `PowerTubeTemperature` (uint16 LE, decoded as `(raw-2731)/10` °C) |
+| 0x3C | 2 | `BatteryTemperature1` (same encoding) |
+| 0x3E | 2 | `BatteryTemperature2` (same encoding) |
+| 0x40 | 4 | `TotalVoltage` (uint32 LE, mV) |
+| 0x44 | 4 | `Current` (int32 LE, mA — negative = charging) |
+| 0x48 | 2 | `StateOfCharge` (uint16 LE, %) |
+| 0x4A | 4 | `RemainingCapacity` (uint32 LE, mAh) |
+| 0x4E | 4 | `NominalCapacity` (uint32 LE, mAh) |
+| 0x52 | 4 | `CycleCount` (uint32 LE) |
+| 0x56 | 4 | `CycleCapacity` (uint32 LE, mAh) |
+| 0x5A | 2 | `StateOfHealth` (uint16 LE, %) |
+| 0x70 | 4 | `AlarmBitmask` (uint32 LE — raw flags, preserved for V2 event handling) |
+
+> **Note:** Exact offsets and temperature encoding are based on the JK BMS BLE protocol (version 0.10.x as documented by esphome-jk-bms). Minor variations exist across firmware versions. All fields are validated against live hardware in the live test suite.
+
+**Configuration:**
+
+```json
+"JkBms": {
+  "MaxConcurrentConnections": 2,
+  "ConnectTimeoutSeconds": 5,
+  "ConnectRetryAttempts": 3,
+  "ConnectRetryDelaySeconds": 2,
+  "DefaultPollIntervalSeconds": 60,
+  "HciAdapter": "hci0",
+  "Devices": [
+    { "Address": "C8:47:8C:E4:58:37", "Alias": "battery-bank-1a", "PollIntervalSeconds": 60 },
+    { "Address": "C8:47:8C:E4:56:B0", "Alias": "battery-bank-1b" },
+    …
+  ]
+}
+```
+
+**Tests:**
+
+| Test | Type |
+|---|---|
+| CRC32 known vectors (empty, single byte, multi-byte, round-trip) | Unit |
+| Command frame encoding (cell_info and device_info match expected bytes) | Unit |
+| SOF validation (valid, wrong bytes, too short) | Unit |
+| Frame reassembly from chunked notifications (1 chunk, many chunks, incomplete) | Unit |
+| CRC32 frame validation (valid, corrupted data, corrupted CRC byte) | Unit |
+| `CellInfoPacket` parse — 15-cell device, all fields | Unit |
+| `CellInfoPacket` parse — 20-cell device, variable cell list | Unit |
+| `CellInfoPacket` temperature decoding (known raw → expected °C) | Unit |
+| `CellInfoPacket` current sign (positive=discharging, negative=charging) | Unit |
+| `DeviceInfoPacket` parse — firmware version, name | Unit |
+| `JkBmsClient` — successful connect+poll via `FakeBmsTransport` | Integration |
+| `JkBmsClient` — inner retry on first two connect failures, success on third | Integration |
+| `JkBmsClient` — all inner retries exhausted → `JkBmsConnectException` | Integration |
+| `JkBmsClient` — cancellation mid-connect | Integration |
+| `JkBmsClient` — disconnect always called (even on parse failure) | Integration |
+| Live: connect to real device, verify cell count matches known device type | Live |
+| Live: all cell voltages physically plausible (2.5–3.65 V range) | Live |
+| Live: pack voltage = sum of cell voltages (within 1%) | Live |
+| Live: SOC in [0, 100] range | Live |
+| Live: temperatures in [-20, 80] °C range | Live |
+
+**Phase 1.2 checklist:**
+
+- [x] `docs/PLAN.md` — JK BMS phase documented
+- [x] `Directory.Packages.props` — `InTheHand.BluetoothLE` version pinned
+- [x] `HVO.WebSite.sln` — JK BMS main + test projects added
+- [x] `src/HVO.Hardware.JkBms/HVO.Hardware.JkBms.csproj`
+- [x] `src/HVO.Hardware.JkBms/AssemblyInfo.cs`
+- [x] `src/HVO.Hardware.JkBms/Program.cs`
+- [x] `src/HVO.Hardware.JkBms/appsettings.json` + `appsettings.Development.json`
+- [x] `src/HVO.Hardware.JkBms/Dockerfile`
+- [x] `src/HVO.Hardware.JkBms/Configuration/JkBmsOptions.cs`
+- [x] `src/HVO.Hardware.JkBms/Configuration/BmsDeviceConfig.cs`
+- [x] `src/HVO.Hardware.JkBms/Protocol/Crc32Calculator.cs`
+- [x] `src/HVO.Hardware.JkBms/Protocol/JkBmsProtocol.cs`
+- [x] `src/HVO.Hardware.JkBms/Protocol/JkBmsExceptions.cs`
+- [x] `src/HVO.Hardware.JkBms/Protocol/Packets/CellInfoPacket.cs`
+- [x] `src/HVO.Hardware.JkBms/Protocol/Packets/DeviceInfoPacket.cs`
+- [x] `src/HVO.Hardware.JkBms/Protocol/Transport/IBmsTransport.cs`
+- [x] `src/HVO.Hardware.JkBms/Protocol/Transport/IBmsTransportFactory.cs`
+- [x] `src/HVO.Hardware.JkBms/Protocol/Transport/JkBmsBluetoothTransport.cs`
+- [x] `src/HVO.Hardware.JkBms/Protocol/Transport/JkBmsBluetoothTransportFactory.cs`
+- [x] `src/HVO.Hardware.JkBms/Protocol/JkBmsClient.cs`
+- [x] `src/HVO.Hardware.JkBms/Bms/BmsDeviceReading.cs`
+- [x] `src/HVO.Hardware.JkBms/Bms/IBmsAlarmHandler.cs`
+- [x] `src/HVO.Hardware.JkBms/Outbox/OutboxRecord.cs`
+- [x] `src/HVO.Hardware.JkBms/Outbox/OutboxDbContext.cs`
+- [x] `src/HVO.Hardware.JkBms/Outbox/OutboxOptions.cs`
+- [x] `src/HVO.Hardware.JkBms/Outbox/Forwarders/IReadingForwarder.cs`
+- [x] `src/HVO.Hardware.JkBms/Outbox/Forwarders/HttpApiForwarder.cs`
+- [x] `src/HVO.Hardware.JkBms/Workers/BmsPollerWorker.cs`
+- [x] `src/HVO.Hardware.JkBms/Workers/ForwarderCoordinator.cs`
+- [x] `src/HVO.Hardware.JkBms/Components/App.razor`
+- [x] `src/HVO.Hardware.JkBms/Components/Routes.razor`
+- [x] `src/HVO.Hardware.JkBms/Components/_Imports.razor`
+- [x] `src/HVO.Hardware.JkBms/Components/Layout/MainLayout.razor`
+- [x] `src/HVO.Hardware.JkBms/Components/Pages/Status.razor` + `.razor.cs`
+- [x] `src/HVO.Hardware.JkBms/Components/Pages/Devices.razor` + `.razor.cs`
+- [x] `tests/HVO.Hardware.JkBms.Tests/HVO.Hardware.JkBms.Tests.csproj`
+- [x] `tests/HVO.Hardware.JkBms.Tests/Protocol/Crc32CalculatorTests.cs`
+- [x] `tests/HVO.Hardware.JkBms.Tests/Protocol/JkBmsProtocolTests.cs`
+- [x] `tests/HVO.Hardware.JkBms.Tests/Protocol/CellInfoPacketTests.cs`
+- [x] `tests/HVO.Hardware.JkBms.Tests/Protocol/DeviceInfoPacketTests.cs`
+- [x] `tests/HVO.Hardware.JkBms.Tests/Fakes/FakeBmsTransport.cs`
+- [x] `tests/HVO.Hardware.JkBms.Tests/Integration/JkBmsClientTests.cs`
+- [x] `tests/HVO.Hardware.JkBms.Tests/Live/LiveBmsTests.cs`
+- [ ] Zero build warnings, zero build errors
+- [ ] Zero test failures
+
+---
+
 ### Phase 3 — Power Dashboard
 
 - [ ] Solar/battery status display
