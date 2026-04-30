@@ -127,7 +127,21 @@
   },
   "initializeCommand": "mkdir -p \"$HOME/.microsoft/usersecrets\"",
   "runArgs": [
-    "--network=host"
+    "--network=host",
+    // Bluetooth: allow HCI socket access and raw network operations
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW",
+    // Bluetooth: share the host D-Bus system socket so the container can use the host BlueZ daemon
+    "--volume=/run/dbus/system_bus_socket:/run/dbus/system_bus_socket",
+    // Bluetooth: the docker-default AppArmor profile blocks all D-Bus socket access,
+    // which prevents Tmds.DBus / InTheHand.BluetoothLE from reaching the host BlueZ daemon.
+    // Removing the AppArmor confinement restores D-Bus access while still keeping the
+    // Linux capability and network-namespace constraints above.
+    "--security-opt=apparmor=unconfined",
+    // Bluetooth: on modern Linux/BlueZ 5 there is no /dev/hci0 device node — the adapter
+    // is accessed via AF_BLUETOOTH sockets. With --network=host above, the container
+    // inherits the host's full network stack (including HCI sockets) so no --device flag
+    // is needed. The caps and D-Bus socket mount below are sufficient.
   ],
   "mounts": [
     {

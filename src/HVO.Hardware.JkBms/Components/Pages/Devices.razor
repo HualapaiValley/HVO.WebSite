@@ -1,0 +1,40 @@
+@page "/devices"
+@rendermode InteractiveServer
+@using HVO.Hardware.JkBms.Configuration
+@using HVO.Hardware.JkBms.Workers
+@inject BmsPollerWorker Poller
+@inject Microsoft.Extensions.Options.IOptions<JkBmsOptions> Options
+
+<h1>Configured Devices</h1>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Alias</th>
+            <th>Address</th>
+            <th>Enabled</th>
+            <th>Poll Interval</th>
+            <th>Consecutive Errors</th>
+            <th>Last Poll</th>
+            <th>Last Error</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var cfg in Options.Value.Devices)
+        {
+            var state = Poller.DeviceStates.FirstOrDefault(d => d.Address == cfg.Address);
+            var interval = cfg.PollIntervalSeconds > 0
+                ? cfg.PollIntervalSeconds
+                : Options.Value.DefaultPollIntervalSeconds;
+            <tr class="@(!cfg.Enabled ? "row-disabled" : "")">
+                <td>@cfg.Alias</td>
+                <td class="monospace">@cfg.Address</td>
+                <td>@(cfg.Enabled ? "Yes" : "No")</td>
+                <td>@interval s</td>
+                <td>@(state?.ConsecutiveErrors ?? 0)</td>
+                <td>@(state?.LastPollAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</td>
+                <td>@(state?.LastError ?? "—")</td>
+            </tr>
+        }
+    </tbody>
+</table>

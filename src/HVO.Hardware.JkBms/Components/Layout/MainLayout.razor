@@ -1,0 +1,17 @@
+@inherits LayoutComponentBase
+
+<div class="admin-shell">
+    <nav class="admin-nav">
+        <div class="nav-header">
+            <span class="nav-title">JK BMS</span>
+        </div>
+        <ul>
+            <li><NavLink href="/" Match="NavLinkMatch.All">Status</NavLink></li>
+            <li><NavLink href="/devices">Devices</NavLink></li>
+        </ul>
+    </nav>
+
+    <main class="admin-content">
+        @Body
+    </main>
+</div>
