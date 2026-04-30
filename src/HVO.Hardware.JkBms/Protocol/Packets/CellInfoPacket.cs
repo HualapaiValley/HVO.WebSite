@@ -148,8 +148,26 @@ public sealed class CellInfoPacket
                 $"Cell info data section is {data.Length} bytes; expected at least {minLength}.");
 
         // ── Cell count from bitmask ────────────────────────────────────────────
+        // Newer JK BMS hardware revisions (MAC prefix C8:47:8C:EC and EA) do not
+        // populate the enabled-cells bitmask at offset 0x30 — they leave it zero.
+        // Fall back to counting consecutive non-zero voltage entries from offset 0
+        // (unused cell slots are always 0x0000 in every known firmware version).
         uint enabledMask = ReadU32Le(data, 0x30);
-        byte cellCount = (byte)BitOperations.PopCount(enabledMask);
+        byte cellCount;
+        if (enabledMask != 0)
+        {
+            cellCount = (byte)BitOperations.PopCount(enabledMask);
+        }
+        else
+        {
+            // Count leading non-zero U16 entries (max 24 cells, 2 bytes each).
+            cellCount = 0;
+            for (int i = 0; i < 24; i++)
+            {
+                if (ReadU16Le(data, i * 2) == 0) break;
+                cellCount++;
+            }
+        }
         if (cellCount is 0 or > 24)
             throw new JkBmsFrameException(
                 $"Invalid cell count {cellCount} derived from bitmask 0x{enabledMask:X8} (expected 1–24).");

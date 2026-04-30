@@ -2,6 +2,7 @@ using FluentAssertions;
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Tests.Fakes;
+using ProductionCrc = HVO.Hardware.JkBms.Protocol.CrcByteSum;
 
 namespace HVO.Hardware.JkBms.Tests.Protocol;
 
@@ -224,15 +225,40 @@ public class CellInfoPacketTests
     }
 
     [TestMethod]
-    public void Parse_ZeroCellCount_ThrowsJkBmsFrameException()
+    public void Parse_ZeroBitmask_FallsBackToVoltageCount()
     {
-        // Build a valid frame but zero out the enabled-cells bitmask (all 4 bytes)
+        // Newer JK BMS hardware (MAC prefix C8:47:8C:EC / EA) leaves the enabled-cells
+        // bitmask at 0x30 as 0x00000000. The parser must fall back to counting consecutive
+        // non-zero voltage entries and still produce a valid parse.
         byte[] frame = TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
-        // Bitmask is at header offset 6 + data offset 0x30; zero all 4 bytes
+        // Zero out the bitmask
         frame[6 + 0x30] = 0x00;
         frame[6 + 0x31] = 0x00;
         frame[6 + 0x32] = 0x00;
         frame[6 + 0x33] = 0x00;
+        // Recalculate CRC after mutating the frame
+        frame[299] = ProductionCrc.Compute(frame.AsSpan(0, 299));
+        byte[] data = JkBmsProtocol.GetData(frame).ToArray();
+        var packet = CellInfoPacket.Parse(data);
+        packet.CellCount.Should().Be(15);
+    }
+
+    [TestMethod]
+    public void Parse_ZeroBitmaskAndZeroVoltages_ThrowsJkBmsFrameException()
+    {
+        // When both the bitmask and all cell voltages are zero, no cell count can be
+        // determined — this should still throw a JkBmsFrameException.
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
+        // Zero bitmask
+        frame[6 + 0x30] = 0x00;
+        frame[6 + 0x31] = 0x00;
+        frame[6 + 0x32] = 0x00;
+        frame[6 + 0x33] = 0x00;
+        // Zero all 24 cell voltage slots (bytes 0–47 in data section)
+        for (int i = 0; i < 48; i++)
+            frame[6 + i] = 0x00;
+        // Recalculate CRC after mutating the frame
+        frame[299] = ProductionCrc.Compute(frame.AsSpan(0, 299));
         byte[] data = JkBmsProtocol.GetData(frame).ToArray();
         var act = () => CellInfoPacket.Parse(data);
         act.Should().Throw<JkBmsFrameException>();
