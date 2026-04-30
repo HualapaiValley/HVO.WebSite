@@ -98,6 +98,16 @@ public static class TestFrameBuilder
         return WrapInFrame(JkBmsProtocol.FrameTypeDeviceInfo, data);
     }
 
+    /// <summary>
+    /// Build a minimal valid frame with the specified type and all-zero data.
+    /// Useful for testing wrong-frame-type handling.
+    /// </summary>
+    public static byte[] BuildMinimalFrame(byte frameType)
+    {
+        byte[] data = new byte[293]; // all zeros
+        return WrapInFrame(frameType, data);
+    }
+
     // ── Chunked helpers ───────────────────────────────────────────────────────
 
     /// <summary>Split <paramref name="frame"/> into 20-byte BLE notification chunks.</summary>

@@ -20,6 +20,7 @@ public sealed class FakeBmsTransport : IBmsTransport
 {
     private readonly byte[]? _responseFrame;
     private readonly Exception? _exchangeException;
+    private readonly Queue<byte[]> _frameQueue;
 
     public string DeviceAddress { get; }
     public bool IsConnected { get; private set; }
@@ -34,20 +35,26 @@ public sealed class FakeBmsTransport : IBmsTransport
     /// </summary>
     /// <param name="deviceAddress">Device address to report.</param>
     /// <param name="responseFrame">
-    ///   Bytes returned by <see cref="ExchangeAsync"/>. When null, a valid cell-info frame
-    ///   for a 15-cell pack is returned by default.
+    ///   Bytes returned by <see cref="ExchangeAsync"/> when no <paramref name="frameSequence"/> is set.
+    ///   When null, a valid cell-info frame for a 15-cell pack is returned by default.
     /// </param>
     /// <param name="exchangeException">
     ///   When non-null, <see cref="ExchangeAsync"/> throws this exception instead of returning a frame.
     /// </param>
+    /// <param name="frameSequence">
+    ///   When set, frames are returned in order for successive <see cref="ExchangeAsync"/> calls.
+    ///   Once the sequence is exhausted, falls back to <paramref name="responseFrame"/> or the default.
+    /// </param>
     public FakeBmsTransport(
         string deviceAddress = "AA:BB:CC:DD:EE:FF",
         byte[]? responseFrame = null,
-        Exception? exchangeException = null)
+        Exception? exchangeException = null,
+        IEnumerable<byte[]>? frameSequence = null)
     {
         DeviceAddress = deviceAddress;
         _responseFrame = responseFrame;
         _exchangeException = exchangeException;
+        _frameQueue = new Queue<byte[]>(frameSequence ?? []);
     }
 
     public Task ConnectAsync(CancellationToken ct)
@@ -73,7 +80,9 @@ public sealed class FakeBmsTransport : IBmsTransport
         if (_exchangeException is not null)
             throw _exchangeException;
 
-        var frame = _responseFrame ?? TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
+        var frame = _frameQueue.Count > 0
+            ? _frameQueue.Dequeue()
+            : _responseFrame ?? TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
         return Task.FromResult(frame);
     }
 

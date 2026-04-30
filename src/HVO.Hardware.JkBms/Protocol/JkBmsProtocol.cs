@@ -30,7 +30,8 @@ public static class JkBmsProtocol
 
     // ── Frame types ───────────────────────────────────────────────────────────
 
-    public const byte FrameTypeCellInfo   = 0x02;
+    public const byte FrameTypeSettings  = 0x01;
+    public const byte FrameTypeCellInfo  = 0x02;
     public const byte FrameTypeDeviceInfo = 0x03;
 
     // ── Frame geometry (response frames are always exactly 300 bytes) ─────────

@@ -74,6 +74,39 @@ public class JkBmsClientTests
             .WithMessage("Simulated exchange failure");
     }
 
+    // ── Wrong frame type → retry ──────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task PollCellInfoAsync_SettingsFrameFirst_RetriesAndReturnsCellInfo()
+    {
+        var settingsFrame = TestFrameBuilder.BuildMinimalFrame(JkBmsProtocol.FrameTypeSettings);
+        var cellInfoFrame = TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
+        var transport = new FakeBmsTransport(
+            TestAddress,
+            frameSequence: [settingsFrame, cellInfoFrame]);
+        var client = CreateClient(transport);
+
+        var packet = await client.PollCellInfoAsync(CancellationToken.None);
+
+        packet.CellCount.Should().Be(15);
+        transport.ExchangeCallCount.Should().Be(2);
+    }
+
+    [TestMethod]
+    public async Task PollCellInfoAsync_OnlyWrongTypeFrames_ThrowsJkBmsFrameException()
+    {
+        var wrongFrame = TestFrameBuilder.BuildMinimalFrame(JkBmsProtocol.FrameTypeSettings);
+        var transport = new FakeBmsTransport(
+            TestAddress,
+            frameSequence: [wrongFrame, wrongFrame, wrongFrame]);
+        var client = CreateClient(transport);
+
+        var act = async () => await client.PollCellInfoAsync(CancellationToken.None);
+
+        await act.Should().ThrowAsync<JkBmsFrameException>();
+        transport.ExchangeCallCount.Should().Be(3);
+    }
+
     [TestMethod]
     public async Task PollDeviceInfoAsync_ExchangeThrows_ExceptionPropagated()
     {
