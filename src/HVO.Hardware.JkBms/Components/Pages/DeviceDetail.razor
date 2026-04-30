@@ -71,6 +71,23 @@ else
             }
         </div>
 
+        <!-- Cell Resistances -->
+        @if (r.CellResistancesMOhm.Count > 0)
+        {
+            <h2>Cell Resistances <span class="text-muted section-meta">(@r.CellResistancesMOhm.Count cells · mΩ)</span></h2>
+            <div class="cell-grid">
+                @for (int i = 0; i < r.CellResistancesMOhm.Count; i++)
+                {
+                    var mohm = r.CellResistancesMOhm[i];
+                    <div class="cell-tile @(mohm > 200 ? "cell-highest" : "")">
+                        <div class="cell-num">C@(i + 1)</div>
+                        <div class="cell-mv">@mohm</div>
+                        <div class="cell-v">@((mohm / 1000.0).ToString("F3")) Ω</div>
+                    </div>
+                }
+            </div>
+        }
+
         <!-- Temperatures & Balancing -->
         <h2>Temperatures &amp; Balancing</h2>
         <div class="data-grid">

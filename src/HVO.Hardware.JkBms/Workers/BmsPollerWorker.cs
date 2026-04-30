@@ -221,6 +221,14 @@ public sealed class BmsPollerWorker : BackgroundService
             device.LastError = null;
             device.NextPollAt = DateTime.UtcNow.AddSeconds(device.PollIntervalSeconds);
 
+            // Refresh settings from the spontaneous 0x01 frame the transport captures
+            // each time the BMS connects.  We update on every successful poll so that
+            // the UI eventually shows settings even if the frame wasn't in the buffer
+            // when GetLatestSettings() was called at startup.
+            var freshSettings = _clients[device.Address].GetLatestSettings();
+            if (freshSettings is not null)
+                device.LatestSettings = freshSettings;
+
             await WriteToOutboxAsync(device, packet, ct);
 
             if (packet.HasAlarms)

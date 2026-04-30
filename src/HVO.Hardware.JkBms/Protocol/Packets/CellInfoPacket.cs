@@ -13,7 +13,7 @@ namespace HVO.Hardware.JkBms.Protocol.Packets;
 ///   0x36 – 0x37  DeltaCellVoltageMv (uint16 LE, mV)
 ///   0x38         MaxVoltageCellIndex (uint8, 1-based; 0 = none)
 ///   0x39         MinVoltageCellIndex (uint8, 1-based; 0 = none)
-///   0x3A – 0x69  24 × cell resistance (uint16 LE, mΩ)
+///   0x3A – 0x69  24 × cell resistance (uint16 LE, mΩ)  [only first CellCount slots used]
 ///   0x70 – 0x73  TotalVoltageMv (uint32 LE, mV)
 ///   0x78 – 0x7B  CurrentMa (int32 LE, mA; positive = discharge, negative = charge)
 ///   0x7C – 0x7D  BatteryTemperature1 (int16 LE, × 0.1 °C)
@@ -55,6 +55,14 @@ public sealed class CellInfoPacket
 
     /// <summary>1-based index of the cell with the lowest voltage (0 = none).</summary>
     public byte MinVoltageCellIndex { get; init; }
+
+    // ── Cell resistance ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Internal resistance (mΩ) for each populated cell, in order from cell 1.
+    /// Length equals <see cref="CellCount"/>.
+    /// </summary>
+    public IReadOnlyList<ushort> CellResistancesMOhm { get; init; } = [];
 
     // ── Balancing ─────────────────────────────────────────────────────────────
 
@@ -188,6 +196,15 @@ public sealed class CellInfoPacket
         for (int i = 0; i < cellCount; i++)
             voltages[i] = ReadU16Le(data, i * 2);
 
+        // ── Cell resistances ──────────────────────────────────────────────────
+        // 24S: resistance slots start at 0x3A (right after avg/delta/min/max).
+        // 32S: resistance slots start at 0x4A (+0x10, because voltage+metadata sections
+        //      each grow by one additional slot vs 24S).
+        int resistanceBase = is32S ? 0x4A : 0x3A;
+        var resistances = new ushort[cellCount];
+        for (int i = 0; i < cellCount; i++)
+            resistances[i] = ReadU16Le(data, resistanceBase + i * 2);
+
         if (is32S)
         {
             // JK02_32S pack-level field offsets (esphome field_offset = 32 = 0x20):
@@ -203,6 +220,7 @@ public sealed class CellInfoPacket
                 DeltaCellVoltageMv     = ReadU16Le(data, 0x46),
                 MaxVoltageCellIndex    = data[0x48],
                 MinVoltageCellIndex    = data[0x49],
+                CellResistancesMOhm    = resistances,
                 TotalVoltageMv         = ReadU32Le(data, 0x90),
                 CurrentMa              = ReadI32Le(data, 0x98),
                 BatteryTemperature1C   = DecodeTemperature(ReadI16Le(data, 0x9C)),
@@ -230,6 +248,7 @@ public sealed class CellInfoPacket
             DeltaCellVoltageMv     = ReadU16Le(data, 0x36),
             MaxVoltageCellIndex    = data[0x38],
             MinVoltageCellIndex    = data[0x39],
+            CellResistancesMOhm    = resistances,
             TotalVoltageMv         = ReadU32Le(data, 0x70),
             CurrentMa              = ReadI32Le(data, 0x78),
             BatteryTemperature1C   = DecodeTemperature(ReadI16Le(data, 0x7C)),

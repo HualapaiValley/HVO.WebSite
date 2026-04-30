@@ -20,6 +20,7 @@ public static class TestFrameBuilder
     public static byte[] BuildCellInfoFrame(
         int cellCount = 15,
         ushort[]? cellVoltagesMv = null,
+        ushort[]? cellResistancesMOhm = null,
         ushort averageCellVoltageMv = 3300,
         ushort deltaCellVoltageMv = 5,
         byte maxCellIndex = 1,
@@ -56,7 +57,10 @@ public static class TestFrameBuilder
         data[0x38] = maxCellIndex;
         data[0x39] = minCellIndex;
 
-        // Cell resistance slots 0x3A–0x69 left as zeros
+        // Cell resistance slots 0x3A–0x69 (24 × uint16 LE, mΩ)
+        if (cellResistancesMOhm is not null)
+            for (int i = 0; i < Math.Min(cellResistancesMOhm.Length, 24); i++)
+                WriteU16Le(data, 0x3A + i * 2, cellResistancesMOhm[i]);
 
         WriteU32Le(data, 0x70, totalVoltageMv);
         WriteI32Le(data, 0x78, currentMa);

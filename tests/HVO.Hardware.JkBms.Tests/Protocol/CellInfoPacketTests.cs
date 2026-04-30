@@ -51,6 +51,28 @@ public class CellInfoPacketTests
     }
 
     [TestMethod]
+    public void Parse_CellResistances_MatchBuilderInput()
+    {
+        ushort[] resistances = [12, 11, 13, 10, 12, 14, 11, 13, 12, 10, 11, 12, 13, 14, 12];
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame(
+            cellCount: 15,
+            cellResistancesMOhm: resistances);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+
+        packet.CellResistancesMOhm.Should().Equal(resistances);
+    }
+
+    [TestMethod]
+    public void Parse_CellResistancesCount_EqualsCellCount()
+    {
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
+        var data = JkBmsProtocol.GetData(frame);
+        var packet = CellInfoPacket.Parse(data);
+        packet.CellResistancesMOhm.Count.Should().Be(packet.CellCount);
+    }
+
+    [TestMethod]
     public void Parse_AverageCellVoltage_MatchesBuilderInput()
     {
         byte[] frame = TestFrameBuilder.BuildCellInfoFrame(averageCellVoltageMv: 3310);
