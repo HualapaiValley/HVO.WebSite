@@ -171,13 +171,27 @@ public sealed class BmsPollerWorker : BackgroundService
 
             DeviceStateChanged?.Invoke();
 
-            _logger.LogInformation(
-                "Polled {Alias}: SOC={Soc}%, V={VoltageMv}mV, I={CurrentMa}mA, Δ={DeltaMv}mV",
-                device.Alias,
-                packet.StateOfChargePercent,
-                packet.TotalVoltageMv,
-                packet.CurrentMa,
-                packet.DeltaCellVoltageMv);
+            // Log a structured summary with all key metrics.
+            // Cell voltages are emitted as a scope property so they appear as a JSON array
+            // in the structured log file — useful for post-run per-cell drift analysis.
+            using (_logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["CellVoltagesMv"] = string.Join(",", packet.CellVoltagesMv),
+                ["CellCount"] = packet.CellCount,
+            }))
+            {
+                _logger.LogInformation(
+                    "Polled {Alias}: SOC={Soc}%, V={VoltageMv}mV, I={CurrentMa}mA, Δ={DeltaMv}mV, " +
+                    "T1={T1C}°C T2={T2C}°C Tmos={TmosC}°C",
+                    device.Alias,
+                    packet.StateOfChargePercent,
+                    packet.TotalVoltageMv,
+                    packet.CurrentMa,
+                    packet.DeltaCellVoltageMv,
+                    packet.BatteryTemperature1C,
+                    packet.BatteryTemperature2C,
+                    packet.PowerTubeTemperatureC);
+            }
         }
         catch (OperationCanceledException)
         {

@@ -7,8 +7,42 @@ using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Transport;
 using HVO.Hardware.JkBms.Workers;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ── Serilog ────────────────────────────────────────────────────────────────────
+builder.Host.UseSerilog((ctx, _, loggerConfig) =>
+{
+    var logDir = Path.Combine(ctx.HostingEnvironment.ContentRootPath, "logs");
+    Directory.CreateDirectory(logDir);
+
+    loggerConfig
+        .MinimumLevel.Information()
+        .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+        .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+        .MinimumLevel.Override("HVO.Hardware.JkBms", LogEventLevel.Information)
+        .Enrich.FromLogContext()
+        .WriteTo.Console(
+            outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+        .WriteTo.File(
+            new CompactJsonFormatter(),
+            Path.Combine(logDir, "jkbms-.log"),
+            rollingInterval: RollingInterval.Day,
+            retainedFileCountLimit: 30,
+            fileSizeLimitBytes: 100_000_000);
+
+    // In Development, raise the JkBms namespace to Debug so connection details are visible.
+    if (ctx.HostingEnvironment.IsDevelopment())
+    {
+        loggerConfig
+            .MinimumLevel.Override("HVO.Hardware.JkBms", LogEventLevel.Debug)
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+            .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Information);
+    }
+});
 
 // ── Options ────────────────────────────────────────────────────────────────────
 builder.Services
