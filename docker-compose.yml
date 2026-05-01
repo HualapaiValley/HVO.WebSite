@@ -84,6 +84,7 @@ services:
       DOTNET_ENVIRONMENT: Production
     volumes:
       - davis-outbox:/app/data
+      - davis-data-protection:/root/.aspnet/DataProtection-Keys
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -110,6 +111,7 @@ services:
     privileged: true
     volumes:
       - jkbms-outbox:/app/data
+      - jkbms-data-protection:/root/.aspnet/DataProtection-Keys
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
     restart: unless-stopped
 
@@ -117,3 +119,5 @@ volumes:
   davis-outbox:
   jkbms-outbox:
   data-protection:
+  davis-data-protection:
+  jkbms-data-protection:
