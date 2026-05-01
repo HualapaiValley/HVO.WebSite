@@ -38,7 +38,9 @@ services:
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
       # HTTPS on 443 (self-signed cert baked into image).
       # HTTP on 80 redirects to HTTPS; port 8080 stays internal for service-to-service.
-      EnableHttpsRedirect: "true"
+      # Disable HTTPS redirect — sidecars (hvo-davis, hvo-jkbms) post to http://hvo-website:8080
+      # and must not be redirected to HTTPS where the self-signed cert would be rejected.
+      EnableHttpsRedirect: "false"
       # Seeds system ingest API keys into the DB on first start
       Seeding__DavisApiKey: ${DAVIS_API_KEY}
       Seeding__BmsApiKey: ${BMS_API_KEY}
