@@ -178,99 +178,102 @@ public class BmsController : ControllerBase
 
             try
             {
-                // Wrap all writes for this record in one transaction so that a failure
-                // in any step (config, reading, cells, alarm) leaves no partial state.
-                // A retry will not be blocked by the duplicate pre-check because the
-                // reading row is only committed once the whole transaction succeeds.
-                await using var tx = await _db.Database.BeginTransactionAsync(ct);
-
-                // ── Config snapshot (change-detect on server) ─────────────────
-
-                if (request.Config is not null)
-                    await UpsertDeviceConfigAsync(deviceId, recordedAt, request.Config, ct);
-
-                // ── Device info snapshot (change-detect on server) ────────────
-
-                if (request.DeviceInfo is not null)
-                    await UpsertDeviceInfoAsync(deviceId, recordedAt, request.DeviceInfo, ct);
-
-                // ── Reading row ───────────────────────────────────────────────
-
-                var packVoltageMv = readingReq.PackVoltageMv > 0
-                    ? readingReq.PackVoltageMv
-                    : readingReq.TotalVoltageMv ?? 0;
-
-                var powerWatts = packVoltageMv / 1000.0 * readingReq.CurrentMa / 1000.0;
-
-                var reading = new BmsReading
+                // SqlServerRetryingExecutionStrategy requires that manual transactions
+                // are executed inside CreateExecutionStrategy().ExecuteAsync() so that
+                // the whole unit (begin → commit) can be retried on transient failures.
+                var strategy = _db.Database.CreateExecutionStrategy();
+                await strategy.ExecuteAsync(async () =>
                 {
-                    DeviceId = deviceId,
-                    RecordedAt = recordedAt,
-                    PackVoltageMv = packVoltageMv,
-                    CurrentMa = readingReq.CurrentMa,
-                    PowerWatts = powerWatts,
-                    SocPercent = (byte)Math.Clamp(readingReq.SocPercent, 0, 100),
-                    SohPercent = (byte)Math.Clamp(readingReq.SohPercent, 0, 100),
-                    RemainingCapacityMah = readingReq.RemainingCapacityMah,
-                    NominalCapacityMah = readingReq.NominalCapacityMah,
-                    CycleCount = readingReq.CycleCount,
-                    CycleCapacityMah = readingReq.CycleCapacityMah,
-                    BatteryTemp1C = readingReq.BatteryTemperature1C,
-                    BatteryTemp2C = readingReq.BatteryTemperature2C,
-                    PowerTubeC = readingReq.PowerTubeTemperatureC,
-                    BalancingActive = readingReq.BalancingActive,
-                    BalancingCurrentMa = readingReq.BalancingCurrentMa,
-                    DeltaCellVoltageMv = readingReq.DeltaCellVoltageMv,
-                    AlarmBitmask = readingReq.AlarmBitmask,
-                };
+                    await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
-                _db.BmsReadings.Add(reading);
-                await _db.SaveChangesAsync(ct);
+                    // ── Config snapshot (change-detect on server) ─────────────────
 
-                // ── Per-cell voltage rows ─────────────────────────────────────
+                    if (request.Config is not null)
+                        await UpsertDeviceConfigAsync(deviceId, recordedAt, request.Config, ct);
 
-                if (readingReq.CellVoltagesMv is { Count: > 0 })
-                {
-                    var voltageRows = readingReq.CellVoltagesMv
-                        .Select((v, i) => new BmsCellVoltage
-                        {
-                            ReadingId = reading.Id,
-                            CellIndex = (byte)(i + 1),
-                            VoltageMv = v,
-                        })
-                        .ToList();
-                    _db.BmsCellVoltages.AddRange(voltageRows);
-                }
+                    // ── Device info snapshot (change-detect on server) ────────────
 
-                // ── Per-cell resistance rows ──────────────────────────────────
+                    if (request.DeviceInfo is not null)
+                        await UpsertDeviceInfoAsync(deviceId, recordedAt, request.DeviceInfo, ct);
 
-                if (readingReq.CellResistancesMOhm is { Count: > 0 })
-                {
-                    var resistanceRows = readingReq.CellResistancesMOhm
-                        .Select((r, i) => new BmsCellResistance
-                        {
-                            ReadingId = reading.Id,
-                            CellIndex = (byte)(i + 1),
-                            ResistanceMOhm = r,
-                        })
-                        .ToList();
-                    _db.BmsCellResistances.AddRange(resistanceRows);
-                }
+                    // ── Reading row ───────────────────────────────────────────────
 
-                if (readingReq.CellVoltagesMv is { Count: > 0 } || readingReq.CellResistancesMOhm is { Count: > 0 })
+                    var packVoltageMv = readingReq.PackVoltageMv > 0
+                        ? readingReq.PackVoltageMv
+                        : readingReq.TotalVoltageMv ?? 0;
+
+                    var powerWatts = packVoltageMv / 1000.0 * readingReq.CurrentMa / 1000.0;
+
+                    var reading = new BmsReading
+                    {
+                        DeviceId = deviceId,
+                        RecordedAt = recordedAt,
+                        PackVoltageMv = packVoltageMv,
+                        CurrentMa = readingReq.CurrentMa,
+                        PowerWatts = powerWatts,
+                        SocPercent = (byte)Math.Clamp(readingReq.SocPercent, 0, 100),
+                        SohPercent = (byte)Math.Clamp(readingReq.SohPercent, 0, 100),
+                        RemainingCapacityMah = readingReq.RemainingCapacityMah,
+                        NominalCapacityMah = readingReq.NominalCapacityMah,
+                        CycleCount = readingReq.CycleCount,
+                        CycleCapacityMah = readingReq.CycleCapacityMah,
+                        BatteryTemp1C = readingReq.BatteryTemperature1C,
+                        BatteryTemp2C = readingReq.BatteryTemperature2C,
+                        PowerTubeC = readingReq.PowerTubeTemperatureC,
+                        BalancingActive = readingReq.BalancingActive,
+                        BalancingCurrentMa = readingReq.BalancingCurrentMa,
+                        DeltaCellVoltageMv = readingReq.DeltaCellVoltageMv,
+                        AlarmBitmask = readingReq.AlarmBitmask,
+                    };
+
+                    _db.BmsReadings.Add(reading);
                     await _db.SaveChangesAsync(ct);
 
-                // ── Alarm change-detection ────────────────────────────────────
+                    // ── Per-cell voltage rows ─────────────────────────────────────
 
-                await HandleAlarmChangeAsync(deviceId, recordedAt, readingReq.AlarmBitmask, ct);
+                    if (readingReq.CellVoltagesMv is { Count: > 0 })
+                    {
+                        var voltageRows = readingReq.CellVoltagesMv
+                            .Select((v, i) => new BmsCellVoltage
+                            {
+                                ReadingId = reading.Id,
+                                CellIndex = (byte)(i + 1),
+                                VoltageMv = v,
+                            })
+                            .ToList();
+                        _db.BmsCellVoltages.AddRange(voltageRows);
+                    }
 
-                await tx.CommitAsync(ct);
+                    // ── Per-cell resistance rows ──────────────────────────────────
 
-                inserted++;
+                    if (readingReq.CellResistancesMOhm is { Count: > 0 })
+                    {
+                        var resistanceRows = readingReq.CellResistancesMOhm
+                            .Select((r, i) => new BmsCellResistance
+                            {
+                                ReadingId = reading.Id,
+                                CellIndex = (byte)(i + 1),
+                                ResistanceMOhm = r,
+                            })
+                            .ToList();
+                        _db.BmsCellResistances.AddRange(resistanceRows);
+                    }
 
-                _logger.LogDebug(
-                    "Ingested BMS reading {Id} for device {Address} at {RecordedAt}",
-                    reading.Id, readingReq.DeviceAddress, recordedAt);
+                    if (readingReq.CellVoltagesMv is { Count: > 0 } || readingReq.CellResistancesMOhm is { Count: > 0 })
+                        await _db.SaveChangesAsync(ct);
+
+                    // ── Alarm change-detection ────────────────────────────────────
+
+                    await HandleAlarmChangeAsync(deviceId, recordedAt, readingReq.AlarmBitmask, ct);
+
+                    await tx.CommitAsync(ct);
+
+                    inserted++;
+
+                    _logger.LogDebug(
+                        "Ingested BMS reading {Id} for device {Address} at {RecordedAt}",
+                        reading.Id, readingReq.DeviceAddress, recordedAt);
+                });
             }
             catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
             {
