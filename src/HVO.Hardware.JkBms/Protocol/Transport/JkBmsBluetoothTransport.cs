@@ -24,9 +24,9 @@ namespace HVO.Hardware.JkBms.Protocol.Transport;
 /// </summary>
 internal sealed class JkBmsBluetoothTransport : IBmsTransport
 {
-    private const int MaxConnectAttempts  = 3;
+    private const int MaxConnectAttempts = 3;
     private const int ConnectRetryDelayMs = 2_000;
-    private const int MinScanMs           = 3_000;
+    private const int MinScanMs = 3_000;
 
     private readonly ILogger<JkBmsBluetoothTransport> _logger;
     private readonly TimeSpan _connectTimeout;
@@ -232,8 +232,8 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             _notifyCharacteristic = null;
             foreach (var c in allServiceChars)
             {
-                var cUuid  = await c.GetUUIDAsync();
-                var flags  = await c.GetFlagsAsync();
+                var cUuid = await c.GetUUIDAsync();
+                var flags = await c.GetFlagsAsync();
                 _logger.LogDebug("  Service char UUID={Uuid} Flags=[{Flags}]",
                     cUuid, string.Join(", ", flags ?? []));
                 if (string.Equals(cUuid, charUuid, StringComparison.OrdinalIgnoreCase))
@@ -309,7 +309,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
                 _logger.LogDebug(ex, "Non-fatal error stopping BLE notifications for {Address}", DeviceAddress);
             }
             _notifyCharacteristic = null;
-            _writeCharacteristic  = null;
+            _writeCharacteristic = null;
         }
 
         if (_device != null)
@@ -436,7 +436,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             0x95 => JkBmsProtocol.FrameTypeSettings,
             0x96 => JkBmsProtocol.FrameTypeCellInfo,
             0x97 => JkBmsProtocol.FrameTypeDeviceInfo,
-            _    => (byte)0,
+            _ => (byte)0,
         } : (byte)0;
 
     // ── Notification handler ──────────────────────────────────────────────────

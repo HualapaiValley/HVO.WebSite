@@ -3,6 +3,13 @@
 **/bin/
 **/obj/
 
+## Runtime data files (logs, outbox databases, WAL/SHM files)
+**/logs/
+**/*.log
+**/*.db
+**/*.db-wal
+**/*.db-shm
+
 ## Secrets and local config
 .env
 *.env

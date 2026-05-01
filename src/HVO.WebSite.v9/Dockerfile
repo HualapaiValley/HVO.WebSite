@@ -57,14 +57,14 @@ RUN apt-get update && \
 # accessing the site by IP address (https://192.168.0.20).
 RUN mkdir -p /https && \
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-        -keyout /https/tls.key \
-        -out /https/tls.crt \
-        -subj "/CN=192.168.0.20" \
-        -addext "subjectAltName=IP:192.168.0.20,DNS:localhost" 2>/dev/null && \
+    -keyout /https/tls.key \
+    -out /https/tls.crt \
+    -subj "/CN=192.168.0.20" \
+    -addext "subjectAltName=IP:192.168.0.20,DNS:localhost" 2>/dev/null && \
     openssl pkcs12 -export \
-        -inkey /https/tls.key -in /https/tls.crt \
-        -out /https/aspnetapp.pfx \
-        -passout pass:HVODev2026 && \
+    -inkey /https/tls.key -in /https/tls.crt \
+    -out /https/aspnetapp.pfx \
+    -passout pass:HVODev2026 && \
     rm /https/tls.key /https/tls.crt
 
 # Copy the published binaries from the build stage
