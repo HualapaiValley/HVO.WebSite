@@ -36,14 +36,16 @@ services:
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
-      # Disable HTTPS redirect — TLS is terminated upstream (reverse proxy / host)
+      # HTTPS on 443 is served by Kestrel directly (self-signed cert baked into image).
+      # HTTP on 8080 is for internal service-to-service traffic only — no redirect.
       EnableHttpsRedirect: "false"
-      TrustDevCertificates: "false"
       # Seeds system ingest API keys into the DB on first start
       Seeding__DavisApiKey: ${DAVIS_API_KEY}
       Seeding__BmsApiKey: ${BMS_API_KEY}
       # Connection string — passed directly so Key Vault is not required
       ConnectionStrings__HualapaiValleyObservatory: ${ConnectionStrings__HualapaiValleyObservatory}
+    ports:
+      - "443:443"
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/health/live" ]
@@ -51,26 +53,6 @@ services:
       timeout: 10s
       start_period: 30s
       retries: 3
-
-  # ---------------------------------------------------------------------------
-  # Caddy — TLS-terminating reverse proxy for hvo-website
-  # Exposes HTTPS on port 443 and HTTP on port 80 (auto-redirects to HTTPS).
-  # Uses a self-signed cert so Entra OIDC redirect URIs can use https://.
-  # ---------------------------------------------------------------------------
-  caddy:
-    build:
-      context: .
-      dockerfile: Dockerfile.caddy
-    depends_on:
-      hvo-website:
-        condition: service_healthy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - caddy-data:/data
-      - caddy-config:/config
-    restart: unless-stopped
 
   # ---------------------------------------------------------------------------
   # Davis Vantage Pro 2 driver — reads from the console, posts to hvo-website
@@ -129,5 +111,3 @@ services:
 volumes:
   davis-outbox:
   jkbms-outbox:
-  caddy-data:
-  caddy-config:

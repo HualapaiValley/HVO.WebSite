@@ -47,24 +47,43 @@ RUN apt-get update && \
     fontconfig \
     fonts-dejavu-core \
     fonts-liberation2 \
-    fonts-noto-core && \
+    fonts-noto-core \
+    openssl && \
     rm -rf /var/lib/apt/lists/* && \
     fc-cache -f
+
+# Generate a self-signed TLS certificate so Kestrel can serve HTTPS directly.
+# The IP SAN is required for browsers and Entra OIDC to trust the cert when
+# accessing the site by IP address (https://192.168.0.20).
+RUN mkdir -p /https && \
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout /https/tls.key \
+        -out /https/tls.crt \
+        -subj "/CN=192.168.0.20" \
+        -addext "subjectAltName=IP:192.168.0.20,DNS:localhost" 2>/dev/null && \
+    openssl pkcs12 -export \
+        -inkey /https/tls.key -in /https/tls.crt \
+        -out /https/aspnetapp.pfx \
+        -passout pass:HVODev2026 && \
+    rm /https/tls.key /https/tls.crt
 
 # Copy the published binaries from the build stage
 COPY --from=build /app/publish .
 
 # Configure ASP.NET Core and logging defaults
-ENV ASPNETCORE_URLS=http://+:8080 \
+ENV ASPNETCORE_URLS="https://+:443;http://+:8080" \
+    ASPNETCORE_Kestrel__Certificates__Default__Path=/https/aspnetapp.pfx \
+    ASPNETCORE_Kestrel__Certificates__Default__Password=HVODev2026 \
     ASPNETCORE_ENVIRONMENT=Production \
     Logging__LogLevel__Default=Information \
     Logging__LogLevel__Microsoft.AspNetCore=Warning \
     TZ=UTC
 
-# Expose the HTTP port used by the site
+# HTTPS (external access) and HTTP (internal service-to-service + health checks)
+EXPOSE 443
 EXPOSE 8080
 
-# Lightweight health check endpoint
+# Lightweight health check — uses HTTP on 8080 (no cert validation needed)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8080/health/live || exit 1
 

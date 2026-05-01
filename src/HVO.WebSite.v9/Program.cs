@@ -14,8 +14,6 @@ using System.Net.Http;
 using Azure.Identity;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
-using Microsoft.AspNetCore.HttpOverrides;
-
 namespace HVO.WebSite.v9
 {
     /// <summary>
@@ -219,14 +217,6 @@ namespace HVO.WebSite.v9
             // 5. Authorization (UseAuthorization)
             // 6. Endpoint mapping (MapControllers, MapHealthChecks, etc.)
             // ============================================================================
-
-            // Trust X-Forwarded-Proto / X-Forwarded-For from the Caddy reverse proxy.
-            // This ensures the OIDC redirect URI is built with https:// when Caddy
-            // terminates TLS and forwards requests to the container over plain HTTP.
-            app.UseForwardedHeaders(new ForwardedHeadersOptions
-            {
-                ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-            });
 
             // Add exception handling middleware
             app.UseExceptionHandler();
