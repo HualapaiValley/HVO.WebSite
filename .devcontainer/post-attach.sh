@@ -5,7 +5,7 @@
 # always ready during postAttachCommand on first build).
 set -e
 
-ENV_GIST="78c64e556ed56aa91af92403c07e8948"
+ENV_GIST="f343db002d980ebe5fcc51413b0b7227"
 ENV_FILE="/workspaces/HVO.WebSite/.env"
 
 # ── Ensure .env sourcing + one-shot fetch hook in .zshrc (idempotent) ─

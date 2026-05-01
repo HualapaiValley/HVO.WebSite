@@ -63,7 +63,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────
 
 # [CUSTOMIZE] .env gist ID for this repo
-ENV_GIST="1f014918502877f0c37738fa733dad65"
+ENV_GIST="f343db002d980ebe5fcc51413b0b7227"
 
 if type dc_bootstrap_env >/dev/null 2>&1; then
 	dc_bootstrap_env "$ENV_GIST" "/workspaces/HVO.WebSite"
