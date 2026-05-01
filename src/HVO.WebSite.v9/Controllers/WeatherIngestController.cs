@@ -11,20 +11,20 @@ using Microsoft.EntityFrameworkCore;
 namespace HVO.WebSite.v9.Controllers;
 
 /// <summary>
-/// Weather v9 API — ingest raw readings from station devices and read recent data.
+/// Weather ingest API — ingest raw readings from station devices and read recent data.
 /// All ingest endpoints require the <c>ingest:weather</c> scope claim.
 /// All read endpoints require the <c>read:weather</c> or <c>read:api</c> scope claim.
 /// </summary>
 [ApiController]
 [ApiVersion("1.0")]
-[Route("api/v{version:apiVersion}/weather/v9")]
-[Tags("Weather v9")]
-public class WeatherV9Controller : ControllerBase
+[Route("api/v{version:apiVersion}/weather")]
+[Tags("Weather")]
+public class WeatherIngestController : ControllerBase
 {
     private readonly HvoV9DbContext _db;
-    private readonly ILogger<WeatherV9Controller> _logger;
+    private readonly ILogger<WeatherIngestController> _logger;
 
-    public WeatherV9Controller(HvoV9DbContext db, ILogger<WeatherV9Controller> logger)
+    public WeatherIngestController(HvoV9DbContext db, ILogger<WeatherIngestController> logger)
     {
         _db = db;
         _logger = logger;
@@ -42,7 +42,7 @@ public class WeatherV9Controller : ControllerBase
     ///
     /// Sample request:
     ///
-    ///     POST /api/v1/weather/v9/raw
+    ///     POST /api/v1/weather/raw
     ///     X-Api-Key: &lt;your-key&gt;
     ///     {
     ///       "stationId": "hvo-davis-01",

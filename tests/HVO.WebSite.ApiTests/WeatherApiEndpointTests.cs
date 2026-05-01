@@ -20,7 +20,7 @@ namespace HVO.WebSite.ApiTests;
 /// pipeline including API key authentication.
 /// </summary>
 [TestClass]
-public sealed class WeatherV9ApiEndpointTests
+public sealed class WeatherApiEndpointTests
 {
     // Keys created once for the test class
     private const string IngestPlaintext = "test-ingest-key-abc123";
@@ -88,7 +88,7 @@ public sealed class WeatherV9ApiEndpointTests
     }
 
     // -------------------------------------------------------------------------
-    // POST /api/v1/weather/v9/raw  (requires ingest:weather)
+    // POST /api/v1/weather/raw  (requires ingest:weather)
     // -------------------------------------------------------------------------
 
     [TestMethod]
@@ -97,7 +97,7 @@ public sealed class WeatherV9ApiEndpointTests
         _client.DefaultRequestHeaders.Add("X-Api-Key", InvalidPlaintext);
 
         var response = await _client.PostAsJsonAsync(
-            "/api/v1/weather/v9/raw",
+            "/api/v1/weather/raw",
             ValidIngestPayload());
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -109,7 +109,7 @@ public sealed class WeatherV9ApiEndpointTests
         _client.DefaultRequestHeaders.Add("X-Api-Key", ReadPlaintext);
 
         var response = await _client.PostAsJsonAsync(
-            "/api/v1/weather/v9/raw",
+            "/api/v1/weather/raw",
             ValidIngestPayload());
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -121,7 +121,7 @@ public sealed class WeatherV9ApiEndpointTests
         _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
 
         var response = await _client.PostAsJsonAsync(
-            "/api/v1/weather/v9/raw",
+            "/api/v1/weather/raw",
             ValidIngestPayload());
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -134,7 +134,7 @@ public sealed class WeatherV9ApiEndpointTests
     }
 
     // -------------------------------------------------------------------------
-    // GET /api/v1/weather/v9/raw/recent  (requires read:weather)
+    // GET /api/v1/weather/raw/recent  (requires read:weather)
     // -------------------------------------------------------------------------
 
     [TestMethod]
@@ -142,7 +142,7 @@ public sealed class WeatherV9ApiEndpointTests
     {
         _client.DefaultRequestHeaders.Add("X-Api-Key", InvalidPlaintext);
 
-        var response = await _client.GetAsync("/api/v1/weather/v9/raw/recent");
+        var response = await _client.GetAsync("/api/v1/weather/raw/recent");
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -152,7 +152,7 @@ public sealed class WeatherV9ApiEndpointTests
     {
         _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
 
-        var response = await _client.GetAsync("/api/v1/weather/v9/raw/recent");
+        var response = await _client.GetAsync("/api/v1/weather/raw/recent");
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -162,7 +162,7 @@ public sealed class WeatherV9ApiEndpointTests
     {
         _client.DefaultRequestHeaders.Add("X-Api-Key", ReadPlaintext);
 
-        var response = await _client.GetAsync("/api/v1/weather/v9/raw/recent?limit=10");
+        var response = await _client.GetAsync("/api/v1/weather/raw/recent?limit=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -171,7 +171,7 @@ public sealed class WeatherV9ApiEndpointTests
     }
 
     // -------------------------------------------------------------------------
-    // GET /api/v1/weather/v9/hourly/recent  (requires read:weather)
+    // GET /api/v1/weather/hourly/recent  (requires read:weather)
     // -------------------------------------------------------------------------
 
     [TestMethod]
@@ -179,7 +179,7 @@ public sealed class WeatherV9ApiEndpointTests
     {
         _client.DefaultRequestHeaders.Add("X-Api-Key", ReadPlaintext);
 
-        var response = await _client.GetAsync("/api/v1/weather/v9/hourly/recent?limit=24");
+        var response = await _client.GetAsync("/api/v1/weather/hourly/recent?limit=24");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -192,7 +192,7 @@ public sealed class WeatherV9ApiEndpointTests
     {
         _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
 
-        var response = await _client.GetAsync("/api/v1/weather/v9/hourly/recent");
+        var response = await _client.GetAsync("/api/v1/weather/hourly/recent");
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
