@@ -28,6 +28,7 @@ services:
       dockerfile: src/HVO.WebSite.v9/Dockerfile
       args:
         WEBSITE_RUNTIME: ${WEBSITE_RUNTIME:-linux-x64}
+    hostname: hvo-website
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       # Key Vault — loaded by DefaultAzureCredential using the SP below

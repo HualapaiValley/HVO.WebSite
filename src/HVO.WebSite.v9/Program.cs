@@ -226,7 +226,9 @@ namespace HVO.WebSite.v9
                     {
                         options.ConnectionString = appInsightsConnectionString;
                     })
-                    .ConfigureResource(rb => rb.AddService(serviceName));
+                    .ConfigureResource(rb => rb.AddService(
+                        serviceName: serviceName,
+                        serviceInstanceId: Environment.MachineName));
             }
 
             // Add HVO Data Services with Entity Framework
