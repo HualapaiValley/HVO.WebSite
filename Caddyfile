@@ -1,0 +1,26 @@
+# HVO Website — Caddy reverse proxy
+#
+# Terminates TLS with a self-signed certificate so that the Entra OIDC
+# redirect URI can use https://. The hvo-website container runs plain HTTP
+# internally; Caddy adds X-Forwarded-Proto: https so ASP.NET Core builds
+# the correct redirect URI for the OIDC flow.
+#
+# Access the site at: https://192.168.0.20
+
+{
+    # Use self-signed cert (no ACME/Let's Encrypt for local IPs)
+    local_certs
+}
+
+:443 {
+    tls internal
+
+    reverse_proxy hvo-website:8080 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-For {remote_host}
+    }
+}
+
+:80 {
+    redir https://{host}{uri} permanent
+}

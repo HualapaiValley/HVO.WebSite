@@ -15,7 +15,7 @@
 #   docker compose --context lxc up -d --build
 #
 # Deploy to the Mac Mini (ARM64 — set WEBSITE_RUNTIME=linux-arm64 in .env):
-#   docker compose --context mac up -d --build
+#   docker --context macmini-ubuntu compose up -d --build
 
 services:
 
@@ -44,8 +44,6 @@ services:
       Seeding__BmsApiKey: ${BMS_API_KEY}
       # Connection string — passed directly so Key Vault is not required
       ConnectionStrings__HualapaiValleyObservatory: ${ConnectionStrings__HualapaiValleyObservatory}
-    ports:
-      - "8080:8080"
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/health/live" ]
@@ -53,6 +51,25 @@ services:
       timeout: 10s
       start_period: 30s
       retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Caddy — TLS-terminating reverse proxy for hvo-website
+  # Exposes HTTPS on port 443 and HTTP on port 80 (auto-redirects to HTTPS).
+  # Uses a self-signed cert so Entra OIDC redirect URIs can use https://.
+  # ---------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      hvo-website:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
 
   # ---------------------------------------------------------------------------
   # Davis Vantage Pro 2 driver — reads from the console, posts to hvo-website
@@ -111,3 +128,5 @@ services:
 volumes:
   davis-outbox:
   jkbms-outbox:
+  caddy-data:
+  caddy-config:
