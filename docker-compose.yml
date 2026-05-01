@@ -68,6 +68,8 @@ services:
     build:
       context: ./otel
       dockerfile: Dockerfile.davis
+    environment:
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
     group_add:
       - "999"
     volumes:
@@ -83,6 +85,8 @@ services:
     build:
       context: ./otel
       dockerfile: Dockerfile.jkbms
+    environment:
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
     group_add:
       - "999"
     volumes:

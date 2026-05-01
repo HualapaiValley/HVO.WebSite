@@ -3,9 +3,8 @@
 # Receives OTLP from the JkBms app (traces, metrics, logs) and also
 # scrapes container-level metrics from the Docker daemon.
 #
-# Phase 1: exports to 'debug' (logs to stdout) so the pipeline can be
-#          validated before App Insights credentials are available.
-# Phase 4: replace the 'debug' exporter with 'azuremonitor'.
+# Exports to both 'debug' (stdout) and 'azuremonitor' (App Insights).
+# Connection string is injected via APPLICATIONINSIGHTS_CONNECTION_STRING env var.
 
 receivers:
   # Receives OTLP from the hvo-jkbms app via HTTP/Protobuf.
@@ -35,22 +34,26 @@ processors:
     send_batch_size: 512
 
 exporters:
-  # Phase 1: emit to stdout for pipeline validation.
-  # Replace with 'azuremonitor' in Phase 4 once credentials are ready.
+  # Emit to stdout for pipeline visibility.
   debug:
     verbosity: normal
+
+  # Send to Azure Application Insights.
+  # Connection string is read from APPLICATIONINSIGHTS_CONNECTION_STRING env var.
+  azuremonitor:
+    connection_string: ${env:APPLICATIONINSIGHTS_CONNECTION_STRING}
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [debug]
+      exporters: [debug, azuremonitor]
     metrics:
       receivers: [otlp, docker_stats]
       processors: [memory_limiter, batch]
-      exporters: [debug]
+      exporters: [debug, azuremonitor]
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [debug]
+      exporters: [debug, azuremonitor]
