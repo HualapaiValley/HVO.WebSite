@@ -8,20 +8,19 @@
 # Access the site at: https://192.168.0.20
 
 {
-	# Disable automatic HTTPS so auto_https does not add a conflicting TLS
-	# policy on top of the explicit "tls internal" directive below.
+	# Disable automatic HTTPS — we configure TLS explicitly below.
 	auto_https off
 }
 
-:443 {
+# HTTPS — bind to the specific IP so Caddy generates a cert with the IP SAN
+# (bare :443 with tls internal fails because there is no SNI for IP connections)
+192.168.0.20:443 {
 	tls internal
 
-	reverse_proxy hvo-website:8080 {
-		header_up X-Forwarded-Proto {scheme}
-		header_up X-Forwarded-For {remote_host}
-	}
+	reverse_proxy hvo-website:8080
 }
 
-:80 {
-	redir https://{host}{uri} permanent
+# HTTP — redirect to HTTPS
+192.168.0.20:80 {
+	redir https://192.168.0.20{uri} permanent
 }
