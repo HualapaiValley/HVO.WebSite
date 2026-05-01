@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using HVO.DataModels.Data;
@@ -44,6 +45,10 @@ namespace HVO.DataModels.Extensions
                     sqlOptions.CommandTimeout(60);
                 });
 
+                // MARS is required so auth middleware and EF can share a connection scope.
+                // Savepoints are intentionally disabled as a side effect — suppress the noise.
+                options.ConfigureWarnings(w => w.Ignore(SqlServerEventId.SavepointsDisabledBecauseOfMARS));
+
                 if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
                 {
                     options.EnableSensitiveDataLogging();
@@ -63,6 +68,10 @@ namespace HVO.DataModels.Extensions
                     sqlOptions.CommandTimeout(60);
                     sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "v9");
                 });
+
+                // MARS is required so auth middleware and EF can share a connection scope.
+                // Savepoints are intentionally disabled as a side effect — suppress the noise.
+                options.ConfigureWarnings(w => w.Ignore(SqlServerEventId.SavepointsDisabledBecauseOfMARS));
 
                 if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
                 {

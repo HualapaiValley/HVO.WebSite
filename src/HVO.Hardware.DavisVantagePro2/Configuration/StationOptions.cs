@@ -34,7 +34,7 @@ public sealed class OutboxOptions
     public const string SectionName = "Outbox";
 
     [Required, Url]
-    public string ApiEndpoint { get; set; } = "https://localhost:5001/api/v1/weather/raw";
+    public string ApiEndpoint { get; set; } = "http://localhost:5001/api/v1/weather/raw";
 
     [Required]
     public string ApiKey { get; set; } = string.Empty;

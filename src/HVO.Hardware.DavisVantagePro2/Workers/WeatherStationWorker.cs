@@ -53,11 +53,14 @@ public sealed class WeatherStationWorker(
         logger.LogInformation("WeatherStationWorker starting. Connecting to {Host}:{Port}",
             _options.Host, _options.Port);
 
+        int reconnectAttempts = 0;
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 await station.ConnectAsync(stoppingToken);
+                reconnectAttempts = 0; // Successful connect — reset backoff
                 ConsecutiveErrors = 0;
                 LastError = null;
                 WorkerStateChanged?.Invoke();
@@ -73,10 +76,15 @@ public sealed class WeatherStationWorker(
             }
             catch (Exception ex)
             {
+                reconnectAttempts++;
                 LastError = ex.Message;
                 WorkerStateChanged?.Invoke();
-                logger.LogError(ex, "Station error (consecutive: {N}). Reconnecting in 30s…", ConsecutiveErrors);
-                try { await Task.Delay(30_000, stoppingToken); } catch (OperationCanceledException) { break; }
+                // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (capped)
+                var delaySeconds = (int)Math.Min(30, Math.Pow(2, reconnectAttempts - 1));
+                logger.LogError(ex, "Station error (consecutive: {N}). Reconnecting in {Delay}s…",
+                    ConsecutiveErrors, delaySeconds);
+                try { await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken); }
+                catch (OperationCanceledException) { break; }
             }
         }
 

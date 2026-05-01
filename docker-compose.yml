@@ -46,6 +46,8 @@ services:
       Seeding__BmsApiKey: ${BMS_API_KEY}
       # Connection string — passed directly so Key Vault is not required
       ConnectionStrings__HualapaiValleyObservatory: ${ConnectionStrings__HualapaiValleyObservatory}
+    volumes:
+      - data-protection:/root/.aspnet/DataProtection-Keys
     ports:
       - "80:8080"
       - "443:443"
@@ -114,3 +116,4 @@ services:
 volumes:
   davis-outbox:
   jkbms-outbox:
+  data-protection:
