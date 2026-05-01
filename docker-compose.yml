@@ -58,7 +58,9 @@ services:
   # Uses a self-signed cert so Entra OIDC redirect URIs can use https://.
   # ---------------------------------------------------------------------------
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
     depends_on:
       hvo-website:
         condition: service_healthy
@@ -66,7 +68,6 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     restart: unless-stopped
