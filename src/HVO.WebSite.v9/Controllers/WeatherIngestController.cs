@@ -19,12 +19,12 @@ namespace HVO.WebSite.v9.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/weather")]
 [Tags("Weather")]
-public class WeatherV9Controller : ControllerBase
+public class WeatherIngestController : ControllerBase
 {
     private readonly HvoV9DbContext _db;
-    private readonly ILogger<WeatherV9Controller> _logger;
+    private readonly ILogger<WeatherIngestController> _logger;
 
-    public WeatherV9Controller(HvoV9DbContext db, ILogger<WeatherV9Controller> logger)
+    public WeatherIngestController(HvoV9DbContext db, ILogger<WeatherIngestController> logger)
     {
         _db = db;
         _logger = logger;

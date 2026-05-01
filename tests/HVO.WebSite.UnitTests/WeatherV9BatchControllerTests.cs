@@ -20,9 +20,9 @@ public class WeatherV9BatchControllerTests
             .UseInMemoryDatabase($"V9Batch_{Guid.NewGuid()}")
             .Options);
 
-    private static WeatherV9Controller CreateController(HvoV9DbContext db)
+    private static WeatherIngestController CreateController(HvoV9DbContext db)
     {
-        var ctrl = new WeatherV9Controller(db, NullLogger<WeatherV9Controller>.Instance);
+        var ctrl = new WeatherIngestController(db, NullLogger<WeatherIngestController>.Instance);
         ctrl.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

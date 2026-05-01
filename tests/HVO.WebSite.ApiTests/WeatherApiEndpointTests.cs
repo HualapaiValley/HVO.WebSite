@@ -20,7 +20,7 @@ namespace HVO.WebSite.ApiTests;
 /// pipeline including API key authentication.
 /// </summary>
 [TestClass]
-public sealed class WeatherV9ApiEndpointTests
+public sealed class WeatherApiEndpointTests
 {
     // Keys created once for the test class
     private const string IngestPlaintext = "test-ingest-key-abc123";

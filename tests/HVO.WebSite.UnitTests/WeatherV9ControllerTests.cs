@@ -22,8 +22,8 @@ public class WeatherV9ControllerTests
             .UseInMemoryDatabase(name)
             .Options);
 
-    private static WeatherV9Controller CreateController(HvoV9DbContext db) =>
-        new(db, NullLogger<WeatherV9Controller>.Instance);
+    private static WeatherIngestController CreateController(HvoV9DbContext db) =>
+        new(db, NullLogger<WeatherIngestController>.Instance);
 
     private static WeatherRaw MakeRaw(string stationId, DateTime recordedAt, double tempF = 70.0) =>
         new()
