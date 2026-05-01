@@ -1,9 +1,13 @@
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 
 namespace HVO.Hardware.DavisVantagePro2.Components.Pages;
 
 public partial class Status : IDisposable
 {
+    [Inject] private ILogger<Status> Logger { get; set; } = default!;
+
     private Loop2Packet? _reading;
 
     protected override void OnInitialized()
@@ -12,6 +16,9 @@ public partial class Status : IDisposable
         Worker.ReadingUpdated += OnReadingUpdated;
         Worker.WorkerStateChanged += OnStateChanged;
         Forwarder.SweptCompleted += OnStateChanged;
+        Logger.LogInformation(
+            "Davis status page loaded. Worker errors: {Errors}, Pending outbox: {Pending}",
+            Worker.ConsecutiveErrors, Forwarder.PendingCount);
     }
 
     private void OnReadingUpdated(Loop2Packet reading)

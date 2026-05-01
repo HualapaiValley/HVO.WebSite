@@ -1,0 +1,56 @@
+# OTel Collector sidecar for hvo-davis
+#
+# Receives OTLP from the Davis app (traces, metrics, logs) and also
+# scrapes container-level metrics from the Docker daemon.
+#
+# Phase 1: exports to 'debug' (logs to stdout) so the pipeline can be
+#          validated before App Insights credentials are available.
+# Phase 4: replace the 'debug' exporter with 'azuremonitor'.
+
+receivers:
+  # Receives OTLP from the hvo-davis app via HTTP/Protobuf.
+  # The app posts to http://otel-collector-davis:4318.
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Scrapes container-level metrics (CPU%, memory, network, block I/O)
+  # from the Docker daemon. Scoped to the hvo-davis container.
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    collection_interval: 30s
+    container_labels_as_resource_attributes: true
+
+processors:
+  # Prevent OOM if the downstream exporter is slow or offline.
+  memory_limiter:
+    limit_mib: 128
+    spike_limit_mib: 32
+    check_interval: 5s
+
+  # Batch telemetry for efficient export.
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+exporters:
+  # Phase 1: emit to stdout for pipeline validation.
+  # Replace with 'azuremonitor' in Phase 4 once credentials are ready.
+  debug:
+    verbosity: normal
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp, docker_stats]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]

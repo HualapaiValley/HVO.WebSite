@@ -1,9 +1,13 @@
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 
 namespace HVO.Hardware.DavisVantagePro2.Components.Pages;
 
 public partial class Archive : IAsyncDisposable
 {
+    [Inject] private ILogger<Archive> Logger { get; set; } = default!;
+
     // ── Archive Interval ─────────────────────────────────────────────────────
 
     private int _interval = 5;
@@ -13,23 +17,34 @@ public partial class Archive : IAsyncDisposable
 
     private async Task SaveIntervalAsync()
     {
+        Logger.LogInformation("Setting archive interval to {Minutes} minutes", _interval);
         try
         {
             await Station.SetArchiveIntervalAsync(_interval);
             _msg = $"Archive interval set to {_interval} min."; _isError = false;
         }
-        catch (Exception ex) { _msg = ex.Message; _isError = true; }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to set archive interval to {Minutes} minutes", _interval);
+            _msg = ex.Message; _isError = true;
+        }
     }
 
     private async Task ClearAsync()
     {
         _confirmClear = false;
+        Logger.LogWarning("User requested archive memory clear");
         try
         {
             await Station.ClearArchiveAsync();
             _msg = "Archive memory cleared."; _isError = false;
+            Logger.LogWarning("Archive memory cleared by user");
         }
-        catch (Exception ex) { _msg = ex.Message; _isError = true; }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to clear archive memory");
+            _msg = ex.Message; _isError = true;
+        }
     }
 
     // ── Archive History ──────────────────────────────────────────────────────
@@ -71,6 +86,7 @@ public partial class Archive : IAsyncDisposable
         _continuationTimestamp = null;
         _hasMore = false;
         StateHasChanged();
+        Logger.LogDebug("Loading archive history since {Since}", _since);
         try
         {
             var records = new List<ArchiveRecord>();
@@ -92,14 +108,18 @@ public partial class Archive : IAsyncDisposable
                 // (which returns records >= the given timestamp) does not re-fetch it.
                 _continuationTimestamp = records[^1].DateTimeLocal.AddMinutes(1);
             }
+            Logger.LogInformation("Archive history loaded: {Count} records since {Since}",
+                records.Count, _historySince);
         }
         catch (OperationCanceledException)
         {
             _historyError = "Load cancelled.";
+            Logger.LogDebug("Archive history load cancelled");
         }
         catch (Exception ex)
         {
             _historyError = ex.Message;
+            Logger.LogError(ex, "Failed to load archive history since {Since}", _historySince);
         }
         finally
         {
@@ -113,6 +133,7 @@ public partial class Archive : IAsyncDisposable
         _historyLoading = true;
         _hasMore = false;
         StateHasChanged();
+        Logger.LogDebug("Loading more archive records from {Ts}", _continuationTimestamp);
         try
         {
             var records = _historyRecords ?? [];
@@ -136,10 +157,12 @@ public partial class Archive : IAsyncDisposable
             {
                 _continuationTimestamp = null;
             }
+            Logger.LogDebug("{N} more archive records loaded", batchCount);
         }
         catch (Exception ex)
         {
             _historyError = ex.Message;
+            Logger.LogWarning(ex, "Failed to load more archive records from {Ts}", _continuationTimestamp);
         }
         finally
         {

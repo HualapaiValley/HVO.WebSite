@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Asp.Versioning;
 using HVO.DataModels.Extensions;
+using HVO.Enterprise.Telemetry;
+using HVO.Enterprise.Telemetry.AppInsights;
+using HVO.Enterprise.Telemetry.Serilog;
 using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Components.Web;
 using HVO.WebSite.v9.Middleware;
@@ -14,6 +17,9 @@ using System.Net.Http;
 using Azure.Identity;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
+using Serilog;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
 namespace HVO.WebSite.v9
 {
     /// <summary>
@@ -41,6 +47,29 @@ namespace HVO.WebSite.v9
                     new Uri(kvUri),
                     new DefaultAzureCredential());
             }
+
+            builder.Host.UseSerilog((ctx, _, loggerConfig) =>
+            {
+                var logDir = Path.Combine(ctx.HostingEnvironment.ContentRootPath, "logs");
+                Directory.CreateDirectory(logDir);
+                loggerConfig
+                    .MinimumLevel.Information()
+                    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+                    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+                    .MinimumLevel.Override("HVO.WebSite.v9", LogEventLevel.Information)
+                    .Enrich.FromLogContext()
+                    .Enrich.WithTelemetry()
+                    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+                    .WriteTo.File(new CompactJsonFormatter(), Path.Combine(logDir, "website-.log"),
+                        rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30, fileSizeLimitBytes: 100_000_000);
+                if (ctx.HostingEnvironment.IsDevelopment())
+                    loggerConfig
+                        .MinimumLevel.Override("HVO.WebSite.v9", LogEventLevel.Debug)
+                        .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+                        .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Information)
+                        .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Information);
+            });
 
             ConfigureServices(builder.Services, builder.Configuration);
 
@@ -171,6 +200,18 @@ namespace HVO.WebSite.v9
                 opt.ReportApiVersions = true;
                 opt.ApiVersionReader = new UrlSegmentApiVersionReader();
             }).AddMvc();
+
+            // Add HVO telemetry with Application Insights
+            // Connection string is loaded from Key Vault (ApplicationInsights--ConnectionString)
+            // or from appsettings.json (empty by default — graceful no-op when not configured)
+            services.AddTelemetry(tb =>
+            {
+                tb.Configure(o => configuration.GetSection("Telemetry").Bind(o));
+                tb.WithAppInsights(options =>
+                {
+                    options.ConnectionString = configuration["ApplicationInsights:ConnectionString"];
+                });
+            });
 
             // Add HVO Data Services with Entity Framework
             services.AddHvoDataServices(configuration);

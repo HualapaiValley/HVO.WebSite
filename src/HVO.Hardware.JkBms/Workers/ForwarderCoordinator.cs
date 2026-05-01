@@ -1,5 +1,7 @@
+using HVO.Enterprise.Telemetry.Abstractions;
 using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.Outbox.Forwarders;
+using HVO.Hardware.JkBms.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -23,6 +25,8 @@ public sealed class ForwarderCoordinator : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IReadOnlyList<IReadingForwarder> _forwarders;
     private readonly OutboxOptions _options;
+    private readonly BmsTelemetry _telemetry;
+    private readonly ITelemetryService _telemetryService;
     private readonly ILogger<ForwarderCoordinator> _logger;
 
     // ── Public state for the status page ─────────────────────────────────────
@@ -39,11 +43,15 @@ public sealed class ForwarderCoordinator : BackgroundService
         IServiceScopeFactory scopeFactory,
         IEnumerable<IReadingForwarder> forwarders,
         IOptions<OutboxOptions> options,
+        BmsTelemetry telemetry,
+        ITelemetryService telemetryService,
         ILogger<ForwarderCoordinator> logger)
     {
         _scopeFactory = scopeFactory;
         _forwarders = forwarders.ToList();
         _options = options.Value;
+        _telemetry = telemetry;
+        _telemetryService = telemetryService;
         _logger = logger;
     }
 
@@ -80,8 +88,9 @@ public sealed class ForwarderCoordinator : BackgroundService
 
     private async Task SweepAsync(CancellationToken ct)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        using var sweepScope = _telemetryService.StartOperation("JkBms.Outbox.Sweep");
+        await using var serviceScope = _scopeFactory.CreateAsyncScope();
+        var db = serviceScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
 
         var now = DateTime.UtcNow;
         var pending = await db.OutboxRecords
@@ -92,31 +101,40 @@ public sealed class ForwarderCoordinator : BackgroundService
 
         PendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
         FailedCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
+        _telemetry.SetOutboxQueueDepth(PendingCount);
 
         if (pending.Count == 0)
         {
+            sweepScope.WithTag("pending", 0).Succeed();
             SweepCompleted?.Invoke();
             return;
         }
 
-        _logger.LogDebug("Forwarding {Count} pending record(s).", pending.Count);
+        _logger.LogDebug("Forwarding {Count} pending record(s). Pending total: {Total}, Failed total: {Failed}.",
+            pending.Count, PendingCount, FailedCount);
         LastBatchCount = pending.Count;
 
         bool allSucceeded = true;
         string? firstError = null;
+        Exception? firstException = null;
 
         foreach (var forwarder in _forwarders)
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 await forwarder.ForwardAsync(pending, ct);
+                sw.Stop();
+                _telemetry.OutboxForwardLatencyMs.Record(sw.Elapsed.TotalMilliseconds);
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException ex) { sweepScope.Fail(ex); throw; }
             catch (Exception ex)
             {
+                sw.Stop();
                 allSucceeded = false;
                 firstError ??= $"[{forwarder.Name}] {ex.Message}";
-                _logger.LogWarning(ex, "Forwarder '{Name}' failed for batch of {Count}.", forwarder.Name, pending.Count);
+                firstException ??= ex;
+                _logger.LogWarning(ex, "Forwarder '{Name}' failed for batch of {Count} after {Ms:F0}ms.", forwarder.Name, pending.Count, sw.Elapsed.TotalMilliseconds);
             }
         }
 
@@ -139,8 +157,8 @@ public sealed class ForwarderCoordinator : BackgroundService
                 {
                     record.Status = OutboxStatus.Failed;
                     _logger.LogError(
-                        "Outbox record {Id} (device {Alias}) marked Failed after {N} attempts.",
-                        record.Id, record.DeviceAlias, record.AttemptCount);
+                        "Outbox record {Id} (device {Alias}) marked Failed after {N} attempts. Last error: {Error}",
+                        record.Id, record.DeviceAlias, record.AttemptCount, record.LastError);
                 }
                 else
                 {
@@ -157,11 +175,21 @@ public sealed class ForwarderCoordinator : BackgroundService
         {
             LastSentAt = sentAt;
             LastError = null;
+            _telemetry.OutboxRecordsForwarded.Add(pending.Count);
+            sweepScope
+                .WithTag("records_forwarded", pending.Count)
+                .WithTag("pending", PendingCount)
+                .WithTag("failed", FailedCount)
+                .Succeed();
             _logger.LogInformation("Forwarded {Count} record(s) successfully.", pending.Count);
         }
         else
         {
             LastError = firstError;
+            sweepScope
+                .WithTag("records_attempted", pending.Count)
+                .WithTag("pending", PendingCount)
+                .Fail(firstException!);
         }
 
         // Refresh counts after the save

@@ -7,9 +7,24 @@
     <PackageVersion Include="HVO.Core" Version="1.1.1" />
     <PackageVersion Include="HVO.Core.SourceGenerators" Version="1.1.0" />
 
+    <!-- HVO Telemetry -->
+    <PackageVersion Include="HVO.Enterprise.Telemetry" Version="1.0.3" />
+    <PackageVersion Include="HVO.Enterprise.Telemetry.AppInsights" Version="1.0.3" />
+    <PackageVersion Include="HVO.Enterprise.Telemetry.Data.EfCore" Version="1.0.3" />
+    <PackageVersion Include="HVO.Enterprise.Telemetry.OpenTelemetry" Version="1.1.2" />
+    <PackageVersion Include="HVO.Enterprise.Telemetry.Serilog" Version="2.0.1" />
+
+    <!-- OpenTelemetry — pin to 1.15.3 to resolve moderate severity vulnerabilities
+         in 1.15.0 that are pulled in transitively from HVO.Enterprise.Telemetry.OpenTelemetry:
+         OpenTelemetry.Api:      GHSA-g94r-2vxg-569j
+         OpenTelemetry.Exporter: GHSA-4625-4j76-fww9, GHSA-mr8r-92fq-pj8p, GHSA-q834-8qmm-v933 -->
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
+
     <!-- Azure -->
     <PackageVersion Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.0" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
+    <PackageVersion Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.4.0" />
     <PackageVersion Include="Azure.Security.KeyVault.Secrets" Version="4.10.0" />
 
     <!-- Microsoft Identity -->

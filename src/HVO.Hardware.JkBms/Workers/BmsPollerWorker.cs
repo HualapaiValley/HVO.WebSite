@@ -1,12 +1,14 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using HVO.Enterprise.Telemetry.Abstractions;
 using HVO.Hardware.JkBms.Bms;
 using HVO.Hardware.JkBms.Configuration;
 using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Protocol.Transport;
+using HVO.Hardware.JkBms.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -63,6 +65,8 @@ public sealed class BmsPollerWorker : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IBmsAlarmHandler _alarmHandler;
     private readonly JkBmsOptions _options;
+    private readonly BmsTelemetry _telemetry;
+    private readonly ITelemetryService _telemetryService;
     private readonly ILogger<BmsPollerWorker> _logger;
 
     private readonly List<DevicePollState> _devices;
@@ -86,11 +90,15 @@ public sealed class BmsPollerWorker : BackgroundService
         IServiceScopeFactory scopeFactory,
         IBmsAlarmHandler alarmHandler,
         IOptions<JkBmsOptions> options,
+        BmsTelemetry telemetry,
+        ITelemetryService telemetryService,
         ILogger<BmsPollerWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _alarmHandler = alarmHandler;
         _options = options.Value;
+        _telemetry = telemetry;
+        _telemetryService = telemetryService;
         _logger = logger;
 
         // Create one persistent client per enabled device
@@ -216,11 +224,22 @@ public sealed class BmsPollerWorker : BackgroundService
 
     private async Task PollDeviceAsync(DevicePollState device, CancellationToken ct)
     {
+        using var pollScope = _telemetryService.StartOperation("BMS.Poll");
+        pollScope.WithTag("device", device.Alias).WithTag("address", device.Address);
+
         _logger.LogDebug("Polling {Alias} ({Address})", device.Alias, device.Address);
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             var packet = await _clients[device.Address].PollCellInfoAsync(ct);
+            sw.Stop();
+
+            _telemetry.DevicePollCount.Add(1,
+                new KeyValuePair<string, object?>("device", device.Alias),
+                new KeyValuePair<string, object?>("result", "success"));
+            _telemetry.DevicePollDurationMs.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("device", device.Alias));
 
             device.LatestReading = packet;
             device.LastPollAt = DateTime.UtcNow;
@@ -244,6 +263,13 @@ public sealed class BmsPollerWorker : BackgroundService
                 var reading = MapToReading(device, packet);
                 await _alarmHandler.HandleAsync(reading, ct);
             }
+
+            pollScope
+                .WithTag("soc_pct", packet.StateOfChargePercent)
+                .WithTag("voltage_mv", packet.TotalVoltageMv)
+                .WithTag("current_ma", packet.CurrentMa)
+                .WithTag("alarms", packet.HasAlarms)
+                .Succeed();
 
             DeviceStateChanged?.Invoke();
 
@@ -269,12 +295,20 @@ public sealed class BmsPollerWorker : BackgroundService
                     packet.PowerTubeTemperatureC);
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
+            pollScope.Fail(ex);
             throw;
         }
         catch (Exception ex)
         {
+            sw.Stop();
+            _telemetry.DevicePollCount.Add(1,
+                new KeyValuePair<string, object?>("device", device.Alias),
+                new KeyValuePair<string, object?>("result", "error"));
+            _telemetry.DevicePollDurationMs.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("device", device.Alias));
+
             device.ConsecutiveErrors++;
             device.LastError = ex.Message;
             device.BackoffLevel = Math.Min(device.BackoffLevel + 1, 10);
@@ -283,6 +317,8 @@ public sealed class BmsPollerWorker : BackgroundService
             int backoffSeconds = Math.Min((int)Math.Pow(2, device.BackoffLevel), 600);
             device.NextPollAt = DateTime.UtcNow.AddSeconds(backoffSeconds);
 
+            pollScope.RecordException(ex);
+            pollScope.Fail(ex);
             DeviceStateChanged?.Invoke();
 
             _logger.LogWarning(

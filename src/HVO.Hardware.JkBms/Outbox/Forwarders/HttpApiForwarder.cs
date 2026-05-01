@@ -70,6 +70,14 @@ public sealed class HttpApiForwarder : IReadingForwarder
             batch.Count, _options.ApiEndpoint);
 
         var response = await client.PostAsJsonAsync(_options.ApiEndpoint, payloads, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            _logger.LogWarning(
+                "HttpApiForwarder: HTTP {StatusCode} from {Endpoint}. Response: {Body}",
+                (int)response.StatusCode, _options.ApiEndpoint,
+                body.Length > 500 ? body[..500] : body);
+        }
         response.EnsureSuccessStatusCode();
 
         _logger.LogInformation(

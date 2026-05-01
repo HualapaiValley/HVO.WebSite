@@ -1,5 +1,7 @@
+using HVO.Enterprise.Telemetry.Abstractions;
 using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.Outbox;
+using HVO.Hardware.DavisVantagePro2.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -19,6 +21,8 @@ public sealed class OutboxForwarder(
     IServiceScopeFactory scopeFactory,
     IHttpClientFactory httpFactory,
     IOptions<OutboxOptions> options,
+    DavisTelemetry telemetry,
+    ITelemetryService telemetryService,
     ILogger<OutboxForwarder> logger) : BackgroundService
 {
     private readonly OutboxOptions _options = options.Value;
@@ -67,8 +71,9 @@ public sealed class OutboxForwarder(
 
     private async Task SweepAsync(CancellationToken ct)
     {
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        using var sweepScope = telemetryService.StartOperation("Davis.Outbox.Sweep");
+        await using var serviceScope = scopeFactory.CreateAsyncScope();
+        var db = serviceScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
 
         var now = DateTime.UtcNow;
         var pending = await db.OutboxRecords
@@ -79,16 +84,28 @@ public sealed class OutboxForwarder(
 
         PendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
         FailedCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
+        telemetry.SetOutboxQueueDepth(PendingCount);
 
         if (pending.Count == 0)
         {
+            sweepScope.WithTag("pending", 0).Succeed();
             SweptCompleted?.Invoke();
             return;
         }
 
         var client = httpFactory.CreateClient("WeatherApi");
-        await ForwardBatchAsync(db, client, pending, ct);
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await ForwardBatchAsync(db, client, pending, ct);
+            await db.SaveChangesAsync(ct);
+            sweepScope
+                .WithTag("records_forwarded", LastBatchCount)
+                .WithTag("pending", PendingCount)
+                .WithTag("failed", FailedCount)
+                .Succeed();
+        }
+        catch (OperationCanceledException ex) { sweepScope.Fail(ex); throw; }
+        catch (Exception ex) { sweepScope.RecordException(ex); sweepScope.Fail(ex); throw; }
 
         SweptCompleted?.Invoke();
     }
@@ -107,10 +124,12 @@ public sealed class OutboxForwarder(
             record.LastAttemptedAtUtc = DateTime.UtcNow;
         }
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             using var content = new StringContent(batchJson, Encoding.UTF8, "application/json");
             using var response = await client.PostAsync(batchEndpoint, content, ct);
+            telemetry.OutboxForwardLatencyMs.Record(sw.Elapsed.TotalMilliseconds);
 
             if (response.IsSuccessStatusCode)
             {
@@ -160,6 +179,7 @@ public sealed class OutboxForwarder(
 
                 LastSentAt = sentAt;
                 LastBatchCount = sentCount;
+                telemetry.OutboxRecordsForwarded.Add(sentCount);
 
                 if (result?.Failed?.Count > 0)
                     logger.LogWarning("Batch of {Total}: {Sent} sent/skipped, {Dead} dead-lettered",
