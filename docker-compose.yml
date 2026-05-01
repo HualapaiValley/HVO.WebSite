@@ -39,8 +39,9 @@ services:
       # Disable HTTPS redirect — TLS is terminated upstream (reverse proxy / host)
       EnableHttpsRedirect: "false"
       TrustDevCertificates: "false"
-      # Seeds the Davis ingest API key into the DB on first start
+      # Seeds system ingest API keys into the DB on first start
       Seeding__DavisApiKey: ${DAVIS_API_KEY}
+      Seeding__BmsApiKey: ${BMS_API_KEY}
       # Connection string — passed directly so Key Vault is not required
       ConnectionStrings__HualapaiValleyObservatory: ${ConnectionStrings__HualapaiValleyObservatory}
     ports:
@@ -80,5 +81,33 @@ services:
       - davis-outbox:/app/data
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # JK BMS driver — polls battery management systems via BLE, posts to hvo-website
+  # ---------------------------------------------------------------------------
+  hvo-jkbms:
+    build:
+      context: .
+      dockerfile: src/HVO.Hardware.JkBms/Dockerfile
+    depends_on:
+      hvo-website:
+        condition: service_healthy
+    ports:
+      - "5200:8080"
+    environment:
+      # Post readings to the website container — use the service name, not localhost
+      Outbox__ApiEndpoint: "http://hvo-website:8080/api/v1/bms/readings"
+      Outbox__ApiKey: ${BMS_API_KEY}
+      # Persist the outbox SQLite DB across restarts
+      Outbox__DbPath: /app/data/outbox.db
+      DOTNET_ENVIRONMENT: Production
+    # Bluetooth (BLE) requires access to the host's BlueZ daemon via D-Bus.
+    # The host must have bluetoothd running and at least one adapter (hci0) available.
+    privileged: true
+    volumes:
+      - jkbms-outbox:/app/data
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+    restart: unless-stopped
+
 volumes:
   davis-outbox:
+  jkbms-outbox:

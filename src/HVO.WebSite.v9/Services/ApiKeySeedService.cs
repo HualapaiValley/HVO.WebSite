@@ -43,6 +43,13 @@ public sealed class ApiKeySeedService : IHostedService
             name: "Davis Vantage Pro 2 — ingest",
             scopes: ["ingest:weather"],
             cancellationToken);
+
+        await SeedSystemKeyAsync(
+            db,
+            rawKey: _configuration["Seeding:BmsApiKey"],
+            name: "JK BMS — ingest",
+            scopes: ["ingest:bms"],
+            cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
