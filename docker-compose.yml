@@ -46,6 +46,8 @@ services:
       Seeding__BmsApiKey: ${BMS_API_KEY}
       # Connection string — passed directly so Key Vault is not required
       ConnectionStrings__HualapaiValleyObservatory: ${ConnectionStrings__HualapaiValleyObservatory}
+      # OTel service name — used by Azure Monitor to identify this service in App Insights
+      OTEL_SERVICE_NAME: hvo-website
     volumes:
       - data-protection:/root/.aspnet/DataProtection-Keys
     ports:

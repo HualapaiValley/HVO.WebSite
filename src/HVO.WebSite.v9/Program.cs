@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Asp.Versioning;
 using HVO.DataModels.Extensions;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
+using OpenTelemetry.Resources;
 using HVO.Enterprise.Telemetry;
 using HVO.Enterprise.Telemetry.AppInsights;
 using HVO.Enterprise.Telemetry.Serilog;
@@ -204,14 +206,28 @@ namespace HVO.WebSite.v9
             // Add HVO telemetry with Application Insights
             // Connection string is loaded from Key Vault (ApplicationInsights--ConnectionString)
             // or from appsettings.json (empty by default — graceful no-op when not configured)
+            var appInsightsConnectionString = configuration["ApplicationInsights:ConnectionString"];
             services.AddTelemetry(tb =>
             {
                 tb.Configure(o => configuration.GetSection("Telemetry").Bind(o));
                 tb.WithAppInsights(options =>
                 {
-                    options.ConnectionString = configuration["ApplicationInsights:ConnectionString"];
+                    options.ConnectionString = appInsightsConnectionString;
                 });
             });
+
+            // Azure Monitor OpenTelemetry — automatic request/dependency/exception tracking
+            // and Live Metrics. Operates on a separate OTel pipeline from the HVO bridge above.
+            if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+            {
+                var serviceName = configuration["Telemetry:ServiceName"] ?? "hvo-website";
+                services.AddOpenTelemetry()
+                    .UseAzureMonitor(options =>
+                    {
+                        options.ConnectionString = appInsightsConnectionString;
+                    })
+                    .ConfigureResource(rb => rb.AddService(serviceName));
+            }
 
             // Add HVO Data Services with Entity Framework
             services.AddHvoDataServices(configuration);
