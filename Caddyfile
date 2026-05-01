@@ -8,19 +8,20 @@
 # Access the site at: https://192.168.0.20
 
 {
-    # Use self-signed cert (no ACME/Let's Encrypt for local IPs)
-    local_certs
+	# Disable automatic HTTPS so auto_https does not add a conflicting TLS
+	# policy on top of the explicit "tls internal" directive below.
+	auto_https off
 }
 
 :443 {
-    tls internal
+	tls internal
 
-    reverse_proxy hvo-website:8080 {
-        header_up X-Forwarded-Proto {scheme}
-        header_up X-Forwarded-For {remote_host}
-    }
+	reverse_proxy hvo-website:8080 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {remote_host}
+	}
 }
 
 :80 {
-    redir https://{host}{uri} permanent
+	redir https://{host}{uri} permanent
 }
