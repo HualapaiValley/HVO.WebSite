@@ -66,6 +66,7 @@
     <!-- Serilog -->
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageVersion Include="Serilog.Sinks.OpenTelemetry" Version="4.2.0" />
     <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
 
     <!-- Testing -->

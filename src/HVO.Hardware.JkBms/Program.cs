@@ -19,6 +19,7 @@ using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
+using Serilog.Sinks.OpenTelemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,6 +44,23 @@ builder.Host.UseSerilog((ctx, _, loggerConfig) =>
             rollingInterval: RollingInterval.Day,
             retainedFileCountLimit: 30,
             fileSizeLimitBytes: 100_000_000);
+
+    // Forward logs to the OTel collector sidecar when the endpoint is configured.
+    // OTEL_EXPORTER_OTLP_ENDPOINT is set in docker-compose; not set in development.
+    var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+    if (!string.IsNullOrEmpty(otlpEndpoint))
+    {
+        var serviceName = Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? "hvo-jkbms";
+        loggerConfig.WriteTo.OpenTelemetry(options =>
+        {
+            options.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
+            options.Protocol = OtlpProtocol.HttpProtobuf;
+            options.ResourceAttributes = new Dictionary<string, object>
+            {
+                ["service.name"] = serviceName
+            };
+        });
+    }
 
     // In Development, raise the JkBms namespace to Debug so connection details are visible.
     if (ctx.HostingEnvironment.IsDevelopment())

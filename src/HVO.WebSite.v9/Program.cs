@@ -50,28 +50,33 @@ namespace HVO.WebSite.v9
                     new DefaultAzureCredential());
             }
 
-            builder.Host.UseSerilog((ctx, _, loggerConfig) =>
-            {
-                var logDir = Path.Combine(ctx.HostingEnvironment.ContentRootPath, "logs");
-                Directory.CreateDirectory(logDir);
+            // Build the Serilog logger and register it as an additional logging provider.
+            // Using AddSerilog (not UseSerilog) so Azure Monitor's OTel logging provider
+            // added by UseAzureMonitor() below also receives log events.
+            var logDir = Path.Combine(builder.Environment.ContentRootPath, "logs");
+            Directory.CreateDirectory(logDir);
+            var loggerConfig = new LoggerConfiguration()
+                .MinimumLevel.Information()
+                .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+                .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+                .MinimumLevel.Override("HVO.WebSite.v9", LogEventLevel.Information)
+                .Enrich.FromLogContext()
+                .Enrich.WithTelemetry()
+                .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .WriteTo.File(new CompactJsonFormatter(), Path.Combine(logDir, "website-.log"),
+                    rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30, fileSizeLimitBytes: 100_000_000);
+            if (builder.Environment.IsDevelopment())
                 loggerConfig
-                    .MinimumLevel.Information()
-                    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-                    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
-                    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
-                    .MinimumLevel.Override("HVO.WebSite.v9", LogEventLevel.Information)
-                    .Enrich.FromLogContext()
-                    .Enrich.WithTelemetry()
-                    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-                    .WriteTo.File(new CompactJsonFormatter(), Path.Combine(logDir, "website-.log"),
-                        rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30, fileSizeLimitBytes: 100_000_000);
-                if (ctx.HostingEnvironment.IsDevelopment())
-                    loggerConfig
-                        .MinimumLevel.Override("HVO.WebSite.v9", LogEventLevel.Debug)
-                        .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-                        .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Information)
-                        .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Information);
-            });
+                    .MinimumLevel.Override("HVO.WebSite.v9", LogEventLevel.Debug)
+                    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+                    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Information)
+                    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Information);
+            Log.Logger = loggerConfig.CreateLogger();
+            // ClearProviders removes default console/debug providers (Serilog handles console
+            // via its sink). Azure Monitor's OTel provider is added later by UseAzureMonitor().
+            builder.Logging.ClearProviders();
+            builder.Logging.AddSerilog(Log.Logger, dispose: true);
 
             ConfigureServices(builder.Services, builder.Configuration);
 
