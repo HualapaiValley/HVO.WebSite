@@ -1,9 +1,11 @@
 using System.Text.Json;
+using HVO.Enterprise.Telemetry.Abstractions;
 using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Protocol;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using HVO.Hardware.DavisVantagePro2.Station;
+using HVO.Hardware.DavisVantagePro2.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -26,6 +28,8 @@ public sealed class WeatherStationWorker(
     VantageStation station,
     IServiceScopeFactory scopeFactory,
     IOptions<StationOptions> options,
+    DavisTelemetry telemetry,
+    ITelemetryService telemetryService,
     ILogger<WeatherStationWorker> logger) : BackgroundService
 {
     private readonly StationOptions _options = options.Value;
@@ -63,6 +67,8 @@ public sealed class WeatherStationWorker(
                 reconnectAttempts = 0; // Successful connect — reset backoff
                 ConsecutiveErrors = 0;
                 LastError = null;
+                logger.LogInformation("Connected to Davis console at {Host}:{Port}",
+                    _options.Host, _options.Port);
                 WorkerStateChanged?.Invoke();
 
                 if (_options.ArchiveCatchupOnStartup)
@@ -77,12 +83,13 @@ public sealed class WeatherStationWorker(
             catch (Exception ex)
             {
                 reconnectAttempts++;
+                telemetry.ConsoleReconnectCount.Add(1);
                 LastError = ex.Message;
                 WorkerStateChanged?.Invoke();
                 // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (capped)
                 var delaySeconds = (int)Math.Min(30, Math.Pow(2, reconnectAttempts - 1));
-                logger.LogError(ex, "Station error (consecutive: {N}). Reconnecting in {Delay}s…",
-                    ConsecutiveErrors, delaySeconds);
+                logger.LogError(ex, "Station error (reconnect attempt: {N}). Retrying in {Delay}s…",
+                    reconnectAttempts, delaySeconds);
                 try { await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken); }
                 catch (OperationCanceledException) { break; }
             }
@@ -102,6 +109,11 @@ public sealed class WeatherStationWorker(
 
         while (!ct.IsCancellationRequested)
         {
+            // Each batch is a separate trace span so App Insights shows one span per ~60 s window.
+            using var batchScope = telemetryService.StartOperation("WeatherStation.PollBatch");
+            batchScope.WithTag("batch_size", BatchSize);
+            int packetCount = 0;
+
             // Refresh LOOP1-only fields (battery, forecast, sunrise/sunset, monthly totals)
             // once per batch. Keeps the LOOP2 stream alive while limiting LOOP1 overhead.
             try
@@ -109,7 +121,11 @@ public sealed class WeatherStationWorker(
                 loop1Cache = await station.GetLoop1Async(ct);
                 ConsecutiveErrors = 0;
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (OperationCanceledException ex) when (ct.IsCancellationRequested)
+            {
+                batchScope.Fail(ex);
+                throw;
+            }
             catch (Exception ex)
             {
                 ConsecutiveErrors++;
@@ -117,7 +133,11 @@ public sealed class WeatherStationWorker(
                 WorkerStateChanged?.Invoke();
                 logger.LogWarning(ex, "LOOP1 refresh failed ({N} consecutive)", ConsecutiveErrors);
                 if (loop1Cache is null || ConsecutiveErrors >= _options.MaxConsecutiveErrors)
+                {
+                    batchScope.RecordException(ex);
+                    batchScope.Fail(ex);
                     throw; // No cached data or too many failures — trigger reconnect
+                }
             }
 
             // Stream LOOP2 packets. The console sends one every ~2 s; no sleep needed.
@@ -130,37 +150,56 @@ public sealed class WeatherStationWorker(
                     LastReadingAt = DateTime.UtcNow;
                     ConsecutiveErrors = 0;
                     ReadingUpdated?.Invoke(reading);
+                    telemetry.ConsolePollCount.Add(1);
+                    packetCount++;
 
                     await WriteToOutboxAsync(reading, ct);
                     logger.LogDebug("LOOP2: {T:F1}°F, {H:F0}%RH, {P:F3} inHg",
                         reading.OutsideTemperatureF, reading.OutsideHumidityPercent, reading.BarometricPressureInHg);
                 }
+                batchScope.WithTag("packets_received", packetCount).Succeed();
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (OperationCanceledException ex) when (ct.IsCancellationRequested)
+            {
+                batchScope.Fail(ex);
+                throw;
+            }
             catch (Exception ex)
             {
                 ConsecutiveErrors++;
                 LastError = ex.Message;
                 WorkerStateChanged?.Invoke();
                 logger.LogWarning(ex, "LOOP2 stream failed ({N} consecutive)", ConsecutiveErrors);
+                batchScope.RecordException(ex);
                 if (ConsecutiveErrors >= _options.MaxConsecutiveErrors)
+                {
+                    batchScope.Fail(ex);
                     throw; // Trigger reconnect
+                }
+                batchScope.Fail(ex);
             }
         }
     }
 
     private async Task CatchUpArchiveAsync(CancellationToken ct)
     {
+        using var scope = telemetryService.StartOperation("WeatherStation.ArchiveCatchup");
         DateTime since = await GetLastArchivedTimeAsync(ct);
         logger.LogInformation("DMPAFT catchup since {Since}", since == DateTime.MinValue ? "beginning" : since.ToString("g"));
 
         int count = 0;
-        await foreach (var rec in station.GetArchiveSinceAsync(since, ct: ct))
+        try
         {
-            await WriteArchiveToOutboxAsync(rec, ct);
-            count++;
+            await foreach (var rec in station.GetArchiveSinceAsync(since, ct: ct))
+            {
+                await WriteArchiveToOutboxAsync(rec, ct);
+                count++;
+            }
         }
+        catch (OperationCanceledException ex) { scope.Fail(ex); throw; }
+        catch (Exception ex) { scope.RecordException(ex); scope.Fail(ex); throw; }
 
+        scope.WithTag("records_caught_up", count).Succeed();
         logger.LogInformation("DMPAFT catchup complete: {Count} records", count);
     }
 

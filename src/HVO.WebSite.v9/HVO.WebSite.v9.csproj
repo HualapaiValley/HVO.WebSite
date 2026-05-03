@@ -13,6 +13,11 @@
     <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" />
     <PackageReference Include="Azure.Identity" />
     <PackageReference Include="Azure.Security.KeyVault.Secrets" />
+    <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" />
+    <PackageReference Include="HVO.Enterprise.Telemetry" />
+    <PackageReference Include="HVO.Enterprise.Telemetry.AppInsights" />
+    <PackageReference Include="HVO.Enterprise.Telemetry.Serilog" />
+    <PackageReference Include="OpenTelemetry.Api" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
@@ -22,6 +27,9 @@
     <PackageReference Include="Microsoft.Identity.Web" />
     <PackageReference Include="Microsoft.Identity.Web.UI" />
     <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Formatting.Compact" />
   </ItemGroup>
 
   <ItemGroup>

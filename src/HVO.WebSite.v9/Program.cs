@@ -1,6 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Asp.Versioning;
 using HVO.DataModels.Extensions;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
+using OpenTelemetry.Resources;
+using HVO.Enterprise.Telemetry;
+using HVO.Enterprise.Telemetry.AppInsights;
+using HVO.Enterprise.Telemetry.Serilog;
 using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Components.Web;
 using HVO.WebSite.v9.Middleware;
@@ -14,6 +19,9 @@ using System.Net.Http;
 using Azure.Identity;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
+using Serilog;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
 namespace HVO.WebSite.v9
 {
     /// <summary>
@@ -41,6 +49,35 @@ namespace HVO.WebSite.v9
                     new Uri(kvUri),
                     new DefaultAzureCredential());
             }
+
+            // Build the Serilog logger and register it as an additional logging provider.
+            // Using AddSerilog (not UseSerilog) so Azure Monitor's OTel logging provider
+            // added by UseAzureMonitor() below also receives log events.
+            var logDir = Path.Combine(builder.Environment.ContentRootPath, "logs");
+            Directory.CreateDirectory(logDir);
+            var loggerConfig = new LoggerConfiguration()
+                .MinimumLevel.Information()
+                .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+                .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+                .MinimumLevel.Override("HVO.WebSite.v9", LogEventLevel.Information)
+                .Enrich.FromLogContext()
+                .Enrich.WithTelemetry()
+                .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .WriteTo.File(new CompactJsonFormatter(), Path.Combine(logDir, "website-.log"),
+                    rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30, fileSizeLimitBytes: 100_000_000,
+                    rollOnFileSizeLimit: true);
+            if (builder.Environment.IsDevelopment())
+                loggerConfig
+                    .MinimumLevel.Override("HVO.WebSite.v9", LogEventLevel.Debug)
+                    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+                    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Information)
+                    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Information);
+            Log.Logger = loggerConfig.CreateLogger();
+            // ClearProviders removes default console/debug providers (Serilog handles console
+            // via its sink). Azure Monitor's OTel provider is added later by UseAzureMonitor().
+            builder.Logging.ClearProviders();
+            builder.Logging.AddSerilog(Log.Logger, dispose: true);
 
             ConfigureServices(builder.Services, builder.Configuration);
 
@@ -171,6 +208,34 @@ namespace HVO.WebSite.v9
                 opt.ReportApiVersions = true;
                 opt.ApiVersionReader = new UrlSegmentApiVersionReader();
             }).AddMvc();
+
+            // Add HVO telemetry with Application Insights
+            // Connection string is loaded from Key Vault (ApplicationInsights--ConnectionString)
+            // or from appsettings.json (empty by default — graceful no-op when not configured)
+            var appInsightsConnectionString = configuration["ApplicationInsights:ConnectionString"];
+            services.AddTelemetry(tb =>
+            {
+                tb.Configure(o => configuration.GetSection("Telemetry").Bind(o));
+                tb.WithAppInsights(options =>
+                {
+                    options.ConnectionString = appInsightsConnectionString;
+                });
+            });
+
+            // Azure Monitor OpenTelemetry — automatic request/dependency/exception tracking
+            // and Live Metrics. Operates on a separate OTel pipeline from the HVO bridge above.
+            if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+            {
+                var serviceName = configuration["Telemetry:ServiceName"] ?? "hvo-website";
+                services.AddOpenTelemetry()
+                    .UseAzureMonitor(options =>
+                    {
+                        options.ConnectionString = appInsightsConnectionString;
+                    })
+                    .ConfigureResource(rb => rb.AddService(
+                        serviceName: serviceName,
+                        serviceInstanceId: Environment.MachineName));
+            }
 
             // Add HVO Data Services with Entity Framework
             services.AddHvoDataServices(configuration);

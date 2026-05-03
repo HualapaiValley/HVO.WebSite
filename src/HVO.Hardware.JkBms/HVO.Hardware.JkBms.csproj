@@ -18,9 +18,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="HVO.Enterprise.Telemetry" />
+    <PackageReference Include="HVO.Enterprise.Telemetry.OpenTelemetry" />
+    <PackageReference Include="HVO.Enterprise.Telemetry.Serilog" />
+    <PackageReference Include="OpenTelemetry.Api" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="Linux.Bluetooth" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Sinks.OpenTelemetry" />
     <PackageReference Include="Serilog.Formatting.Compact" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>

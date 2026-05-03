@@ -1,3 +1,11 @@
+using HVO.Enterprise.Telemetry;
+using HVO.Enterprise.Telemetry.HealthChecks;
+using HVO.Enterprise.Telemetry.Http;
+using HVO.Enterprise.Telemetry.OpenTelemetry;
+using HVO.Enterprise.Telemetry.Serilog;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using HVO.Hardware.JkBms.Bms;
 using HVO.Hardware.JkBms.Components;
 using HVO.Hardware.JkBms.Configuration;
@@ -5,11 +13,13 @@ using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.Outbox.Forwarders;
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Transport;
+using HVO.Hardware.JkBms.Telemetry;
 using HVO.Hardware.JkBms.Workers;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
+using Serilog.Sinks.OpenTelemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +35,7 @@ builder.Host.UseSerilog((ctx, _, loggerConfig) =>
         .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
         .MinimumLevel.Override("HVO.Hardware.JkBms", LogEventLevel.Information)
         .Enrich.FromLogContext()
+        .Enrich.WithTelemetry()
         .WriteTo.Console(
             outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
         .WriteTo.File(
@@ -32,7 +43,25 @@ builder.Host.UseSerilog((ctx, _, loggerConfig) =>
             Path.Combine(logDir, "jkbms-.log"),
             rollingInterval: RollingInterval.Day,
             retainedFileCountLimit: 30,
-            fileSizeLimitBytes: 100_000_000);
+            fileSizeLimitBytes: 100_000_000,
+            rollOnFileSizeLimit: true);
+
+    // Forward logs to the OTel collector sidecar when the endpoint is configured.
+    // OTEL_EXPORTER_OTLP_ENDPOINT is set in docker-compose; not set in development.
+    var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+    if (!string.IsNullOrEmpty(otlpEndpoint))
+    {
+        var serviceName = Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? "hvo-jkbms";
+        loggerConfig.WriteTo.OpenTelemetry(options =>
+        {
+            options.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
+            options.Protocol = OtlpProtocol.HttpProtobuf;
+            options.ResourceAttributes = new Dictionary<string, object>
+            {
+                ["service.name"] = serviceName
+            };
+        });
+    }
 
     // In Development, raise the JkBms namespace to Debug so connection details are visible.
     if (ctx.HostingEnvironment.IsDevelopment())
@@ -57,6 +86,31 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+// ── Telemetry ──────────────────────────────────────────────────────────────────────────────
+builder.Services.AddTelemetry(builder.Configuration.GetSection("Telemetry"));
+// HVO library sets the OTLP endpoint programmatically, which disables AppendSignalPathToEndpoint
+// in OTel SDK 1.10+, causing exports to POST to the root URL (404). Disable HVO's built-in
+// exporters and use native SDK exporters with no configure callback — the SDK reads
+// OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_EXPORTER_OTLP_PROTOCOL from environment and appends
+// the correct signal paths (/v1/traces, /v1/metrics, /v1/logs).
+builder.Services.AddOpenTelemetryExport(options =>
+{
+    options.EnableTraceExport = false;
+    options.EnableMetricsExport = false;
+    options.EnableLogExport = false;
+    options.EnableStandardMeters = true;
+    options.AdditionalMeterNames.Add("hvo.jkbms");
+    options.AdditionalActivitySources.Add("hvo.jkbms");
+});
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tb => tb.AddOtlpExporter())
+    .WithMetrics(mb => mb.AddOtlpExporter());
+builder.Services.AddSingleton<BmsTelemetry>();
+builder.Services.AddTelemetryStatistics();
+builder.Services.AddTelemetryHealthCheck();
+builder.Services.AddHealthChecks()
+    .AddCheck<TelemetryHealthCheck>("telemetry");
+
 // ── BLE transport ─────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IBmsTransportFactory, JkBmsBluetoothTransportFactory>();
 
@@ -72,14 +126,16 @@ builder.Services.AddDbContext<OutboxDbContext>(o =>
     o.UseSqlite($"Data Source={dbPath}"),
     ServiceLifetime.Scoped);
 
-// ── HTTP client for outbox forwarder ──────────────────────────────────────────
+// ── HTTP client for outbox forwarder ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("OutboxForwarder", (sp, client) =>
 {
     var opt = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<OutboxOptions>>().Value;
     if (!string.IsNullOrWhiteSpace(opt.ApiKey))
         client.DefaultRequestHeaders.Add("X-Api-Key", opt.ApiKey);
     client.Timeout = TimeSpan.FromSeconds(30);
-});
+}).AddHttpMessageHandler(sp => new TelemetryHttpMessageHandler(
+    new HttpInstrumentationOptions { CaptureRequestHeaders = false, CaptureResponseHeaders = false },
+    sp.GetService<ILogger<TelemetryHttpMessageHandler>>()));
 
 // ── Forwarders ─────────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IReadingForwarder, HttpApiForwarder>();
@@ -115,5 +171,7 @@ app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode();
+
+app.MapHealthChecks("/health");
 
 await app.RunAsync();

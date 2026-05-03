@@ -28,6 +28,7 @@ services:
       dockerfile: src/HVO.WebSite.v9/Dockerfile
       args:
         WEBSITE_RUNTIME: ${WEBSITE_RUNTIME:-linux-x64}
+    hostname: hvo-website
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       # Key Vault — loaded by DefaultAzureCredential using the SP below
@@ -46,6 +47,8 @@ services:
       Seeding__BmsApiKey: ${BMS_API_KEY}
       # Connection string — passed directly so Key Vault is not required
       ConnectionStrings__HualapaiValleyObservatory: ${ConnectionStrings__HualapaiValleyObservatory}
+      # OTel service name — used by Azure Monitor to identify this service in App Insights
+      OTEL_SERVICE_NAME: hvo-website
     volumes:
       - data-protection:/root/.aspnet/DataProtection-Keys
     ports:
@@ -60,6 +63,40 @@ services:
       retries: 3
 
   # ---------------------------------------------------------------------------
+  # OTel Collector sidecar for hvo-davis
+  # Receives OTLP from the Davis app, scrapes container metrics via docker_stats,
+  # and forwards everything to the configured exporter (debug → azuremonitor).
+  # ---------------------------------------------------------------------------
+  otel-collector-davis:
+    build:
+      context: ./otel
+      dockerfile: Dockerfile.davis
+    environment:
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+    group_add:
+      - "docker"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # OTel Collector sidecar for hvo-jkbms
+  # Receives OTLP from the JkBms app, scrapes container metrics via docker_stats,
+  # and forwards everything to the configured exporter (debug → azuremonitor).
+  # ---------------------------------------------------------------------------
+  otel-collector-jkbms:
+    build:
+      context: ./otel
+      dockerfile: Dockerfile.jkbms
+    environment:
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+    group_add:
+      - "docker"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
   # Davis Vantage Pro 2 driver — reads from the console, posts to hvo-website
   # ---------------------------------------------------------------------------
   hvo-davis:
@@ -69,6 +106,8 @@ services:
     depends_on:
       hvo-website:
         condition: service_healthy
+      otel-collector-davis:
+        condition: service_started
     ports:
       - "5100:8080"
     environment:
@@ -82,6 +121,10 @@ services:
       # Persist the outbox SQLite DB across restarts
       Outbox__DbPath: /app/data/outbox.db
       DOTNET_ENVIRONMENT: Production
+      # OTel — send traces/metrics/logs to the collector sidecar
+      OTEL_SERVICE_NAME: hvo-davis
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector-davis:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
       - davis-outbox:/app/data
       - davis-data-protection:/root/.aspnet/DataProtection-Keys
@@ -97,6 +140,8 @@ services:
     depends_on:
       hvo-website:
         condition: service_healthy
+      otel-collector-jkbms:
+        condition: service_started
     ports:
       - "5200:8080"
     environment:
@@ -106,6 +151,10 @@ services:
       # Persist the outbox SQLite DB across restarts
       Outbox__DbPath: /app/data/outbox.db
       DOTNET_ENVIRONMENT: Production
+      # OTel — send traces/metrics/logs to the collector sidecar
+      OTEL_SERVICE_NAME: hvo-jkbms
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector-jkbms:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     # Bluetooth (BLE) requires access to the host's BlueZ daemon via D-Bus.
     # The host must have bluetoothd running and at least one adapter (hci0) available.
     privileged: true
@@ -121,3 +170,4 @@ volumes:
   data-protection:
   davis-data-protection:
   jkbms-data-protection:
+
