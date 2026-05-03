@@ -74,9 +74,9 @@ services:
     environment:
       APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
     group_add:
-      - "999"
+      - "docker"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -91,9 +91,9 @@ services:
     environment:
       APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
     group_add:
-      - "999"
+      - "docker"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------

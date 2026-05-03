@@ -41,7 +41,8 @@ builder.Host.UseSerilog((ctx, _, loggerConfig) =>
             Path.Combine(logDir, "davis-.log"),
             rollingInterval: RollingInterval.Day,
             retainedFileCountLimit: 30,
-            fileSizeLimitBytes: 100_000_000);
+            fileSizeLimitBytes: 100_000_000,
+            rollOnFileSizeLimit: true);
 
     // Forward logs to the OTel collector sidecar when the endpoint is configured.
     // OTEL_EXPORTER_OTLP_ENDPOINT is set in docker-compose; not set in development.

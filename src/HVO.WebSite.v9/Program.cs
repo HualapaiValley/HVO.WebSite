@@ -65,7 +65,8 @@ namespace HVO.WebSite.v9
                 .Enrich.WithTelemetry()
                 .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
                 .WriteTo.File(new CompactJsonFormatter(), Path.Combine(logDir, "website-.log"),
-                    rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30, fileSizeLimitBytes: 100_000_000);
+                    rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30, fileSizeLimitBytes: 100_000_000,
+                    rollOnFileSizeLimit: true);
             if (builder.Environment.IsDevelopment())
                 loggerConfig
                     .MinimumLevel.Override("HVO.WebSite.v9", LogEventLevel.Debug)

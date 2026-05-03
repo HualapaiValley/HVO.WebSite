@@ -72,11 +72,15 @@ public sealed class HttpApiForwarder : IReadingForwarder
         var response = await client.PostAsJsonAsync(_options.ApiEndpoint, payloads, ct);
         if (!response.IsSuccessStatusCode)
         {
-            var body = await response.Content.ReadAsStringAsync(ct);
+            // Read only a bounded prefix to avoid buffering large HTML error pages.
+            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var reader = new StreamReader(stream, leaveOpen: true);
+            var buffer = new char[512];
+            var charsRead = await reader.ReadAsync(buffer, ct);
+            var body = new string(buffer, 0, charsRead);
             _logger.LogWarning(
                 "HttpApiForwarder: HTTP {StatusCode} from {Endpoint}. Response: {Body}",
-                (int)response.StatusCode, _options.ApiEndpoint,
-                body.Length > 500 ? body[..500] : body);
+                (int)response.StatusCode, _options.ApiEndpoint, body);
         }
         response.EnsureSuccessStatusCode();
 

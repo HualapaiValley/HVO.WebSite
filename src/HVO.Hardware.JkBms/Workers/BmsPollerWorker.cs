@@ -225,7 +225,7 @@ public sealed class BmsPollerWorker : BackgroundService
     private async Task PollDeviceAsync(DevicePollState device, CancellationToken ct)
     {
         using var pollScope = _telemetryService.StartOperation("BMS.Poll");
-        pollScope.WithTag("device", device.Alias).WithTag("address", device.Address);
+        pollScope.WithTag("device", device.Alias);
 
         _logger.LogDebug("Polling {Alias} ({Address})", device.Alias, device.Address);
 

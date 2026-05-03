@@ -15,7 +15,7 @@ receivers:
         endpoint: 0.0.0.0:4318
 
   # Scrapes container-level metrics (CPU%, memory, network, block I/O)
-  # from the Docker daemon. Scoped to the hvo-davis container.
+  # from the Docker daemon for all containers on the host.
   docker_stats:
     endpoint: unix:///var/run/docker.sock
     collection_interval: 30s
