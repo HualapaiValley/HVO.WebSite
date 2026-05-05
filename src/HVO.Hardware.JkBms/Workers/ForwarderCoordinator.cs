@@ -32,7 +32,10 @@ public sealed class ForwarderCoordinator : BackgroundService
     // ── Public state for the status page ─────────────────────────────────────
     // These properties are written by the sweep background thread and read by
     // Blazor circuit threads. volatile is used for types that support it.
-    // For DateTime? (a 64-bit struct), we store ticks as a long and use Volatile.Read/Write.
+    // DateTime is a 64-bit struct that C# does not permit as a volatile field;
+    // DateTime? (Nullable<DateTime>) is larger still. Both are stored as a long
+    // (ticks) with Volatile.Read/Write to provide the same acquire/release
+    // semantics that volatile gives for supported types.
 
     private volatile int _pendingCount;
     private volatile int _failedCount;
@@ -156,7 +159,7 @@ public sealed class ForwarderCoordinator : BackgroundService
         var db = serviceScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
 
         var deleted = await db.OutboxRecords
-            .Where(r => r.Status == OutboxStatus.Sent && r.SentAtUtc < cutoff)
+            .Where(r => r.Status == OutboxStatus.Sent && r.SentAtUtc.HasValue && r.SentAtUtc.Value < cutoff)
             .ExecuteDeleteAsync(ct);
 
         if (deleted > 0)
