@@ -30,6 +30,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
 
     private readonly ILogger<JkBmsBluetoothTransport> _logger;
     private readonly TimeSpan _connectTimeout;
+    private readonly TimeSpan _exchangeTimeout;
     private readonly string _adapterName;
 
     private Device? _device;
@@ -74,11 +75,13 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
         string deviceAddress,
         string adapterName,
         TimeSpan connectTimeout,
+        TimeSpan exchangeTimeout,
         ILogger<JkBmsBluetoothTransport> logger)
     {
         DeviceAddress = deviceAddress;
         _adapterName = adapterName;
         _connectTimeout = connectTimeout;
+        _exchangeTimeout = exchangeTimeout;
         _logger = logger;
     }
 
@@ -197,6 +200,12 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
                 // exiting the discovery phase, stop the scan. Any adapter proxy can issue
                 // StopDiscovery on the same BlueZ adapter object, so the task that stops
                 // need not be the one that originally started it.
+                //
+                // Note on the stop-scan race: the decrement and the remaining == 0 check are
+                // not a single atomic unit. If two concurrent ConnectAsync calls for the same
+                // adapter both observe remaining > 0 in an interleaved decrement, neither will
+                // stop discovery and the scan stays running until BlueZ times it out. This is
+                // accepted as best-effort behaviour: a stale scan is harmless and self-resolving.
                 var remaining = s_discoveryRefCount.AddOrUpdate(
                     _adapterName, 0, (_, n) => Math.Max(0, n - 1));
                 if (remaining == 0)
@@ -265,10 +274,14 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             // waits for the 0x03 response, then begins issuing 0x96 on each update cycle.
             // Any spontaneous 0x01 (settings) frame pushed by the BMS during this exchange is
             // silently discarded by the discard loop in DoExchangeAsync.
+            // The 0x97 exchange uses its own independent timeout (_exchangeTimeout) so it is not
+            // starved by a connect budget that is already nearly exhausted.
             _logger.LogDebug("BLE sending device-info init (0x97) to {Address}", DeviceAddress);
             try
             {
-                var initFrame = await DoExchangeAsync(JkBmsProtocol.BuildDeviceInfoCommand(), timeoutCts.Token);
+                using var initCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                initCts.CancelAfter(_exchangeTimeout);
+                var initFrame = await DoExchangeAsync(JkBmsProtocol.BuildDeviceInfoCommand(), initCts.Token);
                 _logger.LogDebug(
                     "BLE device-info init response from {Address}: FrameType=0x{Type:X2}",
                     DeviceAddress, initFrame[4]);
@@ -371,9 +384,11 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
         // every connection) that arrive before — or interleaved with — the actual response.
         byte expectedType = GetExpectedResponseFrameType(command);
 
-        // Use the overall connect timeout for the whole wait loop, not per-frame.
+        // Use the exchange timeout (shorter than the connect timeout) for the whole wait loop.
+        // This keeps dropped connections detectable within a few seconds rather than waiting
+        // for the full connect budget to expire.
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(_connectTimeout);
+        timeoutCts.CancelAfter(_exchangeTimeout);
 
         // Collect frames until we receive one with the expected type.
         while (true)
@@ -448,7 +463,10 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             if (pair.Key == "Value" && pair.Value is byte[] value)
             {
                 if (JkBmsProtocol.TryAccumulateFrame(_rxBuffer, value.AsSpan(), out var frame))
-                    _frameChannel.Writer.TryWrite(frame);
+                    // TryWrite always succeeds on an unbounded channel unless the channel is
+                    // completed (i.e. the transport is disposed). If disposed, dropping the
+                    // frame is the correct behaviour — discard the result intentionally.
+                    _ = _frameChannel.Writer.TryWrite(frame);
             }
         }
     }
@@ -502,7 +520,9 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
         Device? found = await adapter.GetDeviceAsync(deviceAddress);
         IDisposable? rssiWatcher = null;
 
-        async Task OnDeviceFound(Adapter _, DeviceFoundEventArgs args)
+        // The event handler is synchronous; return Task.CompletedTask directly rather than
+        // using async/await to avoid generating an unnecessary state machine.
+        Task OnDeviceFound(Adapter _, DeviceFoundEventArgs args)
         {
             var mac = MacFromObjectPath(args.Device.ObjectPath.ToString());
             if (string.Equals(mac, deviceAddress, StringComparison.OrdinalIgnoreCase))
@@ -510,7 +530,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
                 found = args.Device;
                 readyCts.Cancel();
             }
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         adapter.DeviceFound += OnDeviceFound;

@@ -118,6 +118,11 @@ builder.Services.AddSingleton<IBmsTransportFactory, JkBmsBluetoothTransportFacto
 builder.Services.AddSingleton<IBmsAlarmHandler, NullAlarmHandler>();
 
 // ── SQLite outbox ──────────────────────────────────────────────────────────────
+// NOTE: outboxConfig is deserialized here manually (before the DI container is built)
+// solely to resolve the DB file path for AddDbContext. The options are also bound via
+// AddOptions<OutboxOptions>() above, which applies DataAnnotations validation at startup.
+// Do not consolidate these two reads — the DI-bound options are not available until after
+// builder.Build(), which is too late to supply the connection string.
 var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
 string dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
     ? outboxConfig.DbPath

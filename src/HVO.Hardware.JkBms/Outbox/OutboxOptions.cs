@@ -42,4 +42,12 @@ public sealed class OutboxOptions
     /// In Docker this should be set to <c>/app/data/outbox.db</c>.
     /// </summary>
     public string DbPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Number of days to retain <see cref="OutboxStatus.Sent"/> records before they are
+    /// purged by the compaction task. Set to 0 to disable compaction.
+    /// Defaults to 7 days.
+    /// </summary>
+    [Range(0, 3650)]
+    public int SentRetentionDays { get; set; } = 7;
 }
