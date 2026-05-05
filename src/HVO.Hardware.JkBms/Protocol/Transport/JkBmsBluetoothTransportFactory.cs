@@ -6,7 +6,7 @@ namespace HVO.Hardware.JkBms.Protocol.Transport;
 
 /// <summary>
 /// Default factory that creates <see cref="JkBmsBluetoothTransport"/> instances.
-/// Reads <see cref="JkBmsOptions"/> to determine the connect timeout.
+/// Reads <see cref="JkBmsOptions"/> to determine the connect and exchange timeouts.
 /// </summary>
 internal sealed class JkBmsBluetoothTransportFactory : IBmsTransportFactory
 {
@@ -23,8 +23,9 @@ internal sealed class JkBmsBluetoothTransportFactory : IBmsTransportFactory
 
     public IBmsTransport Create(string address, string adapterName)
     {
-        var timeout = TimeSpan.FromSeconds(_options.Value.ConnectTimeoutSeconds);
+        var connectTimeout = TimeSpan.FromSeconds(_options.Value.ConnectTimeoutSeconds);
+        var exchangeTimeout = TimeSpan.FromSeconds(_options.Value.ExchangeTimeoutSeconds);
         var logger = _loggerFactory.CreateLogger<JkBmsBluetoothTransport>();
-        return new JkBmsBluetoothTransport(address, adapterName, timeout, logger);
+        return new JkBmsBluetoothTransport(address, adapterName, connectTimeout, exchangeTimeout, logger);
     }
 }

@@ -21,30 +21,101 @@ namespace HVO.Hardware.JkBms.Workers;
 /// Per-device mutable state tracked by the poller worker.
 /// Written only by the worker's single event loop; read by Blazor UI components
 /// (single writer, multiple readers — no locking needed for individual field reads).
+///
+/// Mutable fields are marked <c>volatile</c> so that writes by the worker thread are
+/// immediately visible to Blazor circuit threads reading them, satisfying the C# memory
+/// model without a full lock. <c>volatile</c> is sufficient here because each field is
+/// written atomically (reference swap or 32-bit value) and reads never need to be
+/// consistent across multiple fields simultaneously.
 /// </summary>
 public sealed class DevicePollState
 {
     public string Address { get; init; } = string.Empty;
     public string Alias { get; init; } = string.Empty;
     public int PollIntervalSeconds { get; init; }
-    public DateTime NextPollAt { get; set; } = DateTime.UtcNow;
-    public int ConsecutiveErrors { get; set; }
-    public int BackoffLevel { get; set; }
-    public string? LastError { get; set; }
-    public DateTime? LastPollAt { get; set; }
-    public CellInfoPacket? LatestReading { get; set; }
+
+    // These fields are read by Blazor UI threads while the worker loop writes them.
+    // volatile is used where the type allows it (reference types, int).
+    // For DateTime (a 64-bit struct), we store ticks as a long and use Volatile.Read/Write,
+    // which provides the same acquire/release semantics as the volatile keyword.
+    private volatile int _consecutiveErrors;
+    private volatile int _backoffLevel;
+    private volatile string? _lastError;
+    private long _nextPollAtTicks = DateTime.UtcNow.Ticks;
+    private long _lastPollAtTicks;     // 0 means "never polled" (null)
+    private volatile CellInfoPacket? _latestReading;
+    private volatile SettingsPacket? _latestSettings;
+    private volatile DeviceInfoPacket? _latestDeviceInfo;
+    private volatile string? _lastSentConfigHash;
+    private volatile string? _lastSentDeviceInfoHash;
+
+    public DateTime NextPollAt
+    {
+        get => new DateTime(Volatile.Read(ref _nextPollAtTicks), DateTimeKind.Utc);
+        set => Volatile.Write(ref _nextPollAtTicks, value.Ticks);
+    }
+
+    public int ConsecutiveErrors
+    {
+        get => _consecutiveErrors;
+        set => _consecutiveErrors = value;
+    }
+
+    public int BackoffLevel
+    {
+        get => _backoffLevel;
+        set => _backoffLevel = value;
+    }
+
+    public string? LastError
+    {
+        get => _lastError;
+        set => _lastError = value;
+    }
+
+    public DateTime? LastPollAt
+    {
+        get
+        {
+            var t = Volatile.Read(ref _lastPollAtTicks);
+            return t == 0 ? null : new DateTime(t, DateTimeKind.Utc);
+        }
+        set => Volatile.Write(ref _lastPollAtTicks, value?.Ticks ?? 0L);
+    }
+
+    public CellInfoPacket? LatestReading
+    {
+        get => _latestReading;
+        set => _latestReading = value;
+    }
 
     /// <summary>Device configuration parsed from the spontaneous 0x01 settings frame.</summary>
-    public SettingsPacket? LatestSettings { get; set; }
+    public SettingsPacket? LatestSettings
+    {
+        get => _latestSettings;
+        set => _latestSettings = value;
+    }
 
     /// <summary>Device info (firmware, serial number, etc.) from the 0x03 device-info frame.</summary>
-    public DeviceInfoPacket? LatestDeviceInfo { get; set; }
+    public DeviceInfoPacket? LatestDeviceInfo
+    {
+        get => _latestDeviceInfo;
+        set => _latestDeviceInfo = value;
+    }
 
     /// <summary>SHA-256 hash of the last config payload successfully written to the outbox.</summary>
-    public string? LastSentConfigHash { get; set; }
+    public string? LastSentConfigHash
+    {
+        get => _lastSentConfigHash;
+        set => _lastSentConfigHash = value;
+    }
 
     /// <summary>SHA-256 hash of the last device-info payload successfully written to the outbox.</summary>
-    public string? LastSentDeviceInfoHash { get; set; }
+    public string? LastSentDeviceInfoHash
+    {
+        get => _lastSentDeviceInfoHash;
+        set => _lastSentDeviceInfoHash = value;
+    }
 }
 
 /// <summary>
@@ -256,11 +327,12 @@ public sealed class BmsPollerWorker : BackgroundService
             if (freshSettings is not null)
                 device.LatestSettings = freshSettings;
 
-            await WriteToOutboxAsync(device, packet, ct);
+            var reading = await WriteToOutboxAsync(device, packet, ct);
 
             if (packet.HasAlarms)
             {
-                var reading = MapToReading(device, packet);
+                // Reuse the BmsDeviceReading already built inside WriteToOutboxAsync
+                // rather than calling MapToReading a second time.
                 await _alarmHandler.HandleAsync(reading, ct);
             }
 
@@ -271,7 +343,10 @@ public sealed class BmsPollerWorker : BackgroundService
                 .WithTag("alarms", packet.HasAlarms)
                 .Succeed();
 
-            DeviceStateChanged?.Invoke();
+            // Snapshot the delegate before invoking to avoid a race if a subscriber
+            // adds or removes itself concurrently from another thread (e.g. Blazor navigation).
+            var stateChangedHandler = DeviceStateChanged;
+            stateChangedHandler?.Invoke();
 
             // Log a structured summary with all key metrics.
             // Cell voltages are emitted as a scope property so they appear as a JSON array
@@ -319,7 +394,10 @@ public sealed class BmsPollerWorker : BackgroundService
 
             pollScope.RecordException(ex);
             pollScope.Fail(ex);
-            DeviceStateChanged?.Invoke();
+
+            // Snapshot before invoking — same thread-safety rationale as the success path.
+            var errorStateChangedHandler = DeviceStateChanged;
+            errorStateChangedHandler?.Invoke();
 
             _logger.LogWarning(
                 ex,
@@ -328,7 +406,7 @@ public sealed class BmsPollerWorker : BackgroundService
         }
     }
 
-    private async Task WriteToOutboxAsync(DevicePollState device, CellInfoPacket packet, CancellationToken ct)
+    private async Task<BmsDeviceReading> WriteToOutboxAsync(DevicePollState device, CellInfoPacket packet, CancellationToken ct)
     {
         var reading = MapToReading(device, packet);
 
@@ -398,6 +476,20 @@ public sealed class BmsPollerWorker : BackgroundService
             if (pendingInfoHash is not null)
                 device.LastSentDeviceInfoHash = pendingInfoHash;
         }
+        else
+        {
+            // Duplicate: a record with the same (DeviceAddress, RecordedAtUtc) already exists.
+            // This should be rare (two polls within the same millisecond), but log it so that
+            // unexpected data gaps can be diagnosed.
+            _logger.LogWarning(
+                "Outbox duplicate skipped for {Alias} ({Address}) at {Timestamp:O}. " +
+                "Two polls produced the same RecordedAtUtc — check poll interval vs. BMS timestamp resolution.",
+                device.Alias, device.Address, packet.RecordedAtUtc);
+        }
+
+        // Return the reading so callers (e.g. the alarm path) can reuse it without
+        // calling MapToReading a second time.
+        return reading;
     }
 
     private static BmsDeviceReading MapToReading(DevicePollState device, CellInfoPacket packet) =>

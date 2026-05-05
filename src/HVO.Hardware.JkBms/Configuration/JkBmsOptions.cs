@@ -12,10 +12,18 @@ public sealed class JkBmsOptions
 
     /// <summary>
     /// BLE connect + GATT resolve timeout per attempt (seconds).
-    /// Also used as the response timeout inside <see cref="IBmsTransport.ExchangeAsync"/>.
     /// </summary>
     [Range(5, 120)]
     public int ConnectTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Timeout for a single BLE request/response exchange (seconds).
+    /// Kept shorter than <see cref="ConnectTimeoutSeconds"/> so a dropped connection is
+    /// detected quickly rather than waiting for the full connect budget to expire.
+    /// Also used as the timeout for the post-connect device-info init (0x97) exchange.
+    /// </summary>
+    [Range(1, 60)]
+    public int ExchangeTimeoutSeconds { get; set; } = 10;
 
     /// <summary>Default poll interval for devices that do not override it (seconds).</summary>
     [Range(10, 3600)]
