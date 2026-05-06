@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
+  </PropertyGroup>
+
+  <!-- Staging library: new classes for HVO.Astronomy and HVO.Weather namespaces,
+       pending promotion to the HVO.SDK NuGet packages. Once promoted, remove this
+       project and add the updated NuGet package versions. -->
+  <ItemGroup>
+    <PackageReference Include="HVO.Astronomy" />
+    <PackageReference Include="HVO.Weather" />
+  </ItemGroup>
+
+</Project>
