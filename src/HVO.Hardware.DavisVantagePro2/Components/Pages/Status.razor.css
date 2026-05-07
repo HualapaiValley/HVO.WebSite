@@ -191,18 +191,18 @@
     color: #8ba4bf;
 }
 
-.hero-stack > :first-child {
+.hero-stack> :first-child {
     margin-bottom: 12px;
 }
 
-.hero-stack > :not(:first-child) {
+.hero-stack> :not(:first-child) {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 12px;
 }
 
-.hero-stack > :not(:first-child) span {
+.hero-stack> :not(:first-child) span {
     margin-left: auto;
     text-align: right;
 }
@@ -690,6 +690,7 @@
 }
 
 @media (max-width: 1240px) {
+
     .layout-grid,
     .hero,
     .history-grid,

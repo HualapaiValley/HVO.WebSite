@@ -178,8 +178,15 @@ button.btn-danger:hover {
     margin-top: 0.5rem;
 }
 
-.alert-success { background: var(--hvo-success-bg); color: var(--hvo-success-fg); }
-.alert-error   { background: var(--hvo-danger-bg);  color: var(--hvo-danger-fg); }
+.alert-success {
+    background: var(--hvo-success-bg);
+    color: var(--hvo-success-fg);
+}
+
+.alert-error {
+    background: var(--hvo-danger-bg);
+    color: var(--hvo-danger-fg);
+}
 
 .badge {
     display: inline-block;
@@ -188,10 +195,25 @@ button.btn-danger:hover {
     font-size: 0.78rem;
 }
 
-.badge-green  { background: var(--hvo-success-bg);      color: var(--hvo-success-fg); }
-.badge-yellow { background: var(--hvo-warning-bg);      color: var(--hvo-warning-fg); }
-.badge-red    { background: var(--hvo-danger-bg);       color: var(--hvo-danger-fg); }
-.badge-grey   { background: var(--hvo-surface-elevated); color: var(--hvo-muted); }
+.badge-green {
+    background: var(--hvo-success-bg);
+    color: var(--hvo-success-fg);
+}
+
+.badge-yellow {
+    background: var(--hvo-warning-bg);
+    color: var(--hvo-warning-fg);
+}
+
+.badge-red {
+    background: var(--hvo-danger-bg);
+    color: var(--hvo-danger-fg);
+}
+
+.badge-grey {
+    background: var(--hvo-surface-elevated);
+    color: var(--hvo-muted);
+}
 
 table.station-table {
     width: 100%;
@@ -227,5 +249,7 @@ table.station-table tr:hover td {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
