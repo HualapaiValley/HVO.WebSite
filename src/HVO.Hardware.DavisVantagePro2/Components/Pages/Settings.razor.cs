@@ -21,10 +21,7 @@ public partial class Settings
     private string? _archiveMessage;
     private string? _error;
 
-    protected override void OnInitialized()
-    {
-        _ = LoadPageAsync();
-    }
+    protected override async Task OnInitializedAsync() => await LoadPageAsync();
 
     private Task LoadPageAsync() => Task.WhenAll(LoadCachedSettingsAsync(), LoadArchiveStatusAsync());
 
@@ -79,6 +76,8 @@ public partial class Settings
     private async Task LoadArchiveStatusAsync()
     {
         _archiveLoading = true;
+        _archiveError = false;
+        _archiveMessage = null;
         Logger.LogDebug("Loading archive catchup status");
         try
         {

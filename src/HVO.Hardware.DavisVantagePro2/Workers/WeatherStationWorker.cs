@@ -186,7 +186,7 @@ public sealed class WeatherStationWorker(
     public async Task<ArchiveCatchupStatus> GetArchiveCatchupStatusAsync(CancellationToken ct = default)
     {
         DateTime nowUtc = DateTime.UtcNow;
-        DateTime? latestPersistedAtUtc = await GetLatestPersistedRecordAtUtcAsync(ct);
+        DateTime? latestPersistedAtUtc = await GetLatestPersistedArchiveRecordAtUtcAsync(ct);
         DateTimeOffset? latestPersistedAtLocal = latestPersistedAtUtc.HasValue
             ? new DateTimeOffset(latestPersistedAtUtc.Value, TimeSpan.Zero).ToOffset(station.ConsoleUtcOffset)
             : null;
@@ -214,7 +214,7 @@ public sealed class WeatherStationWorker(
         }
 
         DateTime nowUtc = DateTime.UtcNow;
-        DateTime? latestPersistedAtUtc = await GetLatestPersistedRecordAtUtcAsync(ct);
+        DateTime? latestPersistedAtUtc = await GetLatestPersistedArchiveRecordAtUtcAsync(ct);
 
         if (!ShouldRunArchiveCatchup(ArchiveCatchupMode, latestPersistedAtUtc, nowUtc))
         {
@@ -237,11 +237,11 @@ public sealed class WeatherStationWorker(
         await _archiveCatchupGate.WaitAsync(ct);
         try
         {
-            latestPersistedAtUtc ??= await GetLatestPersistedRecordAtUtcAsync(ct);
+            latestPersistedAtUtc ??= await GetLatestPersistedArchiveRecordAtUtcAsync(ct);
             DateTime nowUtc = evaluationUtc ?? DateTime.UtcNow;
             DateTime since = DetermineArchiveCatchupStartLocal(mode, latestPersistedAtUtc, nowUtc);
 
-        using var scope = telemetryService.StartOperation("WeatherStation.ArchiveCatchup");
+            using var scope = telemetryService.StartOperation("WeatherStation.ArchiveCatchup");
             logger.LogInformation(
                 "DMPAFT catchup starting in mode {Mode} since {Since}",
                 mode,
@@ -269,12 +269,13 @@ public sealed class WeatherStationWorker(
         }
     }
 
-    private async Task<DateTime?> GetLatestPersistedRecordAtUtcAsync(CancellationToken ct)
+    private async Task<DateTime?> GetLatestPersistedArchiveRecordAtUtcAsync(CancellationToken ct)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
 
         return await db.OutboxRecords
+            .Where(r => r.IsArchiveRecord)
             .OrderByDescending(r => r.RecordedAtUtc)
             .Select(r => (DateTime?)r.RecordedAtUtc)
             .FirstOrDefaultAsync(ct);
@@ -315,7 +316,7 @@ public sealed class WeatherStationWorker(
         DateTime catchupStart = lastRecordedAtLocal - overlap;
 
         logger.LogInformation(
-            "Archive catchup anchored to latest persisted outbox record at {RecordedAtUtc}; requesting from {CatchupStartLocal} console time with {OverlapMinutes} minute overlap",
+            "Archive catchup anchored to latest persisted archive record at {RecordedAtUtc}; requesting from {CatchupStartLocal} console time with {OverlapMinutes} minute overlap",
             latestPersistedAtUtc.Value,
             catchupStart,
             overlap.TotalMinutes);

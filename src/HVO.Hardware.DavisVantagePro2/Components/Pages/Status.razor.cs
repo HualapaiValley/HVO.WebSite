@@ -16,6 +16,7 @@ public partial class Status : IDisposable
     [CascadingParameter] private HVO.Hardware.DavisVantagePro2.Components.Layout.MainLayout? MainLayout { get; set; }
 
     private Loop2Packet? _reading;
+    private bool _disposed;
     private double? _outsidePressure24HourLowInHg;
     private double? _outsidePressure24HourHighInHg;
     private double? _insidePressure24HourLowInHg;
@@ -139,16 +140,34 @@ public partial class Status : IDisposable
 
     private void OnReadingUpdated(Loop2Packet reading)
     {
-        _reading = reading;
-        UpsertLiveHistorySample(reading);
-        RefreshVisuals();
-        InvokeAsync(StateHasChanged);
+        _ = InvokeAsync(() =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _reading = reading;
+            UpsertLiveHistorySample(reading);
+            RefreshVisuals();
+            StateHasChanged();
+        });
     }
 
-    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+    private void OnStateChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (!_disposed)
+            {
+                StateHasChanged();
+            }
+        });
+    }
 
     public void Dispose()
     {
+        _disposed = true;
         Worker.ReadingUpdated -= OnReadingUpdated;
         Worker.WorkerStateChanged -= OnStateChanged;
         Forwarder.SweptCompleted -= OnStateChanged;

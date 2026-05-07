@@ -30,8 +30,12 @@ public static class CelestialArcCalculations
         }
 
         int result = MoonRiseSet.MoonriseMoonset(observedLocal.Date, latitude.Value, longitude.Value, out var moonriseUtc, out var moonsetUtc);
-        DateTimeOffset? moonriseLocal = result == -1 ? null : moonriseUtc.ToOffset(consoleOffset);
-        DateTimeOffset? moonsetLocal = result == -1 ? null : moonsetUtc.ToOffset(consoleOffset);
+        DateTimeOffset? moonriseLocal = result == 0 && moonriseUtc != DateTimeOffset.MinValue
+            ? moonriseUtc.ToOffset(consoleOffset)
+            : null;
+        DateTimeOffset? moonsetLocal = result == 0 && moonsetUtc != DateTimeOffset.MinValue
+            ? moonsetUtc.ToOffset(consoleOffset)
+            : null;
 
         CelestialMarker marker = result switch
         {
@@ -42,7 +46,7 @@ public static class CelestialArcCalculations
         };
 
         double illumination = MoonExtensions.CalculateIlluminationPercent(observedLocal.UtcDateTime);
-    bool waxing = IsWaxing(observedLocal.UtcDateTime, illumination);
+        bool waxing = IsWaxing(observedLocal.UtcDateTime, illumination);
         string phaseName = DescribeMoonPhase(observedLocal.UtcDateTime, illumination);
 
         return new MoonSnapshot(

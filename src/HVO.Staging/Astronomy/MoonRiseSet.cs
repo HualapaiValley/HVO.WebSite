@@ -19,8 +19,8 @@ public static class MoonRiseSet
     /// <param name="date">The calendar date (time of day is ignored).</param>
     /// <param name="siteLatitude">Observer latitude in degrees (positive north).</param>
     /// <param name="siteLongitude">Observer longitude in degrees (positive east).</param>
-    /// <param name="moonrise">UTC time of moonrise, if any.</param>
-    /// <param name="moonset">UTC time of moonset, if any.</param>
+    /// <param name="moonrise">UTC time of moonrise, or <see cref="DateTimeOffset.MinValue"/> when no rise occurs within the sampled UTC day.</param>
+    /// <param name="moonset">UTC time of moonset, or <see cref="DateTimeOffset.MinValue"/> when no set occurs within the sampled UTC day.</param>
     /// <returns>
     /// <c>0</c> — normal rise and set occurred;
     /// <c>-1</c> — Moon stays below the horizon all day;
@@ -70,18 +70,18 @@ public static class MoonRiseSet
         if (riseHour is null && setHour is null)
         {
             // No crossings — Moon is either always above or always below.
-            moonrise = midnight;
-            moonset = midnight;
+            moonrise = DateTimeOffset.MinValue;
+            moonset = DateTimeOffset.MinValue;
             return altitudes[12] >= StandardAltitudeDegrees ? 1 : -1;
         }
 
         moonrise = riseHour.HasValue
             ? midnight.Add(TimeSpan.FromHours(riseHour.Value))
-            : midnight; // Moon was already up at midnight; no rise this calendar day
+            : DateTimeOffset.MinValue; // Moon was already up at midnight; no rise this calendar day
 
         moonset = setHour.HasValue
             ? midnight.Add(TimeSpan.FromHours(setHour.Value))
-            : midnight; // No set this calendar day
+            : DateTimeOffset.MinValue; // No set this calendar day
 
         return 0;
     }

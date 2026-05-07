@@ -19,6 +19,7 @@ using HVO.Hardware.DavisVantagePro2.Api;
 using HVO.Hardware.DavisVantagePro2.Telemetry;
 using HVO.Hardware.DavisVantagePro2.Workers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -199,8 +200,13 @@ app.UseAntiforgery();
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode();
 
-app.MapGet("/api/weather/current", (WeatherStationWorker worker, VantageStation station, OutboxForwarder forwarder) =>
+app.MapGet("/api/weather/current", (HttpContext httpContext, WeatherStationWorker worker, VantageStation station, OutboxForwarder forwarder, IOptions<OutboxOptions> outboxOptions) =>
 {
+    if (!HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+    {
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+    }
+
     var reading = worker.LatestReading;
     if (reading is null)
     {
@@ -258,3 +264,17 @@ app.MapGet("/api/weather/current", (WeatherStationWorker worker, VantageStation 
 app.MapHealthChecks("/health");
 
 await app.RunAsync();
+
+static bool HasMatchingApiKey(HttpContext httpContext, string configuredApiKey)
+{
+    if (string.IsNullOrWhiteSpace(configuredApiKey) ||
+        string.Equals(configuredApiKey, "REPLACE_ME", StringComparison.OrdinalIgnoreCase) ||
+        configuredApiKey.Contains("__SET_", StringComparison.Ordinal))
+    {
+        return false;
+    }
+
+    return httpContext.Request.Headers.TryGetValue("X-Api-Key", out var providedApiKey)
+        && providedApiKey.Count > 0
+        && string.Equals(providedApiKey[0], configuredApiKey, StringComparison.Ordinal);
+}

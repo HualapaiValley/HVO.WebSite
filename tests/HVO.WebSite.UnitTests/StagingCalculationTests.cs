@@ -68,6 +68,29 @@ public class MoonRiseSetTests
         // At 80°N near full moon in May, Moon may be circumpolar (+1) or normal (0)
         result.Should().BeGreaterThanOrEqualTo(-1).And.BeLessThanOrEqualTo(1);
     }
+
+    [TestMethod]
+    public void MoonriseMoonset_UsesMinValueSentinel_WhenOnlyOneEventOccursWithinDay()
+    {
+        DateTime? matchingDate = null;
+        DateTimeOffset moonrise = default;
+        DateTimeOffset moonset = default;
+
+        for (int offset = 0; offset < 120; offset++)
+        {
+            var candidate = new DateTime(2026, 1, 1).AddDays(offset);
+            int result = MoonRiseSet.MoonriseMoonset(candidate, Latitude, Longitude, out moonrise, out moonset);
+            if (result == 0 && (moonrise == DateTimeOffset.MinValue || moonset == DateTimeOffset.MinValue))
+            {
+                matchingDate = candidate;
+                break;
+            }
+        }
+
+        matchingDate.Should().NotBeNull("the moon should eventually rise or set outside the sampled UTC day for this site");
+        ((moonrise == DateTimeOffset.MinValue) ^ (moonset == DateTimeOffset.MinValue))
+            .Should().BeTrue();
+    }
 }
 
 [TestClass]
