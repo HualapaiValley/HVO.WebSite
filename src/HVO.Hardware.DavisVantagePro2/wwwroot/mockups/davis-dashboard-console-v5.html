@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -30,7 +31,9 @@
             --radius-lg: 22px;
         }
 
-        * { box-sizing: border-box; }
+        * {
+            box-sizing: border-box;
+        }
 
         body {
             margin: 0;
@@ -315,7 +318,12 @@
             font-size: 0.78rem;
         }
 
-        h1, h2, h3, p { margin: 0; }
+        h1,
+        h2,
+        h3,
+        p {
+            margin: 0;
+        }
 
         .headline {
             margin-top: 6px;
@@ -387,7 +395,9 @@
             pointer-events: none;
         }
 
-        .card-body { padding: 24px; }
+        .card-body {
+            padding: 24px;
+        }
 
         .section-head {
             display: flex;
@@ -428,18 +438,18 @@
             color: var(--muted);
         }
 
-        .hero-stack > :first-child {
+        .hero-stack> :first-child {
             margin-bottom: 12px;
         }
 
-        .hero-stack > :not(:first-child) {
+        .hero-stack> :not(:first-child) {
             display: flex;
             align-items: baseline;
             justify-content: space-between;
             gap: 12px;
         }
 
-        .hero-stack > :not(:first-child) span {
+        .hero-stack> :not(:first-child) span {
             margin-left: auto;
             text-align: right;
         }
@@ -529,7 +539,12 @@
             margin-top: 24px;
         }
 
-        .chip, .metric, .subcard, .instrument, .plot-panel, .health {
+        .chip,
+        .metric,
+        .subcard,
+        .instrument,
+        .plot-panel,
+        .health {
             background: rgba(14, 29, 47, 0.86);
             border: 1px solid rgba(126, 157, 196, 0.12);
         }
@@ -543,7 +558,9 @@
             text-align: center;
         }
 
-        .chip .name, .metric .label, .health .label {
+        .chip .name,
+        .metric .label,
+        .health .label {
             color: var(--muted);
             font-size: 0.8rem;
             text-transform: uppercase;
@@ -648,8 +665,8 @@
             position: relative;
             height: 14px;
             border-radius: 999px;
-            background: linear-gradient(90deg, rgba(88,190,255,0.18), rgba(255,207,102,0.18));
-            border: 1px solid rgba(126,157,196,0.12);
+            background: linear-gradient(90deg, rgba(88, 190, 255, 0.18), rgba(255, 207, 102, 0.18));
+            border: 1px solid rgba(126, 157, 196, 0.12);
             overflow: hidden;
         }
 
@@ -658,7 +675,7 @@
             position: absolute;
             inset: 3px;
             border-radius: 999px;
-            background: linear-gradient(90deg, rgba(88,190,255,0.26), rgba(255,207,102,0.3));
+            background: linear-gradient(90deg, rgba(88, 190, 255, 0.26), rgba(255, 207, 102, 0.3));
         }
 
         .barometer-marker {
@@ -668,7 +685,7 @@
             height: 22px;
             border-radius: 999px;
             background: #edf6ff;
-            box-shadow: 0 0 0 2px rgba(8,18,30,0.7);
+            box-shadow: 0 0 0 2px rgba(8, 18, 30, 0.7);
             z-index: 1;
         }
 
@@ -683,7 +700,7 @@
             display: grid;
             gap: 8px;
             padding-top: 12px;
-            border-top: 1px solid rgba(126,157,196,0.1);
+            border-top: 1px solid rgba(126, 157, 196, 0.1);
         }
 
         .barometer-row {
@@ -1003,14 +1020,33 @@
             line-height: 1.2;
         }
 
-        .mono { font-variant-numeric: tabular-nums; }
-        .blue { color: var(--blue); }
-        .cyan { color: var(--cyan); }
-        .green { color: var(--green); }
-        .amber { color: var(--amber); }
+        .mono {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .blue {
+            color: var(--blue);
+        }
+
+        .cyan {
+            color: var(--cyan);
+        }
+
+        .green {
+            color: var(--green);
+        }
+
+        .amber {
+            color: var(--amber);
+        }
 
         @media (max-width: 1240px) {
-            .layout, .hero, .history-grid, .summary-grid, .instrument-cluster {
+
+            .layout,
+            .hero,
+            .history-grid,
+            .summary-grid,
+            .instrument-cluster {
                 grid-template-columns: 1fr;
             }
 
@@ -1039,11 +1075,18 @@
                 border-radius: 24px;
             }
 
-            .header, .chip-grid, .metrics, .health-grid, .moon-layout, .status-footer {
+            .header,
+            .chip-grid,
+            .metrics,
+            .health-grid,
+            .moon-layout,
+            .status-footer {
                 grid-template-columns: 1fr;
             }
 
-            .celestial-grid, .sun-strip, .moon-summary {
+            .celestial-grid,
+            .sun-strip,
+            .moon-summary {
                 grid-template-columns: 1fr;
             }
 
@@ -1052,11 +1095,17 @@
                 flex-wrap: wrap;
             }
 
-            .header-right { justify-content: flex-start; }
-            .hero-temp { font-size: 3.5rem; }
+            .header-right {
+                justify-content: flex-start;
+            }
+
+            .hero-temp {
+                font-size: 3.5rem;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="nav-scrim" data-nav-close></div>
     <aside id="weather-nav" class="nav-drawer" aria-label="Dashboard navigation" aria-hidden="true">
@@ -1160,7 +1209,8 @@
     <div class="frame">
         <header class="header">
             <div class="header-left">
-                <button class="nav-trigger" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="weather-nav">
+                <button class="nav-trigger" type="button" aria-label="Open navigation" aria-expanded="false"
+                    aria-controls="weather-nav">
                     <span class="bars" aria-hidden="true"><span></span><span></span><span></span></span>
                     <span>Navigate</span>
                 </button>
@@ -1218,20 +1268,27 @@
                                 </div>
                             </div>
                             <div class="celestial-icon">
-                                <svg width="460" height="335" viewBox="0 0 220 160" aria-label="Sun and moon timing graphic">
-                                    <path d="M24 122C58 92 88 78 112 78C139 78 165 92 196 122" fill="none" stroke="rgba(255,207,102,0.36)" stroke-width="4" stroke-linecap="round"></path>
+                                <svg width="460" height="335" viewBox="0 0 220 160"
+                                    aria-label="Sun and moon timing graphic">
+                                    <path d="M24 122C58 92 88 78 112 78C139 78 165 92 196 122" fill="none"
+                                        stroke="rgba(255,207,102,0.36)" stroke-width="4" stroke-linecap="round"></path>
                                     <circle cx="138" cy="62" r="18" fill="#ffcf66"></circle>
                                     <circle cx="138" cy="62" r="28" fill="rgba(255,207,102,0.08)"></circle>
-                                    <path d="M36 124H186" stroke="rgba(126,157,196,0.24)" stroke-width="3" stroke-linecap="round"></path>
+                                    <path d="M36 124H186" stroke="rgba(126,157,196,0.24)" stroke-width="3"
+                                        stroke-linecap="round"></path>
                                     <circle cx="48" cy="116" r="12" fill="#f0f4ff" opacity="0.9"></circle>
                                     <ellipse cx="44" cy="116" rx="7" ry="12" fill="#09131e"></ellipse>
                                 </svg>
                             </div>
                             <div class="celestial-grid">
-                                <div class="celestial-stat"><span>Sunrise</span><strong class="mono">5:24 AM</strong></div>
-                                <div class="celestial-stat"><span>Sunset</span><strong class="mono">7:14 PM</strong></div>
-                                <div class="celestial-stat"><span>Moonrise</span><strong class="mono">3:41 PM</strong></div>
-                                <div class="celestial-stat"><span>Moonset</span><strong class="mono">3:12 AM</strong></div>
+                                <div class="celestial-stat"><span>Sunrise</span><strong class="mono">5:24 AM</strong>
+                                </div>
+                                <div class="celestial-stat"><span>Sunset</span><strong class="mono">7:14 PM</strong>
+                                </div>
+                                <div class="celestial-stat"><span>Moonrise</span><strong class="mono">3:41 PM</strong>
+                                </div>
+                                <div class="celestial-stat"><span>Moonset</span><strong class="mono">3:12 AM</strong>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1248,9 +1305,12 @@
                             <section class="instrument">
                                 <h3>Wind Compass</h3>
                                 <svg viewBox="0 0 240 240" width="100%" aria-label="Wind direction compass">
-                                    <circle cx="120" cy="120" r="102" fill="rgba(8,18,30,0.96)" stroke="rgba(126,157,196,0.18)" stroke-width="2"></circle>
-                                    <circle cx="120" cy="120" r="84" fill="none" stroke="rgba(126,157,196,0.12)" stroke-width="1"></circle>
-                                    <circle cx="120" cy="120" r="64" fill="none" stroke="rgba(126,157,196,0.08)" stroke-width="1"></circle>
+                                    <circle cx="120" cy="120" r="102" fill="rgba(8,18,30,0.96)"
+                                        stroke="rgba(126,157,196,0.18)" stroke-width="2"></circle>
+                                    <circle cx="120" cy="120" r="84" fill="none" stroke="rgba(126,157,196,0.12)"
+                                        stroke-width="1"></circle>
+                                    <circle cx="120" cy="120" r="64" fill="none" stroke="rgba(126,157,196,0.08)"
+                                        stroke-width="1"></circle>
                                     <g stroke="rgba(126,157,196,0.28)" stroke-linecap="round">
                                         <line x1="120" y1="20" x2="120" y2="36" stroke-width="2"></line>
                                         <line x1="120" y1="204" x2="120" y2="220" stroke-width="2"></line>
@@ -1279,9 +1339,12 @@
                                     <span class="readout-compact muted-value">12 mph, gust 18</span>
                                 </footer>
                                 <div class="instrument-detail-list">
-                                    <div class="instrument-detail-row"><span>Average speed</span><strong class="mono">12 mph</strong></div>
-                                    <div class="instrument-detail-row"><span>10-minute gust</span><strong class="mono">18 mph</strong></div>
-                                    <div class="instrument-detail-row"><span>Direction spread</span><strong class="mono">312&deg;-338&deg;</strong></div>
+                                    <div class="instrument-detail-row"><span>Average speed</span><strong class="mono">12
+                                            mph</strong></div>
+                                    <div class="instrument-detail-row"><span>10-minute gust</span><strong
+                                            class="mono">18 mph</strong></div>
+                                    <div class="instrument-detail-row"><span>Direction spread</span><strong
+                                            class="mono">312&deg;-338&deg;</strong></div>
                                 </div>
                             </section>
 
@@ -1305,8 +1368,10 @@
                                         </div>
                                         <div class="barometer-meta">
                                             <div class="barometer-row"><span>Trend</span><strong>Steady</strong></div>
-                                            <div class="barometer-row"><span>24h low</span><strong class="mono">29.72</strong></div>
-                                            <div class="barometer-row"><span>24h high</span><strong class="mono">29.94</strong></div>
+                                            <div class="barometer-row"><span>24h low</span><strong
+                                                    class="mono">29.72</strong></div>
+                                            <div class="barometer-row"><span>24h high</span><strong
+                                                    class="mono">29.94</strong></div>
                                         </div>
                                     </div>
                                 </section>
@@ -1330,8 +1395,10 @@
                                         </div>
                                         <div class="barometer-meta">
                                             <div class="barometer-row"><span>Trend</span><strong>Steady</strong></div>
-                                            <div class="barometer-row"><span>24h low</span><strong class="mono">29.79</strong></div>
-                                            <div class="barometer-row"><span>24h high</span><strong class="mono">29.97</strong></div>
+                                            <div class="barometer-row"><span>24h low</span><strong
+                                                    class="mono">29.79</strong></div>
+                                            <div class="barometer-row"><span>24h high</span><strong
+                                                    class="mono">29.97</strong></div>
                                         </div>
                                     </div>
                                 </section>
@@ -1410,8 +1477,13 @@
                                         <text x="4" y="184">58</text>
                                         <text x="4" y="234">50</text>
                                     </g>
-                                    <path d="M0 184L32 188L64 194L96 202L128 208L160 214L192 210L224 200L256 182L288 154L320 122L352 100L384 86L416 92L448 110L480 126L520 138L520 260L0 260Z" fill="rgba(88,190,255,0.14)"></path>
-                                    <path d="M0 184L32 188L64 194L96 202L128 208L160 214L192 210L224 200L256 182L288 154L320 122L352 100L384 86L416 92L448 110L480 126L520 138" fill="none" stroke="#83e4ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    <path
+                                        d="M0 184L32 188L64 194L96 202L128 208L160 214L192 210L224 200L256 182L288 154L320 122L352 100L384 86L416 92L448 110L480 126L520 138L520 260L0 260Z"
+                                        fill="rgba(88,190,255,0.14)"></path>
+                                    <path
+                                        d="M0 184L32 188L64 194L96 202L128 208L160 214L192 210L224 200L256 182L288 154L320 122L352 100L384 86L416 92L448 110L480 126L520 138"
+                                        fill="none" stroke="#83e4ff" stroke-width="4" stroke-linecap="round"
+                                        stroke-linejoin="round"></path>
                                 </svg>
                                 <div class="rows">
                                     <div class="row"><span>24h low</span><strong class="mono">54.8&deg;F</strong></div>
@@ -1437,13 +1509,21 @@
                                         <text x="4" y="184">300</text>
                                         <text x="4" y="234">0</text>
                                     </g>
-                                    <path d="M0 240L64 240L96 240L128 236L160 226L192 188L224 134L256 86L288 58L320 74L352 118L384 170L416 210L448 230L480 238L520 240L520 260L0 260Z" fill="rgba(255,207,102,0.18)"></path>
-                                    <path d="M0 240L64 240L96 240L128 236L160 226L192 188L224 134L256 86L288 58L320 74L352 118L384 170L416 210L448 230L480 238L520 240" fill="none" stroke="#ffcf66" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    <path
+                                        d="M0 240L64 240L96 240L128 236L160 226L192 188L224 134L256 86L288 58L320 74L352 118L384 170L416 210L448 230L480 238L520 240L520 260L0 260Z"
+                                        fill="rgba(255,207,102,0.18)"></path>
+                                    <path
+                                        d="M0 240L64 240L96 240L128 236L160 226L192 188L224 134L256 86L288 58L320 74L352 118L384 170L416 210L448 230L480 238L520 240"
+                                        fill="none" stroke="#ffcf66" stroke-width="4" stroke-linecap="round"
+                                        stroke-linejoin="round"></path>
                                 </svg>
                                 <div class="rows">
-                                    <div class="row"><span>Current solar</span><strong class="mono">642 W/m^2</strong></div>
-                                    <div class="row"><span>Peak solar today</span><strong class="mono">1018 W/m^2</strong></div>
-                                    <div class="row"><span>Current UV index</span><strong class="mono">4.2</strong></div>
+                                    <div class="row"><span>Current solar</span><strong class="mono">642 W/m^2</strong>
+                                    </div>
+                                    <div class="row"><span>Peak solar today</span><strong class="mono">1018
+                                            W/m^2</strong></div>
+                                    <div class="row"><span>Current UV index</span><strong class="mono">4.2</strong>
+                                    </div>
                                 </div>
                             </section>
                         </div>
@@ -1456,7 +1536,8 @@
                             <h3>Moon Phase</h3>
                             <div class="moon-layout">
                                 <div class="moon-graphic">
-                                    <svg width="120" height="120" viewBox="0 0 120 120" aria-label="Waxing gibbous moon phase graphic">
+                                    <svg width="120" height="120" viewBox="0 0 120 120"
+                                        aria-label="Waxing gibbous moon phase graphic">
                                         <circle cx="60" cy="60" r="42" fill="#f0f4ff"></circle>
                                         <ellipse cx="48" cy="60" rx="26" ry="42" fill="#09131e"></ellipse>
                                         <ellipse cx="56" cy="60" rx="9" ry="42" fill="#09131e" opacity="0.2"></ellipse>
@@ -1468,7 +1549,8 @@
                                 <div class="moon-summary">
                                     <div class="data-pairs">
                                         <div class="pair"><span>Moon phase</span><strong>Waxing gibbous</strong></div>
-                                        <div class="pair"><span>Illumination</span><strong class="mono">68%</strong></div>
+                                        <div class="pair"><span>Illumination</span><strong class="mono">68%</strong>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1480,7 +1562,8 @@
                                 <div class="pair"><span>Temperature</span><strong class="mono">68.1&deg;F</strong></div>
                                 <div class="pair"><span>Humidity</span><strong class="mono">42%</strong></div>
                                 <div class="pair"><span>Bar trend</span><strong>Steady</strong></div>
-                                <div class="pair"><span>Archive interval</span><strong class="mono">10 min</strong></div>
+                                <div class="pair"><span>Archive interval</span><strong class="mono">10 min</strong>
+                                </div>
                             </div>
                         </section>
                     </div>
@@ -1551,4 +1634,5 @@
         }());
     </script>
 </body>
+
 </html>

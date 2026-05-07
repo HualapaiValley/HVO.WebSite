@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -102,7 +103,10 @@
             font-size: 0.78rem;
         }
 
-        h1, h2, h3, p {
+        h1,
+        h2,
+        h3,
+        p {
             margin: 0;
         }
 
@@ -429,12 +433,24 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .blue { color: var(--blue); }
-        .cyan { color: var(--cyan); }
-        .green { color: var(--green); }
-        .amber { color: var(--amber); }
+        .blue {
+            color: var(--blue);
+        }
+
+        .cyan {
+            color: var(--cyan);
+        }
+
+        .green {
+            color: var(--green);
+        }
+
+        .amber {
+            color: var(--amber);
+        }
 
         @media (max-width: 1220px) {
+
             .dashboard,
             .hero-grid,
             .chart-grid,
@@ -474,6 +490,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="frame">
         <header class="header">
@@ -482,7 +499,8 @@
                 <div>
                     <div class="eyebrow">Weather Station Dashboard</div>
                     <h1 class="headline">Davis Vantage Pro2 Console Study V3</h1>
-                    <p class="subhead">Balanced two-column console layout with denser right-side history and wind detail.</p>
+                    <p class="subhead">Balanced two-column console layout with denser right-side history and wind
+                        detail.</p>
                 </div>
             </div>
             <div class="header-pills">
@@ -541,7 +559,9 @@
                                     <path d="M46 174L63 157"></path>
                                     <path d="M157 63L174 46"></path>
                                 </g>
-                                <path d="M88 144C73 144 62 134 62 121C62 108 72 98 85 97C90 83 103 74 117 74C136 74 151 89 151 108C161 111 168 119 168 130C168 144 156 154 143 154H88Z" fill="rgba(235,245,255,0.92)"></path>
+                                <path
+                                    d="M88 144C73 144 62 134 62 121C62 108 72 98 85 97C90 83 103 74 117 74C136 74 151 89 151 108C161 111 168 119 168 130C168 144 156 154 143 154H88Z"
+                                    fill="rgba(235,245,255,0.92)"></path>
                             </svg>
                         </div>
                     </div>
@@ -560,9 +580,12 @@
                             <section class="instrument">
                                 <h3>Wind Compass</h3>
                                 <svg viewBox="0 0 240 240" width="100%" aria-label="Wind direction compass">
-                                    <circle cx="120" cy="120" r="102" fill="rgba(8,18,30,0.96)" stroke="rgba(126,157,196,0.18)" stroke-width="2"></circle>
-                                    <circle cx="120" cy="120" r="84" fill="none" stroke="rgba(126,157,196,0.12)" stroke-width="1"></circle>
-                                    <circle cx="120" cy="120" r="64" fill="none" stroke="rgba(126,157,196,0.08)" stroke-width="1"></circle>
+                                    <circle cx="120" cy="120" r="102" fill="rgba(8,18,30,0.96)"
+                                        stroke="rgba(126,157,196,0.18)" stroke-width="2"></circle>
+                                    <circle cx="120" cy="120" r="84" fill="none" stroke="rgba(126,157,196,0.12)"
+                                        stroke-width="1"></circle>
+                                    <circle cx="120" cy="120" r="64" fill="none" stroke="rgba(126,157,196,0.08)"
+                                        stroke-width="1"></circle>
                                     <g stroke="rgba(126,157,196,0.28)" stroke-linecap="round">
                                         <line x1="120" y1="20" x2="120" y2="36" stroke-width="2"></line>
                                         <line x1="120" y1="204" x2="120" y2="220" stroke-width="2"></line>
@@ -591,16 +614,20 @@
                             <section class="instrument">
                                 <h3>Pressure Dial</h3>
                                 <svg viewBox="0 0 240 240" width="100%" aria-label="Barometric pressure dial">
-                                    <path d="M40 176A96 96 0 0 1 200 176" fill="none" stroke="rgba(126,157,196,0.14)" stroke-width="18" stroke-linecap="round"></path>
-                                    <path d="M40 176A96 96 0 0 1 171 79" fill="none" stroke="#ffcf66" stroke-width="18" stroke-linecap="round"></path>
-                                    <path d="M40 176A96 96 0 0 1 108 29" fill="none" stroke="#58beff" stroke-width="18" stroke-linecap="round" opacity="0.78"></path>
+                                    <path d="M40 176A96 96 0 0 1 200 176" fill="none" stroke="rgba(126,157,196,0.14)"
+                                        stroke-width="18" stroke-linecap="round"></path>
+                                    <path d="M40 176A96 96 0 0 1 171 79" fill="none" stroke="#ffcf66" stroke-width="18"
+                                        stroke-linecap="round"></path>
+                                    <path d="M40 176A96 96 0 0 1 108 29" fill="none" stroke="#58beff" stroke-width="18"
+                                        stroke-linecap="round" opacity="0.78"></path>
                                     <g fill="#8ca4bf" font-size="14" text-anchor="middle">
                                         <text x="52" y="196">28.5</text>
                                         <text x="120" y="48">29.5</text>
                                         <text x="188" y="196">30.5</text>
                                     </g>
                                     <g transform="rotate(22 120 150)">
-                                        <line x1="120" y1="150" x2="178" y2="106" stroke="#edf6ff" stroke-width="6" stroke-linecap="round"></line>
+                                        <line x1="120" y1="150" x2="178" y2="106" stroke="#edf6ff" stroke-width="6"
+                                            stroke-linecap="round"></line>
                                     </g>
                                     <circle cx="120" cy="150" r="12" fill="#edf6ff"></circle>
                                     <circle cx="120" cy="150" r="6" fill="#58beff"></circle>
@@ -614,9 +641,13 @@
                             <section class="instrument">
                                 <h3>Solar Dial</h3>
                                 <svg viewBox="0 0 240 240" width="100%" aria-label="Solar radiation dial">
-                                    <circle cx="120" cy="120" r="90" fill="rgba(8,18,30,0.94)" stroke="rgba(126,157,196,0.14)" stroke-width="2"></circle>
-                                    <circle cx="120" cy="120" r="66" fill="none" stroke="rgba(126,157,196,0.12)" stroke-width="18"></circle>
-                                    <circle cx="120" cy="120" r="66" fill="none" stroke="#ffcf66" stroke-width="18" stroke-linecap="round" stroke-dasharray="302 112" transform="rotate(-90 120 120)"></circle>
+                                    <circle cx="120" cy="120" r="90" fill="rgba(8,18,30,0.94)"
+                                        stroke="rgba(126,157,196,0.14)" stroke-width="2"></circle>
+                                    <circle cx="120" cy="120" r="66" fill="none" stroke="rgba(126,157,196,0.12)"
+                                        stroke-width="18"></circle>
+                                    <circle cx="120" cy="120" r="66" fill="none" stroke="#ffcf66" stroke-width="18"
+                                        stroke-linecap="round" stroke-dasharray="302 112"
+                                        transform="rotate(-90 120 120)"></circle>
                                     <g fill="#8ca4bf" font-size="14" text-anchor="middle">
                                         <text x="120" y="46">0</text>
                                         <text x="188" y="126">800</text>
@@ -634,16 +665,20 @@
                             <section class="instrument">
                                 <h3>UV Dial</h3>
                                 <svg viewBox="0 0 240 240" width="100%" aria-label="UV index dial">
-                                    <circle cx="120" cy="120" r="90" fill="rgba(8,18,30,0.94)" stroke="rgba(126,157,196,0.14)" stroke-width="2"></circle>
-                                    <path d="M48 164A80 80 0 0 1 192 164" fill="none" stroke="rgba(126,157,196,0.12)" stroke-width="18" stroke-linecap="round"></path>
-                                    <path d="M48 164A80 80 0 0 1 144 52" fill="none" stroke="#ff9b55" stroke-width="18" stroke-linecap="round"></path>
+                                    <circle cx="120" cy="120" r="90" fill="rgba(8,18,30,0.94)"
+                                        stroke="rgba(126,157,196,0.14)" stroke-width="2"></circle>
+                                    <path d="M48 164A80 80 0 0 1 192 164" fill="none" stroke="rgba(126,157,196,0.12)"
+                                        stroke-width="18" stroke-linecap="round"></path>
+                                    <path d="M48 164A80 80 0 0 1 144 52" fill="none" stroke="#ff9b55" stroke-width="18"
+                                        stroke-linecap="round"></path>
                                     <g fill="#8ca4bf" font-size="14" text-anchor="middle">
                                         <text x="52" y="186">0</text>
                                         <text x="120" y="54">6</text>
                                         <text x="188" y="186">12</text>
                                     </g>
                                     <g transform="rotate(-18 120 164)">
-                                        <line x1="120" y1="164" x2="160" y2="102" stroke="#edf6ff" stroke-width="6" stroke-linecap="round"></line>
+                                        <line x1="120" y1="164" x2="160" y2="102" stroke="#edf6ff" stroke-width="6"
+                                            stroke-linecap="round"></line>
                                     </g>
                                     <circle cx="120" cy="164" r="12" fill="#edf6ff"></circle>
                                     <circle cx="120" cy="164" r="6" fill="#ff9b55"></circle>
@@ -713,10 +748,17 @@
                                         <line x1="0" y1="140" x2="520" y2="140"></line>
                                         <line x1="0" y1="190" x2="520" y2="190"></line>
                                     </g>
-                                    <path d="M0 168L32 172L64 178L96 188L128 194L160 198L192 192L224 178L256 160L288 134L320 106L352 84L384 72L416 78L448 96L480 112L520 122L520 240L0 240Z" fill="rgba(88,190,255,0.14)"></path>
-                                    <path d="M0 168L32 172L64 178L96 188L128 194L160 198L192 192L224 178L256 160L288 134L320 106L352 84L384 72L416 78L448 96L480 112L520 122" fill="none" stroke="#85e6ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
-                                    <line x1="0" y1="198" x2="520" y2="198" stroke="#58beff" stroke-dasharray="8 8"></line>
-                                    <line x1="0" y1="72" x2="520" y2="72" stroke="#ffcf66" stroke-dasharray="8 8"></line>
+                                    <path
+                                        d="M0 168L32 172L64 178L96 188L128 194L160 198L192 192L224 178L256 160L288 134L320 106L352 84L384 72L416 78L448 96L480 112L520 122L520 240L0 240Z"
+                                        fill="rgba(88,190,255,0.14)"></path>
+                                    <path
+                                        d="M0 168L32 172L64 178L96 188L128 194L160 198L192 192L224 178L256 160L288 134L320 106L352 84L384 72L416 78L448 96L480 112L520 122"
+                                        fill="none" stroke="#85e6ff" stroke-width="4" stroke-linecap="round"
+                                        stroke-linejoin="round"></path>
+                                    <line x1="0" y1="198" x2="520" y2="198" stroke="#58beff" stroke-dasharray="8 8">
+                                    </line>
+                                    <line x1="0" y1="72" x2="520" y2="72" stroke="#ffcf66" stroke-dasharray="8 8">
+                                    </line>
                                 </svg>
                                 <div class="rows">
                                     <div class="row"><span>24h low</span><strong class="mono">54.8&deg;F</strong></div>
@@ -734,12 +776,19 @@
                                         <line x1="0" y1="140" x2="520" y2="140"></line>
                                         <line x1="0" y1="190" x2="520" y2="190"></line>
                                     </g>
-                                    <path d="M0 220L64 220L96 220L128 216L160 206L192 168L224 116L256 72L288 52L320 66L352 108L384 158L416 194L448 212L480 218L520 220L520 240L0 240Z" fill="rgba(255,207,102,0.18)"></path>
-                                    <path d="M0 220L64 220L96 220L128 216L160 206L192 168L224 116L256 72L288 52L320 66L352 108L384 158L416 194L448 212L480 218L520 220" fill="none" stroke="#ffcf66" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    <path
+                                        d="M0 220L64 220L96 220L128 216L160 206L192 168L224 116L256 72L288 52L320 66L352 108L384 158L416 194L448 212L480 218L520 220L520 240L0 240Z"
+                                        fill="rgba(255,207,102,0.18)"></path>
+                                    <path
+                                        d="M0 220L64 220L96 220L128 216L160 206L192 168L224 116L256 72L288 52L320 66L352 108L384 158L416 194L448 212L480 218L520 220"
+                                        fill="none" stroke="#ffcf66" stroke-width="4" stroke-linecap="round"
+                                        stroke-linejoin="round"></path>
                                 </svg>
                                 <div class="rows">
-                                    <div class="row"><span>24h peak solar</span><strong class="mono">1018 W/m^2</strong></div>
-                                    <div class="row"><span>Current UV index</span><strong class="mono">4.2</strong></div>
+                                    <div class="row"><span>24h peak solar</span><strong class="mono">1018 W/m^2</strong>
+                                    </div>
+                                    <div class="row"><span>Current UV index</span><strong class="mono">4.2</strong>
+                                    </div>
                                 </div>
                             </section>
                         </div>
@@ -789,13 +838,20 @@
                             <section class="subcard">
                                 <h3>Directional Summary</h3>
                                 <svg viewBox="0 0 240 180" width="100%" aria-label="Wind direction spread">
-                                    <circle cx="120" cy="90" r="62" fill="none" stroke="rgba(126,157,196,0.12)" stroke-width="1.5"></circle>
-                                    <circle cx="120" cy="90" r="44" fill="none" stroke="rgba(126,157,196,0.08)" stroke-width="1"></circle>
-                                    <line x1="120" y1="18" x2="120" y2="162" stroke="rgba(126,157,196,0.12)" stroke-width="1"></line>
-                                    <line x1="48" y1="90" x2="192" y2="90" stroke="rgba(126,157,196,0.12)" stroke-width="1"></line>
-                                    <path d="M120 90L82 34" stroke="#58beff" stroke-width="4" stroke-linecap="round"></path>
-                                    <path d="M120 90L94 26" stroke="#85e6ff" stroke-width="4" stroke-linecap="round"></path>
-                                    <path d="M120 90L104 30" stroke="#ffcf66" stroke-width="4" stroke-linecap="round"></path>
+                                    <circle cx="120" cy="90" r="62" fill="none" stroke="rgba(126,157,196,0.12)"
+                                        stroke-width="1.5"></circle>
+                                    <circle cx="120" cy="90" r="44" fill="none" stroke="rgba(126,157,196,0.08)"
+                                        stroke-width="1"></circle>
+                                    <line x1="120" y1="18" x2="120" y2="162" stroke="rgba(126,157,196,0.12)"
+                                        stroke-width="1"></line>
+                                    <line x1="48" y1="90" x2="192" y2="90" stroke="rgba(126,157,196,0.12)"
+                                        stroke-width="1"></line>
+                                    <path d="M120 90L82 34" stroke="#58beff" stroke-width="4" stroke-linecap="round">
+                                    </path>
+                                    <path d="M120 90L94 26" stroke="#85e6ff" stroke-width="4" stroke-linecap="round">
+                                    </path>
+                                    <path d="M120 90L104 30" stroke="#ffcf66" stroke-width="4" stroke-linecap="round">
+                                    </path>
                                     <circle cx="120" cy="90" r="8" fill="#edf6ff"></circle>
                                     <g fill="#8ca4bf" font-size="14" font-weight="600" text-anchor="middle">
                                         <text x="120" y="16">N</text>
@@ -806,7 +862,8 @@
                                 </svg>
                                 <div class="rows">
                                     <div class="row"><span>Primary sector</span><strong>NNW to NW</strong></div>
-                                    <div class="row"><span>Directional spread</span><strong class="mono">312&deg;–338&deg;</strong></div>
+                                    <div class="row"><span>Directional spread</span><strong
+                                            class="mono">312&deg;–338&deg;</strong></div>
                                 </div>
                             </section>
                         </div>
@@ -818,14 +875,17 @@
                         <section class="subcard">
                             <h3>Sun And Forecast</h3>
                             <svg viewBox="0 0 420 170" width="100%" aria-label="Sun cycle arc">
-                                <path d="M32 142A160 160 0 0 1 388 142" fill="none" stroke="rgba(126,157,196,0.14)" stroke-width="12" stroke-linecap="round"></path>
-                                <path d="M32 142A160 160 0 0 1 286 40" fill="none" stroke="#ffcf66" stroke-width="12" stroke-linecap="round"></path>
+                                <path d="M32 142A160 160 0 0 1 388 142" fill="none" stroke="rgba(126,157,196,0.14)"
+                                    stroke-width="12" stroke-linecap="round"></path>
+                                <path d="M32 142A160 160 0 0 1 286 40" fill="none" stroke="#ffcf66" stroke-width="12"
+                                    stroke-linecap="round"></path>
                                 <circle cx="286" cy="40" r="11" fill="#ffcf66"></circle>
                             </svg>
                             <div class="rows">
                                 <div class="row"><span>Sunrise</span><strong class="mono">5:24 AM</strong></div>
                                 <div class="row"><span>Sunset</span><strong class="mono">7:14 PM</strong></div>
-                                <div class="row"><span>Forecast text</span><strong>Clearing, then partly cloudy</strong></div>
+                                <div class="row"><span>Forecast text</span><strong>Clearing, then partly cloudy</strong>
+                                </div>
                             </div>
                         </section>
 
@@ -856,4 +916,5 @@
         </div>
     </div>
 </body>
+
 </html>

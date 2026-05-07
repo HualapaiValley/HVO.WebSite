@@ -3,86 +3,93 @@
 @using HVO.Hardware.DavisVantagePro2.Station
 @inject VantageStation Station
 
+@{
+    DateTime now = DateTime.Now;
+}
+
 <div class="station-info-page">
     <section class="page-hero card-shell">
         <div>
             <div class="eyebrow">Console Identity</div>
             <h1>Station Info</h1>
-            <p>Hardware, firmware, and console clock details for the Davis station currently connected to this service.</p>
+            <p>Hardware, firmware, and console clock details for the Davis station currently connected to this service.
+            </p>
         </div>
         <div class="hero-actions">
-            <button class="action-btn primary" @onclick="LoadAsync" disabled="@_loading">@(_loading ? "Refreshing…" : "Refresh")</button>
-        </div>
-    </section>
-
-    @if (_loading && _info is null)
-    {
-        <div class="callout info">Loading station information…</div>
-    }
-    else if (_error is not null)
-    {
-        <div class="callout error">@_error</div>
-    }
-    else if (_info is not null)
-    {
-        <div class="info-grid">
-            <section class="card-shell summary-card">
-                <div class="section-head">
-                    <div>
-                        <div class="eyebrow">Summary</div>
-                        <h2>Hardware Profile</h2>
-                    </div>
-                </div>
-
-                <div class="summary-pills">
-                    <div class="pill-card">
-                        <span>Hardware</span>
-                        <strong>@_info.HardwareDescription</strong>
-                    </div>
-                    <div class="pill-card">
-                        <span>Model Type</span>
-                        <strong>@_info.ModelType</strong>
-                    </div>
-                    <div class="pill-card">
-                        <span>Firmware</span>
-                        <strong>@_info.FirmwareVersion</strong>
-                    </div>
-                </div>
-            </section>
-
-            <section class="card-shell timing-card">
-                <div class="section-head">
-                    <div>
-                        <div class="eyebrow">Clock Health</div>
-                        <h2>Time Alignment</h2>
-                    </div>
-                </div>
-
-                <div class="data-pairs">
-                    <div class="pair"><span>Console time</span><strong class="mono">@_info.ConsoleTime.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
-                    <div class="pair"><span>System time</span><strong class="mono">@DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
-                    <div class="pair"><span>Drift</span><strong class="mono">@((DateTime.Now - _info.ConsoleTime).TotalSeconds.ToString("F1")) s</strong></div>
-                    <div class="pair"><span>Time zone</span><strong>@Station.ConsoleTimeZoneLabel</strong></div>
-                </div>
-            </section>
-        </div>
-
-        <section class="card-shell detail-card">
-            <div class="section-head">
-                <div>
-                    <div class="eyebrow">Detail</div>
-                    <h2>Station Fields</h2>
-                </div>
-            </div>
-
-            <div class="detail-grid">
-                <div class="detail-item"><span>Hardware</span><strong>@_info.HardwareDescription</strong></div>
-                <div class="detail-item"><span>Hardware Type</span><strong>@_info.HardwareType</strong></div>
-                <div class="detail-item"><span>Model Type</span><strong>@_info.ModelType</strong></div>
-                <div class="detail-item"><span>Firmware Version</span><strong>@_info.FirmwareVersion</strong></div>
-                <div class="detail-item"><span>Firmware Date</span><strong>@_info.FirmwareDate</strong></div>
+            <button class="action-btn primary" @onclick="LoadAsync" disabled="@_loading">@(_loading ? "Refreshing…" :
+                        "Refresh")</button>
             </div>
         </section>
-    }
-</div>
+
+        @if (_loading && _info is null)
+        {
+            <div class="callout info">Loading station information…</div>
+        }
+        else if (_error is not null)
+        {
+            <div class="callout error">@_error</div>
+        }
+        else if (_info is not null)
+        {
+            <div class="info-grid">
+                <section class="card-shell summary-card">
+                    <div class="section-head">
+                        <div>
+                            <div class="eyebrow">Summary</div>
+                            <h2>Hardware Profile</h2>
+                        </div>
+                    </div>
+
+                    <div class="summary-pills">
+                        <div class="pill-card">
+                            <span>Hardware</span>
+                            <strong>@_info.HardwareDescription</strong>
+                        </div>
+                        <div class="pill-card">
+                            <span>Model Type</span>
+                            <strong>@_info.ModelType</strong>
+                        </div>
+                        <div class="pill-card">
+                            <span>Firmware</span>
+                            <strong>@_info.FirmwareVersion</strong>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card-shell timing-card">
+                    <div class="section-head">
+                        <div>
+                            <div class="eyebrow">Clock Health</div>
+                            <h2>Time Alignment</h2>
+                        </div>
+                    </div>
+
+                    <div class="data-pairs">
+                        <div class="pair"><span>Console time</span><strong class="mono">@_info.ConsoleTime.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
+                        <div class="pair"><span>System time</span><strong class="mono">@now.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
+                        <div class="pair"><span>Drift</span><strong class="mono">@((now -
+                                                    _info.ConsoleTime).TotalSeconds.ToString("F1")) s</strong></div>
+                            <div class="pair"><span>Time zone</span><strong>@Station.ConsoleTimeZoneLabel</strong></div>
+                        </div>
+                    </section>
+                </div>
+
+                <section class="card-shell detail-card">
+                    <div class="section-head">
+                        <div>
+                            <div class="eyebrow">Detail</div>
+                            <h2>Station Fields</h2>
+                        </div>
+                    </div>
+
+                    <div class="detail-grid">
+                        <div class="detail-item"><span>Hardware</span><strong>@_info.HardwareDescription</strong></div>
+                        <div class="detail-item"><span>Hardware Type</span><strong>@_info.HardwareType</strong></div>
+                        <div class="detail-item"><span>Model Type</span><strong>@_info.ModelType</strong></div>
+                        <div class="detail-item"><span>Firmware Version</span><strong>@_info.FirmwareVersion</strong></div>
+                        <div class="detail-item"><span>Firmware Date</span><strong>@_info.FirmwareDate</strong></div>
+                    </div>
+                </section>
+            }
+        </div>
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
@@ -68,6 +69,19 @@ public partial class Archive : IAsyncDisposable
     private IEnumerable<ArchiveRecord> PagedRecords =>
         _historyRecords?.Skip((_displayPage - 1) * PageSize).Take(PageSize)
         ?? [];
+
+    private void OnSinceChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParseExact(
+            e.Value?.ToString(),
+            ["yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss"],
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var since))
+        {
+            _since = since;
+        }
+    }
 
     private async Task LoadHistoryAsync()
     {
