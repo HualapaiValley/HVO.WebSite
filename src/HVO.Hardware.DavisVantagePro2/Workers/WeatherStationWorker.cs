@@ -33,12 +33,15 @@ public sealed class WeatherStationWorker(
     ILogger<WeatherStationWorker> logger) : BackgroundService
 {
     private readonly StationOptions _options = options.Value;
+    private readonly SemaphoreSlim _archiveCatchupGate = new(1, 1);
 
     // Expose the latest reading and fire an event so subscribers update immediately
     public Loop2Packet? LatestReading { get; private set; }
     public DateTime? LastReadingAt { get; private set; }
     public int ConsecutiveErrors { get; private set; }
     public string? LastError { get; private set; }
+    public ArchiveCatchupMode ArchiveCatchupMode => _options.ArchiveCatchupMode;
+    public int ArchiveCatchupLookbackHours => _options.ArchiveCatchupLookbackHours;
 
     /// <summary>
     /// Raised on the worker thread each time a new reading is available.
@@ -71,8 +74,7 @@ public sealed class WeatherStationWorker(
                     _options.Host, _options.Port);
                 WorkerStateChanged?.Invoke();
 
-                if (_options.ArchiveCatchupOnStartup)
-                    await CatchUpArchiveAsync(stoppingToken);
+                await RunStartupArchiveCatchupIfNeededAsync(stoppingToken);
 
                 await PollLoopAsync(stoppingToken);
             }
@@ -181,38 +183,145 @@ public sealed class WeatherStationWorker(
         }
     }
 
-    private async Task CatchUpArchiveAsync(CancellationToken ct)
+    public async Task<ArchiveCatchupStatus> GetArchiveCatchupStatusAsync(CancellationToken ct = default)
     {
-        using var scope = telemetryService.StartOperation("WeatherStation.ArchiveCatchup");
-        DateTime since = await GetLastArchivedTimeAsync(ct);
-        logger.LogInformation("DMPAFT catchup since {Since}", since == DateTime.MinValue ? "beginning" : since.ToString("g"));
+        DateTime nowUtc = DateTime.UtcNow;
+        DateTime? latestPersistedAtUtc = await GetLatestPersistedArchiveRecordAtUtcAsync(ct);
+        DateTimeOffset? latestPersistedAtLocal = latestPersistedAtUtc.HasValue
+            ? new DateTimeOffset(latestPersistedAtUtc.Value, TimeSpan.Zero).ToOffset(station.ConsoleUtcOffset)
+            : null;
+        TimeSpan? lag = latestPersistedAtUtc.HasValue ? nowUtc - latestPersistedAtUtc.Value : null;
+        bool shouldRunOnStartup = ShouldRunArchiveCatchup(ArchiveCatchupMode, latestPersistedAtUtc, nowUtc);
 
-        int count = 0;
-        try
-        {
-            await foreach (var rec in station.GetArchiveSinceAsync(since, ct: ct))
-            {
-                await WriteArchiveToOutboxAsync(rec, ct);
-                count++;
-            }
-        }
-        catch (OperationCanceledException ex) { scope.Fail(ex); throw; }
-        catch (Exception ex) { scope.RecordException(ex); scope.Fail(ex); throw; }
-
-        scope.WithTag("records_caught_up", count).Succeed();
-        logger.LogInformation("DMPAFT catchup complete: {Count} records", count);
+        return new ArchiveCatchupStatus(
+            ArchiveCatchupMode,
+            ArchiveCatchupLookbackHours,
+            latestPersistedAtUtc,
+            latestPersistedAtLocal,
+            lag,
+            shouldRunOnStartup);
     }
 
-    private async Task<DateTime> GetLastArchivedTimeAsync(CancellationToken ct)
+    public async Task<int> RunArchiveTopOffAsync(CancellationToken ct = default) =>
+        await CatchUpArchiveAsync(ArchiveCatchupMode.Force, ct);
+
+    private async Task RunStartupArchiveCatchupIfNeededAsync(CancellationToken ct)
+    {
+        if (ArchiveCatchupMode == ArchiveCatchupMode.Disabled)
+        {
+            logger.LogInformation("Startup archive catchup is disabled");
+            return;
+        }
+
+        DateTime nowUtc = DateTime.UtcNow;
+        DateTime? latestPersistedAtUtc = await GetLatestPersistedArchiveRecordAtUtcAsync(ct);
+
+        if (!ShouldRunArchiveCatchup(ArchiveCatchupMode, latestPersistedAtUtc, nowUtc))
+        {
+            logger.LogInformation(
+                "Skipping startup archive catchup. Latest persisted outbox record at {LatestPersistedAtUtc} is within the {LookbackHours} hour lookback window",
+                latestPersistedAtUtc,
+                ArchiveCatchupLookbackHours);
+            return;
+        }
+
+        await CatchUpArchiveAsync(ArchiveCatchupMode, ct, latestPersistedAtUtc, nowUtc);
+    }
+
+    private async Task<int> CatchUpArchiveAsync(
+        ArchiveCatchupMode mode,
+        CancellationToken ct,
+        DateTime? latestPersistedAtUtc = null,
+        DateTime? evaluationUtc = null)
+    {
+        await _archiveCatchupGate.WaitAsync(ct);
+        try
+        {
+            latestPersistedAtUtc ??= await GetLatestPersistedArchiveRecordAtUtcAsync(ct);
+            DateTime nowUtc = evaluationUtc ?? DateTime.UtcNow;
+            DateTime since = DetermineArchiveCatchupStartLocal(mode, latestPersistedAtUtc, nowUtc);
+
+            using var scope = telemetryService.StartOperation("WeatherStation.ArchiveCatchup");
+            logger.LogInformation(
+                "DMPAFT catchup starting in mode {Mode} since {Since}",
+                mode,
+                since == DateTime.MinValue ? "beginning" : since.ToString("g"));
+
+            int count = 0;
+            try
+            {
+                await foreach (var rec in station.GetArchiveSinceAsync(since, ct: ct))
+                {
+                    await WriteArchiveToOutboxAsync(rec, ct);
+                    count++;
+                }
+            }
+            catch (OperationCanceledException ex) { scope.Fail(ex); throw; }
+            catch (Exception ex) { scope.RecordException(ex); scope.Fail(ex); throw; }
+
+            scope.WithTag("records_caught_up", count).Succeed();
+            logger.LogInformation("DMPAFT catchup complete: {Count} records", count);
+            return count;
+        }
+        finally
+        {
+            _archiveCatchupGate.Release();
+        }
+    }
+
+    private async Task<DateTime?> GetLatestPersistedArchiveRecordAtUtcAsync(CancellationToken ct)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-        var last = await db.OutboxRecords
+
+        return await db.OutboxRecords
             .Where(r => r.IsArchiveRecord)
             .OrderByDescending(r => r.RecordedAtUtc)
             .Select(r => (DateTime?)r.RecordedAtUtc)
             .FirstOrDefaultAsync(ct);
-        return last.HasValue ? last.Value.ToLocalTime() : DateTime.MinValue;
+    }
+
+    private bool ShouldRunArchiveCatchup(ArchiveCatchupMode mode, DateTime? latestPersistedAtUtc, DateTime nowUtc)
+    {
+        return mode switch
+        {
+            ArchiveCatchupMode.Disabled => false,
+            ArchiveCatchupMode.Force => true,
+            ArchiveCatchupMode.Enabled => !latestPersistedAtUtc.HasValue
+                || (nowUtc - latestPersistedAtUtc.Value) >= TimeSpan.FromHours(ArchiveCatchupLookbackHours),
+            _ => false,
+        };
+    }
+
+    private DateTime DetermineArchiveCatchupStartLocal(ArchiveCatchupMode mode, DateTime? latestPersistedAtUtc, DateTime nowUtc)
+    {
+        if (mode == ArchiveCatchupMode.Enabled)
+        {
+            return new DateTimeOffset(nowUtc, TimeSpan.Zero)
+                .ToOffset(station.ConsoleUtcOffset)
+                .DateTime
+                .AddHours(-ArchiveCatchupLookbackHours);
+        }
+
+        if (!latestPersistedAtUtc.HasValue)
+        {
+            return DateTime.MinValue;
+        }
+
+        TimeSpan overlap = TimeSpan.FromSeconds(Math.Max(60, station.ArchiveIntervalSeconds));
+        DateTime lastRecordedAtLocal = new DateTimeOffset(latestPersistedAtUtc.Value, TimeSpan.Zero)
+            .ToOffset(station.ConsoleUtcOffset)
+            .DateTime;
+
+        DateTime catchupStart = lastRecordedAtLocal - overlap;
+
+        logger.LogInformation(
+            "Archive catchup anchored to latest persisted archive record at {RecordedAtUtc}; requesting from {CatchupStartLocal} console time with {OverlapMinutes} minute overlap",
+            latestPersistedAtUtc.Value,
+            catchupStart,
+            overlap.TotalMinutes);
+
+        return catchupStart;
     }
 
     private async Task WriteToOutboxAsync(Loop2Packet reading, CancellationToken ct)
@@ -347,3 +456,11 @@ public sealed class WeatherStationWorker(
         await db.SaveChangesAsync(ct);
     }
 }
+
+public sealed record ArchiveCatchupStatus(
+    ArchiveCatchupMode StartupMode,
+    int LookbackHours,
+    DateTime? LatestPersistedAtUtc,
+    DateTimeOffset? LatestPersistedAtLocal,
+    TimeSpan? SyncLag,
+    bool ShouldRunOnStartup);

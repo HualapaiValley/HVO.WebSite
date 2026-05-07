@@ -1,3 +1,32 @@
+html,
+body {
+    min-height: 100%;
+    margin: 0;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+body {
+    background:
+        radial-gradient(circle at 12% 8%, rgba(88, 190, 255, 0.16), transparent 22%),
+        radial-gradient(circle at 86% 14%, rgba(255, 207, 102, 0.12), transparent 20%),
+        linear-gradient(180deg, #08111d 0%, #050b13 100%);
+    color: #ebf5ff;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+a {
+    color: inherit;
+}
+
 nav.admin-nav {
     width: 200px;
     min-height: 100vh;

@@ -4,8 +4,10 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- HVO SDK -->
+    <PackageVersion Include="HVO.Astronomy" Version="1.0.0" />
     <PackageVersion Include="HVO.Core" Version="1.1.1" />
     <PackageVersion Include="HVO.Core.SourceGenerators" Version="1.1.0" />
+    <PackageVersion Include="HVO.Weather" Version="1.0.0" />
 
     <!-- HVO Telemetry -->
     <PackageVersion Include="HVO.Enterprise.Telemetry" Version="1.0.3" />

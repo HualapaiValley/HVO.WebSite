@@ -1,0 +1,187 @@
+.station-info-page {
+    padding: 5rem 1.5rem 1.5rem;
+    display: grid;
+    gap: 18px;
+}
+
+.card-shell {
+    border-radius: 30px;
+    border: 1px solid rgba(126, 157, 196, 0.14);
+    background:
+        linear-gradient(180deg, rgba(10, 20, 34, 0.96), rgba(7, 15, 25, 0.94)),
+        linear-gradient(135deg, rgba(88, 190, 255, 0.04), rgba(255, 207, 102, 0.03));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    padding: 24px;
+}
+
+.page-hero {
+    display: grid;
+    grid-template-columns: 1.1fr auto;
+    gap: 20px;
+    align-items: start;
+}
+
+.eyebrow {
+    color: #8ba4bf;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.78rem;
+}
+
+.page-hero h1,
+.section-head h2 {
+    margin: 6px 0 0;
+    color: #ebf5ff;
+}
+
+.page-hero p,
+.callout,
+.detail-item span,
+.pair span,
+.pill-card span {
+    color: #8ba4bf;
+}
+
+.page-hero p {
+    margin-top: 10px;
+    max-width: 62ch;
+}
+
+.hero-actions {
+    display: flex;
+    align-items: start;
+}
+
+.action-btn {
+    min-height: 42px;
+    padding: 0 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(126, 157, 196, 0.16);
+    background: rgba(15, 31, 50, 0.78);
+    color: #ebf5ff;
+    cursor: pointer;
+    font: inherit;
+}
+
+.action-btn.primary {
+    background: rgba(88, 190, 255, 0.18);
+    border-color: rgba(88, 190, 255, 0.28);
+}
+
+.action-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.callout {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(14, 29, 47, 0.82);
+    border: 1px solid rgba(126, 157, 196, 0.12);
+}
+
+.callout.info {
+    color: #c6d6e8;
+}
+
+.callout.error {
+    border-color: rgba(243, 139, 168, 0.22);
+    color: #ffb4c8;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 18px;
+}
+
+.section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.summary-pills,
+.detail-grid,
+.data-pairs {
+    display: grid;
+    gap: 12px;
+}
+
+.pill-card,
+.detail-item {
+    padding: 16px 18px;
+    border-radius: 20px;
+    background: rgba(14, 29, 47, 0.82);
+    border: 1px solid rgba(126, 157, 196, 0.12);
+}
+
+.pill-card span,
+.detail-item span {
+    display: block;
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.pill-card strong,
+.detail-item strong,
+.pair strong {
+    display: block;
+    margin-top: 8px;
+    color: #ebf5ff;
+    font-size: 1.05rem;
+}
+
+.pair {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: baseline;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(126, 157, 196, 0.1);
+}
+
+.pair:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.pair:first-child {
+    padding-top: 0;
+}
+
+.detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mono {
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1100px) {
+    .info-grid,
+    .detail-grid,
+    .page-hero {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .station-info-page {
+        padding: 4.5rem 0.4rem 0.8rem;
+    }
+
+    .card-shell {
+        padding: 16px;
+        border-radius: 24px;
+    }
+
+    .pair {
+        flex-direction: column;
+        gap: 6px;
+        align-items: flex-start;
+    }
+}

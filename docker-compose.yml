@@ -112,7 +112,8 @@ services:
       # Station TCP address (network-connected console)
       Station__Host: ${DAVIS_STATION_HOST:-192.168.0.121}
       Station__Port: ${DAVIS_STATION_PORT:-22222}
-      Station__ArchiveCatchupOnStartup: "true"
+      Station__ArchiveCatchupMode: "Disabled"
+      Station__ArchiveCatchupLookbackHours: "12"
       # Post readings to the website container — use the service name, not localhost
       Outbox__ApiEndpoint: "http://hvo-website:8080/api/v1/weather/raw"
       Outbox__ApiKey: ${DAVIS_API_KEY}

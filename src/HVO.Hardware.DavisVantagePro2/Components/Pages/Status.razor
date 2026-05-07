@@ -4,126 +4,364 @@
 @using HVO.Hardware.DavisVantagePro2.Protocol.Packets
 @using HVO.Hardware.DavisVantagePro2.Station
 @using HVO.Hardware.DavisVantagePro2.Workers
+@using System.Globalization
 @inject VantageStation Station
 @inject WeatherStationWorker Worker
 @inject OutboxForwarder Forwarder
 
-<h1>Station Status</h1>
+<div class="dashboard-page">
+    <div class="frame">
+        <header class="header">
+            <div class="header-left">
+                <button class="mark mark-button" type="button" aria-label="Open navigation" aria-controls="weather-nav" @onclick="ToggleNavigation">HVO</button>
+                <div>
+                    <div class="eyebrow">Weather Station Dashboard</div>
+                    <h1 class="headline">Hualapai Valley Observatory</h1>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="pill"><span class="dot @(Station.IsConnected ? string.Empty : "offline")"></span>@LiveStatusText</div>
+                <div class="pill">Hualapai Valley, AZ</div>
+                <div class="pill mono">@HeaderTimestamp</div>
+            </div>
+        </header>
 
-@if (_reading is not null)
-{
-    <h2>Current Conditions</h2>
-    <div class="data-grid">
-        <span class="label">Updated</span>
-        <span class="value">@(ToConsoleTime(Worker.LastReadingAt) ?? "—")</span>
+        <div class="layout-grid">
+            <section class="column">
+                <article class="card">
+                    <div class="card-body hero">
+                        <div>
+                            <div class="section-head">
+                                <div>
+                                    <h2>Station Conditions</h2>
+                                </div>
+                            </div>
+                            <div class="eyebrow">Outside temperature</div>
+                            <div class="hero-temp mono">@DisplayTemperature(_reading?.OutsideTemperatureF)&deg;F</div>
+                            <div class="hero-stack">
+                                <div>@ConditionSummary</div>
+                                <div>Feels like <span class="amber mono">@DisplayTemperature(FeelsLikeF)&deg;F</span></div>
+                                <div>Dew point <span class="cyan mono">@DisplayTemperature(_reading?.DewPointF)&deg;F</span></div>
+                                <div>Barometric trend <span class="blue">@DisplayTrend(BarometricTrendText)</span></div>
+                            </div>
+                            <div class="chip-grid">
+                                <div class="chip">
+                                    <div class="name">Humidity</div>
+                                    <div class="value mono">@DisplayWhole(_reading?.OutsideHumidityPercent)%</div>
+                                </div>
+                                <div class="chip">
+                                    <div class="name">Heat Index</div>
+                                    <div class="value mono">@DisplayTemperature(_reading?.HeatIndexF)&deg;F</div>
+                                </div>
+                                <div class="chip">
+                                    <div class="name">Wind Chill</div>
+                                    <div class="value mono">@DisplayTemperature(_reading?.WindChillF)&deg;F</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="console-face">
+                            <div class="celestial-head">
+                                <div>
+                                    <small>Astronomical Info</small>
+                                </div>
+                            </div>
+                            <div class="celestial-icon">
+                                <svg width="460" height="335" viewBox="0 0 220 160" aria-label="Sun and moon timing graphic">
+                                    <path d="M24 122C58 92 88 78 112 78C139 78 165 92 196 122" fill="none" stroke="rgba(255,207,102,0.36)" stroke-width="4" stroke-linecap="round"></path>
+                                    <path d="M36 124H186" stroke="rgba(126,157,196,0.24)" stroke-width="3" stroke-linecap="round"></path>
+                                    @if (SunMarker.IsVisible)
+                                    {
+                                        <circle cx="@SunMarker.X.ToString("F1", CultureInfo.InvariantCulture)" cy="@SunMarker.Y.ToString("F1", CultureInfo.InvariantCulture)" r="@SunMarker.GlowRadius.ToString("F1", CultureInfo.InvariantCulture)" fill="rgba(255,207,102,0.08)"></circle>
+                                        <circle cx="@SunMarker.X.ToString("F1", CultureInfo.InvariantCulture)" cy="@SunMarker.Y.ToString("F1", CultureInfo.InvariantCulture)" r="18" fill="#ffcf66"></circle>
+                                    }
+                                    @if (MoonMarker.IsVisible)
+                                    {
+                                        <circle cx="@MoonMarker.X.ToString("F1", CultureInfo.InvariantCulture)" cy="@MoonMarker.Y.ToString("F1", CultureInfo.InvariantCulture)" r="12" fill="#f0f4ff" opacity="0.9"></circle>
+                                        <ellipse cx="@((MoonMarker.X - 4).ToString("F1", CultureInfo.InvariantCulture))" cy="@MoonMarker.Y.ToString("F1", CultureInfo.InvariantCulture)" rx="7" ry="12" fill="#09131e"></ellipse>
+                                    }
+                                </svg>
+                            </div>
+                            <div class="celestial-grid">
+                                <div class="celestial-stat"><span>Sunrise</span><strong class="mono">@FormatDisplayTime(_reading?.SunriseDisplay)</strong></div>
+                                <div class="celestial-stat"><span>Sunset</span><strong class="mono">@FormatDisplayTime(_reading?.SunsetDisplay)</strong></div>
+                                <div class="celestial-stat"><span>Moonrise</span><strong class="mono">@MoonriseText</strong></div>
+                                <div class="celestial-stat"><span>Moonset</span><strong class="mono">@MoonsetText</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
 
-        <span class="label">Outside Temp</span>
-        <span class="value">@F(_reading.OutsideTemperatureF) °F</span>
+                <article class="card">
+                    <div class="card-body">
+                        <div class="section-head">
+                            <div>
+                                <h2>Primary Instruments</h2>
+                            </div>
+                        </div>
+                        <div class="instrument-cluster">
+                            <section class="instrument">
+                                <h3>Wind Compass</h3>
+                                <svg viewBox="0 0 240 240" width="100%" aria-label="Wind direction compass">
+                                    <circle cx="120" cy="120" r="102" fill="rgba(8,18,30,0.96)" stroke="rgba(126,157,196,0.18)" stroke-width="2"></circle>
+                                    <circle cx="120" cy="120" r="84" fill="none" stroke="rgba(126,157,196,0.12)" stroke-width="1"></circle>
+                                    <circle cx="120" cy="120" r="64" fill="none" stroke="rgba(126,157,196,0.08)" stroke-width="1"></circle>
+                                    <g stroke="rgba(126,157,196,0.28)" stroke-linecap="round">
+                                        <line x1="120" y1="20" x2="120" y2="36" stroke-width="2"></line>
+                                        <line x1="120" y1="204" x2="120" y2="220" stroke-width="2"></line>
+                                        <line x1="20" y1="120" x2="36" y2="120" stroke-width="2"></line>
+                                        <line x1="204" y1="120" x2="220" y2="120" stroke-width="2"></line>
+                                        <line x1="49" y1="49" x2="60" y2="60" stroke-width="1.5"></line>
+                                        <line x1="180" y1="180" x2="191" y2="191" stroke-width="1.5"></line>
+                                        <line x1="49" y1="191" x2="60" y2="180" stroke-width="1.5"></line>
+                                        <line x1="180" y1="60" x2="191" y2="49" stroke-width="1.5"></line>
+                                    </g>
+                                    <g fill="#8ba4bf" font-size="18" font-weight="600" text-anchor="middle">
+                                        <text x="120" y="54">N</text>
+                                        <text x="190" y="126">E</text>
+                                        <text x="120" y="198">S</text>
+                                        <text x="50" y="126">W</text>
+                                    </g>
+                                    <g transform="rotate(@WindDirectionRotation 120 120)">
+                                        <path d="M120 34L133 118L120 108L107 118Z" fill="#58beff"></path>
+                                        <path d="M120 206L132 126L120 132L108 126Z" fill="rgba(255,207,102,0.9)"></path>
+                                    </g>
+                                    <circle cx="120" cy="120" r="10" fill="#ebf5ff"></circle>
+                                    <circle cx="120" cy="120" r="5" fill="#58beff"></circle>
+                                </svg>
+                                <footer>
+                                    <strong class="mono readout-compact">@WindDirectionText</strong>
+                                    <span class="readout-compact muted-value">@WindSummary</span>
+                                </footer>
+                                <div class="instrument-detail-list">
+                                    <div class="instrument-detail-row"><span>Average speed</span><strong class="mono">@DisplayWhole(_reading?.WindSpeed10MinAvgMph) mph</strong></div>
+                                    <div class="instrument-detail-row"><span>10-minute gust</span><strong class="mono">@DisplayWhole(_reading?.WindGust10MinMph) mph</strong></div>
+                                    <div class="instrument-detail-row"><span>Direction spread</span><strong class="mono">@WindDirectionSpreadText</strong></div>
+                                </div>
+                            </section>
 
-        <span class="label">Outside Humidity</span>
-        <span class="value">@F0(_reading.OutsideHumidityPercent) %</span>
+                            <div class="side-stack">
+                                <section class="instrument">
+                                    <h3>Outside Pressure</h3>
+                                    <div class="barometer-card">
+                                        <div class="barometer-reading">
+                                            <strong class="mono">@DisplayPressure(_reading?.BarometricPressureInHg)</strong>
+                                            <span>barometer inHg</span>
+                                        </div>
+                                        <div class="barometer-scale" aria-label="Outside pressure range scale">
+                                            <div class="barometer-band">
+                                                <span class="barometer-marker" style="left: @PressureMarkerLeft(_reading?.BarometricPressureInHg);"></span>
+                                            </div>
+                                            <div class="barometer-labels mono">
+                                                <span>28.5</span>
+                                                <span>29.5</span>
+                                                <span>30.5</span>
+                                            </div>
+                                        </div>
+                                        <div class="barometer-meta">
+                                            <div class="barometer-row"><span>24h low</span><strong class="mono">@DisplayPressure(_outsidePressure24HourLowInHg)</strong></div>
+                                            <div class="barometer-row"><span>24h high</span><strong class="mono">@DisplayPressure(_outsidePressure24HourHighInHg)</strong></div>
+                                        </div>
+                                    </div>
+                                </section>
 
-        <span class="label">Dew Point</span>
-        <span class="value">@F(_reading.DewPointF) °F</span>
+                                <section class="instrument">
+                                    <h3>Inside Pressure</h3>
+                                    <div class="barometer-card">
+                                        <div class="barometer-reading">
+                                            <strong class="mono">@DisplayPressure(_reading?.PressureRawInHg)</strong>
+                                            <span>console inHg</span>
+                                        </div>
+                                        <div class="barometer-scale" aria-label="Inside pressure range scale">
+                                            <div class="barometer-band">
+                                                <span class="barometer-marker" style="left: @PressureMarkerLeft(_reading?.PressureRawInHg);"></span>
+                                            </div>
+                                            <div class="barometer-labels mono">
+                                                <span>28.5</span>
+                                                <span>29.5</span>
+                                                <span>30.5</span>
+                                            </div>
+                                        </div>
+                                        <div class="barometer-meta">
+                                            <div class="barometer-row"><span>24h low</span><strong class="mono">@DisplayPressure(_insidePressure24HourLowInHg)</strong></div>
+                                            <div class="barometer-row"><span>24h high</span><strong class="mono">@DisplayPressure(_insidePressure24HourHighInHg)</strong></div>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </section>
 
-        <span class="label">Heat Index</span>
-        <span class="value">@F(_reading.HeatIndexF) °F</span>
+            <section class="column">
+                <article class="card">
+                    <div class="card-body">
+                        <div class="section-head">
+                            <div>
+                                <h2>Weather And Rain Metrics</h2>
+                            </div>
+                        </div>
+                        <div class="metrics">
+                            <div class="metric">
+                                <div class="label">Rain Rate</div>
+                                <div class="number mono cyan">@DisplayRain(_reading?.RainRateInchesPerHour)</div>
+                                <div class="foot">in/hr current</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Daily Rain</div>
+                                <div class="number mono cyan">@DisplayRain(_reading?.DailyRainInches)</div>
+                                <div class="foot">since midnight</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Storm Rain</div>
+                                <div class="number mono blue">@DisplayRain(_reading?.StormRainInches)</div>
+                                <div class="foot">active event</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Monthly Rain</div>
+                                <div class="number mono blue">@DisplayRain(_reading?.MonthlyRainInches)</div>
+                                <div class="foot">month to date</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Yearly Rain</div>
+                                <div class="number mono blue">@DisplayRain(_reading?.YearlyRainInches)</div>
+                                <div class="foot">year to date</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Daily ET</div>
+                                <div class="number mono amber">@DisplayEt(_reading?.DailyEtInches)</div>
+                                <div class="foot">in evaporative loss</div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
 
-        <span class="label">Wind Chill</span>
-        <span class="value">@F(_reading.WindChillF) °F</span>
+                <article class="card">
+                    <div class="card-body">
+                        <div class="section-head">
+                            <div>
+                                <h2>Last 24 Hours</h2>
+                            </div>
+                        </div>
+                        <div class="history-grid">
+                            <section class="plot-panel">
+                                <h3>Temperature</h3>
+                                <p>Outside air over the last 24 hours with daily low and high.</p>
+                                <svg viewBox="0 0 520 260" width="100%" aria-label="24 hour temperature history">
+                                    <g stroke="rgba(126,157,196,0.08)">
+                                        @foreach (var label in TemperatureAxisLabels)
+                                        {
+                                            <line x1="32" y1="@label.Y.ToString("F1", CultureInfo.InvariantCulture)" x2="520" y2="@label.Y.ToString("F1", CultureInfo.InvariantCulture)"></line>
+                                        }
+                                    </g>
+                                    @if (HasTemperaturePlot)
+                                    {
+                                        <path d="@TemperatureAreaPath" fill="rgba(88,190,255,0.14)"></path>
+                                        <path d="@TemperatureLinePath" fill="none" stroke="#83e4ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+                                        <circle cx="@TemperatureCurrentX.ToString("F1", CultureInfo.InvariantCulture)" cy="@TemperatureCurrentY.ToString("F1", CultureInfo.InvariantCulture)" r="5" fill="#ebf5ff" stroke="#83e4ff" stroke-width="2"></circle>
+                                    }
+                                </svg>
+                                <div class="rows">
+                                    <div class="row"><span>24h low</span><strong class="mono">@DisplayTemperature(_outsideTemperature24HourLowF)&deg;F</strong></div>
+                                    <div class="row"><span>24h high</span><strong class="mono">@DisplayTemperature(_outsideTemperature24HourHighF)&deg;F</strong></div>
+                                </div>
+                            </section>
 
-        <span class="label">Inside Temp</span>
-        <span class="value">@F(_reading.InsideTemperatureF) °F</span>
+                            <section class="plot-panel">
+                                <h3>Solar Radiation</h3>
+                                <p>Solar output over the last 24 hours with daylight peak profile.</p>
+                                <svg viewBox="0 0 520 260" width="100%" aria-label="24 hour solar history">
+                                    <g stroke="rgba(126,157,196,0.08)">
+                                        @foreach (var label in SolarAxisLabels)
+                                        {
+                                            <line x1="32" y1="@label.Y.ToString("F1", CultureInfo.InvariantCulture)" x2="520" y2="@label.Y.ToString("F1", CultureInfo.InvariantCulture)"></line>
+                                        }
+                                    </g>
+                                    @if (HasSolarPlot)
+                                    {
+                                        <path d="@SolarAreaPath" fill="rgba(255,207,102,0.18)"></path>
+                                        <path d="@SolarLinePath" fill="none" stroke="#ffcf66" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+                                        <circle cx="@SolarCurrentX.ToString("F1", CultureInfo.InvariantCulture)" cy="@SolarCurrentY.ToString("F1", CultureInfo.InvariantCulture)" r="5" fill="#fff3d4" stroke="#ffcf66" stroke-width="2"></circle>
+                                    }
+                                </svg>
+                                <div class="rows">
+                                    <div class="row"><span>Current solar</span><strong class="mono">@DisplaySolar(_reading?.SolarRadiationWm2)</strong></div>
+                                    <div class="row"><span>Peak solar today</span><strong class="mono">@DisplaySolar(_todayPeakSolarWm2)</strong></div>
+                                    <div class="row"><span>Current UV index</span><strong class="mono">@DisplayUv(_reading?.UvIndex)</strong></div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </article>
 
-        <span class="label">Inside Humidity</span>
-        <span class="value">@F0(_reading.InsideHumidityPercent) %</span>
+                <article class="card">
+                    <div class="card-body summary-grid">
+                        <section class="subcard">
+                            <h3>Moon Phase</h3>
+                            <div class="moon-layout">
+                                <div class="moon-graphic">
+                                    <svg width="120" height="120" viewBox="0 0 120 120" aria-label="Moon phase graphic">
+                                        <circle cx="60" cy="60" r="48" fill="rgba(240,244,255,0.08)"></circle>
+                                        <circle cx="60" cy="60" r="42" fill="#f0f4ff"></circle>
+                                        <circle cx="@MoonPhaseShadowX.ToString("F1", CultureInfo.InvariantCulture)" cy="60" r="42" fill="#09131e"></circle>
+                                        <circle cx="60" cy="60" r="42" fill="none" stroke="rgba(255,255,255,0.12)"></circle>
+                                        <circle cx="46" cy="46" r="4" fill="rgba(9,19,30,0.16)"></circle>
+                                        <circle cx="72" cy="62" r="6" fill="rgba(9,19,30,0.12)"></circle>
+                                        <circle cx="58" cy="78" r="3" fill="rgba(9,19,30,0.14)"></circle>
+                                    </svg>
+                                </div>
+                                <div class="moon-summary">
+                                    <div class="data-pairs">
+                                        <div class="pair"><span>Moon phase</span><strong>@MoonPhaseText</strong></div>
+                                        <div class="pair"><span>Illumination</span><strong class="mono">@IlluminationText</strong></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
 
-        <span class="label">Barometer</span>
-        <span class="value">@(_reading.BarometricPressureInHg is not null ? $"{_reading.BarometricPressureInHg:F3} inHg" : "—")</span>
+                        <section class="subcard inside-card">
+                            <h3>Inside Conditions</h3>
+                            <div class="data-pairs">
+                                <div class="pair"><span>Temperature</span><strong class="mono">@DisplayTemperature(_reading?.InsideTemperatureF)&deg;F</strong></div>
+                                <div class="pair"><span>Humidity</span><strong class="mono">@DisplayWhole(_reading?.InsideHumidityPercent)%</strong></div>
+                                <div class="pair"><span class="nowrap-label">Archive interval</span><strong class="mono">@ArchiveIntervalText</strong></div>
+                            </div>
+                        </section>
+                    </div>
+                </article>
+            </section>
+        </div>
 
-        <span class="label">Wind Speed</span>
-        <span class="value">@F0(_reading.WindSpeedMph) mph @@ @F0(_reading.WindDirectionDegrees)°</span>
-
-        <span class="label">Wind Gust (10m)</span>
-        <span class="value">@F0(_reading.WindGust10MinMph) mph @@ @F0(_reading.WindGust10MinDirectionDegrees)°</span>
-
-        <span class="label">Rain Rate</span>
-        <span class="value">@(_reading.RainRateInchesPerHour?.ToString("F2") ?? "—") in/hr</span>
-
-        <span class="label">Daily Rain</span>
-        <span class="value">@(_reading.DailyRainInches?.ToString("F2") ?? "—") in</span>
-
-        <span class="label">Solar Radiation</span>
-        <span class="value">@(_reading.SolarRadiationWm2 is not null ? $"{_reading.SolarRadiationWm2} W/m²" : "—")</span>
-
-        <span class="label">UV Index</span>
-        <span class="value">@(_reading.UvIndex?.ToString("F1") ?? "—")</span>
-
-        <span class="label">Daily ET</span>
-        <span class="value">@(_reading.DailyEtInches?.ToString("F3") ?? "—") in</span>
-
-        <span class="label">Monthly Rain</span>
-        <span class="value">@(_reading.MonthlyRainInches?.ToString("F2") ?? "—") in</span>
-
-        <span class="label">Yearly Rain</span>
-        <span class="value">@(_reading.YearlyRainInches?.ToString("F2") ?? "—") in</span>
-
-        <span class="label">Console Battery</span>
-        <span class="value">@(_reading.ConsoleBatteryVoltage?.ToString("F2") ?? "—") V</span>
-
-        <span class="label">Transmitter Battery</span>
-        @if (_reading.TransmitterBatteryStatus is not null)
-        {
-            var lowChannels = _reading.TransmitterLowBatteryChannels;
-            <span class="value">@(lowChannels.Count == 0 ? "OK" : $"Low: ch {string.Join(", ", lowChannels)}")</span>
-        }
-        else
-        {
-            <span class="value">—</span>
-        }
-
-        <span class="label">Forecast</span>
-        <span class="value">@(_reading.ForecastString ?? "—")</span>
-
-        <span class="label">Sunrise</span>
-        <span class="value">@(_reading.SunriseDisplay ?? "—")</span>
-
-        <span class="label">Sunset</span>
-        <span class="value">@(_reading.SunsetDisplay ?? "—")</span>
+        <footer class="status-footer">
+            <div class="status-pill" title="Station connection status">
+                <div class="status-icon">●</div>
+                <div class="status-copy">
+                    <div class="label">Connection</div>
+                    <div class="value @(Station.IsConnected ? "green" : "danger")">@ConnectionState</div>
+                </div>
+            </div>
+            <div class="status-pill" title="Console battery voltage">
+                <div class="status-icon">B</div>
+                <div class="status-copy">
+                    <div class="label">Console Battery</div>
+                    <div class="value mono">@DisplayBatteryVoltage(_reading?.ConsoleBatteryVoltage)</div>
+                </div>
+            </div>
+            <div class="status-pill" title="Transmitter battery status summary">
+                <div class="status-icon">T</div>
+                <div class="status-copy">
+                    <div class="label">Transmitters</div>
+                    <div class="value">@TransmitterStatus</div>
+                </div>
+            </div>
+            <div class="status-pill" title="Pending weather records waiting to forward">
+                <div class="status-icon">Q</div>
+                <div class="status-copy">
+                    <div class="label">Outbox Queue</div>
+                    <div class="value mono">@Forwarder.PendingCount pending</div>
+                </div>
+            </div>
+        </footer>
     </div>
-}
-else
-{
-    <p>No data yet. Worker may be connecting.</p>
-}
-
-<h2>Outbox</h2>
-<div class="data-grid">
-    <span class="label">Pending records</span>
-    <span class="value">@Forwarder.PendingCount</span>
-
-    <span class="label">Dead-lettered records</span>
-    <span class="value" style="@(Forwarder.FailedCount > 0 ? "color:#f38ba8" : "")">@Forwarder.FailedCount</span>
-
-    <span class="label">Last sent</span>
-    <span class="value">@(ToConsoleTime(Forwarder.LastSentAt) ?? "—")</span>
-
-    <span class="label">Last batch size</span>
-    <span class="value">@Forwarder.LastBatchCount</span>
-
-    <span class="label">Last forward error</span>
-    <span class="value" style="color:#f38ba8">@(Forwarder.LastError ?? "none")</span>
-</div>
-
-<h2>Worker Health</h2>
-<div class="data-grid">
-    <span class="label">Connected</span>
-    <span class="value">@(Station.IsConnected ? "Yes" : "No")</span>
-
-    <span class="label">Consecutive errors</span>
-    <span class="value">@Worker.ConsecutiveErrors</span>
-
-    <span class="label">Last error</span>
-    <span class="value" style="color:#f38ba8">@(Worker.LastError ?? "none")</span>
 </div>
 
