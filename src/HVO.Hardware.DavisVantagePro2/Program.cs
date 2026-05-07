@@ -15,6 +15,7 @@ using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Protocol;
 using HVO.Hardware.DavisVantagePro2.Station;
+using HVO.Hardware.DavisVantagePro2.Api;
 using HVO.Hardware.DavisVantagePro2.Telemetry;
 using HVO.Hardware.DavisVantagePro2.Workers;
 using Microsoft.EntityFrameworkCore;
@@ -127,6 +128,7 @@ string dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
 builder.Services.AddDbContext<OutboxDbContext>(o =>
     o.UseSqlite($"Data Source={dbPath}"),
     ServiceLifetime.Scoped);
+builder.Services.AddSingleton<StationSettingsSnapshotStore>();
 
 // ── HTTP client for outbox forwarder ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("WeatherApi", (sp, client) =>
@@ -155,6 +157,34 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
     await db.Database.EnsureCreatedAsync();
+    await db.Database.ExecuteSqlRawAsync(
+        @"CREATE TABLE IF NOT EXISTS StationSettingsSnapshots (
+            Id INTEGER NOT NULL CONSTRAINT PK_StationSettingsSnapshots PRIMARY KEY,
+            SavedAtUtc TEXT NOT NULL,
+            ArchiveIntervalSeconds INTEGER NOT NULL,
+            LatitudeDegrees REAL NULL,
+            LongitudeDegrees REAL NULL,
+            AltitudeFeet REAL NULL,
+            RainYearStartMonth INTEGER NOT NULL,
+            RainBucketType INTEGER NOT NULL,
+            DstSetting TEXT NOT NULL,
+            UseTimezoneCode INTEGER NOT NULL,
+            TimezoneCode INTEGER NOT NULL,
+            GmtOffsetHours REAL NOT NULL,
+            TemperatureLogging TEXT NOT NULL,
+            BarometerUnits TEXT NOT NULL,
+            TemperatureUnits TEXT NOT NULL,
+            RainUnits TEXT NOT NULL,
+            WindUnits TEXT NOT NULL
+        );");
+
+    var snapshotStore = scope.ServiceProvider.GetRequiredService<StationSettingsSnapshotStore>();
+    var station = scope.ServiceProvider.GetRequiredService<VantageStation>();
+    var cachedSnapshot = await snapshotStore.GetAsync();
+    if (cachedSnapshot is not null)
+    {
+        station.ApplyStationSettings(cachedSnapshot.Settings);
+    }
 }
 
 if (!app.Environment.IsDevelopment())
@@ -168,6 +198,62 @@ app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode();
+
+app.MapGet("/api/weather/current", (WeatherStationWorker worker, VantageStation station, OutboxForwarder forwarder) =>
+{
+    var reading = worker.LatestReading;
+    if (reading is null)
+    {
+        return Results.NoContent();
+    }
+
+    var observedAtUtc = worker.LastReadingAt ?? reading.RecordedAtUtc;
+    var observedAtLocal = new DateTimeOffset(observedAtUtc, TimeSpan.Zero).ToOffset(station.ConsoleUtcOffset);
+
+    var response = new CurrentConditionsResponse
+    {
+        ObservedAtUtc = observedAtUtc,
+        ObservedAtLocal = observedAtLocal,
+        ConsoleTimeZone = station.ConsoleTimeZoneLabel,
+        IsConnected = station.IsConnected,
+        OutsideTemperatureF = reading.OutsideTemperatureF,
+        OutsideHumidityPercent = reading.OutsideHumidityPercent,
+        DewPointF = reading.DewPointF,
+        HeatIndexF = reading.HeatIndexF,
+        WindChillF = reading.WindChillF,
+        InsideTemperatureF = reading.InsideTemperatureF,
+        InsideHumidityPercent = reading.InsideHumidityPercent,
+        BarometricPressureInHg = reading.BarometricPressureInHg,
+        PressureRawInHg = reading.PressureRawInHg,
+        AltimeterInHg = reading.AltimeterInHg,
+        BarometricTrend = reading.BarometricTrend,
+        WindSpeedMph = reading.WindSpeedMph,
+        WindDirectionDegrees = reading.WindDirectionDegrees,
+        WindSpeed10MinAvgMph = reading.WindSpeed10MinAvgMph,
+        WindGust10MinMph = reading.WindGust10MinMph,
+        WindGust10MinDirectionDegrees = reading.WindGust10MinDirectionDegrees,
+        RainRateInchesPerHour = reading.RainRateInchesPerHour,
+        DailyRainInches = reading.DailyRainInches,
+        Rain24HourInches = reading.Rain24HourInches,
+        StormRainInches = reading.StormRainInches,
+        DailyEtInches = reading.DailyEtInches,
+        MonthlyRainInches = reading.MonthlyRainInches,
+        YearlyRainInches = reading.YearlyRainInches,
+        SolarRadiationWm2 = reading.SolarRadiationWm2,
+        UvIndex = reading.UvIndex,
+        Forecast = reading.ForecastString,
+        Sunrise = reading.SunriseDisplay,
+        Sunset = reading.SunsetDisplay,
+        ConsoleBatteryVoltage = reading.ConsoleBatteryVoltage,
+        TransmitterLowBatteryChannels = [.. reading.TransmitterLowBatteryChannels],
+        PendingOutboxCount = forwarder.PendingCount,
+        FailedOutboxCount = forwarder.FailedCount
+    };
+
+    return Results.Ok(response);
+})
+.WithName("GetCurrentWeather")
+.WithTags("Weather");
 
 app.MapHealthChecks("/health");
 

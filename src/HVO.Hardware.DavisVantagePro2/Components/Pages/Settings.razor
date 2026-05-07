@@ -1,37 +1,71 @@
 @page "/settings"
 @rendermode InteractiveServer
+@using HVO.Hardware.DavisVantagePro2.Outbox
 @using HVO.Hardware.DavisVantagePro2.Station
+@using HVO.Hardware.DavisVantagePro2.Workers
 @inject VantageStation Station
+@inject WeatherStationWorker Worker
 
 <h1>Station Settings</h1>
-<p style="color:#6c7086;font-size:.85rem">Read-only summary. Edit individual settings on their dedicated pages.</p>
+<p style="color:#6c7086;font-size:.85rem">Loads from the locally cached settings snapshot by default. Use Refresh to query the console and update the cached values.</p>
 
-@if (_loading)
-{
-    <p><span class="spinner"></span> Loading…</p>
-}
-else if (_error is not null)
+@if (_error is not null)
 {
     <div class="alert alert-error">@_error</div>
 }
-else if (_s is not null)
+
+@if (_s is not null)
 {
     <div class="data-grid">
-        <span class="label">Archive Interval</span>  <span class="value">@(_s.ArchiveIntervalSeconds / 60) min</span>
-        <span class="label">Latitude</span>           <span class="value">@(_s.LatitudeDegrees?.ToString("F4") ?? "—") °</span>
-        <span class="label">Longitude</span>          <span class="value">@(_s.LongitudeDegrees?.ToString("F4") ?? "—") °</span>
-        <span class="label">Altitude</span>           <span class="value">@(_s.AltitudeFeet?.ToString("F0") ?? "—") ft</span>
-        <span class="label">Rain Bucket</span>        <span class="value">@RainBucketLabel(_s.RainBucketType)</span>
-        <span class="label">Rain Year Start</span>    <span class="value">@_s.RainYearStartMonth</span>
-        <span class="label">DST</span>                <span class="value">@_s.DstSetting</span>
-        <span class="label">Timezone Mode</span>      <span class="value">@_s.TimeZoneLabel</span>
-        <span class="label">Temp Logging</span>       <span class="value">@_s.TemperatureLogging</span>
-        <span class="label">Barometer Units</span>    <span class="value">@_s.BarometerUnits</span>
-        <span class="label">Temperature Units</span>  <span class="value">@_s.TemperatureUnits</span>
-        <span class="label">Rain Units</span>         <span class="value">@_s.RainUnits</span>
-        <span class="label">Wind Units</span>         <span class="value">@_s.WindUnits</span>
+        <span class="label">Snapshot Updated</span>     <span class="value">@FormatCachedAt(_settingsSavedAtUtc)</span>
+        <span class="label">Archive Interval</span>     <span class="value">@(_s.ArchiveIntervalSeconds / 60) min</span>
+        <span class="label">Latitude</span>             <span class="value">@(_s.LatitudeDegrees?.ToString("F4") ?? "—") °</span>
+        <span class="label">Longitude</span>            <span class="value">@(_s.LongitudeDegrees?.ToString("F4") ?? "—") °</span>
+        <span class="label">Altitude</span>             <span class="value">@(_s.AltitudeFeet?.ToString("F0") ?? "—") ft</span>
+        <span class="label">Rain Bucket</span>          <span class="value">@RainBucketLabel(_s.RainBucketType)</span>
+        <span class="label">Rain Year Start</span>      <span class="value">@_s.RainYearStartMonth</span>
+        <span class="label">DST</span>                  <span class="value">@_s.DstSetting</span>
+        <span class="label">Timezone Mode</span>        <span class="value">@_s.TimeZoneLabel</span>
+        <span class="label">Temp Logging</span>         <span class="value">@_s.TemperatureLogging</span>
+        <span class="label">Barometer Units</span>      <span class="value">@_s.BarometerUnits</span>
+        <span class="label">Temperature Units</span>    <span class="value">@_s.TemperatureUnits</span>
+        <span class="label">Rain Units</span>           <span class="value">@_s.RainUnits</span>
+        <span class="label">Wind Units</span>           <span class="value">@_s.WindUnits</span>
     </div>
 }
+else if (!_settingsLoading)
+{
+    <p style="color:#6c7086;font-size:.85rem">No cached station settings snapshot has been saved yet. Use Refresh to query the console once and store the values locally.</p>
+}
 
-<button class="btn btn-primary" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+@if (_settingsLoading)
+{
+    <p style="color:#6c7086;font-size:.85rem"><span class="spinner"></span> @(_s is null ? "Loading cached station settings…" : "Refreshing live station settings…")</p>
+}
+
+<h2 style="margin-top:2rem">Archive Catchup</h2>
+<p style="color:#6c7086;font-size:.85rem">Manual top-off uses the precise missing tail. Startup mode controls whether the service skips, conditionally runs, or forces archive backfill during boot.</p>
+
+@if (_archiveStatus is not null)
+{
+    <div class="data-grid">
+        <span class="label">Startup Mode</span>         <span class="value">@_archiveStatus.StartupMode</span>
+        <span class="label">Lookback Window</span>      <span class="value">@_archiveStatus.LookbackHours hr</span>
+        <span class="label">Latest Persisted</span>     <span class="value">@(_archiveStatus.LatestPersistedAtLocal?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "—")</span>
+        <span class="label">Sync Lag</span>             <span class="value">@FormatLag(_archiveStatus.SyncLag)</span>
+        <span class="label">Startup Action</span>       <span class="value">@(_archiveStatus.ShouldRunOnStartup ? "Would run catchup" : "Would skip catchup")</span>
+    </div>
+}
+else if (_archiveLoading)
+{
+    <p style="color:#6c7086;font-size:.85rem">Loading archive catchup status…</p>
+}
+
+@if (_archiveMessage is not null)
+{
+    <div class="alert @(_archiveError ? "alert-error" : "alert-success")" style="margin-top:.75rem">@_archiveMessage</div>
+}
+
+<button type="button" class="btn btn-primary" @onclick="RunArchiveTopOffAsync" disabled="@(_archiveLoading || _archiveRunning)">@( _archiveRunning ? "Running archive top-off…" : "Run archive top-off")</button>
+<button type="button" class="btn btn-primary" @onclick="RefreshLiveSettingsAsync" disabled="@_settingsLoading">@(_settingsLoading ? "Refreshing…" : "Refresh")</button>
 

@@ -22,15 +22,19 @@ public sealed class VantageStation : IAsyncDisposable
     private readonly ILogger<VantageStation> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly int _maxTries;
+    private bool _setupHydrated;
 
     // Cached EEPROM values (populated on Connect)
     public int RainBucketType { get; private set; } = DavisProtocol.BucketType001Inch;
     public int ArchiveIntervalSeconds { get; private set; } = 300;
     public int ModelType { get; private set; } = 2;
     public int HardwareType { get; private set; }
+    public double? AltitudeFeet { get; private set; }
     public bool UseTimezoneCode { get; private set; } = true;
     public int TimezoneCode { get; private set; }
     public double GmtOffsetHours { get; private set; }
+    public double? LatitudeDegrees { get; private set; }
+    public double? LongitudeDegrees { get; private set; }
     public bool IsConnected => _client.IsConnected;
 
     /// <summary>
@@ -64,11 +68,27 @@ public sealed class VantageStation : IAsyncDisposable
         {
             await _client.OpenAsync(ct);
             await _client.WakeAsync(_maxTries, ct);
-            await ReadSetupFromEepromAsync(ct);
+            if (!_setupHydrated)
+            {
+                await ReadSetupFromEepromAsync(ct);
+            }
             _logger.LogInformation("Station connected. RainBucket={B}, ArchiveInterval={I}s, Model={M}",
                 RainBucketType, ArchiveIntervalSeconds, ModelType);
         }
         finally { _lock.Release(); }
+    }
+
+    public void ApplyStationSettings(StationSettings settings)
+    {
+        ArchiveIntervalSeconds = settings.ArchiveIntervalSeconds;
+        RainBucketType = settings.RainBucketType;
+        UseTimezoneCode = settings.UseTimezoneCode;
+        TimezoneCode = settings.TimezoneCode;
+        GmtOffsetHours = settings.GmtOffsetHours;
+        LatitudeDegrees = settings.LatitudeDegrees;
+        LongitudeDegrees = settings.LongitudeDegrees;
+        AltitudeFeet = settings.AltitudeFeet;
+        _setupHydrated = true;
     }
 
     /// <summary>Close the connection gracefully.</summary>
@@ -847,12 +867,17 @@ public sealed class VantageStation : IAsyncDisposable
         byte[] gmtOrZone = await ReadEepromAsync(DavisProtocol.EepromGmtOrZone, 1, ct);
         byte[] tzCode = await ReadEepromAsync(DavisProtocol.EepromTimezoneCode, 1, ct);
         byte[] gmtOffB = await ReadEepromAsync(DavisProtocol.EepromGmtOffset, 2, ct);
+        byte[] latBytes = await ReadEepromAsync(DavisProtocol.EepromLatitude, 2, ct);
+        byte[] lonBytes = await ReadEepromAsync(DavisProtocol.EepromLongitude, 2, ct);
 
         RainBucketType = (setupBits[0] & 0x30) >> 4;
         ArchiveIntervalSeconds = archByte[0] * 60;
         UseTimezoneCode = gmtOrZone[0] == 0;
         TimezoneCode = tzCode[0];
         GmtOffsetHours = BinaryPrimitives.ReadInt16LittleEndian(gmtOffB) / 100.0;
+        LatitudeDegrees = BinaryPrimitives.ReadInt16LittleEndian(latBytes) / 10.0;
+        LongitudeDegrees = BinaryPrimitives.ReadInt16LittleEndian(lonBytes) / 10.0;
+        _setupHydrated = true;
     }
 
     private async Task<DateTime> GetConsoleTimeInternalAsync(CancellationToken ct)

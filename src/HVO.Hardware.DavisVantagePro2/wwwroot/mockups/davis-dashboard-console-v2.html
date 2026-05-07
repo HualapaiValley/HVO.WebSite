@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Davis Console Dashboard Mock V2</title>
+    <style>
+        @font-face {
+            font-family: "Open Sans Custom";
+            src: url("../../../HVO.WebSite.Themes/wwwroot/fonts/OpenSans-Regular.ttf") format("truetype");
+            font-weight: 400;
+        }
+
+        @font-face {
+            font-family: "Open Sans Custom";
+            src: url("../../../HVO.WebSite.Themes/wwwroot/fonts/OpenSans-Semibold.ttf") format("truetype");
+            font-weight: 600;
+        }
+
+        :root {
+            color-scheme: dark;
+            --bg-0: #030911;
+            --bg-1: #07121e;
+            --panel: rgba(8, 18, 30, 0.92);
+            --panel-strong: rgba(11, 24, 40, 0.98);
+            --panel-soft: rgba(15, 32, 52, 0.82);
+            --line: rgba(126, 157, 196, 0.18);
+            --line-strong: rgba(126, 157, 196, 0.3);
+            --text: #ebf5ff;
+            --muted: #8ba4bf;
+            --blue: #58beff;
+            --cyan: #83e4ff;
+            --green: #57d38d;
+            --amber: #ffcf66;
+            --orange: #ff9b55;
+            --red: #ff6d6d;
+            --shadow: 0 30px 90px rgba(1, 6, 12, 0.52);
+            --radius-xl: 30px;
+            --radius-lg: 22px;
+            --radius-md: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Open Sans Custom", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 12% 8%, rgba(88, 190, 255, 0.16), transparent 22%),
+                radial-gradient(circle at 86% 14%, rgba(255, 207, 102, 0.12), transparent 20%),
+                linear-gradient(180deg, #0a1521 0%, #050c14 44%, #03070d 100%);
+        }
+
+        .frame {
+            width: min(1520px, calc(100vw - 26px));
+            margin: 14px auto;
+            padding: 22px;
+            border-radius: 36px;
+            border: 1px solid rgba(126, 157, 196, 0.14);
+            background:
+                linear-gradient(180deg, rgba(8, 18, 30, 0.98), rgba(5, 11, 19, 0.98)),
+                linear-gradient(135deg, rgba(88, 190, 255, 0.05), rgba(255, 207, 102, 0.04));
+            box-shadow: var(--shadow);
+        }
+
+        .header {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 20px;
+            padding: 8px 6px 20px;
+            align-items: end;
+            border-bottom: 1px solid rgba(126, 157, 196, 0.12);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .mark {
+            width: 58px;
+            height: 58px;
+            border-radius: 18px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(145deg, rgba(88, 190, 255, 0.22), rgba(88, 190, 255, 0.08));
+            border: 1px solid rgba(131, 228, 255, 0.2);
+            color: var(--cyan);
+            font-weight: 600;
+            letter-spacing: 0.12em;
+        }
+
+        .eyebrow {
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            font-size: 0.78rem;
+        }
+
+        h1, h2, h3, p {
+            margin: 0;
+        }
+
+        .headline {
+            margin-top: 6px;
+            font-size: 1.9rem;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+        }
+
+        .subhead {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 0.96rem;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .pill {
+            min-height: 42px;
+            padding: 0 14px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(15, 31, 50, 0.78);
+            border: 1px solid rgba(126, 157, 196, 0.16);
+            font-size: 0.92rem;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 0 7px rgba(87, 211, 141, 0.12);
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 0.92fr 1.08fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .column {
+            display: grid;
+            gap: 20px;
+        }
+
+        .card {
+            position: relative;
+            overflow: hidden;
+            border-radius: var(--radius-xl);
+            background: linear-gradient(180deg, rgba(10, 20, 34, 0.96), rgba(7, 15, 25, 0.94));
+            border: 1px solid rgba(126, 157, 196, 0.14);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        }
+
+        .card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(88, 190, 255, 0.04), transparent 45%, rgba(255, 207, 102, 0.03));
+            pointer-events: none;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .section-head small {
+            color: var(--muted);
+            font-size: 0.86rem;
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 20px;
+            min-height: 280px;
+        }
+
+        .hero-temp {
+            font-size: clamp(4rem, 7vw, 5.5rem);
+            line-height: 0.92;
+            margin: 8px 0 10px;
+            font-weight: 600;
+            letter-spacing: -0.06em;
+        }
+
+        .hero-stack {
+            display: grid;
+            gap: 10px;
+            color: var(--muted);
+        }
+
+        .console-face {
+            display: grid;
+            place-items: center;
+            border-radius: 28px;
+            background:
+                radial-gradient(circle at 50% 38%, rgba(255, 207, 102, 0.16), transparent 34%),
+                radial-gradient(circle at 28% 28%, rgba(131, 228, 255, 0.14), transparent 24%),
+                linear-gradient(180deg, rgba(15, 32, 52, 0.9), rgba(9, 18, 30, 0.82));
+            border: 1px solid rgba(126, 157, 196, 0.14);
+        }
+
+        .chip-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .chip {
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: rgba(14, 29, 47, 0.86);
+            border: 1px solid rgba(126, 157, 196, 0.12);
+        }
+
+        .chip .name {
+            color: var(--muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .chip .value {
+            margin-top: 8px;
+            font-size: 1.35rem;
+            font-weight: 600;
+        }
+
+        .instrument-cluster {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .instrument {
+            padding: 18px;
+            border-radius: 24px;
+            background: linear-gradient(180deg, rgba(13, 28, 46, 0.96), rgba(9, 19, 32, 0.94));
+            border: 1px solid rgba(126, 157, 196, 0.12);
+        }
+
+        .instrument h3 {
+            margin-bottom: 10px;
+            color: var(--muted);
+            font-size: 0.98rem;
+            font-weight: 600;
+        }
+
+        .instrument footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: baseline;
+            margin-top: 10px;
+        }
+
+        .instrument strong {
+            font-size: 1.72rem;
+            font-weight: 600;
+            letter-spacing: -0.04em;
+        }
+
+        .instrument footer span {
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .metric {
+            padding: 16px;
+            border-radius: 20px;
+            background: rgba(14, 29, 47, 0.86);
+            border: 1px solid rgba(126, 157, 196, 0.12);
+            min-height: 120px;
+        }
+
+        .metric .label {
+            color: var(--muted);
+            font-size: 0.84rem;
+        }
+
+        .metric .number {
+            margin-top: 16px;
+            font-size: 1.9rem;
+            font-weight: 600;
+            letter-spacing: -0.04em;
+        }
+
+        .metric .foot {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 0.84rem;
+        }
+
+        .history-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .plot-panel {
+            padding: 18px;
+            border-radius: 24px;
+            background: rgba(12, 24, 39, 0.8);
+            border: 1px solid rgba(126, 157, 196, 0.1);
+        }
+
+        .plot-panel h3 {
+            margin-bottom: 6px;
+            font-size: 1rem;
+        }
+
+        .plot-panel p {
+            color: var(--muted);
+            font-size: 0.86rem;
+            margin-bottom: 12px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .subcard {
+            padding: 18px;
+            border-radius: 22px;
+            background: rgba(13, 27, 44, 0.8);
+            border: 1px solid rgba(126, 157, 196, 0.12);
+        }
+
+        .subcard h3 {
+            margin-bottom: 14px;
+            font-size: 1rem;
+        }
+
+        .rows {
+            display: grid;
+            gap: 10px;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .row strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .health-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .health {
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: rgba(14, 29, 47, 0.86);
+            border: 1px solid rgba(126, 157, 196, 0.12);
+        }
+
+        .health .label {
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
+        .health .state {
+            margin-top: 8px;
+            font-size: 1.04rem;
+            font-weight: 600;
+        }
+
+        .mono {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .blue { color: var(--blue); }
+        .cyan { color: var(--cyan); }
+        .green { color: var(--green); }
+        .amber { color: var(--amber); }
+        .orange { color: var(--orange); }
+
+        @media (max-width: 1240px) {
+            .layout,
+            .hero,
+            .history-grid,
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 760px) {
+            .frame {
+                width: calc(100vw - 12px);
+                margin: 6px auto;
+                padding: 14px;
+                border-radius: 24px;
+            }
+
+            .header,
+            .instrument-cluster,
+            .chip-grid,
+            .metrics,
+            .health-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header-right {
+                justify-content: flex-start;
+            }
+
+            .hero-temp {
+                font-size: 3.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="frame">
+        <header class="header">
+            <div class="header-left">
+                <div class="mark">HVO</div>
+                <div>
+                    <div class="eyebrow">Weather Station Dashboard</div>
+                    <h1 class="headline">Davis Vantage Pro2 Console Study</h1>
+                    <p class="subhead">Analog instrumentation with 24-hour history for temperature, wind, solar, UV, and rainfall.</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="pill"><span class="dot"></span>Live loop active</div>
+                <div class="pill">Hualapai Valley, AZ</div>
+                <div class="pill mono">07 May 2026 · 2:34 PM</div>
+            </div>
+        </header>
+
+        <div class="layout">
+            <section class="column">
+                <article class="card">
+                    <div class="card-body hero">
+                        <div>
+                            <div class="section-head">
+                                <div>
+                                    <small>Outdoor snapshot</small>
+                                    <h2>Station Conditions</h2>
+                                </div>
+                                <small class="cyan">Archive every 10 minutes</small>
+                            </div>
+                            <div class="eyebrow">Outside temperature</div>
+                            <div class="hero-temp mono">72.4&deg;F</div>
+                            <div class="hero-stack">
+                                <div>Mostly clear, dry air, light breeze from the northwest.</div>
+                                <div>Feels like <span class="amber mono">74.1&deg;F</span></div>
+                                <div>Dew point <span class="cyan mono">51.8&deg;F</span></div>
+                                <div>Forecast <span class="blue">Increasing clouds later tonight</span></div>
+                            </div>
+                            <div class="chip-grid">
+                                <div class="chip">
+                                    <div class="name">Humidity</div>
+                                    <div class="value mono">34%</div>
+                                </div>
+                                <div class="chip">
+                                    <div class="name">Heat Index</div>
+                                    <div class="value mono">74.1&deg;F</div>
+                                </div>
+                                <div class="chip">
+                                    <div class="name">Wind Chill</div>
+                                    <div class="value mono">71.2&deg;F</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="console-face">
+                            <svg width="220" height="220" viewBox="0 0 220 220" aria-label="Current sky icon">
+                                <circle cx="110" cy="110" r="86" fill="rgba(255,207,102,0.07)"></circle>
+                                <circle cx="110" cy="110" r="30" fill="#ffcf66"></circle>
+                                <g stroke="#ffcf66" stroke-width="5" stroke-linecap="round">
+                                    <path d="M110 20V46"></path>
+                                    <path d="M110 174V200"></path>
+                                    <path d="M20 110H46"></path>
+                                    <path d="M174 110H200"></path>
+                                    <path d="M46 46L63 63"></path>
+                                    <path d="M157 157L174 174"></path>
+                                    <path d="M46 174L63 157"></path>
+                                    <path d="M157 63L174 46"></path>
+                                </g>
+                                <path d="M88 144C73 144 62 134 62 121C62 108 72 98 85 97C90 83 103 74 117 74C136 74 151 89 151 108C161 111 168 119 168 130C168 144 156 154 143 154H88Z" fill="rgba(235,245,255,0.92)"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="card">
+                    <div class="card-body">
+                        <div class="section-head">
+                            <div>
+                                <small>Analog cluster</small>
+                                <h2>Primary Instruments</h2>
+                            </div>
+                            <small>Wind, pressure, solar, UV</small>
+                        </div>
+                        <div class="instrument-cluster">
+                            <section class="instrument">
+                                <h3>Wind Compass</h3>
+                                <svg viewBox="0 0 240 240" width="100%" aria-label="Wind direction compass">
+                                    <circle cx="120" cy="120" r="102" fill="rgba(8,18,30,0.96)" stroke="rgba(126,157,196,0.18)" stroke-width="2"></circle>
+                                    <circle cx="120" cy="120" r="84" fill="none" stroke="rgba(126,157,196,0.12)" stroke-width="1"></circle>
+                                    <circle cx="120" cy="120" r="64" fill="none" stroke="rgba(126,157,196,0.08)" stroke-width="1"></circle>
+                                    <g stroke="rgba(126,157,196,0.28)" stroke-linecap="round">
+                                        <line x1="120" y1="20" x2="120" y2="36" stroke-width="2"></line>
+                                        <line x1="120" y1="204" x2="120" y2="220" stroke-width="2"></line>
+                                        <line x1="20" y1="120" x2="36" y2="120" stroke-width="2"></line>
+                                        <line x1="204" y1="120" x2="220" y2="120" stroke-width="2"></line>
+                                        <line x1="49" y1="49" x2="60" y2="60" stroke-width="1.5"></line>
+                                        <line x1="180" y1="180" x2="191" y2="191" stroke-width="1.5"></line>
+                                        <line x1="49" y1="191" x2="60" y2="180" stroke-width="1.5"></line>
+                                        <line x1="180" y1="60" x2="191" y2="49" stroke-width="1.5"></line>
+                                    </g>
+                                    <g fill="#8ba4bf" font-size="18" font-weight="600" text-anchor="middle">
+                                        <text x="120" y="54">N</text>
+                                        <text x="190" y="126">E</text>
+                                        <text x="120" y="198">S</text>
+                                        <text x="50" y="126">W</text>
+                                    </g>
+                                    <g transform="rotate(326 120 120)">
+                                        <path d="M120 34L133 118L120 108L107 118Z" fill="#58beff"></path>
+                                        <path d="M120 206L132 126L120 132L108 126Z" fill="rgba(255,207,102,0.9)"></path>
+                                    </g>
+                                    <circle cx="120" cy="120" r="10" fill="#ebf5ff"></circle>
+                                    <circle cx="120" cy="120" r="5" fill="#58beff"></circle>
+                                </svg>
+                                <footer>
+                                    <strong class="mono">NNW 326&deg;</strong>
+                                    <span>12 mph, gust 18</span>
+                                </footer>
+                            </section>
+
+                            <section class="instrument">
+                                <h3>Pressure Dial</h3>
+                                <svg viewBox="0 0 240 240" width="100%" aria-label="Barometric pressure dial">
+                                    <path d="M40 176A96 96 0 0 1 200 176" fill="none" stroke="rgba(126,157,196,0.14)" stroke-width="18" stroke-linecap="round"></path>
+                                    <path d="M40 176A96 96 0 0 1 171 79" fill="none" stroke="#ffcf66" stroke-width="18" stroke-linecap="round"></path>
+                                    <path d="M40 176A96 96 0 0 1 108 29" fill="none" stroke="#58beff" stroke-width="18" stroke-linecap="round" opacity="0.78"></path>
+                                    <g fill="#8ba4bf" font-size="14" text-anchor="middle">
+                                        <text x="52" y="196">28.5</text>
+                                        <text x="120" y="48">29.5</text>
+                                        <text x="188" y="196">30.5</text>
+                                    </g>
+                                    <g transform="rotate(22 120 150)">
+                                        <line x1="120" y1="150" x2="178" y2="106" stroke="#ebf5ff" stroke-width="6" stroke-linecap="round"></line>
+                                    </g>
+                                    <circle cx="120" cy="150" r="12" fill="#ebf5ff"></circle>
+                                    <circle cx="120" cy="150" r="6" fill="#58beff"></circle>
+                                </svg>
+                                <footer>
+                                    <strong class="mono">29.87</strong>
+                                    <span>steady inHg</span>
+                                </footer>
+                            </section>
+
+                            <section class="instrument">
+                                <h3>Solar Dial</h3>
+                                <svg viewBox="0 0 240 240" width="100%" aria-label="Solar radiation dial">
+                                    <circle cx="120" cy="120" r="90" fill="rgba(8,18,30,0.94)" stroke="rgba(126,157,196,0.14)" stroke-width="2"></circle>
+                                    <circle cx="120" cy="120" r="66" fill="none" stroke="rgba(126,157,196,0.12)" stroke-width="18"></circle>
+                                    <circle cx="120" cy="120" r="66" fill="none" stroke="#ffcf66" stroke-width="18" stroke-linecap="round" stroke-dasharray="302 112" transform="rotate(-90 120 120)"></circle>
+                                    <g fill="#8ba4bf" font-size="14" text-anchor="middle">
+                                        <text x="120" y="46">0</text>
+                                        <text x="188" y="126">800</text>
+                                        <text x="120" y="202">1600</text>
+                                    </g>
+                                    <circle cx="120" cy="120" r="26" fill="rgba(255,207,102,0.16)"></circle>
+                                    <circle cx="120" cy="120" r="12" fill="#ffcf66"></circle>
+                                </svg>
+                                <footer>
+                                    <strong class="mono">642</strong>
+                                    <span>W/m^2 current</span>
+                                </footer>
+                            </section>
+
+                            <section class="instrument">
+                                <h3>UV Dial</h3>
+                                <svg viewBox="0 0 240 240" width="100%" aria-label="UV index dial">
+                                    <circle cx="120" cy="120" r="90" fill="rgba(8,18,30,0.94)" stroke="rgba(126,157,196,0.14)" stroke-width="2"></circle>
+                                    <path d="M48 164A80 80 0 0 1 192 164" fill="none" stroke="rgba(126,157,196,0.12)" stroke-width="18" stroke-linecap="round"></path>
+                                    <path d="M48 164A80 80 0 0 1 144 52" fill="none" stroke="#ff9b55" stroke-width="18" stroke-linecap="round"></path>
+                                    <g fill="#8ba4bf" font-size="14" text-anchor="middle">
+                                        <text x="52" y="186">0</text>
+                                        <text x="120" y="54">6</text>
+                                        <text x="188" y="186">12</text>
+                                    </g>
+                                    <g transform="rotate(-18 120 164)">
+                                        <line x1="120" y1="164" x2="160" y2="102" stroke="#ebf5ff" stroke-width="6" stroke-linecap="round"></line>
+                                    </g>
+                                    <circle cx="120" cy="164" r="12" fill="#ebf5ff"></circle>
+                                    <circle cx="120" cy="164" r="6" fill="#ff9b55"></circle>
+                                </svg>
+                                <footer>
+                                    <strong class="mono">4.2</strong>
+                                    <span>moderate UV</span>
+                                </footer>
+                            </section>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="card">
+                    <div class="card-body">
+                        <div class="section-head">
+                            <div>
+                                <small>Quick values</small>
+                                <h2>Weather And Rain Metrics</h2>
+                            </div>
+                            <small>Live and daily totals</small>
+                        </div>
+                        <div class="metrics">
+                            <div class="metric">
+                                <div class="label">Rain Rate</div>
+                                <div class="number mono cyan">0.00</div>
+                                <div class="foot">in/hr current</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Daily Rain</div>
+                                <div class="number mono cyan">0.12</div>
+                                <div class="foot">since midnight</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Storm Rain</div>
+                                <div class="number mono blue">0.18</div>
+                                <div class="foot">active event</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Daily ET</div>
+                                <div class="number mono amber">0.133</div>
+                                <div class="foot">in evaporative loss</div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </section>
+
+            <section class="column">
+                <article class="card">
+                    <div class="card-body">
+                        <div class="section-head">
+                            <div>
+                                <small>Historical trends</small>
+                                <h2>Last 24 Hours</h2>
+                            </div>
+                            <small>Temperature and solar history</small>
+                        </div>
+                        <div class="history-grid">
+                            <section class="plot-panel">
+                                <h3>Temperature</h3>
+                                <p>Outside air over the last 24 hours with daily low and high.</p>
+                                <svg viewBox="0 0 520 260" width="100%" aria-label="24 hour temperature history">
+                                    <g stroke="rgba(126,157,196,0.08)">
+                                        <line x1="0" y1="40" x2="520" y2="40"></line>
+                                        <line x1="0" y1="90" x2="520" y2="90"></line>
+                                        <line x1="0" y1="140" x2="520" y2="140"></line>
+                                        <line x1="0" y1="190" x2="520" y2="190"></line>
+                                        <line x1="0" y1="240" x2="520" y2="240"></line>
+                                    </g>
+                                    <g fill="#8ba4bf" font-size="12">
+                                        <text x="4" y="34">82</text>
+                                        <text x="4" y="84">74</text>
+                                        <text x="4" y="134">66</text>
+                                        <text x="4" y="184">58</text>
+                                        <text x="4" y="234">50</text>
+                                    </g>
+                                    <path d="M0 184L32 188L64 194L96 202L128 208L160 214L192 210L224 200L256 182L288 154L320 122L352 100L384 86L416 92L448 110L480 126L520 138L520 260L0 260Z" fill="rgba(88,190,255,0.14)"></path>
+                                    <path d="M0 184L32 188L64 194L96 202L128 208L160 214L192 210L224 200L256 182L288 154L320 122L352 100L384 86L416 92L448 110L480 126L520 138" fill="none" stroke="#83e4ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    <line x1="0" y1="214" x2="520" y2="214" stroke="#58beff" stroke-dasharray="8 8"></line>
+                                    <line x1="0" y1="86" x2="520" y2="86" stroke="#ffcf66" stroke-dasharray="8 8"></line>
+                                    <g fill="#8ba4bf" font-size="12" text-anchor="middle">
+                                        <text x="40" y="254">4 PM</text>
+                                        <text x="150" y="254">8 PM</text>
+                                        <text x="260" y="254">12 AM</text>
+                                        <text x="370" y="254">8 AM</text>
+                                        <text x="480" y="254">2 PM</text>
+                                    </g>
+                                </svg>
+                                <div class="rows">
+                                    <div class="row"><span>24h low</span><strong class="mono">54.8&deg;F</strong></div>
+                                    <div class="row"><span>24h high</span><strong class="mono">75.6&deg;F</strong></div>
+                                </div>
+                            </section>
+
+                            <section class="plot-panel">
+                                <h3>Solar Radiation</h3>
+                                <p>Solar output over the last 24 hours with daylight peak profile.</p>
+                                <svg viewBox="0 0 520 260" width="100%" aria-label="24 hour solar history">
+                                    <g stroke="rgba(126,157,196,0.08)">
+                                        <line x1="0" y1="40" x2="520" y2="40"></line>
+                                        <line x1="0" y1="90" x2="520" y2="90"></line>
+                                        <line x1="0" y1="140" x2="520" y2="140"></line>
+                                        <line x1="0" y1="190" x2="520" y2="190"></line>
+                                        <line x1="0" y1="240" x2="520" y2="240"></line>
+                                    </g>
+                                    <g fill="#8ba4bf" font-size="12">
+                                        <text x="4" y="34">1200</text>
+                                        <text x="4" y="84">900</text>
+                                        <text x="4" y="134">600</text>
+                                        <text x="4" y="184">300</text>
+                                        <text x="4" y="234">0</text>
+                                    </g>
+                                    <path d="M0 240L64 240L96 240L128 236L160 226L192 188L224 134L256 86L288 58L320 74L352 118L384 170L416 210L448 230L480 238L520 240L520 260L0 260Z" fill="rgba(255,207,102,0.18)"></path>
+                                    <path d="M0 240L64 240L96 240L128 236L160 226L192 188L224 134L256 86L288 58L320 74L352 118L384 170L416 210L448 230L480 238L520 240" fill="none" stroke="#ffcf66" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    <g fill="#8ba4bf" font-size="12" text-anchor="middle">
+                                        <text x="40" y="254">4 PM</text>
+                                        <text x="150" y="254">8 PM</text>
+                                        <text x="260" y="254">12 AM</text>
+                                        <text x="370" y="254">8 AM</text>
+                                        <text x="480" y="254">2 PM</text>
+                                    </g>
+                                </svg>
+                                <div class="rows">
+                                    <div class="row"><span>24h peak solar</span><strong class="mono">1018 W/m^2</strong></div>
+                                    <div class="row"><span>Current UV index</span><strong class="mono">4.2</strong></div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="card">
+                    <div class="card-body summary-grid">
+                        <section class="subcard">
+                            <h3>Sun And Forecast</h3>
+                            <svg viewBox="0 0 420 190" width="100%" aria-label="Sun cycle arc">
+                                <path d="M32 154A160 160 0 0 1 388 154" fill="none" stroke="rgba(126,157,196,0.14)" stroke-width="12" stroke-linecap="round"></path>
+                                <path d="M32 154A160 160 0 0 1 286 44" fill="none" stroke="#ffcf66" stroke-width="12" stroke-linecap="round"></path>
+                                <circle cx="286" cy="44" r="12" fill="#ffcf66"></circle>
+                                <g fill="#8ba4bf" font-size="15" text-anchor="middle">
+                                    <text x="32" y="180">5:24 AM</text>
+                                    <text x="210" y="186">Solar noon 12:38 PM</text>
+                                    <text x="388" y="180">7:14 PM</text>
+                                </g>
+                            </svg>
+                            <div class="rows">
+                                <div class="row"><span>Sunrise</span><strong class="mono">5:24 AM</strong></div>
+                                <div class="row"><span>Sunset</span><strong class="mono">7:14 PM</strong></div>
+                                <div class="row"><span>Forecast text</span><strong>Clearing, then partly cloudy</strong></div>
+                            </div>
+                        </section>
+
+                        <section class="subcard">
+                            <h3>Station Health</h3>
+                            <div class="health-grid">
+                                <div class="health">
+                                    <div class="label">Connection</div>
+                                    <div class="state green">Online</div>
+                                </div>
+                                <div class="health">
+                                    <div class="label">Console Battery</div>
+                                    <div class="state mono">4.92 V</div>
+                                </div>
+                                <div class="health">
+                                    <div class="label">Transmitters</div>
+                                    <div class="state">All OK</div>
+                                </div>
+                                <div class="health">
+                                    <div class="label">Outbox Queue</div>
+                                    <div class="state mono">12 pending</div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </article>
+
+                <article class="card">
+                    <div class="card-body summary-grid">
+                        <section class="subcard">
+                            <h3>Inside Conditions</h3>
+                            <div class="rows">
+                                <div class="row"><span>Inside temperature</span><strong class="mono">68.1&deg;F</strong></div>
+                                <div class="row"><span>Inside humidity</span><strong class="mono">42%</strong></div>
+                                <div class="row"><span>Bar trend</span><strong>Steady</strong></div>
+                                <div class="row"><span>Archive interval</span><strong class="mono">10 min</strong></div>
+                            </div>
+                        </section>
+
+                        <section class="subcard">
+                            <h3>Accumulations</h3>
+                            <div class="rows">
+                                <div class="row"><span>Monthly rain</span><strong class="mono">0.44 in</strong></div>
+                                <div class="row"><span>Yearly rain</span><strong class="mono">3.21 in</strong></div>
+                                <div class="row"><span>Max gust today</span><strong class="mono">18 mph</strong></div>
+                                <div class="row"><span>High solar today</span><strong class="mono">1018 W/m^2</strong></div>
+                            </div>
+                        </section>
+                    </div>
+                </article>
+            </section>
+        </div>
+    </div>
+</body>
+</html>

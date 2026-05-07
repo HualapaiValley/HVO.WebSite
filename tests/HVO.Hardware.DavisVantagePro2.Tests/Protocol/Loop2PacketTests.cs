@@ -86,6 +86,15 @@ public class Loop2PacketTests
     }
 
     [TestMethod]
+    public void Parse_BarometricTrend_RawDavisValue_PreservesByte()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[3] = 20;
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.BarometricTrend.Should().Be(20);
+    }
+
+    [TestMethod]
     public void Parse_RecordedAtUtc_IsWithinTestWindow()
     {
         var before = DateTime.UtcNow;
@@ -152,6 +161,42 @@ public class Loop2PacketTests
         buf[14] = 0xFF;
         var packet = Loop2Packet.Parse(buf, bucketType: 0);
         packet.WindSpeedMph.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_DirectFahrenheitByteDash_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[35] = 0xFF;
+        buf[36] = 0x00;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.HeatIndexF.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_WindSpeedLoop2_7fffSentinel_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[18] = 0xFF;
+        buf[19] = 0x7F;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.WindSpeed10MinAvgMph.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_WindDirection_FfffSentinel_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[24] = 0xFF;
+        buf[25] = 0xFF;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.WindGust10MinDirectionDegrees.Should().BeNull();
     }
 
     [TestMethod]

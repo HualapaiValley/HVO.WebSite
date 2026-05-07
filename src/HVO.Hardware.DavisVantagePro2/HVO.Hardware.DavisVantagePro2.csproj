@@ -24,4 +24,8 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HVO.Staging\HVO.Staging.csproj" />
+  </ItemGroup>
 </Project>

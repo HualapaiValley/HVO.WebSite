@@ -2,6 +2,7 @@ using FluentAssertions;
 using HVO.Hardware.DavisVantagePro2.Protocol;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using HVO.Hardware.DavisVantagePro2.Station;
+using HVO.Hardware.DavisVantagePro2.Station.Models;
 using HVO.Hardware.DavisVantagePro2.Tests.Fakes;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -71,6 +72,33 @@ public class VantageStationTests
 
         client.Dispose();
         await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public void ApplyStationSettings_HydratesCachedSetupValues()
+    {
+        var (_, station) = CreatePair(port: 0);
+        var settings = new StationSettings
+        {
+            ArchiveIntervalSeconds = 600,
+            LatitudeDegrees = 35.5,
+            LongitudeDegrees = -113.8,
+            AltitudeFeet = 2932,
+            RainBucketType = 1,
+            UseTimezoneCode = false,
+            TimezoneCode = 0,
+            GmtOffsetHours = -7
+        };
+
+        station.ApplyStationSettings(settings);
+
+        station.ArchiveIntervalSeconds.Should().Be(600);
+        station.RainBucketType.Should().Be(1);
+        station.LatitudeDegrees.Should().Be(35.5);
+        station.LongitudeDegrees.Should().Be(-113.8);
+        station.AltitudeFeet.Should().Be(2932);
+        station.ConsoleUtcOffset.Should().Be(TimeSpan.FromHours(-7));
+        station.ConsoleTimeZoneLabel.Should().Be("GMT -7.00 h");
     }
 
     // ── StreamLoop2Async ──────────────────────────────────────────────────────

@@ -16,8 +16,12 @@ public sealed class StationOptions
     [Range(4, 60)]
     public int SocketTimeoutSeconds { get; set; } = 8;
 
-    /// <summary>Run DMPAFT on startup to catch up any missed archive records.</summary>
-    public bool ArchiveCatchupOnStartup { get; set; } = true;
+    /// <summary>Controls whether startup archive catchup is disabled, conditional, or always runs.</summary>
+    public ArchiveCatchupMode ArchiveCatchupMode { get; set; } = ArchiveCatchupMode.Disabled;
+
+    /// <summary>When mode is Enabled, only run catchup if the latest persisted reading is older than this many hours.</summary>
+    [Range(1, 168)]
+    public int ArchiveCatchupLookbackHours { get; set; } = 12;
 
     /// <summary>How many consecutive errors before the worker pauses and retries the connection.</summary>
     [Range(1, 100)]
@@ -26,6 +30,13 @@ public sealed class StationOptions
     /// <summary>Station identifier sent to the API with each reading (e.g. "hvo-davis-01").</summary>
     [Required]
     public string StationId { get; set; } = "hvo-davis-01";
+}
+
+public enum ArchiveCatchupMode
+{
+    Disabled,
+    Enabled,
+    Force,
 }
 
 /// <summary>Configuration for the outbox forwarder that POSTs readings to the web API.</summary>
