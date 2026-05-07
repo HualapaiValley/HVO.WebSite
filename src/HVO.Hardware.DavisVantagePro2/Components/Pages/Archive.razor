@@ -97,7 +97,7 @@
                 <div class="control-stack">
                     <label class="field-label" for="archive-since">Since</label>
                     <input id="archive-since" type="datetime-local" value="@_since.ToString("yyyy-MM-ddTHH:mm")"
-                           @onchange="e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _since = d; }" />
+                           @onchange="OnSinceChanged" />
                 </div>
 
                 <div class="toolbar-actions">

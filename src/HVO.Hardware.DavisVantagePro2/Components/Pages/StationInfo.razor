@@ -3,6 +3,10 @@
 @using HVO.Hardware.DavisVantagePro2.Station
 @inject VantageStation Station
 
+@{
+    DateTime now = DateTime.Now;
+}
+
 <div class="station-info-page">
     <section class="page-hero card-shell">
         <div>
@@ -62,8 +66,8 @@
 
                     <div class="data-pairs">
                         <div class="pair"><span>Console time</span><strong class="mono">@_info.ConsoleTime.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
-                        <div class="pair"><span>System time</span><strong class="mono">@DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
-                        <div class="pair"><span>Drift</span><strong class="mono">@((DateTime.Now -
+                        <div class="pair"><span>System time</span><strong class="mono">@now.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
+                        <div class="pair"><span>Drift</span><strong class="mono">@((now -
                                                     _info.ConsoleTime).TotalSeconds.ToString("F1")) s</strong></div>
                             <div class="pair"><span>Time zone</span><strong>@Station.ConsoleTimeZoneLabel</strong></div>
                         </div>
