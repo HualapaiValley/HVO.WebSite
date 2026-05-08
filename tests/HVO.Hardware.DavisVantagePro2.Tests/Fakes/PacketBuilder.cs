@@ -10,6 +10,16 @@ namespace HVO.Hardware.DavisVantagePro2.Tests.Fakes;
 /// </summary>
 public static class PacketBuilder
 {
+    public static byte[] BuildCrcResponse(params byte[] data) => CrcCalculator.AppendCrc(data);
+
+    public static byte[] BuildReceiversResponse(byte heardMask) =>
+    [
+        0x0A, 0x0D,
+        (byte)'O', (byte)'K',
+        0x0A, 0x0D,
+        heardMask
+    ];
+
     // ── LOOP1 ─────────────────────────────────────────────────────────────────
 
     /// <summary>

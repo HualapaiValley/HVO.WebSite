@@ -17,7 +17,7 @@
         </div>
         <div class="hero-actions">
             <button class="action-btn primary" @onclick="LoadAsync" disabled="@_loading">@(_loading ? "Refreshing…" :
-                        "Refresh")</button>
+                                        "Refresh")</button>
             </div>
         </section>
 
@@ -68,7 +68,7 @@
                         <div class="pair"><span>Console time</span><strong class="mono">@_info.ConsoleTime.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
                         <div class="pair"><span>System time</span><strong class="mono">@now.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
                         <div class="pair"><span>Drift</span><strong class="mono">@((now -
-                                                    _info.ConsoleTime).TotalSeconds.ToString("F1")) s</strong></div>
+                                                                                _info.ConsoleTime).TotalSeconds.ToString("F1")) s</strong></div>
                             <div class="pair"><span>Time zone</span><strong>@Station.ConsoleTimeZoneLabel</strong></div>
                         </div>
                     </section>

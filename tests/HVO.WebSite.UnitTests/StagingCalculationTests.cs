@@ -8,7 +8,7 @@ public class MoonRiseSetTests
 {
     // Observatory location: Hualapai Valley, AZ
     // Latitude  35.7° N, Longitude -114.0° E (west = negative east)
-    private const double Latitude  =  35.7;
+    private const double Latitude = 35.7;
     private const double Longitude = -114.0;
 
     [TestMethod]
@@ -143,7 +143,7 @@ public class MoonExtensionsTests
         var dateTime = new DateTime(2026, 5, 18, 6, 0, 0); // arbitrary date
 
         double fraction = MoonExtensions.CalculateIlluminationFraction(dateTime);
-        double percent  = MoonExtensions.CalculateIlluminationPercent(dateTime);
+        double percent = MoonExtensions.CalculateIlluminationPercent(dateTime);
 
         percent.Should().BeApproximately(fraction * 100.0, precision: 0.001);
     }
@@ -164,7 +164,7 @@ public class MoonExtensionsTests
 [TestClass]
 public class SunExtensionsTests
 {
-    private const double Latitude  =  35.7;
+    private const double Latitude = 35.7;
     private const double Longitude = -114.0;
 
     [TestMethod]

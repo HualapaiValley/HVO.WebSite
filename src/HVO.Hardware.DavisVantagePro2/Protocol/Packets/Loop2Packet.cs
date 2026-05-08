@@ -217,11 +217,11 @@ public sealed record Loop2Packet
         {
             RecordedAtUtc = DateTime.UtcNow,
 
-            BarometricPressureInHg = ReadUshort(buffer, 7) is ushort bar and > 0
+            BarometricPressureInHg = ReadUshort(buffer, 7) is ushort bar and > 0 and not 0xFFFF
                 ? bar / 1000.0 : null,
-            PressureRawInHg = ReadUshort(buffer, 65) is ushort pr and > 0
+            PressureRawInHg = ReadUshort(buffer, 65) is ushort pr and > 0 and not 0xFFFF
                 ? pr / 1000.0 : null,
-            AltimeterInHg = ReadUshort(buffer, 69) is ushort alt and > 0
+            AltimeterInHg = ReadUshort(buffer, 69) is ushort alt and > 0 and not 0xFFFF
                 ? alt / 1000.0 : null,
 
             InsideTemperatureF = DecodeSignedTemp(buffer, 9),
@@ -250,7 +250,8 @@ public sealed record Loop2Packet
             HourRainInches = DecodeRain(ReadUshort(buffer, 54), bucketType),
             Rain24HourInches = DecodeRain(ReadUshort(buffer, 58), bucketType),
 
-            DailyEtInches = ReadUshort(buffer, 56) / 1000.0,
+            DailyEtInches = ReadUshort(buffer, 56) is ushort et and > 0 and not 0xFFFF
+                ? et / 1000.0 : null,
 
             UvIndex = buffer[43] != 0xFF ? buffer[43] / 10.0 : null,
             SolarRadiationWm2 = ReadUshort(buffer, 44) is ushort rad and not 0x7FFF
