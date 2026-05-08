@@ -118,8 +118,9 @@ public class DavisConsoleClientTests
             disposed = true;
 
             Func<Task> act = async () => await readTask;
-            await act.Should().ThrowAsync<DavisException>()
-                .WithMessage("Connection closed by console");
+            var exception = await act.Should().ThrowAsync<DavisException>();
+            exception.WithMessage("Connection closed by console");
+            exception.Which.StackTrace.Should().Contain("ReadExactAsync");
         }
         finally
         {

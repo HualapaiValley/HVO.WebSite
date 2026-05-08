@@ -697,6 +697,7 @@ public sealed class VantageStation : IAsyncDisposable
     {
         short val = (short)(latitude * 10);
         await WriteEepromShortAsync(DavisProtocol.EepromLatitude, val, ct);
+        LatitudeDegrees = val / 10.0;
         await RunNewSetupAsync(ct);
     }
 
@@ -705,6 +706,7 @@ public sealed class VantageStation : IAsyncDisposable
     {
         short val = (short)(longitude * 10);
         await WriteEepromShortAsync(DavisProtocol.EepromLongitude, val, ct);
+        LongitudeDegrees = val / 10.0;
         await RunNewSetupAsync(ct);
     }
 
@@ -713,7 +715,7 @@ public sealed class VantageStation : IAsyncDisposable
     {
         short val = (short)feet;
         await WriteEepromShortAsync(DavisProtocol.EepromAltitude, val, ct);
-        AltitudeFeet = feet;
+        AltitudeFeet = val;
     }
 
     /// <summary>Set the rain bucket type (0=0.01in, 1=0.2mm, 2=0.1mm).</summary>
