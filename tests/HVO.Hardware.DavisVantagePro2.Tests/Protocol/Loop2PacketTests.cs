@@ -226,6 +226,146 @@ public class Loop2PacketTests
         packet.StormRainInches.Should().BeNull();
     }
 
+    [TestMethod]
+    public void Parse_DailyEtZero_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[56] = 0x00;
+        buf[57] = 0x00;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.DailyEtInches.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_DailyEtPositiveValue_DecodesCorrectly()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[56] = 0x85;
+        buf[57] = 0x00;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.DailyEtInches.Should().BeApproximately(0.133, 0.001);
+    }
+
+    [TestMethod]
+    public void Parse_BarometricPressureFfffSentinel_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[7] = 0xFF;
+        buf[8] = 0xFF;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.BarometricPressureInHg.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_RawPressureFfffSentinel_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[65] = 0xFF;
+        buf[66] = 0xFF;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.PressureRawInHg.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_AltimeterFfffSentinel_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[69] = 0xFF;
+        buf[70] = 0xFF;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.AltimeterInHg.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_DewPointFfffSentinel_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[30] = 0xFF;
+        buf[31] = 0xFF;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.DewPointF.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_ThswPositiveValue_DecodesCorrectly()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[39] = 82;
+        buf[40] = 0x00;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.ThswF.Should().Be(82);
+    }
+
+    [TestMethod]
+    public void Parse_ThswFfffSentinel_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[39] = 0xFF;
+        buf[40] = 0xFF;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.ThswF.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_WindChillPositiveValue_DecodesCorrectly()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[37] = 61;
+        buf[38] = 0x00;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.WindChillF.Should().Be(61);
+    }
+
+    [TestMethod]
+    public void Parse_WindChillFfffSentinel_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[37] = 0xFF;
+        buf[38] = 0xFF;
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.WindChillF.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_Loop2RainFieldsFfffSentinel_ReturnNull()
+    {
+        byte[] rain15 = PacketBuilder.BuildLoop2DataBytes();
+        rain15[52] = 0xFF;
+        rain15[53] = 0xFF;
+
+        byte[] hourRain = PacketBuilder.BuildLoop2DataBytes();
+        hourRain[54] = 0xFF;
+        hourRain[55] = 0xFF;
+
+        byte[] rain24 = PacketBuilder.BuildLoop2DataBytes();
+        rain24[58] = 0xFF;
+        rain24[59] = 0xFF;
+
+        Loop2Packet.Parse(rain15, bucketType: 0).Rain15MinInches.Should().BeNull();
+        Loop2Packet.Parse(hourRain, bucketType: 0).HourRainInches.Should().BeNull();
+        Loop2Packet.Parse(rain24, bucketType: 0).Rain24HourInches.Should().BeNull();
+    }
+
     // ── Error cases ───────────────────────────────────────────────────────────
 
     [TestMethod]

@@ -97,6 +97,37 @@ public class DavisConsoleClientTests
         await act.Should().ThrowAsync<DavisCrcException>();
     }
 
+    [TestMethod]
+    public async Task GetDataWithCrc16Async_ConnectionClosedDuringRead_PreservesConnectionFailure()
+    {
+        var server = new FakeDavisServer();
+        bool disposed = false;
+        server
+            .WakeStep()
+            .Start();
+
+        try
+        {
+            using var client = CreateClient(server.Port);
+            await client.OpenAsync(CancellationToken.None);
+            await client.WakeAsync(maxTries: 1);
+
+            Task<byte[]> readTask = client.GetDataWithCrc16Async(12, CancellationToken.None, maxTries: 1);
+            await Task.Delay(100);
+            await server.DisposeAsync();
+            disposed = true;
+
+            Func<Task> act = async () => await readTask;
+            await act.Should().ThrowAsync<DavisException>()
+                .WithMessage("Connection closed by console");
+        }
+        finally
+        {
+            if (!disposed)
+                await server.DisposeAsync();
+        }
+    }
+
     // ── SendCommandAsync ──────────────────────────────────────────────────────
 
     [TestMethod]
@@ -146,6 +177,106 @@ public class DavisConsoleClientTests
         lines[2].Should().StartWith("DEW POINT");
     }
 
+    [TestMethod]
+    public async Task SendCommandAsync_SplitResponseAcrossShortGap_ReturnsFullDataLines()
+    {
+        byte[] response = PacketBuilder.BuildTextResponse("1.73");
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .StepChunks(
+                5,
+                (response[..4], 450),
+                (response[4..], 50))
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        string[] lines = await client.SendCommandAsync("NVER\n", CancellationToken.None, maxTries: 1);
+
+        lines.Should().HaveCount(1);
+        lines[0].Should().Be("1.73");
+    }
+
+    [TestMethod]
+    public async Task SendCommandRawAsync_ReceiversResponse_ReturnsRawPayload()
+    {
+        byte[] response = PacketBuilder.BuildReceiversResponse(0b0000_0101);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(10, response)
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        byte[] raw = await client.SendCommandRawAsync("RECEIVERS\n", CancellationToken.None, maxTries: 1);
+
+        raw.Should().Equal([0b0000_0101]);
+    }
+
+    [TestMethod]
+    public async Task SendCommandRawAsync_SplitResponseAcrossShortGap_ReturnsCompletePayload()
+    {
+        byte[] response = PacketBuilder.BuildReceiversResponse(0b0000_0101);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .StepChunks(
+                10,
+                (response[..6], 450),
+                (response[6..], 50))
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        byte[] raw = await client.SendCommandRawAsync("RECEIVERS\n", CancellationToken.None, maxTries: 1);
+
+        raw.Should().Equal([0b0000_0101]);
+    }
+
+    [TestMethod]
+    public async Task SendCommandRawAsync_InvalidPrefix_ThrowsDavisProtocolException()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(10, [(byte)'B', (byte)'A', (byte)'D', 0x0A, 0x0D, 0b0000_0101])
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        Func<Task> act = () => client.SendCommandRawAsync("RECEIVERS\n", CancellationToken.None, maxTries: 1);
+
+        await act.Should().ThrowAsync<DavisProtocolException>();
+    }
+
+    [TestMethod]
+    public async Task SendCommandUntilLineAsync_WaitsForDoneLine()
+    {
+        byte[] response = PacketBuilder.BuildTextResponse("DONE");
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, response)
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        string[] lines = await client.SendCommandUntilLineAsync("CLRALM\n", "DONE", CancellationToken.None, maxTries: 1);
+
+        lines.Should().Contain("DONE");
+    }
+
     // ── SendDataAsync ─────────────────────────────────────────────────────────
 
     [TestMethod]
@@ -165,5 +296,25 @@ public class DavisConsoleClientTests
         Func<Task> act = () => client.SendDataAsync(
             System.Text.Encoding.ASCII.GetBytes("GETTIME\n"), CancellationToken.None);
         await act.Should().NotThrowAsync();
+    }
+
+    [TestMethod]
+    public async Task SendDataAsync_WithLfButInvalidCr_ThrowsDavisProtocolException()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(8, [DavisProtocol.Lf, 0xFF, DavisProtocol.Ack])
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+        await client.WakeAsync(maxTries: 1);
+
+        Func<Task> act = () => client.SendDataAsync(
+            System.Text.Encoding.ASCII.GetBytes("GETTIME\n"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<DavisProtocolException>()
+            .WithMessage("*Expected LF CR prefix*");
     }
 }

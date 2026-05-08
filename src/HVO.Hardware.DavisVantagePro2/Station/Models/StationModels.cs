@@ -113,3 +113,51 @@ public sealed record ReceptionStats
         ? 100.0 * TotalPacketsReceived / (TotalPacketsReceived + TotalPacketsMissed)
         : 0;
 }
+
+/// <summary>EEPROM-backed console alarm thresholds.</summary>
+public sealed record AlarmThresholds
+{
+    public double? RisingBarTrendInHg { get; init; }
+    public double? FallingBarTrendInHg { get; init; }
+    public TimeOnly? TimeAlarm { get; init; }
+
+    public int? LowInsideTemperatureF { get; init; }
+    public int? HighInsideTemperatureF { get; init; }
+    public int? LowOutsideTemperatureF { get; init; }
+    public int? HighOutsideTemperatureF { get; init; }
+    public IReadOnlyList<int?> LowExtraTemperaturesF { get; init; } = new int?[7];
+    public IReadOnlyList<int?> HighExtraTemperaturesF { get; init; } = new int?[7];
+    public IReadOnlyList<int?> LowSoilTemperaturesF { get; init; } = new int?[4];
+    public IReadOnlyList<int?> HighSoilTemperaturesF { get; init; } = new int?[4];
+    public IReadOnlyList<int?> LowLeafTemperaturesF { get; init; } = new int?[4];
+    public IReadOnlyList<int?> HighLeafTemperaturesF { get; init; } = new int?[4];
+
+    public int? LowInsideHumidityPercent { get; init; }
+    public int? HighInsideHumidityPercent { get; init; }
+    public int? LowOutsideHumidityPercent { get; init; }
+    public int? HighOutsideHumidityPercent { get; init; }
+    public IReadOnlyList<int?> LowExtraHumidityPercent { get; init; } = new int?[7];
+    public IReadOnlyList<int?> HighExtraHumidityPercent { get; init; } = new int?[7];
+
+    public int? LowDewPointF { get; init; }
+    public int? HighDewPointF { get; init; }
+    public int? LowWindChillF { get; init; }
+    public int? HighHeatIndexF { get; init; }
+    public int? HighThswF { get; init; }
+    public int? WindSpeedMph { get; init; }
+    public int? WindSpeed10MinuteMph { get; init; }
+    public double? UvIndex { get; init; }
+    public double? UvDoseMeds { get; init; }
+
+    public IReadOnlyList<int?> LowSoilMoistureCb { get; init; } = new int?[4];
+    public IReadOnlyList<int?> HighSoilMoistureCb { get; init; } = new int?[4];
+    public IReadOnlyList<int?> LowLeafWetness { get; init; } = new int?[4];
+    public IReadOnlyList<int?> HighLeafWetness { get; init; } = new int?[4];
+
+    public int? SolarRadiationWm2 { get; init; }
+    public double? RainRateInchesPerHour { get; init; }
+    public double? Rain15MinuteInches { get; init; }
+    public double? Rain24HourInches { get; init; }
+    public double? RainStormInches { get; init; }
+    public double? DailyEtInches { get; init; }
+}

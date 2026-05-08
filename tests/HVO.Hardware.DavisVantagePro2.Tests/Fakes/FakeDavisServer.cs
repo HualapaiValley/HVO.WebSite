@@ -23,12 +23,15 @@ namespace HVO.Hardware.DavisVantagePro2.Tests.Fakes;
 public sealed class FakeDavisServer : IAsyncDisposable
 {
     private readonly TcpListener _listener;
-    private readonly List<(int ReceiveCount, byte[] Response)> _steps = [];
+    private readonly List<(int ReceiveCount, IReadOnlyList<(byte[] Response, int DelayMs)> Chunks)> _steps = [];
+    private readonly List<byte[]> _receivedSteps = [];
     private Task? _serverTask;
     private readonly CancellationTokenSource _cts = new();
 
     /// <summary>Local TCP port the server is listening on.</summary>
     public int Port { get; }
+
+    public IReadOnlyList<byte[]> ReceivedSteps => _receivedSteps;
 
     public FakeDavisServer()
     {
@@ -46,7 +49,17 @@ public sealed class FakeDavisServer : IAsyncDisposable
     /// </summary>
     public FakeDavisServer Step(int receiveCount, byte[] response)
     {
-        _steps.Add((receiveCount, response));
+        _steps.Add((receiveCount, [(response, 0)]));
+        return this;
+    }
+
+    /// <summary>
+    /// Append a step that writes the response in multiple chunks, optionally delaying each chunk.
+    /// Useful for simulating split TCP packets and short network gaps.
+    /// </summary>
+    public FakeDavisServer StepChunks(int receiveCount, params (byte[] Response, int DelayMs)[] chunks)
+    {
+        _steps.Add((receiveCount, chunks));
         return this;
     }
 
@@ -72,20 +85,30 @@ public sealed class FakeDavisServer : IAsyncDisposable
 
             var discard = new byte[4096];
 
-            foreach (var (receiveCount, response) in _steps)
+            foreach (var (receiveCount, chunks) in _steps)
             {
                 // Drain the expected bytes from the client (content not inspected)
                 int received = 0;
+                byte[] captured = new byte[receiveCount];
                 while (received < receiveCount)
                 {
                     int n = await stream.ReadAsync(
                         discard.AsMemory(0, Math.Min(discard.Length, receiveCount - received)), ct);
                     if (n == 0) return; // client disconnected prematurely
+                    Array.Copy(discard, 0, captured, received, n);
                     received += n;
                 }
 
-                if (response.Length > 0)
-                    await stream.WriteAsync(response, ct);
+                _receivedSteps.Add(captured);
+
+                foreach (var (response, delayMs) in chunks)
+                {
+                    if (delayMs > 0)
+                        await Task.Delay(delayMs, ct);
+
+                    if (response.Length > 0)
+                        await stream.WriteAsync(response, ct);
+                }
             }
 
             // Keep the socket alive until the test disposes the server so that

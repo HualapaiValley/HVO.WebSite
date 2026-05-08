@@ -1,0 +1,7 @@
+services:
+  davis-mock-preview:
+    image: nginx:alpine
+    container_name: davis-mock-preview
+    ports:
+      - "8091:80"
+    restart: unless-stopped
