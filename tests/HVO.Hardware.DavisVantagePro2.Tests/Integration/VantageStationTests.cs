@@ -5,6 +5,7 @@ using HVO.Hardware.DavisVantagePro2.Station;
 using HVO.Hardware.DavisVantagePro2.Station.Models;
 using HVO.Hardware.DavisVantagePro2.Tests.Fakes;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Globalization;
 using System.Text;
 
 namespace HVO.Hardware.DavisVantagePro2.Tests.Integration;
@@ -605,6 +606,90 @@ public class VantageStationTests
 
         client.Dispose();
         await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task SetAlarmThresholdsAsync_NullLists_AreTreatedAsEmpty()
+    {
+        var thresholds = new AlarmThresholds
+        {
+            LowExtraTemperaturesF = null!,
+            HighExtraTemperaturesF = null!,
+            LowExtraHumidityPercent = null!,
+            HighExtraHumidityPercent = null!
+        };
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(EepromWriteLength(DavisProtocol.EepromAlarmStart, DavisProtocol.EepromAlarmBlockSize), [DavisProtocol.Ack])
+            .Step(DavisProtocol.EepromAlarmBlockSize + 2, [DavisProtocol.Ack])
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        station.ApplyStationSettings(new StationSettings { RainBucketType = 0 });
+        await client.OpenAsync(CancellationToken.None);
+
+        Func<Task> act = () => station.SetAlarmThresholdsAsync(thresholds);
+        await act.Should().NotThrowAsync();
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task SetAlarmThresholdsAsync_OutOfRangeValue_ThrowsArgumentException()
+    {
+        var (_, station) = CreatePair(port: 1);
+
+        Func<Task> act = () => station.SetAlarmThresholdsAsync(new AlarmThresholds { UvIndex = 30.0 });
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*UvIndex must be between 0*25.4*");
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetBarometerDataAsync_ParsesUsingInvariantCulture()
+    {
+        CultureInfo originalCulture = CultureInfo.CurrentCulture;
+        CultureInfo originalUiCulture = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+
+            await using var server = new FakeDavisServer();
+            server
+                .WakeStep()
+                .WakeStep()
+                .Step(8, PacketBuilder.BuildTextResponse(
+                    "BAR  29.990",
+                    "ELEVATION  4500",
+                    "DEW POINT  55",
+                    "VIRTUAL TEMP  62",
+                    "C  2.3",
+                    "R  1.003",
+                    "BARCAL  0.012",
+                    "GAIN  1",
+                    "OFFSET  0"))
+                .Start();
+
+            var (client, station) = CreatePair(server.Port);
+            await client.OpenAsync(CancellationToken.None);
+
+            var bar = await station.GetBarometerDataAsync();
+            bar.CurrentPressureInHg.Should().BeApproximately(29.990, 0.001);
+
+            client.Dispose();
+            await station.DisposeAsync();
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+        }
     }
 
     [TestMethod]

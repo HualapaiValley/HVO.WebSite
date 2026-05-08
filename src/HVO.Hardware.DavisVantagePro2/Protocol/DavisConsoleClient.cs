@@ -195,8 +195,7 @@ public sealed class DavisConsoleClient : IDisposable
 
                 // Read all queued bytes
                 byte[] raw = await ReadQueuedAsync(ct);
-                string response = Encoding.ASCII.GetString(raw).Trim();
-                string[] lines = response.Split(["\n\r", "\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries);
+                string[] lines = ParseResponseLines(raw);
 
                 if (lines.Length > 0 && lines[0] == "OK")
                     return lines[1..];
@@ -229,10 +228,17 @@ public sealed class DavisConsoleClient : IDisposable
                 await Task.Delay(500, ct);
 
                 byte[] raw = await ReadQueuedAsync(ct);
-                if (raw.Length > 0)
-                    return raw;
+                if (TryStripOkPrefix(raw, out byte[] payload))
+                    return payload;
 
-                _logger.LogDebug("SendCommandRaw attempt {A}: empty response", attempt);
+                if (raw.Length > 0)
+                    throw new DavisProtocolException($"Command '{command.TrimEnd()}' returned an invalid OK-prefixed response.");
+
+                _logger.LogDebug("SendCommandRaw attempt {A}: invalid response prefix", attempt);
+            }
+            catch (DavisProtocolException)
+            {
+                throw;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -390,6 +396,47 @@ public sealed class DavisConsoleClient : IDisposable
     {
         string response = Encoding.ASCII.GetString(raw).Trim();
         return response.Split(["\n\r", "\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private static bool TryStripOkPrefix(byte[] raw, out byte[] payload)
+    {
+        payload = [];
+        if (raw.Length == 0)
+            return false;
+
+        int index = 0;
+        if (TryConsumeLineBreak(raw, ref index) && index >= raw.Length)
+            return false;
+
+        if (raw.Length - index < 2 || raw[index] != (byte)'O' || raw[index + 1] != (byte)'K')
+            return false;
+
+        index += 2;
+        TryConsumeLineBreak(raw, ref index);
+
+        payload = raw[index..];
+        return true;
+    }
+
+    private static bool TryConsumeLineBreak(byte[] raw, ref int index)
+    {
+        if (raw.Length - index >= 2)
+        {
+            if ((raw[index] == DavisProtocol.Lf && raw[index + 1] == DavisProtocol.Cr)
+                || (raw[index] == DavisProtocol.Cr && raw[index + 1] == DavisProtocol.Lf))
+            {
+                index += 2;
+                return true;
+            }
+        }
+
+        if (index < raw.Length && (raw[index] == DavisProtocol.Lf || raw[index] == DavisProtocol.Cr))
+        {
+            index++;
+            return true;
+        }
+
+        return false;
     }
 
     // ── Low-level write (sync, for close path) ───────────────────────────────

@@ -216,8 +216,7 @@ public class DavisConsoleClientTests
 
         byte[] raw = await client.SendCommandRawAsync("RECEIVERS\n", CancellationToken.None, maxTries: 1);
 
-        raw.Should().Equal(response);
-        raw[^1].Should().Be(0b0000_0101);
+        raw.Should().Equal([0b0000_0101]);
     }
 
     [TestMethod]
@@ -239,8 +238,24 @@ public class DavisConsoleClientTests
 
         byte[] raw = await client.SendCommandRawAsync("RECEIVERS\n", CancellationToken.None, maxTries: 1);
 
-        raw.Should().Equal(response);
-        raw[^1].Should().Be(0b0000_0101);
+        raw.Should().Equal([0b0000_0101]);
+    }
+
+    [TestMethod]
+    public async Task SendCommandRawAsync_InvalidPrefix_ThrowsDavisProtocolException()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(10, [(byte)'B', (byte)'A', (byte)'D', 0x0A, 0x0D, 0b0000_0101])
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        Func<Task> act = () => client.SendCommandRawAsync("RECEIVERS\n", CancellationToken.None, maxTries: 1);
+
+        await act.Should().ThrowAsync<DavisProtocolException>();
     }
 
     [TestMethod]

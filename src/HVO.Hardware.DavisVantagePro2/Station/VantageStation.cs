@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Text;
 using HVO.Hardware.DavisVantagePro2.Protocol;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
@@ -589,6 +590,7 @@ public sealed class VantageStation : IAsyncDisposable
     public async Task SetAlarmThresholdsAsync(AlarmThresholds thresholds, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(thresholds);
+        ValidateAlarmThresholds(thresholds, RainBucketType);
 
         await _lock.WaitAsync(ct);
         try
@@ -1031,7 +1033,7 @@ public sealed class VantageStation : IAsyncDisposable
     private static double ParseRequiredDouble(string[] lines, int lineIdx, int wordIdx, string command)
     {
         string[] parts = ParseRequiredParts(lines, lineIdx, wordIdx + 1, command);
-        if (double.TryParse(parts[wordIdx], out double value))
+        if (double.TryParse(parts[wordIdx], NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
             return value;
 
         throw new DavisProtocolException($"Command '{command}' returned non-numeric value '{parts[wordIdx]}' at line {lineIdx + 1}, field {wordIdx + 1}.");
@@ -1040,7 +1042,7 @@ public sealed class VantageStation : IAsyncDisposable
     private static int ParseRequiredInt(string[] lines, int lineIdx, int wordIdx, string command)
     {
         string[] parts = ParseRequiredParts(lines, lineIdx, wordIdx + 1, command);
-        if (int.TryParse(parts[wordIdx], out int value))
+        if (int.TryParse(parts[wordIdx], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
             return value;
 
         throw new DavisProtocolException($"Command '{command}' returned non-integer value '{parts[wordIdx]}' at line {lineIdx + 1}, field {wordIdx + 1}.");
@@ -1206,14 +1208,122 @@ public sealed class VantageStation : IAsyncDisposable
 
     private static void EncodeOffsetArray(byte[] block, int offset, IReadOnlyList<int?> values, int count, int bias)
     {
+        values ??= Array.Empty<int?>();
         for (int index = 0; index < count; index++)
             block[offset + index] = EncodeOffsetAlarm(index < values.Count ? values[index] : null, bias);
     }
 
     private static void EncodeDirectArray(byte[] block, int offset, IReadOnlyList<int?> values, int count)
     {
+        values ??= Array.Empty<int?>();
         for (int index = 0; index < count; index++)
             block[offset + index] = EncodeDirectAlarm(index < values.Count ? values[index] : null);
+    }
+
+    private static void ValidateAlarmThresholds(AlarmThresholds thresholds, int bucketType)
+    {
+        ValidateRange(thresholds.RisingBarTrendInHg, 0.001, 0.255, nameof(thresholds.RisingBarTrendInHg));
+        ValidateRange(thresholds.FallingBarTrendInHg, 0.001, 0.255, nameof(thresholds.FallingBarTrendInHg));
+
+        ValidateOffsetRange(thresholds.LowInsideTemperatureF, 90, nameof(thresholds.LowInsideTemperatureF));
+        ValidateOffsetRange(thresholds.HighInsideTemperatureF, 90, nameof(thresholds.HighInsideTemperatureF));
+        ValidateOffsetRange(thresholds.LowOutsideTemperatureF, 90, nameof(thresholds.LowOutsideTemperatureF));
+        ValidateOffsetRange(thresholds.HighOutsideTemperatureF, 90, nameof(thresholds.HighOutsideTemperatureF));
+        ValidateOffsetList(thresholds.LowExtraTemperaturesF, 90, nameof(thresholds.LowExtraTemperaturesF));
+        ValidateOffsetList(thresholds.HighExtraTemperaturesF, 90, nameof(thresholds.HighExtraTemperaturesF));
+        ValidateOffsetList(thresholds.LowSoilTemperaturesF, 90, nameof(thresholds.LowSoilTemperaturesF));
+        ValidateOffsetList(thresholds.HighSoilTemperaturesF, 90, nameof(thresholds.HighSoilTemperaturesF));
+        ValidateOffsetList(thresholds.LowLeafTemperaturesF, 90, nameof(thresholds.LowLeafTemperaturesF));
+        ValidateOffsetList(thresholds.HighLeafTemperaturesF, 90, nameof(thresholds.HighLeafTemperaturesF));
+
+        ValidateDirectRange(thresholds.LowInsideHumidityPercent, nameof(thresholds.LowInsideHumidityPercent));
+        ValidateDirectRange(thresholds.HighInsideHumidityPercent, nameof(thresholds.HighInsideHumidityPercent));
+        ValidateDirectRange(thresholds.LowOutsideHumidityPercent, nameof(thresholds.LowOutsideHumidityPercent));
+        ValidateDirectRange(thresholds.HighOutsideHumidityPercent, nameof(thresholds.HighOutsideHumidityPercent));
+        ValidateDirectList(thresholds.LowExtraHumidityPercent, nameof(thresholds.LowExtraHumidityPercent));
+        ValidateDirectList(thresholds.HighExtraHumidityPercent, nameof(thresholds.HighExtraHumidityPercent));
+
+        ValidateOffsetRange(thresholds.LowDewPointF, 120, nameof(thresholds.LowDewPointF));
+        ValidateOffsetRange(thresholds.HighDewPointF, 120, nameof(thresholds.HighDewPointF));
+        ValidateOffsetRange(thresholds.LowWindChillF, 120, nameof(thresholds.LowWindChillF));
+        ValidateOffsetRange(thresholds.HighHeatIndexF, 90, nameof(thresholds.HighHeatIndexF));
+        ValidateOffsetRange(thresholds.HighThswF, 90, nameof(thresholds.HighThswF));
+        ValidateDirectRange(thresholds.WindSpeedMph, nameof(thresholds.WindSpeedMph));
+        ValidateDirectRange(thresholds.WindSpeed10MinuteMph, nameof(thresholds.WindSpeed10MinuteMph));
+        ValidateRange(thresholds.UvIndex, 0.0, 25.4, nameof(thresholds.UvIndex));
+        ValidateRange(thresholds.UvDoseMeds, 0.0, 25.4, nameof(thresholds.UvDoseMeds));
+
+        ValidateDirectList(thresholds.LowSoilMoistureCb, nameof(thresholds.LowSoilMoistureCb));
+        ValidateDirectList(thresholds.HighSoilMoistureCb, nameof(thresholds.HighSoilMoistureCb));
+        ValidateDirectList(thresholds.LowLeafWetness, nameof(thresholds.LowLeafWetness));
+        ValidateDirectList(thresholds.HighLeafWetness, nameof(thresholds.HighLeafWetness));
+        ValidateRange(thresholds.SolarRadiationWm2, 0, ushort.MaxValue - 1, nameof(thresholds.SolarRadiationWm2));
+
+        ValidateRainRange(thresholds.RainRateInchesPerHour, bucketType, nameof(thresholds.RainRateInchesPerHour));
+        ValidateRainRange(thresholds.Rain15MinuteInches, bucketType, nameof(thresholds.Rain15MinuteInches));
+        ValidateRainRange(thresholds.Rain24HourInches, bucketType, nameof(thresholds.Rain24HourInches));
+        ValidateRainRange(thresholds.RainStormInches, bucketType, nameof(thresholds.RainStormInches));
+        ValidateRange(thresholds.DailyEtInches, 0.0, 0.254, nameof(thresholds.DailyEtInches));
+    }
+
+    private static void ValidateOffsetList(IReadOnlyList<int?>? values, int bias, string fieldName)
+    {
+        if (values is null)
+            return;
+
+        for (int index = 0; index < values.Count; index++)
+            ValidateOffsetRange(values[index], bias, $"{fieldName}[{index}]");
+    }
+
+    private static void ValidateDirectList(IReadOnlyList<int?>? values, string fieldName)
+    {
+        if (values is null)
+            return;
+
+        for (int index = 0; index < values.Count; index++)
+            ValidateDirectRange(values[index], $"{fieldName}[{index}]");
+    }
+
+    private static void ValidateOffsetRange(int? value, int bias, string fieldName)
+    {
+        int min = -bias;
+        int max = 254 - bias;
+        ValidateRange(value, min, max, fieldName);
+    }
+
+    private static void ValidateDirectRange(int? value, string fieldName) =>
+        ValidateRange(value, 0, 254, fieldName);
+
+    private static void ValidateRainRange(double? inches, int bucketType, string fieldName)
+    {
+        if (!inches.HasValue)
+            return;
+
+        if (inches.Value < 0)
+            throw new ArgumentException($"{fieldName} must be between 0 and the maximum encodable rainfall for the selected bucket type.", fieldName);
+
+        double clicks = bucketType switch
+        {
+            DavisProtocol.BucketType001Inch => inches.Value * 100.0,
+            DavisProtocol.BucketType02Mm => inches.Value / 0.0078740157,
+            DavisProtocol.BucketType01Mm => inches.Value / 0.00393700787,
+            _ => throw new ArgumentOutOfRangeException(nameof(bucketType), bucketType, "Unknown rain bucket type")
+        };
+
+        if (clicks > ushort.MaxValue - 1)
+            throw new ArgumentException($"{fieldName} is too large for the selected rain bucket type.", fieldName);
+    }
+
+    private static void ValidateRange(int? value, int min, int max, string fieldName)
+    {
+        if (value.HasValue && (value.Value < min || value.Value > max))
+            throw new ArgumentException($"{fieldName} must be between {min} and {max}.", fieldName);
+    }
+
+    private static void ValidateRange(double? value, double min, double max, string fieldName)
+    {
+        if (value.HasValue && (value.Value < min || value.Value > max))
+            throw new ArgumentException($"{fieldName} must be between {min.ToString(CultureInfo.InvariantCulture)} and {max.ToString(CultureInfo.InvariantCulture)}.", fieldName);
     }
 
     private static int? DecodeNullableUshort(byte[] block, int offset)
