@@ -126,6 +126,7 @@ public class VantageStationTests
         await station.SetLatitudeAsync(35.5);
 
         server.ReceivedSteps.Should().HaveCount(4);
+        station.LatitudeDegrees.Should().Be(35.5);
         Encoding.ASCII.GetString(server.ReceivedSteps[1]).Should().Be($"{DavisProtocol.CmdEebwr} {DavisProtocol.EepromLatitude:X} 2\n");
         Encoding.ASCII.GetString(server.ReceivedSteps[3]).Should().Be($"{DavisProtocol.CmdNewsetup}\n");
 
@@ -150,6 +151,7 @@ public class VantageStationTests
         await station.SetLongitudeAsync(-113.8);
 
         server.ReceivedSteps.Should().HaveCount(4);
+        station.LongitudeDegrees.Should().Be(-113.8);
         Encoding.ASCII.GetString(server.ReceivedSteps[1]).Should().Be($"{DavisProtocol.CmdEebwr} {DavisProtocol.EepromLongitude:X} 2\n");
         Encoding.ASCII.GetString(server.ReceivedSteps[3]).Should().Be($"{DavisProtocol.CmdNewsetup}\n");
 
@@ -919,7 +921,7 @@ public class VantageStationTests
     }
 
     [TestMethod]
-    public async Task SetAltitudeAsync_WritesAltitudeEeprom()
+    public async Task SetAltitudeAsync_WritesAltitudeEepromAndCachesEncodedValue()
     {
         await using var server = new FakeDavisServer();
         server
@@ -931,7 +933,7 @@ public class VantageStationTests
         var (client, station) = CreatePair(server.Port);
         await client.OpenAsync(CancellationToken.None);
 
-        await station.SetAltitudeAsync(2932);
+        await station.SetAltitudeAsync(2932.6);
 
         station.AltitudeFeet.Should().Be(2932);
         server.ReceivedSteps[2][0].Should().Be(0x74);

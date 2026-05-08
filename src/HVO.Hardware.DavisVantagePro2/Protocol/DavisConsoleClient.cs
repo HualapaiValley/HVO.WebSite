@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using Microsoft.Extensions.Logging;
 
@@ -341,7 +342,7 @@ public sealed class DavisConsoleClient : IDisposable
             throw new DavisCrcException("CRC validation failed after max retries");
 
         if (lastException is DavisException davisException)
-            throw davisException;
+            ExceptionDispatchInfo.Capture(davisException).Throw();
 
         if (lastException is not null)
             throw new DavisException(lastException.Message, lastException);
