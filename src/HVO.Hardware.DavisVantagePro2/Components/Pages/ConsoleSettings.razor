@@ -1,0 +1,155 @@
+@page "/console-settings"
+@rendermode InteractiveServer
+
+<PrototypeFrame Eyebrow="Console Settings" Title="Console Settings">
+    <HeaderAside>
+        <div class="proto-pill"><span>Save status</span><strong>Ready</strong></div>
+        <div class="proto-pill"><span>Last console snapshot</span><strong class="proto-mono">08 May 2026 - 2:35 PM</strong></div>
+        <button class="proto-button primary" type="button">Refresh from console</button>
+    </HeaderAside>
+
+    <ChildContent>
+        <div class="proto-list-stack">
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Clock</div>
+                        <h2>Console Time</h2>
+                    </div>
+                    <button class="proto-button primary" type="button">Sync now</button>
+                </div>
+                <div class="proto-three-column">
+                    <div class="proto-stat"><span>Console time</span><strong class="proto-mono">08 May 2026 - 2:34 PM</strong></div>
+                    <div class="proto-stat"><span>Host time</span><strong class="proto-mono">08 May 2026 - 2:34 PM</strong></div>
+                    <div class="proto-stat"><span>Drift</span><strong class="proto-mono">5.0 s</strong></div>
+                </div>
+            </section>
+
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">EEPROM Settings</div>
+                        <h2>Location And Timezone</h2>
+                    </div>
+                    <button class="proto-button success" type="button">Save location/timezone settings</button>
+                </div>
+                <div class="proto-form-grid">
+                    <div class="proto-field"><label class="proto-field-label">Latitude</label><input class="proto-input proto-mono" type="number" min="-90" max="90" step="0.0001" required value="35.3619" /></div>
+                    <div class="proto-field"><label class="proto-field-label">Longitude</label><input class="proto-input proto-mono" type="number" min="-180" max="180" step="0.0001" required value="-113.8336" /></div>
+                    <div class="proto-field"><label class="proto-field-label">Altitude (ft)</label><input class="proto-input proto-mono" type="number" min="0" max="20000" step="1" required value="3491" /></div>
+                    <div class="proto-field"><label class="proto-field-label">DST mode</label><select class="proto-select"><option selected>AUTO</option><option>ON</option><option>OFF</option></select></div>
+                    <div class="proto-field"><label class="proto-field-label">Timezone mode</label><select class="proto-select"><option selected>GMT offset</option><option>Timezone code</option></select></div>
+                    <div class="proto-field"><label class="proto-field-label">GMT offset (hours)</label><input class="proto-input proto-mono" type="number" min="-12" max="14" step="0.25" required value="-7.00" /></div>
+                    <div class="proto-field"><label class="proto-field-label">Timezone code</label><select class="proto-select"><option>5 · Mountain</option><option selected>13 · GMT</option><option>26 · Tokyo</option></select></div>
+                    <div class="proto-field"><label class="proto-field-label">Temperature logging</label><select class="proto-select"><option>AVERAGE</option><option selected>LAST</option></select></div>
+                    <div class="proto-field"><label class="proto-field-label">Barometer units</label><select class="proto-select"><option selected>inHg</option><option>hPa</option><option>mmHg</option></select></div>
+                    <div class="proto-field"><label class="proto-field-label">Temperature units</label><select class="proto-select"><option selected>F</option><option>C</option></select></div>
+                    <div class="proto-field"><label class="proto-field-label">Rain units</label><select class="proto-select"><option selected>inch</option><option>mm</option></select></div>
+                    <div class="proto-field"><label class="proto-field-label">Wind units</label><select class="proto-select"><option selected>mph</option><option>kph</option><option>m/s</option><option>knots</option></select></div>
+                </div>
+            </section>
+
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Rain And Archive</div>
+                        <h2>Rain And Archive Settings</h2>
+                    </div>
+                    <div class="proto-action-row">
+                        <button class="proto-button success" type="button">Save rain/archive settings</button>
+                        <button class="proto-button danger" type="button">Clear archive</button>
+                    </div>
+                </div>
+                <div class="proto-form-grid">
+                    <div class="proto-field"><label class="proto-field-label">Archive interval</label><select class="proto-select"><option>1 minute</option><option>5 minutes</option><option>10 minutes</option><option selected>15 minutes</option><option>30 minutes</option><option>60 minutes</option><option>120 minutes</option></select></div>
+                    <div class="proto-field"><label class="proto-field-label">Rain bucket type</label><select class="proto-select"><option selected>0.01 in</option><option>0.2 mm</option><option>0.1 mm</option></select></div>
+                    <div class="proto-field"><label class="proto-field-label">Rain year start month</label><input class="proto-input proto-mono" type="number" min="1" max="12" step="1" required value="7" /></div>
+                </div>
+            </section>
+
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Barometer</div>
+                        <h2>Barometer Calibration</h2>
+                    </div>
+                    <button class="proto-button success" type="button">Write barometer calibration</button>
+                </div>
+                <div class="proto-three-column">
+                    <div class="proto-stat"><span>Current pressure</span><strong class="proto-mono">29.990 inHg</strong></div>
+                    <div class="proto-stat"><span>Altitude</span><strong class="proto-mono">3491 ft</strong></div>
+                    <div class="proto-stat"><span>Dew point</span><strong class="proto-mono">55 F</strong></div>
+                </div>
+                <div class="proto-form-grid" style="margin-top: 18px;">
+                    <div class="proto-field"><label class="proto-field-label">Reference pressure (inHg)</label><input class="proto-input proto-mono" type="number" min="20" max="35" step="0.001" required value="29.991" /></div>
+                    <div class="proto-field"><label class="proto-field-label">Altitude (ft)</label><input class="proto-input proto-mono" type="number" min="0" max="20000" step="1" required value="3491" /></div>
+                </div>
+            </section>
+
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Calibration</div>
+                        <h2>Sensor Offsets</h2>
+                    </div>
+                    <button class="proto-button success" type="button">Save calibration changes</button>
+                </div>
+                <div class="proto-form-grid">
+                    <div class="proto-field"><label class="proto-field-label">Inside temp offset (F)</label><input class="proto-input proto-mono" type="number" min="-20" max="20" step="0.1" required value="-0.5" /></div>
+                    <div class="proto-field"><label class="proto-field-label">Outside temp offset (F)</label><input class="proto-input proto-mono" type="number" min="-20" max="20" step="0.1" required value="0.8" /></div>
+                    <div class="proto-field"><label class="proto-field-label">Inside humidity offset (%)</label><input class="proto-input proto-mono" type="number" min="-100" max="100" step="1" required value="-4" /></div>
+                    <div class="proto-field"><label class="proto-field-label">Outside humidity offset (%)</label><input class="proto-input proto-mono" type="number" min="-100" max="100" step="1" required value="6" /></div>
+                    <div class="proto-field"><label class="proto-field-label">Wind direction offset (deg)</label><input class="proto-input proto-mono" type="number" min="0" max="359" step="1" required value="45" /></div>
+                </div>
+            </section>
+
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Transmitters</div>
+                        <h2>Transmitter Configuration</h2>
+                    </div>
+                    <button class="proto-button success" type="button">Save transmitter changes</button>
+                </div>
+                <div class="proto-table-wrap">
+                    <table class="proto-table">
+                        <thead>
+                            <tr>
+                                <th>Channel</th>
+                                <th>Type</th>
+                                <th>Repeater</th>
+                                <th>Active</th>
+                                <th>Retransmit</th>
+                                <th>Temp sensor</th>
+                                <th>Humidity sensor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>1</td><td>ISS</td><td>None</td><td>Yes</td><td>No</td><td>—</td><td>—</td></tr>
+                            <tr><td>3</td><td>Temp/Humidity</td><td>B</td><td>Yes</td><td>No</td><td>2</td><td>3</td></tr>
+                            <tr><td>6</td><td>Soil</td><td>None</td><td>Yes</td><td>Yes</td><td>—</td><td>—</td></tr>
+                            <tr><td>8</td><td>None</td><td>None</td><td>No</td><td>No</td><td>—</td><td>—</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="proto-pill-row" style="margin-top: 18px;">
+                    <div class="proto-pill"><span>Heard transmitters</span><strong>1, 3, 6</strong></div>
+                </div>
+            </section>
+
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Console Actions</div>
+                        <h2>Direct Actions</h2>
+                    </div>
+                </div>
+                <div class="proto-action-row">
+                    <button class="proto-button" type="button">Lamp on</button>
+                    <button class="proto-button" type="button">Lamp off</button>
+                    <button class="proto-button danger" type="button">Clear active alarm bits</button>
+                </div>
+            </section>
+        </div>
+    </ChildContent>
+</PrototypeFrame>

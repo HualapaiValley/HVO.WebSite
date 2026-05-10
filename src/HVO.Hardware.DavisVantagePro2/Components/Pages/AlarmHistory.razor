@@ -1,0 +1,122 @@
+@page "/alarms/history"
+@rendermode InteractiveServer
+
+<PrototypeFrame Eyebrow="Alarms / History" Title="Alarm History">
+    <HeaderAside>
+        <div class="proto-pill"><span>Date range</span><strong class="proto-mono">Last 7 days</strong></div>
+        <button class="proto-button" type="button">Export</button>
+    </HeaderAside>
+
+    <ChildContent>
+
+        <section class="proto-card">
+            <div class="proto-toolbar">
+                <div class="proto-field"><label class="proto-field-label">Start</label><input
+                    class="proto-input proto-mono" type="datetime-local" value="2026-05-01T00:00" /></div>
+                    <div class="proto-field"><label class="proto-field-label">End</label><input
+                        class="proto-input proto-mono" type="datetime-local" value="2026-05-08T23:59" /></div>
+                        <div class="proto-field"><label class="proto-field-label">State</label><select class="proto-select">
+                            <option selected>All</option>
+                            <option>Open</option>
+                            <option>Cleared</option>
+                            <option>Acknowledged</option>
+                        </select></div>
+                        <div class="proto-field"><label class="proto-field-label">Severity</label><select class="proto-select">
+                            <option selected>All</option>
+                            <option>Info</option>
+                            <option>Warning</option>
+                            <option>Critical</option>
+                        </select></div>
+                        <div class="proto-field"><label class="proto-field-label">Source</label><select class="proto-select">
+                            <option selected>All</option>
+                            <option>Console</option>
+                            <option>Station worker</option>
+                            <option>Outbox</option>
+                        </select></div>
+                    </div>
+                </section>
+
+                <div class="proto-grid">
+                    <section class="proto-card">
+                        <div class="proto-section-head">
+                            <div>
+                                <div class="proto-eyebrow">Alarm Activation History</div>
+                                <h2>Events</h2>
+                            </div>
+                        </div>
+                        <div class="proto-table-wrap">
+                            <table class="proto-table">
+                                <thead>
+                                    <tr>
+                                        <th>Time UTC</th>
+                                        <th>Alarm</th>
+                                        <th>Source</th>
+                                        <th>Severity</th>
+                                        <th>State</th>
+                                        <th>Route</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="proto-mono">08 May 2026 - 8:11 PM UTC</td>
+                                        <td>High wind</td>
+                                        <td>ISS</td>
+                                        <td>Critical</td>
+                                        <td>Open</td>
+                                        <td>Email Ops</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="proto-mono">07 May 2026 - 4:22 AM UTC</td>
+                                        <td>No packets</td>
+                                        <td>Station worker</td>
+                                        <td>Warning</td>
+                                        <td>Cleared</td>
+                                        <td>SMS Night</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="proto-mono">07 May 2026 - 12:14 AM UTC</td>
+                                        <td>Outbox backlog</td>
+                                        <td>Forwarder</td>
+                                        <td>Warning</td>
+                                        <td>Acknowledged</td>
+                                        <td>Discord Hook</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="proto-mono">06 May 2026 - 7:48 PM UTC</td>
+                                        <td>Rain 15 min</td>
+                                        <td>Console</td>
+                                        <td>Warning</td>
+                                        <td>Cleared</td>
+                                        <td>Email Ops</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <section class="proto-card">
+                        <div class="proto-section-head">
+                            <div>
+                                <div class="proto-eyebrow">Detail Drawer</div>
+                                <h2>High Wind</h2>
+                            </div>
+                            <span class="proto-badge critical">Open</span>
+                        </div>
+                        <div class="proto-list-stack">
+                            <div class="proto-list-item"><strong>Activation</strong>
+                                <div class="proto-inline-grid"><span>Triggered at</span><span class="proto-mono">08 May 2026 - 8:11 PM UTC</span><span>Cleared at</span><span>—</span><span>Acknowledged
+                                    at</span><span>—</span></div>
+                                </div>
+                                <div class="proto-list-item"><strong>Rule snapshot</strong><span>Console threshold · Wind speed
+                                    above 32 mph · Critical · Auto clear</span></div>
+                                    <div class="proto-list-item"><strong>Observed value</strong><span class="proto-mono">37 mph at
+                                        channel 1 ISS</span></div>
+                                        <div class="proto-list-item"><strong>Delivery attempts</strong><span>Email Ops ·
+                                            Sent</span><span>SMS Night · Pending reminder</span></div>
+                                            <div class="proto-list-item"><strong>Related snapshot</strong><span class="proto-mono">Loop
+                                                timestamp 08 May 2026 - 8:10 PM UTC · Archive timestamp 08 May 2026 - 8:00 PM UTC</span></div>
+                                            </div>
+                                        </section>
+                                    </div>
+                                </ChildContent>
+                            </PrototypeFrame>

@@ -20,6 +20,7 @@ using HVO.Hardware.DavisVantagePro2.Telemetry;
 using HVO.Hardware.DavisVantagePro2.Workers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -150,6 +151,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxForwarder>()
 // ── Blazor Server ──────────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddMudServices();
 
 var app = builder.Build();
 

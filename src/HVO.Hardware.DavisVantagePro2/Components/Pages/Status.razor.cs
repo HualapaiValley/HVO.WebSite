@@ -1,5 +1,6 @@
 using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
+using HVO.Hardware.DavisVantagePro2.Components.Layout;
 using HVO.Astronomy;
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
@@ -11,9 +12,19 @@ namespace HVO.Hardware.DavisVantagePro2.Components.Pages;
 
 public partial class Status : IDisposable
 {
+    private const string PageHeadingText = "Davis weather overview";
+    private const string PageSummaryText = "Overview template migrated onto the live Davis monitor, keeping the existing instrument cards while adopting the new MudBlazor shell and page framing.";
+    private const string StationLocationText = "Hualapai Valley, AZ";
+    private const string TemperatureOutsideColor = "#69d3ff";
+    private const string TemperatureInsideColor = "#ffb86c";
+    private const string SolarColor = "#ffd166";
+    private const string WindAverageColor = "#7ae0ff";
+    private const string WindGustColor = "#ff9f5a";
+    private static readonly TimeSpan LiveLoopFreshnessThreshold = TimeSpan.FromSeconds(10);
+
     [Inject] private ILogger<Status> Logger { get; set; } = default!;
     [Inject] private IServiceScopeFactory ScopeFactory { get; set; } = default!;
-    [CascadingParameter] private HVO.Hardware.DavisVantagePro2.Components.Layout.MainLayout? MainLayout { get; set; }
+    [CascadingParameter] private HVO.Hardware.DavisVantagePro2.Components.Layout.ShellLayoutState? ShellLayoutState { get; set; }
 
     private Loop2Packet? _reading;
     private bool _disposed;
@@ -27,6 +38,7 @@ public partial class Status : IDisposable
     private List<LiveHistorySample> _liveHistorySamples = [];
     private PlotModel _temperaturePlot = PlotModel.Empty;
     private PlotModel _solarPlot = PlotModel.Empty;
+    private PlotModel _windPlot = PlotModel.Empty;
     private CelestialMarker _sunMarker = CelestialMarker.Hidden;
     private MoonSnapshot _moonContext = MoonSnapshot.Empty;
 
@@ -43,9 +55,14 @@ public partial class Status : IDisposable
         await LoadStartupReadingAsync();
         await LoadLiveHistoryAsync();
         RefreshVisuals();
+        UpdateShellFooter();
     }
 
-    private void ToggleNavigation() => MainLayout?.ToggleDrawer();
+    protected override void OnParametersSet()
+    {
+        ShellLayoutState?.SetPage("Overview", PageHeadingText, PageSummaryText);
+        UpdateShellFooter();
+    }
 
     private async Task LoadStartupReadingAsync()
     {
@@ -119,15 +136,13 @@ public partial class Status : IDisposable
                         .ToOffset(Station.ConsoleUtcOffset)
                         .DateTime;
 
-                    return new LiveHistorySample(
-                        localTime,
-                        snapshot.TemperatureF,
-                        snapshot.SolarRadiationWm2,
-                        snapshot.BarometricPressureInHg,
-                        snapshot.PressureRawInHg);
+                    return CreateLiveHistorySample(localTime, snapshot);
                 })
                 .Where(sample => sample is not null)
                 .Select(sample => sample!)
+                .GroupBy(sample => StatusChartBuckets.FloorToBucket(sample.TimeLocal, StatusChartBuckets.DefaultBucketSize))
+                .Select(group => group.OrderBy(sample => sample.TimeLocal).Last())
+                .OrderBy(sample => sample.TimeLocal)
                 .ToList();
 
             TrimLiveHistorySamples();
@@ -150,6 +165,7 @@ public partial class Status : IDisposable
             _reading = reading;
             UpsertLiveHistorySample(reading);
             RefreshVisuals();
+            UpdateShellFooter();
             StateHasChanged();
         });
     }
@@ -160,6 +176,7 @@ public partial class Status : IDisposable
         {
             if (!_disposed)
             {
+                UpdateShellFooter();
                 StateHasChanged();
             }
         });
@@ -171,6 +188,7 @@ public partial class Status : IDisposable
         Worker.ReadingUpdated -= OnReadingUpdated;
         Worker.WorkerStateChanged -= OnStateChanged;
         Forwarder.SweptCompleted -= OnStateChanged;
+        ShellLayoutState?.ResetFooter();
     }
 
     private DateTime? ObservedAtUtc => Worker.LastReadingAt ?? _reading?.RecordedAtUtc;
@@ -185,10 +203,6 @@ public partial class Status : IDisposable
 
     private string UpdatedClock => ToConsoleClock(ObservedAtUtc) ?? "--";
 
-    private string LiveStatusText => Station.IsConnected ? "Live loop active" : "Station disconnected";
-
-    private string ConnectionState => Station.IsConnected ? "Online" : "Offline";
-
     private string ConditionSummary => _reading?.ForecastString ?? "Waiting for current console forecast.";
 
     private string ForecastText => _reading?.ForecastString ?? "No forecast available";
@@ -197,7 +211,7 @@ public partial class Status : IDisposable
 
     private string? BarometricTrendText => DescribeTrend(_reading?.BarometricTrend);
 
-    private double? FeelsLikeF => _reading?.HeatIndexF ?? _reading?.OutsideTemperatureF;
+    private double? FeelsLikeF => _reading?.ThswF ?? _reading?.HeatIndexF ?? _reading?.WindChillF ?? _reading?.OutsideTemperatureF;
 
     private string WindDirectionText => DisplayCompass(_reading?.WindDirectionDegrees);
 
@@ -209,29 +223,66 @@ public partial class Status : IDisposable
 
     private string WindDirectionRotation => (_reading?.WindDirectionDegrees ?? 0d).ToString("F0", CultureInfo.InvariantCulture);
 
-    private string TemperatureLinePath => _temperaturePlot.LinePath;
+    private void UpdateShellFooter()
+    {
+        ShellLayoutState?.SetFooter(
+            BuildLiveFooterItem(),
+            new ShellFooterItem(StationLocationText),
+            new ShellFooterItem(HeaderTimestamp),
+            new ShellFooterItem($"Outbox: {Forwarder.PendingCount} pending - {Forwarder.FailedCount} failed"),
+            BuildApiFooterItem());
+    }
 
-    private string TemperatureAreaPath => _temperaturePlot.AreaPath;
+    private ShellFooterItem BuildLiveFooterItem()
+    {
+        DateTime? observedAtUtc = ObservedAtUtc;
 
-    private IReadOnlyList<PlotLabel> TemperatureAxisLabels => _temperaturePlot.AxisLabels;
+        if (observedAtUtc.HasValue
+            && DateTime.UtcNow - observedAtUtc.Value <= LiveLoopFreshnessThreshold
+            && Worker.ConsecutiveErrors == 0)
+        {
+            return new ShellFooterItem("Live loop active", ShellFooterIndicator.Online);
+        }
 
-    private bool HasTemperaturePlot => _temperaturePlot.HasData;
+        if (Worker.ConsecutiveErrors > 0 || !Station.IsConnected)
+        {
+            return new ShellFooterItem(
+                observedAtUtc.HasValue ? "Live loop stalled" : "Station disconnected",
+                ShellFooterIndicator.Offline);
+        }
 
-    private double TemperatureCurrentX => _temperaturePlot.CurrentPoint?.X ?? 0d;
+        if (observedAtUtc.HasValue)
+        {
+            return new ShellFooterItem("Live loop stale", ShellFooterIndicator.Warning);
+        }
 
-    private double TemperatureCurrentY => _temperaturePlot.CurrentPoint?.Y ?? 0d;
+        return new ShellFooterItem("Waiting for live packets", ShellFooterIndicator.Warning);
+    }
 
-    private string SolarLinePath => _solarPlot.LinePath;
+    private ShellFooterItem BuildApiFooterItem()
+    {
+        if (Forwarder.PendingCount > 0 && !string.IsNullOrWhiteSpace(Forwarder.LastError))
+        {
+            return new ShellFooterItem("API sync failing", ShellFooterIndicator.Offline);
+        }
 
-    private string SolarAreaPath => _solarPlot.AreaPath;
+        if (Forwarder.PendingCount > 0)
+        {
+            return new ShellFooterItem("API sync pending", ShellFooterIndicator.Warning);
+        }
 
-    private IReadOnlyList<PlotLabel> SolarAxisLabels => _solarPlot.AxisLabels;
+        if (Forwarder.FailedCount > 0)
+        {
+            return new ShellFooterItem("API sync degraded", ShellFooterIndicator.Warning);
+        }
 
-    private bool HasSolarPlot => _solarPlot.HasData;
+        if (Forwarder.LastSentAt.HasValue)
+        {
+            return new ShellFooterItem("API sync healthy", ShellFooterIndicator.Online);
+        }
 
-    private double SolarCurrentX => _solarPlot.CurrentPoint?.X ?? 0d;
-
-    private double SolarCurrentY => _solarPlot.CurrentPoint?.Y ?? 0d;
+        return new ShellFooterItem("API sync idle", ShellFooterIndicator.Warning);
+    }
 
     private string MoonPhaseText => _moonContext.PhaseName;
 
@@ -256,11 +307,34 @@ public partial class Status : IDisposable
 
     private CelestialMarker MoonMarker => _moonContext.Marker;
 
+    private string CelestialViewBox => BuildCelestialViewBox(SunMarker, MoonMarker);
+
+    private bool HasTemperaturePlot => _temperaturePlot.HasData;
+
+    private bool HasSolarPlot => _solarPlot.HasData;
+
+    private bool HasWindPlot => _windPlot.HasData;
+
     private void RefreshVisuals()
     {
         RefreshSummaryMetrics();
-        _temperaturePlot = BuildPlotModel(BuildChartSamples(record => record.OutsideTemperatureF, _reading?.OutsideTemperatureF), clampMinimumToZero: false, minimumRange: 8d);
-        _solarPlot = BuildPlotModel(BuildChartSamples(record => record.SolarRadiationWm2, _reading?.SolarRadiationWm2), clampMinimumToZero: true, minimumRange: 300d);
+        _temperaturePlot = BuildPlotModel(
+            clampMinimumToZero: false,
+            minimumRange: 8d,
+            new PlotSeriesSpec(sample => sample.OutsideTemperatureF, _reading?.OutsideTemperatureF, TemperatureOutsideColor),
+            new PlotSeriesSpec(sample => sample.InsideTemperatureF, _reading?.InsideTemperatureF, TemperatureInsideColor));
+
+        _solarPlot = BuildPlotModel(
+            clampMinimumToZero: true,
+            minimumRange: 300d,
+            new PlotSeriesSpec(sample => sample.SolarRadiationWm2, _reading?.SolarRadiationWm2, SolarColor, "rgba(255, 209, 102, 0.18)"));
+
+        _windPlot = BuildPlotModel(
+            clampMinimumToZero: true,
+            minimumRange: 10d,
+            new PlotSeriesSpec(sample => sample.WindSpeed2MinAvgMph, _reading?.WindSpeed2MinAvgMph, WindAverageColor),
+            new PlotSeriesSpec(sample => sample.WindGust10MinMph, _reading?.WindGust10MinMph, WindGustColor));
+
         RefreshCelestialModels();
     }
 
@@ -289,12 +363,7 @@ public partial class Status : IDisposable
 
         if (_reading is not null)
         {
-            var currentSample = new LiveHistorySample(
-                windowEnd,
-                _reading.OutsideTemperatureF,
-                _reading.SolarRadiationWm2,
-                _reading.BarometricPressureInHg,
-                _reading.PressureRawInHg);
+            var currentSample = CreateLiveHistorySample(windowEnd, _reading);
 
             if (summarySamples.Count > 0 && Math.Abs((summarySamples[^1].TimeLocal - currentSample.TimeLocal).TotalMinutes) < 1)
             {
@@ -378,101 +447,125 @@ public partial class Status : IDisposable
             Station.LongitudeDegrees);
     }
 
-    private IReadOnlyList<ChartPoint> BuildChartSamples(Func<LiveHistorySample, double?> selector, double? liveValue)
+    private static string BuildCelestialViewBox(CelestialMarker sunMarker, CelestialMarker moonMarker)
     {
-        if (!ObservationWindowEndLocal.HasValue)
+        const double arcMinX = 22d;
+        const double arcMaxX = 198d;
+        const double arcMinY = 76d;
+        const double arcMaxY = 126d;
+        const double padding = 4d;
+        const double minimumWidth = 182d;
+        const double minimumHeight = 72d;
+
+        double minX = arcMinX;
+        double maxX = arcMaxX;
+        double minY = arcMinY;
+        double maxY = arcMaxY;
+
+        if (sunMarker.IsVisible)
         {
-            return [];
+            double radius = Math.Max(18d, sunMarker.GlowRadius);
+            ExpandBounds(ref minX, ref maxX, ref minY, ref maxY, sunMarker.X, sunMarker.Y, radius);
         }
 
-        DateTime windowEnd = ObservationWindowEndLocal.Value;
-        DateTime windowStart = windowEnd.AddHours(-24);
+        if (moonMarker.IsVisible)
+        {
+            ExpandBounds(ref minX, ref maxX, ref minY, ref maxY, moonMarker.X, moonMarker.Y, 12d);
+        }
 
+        minX -= padding;
+        maxX += padding;
+        minY -= padding;
+        maxY += padding;
+
+        EnsureMinimumRange(ref minX, ref maxX, minimumWidth);
+        EnsureMinimumRange(ref minY, ref maxY, minimumHeight);
+
+        return string.Create(CultureInfo.InvariantCulture, $"{minX:F1} {minY:F1} {(maxX - minX):F1} {(maxY - minY):F1}");
+    }
+
+    private static void ExpandBounds(ref double minX, ref double maxX, ref double minY, ref double maxY, double centerX, double centerY, double radius)
+    {
+        minX = Math.Min(minX, centerX - radius);
+        maxX = Math.Max(maxX, centerX + radius);
+        minY = Math.Min(minY, centerY - radius);
+        maxY = Math.Max(maxY, centerY + radius);
+    }
+
+    private static void EnsureMinimumRange(ref double min, ref double max, double minimumRange)
+    {
+        double currentRange = max - min;
+        if (currentRange >= minimumRange)
+        {
+            return;
+        }
+
+        double padding = (minimumRange - currentRange) / 2d;
+        min -= padding;
+        max += padding;
+    }
+
+    private List<ChartPoint> BuildChartPoints(
+        Func<LiveHistorySample, double?> selector,
+        double? liveValue,
+        DateTime windowStart,
+        DateTime windowEnd)
+    {
         var points = _liveHistorySamples
             .Where(record => record.TimeLocal >= windowStart && record.TimeLocal <= windowEnd)
             .Select(record => new { record.TimeLocal, Value = selector(record) })
             .Where(point => point.Value.HasValue)
             .Select(point => new ChartPoint(point.TimeLocal, point.Value!.Value))
+            .OrderBy(point => point.TimeLocal)
             .ToList();
 
-        if (liveValue.HasValue)
+        if (!liveValue.HasValue)
         {
-            var livePoint = new ChartPoint(windowEnd, liveValue.Value);
-            if (points.Count > 0 && Math.Abs((points[^1].TimeLocal - livePoint.TimeLocal).TotalMinutes) < 1)
-            {
-                points[^1] = livePoint;
-            }
-            else
-            {
-                points.Add(livePoint);
-            }
+            return points;
+        }
+
+        var livePoint = new ChartPoint(windowEnd, liveValue.Value);
+        if (points.Count > 0 && Math.Abs((points[^1].TimeLocal - livePoint.TimeLocal).TotalMinutes) < 1)
+        {
+            points[^1] = livePoint;
+        }
+        else
+        {
+            points.Add(livePoint);
         }
 
         return points;
     }
 
-    private void UpsertLiveHistorySample(Loop2Packet reading)
+    private PlotModel BuildPlotModel(bool clampMinimumToZero, double minimumRange, params PlotSeriesSpec[] specs)
     {
-        DateTime observedAtUtc = Worker.LastReadingAt ?? reading.RecordedAtUtc;
-        DateTime localTime = new DateTimeOffset(observedAtUtc, TimeSpan.Zero)
-            .ToOffset(Station.ConsoleUtcOffset)
-            .DateTime;
-
-        var sample = new LiveHistorySample(
-            localTime,
-            reading.OutsideTemperatureF,
-            reading.SolarRadiationWm2,
-            reading.BarometricPressureInHg,
-            reading.PressureRawInHg);
-
-        if (_liveHistorySamples.Count > 0 && Math.Abs((_liveHistorySamples[^1].TimeLocal - localTime).TotalMinutes) < 1)
-        {
-            _liveHistorySamples[^1] = sample;
-        }
-        else
-        {
-            _liveHistorySamples.Add(sample);
-        }
-
-        TrimLiveHistorySamples(localTime);
-    }
-
-    private void TrimLiveHistorySamples(DateTime? windowEndLocal = null)
-    {
-        DateTime end = windowEndLocal
-            ?? ObservationWindowEndLocal
-            ?? (_liveHistorySamples.Count > 0 ? _liveHistorySamples[^1].TimeLocal : DateTime.MinValue);
-
-        if (end == DateTime.MinValue)
-        {
-            return;
-        }
-
-        DateTime windowStart = end.AddHours(-24);
-        _liveHistorySamples = _liveHistorySamples
-            .Where(sample => sample.TimeLocal >= windowStart && sample.TimeLocal <= end)
-            .OrderBy(sample => sample.TimeLocal)
-            .ToList();
-    }
-
-    private static PlotModel BuildPlotModel(IReadOnlyList<ChartPoint> source, bool clampMinimumToZero, double minimumRange)
-    {
-        if (source.Count == 0)
+        if (!ObservationWindowEndLocal.HasValue)
         {
             return PlotModel.Empty;
         }
 
-        const double left = 32d;
-        const double right = 516d;
+        DateTime windowEnd = ObservationWindowEndLocal.Value;
+        DateTime windowStart = windowEnd.AddHours(-24);
+
+        var seriesWithData = specs
+            .Select(spec => new { Spec = spec, Points = BuildChartPoints(spec.Selector, spec.LiveValue, windowStart, windowEnd) })
+            .Where(series => series.Points.Count > 0)
+            .ToList();
+
+        if (seriesWithData.Count == 0)
+        {
+            return PlotModel.Empty;
+        }
+
+        const double left = 40d;
+        const double right = 508d;
         const double top = 24d;
-        const double bottom = 240d;
+        const double bottom = 224d;
         double plotWidth = right - left;
         double plotHeight = bottom - top;
 
-        DateTime end = source[^1].TimeLocal;
-        DateTime start = end.AddHours(-24);
-        double minValue = source.Min(point => point.Value);
-        double maxValue = source.Max(point => point.Value);
+        double minValue = seriesWithData.SelectMany(series => series.Points).Min(point => point.Value);
+        double maxValue = seriesWithData.SelectMany(series => series.Points).Max(point => point.Value);
 
         if (clampMinimumToZero)
         {
@@ -496,21 +589,15 @@ public partial class Status : IDisposable
             maxValue = minValue + minimumRange;
         }
 
-        var pointSegments = SplitContinuousSegments(source);
-        var coordinateSegments = pointSegments
-            .Select(segment => segment
-                .Select(point =>
-                {
-                    double x = left + (Math.Clamp((point.TimeLocal - start).TotalHours / 24d, 0d, 1d) * plotWidth);
-                    double y = bottom - (((point.Value - minValue) / (maxValue - minValue)) * plotHeight);
-                    return new PlotPoint(x, y);
-                })
-                .ToList())
-            .Where(segment => segment.Count > 0)
-            .ToList();
+        var plotSeries = seriesWithData
+            .Select(series => BuildPlotSeries(series.Spec, series.Points, windowStart, minValue, maxValue, left, bottom, plotWidth, plotHeight))
+            .Where(series => !string.IsNullOrEmpty(series.LinePath))
+            .ToArray();
 
-        string linePath = string.Join(' ', coordinateSegments.Select(BuildLinePath));
-        string areaPath = string.Join(' ', coordinateSegments.Where(segment => segment.Count > 1).Select(segment => BuildAreaPath(segment, bottom)));
+        if (plotSeries.Length == 0)
+        {
+            return PlotModel.Empty;
+        }
 
         var axisLabels = Enumerable.Range(0, 5)
             .Select(index =>
@@ -522,7 +609,54 @@ public partial class Status : IDisposable
             })
             .ToArray();
 
-        return new PlotModel(linePath, areaPath, axisLabels, coordinateSegments[^1][^1]);
+        var timeLabels = Enumerable.Range(0, 5)
+            .Select(index =>
+            {
+                double ratio = index / 4d;
+                DateTime time = windowStart.AddHours(24d * ratio);
+                double x = left + (plotWidth * ratio);
+                return new TimeLabel(x, time.ToString("HH:mm", CultureInfo.InvariantCulture));
+            })
+            .ToArray();
+
+        return new PlotModel(axisLabels, timeLabels, plotSeries);
+    }
+
+    private static PlotSeries BuildPlotSeries(
+        PlotSeriesSpec spec,
+        IReadOnlyList<ChartPoint> source,
+        DateTime windowStart,
+        double minValue,
+        double maxValue,
+        double left,
+        double bottom,
+        double plotWidth,
+        double plotHeight)
+    {
+        var pointSegments = SplitContinuousSegments(source);
+        var coordinateSegments = pointSegments
+            .Select(segment => segment
+                .Select(point =>
+                {
+                    double x = left + (Math.Clamp((point.TimeLocal - windowStart).TotalHours / 24d, 0d, 1d) * plotWidth);
+                    double y = bottom - (((point.Value - minValue) / (maxValue - minValue)) * plotHeight);
+                    return new PlotPoint(x, y);
+                })
+                .ToList())
+            .Where(segment => segment.Count > 0)
+            .ToList();
+
+        if (coordinateSegments.Count == 0)
+        {
+            return PlotSeries.Empty;
+        }
+
+        string linePath = string.Join(' ', coordinateSegments.Select(BuildLinePath));
+        string areaPath = string.IsNullOrWhiteSpace(spec.FillColor)
+            ? string.Empty
+            : string.Join(' ', coordinateSegments.Where(segment => segment.Count > 1).Select(segment => BuildAreaPath(segment, bottom)));
+
+        return new PlotSeries(linePath, areaPath, spec.StrokeColor, spec.FillColor, coordinateSegments[^1][^1]);
     }
 
     private static IReadOnlyList<List<ChartPoint>> SplitContinuousSegments(IReadOnlyList<ChartPoint> source)
@@ -587,6 +721,71 @@ public partial class Status : IDisposable
         return rounded.ToString(Math.Abs(rounded % 1d) < 0.001d ? "F0" : "F1", CultureInfo.InvariantCulture);
     }
 
+    private void UpsertLiveHistorySample(Loop2Packet reading)
+    {
+        DateTime observedAtUtc = Worker.LastReadingAt ?? reading.RecordedAtUtc;
+        DateTime localTime = new DateTimeOffset(observedAtUtc, TimeSpan.Zero)
+            .ToOffset(Station.ConsoleUtcOffset)
+            .DateTime;
+
+        var sample = CreateLiveHistorySample(localTime, reading);
+
+        if (_liveHistorySamples.Count > 0 && Math.Abs((_liveHistorySamples[^1].TimeLocal - localTime).TotalMinutes) < 1)
+        {
+            _liveHistorySamples[^1] = sample;
+        }
+        else
+        {
+            _liveHistorySamples.Add(sample);
+        }
+
+        TrimLiveHistorySamples(localTime);
+    }
+
+    private void TrimLiveHistorySamples(DateTime? windowEndLocal = null)
+    {
+        DateTime end = windowEndLocal
+            ?? ObservationWindowEndLocal
+            ?? (_liveHistorySamples.Count > 0 ? _liveHistorySamples[^1].TimeLocal : DateTime.MinValue);
+
+        if (end == DateTime.MinValue)
+        {
+            return;
+        }
+
+        DateTime windowStart = end.AddHours(-24);
+        _liveHistorySamples = _liveHistorySamples
+            .Where(sample => sample.TimeLocal >= windowStart && sample.TimeLocal <= end)
+            .OrderBy(sample => sample.TimeLocal)
+            .ToList();
+    }
+
+    private static LiveHistorySample CreateLiveHistorySample(DateTime localTime, PersistedLiveReading snapshot)
+    {
+        return new LiveHistorySample(
+            localTime,
+            snapshot.TemperatureF,
+            snapshot.InsideTemperatureF,
+            snapshot.SolarRadiationWm2,
+            snapshot.BarometricPressureInHg,
+            snapshot.PressureRawInHg,
+            snapshot.WindSpeed2MinAvgMph,
+            snapshot.WindGust10MinMph);
+    }
+
+    private static LiveHistorySample CreateLiveHistorySample(DateTime localTime, Loop2Packet reading)
+    {
+        return new LiveHistorySample(
+            localTime,
+            reading.OutsideTemperatureF,
+            reading.InsideTemperatureF,
+            reading.SolarRadiationWm2,
+            reading.BarometricPressureInHg,
+            reading.PressureRawInHg,
+            reading.WindSpeed2MinAvgMph,
+            reading.WindGust10MinMph);
+    }
+
     private static string PressureMarkerLeft(double? pressure)
     {
         if (pressure is null)
@@ -594,7 +793,7 @@ public partial class Status : IDisposable
             return "50%";
         }
 
-        const double minimum = 28.5;
+        const double minimum = 26.5;
         const double maximum = 30.5;
         double clamped = Math.Clamp(pressure.Value, minimum, maximum);
         double percent = ((clamped - minimum) / (maximum - minimum)) * 100.0;
@@ -612,7 +811,7 @@ public partial class Status : IDisposable
         utc.HasValue
             ? new DateTimeOffset(utc.Value, TimeSpan.Zero)
                   .ToOffset(Station.ConsoleUtcOffset)
-                  .ToString("dd MMM yyyy · h:mm tt", CultureInfo.InvariantCulture)
+                  .ToString("dd MMM yyyy - h:mm tt", CultureInfo.InvariantCulture)
             : null;
 
     private string? ToConsoleClock(DateTime? utc) =>
@@ -711,6 +910,12 @@ public partial class Status : IDisposable
         return $"{low:F0}°-{high:F0}°";
     }
 
+    private static MarkupString RenderSvgText(double x, double y, string text, string anchor = "start")
+    {
+        return new MarkupString(
+            $"<text x=\"{x.ToString("F1", CultureInfo.InvariantCulture)}\" y=\"{y.ToString("F1", CultureInfo.InvariantCulture)}\" text-anchor=\"{anchor}\">{System.Net.WebUtility.HtmlEncode(text)}</text>");
+    }
+
     private static int? EncodeDisplayTime(string? value)
     {
         if (string.IsNullOrWhiteSpace(value) ||
@@ -722,22 +927,46 @@ public partial class Status : IDisposable
         return (parsed.Hour * 100) + parsed.Minute;
     }
 
-    private sealed record ChartPoint(DateTime TimeLocal, double Value);
-
     private sealed record LiveHistorySample(
         DateTime TimeLocal,
         double? OutsideTemperatureF,
+        double? InsideTemperatureF,
         double? SolarRadiationWm2,
         double? OutsidePressureInHg,
-        double? InsidePressureInHg);
+        double? InsidePressureInHg,
+        double? WindSpeed2MinAvgMph,
+        double? WindGust10MinMph);
 
-    private sealed record PlotModel(string LinePath, string AreaPath, IReadOnlyList<PlotLabel> AxisLabels, PlotPoint? CurrentPoint)
+    private sealed record ChartPoint(DateTime TimeLocal, double Value);
+
+    private sealed record PlotSeriesSpec(
+        Func<LiveHistorySample, double?> Selector,
+        double? LiveValue,
+        string StrokeColor,
+        string? FillColor = null);
+
+    private sealed record PlotModel(
+        IReadOnlyList<PlotLabel> AxisLabels,
+        IReadOnlyList<TimeLabel> TimeLabels,
+        IReadOnlyList<PlotSeries> Series)
     {
-        public static PlotModel Empty { get; } = new(string.Empty, string.Empty, [], null);
-        public bool HasData => CurrentPoint is not null;
+        public static PlotModel Empty { get; } = new([], [], []);
+        public bool HasData => Series.Count > 0;
+    }
+
+    private sealed record PlotSeries(
+        string LinePath,
+        string AreaPath,
+        string StrokeColor,
+        string? FillColor,
+        PlotPoint? CurrentPoint)
+    {
+        public static PlotSeries Empty { get; } = new(string.Empty, string.Empty, string.Empty, null, null);
     }
 
     private sealed record PlotLabel(double Y, string Text);
+
+    private sealed record TimeLabel(double X, string Text);
 
     private sealed record PlotPoint(double X, double Y);
 
