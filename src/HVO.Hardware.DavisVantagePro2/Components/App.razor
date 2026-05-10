@@ -26,10 +26,20 @@
 </html>
 
 @code {
-    private string AppCssVersion =>
-        Environment.WebRootFileProvider
-            .GetFileInfo("app.css")
-            .LastModified
-            .ToUnixTimeMilliseconds()
-            .ToString(CultureInfo.InvariantCulture);
+    private string AppCssVersion
+    {
+        get
+        {
+            var fileInfo = Environment.WebRootFileProvider.GetFileInfo("app.css");
+
+            if (!fileInfo.Exists || fileInfo.LastModified == DateTimeOffset.MinValue)
+            {
+                return "0";
+            }
+
+            return fileInfo.LastModified
+                .ToUnixTimeMilliseconds()
+                .ToString(CultureInfo.InvariantCulture);
+        }
+    }
 }

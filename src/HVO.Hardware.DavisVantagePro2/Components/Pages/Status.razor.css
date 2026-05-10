@@ -8,6 +8,18 @@
     color: var(--dashboard-text);
 }
 
+.status-page-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .dashboard-page > .layout-canvas {
     width: 100%;
     min-width: 100%;
@@ -890,14 +902,6 @@
     display: grid;
     gap: 12px;
     margin-top: 18px;
-}
-
-.celestial-grid-primary {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.celestial-grid-secondary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .status-pill {

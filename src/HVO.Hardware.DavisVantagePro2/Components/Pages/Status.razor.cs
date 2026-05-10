@@ -24,7 +24,6 @@ public partial class Status : IDisposable
 
     [Inject] private ILogger<Status> Logger { get; set; } = default!;
     [Inject] private IServiceScopeFactory ScopeFactory { get; set; } = default!;
-    [CascadingParameter] private HVO.Hardware.DavisVantagePro2.Components.Layout.MainLayout? MainLayout { get; set; }
     [CascadingParameter] private HVO.Hardware.DavisVantagePro2.Components.Layout.ShellLayoutState? ShellLayoutState { get; set; }
 
     private Loop2Packet? _reading;
@@ -64,8 +63,6 @@ public partial class Status : IDisposable
         ShellLayoutState?.SetPage("Overview", PageHeadingText, PageSummaryText);
         UpdateShellFooter();
     }
-
-    private void ToggleNavigation() => MainLayout?.ToggleDrawer();
 
     private async Task LoadStartupReadingAsync()
     {

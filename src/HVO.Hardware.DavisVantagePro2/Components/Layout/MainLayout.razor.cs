@@ -50,14 +50,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         _shellState.Changed += HandleShellStateChanged;
     }
 
-    public void ToggleDrawer()
-    {
-    }
-
-    public void CloseDrawer()
-    {
-    }
-
     public void Dispose()
     {
         _shellState.Changed -= HandleShellStateChanged;
