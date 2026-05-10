@@ -1,76 +1,64 @@
 @page "/settings"
 @rendermode InteractiveServer
-@using HVO.Hardware.DavisVantagePro2.Outbox
-@using HVO.Hardware.DavisVantagePro2.Station
-@using HVO.Hardware.DavisVantagePro2.Workers
-@inject VantageStation Station
-@inject WeatherStationWorker Worker
 
-<h1>Station Settings</h1>
-<p style="color:#6c7086;font-size:.85rem">Loads from the locally cached settings snapshot by default. Use Refresh to
-    query the console and update the cached values.</p>
+<PrototypeFrame Eyebrow="Settings" Title="Settings">
+    <HeaderAside>
+        <div class="proto-pill"><span>Environment</span><strong>Production</strong></div>
+        <div class="proto-pill"><span>Snapshot</span><strong class="proto-mono">08 May 2026 - 2:35 PM</strong></div>
+        <button class="proto-button primary" type="button">Refresh preferences</button>
+    </HeaderAside>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-error">@_error</div>
-    }
-
-    @if (_s is not null)
-    {
-        <div class="data-grid">
-            <span class="label">Snapshot Updated</span> <span class="value">@FormatCachedAt(_settingsSavedAtUtc)</span>
-            <span class="label">Archive Interval</span> <span class="value">@(_s.ArchiveIntervalSeconds / 60) min</span>
-            <span class="label">Latitude</span> <span class="value">@(_s.LatitudeDegrees?.ToString("F4") ?? "—") °</span>
-            <span class="label">Longitude</span> <span class="value">@(_s.LongitudeDegrees?.ToString("F4") ?? "—") °</span>
-            <span class="label">Altitude</span> <span class="value">@(_s.AltitudeFeet?.ToString("F0") ?? "—") ft</span>
-            <span class="label">Rain Bucket</span> <span class="value">@RainBucketLabel(_s.RainBucketType)</span>
-            <span class="label">Rain Year Start</span> <span class="value">@_s.RainYearStartMonth</span>
-            <span class="label">DST</span> <span class="value">@_s.DstSetting</span>
-            <span class="label">Timezone Mode</span> <span class="value">@_s.TimeZoneLabel</span>
-            <span class="label">Temp Logging</span> <span class="value">@_s.TemperatureLogging</span>
-            <span class="label">Barometer Units</span> <span class="value">@_s.BarometerUnits</span>
-            <span class="label">Temperature Units</span> <span class="value">@_s.TemperatureUnits</span>
-            <span class="label">Rain Units</span> <span class="value">@_s.RainUnits</span>
-            <span class="label">Wind Units</span> <span class="value">@_s.WindUnits</span>
-        </div>
-    }
-    else if (!_settingsLoading)
-    {
-        <p style="color:#6c7086;font-size:.85rem">No cached station settings snapshot has been saved yet. Use Refresh to query
-            the console once and store the values locally.</p>
-        }
-
-        @if (_settingsLoading)
-        {
-            <p style="color:#6c7086;font-size:.85rem"><span class="spinner"></span> @(_s is null ? "Loading cached station settings…" : "Refreshing live station settings…")</p>
-        }
-
-        <h2 style="margin-top:2rem">Archive Catchup</h2>
-        <p style="color:#6c7086;font-size:.85rem">Manual top-off uses the precise missing tail. Startup mode controls whether
-            the service skips, conditionally runs, or forces archive backfill during boot.</p>
-
-            @if (_archiveStatus is not null)
-            {
-                <div class="data-grid">
-                    <span class="label">Startup Mode</span> <span class="value">@_archiveStatus.StartupMode</span>
-                    <span class="label">Lookback Window</span> <span class="value">@_archiveStatus.LookbackHours hr</span>
-                    <span class="label">Latest Persisted</span> <span
-                    class="value">@(_archiveStatus.LatestPersistedAtLocal?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "—")</span>
-                    <span class="label">Sync Lag</span> <span class="value">@FormatLag(_archiveStatus.SyncLag)</span>
-                    <span class="label">Startup Action</span> <span class="value">@(_archiveStatus.ShouldRunOnStartup ? "Would run catchup" : "Would skip catchup")</span>
+    <ChildContent>
+        <div class="proto-grid">
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Console Behavior</div>
+                        <h2>Cached Station Settings</h2>
+                    </div>
                 </div>
-            }
-            else if (_archiveLoading)
-            {
-                <p style="color:#6c7086;font-size:.85rem">Loading archive catchup status…</p>
-            }
+                <div class="proto-detail-grid">
+                    <div class="proto-stat"><span>Archive interval</span><strong class="proto-mono">15 min</strong></div>
+                    <div class="proto-stat"><span>Latitude</span><strong class="proto-mono">35.3619</strong></div>
+                    <div class="proto-stat"><span>Longitude</span><strong class="proto-mono">-113.8336</strong></div>
+                    <div class="proto-stat"><span>Altitude</span><strong class="proto-mono">3491 ft</strong></div>
+                    <div class="proto-stat"><span>DST</span><strong>AUTO</strong></div>
+                    <div class="proto-stat"><span>Timezone mode</span><strong>GMT offset</strong></div>
+                    <div class="proto-stat"><span>Temperature logging</span><strong>LAST</strong></div>
+                    <div class="proto-stat"><span>Display units</span><strong>Read-only snapshot</strong></div>
+                </div>
+            </section>
 
-            @if (_archiveMessage is not null)
-            {
-                <div class="alert @(_archiveError ? "alert-error" : "alert-success")" style="margin-top:.75rem">@_archiveMessage</div>
-            }
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">App Preferences</div>
+                        <h2>Service Configuration</h2>
+                    </div>
+                </div>
+                <div class="proto-detail-grid">
+                    <div class="proto-stat"><span>Config source</span><strong>appsettings.Production.json</strong></div>
+                    <div class="proto-stat"><span>Theme</span><strong>HVO Dark</strong></div>
+                    <div class="proto-stat"><span>Station ID</span><strong>HVO-DAVIS-01</strong></div>
+                    <div class="proto-stat"><span>Outbox mode</span><strong>Enabled</strong></div>
+                </div>
+            </section>
+        </div>
 
-            <button type="button" class="btn btn-primary" @onclick="RunArchiveTopOffAsync"
-                    disabled="@(_archiveLoading || _archiveRunning)">@( _archiveRunning ? "Running archive top-off…" : "Run archive top-off")</button>
-            <button type="button" class="btn btn-primary" @onclick="RefreshLiveSettingsAsync"
-                    disabled="@_settingsLoading">@(_settingsLoading ? "Refreshing…" : "Refresh")</button>
+        <section class="proto-card">
+            <div class="proto-section-head">
+                <div>
+                    <div class="proto-eyebrow">Archive Catch-up</div>
+                    <h2>Startup Behavior</h2>
+                </div>
+                <button class="proto-button success" type="button">Run top-off now</button>
+            </div>
+            <div class="proto-detail-grid">
+                <div class="proto-stat"><span>Startup mode</span><strong>Enabled</strong></div>
+                <div class="proto-stat"><span>Lookback hours</span><strong class="proto-mono">48</strong></div>
+                <div class="proto-stat"><span>Latest persisted</span><strong class="proto-mono">08 May 2026 - 2:20 PM</strong></div>
+                <div class="proto-stat"><span>Sync lag</span><strong class="proto-mono">00:15:00</strong></div>
+            </div>
+        </section>
+    </ChildContent>
+</PrototypeFrame>

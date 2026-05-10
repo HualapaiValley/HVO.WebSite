@@ -1,32 +1,103 @@
 @page "/reception"
 @rendermode InteractiveServer
-@using HVO.Hardware.DavisVantagePro2.Station
-@inject VantageStation Station
 
-<h1>ISS Reception Statistics</h1>
+<PrototypeFrame Eyebrow="Reception" Title="Reception">
+    <HeaderAside>
+        <div class="proto-pill"><span>Reception</span><strong class="proto-mono">99.46%</strong></div>
+        <div class="proto-pill"><span>Last refresh</span><strong class="proto-mono">08 May 2026 - 2:35 PM</strong></div>
+        <button class="proto-button primary" type="button">Refresh stats</button>
+    </HeaderAside>
 
-@if (_loading)
-{
-    <p><span class="spinner"></span> Loading…</p>
-}
-else if (_error is not null)
-{
-    <div class="alert alert-error">@_error</div>
-}
-else if (_stats is not null)
-{
-    <div class="data-grid">
-        <span class="label">Total Packets Received</span>  <span class="value">@_stats.TotalPacketsReceived</span>
-        <span class="label">Total Packets Missed</span>    <span class="value">@_stats.TotalPacketsMissed</span>
-        <span class="label">Reception Rate</span>
-        <span class="value" style="color:@(_stats.ReceptionPercent >= 99 ? "#a6e3a1" : _stats.ReceptionPercent >= 95 ? "#f9e2af" : "#f38ba8")">
-            @_stats.ReceptionPercent.ToString("F2") %
-        </span>
-        <span class="label">Resynchronizations</span>     <span class="value">@_stats.NumberOfResynchronizations</span>
-        <span class="label">Longest Good Stretch</span>   <span class="value">@_stats.LongestGoodStretch</span>
-        <span class="label">CRC Errors</span>              <span class="value">@_stats.NumberOfCrcErrors</span>
-    </div>
-}
+    <ChildContent>
+        <div class="proto-grid">
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">RXCHECK</div>
+                        <h2>Packet Health</h2>
+                    </div>
+                </div>
+                <div class="proto-stat-grid">
+                    <div class="proto-stat"><span>Packets received</span><strong class="proto-mono">12345</strong></div>
+                    <div class="proto-stat"><span>Packets missed</span><strong class="proto-mono">67</strong></div>
+                    <div class="proto-stat"><span>Reception percent</span><strong class="proto-mono">99.46%</strong>
+                    </div>
+                    <div class="proto-stat"><span>Resync count</span><strong class="proto-mono">2</strong></div>
+                    <div class="proto-stat"><span>CRC errors</span><strong class="proto-mono">3</strong></div>
+                    <div class="proto-stat"><span>Longest good stretch</span><strong class="proto-mono">12340</strong>
+                    </div>
+                </div>
+            </section>
 
-<button class="btn btn-primary" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Operator Notes</div>
+                        <h2>Interpretation</h2>
+                    </div>
+                </div>
+                <div class="proto-list-stack">
+                    <div class="proto-list-item"><strong>Primary issue window</strong><span
+                        class="proto-mono">07 May 2026 - 4:18 AM to 4:22 AM UTC</span></div>
+                        <div class="proto-list-item"><strong>Most likely source</strong><span>Transient console/network
+                            interruption</span></div>
+                            <div class="proto-list-item"><strong>Recommended action</strong><span>Review no-packets alarm
+                                history and compare with outbox lag.</span></div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <section class="proto-card">
+                        <div class="proto-section-head">
+                            <div>
+                                <div class="proto-eyebrow">Heard Transmitters</div>
+                                <h2>Radio Snapshot</h2>
+                            </div>
+                        </div>
+                        <div class="proto-table-wrap">
+                            <table class="proto-table">
+                                <thead>
+                                    <tr>
+                                        <th>Channel</th>
+                                        <th>Configured</th>
+                                        <th>Heard now</th>
+                                        <th>Type</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>1</td>
+                                        <td>Yes</td>
+                                        <td>Yes</td>
+                                        <td>ISS</td>
+                                        <td>Primary outdoor suite healthy</td>
+                                    </tr>
+                                    <tr>
+                                        <td>3</td>
+                                        <td>Yes</td>
+                                        <td>Yes</td>
+                                        <td>Temp/Humidity</td>
+                                        <td>Repeater B in use</td>
+                                    </tr>
+                                    <tr>
+                                        <td>4</td>
+                                        <td>Yes</td>
+                                        <td>No</td>
+                                        <td>Leaf</td>
+                                        <td>Configured but not heard</td>
+                                    </tr>
+                                    <tr>
+                                        <td>6</td>
+                                        <td>Yes</td>
+                                        <td>Yes</td>
+                                        <td>Soil</td>
+                                        <td>Intermittent overnight dropouts</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </ChildContent>
+            </PrototypeFrame>
 

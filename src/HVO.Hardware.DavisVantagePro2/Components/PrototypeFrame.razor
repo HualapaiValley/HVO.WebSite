@@ -1,0 +1,49 @@
+@using HVO.Hardware.DavisVantagePro2.Components.Layout
+
+<div class="proto-page">
+    <div class="proto-frame">
+        <header class="proto-header">
+            <div class="proto-header-left">
+                <button class="proto-mark proto-mark-button" type="button" aria-label="Open navigation" aria-controls="weather-nav"
+                        @onclick="ToggleNavigation">HVO</button>
+                <div class="proto-header-copy">
+                    <div class="proto-eyebrow">@Eyebrow</div>
+                    <h1 class="proto-headline">Hualapai Valley Observatory</h1>
+                </div>
+            </div>
+
+            <div class="proto-header-meta">
+                <div class="proto-header-right">
+                    <div class="proto-pill"><span class="proto-dot"></span><strong>Live loop active</strong></div>
+                    <div class="proto-pill"><strong>Hualapai Valley, AZ</strong></div>
+                    <div class="proto-pill"><strong class="proto-mono">08 May 2026 - 8:04 AM</strong></div>
+                </div>
+
+                @if (HeaderAside is not null)
+                {
+                    <div class="proto-header-actions">
+                        @HeaderAside
+                    </div>
+                }
+            </div>
+        </header>
+
+        <div class="proto-content">
+            @ChildContent
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private MainLayout? MainLayout { get; set; }
+
+    [Parameter, EditorRequired] public string Eyebrow { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public RenderFragment? HeaderAside { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private void ToggleNavigation() => MainLayout?.ToggleDrawer();
+}

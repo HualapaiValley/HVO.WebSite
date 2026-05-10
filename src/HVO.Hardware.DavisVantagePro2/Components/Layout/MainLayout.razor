@@ -1,118 +1,74 @@
 @inherits LayoutComponentBase
+@using MudBlazor
 
-<div class="app-shell @(_navOpen ? "nav-open" : null)">
-    <button class="nav-scrim" type="button" aria-label="Close navigation" @onclick="CloseDrawer"></button>
+<MudThemeProvider Theme="@ShellTheme" IsDarkMode="@_shellState.IsDarkMode" IsDarkModeChanged="@OnThemeModeChanged" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-    <aside id="weather-nav" class="nav-drawer" aria-label="Weather station navigation" aria-hidden="@(!_navOpen)">
-        <div class="nav-topbar">
-            <div class="nav-title-block">
-                <span class="nav-kicker">Navigation</span>
-                <strong>Weather Station</strong>
+<CascadingValue Value="this" IsFixed="true">
+<CascadingValue Value="@_shellState" IsFixed="true">
+<MudLayout Class="@LayoutThemeClass">
+    <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
+        <div class="shell-frame shell-bar-content shell-header-frame">
+            <div class="shell-brand-block">
+                <div class="shell-brand-mark" aria-hidden="true">
+                    <MudImage Src="observatory_image.jpg" Alt="" Class="shell-brand-image" />
+                </div>
+                <div class="shell-brand-copy">
+                    <MudText Typo="Typo.h5" Class="shell-brand-text">Hualapai Valley Observatory</MudText>
+                    <MudText Typo="Typo.caption" Class="shell-brand-subtitle">DAVIS WEATHER DASHBOARD</MudText>
+                </div>
             </div>
-            <button class="nav-close" type="button" aria-label="Close navigation"
-                    @onclick="CloseDrawer">&times;</button>
+            <nav class="shell-header-nav" aria-label="Primary navigation">
+                <MudButton Href="/" Variant="@GetNavLinkVariant("Overview")" Color="Color.Inherit" Class="@GetNavLinkClass("Overview")">Overview</MudButton>
+                <MudButton Href="/station-info" Variant="@GetNavLinkVariant("Station Info")" Color="Color.Inherit" Class="@GetNavLinkClass("Station Info")">Station Info</MudButton>
+                <MudButton Href="/alarms" Variant="@GetNavLinkVariant("Alerts")" Color="Color.Inherit" Class="@GetNavLinkClass("Alerts")">Alerts</MudButton>
+                <MudButton Href="/archive-browser" Variant="@GetNavLinkVariant("Archive")" Color="Color.Inherit" Class="@GetNavLinkClass("Archive")">Archive</MudButton>
+                <MudButton Href="/console-settings" Variant="@GetNavLinkVariant("Configuration")" Color="Color.Inherit" Class="@GetNavLinkClass("Configuration")">Configuration</MudButton>
+            </nav>
+            <MudSpacer />
+            <div class="shell-header-actions" aria-label="Header actions">
+                <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium" aria-label="@ThemeSelectorLabel" OnClick="@ToggleTheme" />
+            </div>
         </div>
+    </MudAppBar>
 
-        <div class="nav-summary">
-            <span class="nav-kicker">Davis Console</span>
-            <p>Slide-out navigation for the Hualapai Valley Observatory weather station experience.</p>
-        </div>
-
-        <nav class="nav-groups">
-            <div class="nav-group">
-                <div class="nav-group-label">Dashboard</div>
-                <NavLink href="/" Match="NavLinkMatch.All" class="nav-link" ActiveClass="active" @onclick="CloseDrawer">
-                    <span class="nav-link-icon">D</span>
-                    <span class="nav-link-copy">
-                        <strong>Status Dashboard</strong>
-                        <span>Live conditions and instrument summary</span>
-                    </span>
-                    <span class="nav-link-badge">Live</span>
-                </NavLink>
-                <NavLink href="/archive" class="nav-link" ActiveClass="active" @onclick="CloseDrawer">
-                    <span class="nav-link-icon">A</span>
-                    <span class="nav-link-copy">
-                        <strong>Archive</strong>
-                        <span>Stored records and historical retrieval</span>
-                    </span>
-                    <span class="nav-link-badge">Data</span>
-                </NavLink>
-            </div>
-
-            <div class="nav-group">
-                <div class="nav-group-label">Station</div>
-                <NavLink href="/info" class="nav-link" ActiveClass="active" @onclick="CloseDrawer">
-                    <span class="nav-link-icon">I</span>
-                    <span class="nav-link-copy">
-                        <strong>Station Info</strong>
-                        <span>Console identity and configuration summary</span>
-                    </span>
-                </NavLink>
-                <NavLink href="/barometer" class="nav-link" ActiveClass="active" @onclick="CloseDrawer">
-                    <span class="nav-link-icon">B</span>
-                    <span class="nav-link-copy">
-                        <strong>Barometer</strong>
-                        <span>Pressure calibration and offsets</span>
-                    </span>
-                </NavLink>
-                <NavLink href="/clock" class="nav-link" ActiveClass="active" @onclick="CloseDrawer">
-                    <span class="nav-link-icon">C</span>
-                    <span class="nav-link-copy">
-                        <strong>Clock</strong>
-                        <span>Console time and offset controls</span>
-                    </span>
-                </NavLink>
-                <NavLink href="/reception" class="nav-link" ActiveClass="active" @onclick="CloseDrawer">
-                    <span class="nav-link-icon">R</span>
-                    <span class="nav-link-copy">
-                        <strong>Reception</strong>
-                        <span>Signal quality and reception detail</span>
-                    </span>
-                </NavLink>
-                <NavLink href="/transmitters" class="nav-link" ActiveClass="active" @onclick="CloseDrawer">
-                    <span class="nav-link-icon">T</span>
-                    <span class="nav-link-copy">
-                        <strong>Transmitters</strong>
-                        <span>Battery state and channel health</span>
-                    </span>
-                </NavLink>
-            </div>
-
-            <div class="nav-group">
-                <div class="nav-group-label">Setup</div>
-                <NavLink href="/settings" class="nav-link" ActiveClass="active" @onclick="CloseDrawer">
-                    <span class="nav-link-icon">S</span>
-                    <span class="nav-link-copy">
-                        <strong>Settings</strong>
-                        <span>General console and app preferences</span>
-                    </span>
-                </NavLink>
-                <NavLink href="/calibration" class="nav-link" ActiveClass="active" @onclick="CloseDrawer">
-                    <span class="nav-link-icon">K</span>
-                    <span class="nav-link-copy">
-                        <strong>Calibration</strong>
-                        <span>Sensor and offset calibration workflows</span>
-                    </span>
-                </NavLink>
-                <NavLink href="/rain" class="nav-link" ActiveClass="active" @onclick="CloseDrawer">
-                    <span class="nav-link-icon">W</span>
-                    <span class="nav-link-copy">
-                        <strong>Rain Settings</strong>
-                        <span>Bucket type and rainfall configuration</span>
-                    </span>
-                </NavLink>
-            </div>
-        </nav>
-
-        <div class="nav-footer">
-            <div class="pill"><span class="dot"></span>Drawer pattern under review</div>
-            <div class="pill">Slide-out navigation with section pills</div>
-        </div>
-    </aside>
-
-    <CascadingValue Value="this" IsFixed="true">
-        <main class="admin-content">
+    <MudMainContent Class="shell-main">
+        <div class="shell-frame shell-content">
             @Body
-        </main>
-    </CascadingValue>
+        </div>
+    </MudMainContent>
+
+    <MudAppBar Bottom="true" Fixed="true" Elevation="0" Dense="true" Class="shell-appbar shell-appbar-footer">
+        <div class="shell-frame shell-bar-content shell-footer-frame">
+            <div class="shell-footer-layout" aria-label="Footer sections">
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-1">
+                    @if (GetFooterIndicatorClass(_shellState.FooterSlot1.Indicator) is { } slot1IndicatorClass)
+                    {
+                        <span class="@slot1IndicatorClass" aria-hidden="true"></span>
+                    }
+                    @_shellState.FooterSlot1.Text
+                </MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-2">@_shellState.FooterSlot2.Text</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-3">@_shellState.FooterSlot3.Text</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-4">@_shellState.FooterSlot4.Text</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-5">
+                    @if (GetFooterIndicatorClass(_shellState.FooterSlot5.Indicator) is { } slot5IndicatorClass)
+                    {
+                        <span class="@slot5IndicatorClass" aria-hidden="true"></span>
+                    }
+                    @_shellState.FooterSlot5.Text
+                </MudText>
+            </div>
+        </div>
+    </MudAppBar>
+</MudLayout>
+</CascadingValue>
+</CascadingValue>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
 </div>

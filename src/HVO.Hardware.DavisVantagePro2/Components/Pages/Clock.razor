@@ -1,37 +1,43 @@
 @page "/clock"
 @rendermode InteractiveServer
-@using HVO.Hardware.DavisVantagePro2.Station
-@inject VantageStation Station
 
-<h1>Console Clock</h1>
+<PrototypeFrame Eyebrow="Clock" Title="Clock">
+    <HeaderAside>
+        <div class="proto-pill"><span>Drift</span><strong class="proto-mono">5.0 s</strong></div>
+        <div class="proto-pill"><span>Timezone</span><strong>Arizona (MST)</strong></div>
+        <button class="proto-button primary" type="button">Sync now</button>
+    </HeaderAside>
 
-@if (_loading)
-{
-    <p><span class="spinner"></span> Loading…</p>
-}
-else if (_error is not null)
-{
-    <div class="alert alert-error">@_error</div>
-}
-else
-{
-    <div class="data-grid">
-        <span class="label">Console Time</span><span class="value">@_consoleTime.ToString("yyyy-MM-dd HH:mm:ss")</span>
-        <span class="label">System Time</span> <span class="value">@_systemTime.ToString("yyyy-MM-dd HH:mm:ss")</span>
-        <span class="label">Drift</span>
-        <span class="value" style="color:@(_absDrift > 30 ? "#f38ba8" : "#a6e3a1")">
-            @_drift.ToString("F1") s (@(_absDrift > 30 ? "⚠ sync recommended" : "OK"))
-        </span>
-    </div>
-    <button class="btn btn-primary" @onclick="SyncAsync" disabled="@_syncing">
-        @(_syncing ? "Syncing…" : "Sync Console to System Time")
-    </button>
-}
+    <ChildContent>
+        <div class="proto-grid">
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">GETTIME / SETTIME</div>
+                        <h2>Console Time</h2>
+                    </div>
+                </div>
+                <div class="proto-detail-grid">
+                    <div class="proto-stat"><span>Console time</span><strong class="proto-mono">08 May 2026 - 2:34 PM</strong></div>
+                    <div class="proto-stat"><span>Host time</span><strong class="proto-mono">08 May 2026 - 2:34 PM</strong></div>
+                    <div class="proto-stat"><span>Drift</span><strong class="proto-mono">5.0 s</strong></div>
+                    <div class="proto-stat"><span>Time zone label</span><strong>Arizona (MST)</strong></div>
+                </div>
+            </section>
 
-@if (_msg is not null)
-{
-    <div class="alert @(_isError ? "alert-error" : "alert-success")" style="margin-top:.75rem">@_msg</div>
-}
-
-<button class="btn btn-primary" style="margin-top:1rem" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Sync Workflow</div>
+                        <h2>Operator Guidance</h2>
+                    </div>
+                </div>
+                <div class="proto-list-stack">
+                    <div class="proto-list-item"><strong>Recommended trigger</strong><span>Sync after replacing console batteries or after any prolonged disconnect.</span></div>
+                    <div class="proto-list-item"><strong>Dependency</strong><span>Timezone mode and GMT offset live in the Settings page.</span></div>
+                </div>
+            </section>
+        </div>
+    </ChildContent>
+</PrototypeFrame>
 
