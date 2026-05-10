@@ -50,6 +50,17 @@ JK BMS devices (Bluetooth LE)                                  ▼
 | **Health probes** | `/health/live` (liveness), `/health/ready` (DB readiness), `/health` (full diagnostics) |
 | **OpenAPI** | `/openapi/v1.json` spec; interactive Scalar UI at `/scalar/v1` (dev) |
 
+## UI Baseline
+
+The Davis collector UI now serves as the baseline shell/template for the hardware admin apps.
+
+- Fixed top and bottom app bars with the page content scrolling inside the center canvas
+- Light and dark theme support driven by shared shell tokens instead of page-local hardcoded colors
+- MudBlazor shell chrome, with page-specific content kept in Blazor components and scoped CSS
+- Inline SVG charts and astronomy graphics so the live status page has no separate charting dependency
+
+See [src/HVO.Hardware.DavisVantagePro2/README.md](src/HVO.Hardware.DavisVantagePro2/README.md) for the Davis template structure, dependencies, and the Status page implementation notes.
+
 ## API Endpoints
 
 ### Weather
