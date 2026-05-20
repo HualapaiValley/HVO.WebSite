@@ -90,6 +90,9 @@ See [src/HVO.Hardware.DavisVantagePro2/README.md](src/HVO.Hardware.DavisVantageP
 
 ```bash
 # Run the full stack locally (requires .env with secrets)
+# Local hardware services now send OTLP telemetry to the global collector.
+# Set OTEL_COLLECTOR_ENDPOINT in .env, for example:
+# OTEL_COLLECTOR_ENDPOINT=http://192.168.1.238:4318
 docker compose up --build
 
 # Or run the website only

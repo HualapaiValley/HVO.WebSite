@@ -1,8 +1,9 @@
 # HVO.WebSite — local Docker Compose stack
 #
-# Deploys two services onto a shared Docker network:
+# Deploys the local HVO services onto a shared Docker network:
 #   hvo-website   — ASP.NET Core / Blazor Server web application
-#   hvo-davis     — Davis Vantage Pro 2 hardware driver (sidecar)
+#   hvo-davis     — Davis Vantage Pro 2 hardware driver
+#   hvo-jkbms     — JK BMS battery monitor driver
 #
 # Both images are built locally from the repo. No registry is required.
 #
@@ -39,7 +40,7 @@ services:
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
       # HTTPS on 443 (self-signed cert baked into image).
       # HTTP on 80 redirects to HTTPS; port 8080 stays internal for service-to-service.
-      # Disable HTTPS redirect — sidecars (hvo-davis, hvo-jkbms) post to http://hvo-website:8080
+      # Disable HTTPS redirect — internal services post to http://hvo-website:8080
       # and must not be redirected to HTTPS where the self-signed cert would be rejected.
       EnableHttpsRedirect: "false"
       # Seeds system ingest API keys into the DB on first start
@@ -63,38 +64,6 @@ services:
       retries: 3
 
   # ---------------------------------------------------------------------------
-  # OTel Collector sidecar for hvo-davis
-  # Receives OTLP from the Davis app, scrapes container metrics via docker_stats,
-  # and forwards everything to the configured exporter (debug → azuremonitor).
-  # ---------------------------------------------------------------------------
-  otel-collector-davis:
-    build:
-      context: ./otel
-      dockerfile: Dockerfile.davis
-    environment:
-      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
-    user: "0:0"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
-  # OTel Collector sidecar for hvo-jkbms
-  # Receives OTLP from the JkBms app, scrapes container metrics via docker_stats,
-  # and forwards everything to the configured exporter (debug → azuremonitor).
-  # ---------------------------------------------------------------------------
-  otel-collector-jkbms:
-    build:
-      context: ./otel
-      dockerfile: Dockerfile.jkbms
-    environment:
-      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
-    user: "0:0"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
   # Davis Vantage Pro 2 driver — reads from the console, posts to hvo-website
   # ---------------------------------------------------------------------------
   hvo-davis:
@@ -104,8 +73,6 @@ services:
     depends_on:
       hvo-website:
         condition: service_healthy
-      otel-collector-davis:
-        condition: service_started
     ports:
       - "5100:8080"
     environment:
@@ -120,9 +87,9 @@ services:
       # Persist the outbox SQLite DB across restarts
       Outbox__DbPath: /app/data/outbox.db
       DOTNET_ENVIRONMENT: Production
-      # OTel — send traces/metrics/logs to the collector sidecar
+      # OTel — send traces/metrics/logs to the global collector
       OTEL_SERVICE_NAME: hvo-davis
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector-davis:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
       - davis-outbox:/app/data
@@ -139,8 +106,6 @@ services:
     depends_on:
       hvo-website:
         condition: service_healthy
-      otel-collector-jkbms:
-        condition: service_started
     ports:
       - "5200:8080"
     environment:
@@ -150,9 +115,9 @@ services:
       # Persist the outbox SQLite DB across restarts
       Outbox__DbPath: /app/data/outbox.db
       DOTNET_ENVIRONMENT: Production
-      # OTel — send traces/metrics/logs to the collector sidecar
+      # OTel — send traces/metrics/logs to the global collector
       OTEL_SERVICE_NAME: hvo-jkbms
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector-jkbms:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     # Bluetooth (BLE) requires access to the host's BlueZ daemon via D-Bus.
     # The host must have bluetoothd running and at least one adapter (hci0) available.
