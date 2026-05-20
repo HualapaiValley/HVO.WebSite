@@ -489,7 +489,7 @@ All tests must pass (`dotnet test`) before any PR is created. E2E tests are skip
 
 ## Constraints
 
-- .NET SDK `10.0.203` (pinned in `global.json`)
+- .NET SDK `10.0.203` baseline in `global.json` with `latestFeature` roll-forward for newer .NET 10 SDK bands
 - Zero build warnings, zero build errors — mandatory
 - No `npm`, `npx`, Node.js, or Python
 - `az` CLI is available for Azure/Entra resource management
