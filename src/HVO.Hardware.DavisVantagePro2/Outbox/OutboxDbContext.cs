@@ -101,11 +101,45 @@ public sealed class StationSettingsSnapshotEntity
     }
 }
 
+public sealed class StationInfoSnapshotEntity
+{
+    public int Id { get; set; }
+    public DateTime SavedAtUtc { get; set; }
+    public string HardwareName { get; set; } = string.Empty;
+    public int HardwareType { get; set; }
+    public int ModelType { get; set; }
+    public string FirmwareVersion { get; set; } = string.Empty;
+    public string FirmwareDate { get; set; } = string.Empty;
+    public DateTime ConsoleTime { get; set; }
+
+    public StationInfo ToStationInfo() => new()
+    {
+        HardwareName = HardwareName,
+        HardwareType = HardwareType,
+        ModelType = ModelType,
+        FirmwareVersion = FirmwareVersion,
+        FirmwareDate = FirmwareDate,
+        ConsoleTime = ConsoleTime,
+    };
+
+    public void Apply(StationInfo stationInfo, DateTime savedAtUtc)
+    {
+        SavedAtUtc = savedAtUtc;
+        HardwareName = stationInfo.HardwareName;
+        HardwareType = stationInfo.HardwareType;
+        ModelType = stationInfo.ModelType;
+        FirmwareVersion = stationInfo.FirmwareVersion;
+        FirmwareDate = stationInfo.FirmwareDate;
+        ConsoleTime = stationInfo.ConsoleTime;
+    }
+}
+
 /// <summary>EF Core DbContext for the local SQLite outbox database.</summary>
 public sealed class OutboxDbContext(DbContextOptions<OutboxDbContext> options) : DbContext(options)
 {
     public DbSet<OutboxRecord> OutboxRecords => Set<OutboxRecord>();
     public DbSet<StationSettingsSnapshotEntity> StationSettingsSnapshots => Set<StationSettingsSnapshotEntity>();
+    public DbSet<StationInfoSnapshotEntity> StationInfoSnapshots => Set<StationInfoSnapshotEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -130,6 +164,16 @@ public sealed class OutboxDbContext(DbContextOptions<OutboxDbContext> options) :
             e.Property(r => r.TemperatureUnits).IsRequired();
             e.Property(r => r.RainUnits).IsRequired();
             e.Property(r => r.WindUnits).IsRequired();
+        });
+
+        modelBuilder.Entity<StationInfoSnapshotEntity>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Id).ValueGeneratedNever();
+            e.Property(r => r.SavedAtUtc).IsRequired();
+            e.Property(r => r.HardwareName).IsRequired();
+            e.Property(r => r.FirmwareVersion).IsRequired();
+            e.Property(r => r.FirmwareDate).IsRequired();
         });
     }
 }

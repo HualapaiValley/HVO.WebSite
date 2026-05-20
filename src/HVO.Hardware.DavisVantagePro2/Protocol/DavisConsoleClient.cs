@@ -49,8 +49,26 @@ public sealed class DavisConsoleClient : IDisposable
     public void Close()
     {
         // Cancel any pending LOOP before closing
-        try { WriteRaw([DavisProtocol.Lf]); } catch { /* best-effort */ }
+        try { CancelLoop(); } catch { /* best-effort */ }
         CloseInternal();
+    }
+
+    public void CancelLoop()
+    {
+        if (!IsConnected)
+            return;
+
+        WriteRaw([DavisProtocol.Lf]);
+    }
+
+    public async Task CancelLoopAsync(CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            return;
+
+        await WriteAsync([DavisProtocol.Lf], ct);
+        await Task.Delay(QueuedReadIdleGrace, ct);
+        await FlushInputAsync(ct);
     }
 
     private void CloseInternal()
@@ -190,7 +208,6 @@ public sealed class DavisConsoleClient : IDisposable
         {
             try
             {
-                await WakeAsync(maxTries: 1, ct);
                 await WriteAsync(cmdBytes, ct);
                 await Task.Delay(500, ct); // console reaction time
 
@@ -224,7 +241,6 @@ public sealed class DavisConsoleClient : IDisposable
         {
             try
             {
-                await WakeAsync(maxTries: 1, ct);
                 await WriteAsync(cmdBytes, ct);
                 await Task.Delay(500, ct);
 
@@ -268,7 +284,6 @@ public sealed class DavisConsoleClient : IDisposable
         {
             try
             {
-                await WakeAsync(maxTries: 1, ct);
                 await WriteAsync(cmdBytes, ct);
 
                 DateTime deadline = DateTime.UtcNow + maxWait;

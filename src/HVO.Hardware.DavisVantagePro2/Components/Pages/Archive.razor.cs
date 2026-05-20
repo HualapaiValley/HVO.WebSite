@@ -1,4 +1,5 @@
 using System.Globalization;
+using HVO.Hardware.DavisVantagePro2.Components.Layout;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
@@ -7,7 +8,11 @@ namespace HVO.Hardware.DavisVantagePro2.Components.Pages;
 
 public partial class Archive : IAsyncDisposable
 {
+    private const string PageHeadingText = "Archive and history";
+    private const string PageSummaryText = "Console archive controls and on-demand historical pulls presented inside the shared Davis shell frame.";
+
     [Inject] private ILogger<Archive> Logger { get; set; } = default!;
+    [CascadingParameter] private ShellLayoutState? ShellLayoutState { get; set; }
 
     // ── Archive Interval ─────────────────────────────────────────────────────
 
@@ -15,6 +20,17 @@ public partial class Archive : IAsyncDisposable
     private bool _confirmClear;
     private string? _msg;
     private bool _isError;
+
+    protected override void OnInitialized()
+    {
+        _interval = Math.Max(1, Station.ArchiveIntervalSeconds / 60);
+        UpdateShell();
+    }
+
+    protected override void OnParametersSet()
+    {
+        UpdateShell();
+    }
 
     private async Task SaveIntervalAsync()
     {
@@ -28,6 +44,10 @@ public partial class Archive : IAsyncDisposable
         {
             Logger.LogError(ex, "Failed to set archive interval to {Minutes} minutes", _interval);
             _msg = ex.Message; _isError = true;
+        }
+        finally
+        {
+            UpdateShell();
         }
     }
 
@@ -45,6 +65,10 @@ public partial class Archive : IAsyncDisposable
         {
             Logger.LogError(ex, "Failed to clear archive memory");
             _msg = ex.Message; _isError = true;
+        }
+        finally
+        {
+            UpdateShell();
         }
     }
 
@@ -138,6 +162,7 @@ public partial class Archive : IAsyncDisposable
         finally
         {
             _historyLoading = false;
+            UpdateShell();
         }
     }
 
@@ -181,6 +206,7 @@ public partial class Archive : IAsyncDisposable
         finally
         {
             _historyLoading = false;
+            UpdateShell();
         }
     }
 
@@ -195,4 +221,41 @@ public partial class Archive : IAsyncDisposable
 
     internal static string Fmt(double? v, string fmt = "F1") =>
         v.HasValue ? v.Value.ToString(fmt) : "—";
+
+    private void UpdateShell()
+    {
+        ShellLayoutState?.SetPage("Archive", PageHeadingText, PageSummaryText);
+    }
+
+    private ShellFooterItem BuildConnectionFooterItem()
+    {
+        if (_historyLoading)
+        {
+            return new ShellFooterItem("Archive pull running", ShellFooterIndicator.Warning);
+        }
+
+        return Station.IsConnected
+            ? new ShellFooterItem("Station connected", ShellFooterIndicator.Online)
+            : new ShellFooterItem("Station disconnected", ShellFooterIndicator.Offline);
+    }
+
+    private ShellFooterItem BuildHistoryFooterItem()
+    {
+        if (_historyError is not null || (_msg is not null && _isError))
+        {
+            return new ShellFooterItem("Archive action failed", ShellFooterIndicator.Offline);
+        }
+
+        if (_hasMore)
+        {
+            return new ShellFooterItem("More archive data available", ShellFooterIndicator.Warning);
+        }
+
+        if (_historyRecords is not null)
+        {
+            return new ShellFooterItem("Archive history ready", ShellFooterIndicator.Online);
+        }
+
+        return new ShellFooterItem("Archive history idle", ShellFooterIndicator.Warning);
+    }
 }

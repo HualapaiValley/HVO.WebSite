@@ -1,134 +1,139 @@
 @page "/archive"
+@page "/archive-browser"
 @rendermode InteractiveServer
 @using HVO.Hardware.DavisVantagePro2.Station
 @inject VantageStation Station
 
 <div class="archive-page">
-    <section class="page-hero card-shell">
-        <div>
-            <div class="eyebrow">Archive Console</div>
-            <h1>Archive And History</h1>
-            <p>Manage console archive settings, clear memory when needed, and pull historical records directly from the
-                station.</p>
-            </div>
-            <div class="hero-pills">
-                <div class="pill-card">
-                    <span>Archive interval</span>
-                    <strong class="mono">@_interval min</strong>
-                </div>
-                <div class="pill-card">
-                    <span>Loaded records</span>
-                    <strong class="mono">@(_historyRecords?.Count ?? 0)</strong>
-                </div>
-                <div class="pill-card">
-                    <span>Console time zone</span>
-                    <strong>@Station.ConsoleTimeZoneLabel</strong>
-                </div>
-            </div>
-        </section>
+    <MudPaper Class="layout-canvas shell-page" Elevation="0" aria-label="Archive console content area">
+        <div class="shell-page-stack archive-stack">
+            <h1 class="page-heading">Archive And History</h1>
 
-        @if (_msg is not null)
-        {
-            <div class="callout @(_isError ? "error" : "success")">@_msg</div>
-        }
+            @if (_msg is not null)
+            {
+                <div class="callout @(_isError ? "error" : "success")">@_msg</div>
+            }
 
-        <div class="archive-grid">
-            <section class="card-shell settings-card">
-                <div class="section-head">
-                    <div>
-                        <div class="eyebrow">Configuration</div>
-                        <h2>Archive Interval</h2>
-                    </div>
-                </div>
-
-                <div class="control-stack">
-                    <label class="field-label" for="archive-interval">Interval (minutes)</label>
-                    <div class="control-row">
-                        <select id="archive-interval" @bind="_interval">
-                            <option value="1">1 min</option>
-                            <option value="5">5 min</option>
-                            <option value="10">10 min</option>
-                            <option value="15">15 min</option>
-                            <option value="30">30 min</option>
-                            <option value="60">60 min</option>
-                            <option value="120">120 min</option>
-                        </select>
-                        <button class="action-btn primary" @onclick="SaveIntervalAsync">Set Interval</button>
-                    </div>
-                </div>
-            </section>
-
-            <section class="card-shell danger-card">
-                <div class="section-head">
-                    <div>
-                        <div class="eyebrow">Danger Zone</div>
-                        <h2>Clear Archive Memory</h2>
-                    </div>
-                </div>
-
-                <p class="danger-copy">This permanently erases all archived data on the console. This cannot be undone.</p>
-
-                @if (!_confirmClear)
-                {
-                    <button class="action-btn danger" @onclick="() => _confirmClear = true">Clear Archive…</button>
-                }
-                else
-                {
-                    <div class="confirm-box">
-                        <p>Are you absolutely sure?</p>
-                        <div class="control-row">
-                            <button class="action-btn danger" @onclick="ClearAsync">Yes, clear all archive data</button>
-                            <button class="action-btn" @onclick="() => _confirmClear = false">Cancel</button>
+            <div class="archive-grid">
+                <section class="card-shell summary-card">
+                    <div class="section-head">
+                        <div>
+                            <div class="eyebrow">Archive Console</div>
+                            <h2>Archive Status</h2>
                         </div>
                     </div>
+
+                    <div class="summary-pills">
+                        <div class="pill-card">
+                            <span>Archive interval</span>
+                            <strong class="mono">@_interval min</strong>
+                        </div>
+                        <div class="pill-card">
+                            <span>Loaded records</span>
+                            <strong class="mono">@(_historyRecords?.Count ?? 0)</strong>
+                        </div>
+                        <div class="pill-card">
+                            <span>Console time zone</span>
+                            <strong>@Station.ConsoleTimeZoneLabel</strong>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card-shell settings-card">
+                    <div class="section-head">
+                        <div>
+                            <div class="eyebrow">Configuration</div>
+                            <h2>Archive Interval</h2>
+                        </div>
+                    </div>
+
+                    <div class="control-stack">
+                        <label class="field-label" for="archive-interval">Interval (minutes)</label>
+                        <div class="control-row">
+                            <select id="archive-interval" @bind="_interval">
+                                <option value="1">1 min</option>
+                                <option value="5">5 min</option>
+                                <option value="10">10 min</option>
+                                <option value="15">15 min</option>
+                                <option value="30">30 min</option>
+                                <option value="60">60 min</option>
+                                <option value="120">120 min</option>
+                            </select>
+                            <button class="action-btn primary" @onclick="SaveIntervalAsync">Set Interval</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card-shell danger-card">
+                    <div class="section-head">
+                        <div>
+                            <div class="eyebrow">Danger Zone</div>
+                            <h2>Clear Archive Memory</h2>
+                        </div>
+                    </div>
+
+                    <p class="danger-copy">This permanently erases all archived data on the console. This cannot be undone.</p>
+
+                    @if (!_confirmClear)
+                    {
+                        <button class="action-btn danger" @onclick="() => _confirmClear = true">Clear Archive…</button>
+                    }
+                    else
+                    {
+                        <div class="confirm-box">
+                            <p>Are you absolutely sure?</p>
+                            <div class="control-row">
+                                <button class="action-btn danger" @onclick="ClearAsync">Yes, clear all archive data</button>
+                                <button class="action-btn" @onclick="() => _confirmClear = false">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                </section>
+            </div>
+
+            <section class="card-shell history-card">
+                <div class="section-head">
+                    <div>
+                        <div class="eyebrow">Historical Pull</div>
+                        <h2>Archive History</h2>
+                    </div>
+                </div>
+
+                <div class="history-toolbar">
+                    <div class="control-stack">
+                        <label class="field-label" for="archive-since">Since</label>
+                        <input id="archive-since" type="datetime-local" value="@_since.ToString("yyyy-MM-ddTHH:mm")"
+                               @onchange="OnSinceChanged" />
+                    </div>
+
+                    <div class="toolbar-actions">
+                        <button class="action-btn primary" @onclick="LoadHistoryAsync" disabled="@_historyLoading">
+                            @if (_historyLoading)
+                            {
+                                <span>Loading…</span>
+                            }
+                            else
+                            {
+                                <span>Load</span>
+                            }
+                        </button>
+                        <button class="action-btn" @onclick='() => { _since = DateTime.Now.AddDays(-1); }'
+                                disabled="@_historyLoading">Last 24 h</button>
+                    </div>
+                </div>
+
+                @if (_historyLoading)
+                {
+                    <div class="callout info">Fetching archive records from console…</div>
                 }
-            </section>
-        </div>
-
-        <section class="card-shell history-card">
-            <div class="section-head">
-                <div>
-                    <div class="eyebrow">Historical Pull</div>
-                    <h2>Archive History</h2>
-                </div>
-            </div>
-
-            <div class="history-toolbar">
-                <div class="control-stack">
-                    <label class="field-label" for="archive-since">Since</label>
-                    <input id="archive-since" type="datetime-local" value="@_since.ToString("yyyy-MM-ddTHH:mm")"
-                           @onchange="OnSinceChanged" />
-                </div>
-
-                <div class="toolbar-actions">
-                    <button class="action-btn primary" @onclick="LoadHistoryAsync" disabled="@_historyLoading">
-                        @if (_historyLoading)
-                        {
-                            <span>Loading…</span>
-                        }
-                        else
-                        {
-                            <span>Load</span>
-                        }
-                    </button>
-                    <button class="action-btn" @onclick='() => { _since = DateTime.Now.AddDays(-1); }'
-                            disabled="@_historyLoading">Last 24 h</button>
-                </div>
-            </div>
-
-            @if (_historyLoading)
-            {
-                <div class="callout info">Fetching archive records from console…</div>
-            }
-            else if (_historyError is not null)
-            {
-                <div class="callout error">@_historyError</div>
-            }
-            else if (_historyRecords is not null)
-            {
-                <div class="history-summary">
-                    <span>@_historyRecords.Count record@(_historyRecords.Count == 1 ? "" : "s") loaded since
-                        @_historySince.ToString("yyyy-MM-dd HH:mm")</span>
+                else if (_historyError is not null)
+                {
+                    <div class="callout error">@_historyError</div>
+                }
+                else if (_historyRecords is not null)
+                {
+                    <div class="history-summary">
+                        <span>@_historyRecords.Count record@(_historyRecords.Count == 1 ? "" : "s") loaded since @_historySince.ToString("yyyy-MM-dd HH:mm")</span>
                         @if (_hasMore)
                         {
                             <span>More records are available.</span>
@@ -189,25 +194,23 @@
                                         <button class="action-btn" @onclick='() => _displayPage--' disabled="@(_displayPage == 1)">‹</button>
                                         <span class="page-state">
                                             Page @_displayPage of @TotalPages
-                                            (@((_displayPage - 1) * PageSize + 1)–@(Math.Min(_displayPage * PageSize, _historyRecords.Count)) of
-                                            @_historyRecords.Count)
+                                            (@((_displayPage - 1) * PageSize + 1)–@(Math.Min(_displayPage * PageSize, _historyRecords.Count)) of @_historyRecords.Count)
                                         </span>
-                                        <button class="action-btn" @onclick='() => _displayPage++'
-                                                disabled="@(_displayPage >= TotalPages)">›</button>
-                                        <button class="action-btn" @onclick='() => _displayPage = TotalPages'
-                                                disabled="@(_displayPage >= TotalPages)">»</button>
+                                        <button class="action-btn" @onclick='() => _displayPage++' disabled="@(_displayPage >= TotalPages)">›</button>
+                                        <button class="action-btn" @onclick='() => _displayPage = TotalPages' disabled="@(_displayPage >= TotalPages)">»</button>
                                     </div>
                                 }
 
                                 @if (_hasMore)
                                 {
-                                    <button class="action-btn primary push-right" @onclick="LoadMoreAsync" disabled="@_historyLoading">Load more
-                                        from console…</button>
-                                    }
-                                </div>
-                            }
+                                    <button class="action-btn primary push-right" @onclick="LoadMoreAsync" disabled="@_historyLoading">Load more from console…</button>
+                                }
+                            </div>
                         }
                     }
-                </section>
-            </div>
+                }
+            </section>
+        </div>
+    </MudPaper>
+</div>
 

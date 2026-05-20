@@ -14,6 +14,7 @@ using Serilog.Sinks.OpenTelemetry;
 using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Protocol;
+using HVO.Hardware.DavisVantagePro2.Services;
 using HVO.Hardware.DavisVantagePro2.Station;
 using HVO.Hardware.DavisVantagePro2.Api;
 using HVO.Hardware.DavisVantagePro2.Telemetry;
@@ -131,6 +132,7 @@ builder.Services.AddDbContext<OutboxDbContext>(o =>
     o.UseSqlite($"Data Source={dbPath}"),
     ServiceLifetime.Scoped);
 builder.Services.AddSingleton<StationSettingsSnapshotStore>();
+builder.Services.AddSingleton<StationInfoSnapshotStore>();
 
 // ── HTTP client for outbox forwarder ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("WeatherApi", (sp, client) =>
@@ -147,6 +149,7 @@ builder.Services.AddSingleton<WeatherStationWorker>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WeatherStationWorker>());
 builder.Services.AddSingleton<OutboxForwarder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxForwarder>());
+builder.Services.AddSingleton<DavisSiteState>();
 
 // ── Blazor Server ──────────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()
@@ -179,6 +182,17 @@ using (var scope = app.Services.CreateScope())
             TemperatureUnits TEXT NOT NULL,
             RainUnits TEXT NOT NULL,
             WindUnits TEXT NOT NULL
+        );");
+    await db.Database.ExecuteSqlRawAsync(
+        @"CREATE TABLE IF NOT EXISTS StationInfoSnapshots (
+            Id INTEGER NOT NULL CONSTRAINT PK_StationInfoSnapshots PRIMARY KEY,
+            SavedAtUtc TEXT NOT NULL,
+            HardwareName TEXT NOT NULL,
+            HardwareType INTEGER NOT NULL,
+            ModelType INTEGER NOT NULL,
+            FirmwareVersion TEXT NOT NULL,
+            FirmwareDate TEXT NOT NULL,
+            ConsoleTime TEXT NOT NULL
         );");
 
     var snapshotStore = scope.ServiceProvider.GetRequiredService<StationSettingsSnapshotStore>();

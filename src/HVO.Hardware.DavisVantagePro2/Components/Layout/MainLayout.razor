@@ -21,13 +21,13 @@
             </div>
             <nav class="shell-header-nav" aria-label="Primary navigation">
                 <MudButton Href="/" Variant="@GetNavLinkVariant("Overview")" Color="Color.Inherit" Class="@GetNavLinkClass("Overview")">Overview</MudButton>
-                <MudButton Href="/station-info" Variant="@GetNavLinkVariant("Station Info")" Color="Color.Inherit" Class="@GetNavLinkClass("Station Info")">Station Info</MudButton>
                 <MudButton Href="/alarms" Variant="@GetNavLinkVariant("Alerts")" Color="Color.Inherit" Class="@GetNavLinkClass("Alerts")">Alerts</MudButton>
-                <MudButton Href="/archive-browser" Variant="@GetNavLinkVariant("Archive")" Color="Color.Inherit" Class="@GetNavLinkClass("Archive")">Archive</MudButton>
+                <MudButton Href="/archive" Variant="@GetNavLinkVariant("Archive")" Color="Color.Inherit" Class="@GetNavLinkClass("Archive")">Archive</MudButton>
                 <MudButton Href="/console-settings" Variant="@GetNavLinkVariant("Configuration")" Color="Color.Inherit" Class="@GetNavLinkClass("Configuration")">Configuration</MudButton>
             </nav>
             <MudSpacer />
             <div class="shell-header-actions" aria-label="Header actions">
+                <MudIconButton Icon="@Icons.Material.Outlined.HelpOutline" Color="Color.Inherit" Size="Size.Medium" aria-label="Open station information summary" OnClick="OpenStationInfoDialog" />
                 <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium" aria-label="@ThemeSelectorLabel" OnClick="@ToggleTheme" />
             </div>
         </div>
@@ -35,7 +35,32 @@
 
     <MudMainContent Class="shell-main">
         <div class="shell-frame shell-content">
-            @Body
+            @if (SiteState.IsInitialized)
+            {
+                @Body
+            }
+            else
+            {
+                <MudPaper Class="layout-canvas shell-page shell-loading-screen" Elevation="0" aria-label="Dashboard initialization status">
+                    <div class="shell-loading-card">
+                        <MudStack Class="shell-page-stack shell-loading-stack" Justify="Justify.Center" AlignItems="AlignItems.Center" Spacing="2">
+                            @if (SiteState.HasBlockingInitializationFailure)
+                            {
+                                <MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Color="Color.Warning" Size="Size.Large" />
+                                <MudText Typo="Typo.h4">Dashboard initialization failed</MudText>
+                                <MudText Typo="Typo.body1" Align="Align.Center">@SiteState.InitializationError</MudText>
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RetryInitializationAsync">Retry initialization</MudButton>
+                            }
+                            else
+                            {
+                                <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Primary" />
+                                <MudText Typo="Typo.h4">Initializing Davis dashboard</MudText>
+                                <MudText Typo="Typo.body1" Align="Align.Center">Loading cached console identity and one-shot station details before rendering the requested page.</MudText>
+                            }
+                        </MudStack>
+                    </div>
+                </MudPaper>
+            }
         </div>
     </MudMainContent>
 
@@ -62,11 +87,50 @@
             </div>
         </div>
     </MudAppBar>
+
+    @if (_showStationInfoDialog)
+    {
+        <div class="shell-info-dialog-backdrop" @onclick="CloseStationInfoDialog">
+            <div class="shell-info-dialog" role="dialog" aria-modal="true" aria-labelledby="shell-info-dialog-title" @onclick:stopPropagation="true">
+                <div class="shell-info-dialog-header">
+                    <div>
+                        <MudText Typo="Typo.overline" Class="shell-info-dialog-eyebrow">Station Summary</MudText>
+                        <MudText Typo="Typo.h5" id="shell-info-dialog-title">Console identity and clock</MudText>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Outlined.Close" Color="Color.Inherit" Size="Size.Small" aria-label="Close station information summary" OnClick="CloseStationInfoDialog" />
+                </div>
+
+                <div class="shell-info-dialog-grid">
+                    <div class="shell-info-dialog-item"><span>Hardware</span><strong>@StationHardwareDescriptionText</strong></div>
+                    <div class="shell-info-dialog-item"><span>Hardware Type</span><strong>@StationHardwareTypeText</strong></div>
+                    <div class="shell-info-dialog-item"><span>Model Type</span><strong>@StationModelTypeText</strong></div>
+                    <div class="shell-info-dialog-item"><span>Firmware Version</span><strong>@StationFirmwareVersionText</strong></div>
+                    <div class="shell-info-dialog-item"><span>Firmware Date</span><strong>@StationFirmwareDateText</strong></div>
+                    <div class="shell-info-dialog-item"><span>Console Time</span><strong class="shell-info-dialog-mono">@StationConsoleTimeText</strong></div>
+                    <div class="shell-info-dialog-item"><span>Time Zone</span><strong>@SiteState.ConsoleTimeZoneLabel</strong></div>
+                    <div class="shell-info-dialog-item"><span>Snapshot</span><strong>@StationSnapshotStatusText</strong></div>
+                </div>
+
+                <MudText Typo="Typo.body2" Class="shell-info-dialog-note">
+                    Editable console settings stay in Configuration so the same data is not maintained in multiple places.
+                </MudText>
+            </div>
+        </div>
+    }
+
+    <div id="blazor-error-ui" data-nosnippet>
+        <div class="shell-blazor-error-card">
+            <div class="shell-blazor-error-copy">
+                <strong>Blazor circuit interrupted</strong>
+                <span>An unhandled error has occurred. Reload to recover the dashboard session.</span>
+            </div>
+            <div class="shell-blazor-error-actions">
+                <a href="." class="reload">Reload</a>
+                <button type="button" class="dismiss" aria-label="Dismiss error message">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="components-reconnect-modal" data-nosnippet></div>
 </MudLayout>
 </CascadingValue>
-
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>

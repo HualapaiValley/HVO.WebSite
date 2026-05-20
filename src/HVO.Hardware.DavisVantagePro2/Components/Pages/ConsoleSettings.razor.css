@@ -1,0 +1,493 @@
+.console-settings-page {
+    padding: 0;
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    height: 100%;
+    min-height: 100%;
+    box-sizing: border-box;
+    color: var(--shell-page-text);
+}
+
+.console-settings-page > .layout-canvas {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    height: 100%;
+    min-height: 100%;
+}
+
+.console-settings-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    height: 100%;
+    min-height: 100%;
+}
+
+.console-settings-shell {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+    padding: 0.35rem;
+    border-radius: 24px;
+    border: 1px solid var(--shell-card-border);
+    background: var(--shell-card-background);
+    box-shadow: var(--shell-card-shadow);
+    backdrop-filter: blur(14px);
+}
+
+.console-settings-tab-actions {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.65rem;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.console-settings-tab-actions ::deep .mud-icon-button {
+    width: var(--shell-icon-button-size);
+    height: var(--shell-icon-button-size);
+    padding: 0;
+    border-radius: 999px;
+    background: var(--shell-pill-background);
+    color: var(--shell-action-color) !important;
+    box-shadow:
+        inset 0 0 0 1px var(--shell-pill-border),
+        0 0 0 1px rgba(8, 15, 28, 0.18);
+}
+
+.console-settings-tab-actions ::deep .mud-icon-button:hover {
+    background: var(--shell-pill-hover-background);
+    color: var(--shell-pill-hover-text) !important;
+    box-shadow:
+        inset 0 0 0 1px var(--shell-pill-hover-border),
+        0 6px 14px rgba(7, 14, 27, 0.22);
+}
+
+.console-settings-tab-actions ::deep .mud-icon-root {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+.console-settings-tabs {
+    flex: 1 1 auto;
+    min-height: 0;
+    border-radius: 20px;
+    padding: 0;
+    background: transparent;
+}
+
+.console-settings-shell ::deep .mud-tabs-toolbar {
+    min-height: auto;
+    padding: 0.35rem 3.2rem 0.35rem 0.35rem;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--shell-card-background) 80%, transparent);
+    box-shadow:
+        inset 0 0 0 1px var(--shell-pill-border),
+        0 0 0 1px rgba(8, 15, 28, 0.08);
+}
+
+.console-settings-shell ::deep .mud-tab {
+    min-height: 2.6rem;
+    padding: 0 1rem;
+    border-radius: 14px;
+    text-transform: none !important;
+    letter-spacing: 0.01em;
+    font-weight: 600 !important;
+    color: var(--dashboard-muted) !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+    transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.console-settings-shell ::deep .mud-tab .mud-tab-wrapper {
+    color: inherit !important;
+    text-transform: none !important;
+    letter-spacing: inherit;
+}
+
+.console-settings-shell ::deep .mud-tab:hover {
+    background: var(--shell-overlay-panel) !important;
+    color: var(--shell-overlay-text) !important;
+    border-color: var(--shell-overlay-panel-border) !important;
+    box-shadow: inset 0 0 0 1px var(--shell-overlay-panel-border) !important;
+}
+
+.console-settings-shell ::deep .mud-tab.mud-tab-active {
+    background: var(--shell-overlay-panel) !important;
+    color: var(--shell-overlay-text) !important;
+    font-weight: 700 !important;
+    border-color: var(--shell-overlay-panel-border) !important;
+    box-shadow:
+        inset 0 0 0 1px var(--shell-overlay-panel-border),
+        0 8px 18px rgba(7, 14, 27, 0.16) !important;
+    text-shadow: none;
+}
+
+.console-settings-shell ::deep .mud-tab.mud-tab-active:hover {
+    color: var(--shell-overlay-text) !important;
+}
+
+.console-settings-shell ::deep .mud-tabs-slider {
+    display: none !important;
+    opacity: 0 !important;
+    height: 0 !important;
+}
+
+.console-settings-shell ::deep .mud-tabs-panels {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-top: 0.85rem;
+    overflow: auto;
+}
+
+.console-settings-tab-panel {
+    padding: 0;
+}
+
+.console-settings-tab-stack {
+    gap: 14px;
+    padding: 0 0.2rem 0.2rem;
+}
+
+.console-settings-tab-stack .proto-card {
+    position: relative;
+    padding: 1.2rem;
+}
+
+.console-settings-tab-stack .proto-section-head > div {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 0.2rem;
+}
+
+.console-settings-tab-stack .proto-section-head {
+    margin-bottom: 0.95rem;
+}
+
+.console-settings-tab-stack .proto-section-head h2 {
+    margin: 0;
+}
+
+.console-settings-tab-stack .proto-section-head .proto-eyebrow {
+    color: var(--dashboard-muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+}
+
+.console-settings-tab-stack .proto-form-grid,
+.console-settings-tab-stack .proto-three-column,
+.console-settings-tab-stack .proto-detail-grid,
+.console-settings-tab-stack .proto-stat-grid {
+    gap: 0.85rem;
+}
+
+.console-settings-time-grid,
+.console-settings-rain-grid,
+.console-settings-barometer-stats,
+.console-settings-snapshot-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.console-settings-location-grid,
+.console-settings-units-grid,
+.console-settings-catchup-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.console-settings-location-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.console-settings-barometer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 0.85rem;
+}
+
+.console-settings-worker-grid,
+.console-settings-offset-grid,
+.console-settings-outbox-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.console-settings-worker-grid > *,
+.console-settings-offset-grid > * {
+    grid-column: span 4;
+}
+
+.console-settings-worker-grid > :nth-child(n + 4),
+.console-settings-offset-grid > :nth-child(n + 4) {
+    grid-column: span 6;
+}
+
+.console-settings-outbox-grid > * {
+    grid-column: span 3;
+}
+
+.console-settings-outbox-grid > :nth-child(n + 5) {
+    grid-column: span 4;
+}
+
+.console-settings-outbox-stats {
+    margin-top: 0.85rem;
+}
+
+.console-settings-time-grid .proto-input[readonly] {
+    cursor: default;
+}
+
+.console-settings-clock-fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.console-settings-clock-fieldset[disabled] {
+    opacity: 1;
+}
+
+.console-settings-busy-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    border-radius: 1.2rem;
+    background: rgba(6, 12, 22, 0.42);
+    backdrop-filter: blur(2px);
+}
+
+.console-settings-spinner,
+.console-settings-button-spinner {
+    display: inline-block;
+    border-radius: 999px;
+    border: 2px solid rgba(235, 245, 255, 0.2);
+    border-top-color: rgba(148, 231, 185, 0.96);
+    animation: console-settings-spin 0.8s linear infinite;
+}
+
+.console-settings-spinner {
+    width: 2rem;
+    height: 2rem;
+}
+
+.console-settings-button-spinner {
+    width: 0.95rem;
+    height: 0.95rem;
+    border-width: 2px;
+}
+
+.console-settings-clock-status,
+.console-settings-location-status,
+.console-settings-rain-status,
+.console-settings-units-status {
+    margin: 0;
+    color: var(--dashboard-muted);
+}
+
+.console-settings-clock-status.success,
+.console-settings-location-status.success,
+.console-settings-rain-status.success {
+    color: rgba(148, 231, 185, 0.92);
+}
+
+.console-settings-clock-status.busy,
+.console-settings-location-status.busy,
+.console-settings-rain-status.busy {
+    color: rgba(196, 216, 240, 0.92);
+}
+
+.console-settings-clock-status.error,
+.console-settings-location-status.error,
+.console-settings-rain-status.error,
+.console-settings-units-status.error {
+    color: rgba(243, 139, 168, 0.94);
+}
+
+.console-settings-actions {
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.console-settings-clock-actions,
+.console-settings-location-actions,
+.console-settings-rain-actions,
+.console-settings-units-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 0.75rem;
+}
+
+.console-settings-clock-actions .console-settings-clock-status,
+.console-settings-location-actions .console-settings-location-status,
+.console-settings-rain-actions .console-settings-rain-status,
+.console-settings-units-actions .console-settings-units-status {
+    margin-right: 0;
+    align-self: center;
+}
+
+.console-settings-clock-actions .proto-button,
+.console-settings-location-actions .proto-button,
+.console-settings-rain-actions .proto-button,
+.console-settings-units-actions .proto-button {
+    justify-self: end;
+}
+
+.console-settings-actions .proto-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    inline-size: 9.5rem;
+}
+
+@keyframes console-settings-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.console-settings-readonly-callout {
+    display: grid;
+    gap: 0.6rem;
+    margin-top: 1rem;
+    padding: 1rem 1.05rem;
+    border-radius: 18px;
+    border: 1px solid rgba(126, 157, 196, 0.14);
+    background: rgba(8, 17, 30, 0.28);
+}
+
+.console-settings-units-callout {
+    margin-top: 0;
+}
+
+.console-settings-readonly-callout p {
+    margin: 0;
+    color: var(--dashboard-muted);
+}
+
+.console-settings-readonly-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.console-settings-pending-status {
+    margin: 0;
+    color: var(--dashboard-muted);
+}
+
+.console-settings-subsection {
+    display: grid;
+    gap: 0.85rem;
+    margin-top: 1rem;
+}
+
+.console-settings-subsection h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--shell-page-text);
+}
+
+.console-settings-transmitter-table .proto-select,
+.console-settings-transmitter-table .proto-input {
+    width: 100%;
+    min-width: 7rem;
+}
+
+.page-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.shell-summary-card {
+    border-radius: 30px;
+    border: 1px solid rgba(126, 157, 196, 0.14);
+    background:
+        linear-gradient(180deg, rgba(10, 20, 34, 0.96), rgba(7, 15, 25, 0.94)),
+        linear-gradient(135deg, rgba(88, 190, 255, 0.04), rgba(255, 207, 102, 0.03));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    padding: 24px;
+}
+
+.console-settings-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+    .console-settings-shell {
+        padding: 0.3rem;
+    }
+
+    .console-settings-tab-actions {
+        top: 0.45rem;
+        right: 0.45rem;
+    }
+
+    .console-settings-location-grid,
+    .console-settings-units-grid,
+    .console-settings-catchup-grid,
+    .console-settings-time-grid,
+    .console-settings-rain-grid,
+    .console-settings-barometer-stats,
+    .console-settings-snapshot-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .console-settings-worker-grid,
+    .console-settings-offset-grid,
+    .console-settings-outbox-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .console-settings-worker-grid > *,
+    .console-settings-offset-grid > *,
+    .console-settings-outbox-grid > * {
+        grid-column: auto;
+    }
+
+    .console-settings-actions {
+        justify-content: stretch;
+    }
+
+    .console-settings-actions .proto-button {
+        flex: 1 1 9.5rem;
+        inline-size: auto;
+    }
+}
+
+@media (max-width: 640px) {
+    .console-settings-location-grid,
+    .console-settings-units-grid,
+    .console-settings-catchup-grid,
+    .console-settings-time-grid,
+    .console-settings-rain-grid,
+    .console-settings-barometer-grid,
+    .console-settings-barometer-stats,
+    .console-settings-snapshot-grid,
+    .console-settings-worker-grid,
+    .console-settings-offset-grid,
+    .console-settings-outbox-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

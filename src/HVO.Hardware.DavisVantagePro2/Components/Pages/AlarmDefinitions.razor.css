@@ -1,0 +1,47 @@
+.alarm-definitions-page {
+    padding: 0;
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    color: var(--shell-page-text);
+}
+
+.alarm-definitions-page > .layout-canvas {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+}
+
+.alarm-definitions-stack {
+    display: grid;
+    gap: 18px;
+}
+
+.page-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.shell-summary-card {
+    border-radius: 30px;
+    border: 1px solid rgba(126, 157, 196, 0.14);
+    background:
+        linear-gradient(180deg, rgba(10, 20, 34, 0.96), rgba(7, 15, 25, 0.94)),
+        linear-gradient(135deg, rgba(88, 190, 255, 0.04), rgba(255, 207, 102, 0.03));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    padding: 24px;
+}
+
+@media (max-width: 960px) {
+    .alarm-definitions-stack .proto-alarm-grid {
+        grid-template-columns: 1fr;
+    }
+}
