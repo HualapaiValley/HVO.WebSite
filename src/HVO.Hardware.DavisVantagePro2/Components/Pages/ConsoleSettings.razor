@@ -8,7 +8,7 @@
 
             <section class="card-shell console-settings-shell">
                 <div class="console-settings-tab-actions">
-                    <MudIconButton Icon="@Icons.Material.Outlined.Refresh" Color="Color.Inherit" Size="Size.Small" aria-label="Refresh configuration data from console" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.Refresh" Color="Color.Inherit" Size="Size.Small" aria-label="Refresh configuration data from console" OnClick="RefreshConfigurationAsync" Disabled="@IsPageRefreshBusy" />
                 </div>
 
                 <MudTabs Class="console-settings-tabs" Rounded="true" Elevation="0" ApplyEffectsToContainer="true">

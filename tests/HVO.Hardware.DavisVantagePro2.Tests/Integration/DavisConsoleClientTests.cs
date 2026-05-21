@@ -134,12 +134,11 @@ public class DavisConsoleClientTests
     [TestMethod]
     public async Task SendCommandAsync_OkResponse_ReturnsDataLines()
     {
-        // NVER\n = 5 bytes; server responds with the text-format OK response
+        // Caller is responsible for waking first; NVER\n = 5 bytes.
         byte[] response = PacketBuilder.BuildTextResponse("1.73");
 
         await using var server = new FakeDavisServer();
         server
-            .WakeStep()     // wake inside SendCommandAsync
             .Step(5, response)  // receive "NVER\n", send OK + version
             .Start();
 
@@ -155,7 +154,7 @@ public class DavisConsoleClientTests
     [TestMethod]
     public async Task SendCommandAsync_MultiLineResponse_ReturnsAllDataLines()
     {
-        // BARDATA\n = 8 bytes; server returns multiple lines
+        // Caller is responsible for waking first; BARDATA\n = 8 bytes.
         byte[] response = PacketBuilder.BuildTextResponse(
             "BAR  29.990",
             "Elevation  4500",
@@ -163,7 +162,6 @@ public class DavisConsoleClientTests
 
         await using var server = new FakeDavisServer();
         server
-            .WakeStep()
             .Step(8, response)
             .Start();
 
@@ -185,7 +183,6 @@ public class DavisConsoleClientTests
 
         await using var server = new FakeDavisServer();
         server
-            .WakeStep()
             .StepChunks(
                 5,
                 (response[..4], 450),
@@ -208,7 +205,6 @@ public class DavisConsoleClientTests
 
         await using var server = new FakeDavisServer();
         server
-            .WakeStep()
             .Step(10, response)
             .Start();
 
@@ -227,7 +223,6 @@ public class DavisConsoleClientTests
 
         await using var server = new FakeDavisServer();
         server
-            .WakeStep()
             .StepChunks(
                 10,
                 (response[..6], 450),
@@ -247,7 +242,6 @@ public class DavisConsoleClientTests
     {
         await using var server = new FakeDavisServer();
         server
-            .WakeStep()
             .Step(10, [(byte)'B', (byte)'A', (byte)'D', 0x0A, 0x0D, 0b0000_0101])
             .Start();
 
@@ -266,7 +260,6 @@ public class DavisConsoleClientTests
 
         await using var server = new FakeDavisServer();
         server
-            .WakeStep()
             .Step(7, response)
             .Start();
 

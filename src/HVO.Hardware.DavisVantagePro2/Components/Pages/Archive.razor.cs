@@ -226,36 +226,4 @@ public partial class Archive : IAsyncDisposable
     {
         ShellLayoutState?.SetPage("Archive", PageHeadingText, PageSummaryText);
     }
-
-    private ShellFooterItem BuildConnectionFooterItem()
-    {
-        if (_historyLoading)
-        {
-            return new ShellFooterItem("Archive pull running", ShellFooterIndicator.Warning);
-        }
-
-        return Station.IsConnected
-            ? new ShellFooterItem("Station connected", ShellFooterIndicator.Online)
-            : new ShellFooterItem("Station disconnected", ShellFooterIndicator.Offline);
-    }
-
-    private ShellFooterItem BuildHistoryFooterItem()
-    {
-        if (_historyError is not null || (_msg is not null && _isError))
-        {
-            return new ShellFooterItem("Archive action failed", ShellFooterIndicator.Offline);
-        }
-
-        if (_hasMore)
-        {
-            return new ShellFooterItem("More archive data available", ShellFooterIndicator.Warning);
-        }
-
-        if (_historyRecords is not null)
-        {
-            return new ShellFooterItem("Archive history ready", ShellFooterIndicator.Online);
-        }
-
-        return new ShellFooterItem("Archive history idle", ShellFooterIndicator.Warning);
-    }
 }

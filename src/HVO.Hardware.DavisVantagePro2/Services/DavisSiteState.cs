@@ -9,6 +9,8 @@ namespace HVO.Hardware.DavisVantagePro2.Services;
 
 public sealed class DavisSiteState : IDisposable
 {
+    private readonly SemaphoreSlim _initializationGate = new(1, 1);
+    private readonly SemaphoreSlim _stationInfoRefreshGate = new(1, 1);
     private readonly VantageStation _station;
     private readonly WeatherStationWorker _worker;
     private readonly OutboxForwarder _forwarder;
@@ -74,13 +76,35 @@ public sealed class DavisSiteState : IDisposable
 
     public Task EnsureInitializedAsync()
     {
-        return _initializationTask ??= InitializeCoreAsync();
+        var currentTask = Volatile.Read(ref _initializationTask);
+        if (currentTask is not null)
+        {
+            return currentTask;
+        }
+
+        var createdTask = InitializeCoreAsync();
+        var existingTask = Interlocked.CompareExchange(ref _initializationTask, createdTask, null);
+        return existingTask ?? createdTask;
     }
 
     public async Task RetryInitializationAsync()
     {
-        _initializationTask = null;
-        await EnsureInitializedAsync();
+        await _initializationGate.WaitAsync();
+        try
+        {
+            if (_initializationTask is { IsCompleted: false })
+            {
+                return;
+            }
+
+            _initializationTask = InitializeCoreAsync();
+        }
+        finally
+        {
+            _initializationGate.Release();
+        }
+
+        await _initializationTask;
     }
 
     public async Task RefreshStationInfoAsync(CancellationToken ct = default)
@@ -107,6 +131,8 @@ public sealed class DavisSiteState : IDisposable
         _worker.ReadingUpdated -= OnReadingUpdated;
         _worker.WorkerStateChanged -= OnWorkerStateChanged;
         _forwarder.SweptCompleted -= OnWorkerStateChanged;
+        _initializationGate.Dispose();
+        _stationInfoRefreshGate.Dispose();
     }
 
     private async Task InitializeCoreAsync()
@@ -152,21 +178,30 @@ public sealed class DavisSiteState : IDisposable
         {
             IsInitializing = false;
             NotifyChanged();
+
+            await _initializationGate.WaitAsync();
+            try
+            {
+                if (_initializationTask?.IsCompleted == true)
+                {
+                    _initializationTask = null;
+                }
+            }
+            finally
+            {
+                _initializationGate.Release();
+            }
         }
     }
 
     private async Task RefreshStationInfoCoreAsync(CancellationToken ct)
     {
-        if (IsRefreshingStationInfo)
-        {
-            return;
-        }
-
-        IsRefreshingStationInfo = true;
-        NotifyChanged();
-
+        await _stationInfoRefreshGate.WaitAsync(ct);
         try
         {
+            IsRefreshingStationInfo = true;
+            NotifyChanged();
+
             var stationInfo = await _station.GetStationInfoAsync(ct);
             var snapshot = await _stationInfoSnapshotStore.SaveAsync(stationInfo, ct);
 
@@ -178,6 +213,7 @@ public sealed class DavisSiteState : IDisposable
         {
             IsRefreshingStationInfo = false;
             NotifyChanged();
+            _stationInfoRefreshGate.Release();
         }
     }
 

@@ -167,6 +167,7 @@ public partial class ConsoleSettings : IDisposable
     private bool _isLocationSettingsBusy;
     private bool _isLocationSettingsLoading;
     private bool _isLocationStatusError;
+    private bool _isPageRefreshBusy;
     private bool _isRainArchiveBusy;
     private bool _isRainArchiveStatusError;
     private StationSettings? _currentStationSettings;
@@ -184,6 +185,8 @@ public partial class ConsoleSettings : IDisposable
     private bool IsLocationSectionBusy => _isLocationSettingsLoading || _isLocationSettingsBusy;
 
     private bool IsRainArchiveBusy => _isRainArchiveBusy;
+
+    private bool IsPageRefreshBusy => _isPageRefreshBusy;
 
     private DateTime? EditableConsoleTime { get; set; }
 
@@ -307,6 +310,34 @@ public partial class ConsoleSettings : IDisposable
     {
         await LoadClockAsync();
         await LoadLocationSettingsAsync();
+    }
+
+    private async Task RefreshConfigurationAsync()
+    {
+        if (_isPageRefreshBusy)
+        {
+            return;
+        }
+
+        _isPageRefreshBusy = true;
+        ClockStatusMessage = null;
+        LocationStatusMessage = null;
+        RainArchiveStatusMessage = null;
+        _isClockStatusError = false;
+        _isLocationStatusError = false;
+        _isRainArchiveStatusError = false;
+
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            await LoadClockAsync();
+            await LoadLocationSettingsAsync();
+        }
+        finally
+        {
+            _isPageRefreshBusy = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void UpdateShell()

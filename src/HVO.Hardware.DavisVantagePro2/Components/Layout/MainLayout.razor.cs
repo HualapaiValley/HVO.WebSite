@@ -147,8 +147,11 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private void HandleSiteStateChanged()
     {
-        UpdateSiteFooter();
-        _ = InvokeAsync(StateHasChanged);
+        _ = InvokeAsync(() =>
+        {
+            UpdateSiteFooter();
+            StateHasChanged();
+        });
     }
 
     private void UpdateSiteFooter()

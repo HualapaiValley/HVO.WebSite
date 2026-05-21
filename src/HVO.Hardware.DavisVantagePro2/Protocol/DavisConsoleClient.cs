@@ -197,7 +197,8 @@ public sealed class DavisConsoleClient : IDisposable
     }
 
     /// <summary>
-    /// Send a command string (e.g. "GETTIME\n"), wake the console first.
+    /// Send a command string (e.g. "GETTIME\n") while the console is already
+    /// awake and in command mode.
     /// Returns the response lines after the "OK" prefix.
     /// </summary>
     public async Task<string[]> SendCommandAsync(string command, CancellationToken ct, int maxTries = 3)
@@ -231,6 +232,7 @@ public sealed class DavisConsoleClient : IDisposable
 
     /// <summary>
     /// Send a command and return the raw response bytes after the console reacts.
+    /// Callers must ensure the console is already awake and in command mode.
     /// Useful for commands such as RECEIVERS that return a binary payload after an OK prefix.
     /// </summary>
     public async Task<byte[]> SendCommandRawAsync(string command, CancellationToken ct, int maxTries = 3)
@@ -268,6 +270,7 @@ public sealed class DavisConsoleClient : IDisposable
 
     /// <summary>
     /// Send a command that finishes asynchronously and wait until a terminal line is seen.
+    /// Callers must ensure the console is already awake and in command mode.
     /// Used by Davis commands such as CLRALM that first return OK and later return DONE.
     /// </summary>
     public async Task<string[]> SendCommandUntilLineAsync(
