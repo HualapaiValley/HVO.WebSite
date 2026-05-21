@@ -19,6 +19,8 @@ using System.Net.Http;
 using Azure.Identity;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
@@ -114,6 +116,9 @@ namespace HVO.WebSite.v9
             services.AddRazorComponents()
                 .AddInteractiveServerComponents();
             services.AddCascadingAuthenticationState();
+
+            ConfigureDataProtection(services, configuration);
+            ConfigureForwardedHeaders(services);
 
             // Add Microsoft Entra ID authentication (OpenID Connect + cookie auth)
             // Client secret is loaded from Key Vault at startup (AzureAd--ClientSecret)
@@ -242,6 +247,7 @@ namespace HVO.WebSite.v9
 
             // Add application services
             services.AddScoped<HVO.WebSite.v9.Services.IWeatherService, HVO.WebSite.v9.Services.WeatherService>();
+            services.AddScoped<HVO.WebSite.v9.Services.ISiteConfigurationService, HVO.WebSite.v9.Services.SiteConfigurationService>();
 
             // Configure HttpClient for Blazor Server components
             // In Development (or when configured), trust the local dev certificate to avoid SSL issues over port forwarding
@@ -269,6 +275,38 @@ namespace HVO.WebSite.v9
             services.AddHostedService<Services.ApiKeySeedService>();
         }
 
+        private static void ConfigureDataProtection(IServiceCollection services, IConfiguration configuration)
+        {
+            var dataProtection = services.AddDataProtection()
+                .SetApplicationName(configuration["DataProtection:ApplicationName"] ?? "HVO.WebSite.v9");
+
+            var blobUri = configuration["DataProtection:BlobUri"];
+            var keyIdentifier = configuration["DataProtection:KeyIdentifier"];
+
+            if (string.IsNullOrWhiteSpace(blobUri) || string.IsNullOrWhiteSpace(keyIdentifier))
+            {
+                return;
+            }
+
+            var credential = new DefaultAzureCredential();
+            dataProtection
+                .PersistKeysToAzureBlobStorage(new Uri(blobUri), credential)
+                .ProtectKeysWithAzureKeyVault(new Uri(keyIdentifier), credential);
+        }
+
+        private static void ConfigureForwardedHeaders(IServiceCollection services)
+        {
+            services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+                // Azure Container Apps sits behind a reverse proxy with dynamic addresses,
+                // so trust the forwarded headers instead of pinning known proxy IP ranges here.
+                options.KnownIPNetworks.Clear();
+                options.KnownProxies.Clear();
+            });
+        }
+
         private static void Configure(WebApplication app)
         {
             // ============================================================================
@@ -285,6 +323,10 @@ namespace HVO.WebSite.v9
 
             // Add exception handling middleware
             app.UseExceptionHandler();
+
+            // Respect proxy-provided scheme/remote IP so OIDC redirects generated behind
+            // Azure Container Apps use the external HTTPS hostname instead of internal HTTP.
+            app.UseForwardedHeaders();
 
             // Add Problem Details middleware for consistent error responses
             app.UseStatusCodePages();

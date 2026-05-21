@@ -52,7 +52,10 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     fc-cache -f
 
-# Build args for the self-signed cert — override at build time for each environment.
+# Build args for the self-signed cert used by local container deployments.
+# ACA should terminate TLS at ingress and run the container on HTTP only.
+# Local Docker Compose can still opt into HTTPS by overriding ASPNETCORE_URLS
+# and the Kestrel certificate settings at runtime.
 # CERT_IP: IP address for the SAN/CN (e.g. the host IP accessed by browsers)
 # CERT_PASSWORD: PFX password passed to Kestrel at runtime via environment
 ARG CERT_IP=192.168.0.20
@@ -77,19 +80,16 @@ RUN mkdir -p /https && \
 COPY --from=build /app/publish .
 
 # Configure ASP.NET Core and logging defaults.
-# ASPNETCORE_Kestrel__Certificates__Default__Password should be overridden at
-# runtime (docker run -e or docker-compose environment) to match the CERT_PASSWORD
-# build arg used when building the image.
-ENV ASPNETCORE_URLS="https://+:443;http://+:8080" \
-    ASPNETCORE_Kestrel__Certificates__Default__Path=/https/aspnetapp.pfx \
-    ASPNETCORE_Kestrel__Certificates__Default__Password=HVODev2026 \
+# Default to HTTP-only for Azure Container Apps. Local container deployments can
+# override ASPNETCORE_URLS and Kestrel certificate settings to enable HTTPS.
+ENV ASPNETCORE_URLS="http://+:8080" \
     ASPNETCORE_ENVIRONMENT=Production \
     Logging__LogLevel__Default=Information \
     Logging__LogLevel__Microsoft.AspNetCore=Warning \
     TZ=UTC
 
-# HTTPS (external access) and HTTP (internal service-to-service + health checks)
-EXPOSE 443
+# HTTP ingress / health checks. Local HTTPS remains available when ASPNETCORE_URLS
+# is overridden at runtime.
 EXPOSE 8080
 
 # Lightweight health check — uses HTTP on 8080 (no cert validation needed)

@@ -63,9 +63,20 @@ Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET C
 
 | Key | Description |
 |-----|-------------|
-| `EnableHttpsRedirect` | `false` disables HTTPS redirect (required for internal HTTP traffic from sidecars) |
+| `ASPNETCORE_URLS` | Deployment-specific listener binding. Use `http://+:8080` for ACA and `https://+:443;http://+:8080` for local container HTTPS |
+| `EnableHttpsRedirect` | Keep `false` for local sidecar traffic and for ACA when ingress owns HTTP to HTTPS behavior |
 | `AzureAd:*` | Microsoft Entra ID OIDC settings |
 | `ConnectionStrings:HualapaiValleyObservatory` | Azure SQL connection string |
-| `ASPNETCORE_Kestrel__Certificates__Default__*` | TLS certificate path and password (production) |
+| `ASPNETCORE_Kestrel__Certificates__Default__*` | TLS certificate path and password for local container HTTPS |
+
+Configuration should be split by purpose:
+
+- secrets belong in Key Vault
+- deployment and hosting values belong in appsettings plus environment overrides
+- runtime-editable non-secret values should move into the `v9.SiteConfiguration` table instead of accumulating in environment variables
+
+The website now includes `ISiteConfigurationService`, which reads and caches `v9.SiteConfiguration` values for runtime use.
+
+See [docs/WEBSITE_CONTAINER_APP.md](docs/WEBSITE_CONTAINER_APP.md) for the website deployment and configuration strategy.
 
 See `Program.cs` for service registration and middleware pipeline.

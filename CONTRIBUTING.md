@@ -65,6 +65,7 @@ Always branch from `main`. Use the `feature/` or `fix/` pattern for all work, in
 - **Warnings**: Build must produce **zero warnings and zero errors**
 - **Blazor Components**: Follow file structure conventions (`.razor`, `.razor.cs`, `.razor.css`)
 - **Documentation**: Update docs if the change adds or modifies features, configuration, or components
+- **Container Publishing**: If a change updates image version metadata or publish workflow, update `.env`, sync the private `.env` gist, and document the published version in `CHANGELOG.md`
 
 ---
 
