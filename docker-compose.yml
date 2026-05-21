@@ -85,8 +85,9 @@ services:
       Station__Port: ${DAVIS_STATION_PORT:-22222}
       Station__ArchiveCatchupMode: "Disabled"
       Station__ArchiveCatchupLookbackHours: "12"
-      # Post readings to the deployed website endpoint.
-      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL}/api/v1/weather/raw"
+      # Defaults to the in-stack website service. Set HVO_WEBSITE_PUBLIC_BASE_URL
+      # in .env when you explicitly want local collectors to post to the deployed site.
+      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/weather/raw"
       Outbox__ApiKey: ${DAVIS_API_KEY}
       # Persist the outbox SQLite DB across restarts
       Outbox__DbPath: /app/data/outbox.db
@@ -110,8 +111,9 @@ services:
     ports:
       - "5200:8080"
     environment:
-      # Post readings to the deployed website endpoint.
-      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL}/api/v1/bms/readings"
+      # Defaults to the in-stack website service. Set HVO_WEBSITE_PUBLIC_BASE_URL
+      # in .env when you explicitly want local collectors to post to the deployed site.
+      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/bms/readings"
       Outbox__ApiKey: ${BMS_API_KEY}
       # Persist the outbox SQLite DB across restarts
       Outbox__DbPath: /app/data/outbox.db

@@ -16,6 +16,7 @@ using HVO.DataModels.Data;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using System.Net.Http;
+using System.Net;
 using Azure.Identity;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
@@ -118,7 +119,7 @@ namespace HVO.WebSite.v9
             services.AddCascadingAuthenticationState();
 
             ConfigureDataProtection(services, configuration);
-            ConfigureForwardedHeaders(services);
+            ConfigureForwardedHeaders(services, configuration);
 
             // Add Microsoft Entra ID authentication (OpenID Connect + cookie auth)
             // Client secret is loaded from Key Vault at startup (AzureAd--ClientSecret)
@@ -294,16 +295,30 @@ namespace HVO.WebSite.v9
                 .ProtectKeysWithAzureKeyVault(new Uri(keyIdentifier), credential);
         }
 
-        private static void ConfigureForwardedHeaders(IServiceCollection services)
+        private static void ConfigureForwardedHeaders(IServiceCollection services, IConfiguration configuration)
         {
-            services.Configure<ForwardedHeadersOptions>(options =>
+            var forwardedHeadersEnabled = configuration.GetValue("ForwardedHeaders:Enabled",
+                configuration.GetValue("ASPNETCORE_FORWARDEDHEADERS_ENABLED", false));
+
+            if (!forwardedHeadersEnabled)
+            {
+                return;
+            }
+
+            services.PostConfigure<ForwardedHeadersOptions>(options =>
             {
                 options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
 
-                // Azure Container Apps sits behind a reverse proxy with dynamic addresses,
-                // so trust the forwarded headers instead of pinning known proxy IP ranges here.
-                options.KnownIPNetworks.Clear();
-                options.KnownProxies.Clear();
+                // Trust only the nearest proxy hop and let the host-level
+                // ASPNETCORE_FORWARDEDHEADERS_ENABLED switch control whether
+                // proxy forwarding is enabled for this deployment.
+                options.ForwardLimit = 1;
+
+                if (options.KnownIPNetworks.Count == 0 && options.KnownProxies.Count == 0)
+                {
+                    options.KnownProxies.Add(IPAddress.Loopback);
+                    options.KnownProxies.Add(IPAddress.IPv6Loopback);
+                }
             });
         }
 
@@ -324,9 +339,14 @@ namespace HVO.WebSite.v9
             // Add exception handling middleware
             app.UseExceptionHandler();
 
-            // Respect proxy-provided scheme/remote IP so OIDC redirects generated behind
-            // Azure Container Apps use the external HTTPS hostname instead of internal HTTP.
-            app.UseForwardedHeaders();
+            var forwardedHeadersEnabled = app.Configuration.GetValue("ForwardedHeaders:Enabled",
+                app.Configuration.GetValue("ASPNETCORE_FORWARDEDHEADERS_ENABLED", false));
+            if (forwardedHeadersEnabled)
+            {
+                // Respect proxy-provided scheme/remote IP only when the deployment
+                // explicitly opts into forwarded header processing.
+                app.UseForwardedHeaders();
+            }
 
             // Add Problem Details middleware for consistent error responses
             app.UseStatusCodePages();

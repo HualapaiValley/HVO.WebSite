@@ -125,6 +125,7 @@ The current deployment uses a user-assigned managed identity.
 	- Local containers: `ASPNETCORE_URLS=https://+:443;http://+:8080`
 - Local container HTTPS should continue using the baked self-signed certificate via `ASPNETCORE_Kestrel__Certificates__Default__Path` and `...__Password`.
 - `EnableHttpsRedirect` should remain `false` for the local compose stack so the hardware sidecars can keep posting to `http://hvo-website:8080`.
+- `HVO_WEBSITE_PUBLIC_BASE_URL` is an explicit local-collector override. If it is unset, Docker Compose keeps collectors pointed at the in-stack website service. Set it in `.env` only when you intentionally want local collectors to post to the deployed ACA website.
 
 ## Probe Endpoints
 
