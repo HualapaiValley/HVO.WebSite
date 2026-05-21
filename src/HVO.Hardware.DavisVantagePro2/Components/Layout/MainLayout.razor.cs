@@ -1,3 +1,5 @@
+using System.Globalization;
+using HVO.Hardware.DavisVantagePro2.Services;
 using Microsoft.AspNetCore.Components;
 using MudBlazor;
 
@@ -5,7 +7,13 @@ namespace HVO.Hardware.DavisVantagePro2.Components.Layout;
 
 public partial class MainLayout : LayoutComponentBase, IDisposable
 {
+    private const string StationLocationText = "Hualapai Valley, AZ";
+    private static readonly TimeSpan LiveLoopFreshnessThreshold = TimeSpan.FromSeconds(10);
+
     private readonly ShellLayoutState _shellState = new();
+    private bool _showStationInfoDialog;
+
+    [Inject] private DavisSiteState SiteState { get; set; } = default!;
 
     private MudTheme ShellTheme { get; } = new()
     {
@@ -45,14 +53,34 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private string ThemeSelectorLabel => _shellState.IsDarkMode ? "Switch to light theme" : "Switch to dark theme";
 
+    private string StationHardwareDescriptionText => SiteState.StationInfo?.HardwareDescription ?? "Loading console identity";
+
+    private string StationHardwareTypeText => SiteState.StationInfo?.HardwareType.ToString(CultureInfo.InvariantCulture) ?? "-";
+
+    private string StationModelTypeText => SiteState.StationInfo?.ModelType.ToString(CultureInfo.InvariantCulture) ?? "-";
+
+    private string StationFirmwareVersionText => SiteState.StationInfo?.FirmwareVersion ?? "-";
+
+    private string StationFirmwareDateText => SiteState.StationInfo?.FirmwareDate ?? "-";
+
+    private string StationConsoleTimeText => SiteState.StationInfo?.ConsoleTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "Waiting for console time";
+
+    private string StationSnapshotStatusText => SiteState.StationInfoSavedAtUtc.HasValue
+        ? $"Cached {SiteState.StationInfoSavedAtUtc.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
+        : "No cached station snapshot";
+
     protected override void OnInitialized()
     {
         _shellState.Changed += HandleShellStateChanged;
+        SiteState.Changed += HandleSiteStateChanged;
+        UpdateSiteFooter();
+        _ = SiteState.EnsureInitializedAsync();
     }
 
     public void Dispose()
     {
         _shellState.Changed -= HandleShellStateChanged;
+        SiteState.Changed -= HandleSiteStateChanged;
     }
 
     private void OnThemeModeChanged(bool useDarkMode)
@@ -63,6 +91,16 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private void ToggleTheme()
     {
         _shellState.ToggleTheme();
+    }
+
+    private void OpenStationInfoDialog()
+    {
+        _showStationInfoDialog = true;
+    }
+
+    private void CloseStationInfoDialog()
+    {
+        _showStationInfoDialog = false;
     }
 
     private Variant GetNavLinkVariant(string section)
@@ -97,8 +135,93 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         };
     }
 
+    private async Task RetryInitializationAsync()
+    {
+        await SiteState.RetryInitializationAsync();
+    }
+
     private void HandleShellStateChanged()
     {
         _ = InvokeAsync(StateHasChanged);
     }
+
+    private void HandleSiteStateChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            UpdateSiteFooter();
+            StateHasChanged();
+        });
+    }
+
+    private void UpdateSiteFooter()
+    {
+        _shellState.SetFooter(
+            BuildLiveFooterItem(),
+            new ShellFooterItem(SiteState.StationIdentityText),
+            new ShellFooterItem(ToConsoleDateTime(SiteState.ObservedAtUtc) ?? "Waiting for data"),
+            new ShellFooterItem($"Outbox: {SiteState.PendingOutboxCount} pending - {SiteState.FailedOutboxCount} failed"),
+            BuildApiFooterItem());
+    }
+
+    private ShellFooterItem BuildLiveFooterItem()
+    {
+        DateTime? observedAtUtc = SiteState.ObservedAtUtc;
+
+        if (!SiteState.IsInitialized)
+        {
+            return new ShellFooterItem("Initializing dashboard", ShellFooterIndicator.Warning);
+        }
+
+        if (observedAtUtc.HasValue
+            && DateTime.UtcNow - observedAtUtc.Value <= LiveLoopFreshnessThreshold
+            && SiteState.IsStationConnected)
+        {
+            return new ShellFooterItem("Live loop active", ShellFooterIndicator.Online);
+        }
+
+        if (!SiteState.IsStationConnected)
+        {
+            return new ShellFooterItem("Station disconnected", ShellFooterIndicator.Offline);
+        }
+
+        if (observedAtUtc.HasValue)
+        {
+            return new ShellFooterItem("Live loop stale", ShellFooterIndicator.Warning);
+        }
+
+        return new ShellFooterItem("Waiting for live packets", ShellFooterIndicator.Warning);
+    }
+
+    private ShellFooterItem BuildApiFooterItem()
+    {
+        if (SiteState.PendingOutboxCount > 0 && !string.IsNullOrWhiteSpace(SiteState.LastOutboxError))
+        {
+            return new ShellFooterItem("API sync failing", ShellFooterIndicator.Offline);
+        }
+
+        if (SiteState.PendingOutboxCount > 0)
+        {
+            return new ShellFooterItem("API sync pending", ShellFooterIndicator.Warning);
+        }
+
+        if (SiteState.FailedOutboxCount > 0)
+        {
+            return new ShellFooterItem("API sync degraded", ShellFooterIndicator.Warning);
+        }
+
+        if (SiteState.LastOutboxSentAt.HasValue)
+        {
+            return new ShellFooterItem("API sync healthy", ShellFooterIndicator.Online);
+        }
+
+        return new ShellFooterItem(StationLocationText, ShellFooterIndicator.None);
+    }
+
+    private string? ToConsoleDateTime(DateTime? utc) =>
+        utc.HasValue
+            ? new DateTimeOffset(utc.Value, TimeSpan.Zero)
+                  .ToOffset(SiteState.ConsoleUtcOffset)
+                  .ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture)
+            : null;
 }

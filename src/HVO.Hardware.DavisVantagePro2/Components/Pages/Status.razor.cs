@@ -55,13 +55,11 @@ public partial class Status : IDisposable
         await LoadStartupReadingAsync();
         await LoadLiveHistoryAsync();
         RefreshVisuals();
-        UpdateShellFooter();
     }
 
     protected override void OnParametersSet()
     {
         ShellLayoutState?.SetPage("Overview", PageHeadingText, PageSummaryText);
-        UpdateShellFooter();
     }
 
     private async Task LoadStartupReadingAsync()
@@ -165,7 +163,6 @@ public partial class Status : IDisposable
             _reading = reading;
             UpsertLiveHistorySample(reading);
             RefreshVisuals();
-            UpdateShellFooter();
             StateHasChanged();
         });
     }
@@ -176,7 +173,6 @@ public partial class Status : IDisposable
         {
             if (!_disposed)
             {
-                UpdateShellFooter();
                 StateHasChanged();
             }
         });
@@ -188,7 +184,6 @@ public partial class Status : IDisposable
         Worker.ReadingUpdated -= OnReadingUpdated;
         Worker.WorkerStateChanged -= OnStateChanged;
         Forwarder.SweptCompleted -= OnStateChanged;
-        ShellLayoutState?.ResetFooter();
     }
 
     private DateTime? ObservedAtUtc => Worker.LastReadingAt ?? _reading?.RecordedAtUtc;

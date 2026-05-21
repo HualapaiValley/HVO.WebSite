@@ -19,11 +19,21 @@ namespace HVO.Hardware.DavisVantagePro2.Station;
 /// </summary>
 public sealed class VantageStation : IAsyncDisposable
 {
+    private enum ConsoleSessionMode
+    {
+        Unknown,
+        Command,
+        Loop,
+    }
+
     private readonly DavisConsoleClient _client;
     private readonly ILogger<VantageStation> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly object _loopStateLock = new();
     private readonly int _maxTries;
     private bool _setupHydrated;
+    private CancellationTokenSource? _activeLoopInterruption;
+    private ConsoleSessionMode _consoleMode = ConsoleSessionMode.Unknown;
 
     // Cached EEPROM values (populated on Connect)
     public int RainBucketType { get; private set; } = DavisProtocol.BucketType001Inch;
@@ -67,8 +77,10 @@ public sealed class VantageStation : IAsyncDisposable
         await _lock.WaitAsync(ct);
         try
         {
+            ResetConsoleState();
             await _client.OpenAsync(ct);
             await _client.WakeAsync(_maxTries, ct);
+            SetConsoleMode(ConsoleSessionMode.Command);
             if (!_setupHydrated)
             {
                 await ReadSetupFromEepromAsync(ct);
@@ -96,7 +108,11 @@ public sealed class VantageStation : IAsyncDisposable
     public async Task DisconnectAsync()
     {
         await _lock.WaitAsync();
-        try { _client.Close(); }
+        try
+        {
+            ResetConsoleState();
+            _client.Close();
+        }
         finally { _lock.Release(); }
     }
 
@@ -110,15 +126,20 @@ public sealed class VantageStation : IAsyncDisposable
     /// </summary>
     public async Task<Loop2Packet> GetLoop1Async(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct, interruptLoop: false);
+        bool completed = false;
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdLps} 1 1\n"), ct);
             byte[] raw = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
+            completed = true;
             return Loop2Packet.Parse(raw[..DavisProtocol.LoopPacketDataBytes], RainBucketType);
         }
-        finally { _lock.Release(); }
+        finally
+        {
+            SetConsoleMode(completed ? ConsoleSessionMode.Command : ConsoleSessionMode.Unknown);
+            _lock.Release();
+        }
     }
 
     /// <summary>
@@ -129,20 +150,39 @@ public sealed class VantageStation : IAsyncDisposable
     public async IAsyncEnumerable<Loop2Packet> StreamLoop2Async(int count,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct, interruptLoop: false);
+        CancellationTokenSource? loopInterruption = null;
+        bool completed = false;
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
+            CancellationToken loopCt = BeginLoopSession(ct, out loopInterruption);
             string cmd = $"{DavisProtocol.CmdLps} 2 {count}\n";
-            await _client.SendDataAsync(Encoding.ASCII.GetBytes(cmd), ct);
+            await _client.SendDataAsync(Encoding.ASCII.GetBytes(cmd), loopCt);
 
-            for (int i = 0; i < count && !ct.IsCancellationRequested; i++)
+            for (int i = 0; i < count && !loopCt.IsCancellationRequested; i++)
             {
-                byte[] raw = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
+                byte[] raw;
+                try
+                {
+                    raw = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, loopCt);
+                }
+                catch (OperationCanceledException) when (loopInterruption is not null
+                    && loopInterruption.IsCancellationRequested
+                    && !ct.IsCancellationRequested)
+                {
+                    yield break;
+                }
+
                 yield return Loop2Packet.Parse(raw[..DavisProtocol.LoopPacketDataBytes], RainBucketType);
             }
+
+            completed = !loopCt.IsCancellationRequested;
         }
-        finally { _lock.Release(); }
+        finally
+        {
+            EndLoopSession(loopInterruption, completed);
+            _lock.Release();
+        }
     }
 
     /// <summary>
@@ -152,10 +192,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// </summary>
     public async Task<Loop2Packet> GetCurrentConditionsAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             // LPS 3 N → N alternating packets: LOOP1, LOOP2, LOOP1, LOOP2, …
             await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdLps} 3 2\n"), ct);
             byte[] raw1 = await _client.GetDataWithCrc16Async(DavisProtocol.LoopPacketTotalBytes, ct);
@@ -258,11 +297,10 @@ public sealed class VantageStation : IAsyncDisposable
         bool fallbackOnEmpty = false,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         int yielded = 0;
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdDmpaft}\n"), ct);
 
             // Encode date/time stamp for DMPAFT
@@ -281,7 +319,7 @@ public sealed class VantageStation : IAsyncDisposable
             if (nPages == 0 && since != DateTime.MinValue && fallbackOnEmpty)
             {
                 _logger.LogDebug("DMPAFT: 0 pages for {Since}; retrying with full archive", since);
-                await _client.WakeAsync(_maxTries, ct);
+                await EnsureCommandModeLockedAsync(ct);
                 await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdDmpaft}\n"), ct);
                 await _client.SendDataWithCrc16Async(EncodeDmpaftDate(DateTime.MinValue), ct, maxTries: 1);
                 resp = await _client.GetDataWithCrc16Async(DavisProtocol.DmpaftResponseBytes, ct, maxTries: 1);
@@ -337,11 +375,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Read hardware type, model, firmware version and date, and current console time.</summary>
     public async Task<StationInfo> GetStationInfoAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
-
             // Hardware type: WRD command — response is ACK then 1 hardware-type byte
             await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdWrd}{(char)0x12}{(char)0x4D}\n"), ct);
             byte[] hwByte = await _client.ReadExactAsync(1, ct);
@@ -381,11 +417,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Read all user-configurable settings from EEPROM.</summary>
     public async Task<StationSettings> GetStationSettingsAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
-
             byte unitBits = (await ReadEepromAsync(DavisProtocol.EepromUnitBits, 1, ct))[0];
             byte setupBits = (await ReadEepromAsync(DavisProtocol.EepromSetupBits, 1, ct))[0];
             byte ryStart = (await ReadEepromAsync(DavisProtocol.EepromRainYearStart, 1, ct))[0];
@@ -434,10 +468,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Read all 8-channel transmitter configurations from EEPROM.</summary>
     public async Task<IReadOnlyList<TransmitterConfig>> GetTransmittersAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             byte useTx = (await ReadEepromAsync(DavisProtocol.EepromUseTx, 1, ct))[0];
             byte retransmit = (await ReadEepromAsync(DavisProtocol.EepromRetransmit, 1, ct))[0];
             byte[] txData = await ReadEepromAsync(DavisProtocol.EepromTransmitters, 16, ct);
@@ -476,10 +509,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Read on-board temperature/humidity/wind calibration offsets from EEPROM.</summary>
     public async Task<CalibrationData> GetCalibrationAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             // 27 signed bytes: inTemp, inTempComp, outTemp, extra×7, soil×4, leaf×4
             byte[] temps = await ReadEepromAsync(DavisProtocol.EepromTempCalib, 27, ct);
             byte[] inHumB = await ReadEepromAsync(DavisProtocol.EepromInHumidCalib, 1, ct);
@@ -507,10 +539,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Read barometer calibration data using the BARDATA command.</summary>
     public async Task<BarometerData> GetBarometerDataAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             string[] lines = await _client.SendCommandAsync($"{DavisProtocol.CmdBardata}\n", ct, _maxTries);
             // Lines: "BAR  29.990", "Elevation  4500", "DEW POINT  55", "VIRTUAL TEMP  62",
             //        "C  2.3", "R  1.003", "BARCAL  0.012", "GAIN  1", "OFFSET  0"
@@ -533,10 +564,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Read ISS reception statistics using the RXCHECK command.</summary>
     public async Task<ReceptionStats> GetReceptionStatsAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             string[] lines = await _client.SendCommandAsync($"{DavisProtocol.CmdRxcheck}\n", ct, _maxTries);
             return new ReceptionStats
             {
@@ -553,7 +583,7 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Read the transmitter IDs that the console can currently hear.</summary>
     public async Task<IReadOnlyList<int>> GetHeardTransmitterIdsAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
             byte[] raw = await _client.SendCommandRawAsync($"{DavisProtocol.CmdReceivers}\n", ct, _maxTries);
@@ -576,10 +606,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Read the EEPROM-backed console alarm thresholds.</summary>
     public async Task<AlarmThresholds> GetAlarmThresholdsAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             byte[] block = await ReadEepromAsync(DavisProtocol.EepromAlarmStart, DavisProtocol.EepromAlarmBlockSize, ct);
             return DecodeAlarmThresholds(block, RainBucketType);
         }
@@ -592,10 +621,9 @@ public sealed class VantageStation : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(thresholds);
         ValidateAlarmThresholds(thresholds, RainBucketType);
 
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             byte[] payload = EncodeAlarmThresholds(thresholds, RainBucketType);
             await WriteEepromAsync(DavisProtocol.EepromAlarmStart, payload, ct);
         }
@@ -605,7 +633,7 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Clear all configured console alarm thresholds and wait for DONE.</summary>
     public async Task ClearAlarmThresholdsAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
             await _client.SendCommandUntilLineAsync($"{DavisProtocol.CmdClralm}\n", "DONE", ct, maxTries: _maxTries);
@@ -616,10 +644,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Clear any currently-active console alarm bits.</summary>
     public async Task ClearActiveAlarmBitsAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdClrbits}\n"), ct);
         }
         finally { _lock.Release(); }
@@ -628,10 +655,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Read the current console clock time.</summary>
     public async Task<DateTime> GetConsoleTimeAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             return await GetConsoleTimeInternalAsync(ct);
         }
         finally { _lock.Release(); }
@@ -640,15 +666,16 @@ public sealed class VantageStation : IAsyncDisposable
     // ── Station configuration — WRITE ─────────────────────────────────────────
 
     /// <summary>Set the console clock to the current system time.</summary>
-    public async Task SetConsoleTimeAsync(CancellationToken ct = default)
+    public Task SetConsoleTimeAsync(CancellationToken ct = default) => SetConsoleTimeAsync(DateTime.Now.AddSeconds(0.75), ct);
+
+    /// <summary>Set the console clock to an explicit local date and time.</summary>
+    public async Task SetConsoleTimeAsync(DateTime consoleLocalTime, CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdSettime}\n"), ct);
-            // Round up by 0.75s to account for protocol overhead
-            DateTime t = DateTime.Now.AddSeconds(0.75);
+            DateTime t = DateTime.SpecifyKind(consoleLocalTime, DateTimeKind.Unspecified);
             byte[] payload =
             [
                 (byte)t.Second, (byte)t.Minute, (byte)t.Hour,
@@ -663,10 +690,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Set barometer calibration to a known-correct pressure and altitude.</summary>
     public async Task SetBarometerAsync(double pressureInHg, double altitudeFt, CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             int bar = (int)(pressureInHg * 1000);
             int alt = (int)altitudeFt;
             await _client.SendCommandAsync($"{DavisProtocol.CmdBar}{bar} {alt}\n", ct, _maxTries);
@@ -682,14 +708,46 @@ public sealed class VantageStation : IAsyncDisposable
         if (!valid.Contains(minutes))
             throw new ArgumentException($"Invalid archive interval {minutes}. Must be one of: {string.Join(", ", valid)}");
 
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await _client.SendCommandAsync($"{DavisProtocol.CmdSetper} {minutes}\n", ct, _maxTries);
             ArchiveIntervalSeconds = minutes * 60;
         }
         finally { _lock.Release(); }
+    }
+
+    /// <summary>Update rain/archive settings in a single command scope.</summary>
+    public async Task UpdateRainArchiveSettingsAsync(int archiveIntervalMinutes, int rainBucketType, int rainYearStartMonth, CancellationToken ct = default)
+    {
+        int[] validArchiveIntervals = [1, 5, 10, 15, 30, 60, 120];
+        if (!validArchiveIntervals.Contains(archiveIntervalMinutes))
+            throw new ArgumentException($"Invalid archive interval {archiveIntervalMinutes}. Must be one of: {string.Join(", ", validArchiveIntervals)}", nameof(archiveIntervalMinutes));
+
+        if (rainBucketType is < 0 or > 2)
+            throw new ArgumentException("Bucket code must be 0, 1, or 2", nameof(rainBucketType));
+
+        if (rainYearStartMonth is < 1 or > 12)
+            throw new ArgumentException("Month must be 1-12", nameof(rainYearStartMonth));
+
+        await EnterCommandScopeAsync(ct);
+        try
+        {
+            await _client.SendCommandAsync($"{DavisProtocol.CmdSetper} {archiveIntervalMinutes}\n", ct, _maxTries);
+
+            byte[] setupBits = await ReadEepromAsync(DavisProtocol.EepromSetupBits, 1, ct);
+            setupBits[0] = (byte)((setupBits[0] & 0xCF) | (rainBucketType << 4));
+            await WriteEepromAsync(DavisProtocol.EepromSetupBits, setupBits, ct);
+            await WriteEepromAsync(DavisProtocol.EepromRainYearStart, [(byte)rainYearStartMonth], ct);
+            await RunNewSetupAsync(ct);
+
+            ArchiveIntervalSeconds = archiveIntervalMinutes * 60;
+            RainBucketType = rainBucketType;
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     /// <summary>Set the station latitude (decimal degrees, +N/−S).</summary>
@@ -718,14 +776,71 @@ public sealed class VantageStation : IAsyncDisposable
         AltitudeFeet = val;
     }
 
+    /// <summary>Update the location, timezone, and logging settings in a single command scope.</summary>
+    public async Task UpdateLocationSettingsAsync(
+        double latitude,
+        double longitude,
+        double altitudeFeet,
+        DstMode dstMode,
+        int timeZoneCode,
+        TempLogging temperatureLogging,
+        CancellationToken ct = default)
+    {
+        if (timeZoneCode is < 0 or > 31)
+            throw new ArgumentException("Timezone code must be 0-31", nameof(timeZoneCode));
+
+        short latitudeValue = (short)(latitude * 10);
+        short longitudeValue = (short)(longitude * 10);
+        short altitudeValue = (short)altitudeFeet;
+        byte dstModeValue = dstMode == DstMode.Auto ? (byte)0 : (byte)1;
+        byte dstBitValue = dstMode == DstMode.On ? (byte)1 : (byte)0;
+        byte tempLoggingValue = temperatureLogging == TempLogging.Last ? (byte)1 : (byte)0;
+
+        await EnterCommandScopeAsync(ct);
+        try
+        {
+            byte[] latitudeBytes = new byte[2];
+            BinaryPrimitives.WriteInt16LittleEndian(latitudeBytes, latitudeValue);
+            await WriteEepromAsync(DavisProtocol.EepromLatitude, latitudeBytes, ct);
+
+            byte[] longitudeBytes = new byte[2];
+            BinaryPrimitives.WriteInt16LittleEndian(longitudeBytes, longitudeValue);
+            await WriteEepromAsync(DavisProtocol.EepromLongitude, longitudeBytes, ct);
+
+            byte[] altitudeBytes = new byte[2];
+            BinaryPrimitives.WriteInt16LittleEndian(altitudeBytes, altitudeValue);
+            await WriteEepromAsync(DavisProtocol.EepromAltitude, altitudeBytes, ct);
+
+            await WriteEepromAsync(DavisProtocol.EepromManOrAuto, [dstModeValue], ct);
+            if (dstMode != DstMode.Auto)
+            {
+                await WriteEepromAsync(DavisProtocol.EepromDaylightSavings, [dstBitValue], ct);
+            }
+
+            await WriteEepromAsync(DavisProtocol.EepromGmtOrZone, [0], ct);
+            await WriteEepromAsync(DavisProtocol.EepromTimezoneCode, [(byte)timeZoneCode], ct);
+            await WriteEepromAsync(DavisProtocol.EepromTempLogging, [tempLoggingValue], ct);
+            await RunNewSetupAsync(ct);
+
+            LatitudeDegrees = latitudeValue / 10.0;
+            LongitudeDegrees = longitudeValue / 10.0;
+            AltitudeFeet = altitudeValue;
+            UseTimezoneCode = true;
+            TimezoneCode = timeZoneCode;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     /// <summary>Set the rain bucket type (0=0.01in, 1=0.2mm, 2=0.1mm).</summary>
     public async Task SetRainBucketTypeAsync(int bucketCode, CancellationToken ct = default)
     {
         if (bucketCode is < 0 or > 2) throw new ArgumentException("Bucket code must be 0, 1, or 2");
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             byte[] bits = await ReadEepromAsync(DavisProtocol.EepromSetupBits, 1, ct);
             bits[0] = (byte)((bits[0] & 0xCF) | (bucketCode << 4));
             await WriteEepromAsync(DavisProtocol.EepromSetupBits, bits, ct);
@@ -745,10 +860,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Set DST mode.</summary>
     public async Task SetDstAsync(DstMode mode, CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             byte manAuto = mode == DstMode.Auto ? (byte)0 : (byte)1;
             await WriteEepromAsync(DavisProtocol.EepromManOrAuto, [manAuto], ct);
             if (mode != DstMode.Auto)
@@ -764,10 +878,9 @@ public sealed class VantageStation : IAsyncDisposable
     public async Task SetTimezoneCodeAsync(int code, CancellationToken ct = default)
     {
         if (code is < 0 or > 31) throw new ArgumentException("Timezone code must be 0–31");
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await WriteEepromAsync(DavisProtocol.EepromGmtOrZone, [0], ct);   // Use TIME_ZONE
             await WriteEepromAsync(DavisProtocol.EepromTimezoneCode, [(byte)code], ct);
             UseTimezoneCode = true;
@@ -779,10 +892,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Set a custom GMT offset in hundredths of hours (e.g. -700 = UTC−7:00).</summary>
     public async Task SetTimezoneOffsetAsync(int hundredths, CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await WriteEepromAsync(DavisProtocol.EepromGmtOrZone, [1], ct);   // Use GMT_OFFSET
             byte[] buf = new byte[2];
             BinaryPrimitives.WriteInt16LittleEndian(buf, (short)hundredths);
@@ -804,10 +916,9 @@ public sealed class VantageStation : IAsyncDisposable
     public async Task SetCalibrationWindDirAsync(int offsetDegrees, CancellationToken ct = default)
     {
         if (offsetDegrees is < -359 or > 359) throw new ArgumentException("Wind dir offset must be –359 to +359");
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             byte[] buf = new byte[2];
             BinaryPrimitives.WriteInt16LittleEndian(buf, (short)offsetDegrees);
             await WriteEepromAsync(DavisProtocol.EepromWindDirCalib, buf, ct);
@@ -832,11 +943,9 @@ public sealed class VantageStation : IAsyncDisposable
             _ => throw new ArgumentException($"Unknown temperature variable: {variable}")
         };
 
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
-
             if (variable == "inTemp")
             {
                 // Inside temp requires 1's complement in adjacent byte
@@ -866,10 +975,9 @@ public sealed class VantageStation : IAsyncDisposable
             _ => throw new ArgumentException($"Unknown humidity variable: {variable}")
         };
 
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await WriteEepromAsync(addr, [(byte)(sbyte)offsetPct], ct);
         }
         finally { _lock.Release(); }
@@ -883,10 +991,9 @@ public sealed class VantageStation : IAsyncDisposable
         if (extraTempId is < 1 or > 7) throw new ArgumentException("Extra temperature sensor ID must be 1–7");
         if (extraHumId is < 1 or > 7) throw new ArgumentException("Extra humidity sensor ID must be 1–7");
 
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             byte[] useTxByte = await ReadEepromAsync(DavisProtocol.EepromUseTx, 1, ct);
             byte useTx = useTxByte[0];
 
@@ -926,10 +1033,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Turn the console lamp on or off.</summary>
     public async Task SetLampAsync(bool on, CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await _client.SendCommandAsync($"{DavisProtocol.CmdLamps} {(on ? '1' : '0')}\n", ct, _maxTries);
         }
         finally { _lock.Release(); }
@@ -938,10 +1044,9 @@ public sealed class VantageStation : IAsyncDisposable
     /// <summary>Clear the console's archive memory (irreversible).</summary>
     public async Task ClearArchiveAsync(CancellationToken ct = default)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdClrlog}\n"), ct);
             _logger.LogWarning("Archive memory cleared on Davis console");
         }
@@ -996,10 +1101,9 @@ public sealed class VantageStation : IAsyncDisposable
 
     private async Task WriteEepromByteAsync(ushort address, byte value, CancellationToken ct)
     {
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await WriteEepromAsync(address, [value], ct);
         }
         finally { _lock.Release(); }
@@ -1009,10 +1113,9 @@ public sealed class VantageStation : IAsyncDisposable
     {
         byte[] buf = new byte[2];
         BinaryPrimitives.WriteInt16LittleEndian(buf, value);
-        await _lock.WaitAsync(ct);
+        await EnterCommandScopeAsync(ct);
         try
         {
-            await _client.WakeAsync(_maxTries, ct);
             await WriteEepromAsync(address, buf, ct);
         }
         finally { _lock.Release(); }
@@ -1020,6 +1123,139 @@ public sealed class VantageStation : IAsyncDisposable
 
     private async Task RunNewSetupAsync(CancellationToken ct) =>
         await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdNewsetup}\n"), ct);
+
+    private async Task EnterCommandScopeAsync(CancellationToken ct, bool interruptLoop = true)
+    {
+        if (interruptLoop)
+        {
+            RequestLoopInterruption();
+        }
+
+        await _lock.WaitAsync(ct);
+        try
+        {
+            await EnsureCommandModeLockedAsync(ct);
+        }
+        catch
+        {
+            _lock.Release();
+            throw;
+        }
+    }
+
+    private async Task EnsureCommandModeLockedAsync(CancellationToken ct)
+    {
+        switch (GetConsoleMode())
+        {
+            case ConsoleSessionMode.Command:
+                return;
+            case ConsoleSessionMode.Loop:
+                await _client.CancelLoopAsync(ct);
+                SetConsoleMode(ConsoleSessionMode.Command);
+                return;
+            default:
+                await _client.WakeAsync(_maxTries, ct);
+                SetConsoleMode(ConsoleSessionMode.Command);
+                return;
+        }
+    }
+
+    private CancellationToken BeginLoopSession(CancellationToken ct, out CancellationTokenSource interruptionCts)
+    {
+        interruptionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        lock (_loopStateLock)
+        {
+            _activeLoopInterruption?.Dispose();
+            _activeLoopInterruption = interruptionCts;
+            _consoleMode = ConsoleSessionMode.Loop;
+        }
+
+        return interruptionCts.Token;
+    }
+
+    private void EndLoopSession(CancellationTokenSource? interruptionCts, bool completedNormally)
+    {
+        lock (_loopStateLock)
+        {
+            if (interruptionCts is not null && ReferenceEquals(_activeLoopInterruption, interruptionCts))
+            {
+                _activeLoopInterruption = null;
+            }
+
+            _consoleMode = completedNormally ? ConsoleSessionMode.Command : ConsoleSessionMode.Unknown;
+        }
+
+        interruptionCts?.Dispose();
+    }
+
+    private void RequestLoopInterruption()
+    {
+        CancellationTokenSource? interruptionCts;
+        lock (_loopStateLock)
+        {
+            interruptionCts = _activeLoopInterruption;
+        }
+
+        if (interruptionCts is null || interruptionCts.IsCancellationRequested)
+        {
+            return;
+        }
+
+        try
+        {
+            _client.CancelLoop();
+        }
+        catch
+        {
+            // Best-effort cancellation so queued commands do not wait for a full loop batch.
+        }
+
+        interruptionCts.Cancel();
+    }
+
+    private void SetConsoleMode(ConsoleSessionMode mode)
+    {
+        lock (_loopStateLock)
+        {
+            _consoleMode = mode;
+        }
+    }
+
+    private ConsoleSessionMode GetConsoleMode()
+    {
+        lock (_loopStateLock)
+        {
+            return _consoleMode;
+        }
+    }
+
+    private void ResetConsoleState()
+    {
+        CancellationTokenSource? interruptionCts;
+        lock (_loopStateLock)
+        {
+            interruptionCts = _activeLoopInterruption;
+            _activeLoopInterruption = null;
+            _consoleMode = ConsoleSessionMode.Unknown;
+        }
+
+        if (interruptionCts is null)
+        {
+            return;
+        }
+
+        try
+        {
+            interruptionCts.Cancel();
+        }
+        catch
+        {
+            // Ignore cancellation races during shutdown/reconnect.
+        }
+
+        interruptionCts.Dispose();
+    }
 
     private static byte[] EncodeDmpaftDate(DateTime since)
     {

@@ -22,7 +22,7 @@ namespace HVO.Hardware.DavisVantagePro2.Tests.Integration;
 /// <list type="bullet">
 ///   <item>GetCurrentConditionsAsync:  wake + LPS 1 1\n (8 b) → ACK + 99-byte LOOP2</item>
 ///   <item>GetConsoleTimeAsync:        wake + GETTIME\n  (8 b) → ACK + 8-byte time</item>
-///   <item>GetReceptionStatsAsync:     wake + [inner wake] + RXCHECK\n (8 b) → text OK</item>
+///   <item>GetReceptionStatsAsync:     wake + RXCHECK\n (8 b) → text OK</item>
 /// </list>
 /// </summary>
 [TestClass]
@@ -1355,14 +1355,12 @@ public class VantageStationTests
     {
         // GetReceptionStatsAsync:
         //   1. VantageStation calls WakeAsync                     → WakeStep #1
-        //   2. SendCommandAsync("RXCHECK\n") calls WakeAsync      → WakeStep #2
-        //   3. SendCommandAsync sends "RXCHECK\n" (8 bytes)       → Step(8, text)
+        //   2. SendCommandAsync sends "RXCHECK\n" (8 bytes)       → Step(8, text)
         byte[] rxResponse = PacketBuilder.BuildTextResponse("12345 67 2 12340 3");
 
         await using var server = new FakeDavisServer();
         server
             .WakeStep()                 // wake #1 (explicit in station method)
-            .WakeStep()                 // wake #2 (inside SendCommandAsync)
             .Step(8, rxResponse)        // "RXCHECK\n" (8 bytes)
             .Start();
 
@@ -1389,7 +1387,6 @@ public class VantageStationTests
 
         await using var server = new FakeDavisServer();
         server
-            .WakeStep()
             .WakeStep()
             .Step(8, rxResponse)
             .Start();
