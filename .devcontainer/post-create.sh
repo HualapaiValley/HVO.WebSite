@@ -138,13 +138,37 @@ else
 	echo "Warning: No GitHub credentials detected — set GH_PAT in /etc/environment on hvo-dev-host and rebuild."
 fi
 
-# Ensure dotnet tools directory is on PATH for this session and future shells
-export PATH="$HOME/.dotnet/tools:$PATH"
+# Ensure dotnet tools and an existing OpenCode install are on PATH for this session and future shells.
+export PATH="$HOME/.opencode/bin:$HOME/.dotnet/tools:$PATH"
 for _rc in /home/vscode/.bashrc /home/vscode/.zshrc; do
 	if [[ -f "$_rc" ]] && ! grep -q '\.dotnet/tools' "$_rc" 2>/dev/null; then
 		printf '\nexport PATH="$HOME/.dotnet/tools:$PATH"\n' >> "$_rc"
 	fi
+	if [[ -f "$_rc" ]] && ! grep -q '\.opencode/bin' "$_rc" 2>/dev/null; then
+		printf '\nexport PATH="$HOME/.opencode/bin:$PATH"\n' >> "$_rc"
+	fi
 done
+
+# Install a pinned OpenCode CLI release without executing remote install scripts.
+OPENCODE_VERSION="1.15.7"
+OPENCODE_ASSET="opencode-linux-x64.tar.gz"
+OPENCODE_SHA256="6f7f95f13917b9aab8421dbb7e121abf2fecfecdccd16fd5b497f522f454f928"
+echo "Checking OpenCode CLI..."
+if [[ "$(opencode --version 2>/dev/null || true)" != "${OPENCODE_VERSION}" ]]; then
+	if [[ "$(uname -s)" == "Linux" && "$(uname -m)" == "x86_64" ]]; then
+		_tmp_opencode_dir="$(mktemp -d)"
+		curl -fsSL \
+			-o "${_tmp_opencode_dir}/${OPENCODE_ASSET}" \
+			"https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/${OPENCODE_ASSET}"
+		printf '%s  %s\n' "${OPENCODE_SHA256}" "${_tmp_opencode_dir}/${OPENCODE_ASSET}" | sha256sum -c -
+		mkdir -p "$HOME/.opencode/bin"
+		tar -xzf "${_tmp_opencode_dir}/${OPENCODE_ASSET}" -C "$HOME/.opencode/bin"
+		chmod +x "$HOME/.opencode/bin/opencode"
+		rm -rf "${_tmp_opencode_dir}"
+	else
+		echo "Warning: pinned OpenCode install only supports Linux x86_64 in this devcontainer."
+	fi
+fi
 
 # Install .NET global tools
 echo "Installing .NET global tools..."
@@ -203,5 +227,6 @@ echo "dotnet-ef:  $(dotnet ef --version 2>/dev/null || echo 'not installed')"
 echo "sqlpackage: $(sqlpackage --version 2>/dev/null || echo 'not installed')"
 echo "gh:         $(gh --version 2>/dev/null | head -1 || echo 'not installed')"
 echo "az:         $(az version --query '"azure-cli"' -o tsv 2>/dev/null || echo 'not installed')"
+echo "opencode:   $(opencode --version 2>/dev/null || echo 'not installed')"
 
 echo "Post-create setup completed successfully!"

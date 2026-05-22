@@ -131,7 +131,7 @@ public sealed class DavisConsoleClient : IDisposable
         int received = 0;
         while (received < count)
         {
-            int n = await _stream!.ReadAsync(buffer.AsMemory(received, count - received), ct);
+            int n = await ReadWithTimeoutAsync(buffer.AsMemory(received, count - received), ct);
             if (n == 0)
                 throw new DavisException("Connection closed by console");
             received += n;
@@ -396,7 +396,7 @@ public sealed class DavisConsoleClient : IDisposable
         var tmp = new byte[256];
         while (_stream!.DataAvailable || buffer.Count == 0)
         {
-            int n = await _stream.ReadAsync(tmp.AsMemory(0, 256), ct);
+            int n = await ReadWithTimeoutAsync(tmp.AsMemory(0, 256), ct);
             if (n == 0) break;
             buffer.AddRange(tmp[..n]);
 
@@ -409,6 +409,21 @@ public sealed class DavisConsoleClient : IDisposable
         }
 
         return [.. buffer];
+    }
+
+    private async Task<int> ReadWithTimeoutAsync(Memory<byte> buffer, CancellationToken ct)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(_socketTimeout);
+
+        try
+        {
+            return await _stream!.ReadAsync(buffer, timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new DavisException($"Timed out reading from Davis console after {_socketTimeout.TotalSeconds:N1} seconds");
+        }
     }
 
     private static string[] ParseResponseLines(byte[] raw)

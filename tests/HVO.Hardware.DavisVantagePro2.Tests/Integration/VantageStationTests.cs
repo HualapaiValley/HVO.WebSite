@@ -31,7 +31,7 @@ public class VantageStationTests
     private static (DavisConsoleClient client, VantageStation station) CreatePair(int port)
     {
         var client = new DavisConsoleClient(
-            "127.0.0.1", port, TimeSpan.FromSeconds(8),
+            "127.0.0.1", port, TimeSpan.FromSeconds(1),
             NullLogger<DavisConsoleClient>.Instance);
         var station = new VantageStation(
             client, NullLogger<VantageStation>.Instance, maxTries: 1);
@@ -43,6 +43,9 @@ public class VantageStationTests
 
     private static int EepromWriteLength(ushort address, int bytes) =>
         Encoding.ASCII.GetByteCount($"{DavisProtocol.CmdEebwr} {address:X} {bytes:X}\n");
+
+    private static int CommandLength(string command) =>
+        Encoding.ASCII.GetByteCount($"{command}\n");
 
     // ── GetLoop1Async ─────────────────────────────────────────────────────────
 
@@ -292,11 +295,9 @@ public class VantageStationTests
         server
             .WakeStep()
             .Step(6, [DavisProtocol.Ack, DavisProtocol.HardwareVantageVue])
-            .WakeStep()
-            .Step(5, PacketBuilder.BuildTextResponse("3.15"))
-            .WakeStep()
-            .Step(4, PacketBuilder.BuildTextResponse("Mar 29 2013"))
-            .Step(8, [DavisProtocol.Ack, .. timeResp])
+            .Step(CommandLength(DavisProtocol.CmdNver), PacketBuilder.BuildTextResponse("3.15"))
+            .Step(CommandLength(DavisProtocol.CmdVer), PacketBuilder.BuildTextResponse("Mar 29 2013"))
+            .Step(CommandLength(DavisProtocol.CmdGettime), [DavisProtocol.Ack, .. timeResp])
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -325,11 +326,9 @@ public class VantageStationTests
         server
             .WakeStep()
             .Step(6, [DavisProtocol.Ack, DavisProtocol.HardwareVantagePro])
-            .WakeStep()
-            .Step(5, PacketBuilder.BuildTextResponse("1.90"))
-            .WakeStep()
-            .Step(4, PacketBuilder.BuildTextResponse("Jan 01 2008"))
-            .Step(8, [DavisProtocol.Ack, .. timeResp])
+            .Step(CommandLength(DavisProtocol.CmdNver), PacketBuilder.BuildTextResponse("1.90"))
+            .Step(CommandLength(DavisProtocol.CmdVer), PacketBuilder.BuildTextResponse("Jan 01 2008"))
+            .Step(CommandLength(DavisProtocol.CmdGettime), [DavisProtocol.Ack, .. timeResp])
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -665,8 +664,7 @@ public class VantageStationTests
             await using var server = new FakeDavisServer();
             server
                 .WakeStep()
-                .WakeStep()
-                .Step(8, PacketBuilder.BuildTextResponse(
+                .Step(CommandLength(DavisProtocol.CmdBardata), PacketBuilder.BuildTextResponse(
                     "BAR  29.990",
                     "ELEVATION  4500",
                     "DEW POINT  55",
@@ -769,8 +767,7 @@ public class VantageStationTests
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .WakeStep()
-            .Step(10, PacketBuilder.BuildTextResponse())
+            .Step(CommandLength($"{DavisProtocol.CmdSetper} 15"), PacketBuilder.BuildTextResponse())
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -790,8 +787,7 @@ public class VantageStationTests
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .WakeStep()
-            .Step(8, PacketBuilder.BuildTextResponse())
+            .Step(CommandLength($"{DavisProtocol.CmdLamps} 1"), PacketBuilder.BuildTextResponse())
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -799,7 +795,7 @@ public class VantageStationTests
 
         await station.SetLampAsync(true);
 
-        Encoding.ASCII.GetString(server.ReceivedSteps[2]).Should().Be("LAMPS 1\n");
+        Encoding.ASCII.GetString(server.ReceivedSteps[1]).Should().Be("LAMPS 1\n");
 
         client.Dispose();
         await station.DisposeAsync();
@@ -811,8 +807,7 @@ public class VantageStationTests
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .WakeStep()
-            .Step(8, PacketBuilder.BuildTextResponse(
+            .Step(CommandLength(DavisProtocol.CmdBardata), PacketBuilder.BuildTextResponse(
                 "BAR  29.990",
                 "ELEVATION  4500",
                 "DEW POINT  55",
@@ -849,8 +844,7 @@ public class VantageStationTests
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .WakeStep()
-            .Step(8, PacketBuilder.BuildTextResponse("BAR  29.990"))
+            .Step(CommandLength(DavisProtocol.CmdBardata), PacketBuilder.BuildTextResponse("BAR  29.990"))
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -869,8 +863,7 @@ public class VantageStationTests
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .WakeStep()
-            .Step(13, PacketBuilder.BuildTextResponse())
+            .Step(CommandLength("BAR=29991 -75"), PacketBuilder.BuildTextResponse())
             .Step(EepromReadLength(DavisProtocol.EepromSetupBits, 1), [DavisProtocol.Ack])
             .Step(0, PacketBuilder.BuildCrcResponse(0x00))
             .Step(EepromReadLength(DavisProtocol.EepromArchiveInterval, 1), [DavisProtocol.Ack])
@@ -892,7 +885,7 @@ public class VantageStationTests
 
         await station.SetBarometerAsync(29.991, -75);
 
-        Encoding.ASCII.GetString(server.ReceivedSteps[2]).Should().StartWith("BAR=29991 -75");
+        Encoding.ASCII.GetString(server.ReceivedSteps[1]).Should().StartWith("BAR=29991 -75");
 
         client.Dispose();
         await station.DisposeAsync();
@@ -1417,7 +1410,6 @@ public class VantageStationTests
         server
             .WakeStep()
             .Step(8, [DavisProtocol.Ack, .. loop1a, .. loop2a]) // 1st call
-            .WakeStep()
             .Step(8, [DavisProtocol.Ack, .. loop1b, .. loop2b]) // 2nd call
             .Start();
 
@@ -1614,8 +1606,7 @@ public class VantageStationTests
             .Step(6, [DavisProtocol.Ack])               // date stamp + CRC
             .Step(0, PacketBuilder.BuildDmpaftHeader(1)) // nPages=1
             .Step(1, page)                               // ACK prompt → 267-byte page
-                                                         // Second call: GetArchiveSinceAsync — nPages=0, proves lock was released
-            .WakeStep()
+                                                          // Second call: GetArchiveSinceAsync — nPages=0, proves lock was released
             .Step(7, [DavisProtocol.Ack])
             .Step(6, [DavisProtocol.Ack])
             .Step(0, PacketBuilder.BuildDmpaftHeader(0)) // nPages=0 → yields nothing
@@ -1660,8 +1651,7 @@ public class VantageStationTests
             .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
             .Step(6, [DavisProtocol.Ack])               // date stamp + CRC
             .Step(0, PacketBuilder.BuildDmpaftHeader(0)) // nPages=0
-                                                         // Fallback DMPAFT: returns 1 page
-            .WakeStep()
+                                                          // Fallback DMPAFT: returns 1 page
             .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
             .Step(6, [DavisProtocol.Ack])               // all-zeros date stamp + CRC
             .Step(0, PacketBuilder.BuildDmpaftHeader(1)) // nPages=1
