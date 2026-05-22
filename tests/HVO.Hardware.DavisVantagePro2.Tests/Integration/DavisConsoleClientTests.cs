@@ -19,7 +19,7 @@ namespace HVO.Hardware.DavisVantagePro2.Tests.Integration;
 public class DavisConsoleClientTests
 {
     private static DavisConsoleClient CreateClient(int port) =>
-        new("127.0.0.1", port, TimeSpan.FromSeconds(8),
+        new("127.0.0.1", port, TimeSpan.FromSeconds(1),
             NullLogger<DavisConsoleClient>.Instance);
 
     // ── Wake sequence ─────────────────────────────────────────────────────────

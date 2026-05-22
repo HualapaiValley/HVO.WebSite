@@ -139,12 +139,33 @@ else
 fi
 
 # Ensure dotnet tools directory is on PATH for this session and future shells
-export PATH="$HOME/.dotnet/tools:$PATH"
+export PATH="$HOME/.opencode/bin:$HOME/.dotnet/tools:$PATH"
 for _rc in /home/vscode/.bashrc /home/vscode/.zshrc; do
 	if [[ -f "$_rc" ]] && ! grep -q '\.dotnet/tools' "$_rc" 2>/dev/null; then
 		printf '\nexport PATH="$HOME/.dotnet/tools:$PATH"\n' >> "$_rc"
 	fi
+	if [[ -f "$_rc" ]] && ! grep -q '\.opencode/bin' "$_rc" 2>/dev/null; then
+		printf '\nexport PATH="$HOME/.opencode/bin:$PATH"\n' >> "$_rc"
+	fi
 done
+
+# Install Node/npm and Python for dev tooling and optional npm-based utilities.
+echo "Installing Node.js, npm, and Python tooling..."
+sudo apt-get update -qq
+sudo apt-get install -y --no-install-recommends \
+	nodejs \
+	npm \
+	python3 \
+	python3-pip \
+	python3-venv 2>/dev/null || \
+	echo "Warning: Node/npm/Python package installation failed"
+
+# Install OpenCode if the rebuilt container does not already have it.
+echo "Checking OpenCode CLI..."
+if ! command -v opencode >/dev/null 2>&1; then
+	curl -fsSL https://opencode.ai/install | bash || \
+		echo "Warning: OpenCode installation failed — opencode web will not auto-start until installed."
+fi
 
 # Install .NET global tools
 echo "Installing .NET global tools..."
@@ -203,5 +224,9 @@ echo "dotnet-ef:  $(dotnet ef --version 2>/dev/null || echo 'not installed')"
 echo "sqlpackage: $(sqlpackage --version 2>/dev/null || echo 'not installed')"
 echo "gh:         $(gh --version 2>/dev/null | head -1 || echo 'not installed')"
 echo "az:         $(az version --query '"azure-cli"' -o tsv 2>/dev/null || echo 'not installed')"
+echo "node:       $(node --version 2>/dev/null || echo 'not installed')"
+echo "npm:        $(npm --version 2>/dev/null || echo 'not installed')"
+echo "python3:    $(python3 --version 2>/dev/null || echo 'not installed')"
+echo "opencode:   $(opencode --version 2>/dev/null || echo 'not installed')"
 
 echo "Post-create setup completed successfully!"
