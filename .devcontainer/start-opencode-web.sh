@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="/workspaces/HVO.WebSite"
 PORT="${OPENCODE_WEB_PORT:-4096}"
-HOST="${OPENCODE_WEB_HOST:-0.0.0.0}"
+HOST="${OPENCODE_WEB_HOST:-127.0.0.1}"
 LOG_FILE="/tmp/opencode-web.log"
 
 export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
@@ -18,8 +18,8 @@ if pgrep -u "$(id -u)" -f "opencode web.*--port ${PORT}" >/dev/null 2>&1; then
 fi
 
 if [ -z "${OPENCODE_SERVER_PASSWORD:-}" ]; then
-	export OPENCODE_SERVER_PASSWORD="changeme"
-	echo "OPENCODE_SERVER_PASSWORD is not set; using temporary default 'changeme'. Change this before exposing port ${PORT} beyond your dev machine." >> "$LOG_FILE"
+	echo "OPENCODE_SERVER_PASSWORD is not set; skipping opencode web startup." >> "$LOG_FILE"
+	exit 0
 fi
 
 cd "$REPO_ROOT"
