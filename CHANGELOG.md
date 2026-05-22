@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 
+- Added independent Azure ACR publishing scripts and documentation for `hvo-website`, `hvo-davis`, and `hvo-jkbms`
+- Added website Azure Container App deployment notes and standardized the shared Key Vault target on `hvoobs-kv`
+- Made website container HTTPS listener configuration deployment-dependent so local Docker can keep HTTPS while ACA stays HTTP-only behind ingress
+- Documented the website configuration strategy: Key Vault for secrets, env/appsettings for deployment shape, and `v9.SiteConfiguration` for live runtime settings
+- Added a cached `ISiteConfigurationService` over `v9.SiteConfiguration` for runtime-editable website settings
+- Published `hvo-website` container image `1.0.3` to `hvoobsacr.azurecr.io`, added forwarded-header handling for ACA HTTPS, and redeployed the `hvo-website` Azure Container App in `observatory-rg`
 - Removed `.LocalPackages` directory — all HVO packages now sourced from nuget.org
 - Removed `LocalPackages` NuGet source from `NuGet.config`
 - Removed `.LocalPackages` COPY from Dockerfile

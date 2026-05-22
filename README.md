@@ -100,6 +100,21 @@ cd src/HVO.WebSite.v9
 dotnet run
 ```
 
+## Container Publishing
+
+The three deployable images are published independently to Azure Container Registry, and each image keeps its own version in `.env`.
+
+Use the repo script to build, tag, push, and verify one image at a time:
+
+```bash
+./scripts/sync-env-gist.sh
+./scripts/publish-acr-image.sh website
+./scripts/publish-acr-image.sh davis
+./scripts/publish-acr-image.sh jkbms
+```
+
+See [docs/CONTAINER_PUBLISHING.md](docs/CONTAINER_PUBLISHING.md) for the Azure subscription and ACR inventory, the version-variable workflow, the gist sync requirement, and the query commands used to inspect published tags.
+
 ---
 
 ## Dev Container
@@ -114,6 +129,8 @@ This repository includes a [dev container](.devcontainer/) configuration for a c
 |-------|-------------|
 | [Contributing](CONTRIBUTING.md) | PR workflow, branch naming, coding standards |
 | [Changelog](CHANGELOG.md) | Release history and notable changes |
+| [Container Publishing](docs/CONTAINER_PUBLISHING.md) | Azure ACR inventory, versioning workflow, publish script usage |
+| [Website Container App](docs/WEBSITE_CONTAINER_APP.md) | Azure Container App deployment decisions and runtime requirements for `HVO.WebSite` |
 | [Plan](docs/PLAN.md) | Implementation plan and milestone tracking |
 
 ---

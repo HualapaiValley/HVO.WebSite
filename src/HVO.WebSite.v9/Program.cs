@@ -16,9 +16,12 @@ using HVO.DataModels.Data;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using System.Net.Http;
+using System.Net;
 using Azure.Identity;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
@@ -114,6 +117,9 @@ namespace HVO.WebSite.v9
             services.AddRazorComponents()
                 .AddInteractiveServerComponents();
             services.AddCascadingAuthenticationState();
+
+            ConfigureDataProtection(services, configuration);
+            ConfigureForwardedHeaders(services, configuration);
 
             // Add Microsoft Entra ID authentication (OpenID Connect + cookie auth)
             // Client secret is loaded from Key Vault at startup (AzureAd--ClientSecret)
@@ -242,6 +248,7 @@ namespace HVO.WebSite.v9
 
             // Add application services
             services.AddScoped<HVO.WebSite.v9.Services.IWeatherService, HVO.WebSite.v9.Services.WeatherService>();
+            services.AddScoped<HVO.WebSite.v9.Services.ISiteConfigurationService, HVO.WebSite.v9.Services.SiteConfigurationService>();
 
             // Configure HttpClient for Blazor Server components
             // In Development (or when configured), trust the local dev certificate to avoid SSL issues over port forwarding
@@ -269,6 +276,52 @@ namespace HVO.WebSite.v9
             services.AddHostedService<Services.ApiKeySeedService>();
         }
 
+        private static void ConfigureDataProtection(IServiceCollection services, IConfiguration configuration)
+        {
+            var dataProtection = services.AddDataProtection()
+                .SetApplicationName(configuration["DataProtection:ApplicationName"] ?? "HVO.WebSite.v9");
+
+            var blobUri = configuration["DataProtection:BlobUri"];
+            var keyIdentifier = configuration["DataProtection:KeyIdentifier"];
+
+            if (string.IsNullOrWhiteSpace(blobUri) || string.IsNullOrWhiteSpace(keyIdentifier))
+            {
+                return;
+            }
+
+            var credential = new DefaultAzureCredential();
+            dataProtection
+                .PersistKeysToAzureBlobStorage(new Uri(blobUri), credential)
+                .ProtectKeysWithAzureKeyVault(new Uri(keyIdentifier), credential);
+        }
+
+        private static void ConfigureForwardedHeaders(IServiceCollection services, IConfiguration configuration)
+        {
+            var forwardedHeadersEnabled = configuration.GetValue("ForwardedHeaders:Enabled",
+                configuration.GetValue("ASPNETCORE_FORWARDEDHEADERS_ENABLED", false));
+
+            if (!forwardedHeadersEnabled)
+            {
+                return;
+            }
+
+            services.PostConfigure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+                // Trust only the nearest proxy hop and let the host-level
+                // ASPNETCORE_FORWARDEDHEADERS_ENABLED switch control whether
+                // proxy forwarding is enabled for this deployment.
+                options.ForwardLimit = 1;
+
+                if (options.KnownIPNetworks.Count == 0 && options.KnownProxies.Count == 0)
+                {
+                    options.KnownProxies.Add(IPAddress.Loopback);
+                    options.KnownProxies.Add(IPAddress.IPv6Loopback);
+                }
+            });
+        }
+
         private static void Configure(WebApplication app)
         {
             // ============================================================================
@@ -285,6 +338,15 @@ namespace HVO.WebSite.v9
 
             // Add exception handling middleware
             app.UseExceptionHandler();
+
+            var forwardedHeadersEnabled = app.Configuration.GetValue("ForwardedHeaders:Enabled",
+                app.Configuration.GetValue("ASPNETCORE_FORWARDEDHEADERS_ENABLED", false));
+            if (forwardedHeadersEnabled)
+            {
+                // Respect proxy-provided scheme/remote IP only when the deployment
+                // explicitly opts into forwarded header processing.
+                app.UseForwardedHeaders();
+            }
 
             // Add Problem Details middleware for consistent error responses
             app.UseStatusCodePages();

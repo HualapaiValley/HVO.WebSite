@@ -29,17 +29,24 @@ services:
       dockerfile: src/HVO.WebSite.v9/Dockerfile
       args:
         WEBSITE_RUNTIME: ${WEBSITE_RUNTIME:-linux-x64}
+        CERT_IP: ${WEBSITE_CERT_IP:-127.0.0.1}
+        CERT_PASSWORD: ${WEBSITE_CERT_PASSWORD:-HVODev2026}
     hostname: hvo-website
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      # Local container deployments opt into HTTPS explicitly.
+      # ACA should leave the image on HTTP-only and terminate TLS at ingress.
+      ASPNETCORE_URLS: "https://+:443;http://+:8080"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/aspnetapp.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: ${WEBSITE_CERT_PASSWORD:-HVODev2026}
       # Key Vault — loaded by DefaultAzureCredential using the SP below
       KeyVault__Uri: ${AZURE_KEYVAULT_URI}
       # Azure service principal used to authenticate to Key Vault
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
-      # HTTPS on 443 (self-signed cert baked into image).
-      # HTTP on 80 redirects to HTTPS; port 8080 stays internal for service-to-service.
+      # HTTPS on 443 (self-signed cert baked into the local image).
+      # Port 8080 stays available for service-to-service traffic and health checks.
       # Disable HTTPS redirect — internal services post to http://hvo-website:8080
       # and must not be redirected to HTTPS where the self-signed cert would be rejected.
       EnableHttpsRedirect: "false"
@@ -70,9 +77,6 @@ services:
     build:
       context: .
       dockerfile: src/HVO.Hardware.DavisVantagePro2/Dockerfile
-    depends_on:
-      hvo-website:
-        condition: service_healthy
     ports:
       - "5100:8080"
     environment:
@@ -81,8 +85,9 @@ services:
       Station__Port: ${DAVIS_STATION_PORT:-22222}
       Station__ArchiveCatchupMode: "Disabled"
       Station__ArchiveCatchupLookbackHours: "12"
-      # Post readings to the website container — use the service name, not localhost
-      Outbox__ApiEndpoint: "http://hvo-website:8080/api/v1/weather/raw"
+      # Defaults to the in-stack website service. Set HVO_WEBSITE_PUBLIC_BASE_URL
+      # in .env when you explicitly want local collectors to post to the deployed site.
+      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/weather/raw"
       Outbox__ApiKey: ${DAVIS_API_KEY}
       # Persist the outbox SQLite DB across restarts
       Outbox__DbPath: /app/data/outbox.db
@@ -103,14 +108,12 @@ services:
     build:
       context: .
       dockerfile: src/HVO.Hardware.JkBms/Dockerfile
-    depends_on:
-      hvo-website:
-        condition: service_healthy
     ports:
       - "5200:8080"
     environment:
-      # Post readings to the website container — use the service name, not localhost
-      Outbox__ApiEndpoint: "http://hvo-website:8080/api/v1/bms/readings"
+      # Defaults to the in-stack website service. Set HVO_WEBSITE_PUBLIC_BASE_URL
+      # in .env when you explicitly want local collectors to post to the deployed site.
+      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/bms/readings"
       Outbox__ApiKey: ${BMS_API_KEY}
       # Persist the outbox SQLite DB across restarts
       Outbox__DbPath: /app/data/outbox.db
