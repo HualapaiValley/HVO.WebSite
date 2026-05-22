@@ -149,6 +149,27 @@ for _rc in /home/vscode/.bashrc /home/vscode/.zshrc; do
 	fi
 done
 
+# Install a pinned OpenCode CLI release without executing remote install scripts.
+OPENCODE_VERSION="1.15.7"
+OPENCODE_ASSET="opencode-linux-x64.tar.gz"
+OPENCODE_SHA256="6f7f95f13917b9aab8421dbb7e121abf2fecfecdccd16fd5b497f522f454f928"
+echo "Checking OpenCode CLI..."
+if [[ "$(opencode --version 2>/dev/null || true)" != "${OPENCODE_VERSION}" ]]; then
+	if [[ "$(uname -s)" == "Linux" && "$(uname -m)" == "x86_64" ]]; then
+		_tmp_opencode_dir="$(mktemp -d)"
+		curl -fsSL \
+			-o "${_tmp_opencode_dir}/${OPENCODE_ASSET}" \
+			"https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/${OPENCODE_ASSET}"
+		printf '%s  %s\n' "${OPENCODE_SHA256}" "${_tmp_opencode_dir}/${OPENCODE_ASSET}" | sha256sum -c -
+		mkdir -p "$HOME/.opencode/bin"
+		tar -xzf "${_tmp_opencode_dir}/${OPENCODE_ASSET}" -C "$HOME/.opencode/bin"
+		chmod +x "$HOME/.opencode/bin/opencode"
+		rm -rf "${_tmp_opencode_dir}"
+	else
+		echo "Warning: pinned OpenCode install only supports Linux x86_64 in this devcontainer."
+	fi
+fi
+
 # Install .NET global tools
 echo "Installing .NET global tools..."
 

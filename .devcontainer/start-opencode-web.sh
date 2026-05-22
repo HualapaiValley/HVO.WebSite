@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="/workspaces/HVO.WebSite"
 PORT="${OPENCODE_WEB_PORT:-4096}"
-HOST="${OPENCODE_WEB_HOST:-127.0.0.1}"
+HOST="${OPENCODE_WEB_HOST:-0.0.0.0}"
 LOG_FILE="/tmp/opencode-web.log"
 
 export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"

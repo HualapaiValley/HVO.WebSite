@@ -11,15 +11,15 @@ Run `opencode web` automatically inside the devcontainer, forward the web UI thr
 - Current `opencode` exists at `/home/vscode/.opencode/bin/opencode`.
 - Current `opencode` version is `1.15.7`.
 - The devcontainer already has a `postCreateCommand` and `postAttachCommand`, so the setup should not replace them.
-- OpenCode web defaults to `127.0.0.1` for safer startup. Set `OPENCODE_WEB_HOST=0.0.0.0` on the host only if the devcontainer port forwarder needs a non-loopback bind.
+- OpenCode web defaults to `0.0.0.0` inside the devcontainer so VS Code/devcontainer port forwarding can see the listener. Startup still requires `OPENCODE_SERVER_PASSWORD`.
 
 ## Changes Made
 
 - Add port `4096` to VS Code `forwardPorts`.
 - Add a `4096` port label: `OpenCode Web`.
 - Add `postStartCommand` that runs `.devcontainer/start-opencode-web.sh`.
-- Add `.devcontainer/start-opencode-web.sh` to start `opencode web --hostname 127.0.0.1 --port 4096` from `/workspaces/HVO.WebSite` when `OPENCODE_SERVER_PASSWORD` is set.
-- Update `.devcontainer/post-create.sh` to put an existing `$HOME/.opencode/bin` install on PATH. The devcontainer does not install OpenCode by executing a remote install script.
+- Add `.devcontainer/start-opencode-web.sh` to start `opencode web --hostname 0.0.0.0 --port 4096` from `/workspaces/HVO.WebSite` when `OPENCODE_SERVER_PASSWORD` is set.
+- Update `.devcontainer/post-create.sh` to install pinned OpenCode CLI `1.15.7` from the GitHub release tarball after verifying the release asset SHA-256 digest.
 
 ## How To Test After Rebuild
 
@@ -39,8 +39,8 @@ Run `opencode web` automatically inside the devcontainer, forward the web UI thr
 
 ```bash
 cd /workspaces/HVO.WebSite
-OPENCODE_SERVER_PASSWORD='<strong-unique-password>' opencode web --hostname 127.0.0.1 --port 4096
+OPENCODE_SERVER_PASSWORD='<strong-unique-password>' opencode web --hostname 0.0.0.0 --port 4096
 ```
 
 - If VS Code shows an extra `409` port, treat it as unrelated or stale unless `ss -ltnp` shows a process actively listening there. This setup only configures OpenCode web on `4096`.
-- If VS Code does not forward a loopback bind, set `OPENCODE_WEB_HOST=0.0.0.0` on the host and rebuild/reopen the devcontainer.
+- To force a loopback bind for manual local-only testing, set `OPENCODE_WEB_HOST=127.0.0.1` on the host and rebuild/reopen the devcontainer.

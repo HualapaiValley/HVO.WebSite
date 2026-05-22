@@ -89,7 +89,7 @@
     "GIT_COMMITTER_EMAIL": "${localEnv:GIT_COMMITTER_EMAIL}",
     // Required for automatic opencode web startup. Set on the host to protect the web UI.
     "OPENCODE_SERVER_PASSWORD": "${localEnv:OPENCODE_SERVER_PASSWORD}",
-    // Optional: set OPENCODE_WEB_HOST=0.0.0.0 on the host if your port forwarder needs a non-loopback bind.
+    // Optional: override the devcontainer default bind host used by start-opencode-web.sh.
     "OPENCODE_WEB_HOST": "${localEnv:OPENCODE_WEB_HOST}"
   },
   "forwardPorts": [
