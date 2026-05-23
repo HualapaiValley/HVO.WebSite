@@ -11,6 +11,7 @@ import base64
 import hashlib
 import json
 import os
+import ssl
 import socket
 import struct
 import sys
@@ -37,9 +38,12 @@ MQTT_USER = (
     or os.environ.get("SOLAR_ASSISTANT_MQTT_USERNAME", "")
 )
 MQTT_PASSWORD = os.environ.get("SOLARASSISTANT_MQTT_PASSWORD") or os.environ.get("SOLAR_ASSISTANT_MQTT_PASSWORD", "")
-MQTT_TOPIC = os.environ.get("SOLARASSISTANT_MQTT_TOPIC", "#")
+MQTT_TOPIC = os.environ.get("SOLARASSISTANT_MQTT_TOPIC", "solar_assistant/#")
 MQTT_SECONDS = int(os.environ.get("SOLARASSISTANT_MQTT_SECONDS", "15"))
 MQTT_MAX_PACKETS = int(os.environ.get("SOLARASSISTANT_MQTT_MAX_PACKETS", "1000"))
+WEBSOCKET_SCHEME = os.environ.get("SOLARASSISTANT_WEBSOCKET_SCHEME", "ws").strip().lower()
+_WEBSOCKET_PORT = os.environ.get("SOLARASSISTANT_WEBSOCKET_PORT")
+WEBSOCKET_PORT = int(_WEBSOCKET_PORT or ("443" if WEBSOCKET_SCHEME == "wss" else "80"))
 WEBSOCKET_TOPICS = [
     item.strip()
     for item in os.environ.get("SOLARASSISTANT_WEBSOCKET_TOPICS", "total/*,inverter_1/*,battery_1/*").split(",")
@@ -152,11 +156,13 @@ def probe_websocket(host: str) -> None:
     if not PASSWORD:
         print("skipped=SOLARASSISTANT_PASSWORD is required for WebSocket probing")
         return
-
+    if WEBSOCKET_SCHEME not in {"ws", "wss"}:
+        print(f"skipped=unsupported WebSocket scheme {WEBSOCKET_SCHEME!r}")
+        return
+    print("warning=WebSocket authentication sends the local password in the URL query string; run only on trusted local networks.")
     try:
-        with socket.create_connection((host, 80), timeout=5) as sock:
-            sock.settimeout(10)
-            websocket_handshake(sock, host)
+        with open_websocket_socket(host) as sock:
+            websocket_handshake(sock, websocket_host_header(host))
             join_metrics_channel(sock)
             events, definitions, data_topics = collect_websocket_metrics(sock, seconds=10, max_messages=250)
     except Exception as ex:  # noqa: BLE001 - diagnostic probe
@@ -171,6 +177,20 @@ def probe_websocket(host: str) -> None:
     print("data_prefixes=" + format_counter(topic_prefixes(data_topics), 20))
     print("sample_definition_topics=" + ", ".join(sorted(definitions)[:40]))
     print("sample_data_topics=" + ", ".join(sorted(data_topics)[:40]))
+
+
+def open_websocket_socket(host: str) -> socket.socket:
+    raw_sock = socket.create_connection((host, WEBSOCKET_PORT), timeout=5)
+    raw_sock.settimeout(10)
+    if WEBSOCKET_SCHEME == "wss":
+        context = ssl.create_default_context()
+        return context.wrap_socket(raw_sock, server_hostname=host)
+    return raw_sock
+
+
+def websocket_host_header(host: str) -> str:
+    default_port = 443 if WEBSOCKET_SCHEME == "wss" else 80
+    return host if WEBSOCKET_PORT == default_port else f"{host}:{WEBSOCKET_PORT}"
 
 
 def websocket_handshake(sock: socket.socket, host: str) -> None:

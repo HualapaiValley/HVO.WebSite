@@ -90,7 +90,12 @@ using (var scope = app.Services.CreateScope())
 
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error");
+    app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "text/plain";
+        await context.Response.WriteAsync("SolarAssistant gateway encountered an unexpected error.");
+    }));
     app.UseHsts();
 }
 

@@ -6,6 +6,7 @@ namespace HVO.WebSite.PlaywrightTests;
 public sealed class SolarAssistantGatewayPlaywrightTests
 {
     [TestMethod]
+    [TestCategory("Live")]
     public async Task SolarAssistantGateway_ShouldRenderMonitorShell()
     {
         var baseUrl = Environment.GetEnvironmentVariable("HVO_SOLARASSISTANT_BASE_URL");

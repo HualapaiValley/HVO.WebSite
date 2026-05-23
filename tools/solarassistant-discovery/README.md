@@ -13,7 +13,7 @@ export SOLARASSISTANT_HOST="<host-or-ip>"
 export SOLARASSISTANT_PASSWORD="<local-password>"
 ```
 
-The probe also accepts the existing repo `.env` aliases `SOLAR_ASSISTANT_IP`, `SOLAR_ASSISTANT_REST_USERNAME`, `SOLAR_ASSISTANT_REST_PASSWORD`, `SOLAR_ASSISTANT_MQTT_USERNAME`, and `SOLAR_ASSISTANT_MQTT_PASSWORD`.
+The probe also accepts alternate env var names used by local deployment configuration: `SOLAR_ASSISTANT_IP`, `SOLAR_ASSISTANT_REST_USERNAME`, `SOLAR_ASSISTANT_REST_PASSWORD`, `SOLAR_ASSISTANT_MQTT_USERNAME`, and `SOLAR_ASSISTANT_MQTT_PASSWORD`.
 
 Optional values:
 
@@ -22,11 +22,15 @@ export SOLARASSISTANT_USER="admin"
 export SOLARASSISTANT_TOKEN="<bearer-token>"
 export SOLARASSISTANT_MQTT_USER="<mqtt-user>"
 export SOLARASSISTANT_MQTT_PASSWORD="<mqtt-password>"
-export SOLARASSISTANT_MQTT_TOPIC="#"
+export SOLARASSISTANT_MQTT_TOPIC="solar_assistant/#"
 export SOLARASSISTANT_MQTT_SECONDS="15"
 export SOLARASSISTANT_MQTT_MAX_PACKETS="1000"
+export SOLARASSISTANT_WEBSOCKET_SCHEME="ws"
+export SOLARASSISTANT_WEBSOCKET_PORT="80"
 export SOLARASSISTANT_WEBSOCKET_TOPICS="total/*,inverter_1/*,battery_1/*"
 ```
+
+The default MQTT subscription is `solar_assistant/#`; use `SOLARASSISTANT_MQTT_TOPIC="#"` only when you intentionally want to inspect all broker topic names.
 
 ## Run
 
@@ -34,7 +38,11 @@ export SOLARASSISTANT_WEBSOCKET_TOPICS="total/*,inverter_1/*,battery_1/*"
 python3 tools/solarassistant-discovery/probe.py
 ```
 
+Run this helper on a host with Python 3 available. The repo devcontainer is not the required runtime for this non-deployable probe.
+
 The output intentionally summarizes topics, groups, units, events, Home Assistant discovery metadata, and sample topic names without printing metric/state values.
+
+WebSocket discovery sends the local SolarAssistant password in the WebSocket URL query string because that is the interface SolarAssistant exposes. Run it only on trusted local networks, prefer `SOLARASSISTANT_WEBSOCKET_SCHEME=wss` and port `443` if your installation supports TLS, and assume URLs may be visible in local diagnostic logs.
 
 MQTT discovery output is grouped into:
 
