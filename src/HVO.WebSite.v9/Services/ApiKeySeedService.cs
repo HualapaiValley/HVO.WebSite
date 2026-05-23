@@ -60,6 +60,14 @@ public sealed class ApiKeySeedService : IHostedService
             name: "Power gateway — ingest",
             scopes: [ApiScopes.PowerIngest],
             cancellationToken);
+
+        await SeedSystemKeyAsync(
+            db,
+            configurationKeyName: "Seeding:PowerReadApiKey",
+            rawKey: _configuration["Seeding:PowerReadApiKey"],
+            name: "Power API — read",
+            scopes: [ApiScopes.PowerRead],
+            cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

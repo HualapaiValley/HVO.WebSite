@@ -67,6 +67,7 @@ The script:
 
 - sources `.env`
 - logs into ACR with `az acr login`
+- uses a temporary Docker config for ACR login when `DOCKER_CONFIG` is unset, avoiding local credential-helper failures and persistent publish credentials
 - builds the selected Dockerfile
 - tags the image with both the configured version and `latest`
 - pushes both tags

@@ -117,6 +117,19 @@ done
 require_command az
 require_command docker
 
+docker_config_dir=""
+cleanup_docker_config() {
+	if [[ -n "${docker_config_dir}" ]]; then
+		rm -rf "${docker_config_dir}"
+	fi
+}
+
+if [[ "${dry_run}" == false && -z "${DOCKER_CONFIG:-}" ]]; then
+	docker_config_dir="$(mktemp -d "${TMPDIR:-/tmp}/hvo-acr-docker-config.XXXXXX")"
+	export DOCKER_CONFIG="${docker_config_dir}"
+	trap cleanup_docker_config EXIT
+fi
+
 set -a
 # shellcheck disable=SC1090
 source "${env_file}"

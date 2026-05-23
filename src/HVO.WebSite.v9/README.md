@@ -57,7 +57,7 @@ Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET C
 
 **Entra ID roles** (`AppRoles.cs`): `Admin`, `User`
 
-**API key scopes** (`ApiScopes.cs`): `ingest:weather`, `ingest:bms`, `ingest:images`, `ingest:power`, `read:weather`, `read:api`
+**API key scopes** (`ApiScopes.cs`): `ingest:weather`, `ingest:bms`, `ingest:images`, `ingest:power`, `read:weather`, `read:power`, `read:api`
 
 ## Configuration
 
@@ -67,6 +67,8 @@ Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET C
 | `EnableHttpsRedirect` | Keep `false` for local sidecar traffic and for ACA when ingress owns HTTP to HTTPS behavior |
 | `AzureAd:*` | Microsoft Entra ID OIDC settings |
 | `ConnectionStrings:HualapaiValleyObservatory` | Azure SQL connection string |
+| `Seeding:PowerApiKey` | Optional write-only `ingest:power` key seed for power gateways |
+| `Seeding:PowerReadApiKey` | Optional `read:power` key seed for operational power API verification |
 | `ASPNETCORE_Kestrel__Certificates__Default__*` | TLS certificate path and password for local container HTTPS |
 
 Configuration should be split by purpose:
