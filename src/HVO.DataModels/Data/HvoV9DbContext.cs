@@ -50,6 +50,10 @@ public class HvoV9DbContext : DbContext
 
     public DbSet<BmsReadingHourly> BmsReadingsHourly { get; set; }
 
+    // ── Power ────────────────────────────────────────────────────────────────
+
+    public DbSet<PowerReading> PowerReadings { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -221,6 +225,18 @@ public class HvoV9DbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.DeviceId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Power ────────────────────────────────────────────────────────────
+
+        modelBuilder.Entity<PowerReading>(entity =>
+        {
+            entity.HasIndex(e => e.RecordedAt);
+            entity.HasIndex(e => new { e.SourceId, e.RecordedAt }).IsUnique();
+            entity.HasIndex(e => new { e.SourceSystem, e.RecordedAt });
+            entity.Property(e => e.RecordedAt).HasColumnType("datetime2");
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
+            entity.Property(e => e.SourceId).IsRequired();
         });
     }
 }

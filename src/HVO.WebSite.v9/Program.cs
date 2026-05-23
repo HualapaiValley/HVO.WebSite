@@ -25,6 +25,8 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
+using HVO.WebSite.v9.Telemetry;
+using OpenTelemetry.Metrics;
 namespace HVO.WebSite.v9
 {
     /// <summary>
@@ -132,6 +134,7 @@ namespace HVO.WebSite.v9
                 options.AddPolicy("ImageIngest", p => p.RequireClaim("scope", ApiScopes.ImageIngest));
                 options.AddPolicy("PowerIngest", p => p.RequireClaim("scope", ApiScopes.PowerIngest));
                 options.AddPolicy("BmsIngest", p => p.RequireClaim("scope", ApiScopes.BmsIngest));
+                options.AddPolicy("PowerRead", p => p.RequireClaim("scope", ApiScopes.PowerRead, ApiScopes.ApiRead));
                 options.AddPolicy("WeatherRead", p => p.RequireClaim("scope", ApiScopes.WeatherRead, ApiScopes.ApiRead));
                 options.AddPolicy("AdminOnly", p => p.RequireRole(AppRoles.Admin));
                 options.AddPolicy("UserOrAdmin", p => p.RequireRole(AppRoles.User, AppRoles.Admin));
@@ -238,6 +241,7 @@ namespace HVO.WebSite.v9
                     {
                         options.ConnectionString = appInsightsConnectionString;
                     })
+                    .WithMetrics(mb => mb.AddMeter(PowerIngestTelemetry.MeterName))
                     .ConfigureResource(rb => rb.AddService(
                         serviceName: serviceName,
                         serviceInstanceId: Environment.MachineName));
@@ -249,6 +253,7 @@ namespace HVO.WebSite.v9
             // Add application services
             services.AddScoped<HVO.WebSite.v9.Services.IWeatherService, HVO.WebSite.v9.Services.WeatherService>();
             services.AddScoped<HVO.WebSite.v9.Services.ISiteConfigurationService, HVO.WebSite.v9.Services.SiteConfigurationService>();
+            services.AddSingleton<PowerIngestTelemetry>();
 
             // Configure HttpClient for Blazor Server components
             // In Development (or when configured), trust the local dev certificate to avoid SSL issues over port forwarding
