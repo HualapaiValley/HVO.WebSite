@@ -66,6 +66,10 @@ public class BmsController : ControllerBase
         if (requests.Count == 0)
             return ValidationProblem(detail: "Batch must contain at least one record.");
 
+        var requestValidationErrors = ValidateRequests(requests);
+        if (requestValidationErrors.Count > 0)
+            return BadRequest(new ValidationProblemDetails(requestValidationErrors));
+
         // ── Resolve devices (upsert by address) ───────────────────────────────
 
         // Normalize addresses to uppercase so lookups are case-insensitive regardless of
@@ -432,6 +436,29 @@ public class BmsController : ControllerBase
     private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
         ex.InnerException is SqlException sqlEx &&
         (sqlEx.Number == 2601 || sqlEx.Number == 2627);
+
+    private static Dictionary<string, string[]> ValidateRequests(IReadOnlyList<BmsIngestRequest> requests)
+    {
+        var errors = new Dictionary<string, string[]>();
+
+        for (var index = 0; index < requests.Count; index++)
+        {
+            var request = requests[index];
+            if (request.Reading is null)
+            {
+                errors[$"[{index}].reading"] = ["Reading is required."];
+                continue;
+            }
+
+            var reading = request.Reading;
+            if (string.IsNullOrWhiteSpace(reading.DeviceAddress))
+                errors[$"[{index}].reading.deviceAddress"] = ["DeviceAddress is required."];
+            if (string.IsNullOrWhiteSpace(reading.DeviceAlias))
+                errors[$"[{index}].reading.deviceAlias"] = ["DeviceAlias is required."];
+        }
+
+        return errors;
+    }
 
     private static bool ConfigEquals(BmsDeviceConfig stored, BmsConfigRequest request) =>
         stored.CellCount == request.CellCount &&

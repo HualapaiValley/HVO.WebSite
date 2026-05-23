@@ -74,7 +74,9 @@
   // Non-secret env vars available in the running container environment
   "containerEnv": {
     "ASPNETCORE_ENVIRONMENT": "Development",
-    "DOTNET_ENVIRONMENT": "Development"
+    "DOTNET_ENVIRONMENT": "Development",
+    "NUGET_HTTP_CACHE_PATH": "/home/vscode/.nuget/v3-cache",
+    "NUGET_PLUGINS_CACHE_PATH": "/home/vscode/.nuget/plugins-cache"
   },
   // Host-sourced vars injected by VS Code from /etc/environment on hvo-dev-host
   // Secrets (AZURE_*, ConnectionStrings__*, etc.) come from .env via post-create.sh
@@ -209,8 +211,8 @@
       "target": "/home/vscode/.aspnet/DataProtection-Keys"
     }
   ],
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
-  "postStartCommand": "bash .devcontainer/start-opencode-web.sh",
-  "postAttachCommand": "bash .devcontainer/post-attach.sh",
+  "postCreateCommand": "bash /workspaces/HVO.WebSite/.devcontainer/post-create.sh",
+  "postStartCommand": "bash /workspaces/HVO.WebSite/.devcontainer/start-opencode-web.sh",
+  "postAttachCommand": "bash /workspaces/HVO.WebSite/.devcontainer/post-attach.sh",
   "remoteUser": "vscode"
 }

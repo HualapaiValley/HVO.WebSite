@@ -115,6 +115,58 @@ public sealed class PowerApiForwarderTests
         row.LastError.Should().Contain("503");
     }
 
+    [TestMethod]
+    public async Task SweepAsync_InvalidJsonPayload_MarksRecordFailedAndDoesNotPost()
+    {
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+            db.OutboxRecords.Add(new OutboxRecord
+            {
+                SourceId = "solarassistant-total",
+                DeviceId = "total",
+                RecordedAtUtc = DateTime.Parse("2026-05-23T11:15:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
+                Payload = "not-json",
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await _provider.GetRequiredService<PowerApiForwarder>().SweepAsync(CancellationToken.None);
+
+        using var verifyScope = _provider.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        var row = verifyDb.OutboxRecords.Single();
+        row.Status.Should().Be(OutboxStatus.Failed);
+        row.LastError.Should().Be("Outbox payload JSON is invalid.");
+        _handler.Requests.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public async Task SweepAsync_NullJsonPayload_MarksRecordFailedAndDoesNotPost()
+    {
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+            db.OutboxRecords.Add(new OutboxRecord
+            {
+                SourceId = "solarassistant-total",
+                DeviceId = "total",
+                RecordedAtUtc = DateTime.Parse("2026-05-23T11:20:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
+                Payload = "null",
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await _provider.GetRequiredService<PowerApiForwarder>().SweepAsync(CancellationToken.None);
+
+        using var verifyScope = _provider.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        var row = verifyDb.OutboxRecords.Single();
+        row.Status.Should().Be(OutboxStatus.Failed);
+        row.LastError.Should().Be("Outbox payload JSON is invalid.");
+        _handler.Requests.Should().BeEmpty();
+    }
+
     private async Task SeedRecordAsync(string sourceId, string recordedAt)
     {
         using var scope = _provider.CreateScope();

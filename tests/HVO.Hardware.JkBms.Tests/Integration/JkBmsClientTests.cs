@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace HVO.Hardware.JkBms.Tests.Integration;
 
 [TestClass]
+[TestCategory("Integration")]
 public class JkBmsClientTests
 {
     private const string TestAddress = "AA:BB:CC:DD:EE:FF";

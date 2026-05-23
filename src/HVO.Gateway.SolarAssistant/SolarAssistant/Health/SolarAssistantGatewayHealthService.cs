@@ -6,7 +6,12 @@ using Microsoft.Extensions.Options;
 
 namespace HVO.Gateway.SolarAssistant.SolarAssistant.Health;
 
-public sealed class SolarAssistantGatewayHealthService
+public interface IGatewayHealthSnapshotProvider
+{
+    SolarAssistantGatewayHealthSnapshot GetSnapshot(DateTime? nowUtc = null);
+}
+
+public sealed class SolarAssistantGatewayHealthService : IGatewayHealthSnapshotProvider
 {
     private readonly SolarAssistantSnapshotWorker _snapshotWorker;
     private readonly SolarAssistantMqttDiscoveryWorker _mqttWorker;

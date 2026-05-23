@@ -153,6 +153,28 @@ public class BmsControllerTests
         result.Result.Should().BeOfType<BadRequestObjectResult>();
     }
 
+    [TestMethod]
+    public async Task IngestReadings_NullReading_Returns400()
+    {
+        var result = await _ctrl.IngestReadings(
+            [new BmsIngestRequest { Reading = null! }],
+            CancellationToken.None);
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+        _db.BmsDevices.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_BlankDeviceAddress_Returns400()
+    {
+        var result = await _ctrl.IngestReadings(
+            [MakeRequest(deviceAddress: "   ")],
+            CancellationToken.None);
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+        _db.BmsDevices.Should().BeEmpty();
+    }
+
     // -------------------------------------------------------------------------
     // Happy path — basic insert
     // -------------------------------------------------------------------------

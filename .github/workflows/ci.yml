@@ -38,7 +38,7 @@ jobs:
       - name: Test (Unit)
         run: >
           dotnet test HVO.WebSite.sln --no-build -c Debug --nologo -v minimal
-          --filter "TestCategory!=Integration"
+          --filter "TestCategory!=Integration&TestCategory!=Live"
           --logger "trx;LogFileName=tests.trx"
           --collect:"XPlat Code Coverage"
           --results-directory TestResults

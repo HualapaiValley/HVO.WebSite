@@ -75,7 +75,9 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<SolarAssistantMqtt
 builder.Services.AddSingleton<PowerApiForwarder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PowerApiForwarder>());
 builder.Services.AddSingleton<SolarAssistantGatewayHealthService>();
-builder.Services.AddHealthChecks();
+builder.Services.AddSingleton<IGatewayHealthSnapshotProvider>(sp => sp.GetRequiredService<SolarAssistantGatewayHealthService>());
+builder.Services.AddHealthChecks()
+    .AddCheck<SolarAssistantGatewayHealthCheck>("solarassistant-gateway");
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddMudServices();
