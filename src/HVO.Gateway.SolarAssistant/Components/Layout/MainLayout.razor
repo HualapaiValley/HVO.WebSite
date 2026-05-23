@@ -1,6 +1,4 @@
 @inherits LayoutComponentBase
-@using HVO.Gateway.SolarAssistant.SolarAssistant.Health
-@inject SolarAssistantGatewayHealthService HealthService
 
 <MudThemeProvider Theme="@ShellTheme" IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnThemeModeChanged" />
 <MudPopoverProvider />
@@ -18,9 +16,9 @@
                 </div>
             </div>
             <nav class="shell-header-nav" aria-label="Primary navigation">
-                <MudButton Href="/" Variant="@GetNavLinkVariant()" Color="Color.Inherit" Class="@GetNavLinkClass()">Monitor</MudButton>
-                <MudButton Href="/inventory" Variant="Variant.Text" Color="Color.Inherit" Class="shell-nav-link">REST JSON</MudButton>
-                <MudButton Href="/mqtt-inventory" Variant="Variant.Text" Color="Color.Inherit" Class="shell-nav-link">MQTT JSON</MudButton>
+                <MudButton Href="/" Variant="@GetNavLinkVariant("monitor")" Color="Color.Inherit" Class="@GetNavLinkClass("monitor")">Monitor</MudButton>
+                <MudButton Href="/inventory" Variant="@GetNavLinkVariant("inventory")" Color="Color.Inherit" Class="@GetNavLinkClass("inventory")">REST JSON</MudButton>
+                <MudButton Href="/mqtt-inventory" Variant="@GetNavLinkVariant("mqtt-inventory")" Color="Color.Inherit" Class="@GetNavLinkClass("mqtt-inventory")">MQTT JSON</MudButton>
             </nav>
             <MudSpacer />
             <div class="shell-header-actions" aria-label="Header actions">
@@ -63,77 +61,3 @@
 
     <div id="components-reconnect-modal" data-nosnippet></div>
 </MudLayout>
-
-@code {
-    private bool _isDarkMode = true;
-
-    private MudTheme ShellTheme { get; } = new()
-    {
-        PaletteLight = new PaletteLight
-        {
-            Primary = "#2d5fb7",
-            Secondary = "#2d8b79",
-            Background = "#ecf3fb",
-            Surface = "#fbfdff",
-            AppbarBackground = "rgba(255,255,255,0)",
-            AppbarText = "#13263f",
-            DrawerBackground = "#f5f9fd",
-            DrawerText = "#1c2d43",
-            TextPrimary = "#10233f",
-            TextSecondary = "#4f6887"
-        },
-        PaletteDark = new PaletteDark
-        {
-            Primary = "#6da5ff",
-            Secondary = "#57bca6",
-            Background = "#08111f",
-            Surface = "#1f2937",
-            AppbarBackground = "rgba(0,0,0,0)",
-            AppbarText = "#f8fbff",
-            DrawerBackground = "#101826",
-            DrawerText = "#d9e3f3",
-            TextPrimary = "#f8fbff",
-            TextSecondary = "#9fb4d5"
-        }
-    };
-
-    private string LayoutThemeClass => _isDarkMode ? "shell-theme-dark" : "shell-theme-light";
-
-    private string ThemeSelectorIcon => _isDarkMode
-        ? Icons.Material.Outlined.DarkMode
-        : Icons.Material.Outlined.LightMode;
-
-    private string ThemeSelectorLabel => _isDarkMode ? "Switch to light theme" : "Switch to dark theme";
-
-    private SolarAssistantGatewayHealthSnapshot Health => HealthService.GetSnapshot();
-
-    private string FooterHealthText => Health.State switch
-    {
-        "healthy" => "Gateway healthy",
-        "warning" => $"{Health.Alerts.Count} warning(s)",
-        "critical" => $"{Health.Alerts.Count} critical alert(s)",
-        _ => "Gateway unknown",
-    };
-
-    private string FooterHealthDotClass => Health.State switch
-    {
-        "healthy" => "shell-status-dot shell-status-dot-online",
-        "warning" => "shell-status-dot shell-status-dot-warning",
-        "critical" => "shell-status-dot shell-status-dot-offline",
-        _ => "shell-status-dot shell-status-dot-warning",
-    };
-
-    private Variant GetNavLinkVariant() => Variant.Filled;
-
-    private string GetNavLinkClass() => "shell-nav-link shell-nav-link-current";
-
-    private void OnThemeModeChanged(bool useDarkMode)
-    {
-        _isDarkMode = useDarkMode;
-    }
-
-    private void ToggleTheme()
-    {
-        _isDarkMode = !_isDarkMode;
-    }
-}

@@ -113,8 +113,9 @@ public sealed class SolarAssistantMqttInventoryStore
             _lastMessageAtUtc = message.ReceivedAtUtc;
             if (IsHomeAssistantDiscovery(message.Topic))
             {
-                var entity = ParseDiscovery(message);
-                if (entity is not null)
+                if (string.IsNullOrWhiteSpace(message.Payload))
+                    _entities.Remove(message.Topic);
+                else if (ParseDiscovery(message) is { } entity)
                     _entities[message.Topic] = entity;
             }
             else if (message.Topic.StartsWith("solar_assistant/", StringComparison.Ordinal))

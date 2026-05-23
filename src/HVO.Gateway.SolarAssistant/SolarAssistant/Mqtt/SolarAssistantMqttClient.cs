@@ -8,6 +8,9 @@ namespace HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 /// <summary>Minimal MQTT 3.1.1 read-only client for SolarAssistant discovery/state subscriptions.</summary>
 public sealed class SolarAssistantMqttClient
 {
+    private const int KeepAliveSeconds = 30;
+    private static readonly TimeSpan PingInterval = TimeSpan.FromSeconds(KeepAliveSeconds / 2);
+
     private readonly SolarAssistantOptions _options;
 
     public SolarAssistantMqttClient(SolarAssistantOptions options)
@@ -18,6 +21,7 @@ public sealed class SolarAssistantMqttClient
     public async Task RunAsync(
         IReadOnlyList<string> subscriptions,
         Func<SolarAssistantMqttMessage, CancellationToken, Task> onMessage,
+        Action onSubscribed,
         CancellationToken ct)
     {
         using var tcp = new TcpClient();
@@ -26,14 +30,28 @@ public sealed class SolarAssistantMqttClient
 
         await ConnectAsync(stream, ct);
         await SubscribeAsync(stream, subscriptions, ct);
+        onSubscribed();
 
+        var readTask = ReadPacketAsync(stream, ct);
         while (!ct.IsCancellationRequested)
         {
-            var packet = await ReadPacketAsync(stream, ct);
+            var completed = await Task.WhenAny(readTask, Task.Delay(PingInterval, ct));
+            if (completed != readTask)
+            {
+                ct.ThrowIfCancellationRequested();
+                await WritePacketAsync(stream, packetType: 12, flags: 0, [], [], ct);
+                continue;
+            }
+
+            var packet = await readTask;
             if (packet is null)
                 return;
 
+            readTask = ReadPacketAsync(stream, ct);
+
             var (packetType, flags, payload) = packet.Value;
+            if (packetType == 13)
+                continue;
             if (packetType != 3)
                 continue;
 
@@ -59,7 +77,7 @@ public sealed class SolarAssistantMqttClient
         }
 
         variableHeader.Add(flags);
-        WriteUInt16(variableHeader, 30);
+        WriteUInt16(variableHeader, KeepAliveSeconds);
 
         var payload = new List<byte>();
         WriteString(payload, clientId);
@@ -96,8 +114,25 @@ public sealed class SolarAssistantMqttClient
         await WritePacketAsync(stream, packetType: 8, flags: 2, variableHeader, payload, ct);
 
         var response = await ReadPacketAsync(stream, ct) ?? throw new InvalidOperationException("MQTT broker closed before SUBACK.");
-        if (response.PacketType != 9)
+        if (response.PacketType != 9 || response.Payload.Length < 2)
             throw new InvalidOperationException("MQTT broker returned an invalid SUBACK.");
+
+        var packetId = BinaryPrimitives.ReadUInt16BigEndian(response.Payload.AsSpan(0, 2));
+        if (packetId != 1)
+            throw new InvalidOperationException($"MQTT broker returned SUBACK for packet id {packetId}.");
+
+        var returnCodes = response.Payload.AsSpan(2);
+        if (returnCodes.Length != subscriptions.Count)
+            throw new InvalidOperationException("MQTT broker returned an invalid SUBACK return-code count.");
+
+        for (var i = 0; i < returnCodes.Length; i++)
+        {
+            var code = returnCodes[i];
+            if (code == 0x80)
+                throw new InvalidOperationException($"MQTT broker rejected subscription '{subscriptions[i]}'.");
+            if (code > 2)
+                throw new InvalidOperationException($"MQTT broker returned unsupported SUBACK code {code} for '{subscriptions[i]}'.");
+        }
     }
 
     private static SolarAssistantMqttMessage? ReadPublish(byte flags, byte[] payload)

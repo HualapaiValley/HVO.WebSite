@@ -78,4 +78,35 @@ public sealed class SolarAssistantMqttInventoryStoreTests
         entity!.CommandTopic.Should().Be("solar_assistant/inverter_1/output_source_priority/set");
         entity.Classification.Should().Be(SolarAssistantMetricClassification.DbCandidate);
     }
+
+    [TestMethod]
+    public void Apply_RemovesHomeAssistantDiscoveryEntity_WhenEmptyRetainedConfigArrives()
+    {
+        var store = new SolarAssistantMqttInventoryStore();
+        var topic = "homeassistant/sensor/total_pv_power/config";
+
+        store.Apply(new SolarAssistantMqttMessage
+        {
+            Topic = topic,
+            Payload = """
+            {
+              "name":"PV power",
+              "stat_t":"solar_assistant/total/pv_power/state",
+              "unit_of_meas":"W"
+            }
+            """,
+            Retain = true,
+            ReceivedAtUtc = DateTime.UtcNow,
+        });
+
+        store.Apply(new SolarAssistantMqttMessage
+        {
+            Topic = topic,
+            Payload = string.Empty,
+            Retain = true,
+            ReceivedAtUtc = DateTime.UtcNow,
+        });
+
+        store.Snapshot.EntityCount.Should().Be(0);
+    }
 }
