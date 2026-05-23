@@ -2,7 +2,7 @@
 
 Last updated: 2026-05-23
 
-This document captures the current architecture baseline for HVO.WebSite and the expected direction for near-term hardware integrations. It is a current-state reference, not a full implementation plan. Use `docs/PLAN.md` for phase tracking and detailed task checklists. The validated RabbitMQ/Service Bus ingest POC is archived under `archive/rabbitmq-servicebus-ingest-poc/`.
+This document captures the current architecture baseline for HVO.WebSite and the expected direction for near-term hardware integrations. It is a current-state reference, not a full implementation plan. Use `docs/PLAN.md` for phase tracking and detailed task checklists. Use `docs/EDGE_OUTBOX_AND_GATEWAY_PLAN.md` for the shared edge outbox and gateway sequence. The validated RabbitMQ/Service Bus ingest POC is archived under `archive/rabbitmq-servicebus-ingest-poc/`.
 
 ## System Purpose
 
@@ -198,7 +198,7 @@ Collectors are edge services. They should run on hardware that can reach the phy
 | MQTT gateway/normalizer | Same LAN as the MQTT broker or device publisher |
 | ESPHome gateway | Same LAN as ESPHome nodes or MQTT broker |
 | SolarAssistant gateway | Same LAN as SolarAssistant MQTT/REST endpoint |
-| TPLink control gateway | Same LAN/VLAN as the TPLink devices |
+| TPLink dedicated app | Deferred until UI/control/monitoring boundary is decided |
 
 The website should not require inbound access to edge collectors for telemetry ingest. Edge collectors initiate outbound API calls to the website.
 
@@ -241,9 +241,9 @@ Future integrations should fit into the existing edge collector model.
 
 | Integration | Recommended Boundary |
 |-------------|----------------------|
-| SolarAssistant / EG4 6500EX | Source/provider gateway that reads MQTT or REST, writes a local SQLite outbox, then posts to a typed power ingest API |
+| SolarAssistant / EG4 6500EX | First-pass read-only source/provider gateway that inventories via REST, prefers validated MQTT live state topics, keeps WebSocket as a fallback/diagnostic stream, writes a local SQLite outbox, then posts to a typed power ingest API |
 | Victron SmartShunt | Edge collector or MQTT gateway depending on available local integration |
-| TPLink outlets/lights | Edge gateway for local device discovery, status, energy readings, and future control |
+| TPLink outlets/lights | Deferred; likely closer to a dedicated Davis-style app with its own UI than a pure monitoring gateway |
 | Govee BLE sensors | ESPHome or BLE edge collector that decodes sensor values locally |
 | ESPHome nodes | Treat as edge decoders that expose values through MQTT or ESPHome native API to a provider-specific gateway, not as a generic transparent BLE adapter |
 
@@ -296,18 +296,19 @@ Expected command/control additions:
 
 The Davis and JK BMS collectors intentionally started independently. With more collectors planned, shared infrastructure is becoming worthwhile.
 
-Good candidates for a future `HVO.Hardware.Common` project:
+Good candidates for future shared edge projects:
 
 | Candidate | Reason |
 |-----------|--------|
-| SQLite outbox + API forwarder | Same durable local delivery pattern across collectors |
+| `HVO.Edge.Outbox` | Same durable local delivery, retry, compaction, idempotency, and status pattern across collectors/gateways |
+| `HVO.Edge.ApiForwarding` | Shared typed HTTP forwarding if the HTTP client/response mapping grows beyond the outbox package |
 | Ingest DTO/client package | Reduce payload drift between collectors and website |
 | Gateway host | Shared worker shell for SolarAssistant, ESPHome, and vendor topic transforms |
 | Collector options | Common endpoint, API key, batch size, retry, DB path, retention settings |
 | Health checks | Common stale-device and outbox-backlog checks |
 | Status state models | Common UI footer/status patterns |
 
-Do not extract abstractions before the shape is stable. Prefer small, obvious extractions after the next collector repeats the same code.
+Do not extract abstractions before the shape is stable. The first extraction should be based on the observed Davis and JK BMS differences, plus SolarAssistant discovery as the third reference point.
 
 ## Known Gaps
 
@@ -318,18 +319,20 @@ Do not extract abstractions before the shape is stable. Prefer small, obvious ex
 | Weather and BMS aggregates are incomplete | Some minute/hourly tables exist but are not fully populated by website workers |
 | Collector health is not domain-rich enough | Process health can pass while device polling or forwarding is unhealthy |
 | Shared outbox/API-forwarding infrastructure is not extracted | New gateways will repeat collector delivery code until a common package is added |
+| SolarAssistant source shape is not documented | REST/MQTT/WebSocket topics, cadence, timestamps, and unit conventions need discovery before production gateway work |
 | Command/control is not designed in code yet | Future control operations need security, audit, queueing, and edge execution semantics |
 | ESPHome integration is not implemented | BLE gateway strategy needs a prototype against real devices and topics |
 
 ## Near-Term Recommended Sequence
 
 1. Keep PR-sized changes small and preserve the current outbox-first reliability model.
-2. Extract only the shared SQLite outbox/API-forwarding pieces that the next gateway actually needs.
-3. Implement normalized v9 power persistence before SolarAssistant production ingest.
-4. Add a SolarAssistant gateway with its own local data directory, outbox, config, and status UI.
-5. Prototype ESPHome/Govee ingestion through a provider-specific gateway and stable device IDs.
-6. Harden SQL auth with Entra/managed identities and separate migration/runtime permissions.
-7. Revisit brokered ingest only if operational scale justifies it.
+2. Run a non-deployable SolarAssistant REST, MQTT, and WebSocket discovery POC and document sanitized samples.
+3. Extract only the shared SQLite outbox/API-forwarding pieces justified by Davis, JK BMS, and SolarAssistant discovery.
+4. Implement normalized v9 power persistence before SolarAssistant production ingest.
+5. Add a SolarAssistant gateway with its own local data directory, outbox, config, and status UI if useful.
+6. Defer ESPHome until hardware/topics are available and defer TPLink until its dedicated app boundary is decided.
+7. Harden SQL auth with Entra/managed identities and separate migration/runtime permissions.
+8. Revisit brokered ingest only if operational scale justifies it.
 
 ## Architectural Decisions Captured Here
 
@@ -340,6 +343,7 @@ Do not extract abstractions before the shape is stable. Prefer small, obvious ex
 | Delivery reliability | Per-edge SQLite outboxes with website API retry/backoff |
 | Domain ingest | Prefer normalized domain APIs over vendor-specific central models |
 | Power model | Keep inverter/load/charge and per-device outlet power distinct where needed |
+| SolarAssistant scope | First-pass gateway is read-only; MQTT write/control topics may be added later through a separate safety and audit design |
 | BLE gateways | Use ESPHome as edge decoder, not transparent BLE relay |
 | Command/control | Use cloud inbox plus edge polling when implemented |
 | Tests | Mock/simulated by default, live hardware only by explicit category |
