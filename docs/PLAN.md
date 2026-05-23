@@ -4,7 +4,7 @@
 
 HVO.WebSite v9 is a clean-slate rebuild of the Hualapai Valley Observatory website on .NET 10. The legacy `dbo` schema (SQL Server, Azure) remains read-accessible but is **not** the target for new development. All v9 features use a new `v9` schema owned exclusively by EF Core migrations via `HvoV9DbContext`.
 
-For the current system baseline, deployment boundaries, collector pattern, and future integration direction, see `docs/ARCHITECTURE.md`. This plan tracks implementation phases and detailed checklists.
+For the current system baseline, deployment boundaries, collector pattern, and future integration direction, see `docs/ARCHITECTURE.md`. For the shared edge outbox, gateway naming, and SolarAssistant discovery sequence, see `docs/EDGE_OUTBOX_AND_GATEWAY_PLAN.md`. This plan tracks implementation phases and detailed checklists.
 
 The archived RabbitMQ -> Azure Service Bus -> Azure Functions ingest POC is preserved under `archive/rabbitmq-servicebus-ingest-poc/` for future reference.
 
@@ -47,7 +47,7 @@ The archived RabbitMQ -> Azure Service Bus -> Azure Functions ingest POC is pres
 - **Local durability**: each edge service owns its local outbox database, logs, and config under a provider-specific data directory
 - **Website role**: central API validation, idempotent persistence, dashboards, read/admin APIs, and command/control
 - **Brokered POC status**: RabbitMQ/Service Bus/Functions was proven live for `hvo.weather.raw.v1`, then archived and deferred because the added operational complexity is not justified for the current system
-- **Next gate**: shared outbox/API-forwarding infrastructure, source/provider gateway design, SQL auth hardening, and telemetry improvements
+- **Next gate**: SolarAssistant discovery, shared outbox/API-forwarding infrastructure, source/provider gateway design, SQL auth hardening, and telemetry improvements
 
 ---
 
@@ -85,12 +85,17 @@ The archived RabbitMQ -> Azure Service Bus -> Azure Functions ingest POC is pres
 - [ ] Move website runtime off shared SQL password auth
 - [ ] Create managed identity/service principal SQL users with least-privilege runtime permissions
 - [ ] Move EF migrations out of website startup or run them under a separate migration identity
-- [ ] Refactor shared outbox, retry/backoff, API forwarding, and status UI infrastructure
-- [ ] Define source/provider gateway boundaries such as SolarAssistant and ESPHome/Govee
+- [ ] Inspect Davis and JK BMS outbox/forwarder differences before extracting shared code
+- [ ] Run a non-deployable SolarAssistant REST, MQTT, and WebSocket discovery POC and document sanitized topic/API samples
+- [ ] Refactor shared outbox, retry/backoff, API forwarding, sent-record compaction, and status snapshot infrastructure
+- [ ] Define source/provider gateway boundaries, starting with SolarAssistant and deferring ESPHome until hardware is deployed
 - [ ] Support multiple devices per gateway with stable device IDs and gateway-level local data directories
 - [ ] Keep central Azure SQL schema ownership in the website/API deployment path
 - [ ] Add structured logs, metrics, traces, and alerts for collector/gateway outboxes and website ingest APIs
 - [ ] Add tests for source mapping, API contracts, idempotency, retry behavior, and local outbox migrations
+- [ ] Keep the first SolarAssistant production gateway read-only while documenting supported MQTT write/control topics for a later phase
+- [ ] Configure a temporary SolarAssistant local development password for API/CLI discovery and rotate it before production use
+- [ ] Defer TPLink project/code work until its UI/control/monitoring boundary is decided
 
 ### Phase 1 — Foundation (Complete)
 

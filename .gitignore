@@ -32,6 +32,10 @@ coverage-report/
 core.*
 dotnet/
 
+## Python helper caches
+__pycache__/
+*.pyc
+
 ## SQLite — local outbox databases
 *.db
 *.db-shm
