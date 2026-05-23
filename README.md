@@ -102,7 +102,7 @@ dotnet run
 
 ## Container Publishing
 
-The three deployable images are published independently to Azure Container Registry, and each image keeps its own version in `.env`.
+The deployable images are published independently to Azure Container Registry, and each image keeps its own version in `.env`.
 
 Use the repo script to build, tag, push, and verify one image at a time:
 
@@ -111,6 +111,7 @@ Use the repo script to build, tag, push, and verify one image at a time:
 ./scripts/publish-acr-image.sh website
 ./scripts/publish-acr-image.sh davis
 ./scripts/publish-acr-image.sh jkbms
+./scripts/publish-acr-image.sh solarassistant
 ```
 
 See [docs/CONTAINER_PUBLISHING.md](docs/CONTAINER_PUBLISHING.md) for the Azure subscription and ACR inventory, the version-variable workflow, the gist sync requirement, and the query commands used to inspect published tags.
