@@ -39,16 +39,26 @@ public sealed class ApiKeySeedService : IHostedService
 
         await SeedSystemKeyAsync(
             db,
+            configurationKeyName: "Seeding:DavisApiKey",
             rawKey: _configuration["Seeding:DavisApiKey"],
             name: "Davis Vantage Pro 2 — ingest",
-            scopes: ["ingest:weather"],
+            scopes: [ApiScopes.WeatherIngest],
             cancellationToken);
 
         await SeedSystemKeyAsync(
             db,
+            configurationKeyName: "Seeding:BmsApiKey",
             rawKey: _configuration["Seeding:BmsApiKey"],
             name: "JK BMS — ingest",
-            scopes: ["ingest:bms"],
+            scopes: [ApiScopes.BmsIngest],
+            cancellationToken);
+
+        await SeedSystemKeyAsync(
+            db,
+            configurationKeyName: "Seeding:PowerApiKey",
+            rawKey: _configuration["Seeding:PowerApiKey"],
+            name: "Power gateway — ingest",
+            scopes: [ApiScopes.PowerIngest],
             cancellationToken);
     }
 
@@ -56,6 +66,7 @@ public sealed class ApiKeySeedService : IHostedService
 
     private async Task SeedSystemKeyAsync(
         HvoV9DbContext db,
+        string configurationKeyName,
         string? rawKey,
         string name,
         string[] scopes,
@@ -63,7 +74,7 @@ public sealed class ApiKeySeedService : IHostedService
     {
         if (string.IsNullOrWhiteSpace(rawKey))
         {
-            _logger.LogDebug("Seeding:DavisApiKey is not configured — skipping API key seed for '{Name}'", name);
+            _logger.LogDebug("{ConfigurationKeyName} is not configured — skipping API key seed for '{Name}'", configurationKeyName, name);
             return;
         }
 
