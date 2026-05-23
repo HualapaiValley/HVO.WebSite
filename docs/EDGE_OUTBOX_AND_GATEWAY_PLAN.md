@@ -126,7 +126,7 @@ Recommended container/data naming:
 |---------|-----------------|-------------|------------------------|
 | Davis | `hvo-davis` | `hvo-davis-data` | `/data` |
 | JK BMS | `hvo-jkbms` | `hvo-jkbms-data` | `/data` |
-| SolarAssistant | `hvo-solarassistant` | `hvo-solarassistant-data` | `/data` |
+| SolarAssistant | `hvo-solarassistant` | `solarassistant-outbox` | `/app/data` |
 
 ## SolarAssistant Discovery POC
 

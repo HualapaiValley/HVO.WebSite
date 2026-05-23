@@ -6,7 +6,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 env_file="${repo_root}/.env"
 
 usage() {
-	printf 'Usage: %s [--dry-run] <website|davis|jkbms>\n' "$(basename "$0")"
+	printf 'Usage: %s [--dry-run] <website|davis|jkbms|solarassistant>\n' "$(basename "$0")"
 	printf '\n'
 	printf 'Builds, tags, pushes, and verifies a single image in Azure Container Registry.\n'
 	printf 'Version and repository names come from %s.\n' "${env_file}"
@@ -14,6 +14,7 @@ usage() {
 	printf 'Examples:\n'
 	printf '  %s website\n' "$(basename "$0")"
 	printf '  %s --dry-run davis\n' "$(basename "$0")"
+	printf '  %s solarassistant\n' "$(basename "$0")"
 }
 
 fail() {
@@ -44,25 +45,40 @@ require_env() {
 resolve_target() {
 	case "$1" in
 		website|hvo-website)
+			require_env HVO_WEBSITE_IMAGE_REPOSITORY
+			require_env HVO_WEBSITE_IMAGE_VERSION
+			require_env WEBSITE_RUNTIME
 			image_repository="${HVO_WEBSITE_IMAGE_REPOSITORY}"
 			image_version="${HVO_WEBSITE_IMAGE_VERSION}"
 			dockerfile_path="src/HVO.WebSite.v9/Dockerfile"
 			build_args=(--build-arg "WEBSITE_RUNTIME=${WEBSITE_RUNTIME}")
 			;;
 		davis|hvo-davis)
+			require_env HVO_DAVIS_IMAGE_REPOSITORY
+			require_env HVO_DAVIS_IMAGE_VERSION
 			image_repository="${HVO_DAVIS_IMAGE_REPOSITORY}"
 			image_version="${HVO_DAVIS_IMAGE_VERSION}"
 			dockerfile_path="src/HVO.Hardware.DavisVantagePro2/Dockerfile"
 			build_args=()
 			;;
 		jkbms|hvo-jkbms)
+			require_env HVO_JKBMS_IMAGE_REPOSITORY
+			require_env HVO_JKBMS_IMAGE_VERSION
 			image_repository="${HVO_JKBMS_IMAGE_REPOSITORY}"
 			image_version="${HVO_JKBMS_IMAGE_VERSION}"
 			dockerfile_path="src/HVO.Hardware.JkBms/Dockerfile"
 			build_args=()
 			;;
+		solarassistant|hvo-solarassistant)
+			require_env HVO_SOLARASSISTANT_IMAGE_REPOSITORY
+			require_env HVO_SOLARASSISTANT_IMAGE_VERSION
+			image_repository="${HVO_SOLARASSISTANT_IMAGE_REPOSITORY}"
+			image_version="${HVO_SOLARASSISTANT_IMAGE_VERSION}"
+			dockerfile_path="src/HVO.Gateway.SolarAssistant/Dockerfile"
+			build_args=()
+			;;
 		*)
-			fail "Unknown target '$1'. Expected website, davis, or jkbms."
+			fail "Unknown target '$1'. Expected website, davis, jkbms, or solarassistant."
 			;;
 	esac
 }
@@ -80,7 +96,7 @@ while (($# > 0)); do
 			usage
 			exit 0
 			;;
-		website|hvo-website|davis|hvo-davis|jkbms|hvo-jkbms)
+		website|hvo-website|davis|hvo-davis|jkbms|hvo-jkbms|solarassistant|hvo-solarassistant)
 			[[ -z "${target}" ]] || fail 'Only one target can be published per invocation.'
 			target="$1"
 			shift
@@ -108,13 +124,6 @@ set +a
 
 require_env AZURE_CONTAINER_REGISTRY_NAME
 require_env AZURE_CONTAINER_REGISTRY_LOGIN_SERVER
-require_env HVO_WEBSITE_IMAGE_REPOSITORY
-require_env HVO_WEBSITE_IMAGE_VERSION
-require_env HVO_DAVIS_IMAGE_REPOSITORY
-require_env HVO_DAVIS_IMAGE_VERSION
-require_env HVO_JKBMS_IMAGE_REPOSITORY
-require_env HVO_JKBMS_IMAGE_VERSION
-require_env WEBSITE_RUNTIME
 
 resolve_target "${target}"
 

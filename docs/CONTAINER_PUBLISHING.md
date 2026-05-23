@@ -1,6 +1,6 @@
 # Container Publishing
 
-This repository publishes three application images to Azure Container Registry (ACR), and each image is versioned independently.
+This repository publishes four application images to Azure Container Registry (ACR), and each image is versioned independently.
 
 ## Azure Inventory
 
@@ -19,13 +19,14 @@ The repo-local source of truth for these settings is `.env`, and the devcontaine
 
 ## Image Repositories
 
-The three published repositories are:
+The published repositories are:
 
 | Target | Repository | Dockerfile | Version variable |
 |--------|------------|------------|------------------|
 | Website | `hvo-website` | `src/HVO.WebSite.v9/Dockerfile` | `HVO_WEBSITE_IMAGE_VERSION` |
 | Davis | `hvo-davis` | `src/HVO.Hardware.DavisVantagePro2/Dockerfile` | `HVO_DAVIS_IMAGE_VERSION` |
 | JK BMS | `hvo-jkbms` | `src/HVO.Hardware.JkBms/Dockerfile` | `HVO_JKBMS_IMAGE_VERSION` |
+| SolarAssistant | `hvo-solarassistant` | `src/HVO.Gateway.SolarAssistant/Dockerfile` | `HVO_SOLARASSISTANT_IMAGE_VERSION` |
 
 Each publish writes two tags for the selected target:
 
@@ -40,6 +41,7 @@ The independent image version variables live in `.env`:
 HVO_WEBSITE_IMAGE_VERSION=1.0.0
 HVO_DAVIS_IMAGE_VERSION=1.0.0
 HVO_JKBMS_IMAGE_VERSION=1.0.0
+HVO_SOLARASSISTANT_IMAGE_VERSION=1.0.0
 ```
 
 Only bump the variable for the image you are publishing.
@@ -52,6 +54,7 @@ Use the repo script to build, tag, push, and verify one target at a time:
 ./scripts/publish-acr-image.sh website
 ./scripts/publish-acr-image.sh davis
 ./scripts/publish-acr-image.sh jkbms
+./scripts/publish-acr-image.sh solarassistant
 ```
 
 To inspect the exact commands without building or pushing:
@@ -112,6 +115,7 @@ az acr repository list --name hvoobsacr --output table
 az acr repository show-tags --name hvoobsacr --repository hvo-website --output table
 az acr repository show-tags --name hvoobsacr --repository hvo-davis --output table
 az acr repository show-tags --name hvoobsacr --repository hvo-jkbms --output table
+az acr repository show-tags --name hvoobsacr --repository hvo-solarassistant --output table
 ```
 
 ## Gist Sync
