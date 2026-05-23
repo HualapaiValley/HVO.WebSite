@@ -61,6 +61,39 @@ public sealed class SolarAssistantPowerMapperTests
     }
 
     [TestMethod]
+    public void MapTotalSnapshot_MapsSolarAssistantRestAliases()
+    {
+        var payload = SolarAssistantPowerMapper.MapTotalSnapshot(
+            [
+                Metric("total/system_power", 120),
+                Metric("total/battery_voltage", 53.1),
+                Metric("total/battery_current", -6.2),
+                Metric("total/battery_capacity", 95.2),
+                Metric("total/grid_voltage", 0),
+                Metric("total/grid_frequency", 0),
+                Metric("total/ac_output_voltage", 120.4),
+                Metric("total/ac_output_frequency", 60.1),
+                Metric("total/load_percentage", 8),
+                Metric("total/inverter_mode", "Solar/Battery"),
+                Metric("total/output_source_priority", "Solar/Battery/Utility"),
+            ],
+            new SolarAssistantOptions(),
+            DateTime.UtcNow);
+
+        payload.SystemPowerW.Should().Be(120);
+        payload.BatteryVoltageV.Should().Be(53.1);
+        payload.BatteryCurrentA.Should().Be(-6.2);
+        payload.BatteryCapacityKwh.Should().Be(95.2);
+        payload.GridVoltageV.Should().Be(0);
+        payload.GridFrequencyHz.Should().Be(0);
+        payload.OutputVoltageV.Should().Be(120.4);
+        payload.OutputFrequencyHz.Should().Be(60.1);
+        payload.LoadPercentage.Should().Be(8);
+        payload.InverterMode.Should().Be("Solar/Battery");
+        payload.OutputSourcePriority.Should().Be("Solar/Battery/Utility");
+    }
+
+    [TestMethod]
     public void MapTotalSnapshot_ParsesJsonElementValues()
     {
         using var doc = JsonDocument.Parse("{\"value\":123.45}");

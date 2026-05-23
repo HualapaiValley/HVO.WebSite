@@ -1,22 +1,24 @@
 @using Microsoft.AspNetCore.Components.Web
 
 <!DOCTYPE html>
-<html lang="en" data-theme="hvo-dark">
+<html lang="en">
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=1280, initial-scale=1.0" />
     <title>SolarAssistant Gateway</title>
     <base href="/" />
     <link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-dark.css" />
-    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
+    <link rel="stylesheet" href='@($"app.css?v={AppCssVersion}")' />
     <link rel="stylesheet" href="HVO.Gateway.SolarAssistant.styles.css" />
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 
-<body data-theme="hvo-dark">
+<body>
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
 </body>
 
 </html>

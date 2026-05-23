@@ -12,14 +12,26 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
     private readonly ISolarAssistantClient _client;
     private readonly SolarAssistantOptions _options;
     private readonly ILogger<SolarAssistantSnapshotWorker> _logger;
+    private readonly object _historyLock = new();
+    private readonly Queue<PowerSnapshotHistoryPoint> _history = new();
 
     private volatile string? _lastError;
+    private volatile SolarAssistantMetricInventory? _lastInventory;
     private volatile PowerReadingPayload? _lastSnapshot;
     private long _lastSnapshotAtTicks;
     private volatile int _lastMetricCount;
 
     public string? LastError => _lastError;
+    public SolarAssistantMetricInventory? LastInventory => _lastInventory;
     public PowerReadingPayload? LastSnapshot => _lastSnapshot;
+    public IReadOnlyList<PowerSnapshotHistoryPoint> History
+    {
+        get
+        {
+            lock (_historyLock)
+                return _history.ToArray();
+        }
+    }
     public DateTime? LastSnapshotAt
     {
         get
@@ -89,6 +101,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         }
 
         var recordedAt = DateTime.UtcNow;
+        _lastInventory = SolarAssistantMetricInventoryBuilder.Build(metrics, recordedAt);
         var payload = SolarAssistantPowerMapper.MapTotalSnapshot(metrics, _options, recordedAt);
 
         await using var scope = _scopeFactory.CreateAsyncScope();
@@ -97,6 +110,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
 
         Volatile.Write(ref _lastSnapshotAtTicks, recordedAt.Ticks);
         _lastSnapshot = payload;
+        AddHistory(payload);
         _lastError = null;
         if (inserted)
         {
@@ -108,5 +122,23 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         }
 
         return inserted;
+    }
+
+    private void AddHistory(PowerReadingPayload payload)
+    {
+        lock (_historyLock)
+        {
+            _history.Enqueue(new PowerSnapshotHistoryPoint
+            {
+                RecordedAtUtc = payload.RecordedAtUtc,
+                PvPowerW = payload.PvPowerW,
+                LoadPowerW = payload.LoadPowerW,
+                GridPowerW = payload.GridPowerW,
+                BatteryPowerW = payload.BatteryPowerW,
+            });
+
+            while (_history.Count > _options.HistoryCapacity)
+                _history.Dequeue();
+        }
     }
 }

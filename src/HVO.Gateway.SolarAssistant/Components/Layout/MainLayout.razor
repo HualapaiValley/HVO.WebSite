@@ -1,34 +1,63 @@
 @inherits LayoutComponentBase
 
-<div class="solar-shell">
-    <header class="solar-appbar">
-        <div class="solar-frame solar-bar-content">
-            <a class="solar-brand" href="/" aria-label="SolarAssistant gateway status">
-                <span class="solar-brand-mark" aria-hidden="true">SA</span>
-                <span class="solar-brand-copy">
-                    <span class="solar-brand-title">Hualapai Valley Observatory</span>
-                    <span class="solar-brand-subtitle">SolarAssistant Gateway</span>
-                </span>
-            </a>
+<MudThemeProvider Theme="@ShellTheme" IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnThemeModeChanged" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-            <nav class="solar-nav" aria-label="Primary navigation">
-                <NavLink class="solar-nav-link" href="/" Match="NavLinkMatch.All">Status</NavLink>
-                <NavLink class="solar-nav-link" href="/monitor">Monitor</NavLink>
+<MudLayout Class="@LayoutThemeClass">
+    <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
+        <div class="shell-frame shell-bar-content shell-header-frame">
+            <div class="shell-brand-block">
+                <div class="shell-brand-mark shell-brand-mark-solar" aria-hidden="true">SA</div>
+                <div class="shell-brand-copy">
+                    <MudText Typo="Typo.h5" Class="shell-brand-text">Hualapai Valley Observatory</MudText>
+                    <MudText Typo="Typo.caption" Class="shell-brand-subtitle">SOLARASSISTANT GATEWAY</MudText>
+                </div>
+            </div>
+            <nav class="shell-header-nav" aria-label="Primary navigation">
+                <MudButton Href="/" Variant="@GetNavLinkVariant("monitor")" Color="Color.Inherit" Class="@GetNavLinkClass("monitor")">Monitor</MudButton>
+                <MudButton Href="/inventory" Variant="@GetNavLinkVariant("inventory")" Color="Color.Inherit" Class="@GetNavLinkClass("inventory")">REST JSON</MudButton>
+                <MudButton Href="/mqtt-inventory" Variant="@GetNavLinkVariant("mqtt-inventory")" Color="Color.Inherit" Class="@GetNavLinkClass("mqtt-inventory")">MQTT JSON</MudButton>
             </nav>
+            <MudSpacer />
+            <div class="shell-header-actions" aria-label="Header actions">
+                <MudIconButton Icon="@Icons.Material.Outlined.Bolt" Color="Color.Inherit" Size="Size.Medium" aria-label="SolarAssistant gateway" />
+                <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium" aria-label="@ThemeSelectorLabel" OnClick="@ToggleTheme" />
+            </div>
         </div>
-    </header>
+    </MudAppBar>
 
-    <main class="solar-main">
-        <div class="solar-frame solar-content">
+    <MudMainContent Class="shell-main">
+        <div class="shell-frame shell-content">
             @Body
         </div>
-    </main>
+    </MudMainContent>
 
-    <footer class="solar-footer">
-        <div class="solar-frame solar-footer-grid">
-            <span class="solar-footer-chip solar-footer-chip-info">Read-only monitoring</span>
-            <span class="solar-footer-chip solar-footer-chip-success">SQLite outbox</span>
-            <span class="solar-footer-chip solar-footer-chip-info">@DateTimeOffset.Now.ToLocalTime().ToString("t")</span>
+    <MudAppBar Bottom="true" Fixed="true" Elevation="0" Dense="true" Class="shell-appbar shell-appbar-footer">
+        <div class="shell-frame shell-bar-content shell-footer-frame">
+            <div class="shell-footer-layout" aria-label="Footer sections">
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-1"><span class="@FooterHealthDotClass" aria-hidden="true"></span>@FooterHealthText</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-2">SolarAssistant REST + MQTT</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-3">SQLite outbox</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-4">MudBlazor shell</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-5"><span class="shell-status-dot shell-status-dot-online" aria-hidden="true"></span>@DateTimeOffset.Now.ToLocalTime().ToString("t")</MudText>
+            </div>
         </div>
-    </footer>
-</div>
+    </MudAppBar>
+
+    <div id="blazor-error-ui" data-nosnippet>
+        <div class="shell-blazor-error-card">
+            <div class="shell-blazor-error-copy">
+                <strong>Blazor circuit interrupted</strong>
+                <span>An unhandled error has occurred. Reload to recover the gateway session.</span>
+            </div>
+            <div class="shell-blazor-error-actions">
+                <a href="." class="reload">Reload</a>
+                <button type="button" class="dismiss" aria-label="Dismiss error message">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="components-reconnect-modal" data-nosnippet></div>
+</MudLayout>

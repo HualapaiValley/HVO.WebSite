@@ -1,0 +1,31 @@
+<div class="solar-history-card">
+    <div class="solar-history-head">
+        <div>
+            <MudText Typo="Typo.overline" Class="solar-eyebrow">@Eyebrow</MudText>
+            <MudText Typo="Typo.h6" Class="solar-card-title">@Title</MudText>
+        </div>
+        <strong>@FormatWatts(LatestValue)</strong>
+    </div>
+
+    <svg class="solar-history-chart" viewBox="0 0 360 160" role="img" aria-label="@Title power history">
+        <g class="solar-history-grid" aria-hidden="true">
+            <line x1="28" y1="20" x2="346" y2="20"></line>
+            <line x1="28" y1="68" x2="346" y2="68"></line>
+            <line x1="28" y1="116" x2="346" y2="116"></line>
+        </g>
+        @if (HasSeries)
+        {
+            <path class="@LineClass" d="@PathData" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+            <circle class="solar-history-marker" cx="@LatestPointX" cy="@LatestPointY" r="4"></circle>
+        }
+        else
+        {
+            <svg:text x="180" y="84" text-anchor="middle" class="solar-history-empty">Waiting for history</svg:text>
+        }
+    </svg>
+
+    <div class="solar-history-foot">
+        <span>@HistorySummary</span>
+        <span>@RangeSummary</span>
+    </div>
+</div>

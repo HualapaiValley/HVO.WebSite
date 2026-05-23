@@ -32,11 +32,10 @@ public sealed class SolarAssistantSnapshotWorkerTests
             Host = "solarassistant.local",
             TotalSourceId = "solarassistant-total",
             TotalDeviceId = "total",
+            HistoryCapacity = 2,
         }));
-        services.AddSingleton<ISolarAssistantClient>(_ => new FakeSolarAssistantClient([
-            new SolarAssistantMetric { Topic = "total/pv_power", Value = 1234 },
-            new SolarAssistantMetric { Topic = "total/load_power", Value = 567 },
-        ]));
+        services.AddSingleton<FakeSolarAssistantClient>(_ => new FakeSolarAssistantClient(Metrics(1234, 567, 0, -100)));
+        services.AddSingleton<ISolarAssistantClient>(sp => sp.GetRequiredService<FakeSolarAssistantClient>());
         services.AddSingleton(sp => new SolarAssistantSnapshotWorker(
             sp.GetRequiredService<IServiceScopeFactory>(),
             sp.GetRequiredService<ISolarAssistantClient>(),
@@ -63,12 +62,17 @@ public sealed class SolarAssistantSnapshotWorkerTests
         var queued = await worker.PollOnceAsync(CancellationToken.None);
 
         queued.Should().BeTrue();
-        worker.LastMetricCount.Should().Be(2);
+        worker.LastMetricCount.Should().Be(4);
         worker.LastSnapshotAt.Should().NotBeNull();
         worker.LastError.Should().BeNull();
         worker.LastSnapshot.Should().NotBeNull();
         worker.LastSnapshot!.SourceId.Should().Be("solarassistant-total");
         worker.LastSnapshot.PvPowerW.Should().Be(1234);
+        worker.LastInventory.Should().NotBeNull();
+        worker.LastInventory!.MetricCount.Should().Be(4);
+        worker.LastInventory.Topics.Should().Contain(t => t.Topic == "total/pv_power");
+        worker.History.Should().ContainSingle();
+        worker.History[0].PvPowerW.Should().Be(1234);
 
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
@@ -78,15 +82,44 @@ public sealed class SolarAssistantSnapshotWorkerTests
         row.Payload.Should().Contain("pvPowerW");
     }
 
+    [TestMethod]
+    public async Task PollOnceAsync_RetainsConfiguredRollingHistoryCapacity()
+    {
+        var client = _provider.GetRequiredService<FakeSolarAssistantClient>();
+        var worker = _provider.GetRequiredService<SolarAssistantSnapshotWorker>();
+
+        await worker.PollOnceAsync(CancellationToken.None);
+        client.SetMetrics(Metrics(2000, 700, 10, -150));
+        await worker.PollOnceAsync(CancellationToken.None);
+        client.SetMetrics(Metrics(3000, 800, 20, -200));
+        await worker.PollOnceAsync(CancellationToken.None);
+
+        worker.History.Should().HaveCount(2);
+        worker.History[0].PvPowerW.Should().Be(2000);
+        worker.History[1].PvPowerW.Should().Be(3000);
+        worker.History.Select(h => h.RecordedAtUtc).Should().BeInAscendingOrder();
+    }
+
     private sealed class FakeSolarAssistantClient : ISolarAssistantClient
     {
-        private readonly IReadOnlyList<SolarAssistantMetric> _metrics;
+        private IReadOnlyList<SolarAssistantMetric> _metrics;
 
         public FakeSolarAssistantClient(IReadOnlyList<SolarAssistantMetric> metrics)
         {
             _metrics = metrics;
         }
 
+        public void SetMetrics(IReadOnlyList<SolarAssistantMetric> metrics) => _metrics = metrics;
+
         public Task<IReadOnlyList<SolarAssistantMetric>> GetMetricsAsync(CancellationToken ct) => Task.FromResult(_metrics);
     }
+
+    private static IReadOnlyList<SolarAssistantMetric> Metrics(double pv, double load, double grid, double battery) =>
+    [
+        new SolarAssistantMetric { Topic = "total/pv_power", Value = pv },
+        new SolarAssistantMetric { Topic = "total/load_power", Value = load },
+        new SolarAssistantMetric { Topic = "total/grid_power", Value = grid },
+        new SolarAssistantMetric { Topic = "total/battery_power", Value = battery },
+    ];
+
 }

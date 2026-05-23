@@ -6,9 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
-### Changed
+### Added
 
 - Added a local SolarAssistant gateway monitor UI with Davis-style shell layout, basic status/settings cards, and Playwright coverage
+- Added SolarAssistant REST/MQTT discovery inventory documentation and deployed `hvo-solarassistant` container image `1.0.2` with the gateway `/inventory` endpoint
+- Added read-only SolarAssistant MQTT discovery/state inventory and deployed `hvo-solarassistant` container image `1.0.3` with the gateway `/mqtt-inventory` endpoint
+- Converted the SolarAssistant gateway monitor to the Davis-style MudBlazor shell, header, footer, and card layout
+- Added local rolling power-history chart cards for SolarAssistant PV, load, grid, and battery power
+- Added local SolarAssistant gateway health alerts for stale REST/MQTT, outbox backlog/failures, low battery, high load, and high battery discharge
+- Published `hvo-solarassistant` container image `1.0.6` to `hvoobsacr.azurecr.io`
 - Added `Seeding:PowerReadApiKey` support for production read-only power API verification
 - Added independent Azure ACR publishing scripts and documentation for `hvo-website`, `hvo-davis`, `hvo-jkbms`, and `hvo-solarassistant`
 - Added Docker and Docker Compose packaging for the `HVO.Gateway.SolarAssistant` service

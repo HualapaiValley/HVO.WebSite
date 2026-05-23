@@ -11,6 +11,7 @@ import base64
 import hashlib
 import json
 import os
+import ssl
 import socket
 import struct
 import sys
@@ -19,6 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
+from dataclasses import dataclass
 from typing import Iterable
 
 
@@ -36,12 +38,25 @@ MQTT_USER = (
     or os.environ.get("SOLAR_ASSISTANT_MQTT_USERNAME", "")
 )
 MQTT_PASSWORD = os.environ.get("SOLARASSISTANT_MQTT_PASSWORD") or os.environ.get("SOLAR_ASSISTANT_MQTT_PASSWORD", "")
-MQTT_TOPIC = os.environ.get("SOLARASSISTANT_MQTT_TOPIC", "#")
+MQTT_TOPIC = os.environ.get("SOLARASSISTANT_MQTT_TOPIC", "solar_assistant/#")
+MQTT_SECONDS = int(os.environ.get("SOLARASSISTANT_MQTT_SECONDS", "15"))
+MQTT_MAX_PACKETS = int(os.environ.get("SOLARASSISTANT_MQTT_MAX_PACKETS", "1000"))
+WEBSOCKET_SCHEME = os.environ.get("SOLARASSISTANT_WEBSOCKET_SCHEME", "ws").strip().lower()
+_WEBSOCKET_PORT = os.environ.get("SOLARASSISTANT_WEBSOCKET_PORT")
+WEBSOCKET_PORT = int(_WEBSOCKET_PORT or ("443" if WEBSOCKET_SCHEME == "wss" else "80"))
 WEBSOCKET_TOPICS = [
     item.strip()
     for item in os.environ.get("SOLARASSISTANT_WEBSOCKET_TOPICS", "total/*,inverter_1/*,battery_1/*").split(",")
     if item.strip()
 ]
+
+
+@dataclass(frozen=True)
+class MqttMessage:
+    topic: str
+    payload: bytes
+    retain: bool
+    qos: int
 
 
 def main() -> int:
@@ -101,9 +116,11 @@ def probe_rest(host: str) -> None:
     print(f"metric_count={len(data)}")
     print(f"topic_count={len(topics)}")
     print("topic_prefixes=" + format_counter(topic_prefixes(topics), 20))
+    print("topic_groups=" + format_counter(topic_groups(topics), 30))
     print("groups=" + ", ".join(groups[:30]))
     print("units=" + ", ".join(units[:30]))
     print("sample_topics=" + ", ".join(topics[:40]))
+    print_rest_classification(data)
 
 
 def probe_mqtt(host: str) -> None:
@@ -113,7 +130,7 @@ def probe_mqtt(host: str) -> None:
             sock.settimeout(10)
             connect_mqtt(sock)
             subscribe_mqtt(sock, MQTT_TOPIC)
-            topics = collect_mqtt_topics(sock, seconds=10, max_packets=250)
+            messages = collect_mqtt_messages(sock, seconds=MQTT_SECONDS, max_packets=MQTT_MAX_PACKETS)
     except MqttAuthError as ex:
         print(str(ex))
         print("mqtt_topics=unavailable")
@@ -123,11 +140,15 @@ def probe_mqtt(host: str) -> None:
         print("mqtt_topics=unavailable")
         return
 
-    print(f"publish_packets={sum(topics.values())}")
+    topics = Counter(message.topic for message in messages)
+    print(f"publish_packets={len(messages)}")
     print(f"unique_topics={len(topics)}")
     print("topic_prefixes=" + format_counter(topic_prefixes(topics.keys()), 20))
+    print("topic_groups=" + format_counter(topic_groups(topics.keys()), 30))
+    print(f"retained_packets={sum(1 for message in messages if message.retain)}")
     for topic, count in sorted(topics.items())[:60]:
         print(f"topic={topic} count={count}")
+    print_mqtt_inventory(messages)
 
 
 def probe_websocket(host: str) -> None:
@@ -135,11 +156,13 @@ def probe_websocket(host: str) -> None:
     if not PASSWORD:
         print("skipped=SOLARASSISTANT_PASSWORD is required for WebSocket probing")
         return
-
+    if WEBSOCKET_SCHEME not in {"ws", "wss"}:
+        print(f"skipped=unsupported WebSocket scheme {WEBSOCKET_SCHEME!r}")
+        return
+    print("warning=WebSocket authentication sends the local password in the URL query string; run only on trusted local networks.")
     try:
-        with socket.create_connection((host, 80), timeout=5) as sock:
-            sock.settimeout(10)
-            websocket_handshake(sock, host)
+        with open_websocket_socket(host) as sock:
+            websocket_handshake(sock, websocket_host_header(host))
             join_metrics_channel(sock)
             events, definitions, data_topics = collect_websocket_metrics(sock, seconds=10, max_messages=250)
     except Exception as ex:  # noqa: BLE001 - diagnostic probe
@@ -154,6 +177,20 @@ def probe_websocket(host: str) -> None:
     print("data_prefixes=" + format_counter(topic_prefixes(data_topics), 20))
     print("sample_definition_topics=" + ", ".join(sorted(definitions)[:40]))
     print("sample_data_topics=" + ", ".join(sorted(data_topics)[:40]))
+
+
+def open_websocket_socket(host: str) -> socket.socket:
+    raw_sock = socket.create_connection((host, WEBSOCKET_PORT), timeout=5)
+    raw_sock.settimeout(10)
+    if WEBSOCKET_SCHEME == "wss":
+        context = ssl.create_default_context()
+        return context.wrap_socket(raw_sock, server_hostname=host)
+    return raw_sock
+
+
+def websocket_host_header(host: str) -> str:
+    default_port = 443 if WEBSOCKET_SCHEME == "wss" else 80
+    return host if WEBSOCKET_PORT == default_port else f"{host}:{WEBSOCKET_PORT}"
 
 
 def websocket_handshake(sock: socket.socket, host: str) -> None:
@@ -327,10 +364,10 @@ def subscribe_mqtt(sock: socket.socket, topic: str) -> None:
     print(f"subscribed_topic={topic}")
 
 
-def collect_mqtt_topics(sock: socket.socket, seconds: int, max_packets: int) -> Counter[str]:
-    topics: Counter[str] = Counter()
+def collect_mqtt_messages(sock: socket.socket, seconds: int, max_packets: int) -> list[MqttMessage]:
+    messages: list[MqttMessage] = []
     start = time.monotonic()
-    while time.monotonic() - start < seconds and sum(topics.values()) < max_packets:
+    while time.monotonic() - start < seconds and len(messages) < max_packets:
         try:
             packet_type, payload = read_mqtt_packet(sock)
         except socket.timeout:
@@ -339,10 +376,16 @@ def collect_mqtt_topics(sock: socket.socket, seconds: int, max_packets: int) -> 
             break
         if packet_type >> 4 != 3 or len(payload) < 2:
             continue
+        flags = packet_type & 0x0F
+        qos = (flags & 0x06) >> 1
+        retain = bool(flags & 0x01)
         topic_len = struct.unpack("!H", payload[:2])[0]
+        payload_index = 2 + topic_len
         topic = payload[2 : 2 + topic_len].decode("utf-8", "replace")
-        topics[topic] += 1
-    return topics
+        if qos:
+            payload_index += 2
+        messages.append(MqttMessage(topic=topic, payload=payload[payload_index:], retain=retain, qos=qos))
+    return messages
 
 
 def read_mqtt_packet(sock: socket.socket) -> tuple[int | None, bytes]:
@@ -367,6 +410,249 @@ def read_mqtt_packet(sock: socket.socket) -> tuple[int | None, bytes]:
     return first[0], bytes(payload)
 
 
+def print_rest_classification(data: list[object]) -> None:
+    metrics = [item for item in data if isinstance(item, dict)]
+    db_candidates: list[str] = []
+    local_only: list[str] = []
+    review: list[str] = []
+
+    for metric in metrics:
+        topic = str(metric.get("topic") or "").strip("/")
+        if not topic:
+            continue
+        classification = classify_topic(topic, str(metric.get("unit") or ""), str(metric.get("name") or ""))
+        if classification == "db_candidate":
+            db_candidates.append(topic)
+        elif classification == "local_only":
+            local_only.append(topic)
+        else:
+            review.append(topic)
+
+    print("classification_db_candidates=" + ", ".join(sorted(db_candidates)[:80]))
+    print("classification_review=" + ", ".join(sorted(review)[:80]))
+    print("classification_local_only=" + ", ".join(sorted(local_only)[:80]))
+
+
+def print_mqtt_inventory(messages: list[MqttMessage]) -> None:
+    discovery = parse_homeassistant_discovery(messages)
+    solar_topics = sorted({message.topic for message in messages if message.topic.startswith("solar_assistant/")})
+
+    print("\n[mqtt_inventory]")
+    print(f"homeassistant_entities={len(discovery)}")
+    print(f"solarassistant_state_topics={len(solar_topics)}")
+    print("ha_components=" + format_counter(Counter(item["component"] for item in discovery), 30))
+    print("device_classes=" + format_counter(Counter(item["device_class"] for item in discovery if item["device_class"]), 30))
+    print("state_classes=" + format_counter(Counter(item["state_class"] for item in discovery if item["state_class"]), 30))
+    print("units=" + format_counter(Counter(item["unit"] for item in discovery if item["unit"]), 30))
+    print("devices=" + ", ".join(format_device(item) for item in unique_devices(discovery)[:30]))
+
+    db_candidates = [item for item in discovery if classify_discovery_entity(item) == "db_candidate"]
+    review = [item for item in discovery if classify_discovery_entity(item) == "review"]
+    local_only = [item for item in discovery if classify_discovery_entity(item) == "local_only"]
+
+    print("\n[mqtt_db_candidates]")
+    for item in db_candidates[:80]:
+        print(format_entity(item))
+
+    print("\n[mqtt_review]")
+    for item in review[:80]:
+        print(format_entity(item))
+
+    print("\n[mqtt_local_only]")
+    for item in local_only[:80]:
+        print(format_entity(item))
+
+
+def parse_homeassistant_discovery(messages: list[MqttMessage]) -> list[dict[str, str]]:
+    entities: list[dict[str, str]] = []
+    latest: dict[str, MqttMessage] = {}
+    for message in messages:
+        if not is_homeassistant_config_topic(message.topic):
+            continue
+        latest[message.topic] = message
+
+    for topic, message in sorted(latest.items()):
+        try:
+            payload = json.loads(message.payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+
+        parts = topic.split("/")
+        component = parts[1] if len(parts) > 1 else ""
+        state_topic = str(payload.get("stat_t") or payload.get("state_topic") or "")
+        command_topic = str(payload.get("cmd_t") or payload.get("command_topic") or "")
+        availability_topic = str(payload.get("avty_t") or payload.get("availability_topic") or "")
+        unique_id = str(payload.get("uniq_id") or payload.get("unique_id") or "")
+        name = str(payload.get("name") or payload.get("object_id") or "")
+        device = payload.get("dev") or payload.get("device") or {}
+        if not isinstance(device, dict):
+            device = {}
+
+        entities.append(
+            {
+                "topic": topic,
+                "component": component,
+                "name": name,
+                "unique_id": unique_id,
+                "device_class": str(payload.get("dev_cla") or payload.get("device_class") or ""),
+                "state_class": str(payload.get("stat_cla") or payload.get("state_class") or ""),
+                "unit": str(payload.get("unit_of_meas") or payload.get("unit_of_measurement") or ""),
+                "icon": str(payload.get("icon") or ""),
+                "entity_category": str(payload.get("ent_cat") or payload.get("entity_category") or ""),
+                "state_topic": state_topic,
+                "command_topic": command_topic,
+                "availability_topic": availability_topic,
+                "device_name": str(device.get("name") or ""),
+                "manufacturer": str(device.get("mf") or device.get("manufacturer") or ""),
+                "model": str(device.get("mdl") or device.get("model") or ""),
+                "software_version": str(device.get("sw") or device.get("sw_version") or ""),
+                "identifiers": format_identifiers(device.get("ids") or device.get("identifiers") or ""),
+            }
+        )
+    return entities
+
+
+def is_homeassistant_config_topic(topic: str) -> bool:
+    return topic.startswith("homeassistant/") and topic.endswith("/config")
+
+
+def format_identifiers(value: object) -> str:
+    if isinstance(value, list):
+        return ",".join(str(item) for item in value[:5])
+    return str(value or "")
+
+
+def unique_devices(entities: list[dict[str, str]]) -> list[dict[str, str]]:
+    devices: dict[tuple[str, str, str, str], dict[str, str]] = {}
+    for item in entities:
+        key = (item["device_name"], item["manufacturer"], item["model"], item["identifiers"])
+        if any(key):
+            devices.setdefault(key, item)
+    return list(devices.values())
+
+
+def format_device(item: dict[str, str]) -> str:
+    parts = [item["device_name"] or "unnamed"]
+    if item["manufacturer"]:
+        parts.append(f"manufacturer={item['manufacturer']}")
+    if item["model"]:
+        parts.append(f"model={item['model']}")
+    if item["software_version"]:
+        parts.append(f"sw={item['software_version']}")
+    return " [" + "; ".join(parts) + "]"
+
+
+def format_entity(item: dict[str, str]) -> str:
+    parts = [
+        f"name={safe_text(item['name'])}",
+        f"component={item['component']}",
+    ]
+    if item["device_class"]:
+        parts.append(f"device_class={item['device_class']}")
+    if item["state_class"]:
+        parts.append(f"state_class={item['state_class']}")
+    if item["unit"]:
+        parts.append(f"unit={item['unit']}")
+    if item["state_topic"]:
+        parts.append(f"state_topic={item['state_topic']}")
+    if item["command_topic"]:
+        parts.append(f"command_topic={item['command_topic']}")
+    if item["device_name"]:
+        parts.append(f"device={safe_text(item['device_name'])}")
+    return "entity " + " ".join(parts)
+
+
+def safe_text(value: str) -> str:
+    return value.replace("\n", " ").replace("\r", " ").strip()[:120] or "unnamed"
+
+
+def classify_discovery_entity(item: dict[str, str]) -> str:
+    state_topic = item["state_topic"]
+    return classify_topic(state_topic, item["unit"], item["name"])
+
+
+def classify_topic(topic: str, unit: str, name: str) -> str:
+    normalized = topic.lower().strip("/")
+    if normalized.startswith("solar_assistant/"):
+        normalized = normalized[len("solar_assistant/") :]
+    if normalized.endswith("/state"):
+        normalized = normalized[: -len("/state")]
+
+    db_exact = {
+        "total/pv_power",
+        "total/load_power",
+        "total/grid_power",
+        "total/battery_power",
+        "total/system_power",
+        "total/power",
+        "total/battery_state_of_charge",
+        "total/battery_voltage",
+        "total/battery_current",
+        "total/battery_capacity",
+        "total/grid_voltage",
+        "total/grid_frequency",
+        "total/ac_output_voltage",
+        "total/ac_output_frequency",
+        "total/load_percentage",
+        "total/inverter_mode",
+        "total/output_source_priority",
+        "battery_1/voltage",
+        "battery_1/current",
+        "battery_1/capacity",
+        "inverter_1/grid_voltage",
+        "inverter_1/grid_frequency",
+        "inverter_1/ac_output_voltage",
+        "inverter_1/ac_output_frequency",
+        "inverter_1/output_voltage",
+        "inverter_1/output_frequency",
+        "inverter_1/load_percentage",
+        "inverter_1/device_mode",
+        "inverter_1/output_source_priority",
+        "inverter_1/charger_source_priority",
+    }
+    local_fragments = (
+        "wifi",
+        "rssi",
+        "uptime",
+        "availability",
+        "firmware",
+        "version",
+        "serial",
+        "status",
+        "temperature",
+        "warnings",
+        "error",
+    )
+    review_fragments = (
+        "energy",
+        "charge",
+        "capacity",
+        "battery",
+        "inverter",
+        "pv",
+        "grid",
+        "load",
+        "frequency",
+        "voltage",
+        "current",
+        "power",
+        "priority",
+        "mode",
+    )
+
+    if normalized in db_exact:
+        return "db_candidate"
+    if any(fragment in normalized for fragment in local_fragments):
+        return "local_only"
+    if unit in {"W", "Wh", "kWh", "V", "A", "Hz", "%"}:
+        return "review"
+    if any(fragment in normalized for fragment in review_fragments) or any(fragment in name.lower() for fragment in review_fragments):
+        return "review"
+    return "local_only"
+
+
 def mqtt_string(value: str) -> bytes:
     data = value.encode("utf-8")
     return struct.pack("!H", len(data)) + data
@@ -389,6 +675,22 @@ def topic_prefixes(topics: Iterable[str]) -> Counter[str]:
     for topic in topics:
         prefix = topic.split("/", 1)[0]
         counts[prefix] += 1
+    return counts
+
+
+def topic_groups(topics: Iterable[str]) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    for topic in topics:
+        parts = topic.split("/")
+        if topic.startswith("homeassistant/") and len(parts) >= 2:
+            key = "/".join(parts[:2])
+        elif topic.startswith("solar_assistant/") and len(parts) >= 2:
+            key = "/".join(parts[:2])
+        elif len(parts) >= 1:
+            key = parts[0]
+        else:
+            key = topic
+        counts[key] += 1
     return counts
 
 
