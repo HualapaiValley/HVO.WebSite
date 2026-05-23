@@ -2,8 +2,11 @@ using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.Components;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
+using HVO.Gateway.SolarAssistant.SolarAssistant.Health;
+using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 using HVO.Gateway.SolarAssistant.Workers;
 using Microsoft.EntityFrameworkCore;
+using MudBlazor.Services;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
@@ -66,11 +69,16 @@ builder.Services.AddHttpClient("PowerApi", (sp, client) =>
 builder.Services.AddSingleton<ISolarAssistantClient, SolarAssistantRestClient>();
 builder.Services.AddSingleton<SolarAssistantSnapshotWorker>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SolarAssistantSnapshotWorker>());
+builder.Services.AddSingleton<SolarAssistantMqttInventoryStore>();
+builder.Services.AddSingleton<SolarAssistantMqttDiscoveryWorker>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SolarAssistantMqttDiscoveryWorker>());
 builder.Services.AddSingleton<PowerApiForwarder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PowerApiForwarder>());
+builder.Services.AddSingleton<SolarAssistantGatewayHealthService>();
 builder.Services.AddHealthChecks();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddMudServices();
 
 var app = builder.Build();
 
@@ -93,7 +101,7 @@ app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode();
 
 app.MapHealthChecks("/health");
-app.MapGet("/status", (SolarAssistantSnapshotWorker snapshotWorker, PowerApiForwarder forwarder) => new
+app.MapGet("/status", (SolarAssistantSnapshotWorker snapshotWorker, PowerApiForwarder forwarder, SolarAssistantGatewayHealthService healthService) => new
 {
     snapshotWorker.LastSnapshotAt,
     snapshotWorker.LastMetricCount,
@@ -107,6 +115,12 @@ app.MapGet("/status", (SolarAssistantSnapshotWorker snapshotWorker, PowerApiForw
         forwarder.LastError,
     },
     snapshot = snapshotWorker.LastSnapshot,
+    health = healthService.GetSnapshot(),
 });
+app.MapGet("/inventory", (SolarAssistantSnapshotWorker snapshotWorker) => snapshotWorker.LastInventory is null
+    ? Results.NotFound(new { message = "SolarAssistant metric inventory is not available yet." })
+    : Results.Ok(snapshotWorker.LastInventory));
+app.MapGet("/mqtt-inventory", (SolarAssistantMqttDiscoveryWorker mqttWorker) => Results.Ok(mqttWorker.Inventory));
+app.MapGet("/gateway-health", (SolarAssistantGatewayHealthService healthService) => Results.Ok(healthService.GetSnapshot()));
 
 await app.RunAsync();

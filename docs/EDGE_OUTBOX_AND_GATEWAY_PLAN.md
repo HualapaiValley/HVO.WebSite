@@ -149,6 +149,7 @@ Discovery helper:
 - The actual local WebSocket endpoint accepted by this device is `/api/websocket?password=<password>&vsn=2.0.0`; the documented `/api/socket/websocket` path returned `404` during discovery.
 - Local WebSocket is validated with credentials and streamed metric definitions/data for `total`, `inverter_1`, and `battery_1` topic prefixes.
 - MQTT is validated with separate MQTT credentials. It exposes retained Home Assistant discovery/config topics and live `solar_assistant/.../state` topics.
+- Sanitized live discovery findings are tracked in `docs/SOLARASSISTANT_DISCOVERY.md`.
 
 Known scope:
 

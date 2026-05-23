@@ -1,0 +1,20 @@
+<div class="solar-card-head">
+    <div>
+        <MudText Typo="Typo.overline" Class="solar-eyebrow">@Eyebrow</MudText>
+        <MudText Typo="Typo.h5" Class="solar-card-title">@Title</MudText>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(LinkHref) && !string.IsNullOrWhiteSpace(LinkText))
+    {
+        <MudButton Href="@LinkHref" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="solar-card-link">@LinkText</MudButton>
+    }
+</div>
+
+@code {
+    [Parameter] public string Eyebrow { get; set; } = string.Empty;
+
+    [Parameter] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public string? LinkHref { get; set; }
+
+    [Parameter] public string? LinkText { get; set; }
+}

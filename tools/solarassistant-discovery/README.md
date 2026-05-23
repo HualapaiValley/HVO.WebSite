@@ -23,6 +23,8 @@ export SOLARASSISTANT_TOKEN="<bearer-token>"
 export SOLARASSISTANT_MQTT_USER="<mqtt-user>"
 export SOLARASSISTANT_MQTT_PASSWORD="<mqtt-password>"
 export SOLARASSISTANT_MQTT_TOPIC="#"
+export SOLARASSISTANT_MQTT_SECONDS="15"
+export SOLARASSISTANT_MQTT_MAX_PACKETS="1000"
 export SOLARASSISTANT_WEBSOCKET_TOPICS="total/*,inverter_1/*,battery_1/*"
 ```
 
@@ -32,7 +34,13 @@ export SOLARASSISTANT_WEBSOCKET_TOPICS="total/*,inverter_1/*,battery_1/*"
 python3 tools/solarassistant-discovery/probe.py
 ```
 
-The output intentionally summarizes topics, groups, units, events, and sample topic names without printing metric values.
+The output intentionally summarizes topics, groups, units, events, Home Assistant discovery metadata, and sample topic names without printing metric/state values.
+
+MQTT discovery output is grouped into:
+
+- `mqtt_db_candidates`: fields already aligned with the current normalized HVO power snapshot shape.
+- `mqtt_review`: power-system fields that may deserve central persistence after unit/sign/cadence review.
+- `mqtt_local_only`: operator/device metadata that is useful on the local gateway but should not automatically become historical website data.
 
 ## sacli
 
@@ -58,4 +66,4 @@ Keep `sacli` credentials outside the repo. Do not commit generated tokens or con
 - With credentials, WebSocket streamed definitions/data for `104` topics across `total`, `inverter_1`, and `battery_1` prefixes.
 - With separate MQTT credentials, MQTT produced retained Home Assistant discovery/config topics and live `solar_assistant/.../state` topics.
 
-Next step: design the first production gateway around REST inventory plus MQTT live metrics, with WebSocket retained as a fallback/diagnostic stream. Rotate temporary development credentials before production use.
+The production gateway now includes a read-only MQTT inventory subscriber that exposes sanitized Home Assistant discovery metadata and state-topic availability through `/mqtt-inventory`. WebSocket remains a fallback/diagnostic stream. Rotate temporary development credentials before production use.

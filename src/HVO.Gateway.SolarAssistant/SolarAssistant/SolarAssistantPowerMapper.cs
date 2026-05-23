@@ -27,18 +27,18 @@ public static class SolarAssistantPowerMapper
             LoadPowerW = ReadDouble(byTopic, "total/load_power"),
             GridPowerW = ReadDouble(byTopic, "total/grid_power"),
             BatteryPowerW = ReadDouble(byTopic, "total/battery_power"),
-            SystemPowerW = ReadDouble(byTopic, "total/power"),
+            SystemPowerW = ReadDouble(byTopic, "total/system_power", "total/power"),
             BatteryStateOfChargePercent = ReadDouble(byTopic, "total/battery_state_of_charge"),
-            BatteryVoltageV = ReadDouble(byTopic, "battery_1/voltage"),
-            BatteryCurrentA = ReadDouble(byTopic, "battery_1/current"),
-            BatteryCapacityKwh = ReadDouble(byTopic, "battery_1/capacity"),
-            GridVoltageV = ReadDouble(byTopic, "inverter_1/grid_voltage"),
-            GridFrequencyHz = ReadDouble(byTopic, "inverter_1/grid_frequency"),
-            OutputVoltageV = ReadDouble(byTopic, "inverter_1/output_voltage"),
-            OutputFrequencyHz = ReadDouble(byTopic, "inverter_1/output_frequency"),
-            LoadPercentage = ReadDouble(byTopic, "inverter_1/load_percentage"),
-            InverterMode = ReadString(byTopic, "inverter_1/device_mode"),
-            OutputSourcePriority = ReadString(byTopic, "inverter_1/output_source_priority"),
+            BatteryVoltageV = ReadDouble(byTopic, "total/battery_voltage", "battery_1/voltage"),
+            BatteryCurrentA = ReadDouble(byTopic, "total/battery_current", "battery_1/current"),
+            BatteryCapacityKwh = ReadDouble(byTopic, "total/battery_capacity", "battery_1/capacity"),
+            GridVoltageV = ReadDouble(byTopic, "total/grid_voltage", "inverter_1/grid_voltage"),
+            GridFrequencyHz = ReadDouble(byTopic, "total/grid_frequency", "inverter_1/grid_frequency"),
+            OutputVoltageV = ReadDouble(byTopic, "total/ac_output_voltage", "inverter_1/ac_output_voltage", "inverter_1/output_voltage"),
+            OutputFrequencyHz = ReadDouble(byTopic, "total/ac_output_frequency", "inverter_1/ac_output_frequency", "inverter_1/output_frequency"),
+            LoadPercentage = ReadDouble(byTopic, "total/load_percentage", "inverter_1/load_percentage"),
+            InverterMode = ReadString(byTopic, "total/inverter_mode", "inverter_1/device_mode"),
+            OutputSourcePriority = ReadString(byTopic, "total/output_source_priority", "inverter_1/output_source_priority"),
             ChargerSourcePriority = ReadString(byTopic, "inverter_1/charger_source_priority"),
         };
     }
@@ -47,9 +47,10 @@ public static class SolarAssistantPowerMapper
 
     private static double? ReadDouble(
         IReadOnlyDictionary<string, SolarAssistantMetric> byTopic,
-        string topic)
+        params string[] topics)
     {
-        if (!byTopic.TryGetValue(topic, out var metric))
+        var metric = FindMetric(byTopic, topics);
+        if (metric is null)
             return null;
 
         return metric.Value switch
@@ -69,9 +70,10 @@ public static class SolarAssistantPowerMapper
 
     private static string? ReadString(
         IReadOnlyDictionary<string, SolarAssistantMetric> byTopic,
-        string topic)
+        params string[] topics)
     {
-        if (!byTopic.TryGetValue(topic, out var metric))
+        var metric = FindMetric(byTopic, topics);
+        if (metric is null)
             return null;
 
         return metric.Value switch
@@ -87,6 +89,19 @@ public static class SolarAssistantPowerMapper
         double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result)
             ? result
             : null;
+
+    private static SolarAssistantMetric? FindMetric(
+        IReadOnlyDictionary<string, SolarAssistantMetric> byTopic,
+        IEnumerable<string> topics)
+    {
+        foreach (var topic in topics)
+        {
+            if (byTopic.TryGetValue(topic, out var metric))
+                return metric;
+        }
+
+        return null;
+    }
 
     private static string? NormalizeString(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
