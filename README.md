@@ -129,6 +129,7 @@ This repository includes a [dev container](.devcontainer/) configuration for a c
 |-------|-------------|
 | [Contributing](CONTRIBUTING.md) | PR workflow, branch naming, coding standards |
 | [Changelog](CHANGELOG.md) | Release history and notable changes |
+| [Architecture](docs/ARCHITECTURE.md) | Current system baseline, data flow, collector pattern, and future integration direction |
 | [Container Publishing](docs/CONTAINER_PUBLISHING.md) | Azure ACR inventory, versioning workflow, publish script usage |
 | [Website Container App](docs/WEBSITE_CONTAINER_APP.md) | Azure Container App deployment decisions and runtime requirements for `HVO.WebSite` |
 | [Plan](docs/PLAN.md) | Implementation plan and milestone tracking |

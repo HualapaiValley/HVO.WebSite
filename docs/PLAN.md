@@ -4,6 +4,10 @@
 
 HVO.WebSite v9 is a clean-slate rebuild of the Hualapai Valley Observatory website on .NET 10. The legacy `dbo` schema (SQL Server, Azure) remains read-accessible but is **not** the target for new development. All v9 features use a new `v9` schema owned exclusively by EF Core migrations via `HvoV9DbContext`.
 
+For the current system baseline, deployment boundaries, collector pattern, and future integration direction, see `docs/ARCHITECTURE.md`. This plan tracks implementation phases and detailed checklists.
+
+The archived RabbitMQ -> Azure Service Bus -> Azure Functions ingest POC is preserved under `archive/rabbitmq-servicebus-ingest-poc/` for future reference.
+
 ---
 
 ## Key Architectural Decisions
@@ -37,6 +41,14 @@ HVO.WebSite v9 is a clean-slate rebuild of the Hualapai Valley Observatory websi
 - **All data access** goes through the API layer — no direct DB calls from Razor pages/components
 - RESTful versioned endpoints under `/api/v1/`
 
+### Edge Outbox Ingest Direction
+
+- **Primary production path**: source/provider-specific edge services -> local SQLite outbox -> typed website ingest APIs -> Azure SQL
+- **Local durability**: each edge service owns its local outbox database, logs, and config under a provider-specific data directory
+- **Website role**: central API validation, idempotent persistence, dashboards, read/admin APIs, and command/control
+- **Brokered POC status**: RabbitMQ/Service Bus/Functions was proven live for `hvo.weather.raw.v1`, then archived and deferred because the added operational complexity is not justified for the current system
+- **Next gate**: shared outbox/API-forwarding infrastructure, source/provider gateway design, SQL auth hardening, and telemetry improvements
+
 ---
 
 ## v9 Schema Entities (EF Core Migrations)
@@ -53,6 +65,32 @@ HVO.WebSite v9 is a clean-slate rebuild of the Hualapai Valley Observatory websi
 ---
 
 ## Phase Plan
+
+### Phase 1.2 — Brokered Ingest POC (Complete, Archived)
+
+- [x] Deploy RabbitMQ on `hvo-docker`
+- [x] Create Service Bus `hvo-ingest` topic and schema-filtered subscriptions
+- [x] Configure `hvo.weather.raw.v1` RabbitMQ shovel to Service Bus
+- [x] Add shared canonical ingest contracts
+- [x] Add initial Azure Functions project and `ProcessWeatherRawV1`
+- [x] Add optional Davis RabbitMQ canonical publisher, disabled by default
+- [x] Validate live Davis -> RabbitMQ -> Service Bus delivery
+- [x] Validate live Service Bus -> Function -> Azure SQL persistence
+- [x] Archive POC code/docs/deploy artifacts under `archive/rabbitmq-servicebus-ingest-poc/`
+- [x] Defer brokered ingest as a future option
+
+### Phase 1.3 — Edge Outbox/API Hardening (Next)
+
+- [ ] Configure Azure SQL Entra admin
+- [ ] Move website runtime off shared SQL password auth
+- [ ] Create managed identity/service principal SQL users with least-privilege runtime permissions
+- [ ] Move EF migrations out of website startup or run them under a separate migration identity
+- [ ] Refactor shared outbox, retry/backoff, API forwarding, and status UI infrastructure
+- [ ] Define source/provider gateway boundaries such as SolarAssistant and ESPHome/Govee
+- [ ] Support multiple devices per gateway with stable device IDs and gateway-level local data directories
+- [ ] Keep central Azure SQL schema ownership in the website/API deployment path
+- [ ] Add structured logs, metrics, traces, and alerts for collector/gateway outboxes and website ingest APIs
+- [ ] Add tests for source mapping, API contracts, idempotency, retry behavior, and local outbox migrations
 
 ### Phase 1 — Foundation (Complete)
 
@@ -299,7 +337,7 @@ JK BMS units are known to sleep and be unreliable to connect on the first attemp
 | `IBmsAlarmHandler` + `NullAlarmHandler` | Hook for V2 alarm actions; V1 is a no-op |
 | `BmsPollerWorker` | `BackgroundService` — round-robin scheduler, semaphore, per-device backoff |
 | `ForwarderCoordinator` | `BackgroundService` — drains outbox to all registered `IReadingForwarder`s |
-| `IReadingForwarder` / `HttpApiForwarder` | Fan-out forwarder interface; V1 ships HTTP; future: RabbitMQ, MQTT |
+| `IReadingForwarder` / `HttpApiForwarder` | Fan-out forwarder interface; V1 ships HTTP; future forwarders can be added if needed |
 | `OutboxDbContext` | EF Core + SQLite — same pattern as Davis |
 | Blazor status page | Live grid: device alias, cell count, SOC, pack voltage, delta mV, last seen, errors |
 | Blazor devices page | Configured device list with per-device status and last error |
@@ -312,7 +350,7 @@ BmsPollerWorker → OutboxRecord (SQLite, Pending)
                   ForwarderCoordinator (background sweep)
                                 │
                     ┌───────────┴────────────┐
-              HttpApiForwarder          (future: MqttForwarder, RabbitMqForwarder, …)
+              HttpApiForwarder          (future: additional forwarders, if needed)
 ```
 
 Each forwarder is independently registered (`IReadingForwarder`) and maintains its own delivery state. V1 ships `HttpApiForwarder` but it is disabled until the API endpoint is configured (sends nothing; outbox fills and holds).

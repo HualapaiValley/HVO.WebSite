@@ -1,0 +1,42 @@
+# HVO Observatory RabbitMQ edge broker
+#
+# Intended runtime host: hvo-docker
+#
+# Required local environment variables:
+#   RABBITMQ_DEFAULT_USER
+#   RABBITMQ_DEFAULT_PASS
+#   RABBITMQ_ERLANG_COOKIE
+#
+# Start:
+#   cp deploy/observatory/.env.example deploy/observatory/.env
+#   # edit deploy/observatory/.env with real secrets
+#   docker compose -f deploy/observatory/docker-compose.rabbitmq.yml --env-file deploy/observatory/.env up -d
+
+services:
+  hvo-rabbitmq:
+    image: rabbitmq:4.1-management
+    container_name: hvo-rabbitmq
+    hostname: hvo-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}
+    ports:
+      - "5672:5672"    # AMQP 0-9-1 / AMQP 1.0
+      - "1883:1883"    # MQTT
+      - "15672:15672"  # Management UI
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  rabbitmq-data:
