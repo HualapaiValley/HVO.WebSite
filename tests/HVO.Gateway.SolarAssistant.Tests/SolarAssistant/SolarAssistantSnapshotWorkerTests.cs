@@ -66,6 +66,9 @@ public sealed class SolarAssistantSnapshotWorkerTests
         worker.LastMetricCount.Should().Be(2);
         worker.LastSnapshotAt.Should().NotBeNull();
         worker.LastError.Should().BeNull();
+        worker.LastSnapshot.Should().NotBeNull();
+        worker.LastSnapshot!.SourceId.Should().Be("solarassistant-total");
+        worker.LastSnapshot.PvPowerW.Should().Be(1234);
 
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();

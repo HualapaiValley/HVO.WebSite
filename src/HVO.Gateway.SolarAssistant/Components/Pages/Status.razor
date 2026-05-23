@@ -1,0 +1,200 @@
+@page "/"
+@page "/monitor"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using Microsoft.Extensions.Options
+@implements IDisposable
+@inject SolarAssistantSnapshotWorker SnapshotWorker
+@inject PowerApiForwarder Forwarder
+@inject IOptions<SolarAssistantOptions> SolarAssistantOptionsAccessor
+@inject IOptions<OutboxOptions> OutboxOptionsAccessor
+
+<PageTitle>SolarAssistant Gateway</PageTitle>
+
+<section class="solar-page" aria-label="SolarAssistant gateway monitor">
+    <h1 class="solar-page-heading">SolarAssistant Gateway</h1>
+
+    <article class="solar-card solar-hero-card">
+        <div class="solar-card-body solar-hero-grid">
+            <div class="solar-hero-copy">
+                <div class="solar-eyebrow">Live Gateway Status</div>
+                <h2>SolarAssistant Total</h2>
+                <div class="solar-hero-number">@FormatWatts(LatestSnapshot?.LoadPowerW)</div>
+                <p class="solar-hero-summary">Current load from the latest read-only SolarAssistant REST snapshot.</p>
+                <div class="solar-pill-row" aria-label="Gateway status summary">
+                    <span class="solar-status-pill @SnapshotStatusClass">@SnapshotStatusText</span>
+                    <span class="solar-status-pill @ForwarderStatusClass">@ForwarderStatusText</span>
+                </div>
+            </div>
+
+            <div class="solar-hero-panel" aria-label="Latest snapshot metadata">
+                <div class="solar-panel-row">
+                    <span>Last snapshot</span>
+                    <strong>@FormatTimestamp(SnapshotWorker.LastSnapshotAt)</strong>
+                </div>
+                <div class="solar-panel-row">
+                    <span>Metric count</span>
+                    <strong>@SnapshotWorker.LastMetricCount</strong>
+                </div>
+                <div class="solar-panel-row">
+                    <span>Source</span>
+                    <strong>@(LatestSnapshot?.SourceId ?? SolarOptions.TotalSourceId)</strong>
+                </div>
+                <div class="solar-panel-row">
+                    <span>Device</span>
+                    <strong>@(LatestSnapshot?.DeviceId ?? SolarOptions.TotalDeviceId)</strong>
+                </div>
+            </div>
+        </div>
+    </article>
+
+    <section class="solar-card-grid" aria-label="Power and gateway details">
+        <article class="solar-card">
+            <div class="solar-card-body">
+                <div class="solar-section-head">
+                    <div>
+                        <div class="solar-eyebrow">Power</div>
+                        <h2>Current Snapshot</h2>
+                    </div>
+                </div>
+                <div class="solar-metric-grid">
+                    <div class="solar-metric"><span>PV</span><strong>@FormatWatts(LatestSnapshot?.PvPowerW)</strong></div>
+                    <div class="solar-metric"><span>Load</span><strong>@FormatWatts(LatestSnapshot?.LoadPowerW)</strong></div>
+                    <div class="solar-metric"><span>Grid</span><strong>@FormatWatts(LatestSnapshot?.GridPowerW)</strong></div>
+                    <div class="solar-metric"><span>Battery</span><strong>@FormatWatts(LatestSnapshot?.BatteryPowerW)</strong></div>
+                    <div class="solar-metric"><span>System</span><strong>@FormatWatts(LatestSnapshot?.SystemPowerW)</strong></div>
+                    <div class="solar-metric"><span>Load %</span><strong>@FormatPercent(LatestSnapshot?.LoadPercentage)</strong></div>
+                </div>
+            </div>
+        </article>
+
+        <article class="solar-card">
+            <div class="solar-card-body">
+                <div class="solar-section-head">
+                    <div>
+                        <div class="solar-eyebrow">Battery</div>
+                        <h2>Battery State</h2>
+                    </div>
+                </div>
+                <div class="solar-battery-readout">
+                    <div class="solar-battery-ring" style="--battery-level: @BatteryLevelCss;">
+                        <span>@FormatPercent(LatestSnapshot?.BatteryStateOfChargePercent)</span>
+                    </div>
+                    <div class="solar-detail-list">
+                        <div><span>Voltage</span><strong>@FormatVolts(LatestSnapshot?.BatteryVoltageV)</strong></div>
+                        <div><span>Current</span><strong>@FormatAmps(LatestSnapshot?.BatteryCurrentA)</strong></div>
+                        <div><span>Capacity</span><strong>@FormatKwh(LatestSnapshot?.BatteryCapacityKwh)</strong></div>
+                    </div>
+                </div>
+            </div>
+        </article>
+
+        <article class="solar-card">
+            <div class="solar-card-body">
+                <div class="solar-section-head">
+                    <div>
+                        <div class="solar-eyebrow">Outbox</div>
+                        <h2>Website Forwarding</h2>
+                    </div>
+                </div>
+                <div class="solar-detail-list">
+                    <div><span>Pending</span><strong>@Forwarder.PendingCount</strong></div>
+                    <div><span>Failed</span><strong class="@(Forwarder.FailedCount > 0 ? "solar-danger" : null)">@Forwarder.FailedCount</strong></div>
+                    <div><span>Last sent</span><strong>@FormatTimestamp(Forwarder.LastSentAt)</strong></div>
+                    <div><span>Last batch</span><strong>@Forwarder.LastBatchCount</strong></div>
+                    <div><span>Endpoint</span><strong title="@OutboxOptions.ApiEndpoint">@EndpointSummary</strong></div>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Forwarder.LastError))
+                {
+                    <p class="solar-error">@Forwarder.LastError</p>
+                }
+            </div>
+        </article>
+
+        <article class="solar-card">
+            <div class="solar-card-body">
+                <div class="solar-section-head">
+                    <div>
+                        <div class="solar-eyebrow">Settings</div>
+                        <h2>Read-only Configuration</h2>
+                    </div>
+                </div>
+                <div class="solar-detail-list">
+                    <div><span>SolarAssistant host</span><strong>@DisplayHost</strong></div>
+                    <div><span>REST port</span><strong>@SolarOptions.RestPort</strong></div>
+                    <div><span>Poll interval</span><strong>@SolarOptions.SnapshotIntervalSeconds s</strong></div>
+                    <div><span>Request timeout</span><strong>@SolarOptions.RequestTimeoutSeconds s</strong></div>
+                    <div><span>Outbox DB</span><strong>@OutboxOptions.DbPath</strong></div>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(SnapshotWorker.LastError))
+                {
+                    <p class="solar-error">@SnapshotWorker.LastError</p>
+                }
+            </div>
+        </article>
+    </section>
+</section>
+
+@code {
+    private PeriodicTimer? _refreshTimer;
+    private CancellationTokenSource? _refreshCts;
+
+    private SolarAssistantOptions SolarOptions => SolarAssistantOptionsAccessor.Value;
+    private OutboxOptions OutboxOptions => OutboxOptionsAccessor.Value;
+    private PowerReadingPayload? LatestSnapshot => SnapshotWorker.LastSnapshot;
+
+    private string SnapshotStatusText => SnapshotWorker.LastError is null && SnapshotWorker.LastSnapshotAt is not null
+        ? "Polling"
+        : string.IsNullOrWhiteSpace(SolarOptions.Host) ? "Disabled" : "Attention";
+
+    private string SnapshotStatusClass => SnapshotWorker.LastError is null && SnapshotWorker.LastSnapshotAt is not null
+        ? "solar-status-pill-success"
+        : "solar-status-pill-warning";
+
+    private string ForwarderStatusText => Forwarder.FailedCount > 0 || !string.IsNullOrWhiteSpace(Forwarder.LastError)
+        ? "Forwarding issue"
+        : Forwarder.PendingCount > 0 ? "Queued" : "Forwarding";
+
+    private string ForwarderStatusClass => Forwarder.FailedCount > 0 || !string.IsNullOrWhiteSpace(Forwarder.LastError)
+        ? "solar-status-pill-danger"
+        : Forwarder.PendingCount > 0 ? "solar-status-pill-warning" : "solar-status-pill-success";
+
+    private string BatteryLevelCss => Math.Clamp(LatestSnapshot?.BatteryStateOfChargePercent ?? 0, 0, 100).ToString("0", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    private string DisplayHost => string.IsNullOrWhiteSpace(SolarOptions.Host) ? "Not configured" : SolarOptions.Host;
+    private string EndpointSummary => Uri.TryCreate(OutboxOptions.ApiEndpoint, UriKind.Absolute, out var uri) ? uri.Host : "Not configured";
+
+    private static string FormatTimestamp(DateTime? value) => value.HasValue ? value.Value.ToLocalTime().ToString("MMM d, HH:mm:ss") : "--";
+    private static string FormatWatts(double? value) => value.HasValue ? $"{value.Value:0} W" : "--";
+    private static string FormatPercent(double? value) => value.HasValue ? $"{value.Value:0}%" : "--";
+    private static string FormatVolts(double? value) => value.HasValue ? $"{value.Value:0.0} V" : "--";
+    private static string FormatAmps(double? value) => value.HasValue ? $"{value.Value:0.0} A" : "--";
+    private static string FormatKwh(double? value) => value.HasValue ? $"{value.Value:0.0} kWh" : "--";
+
+    protected override void OnInitialized()
+    {
+        _refreshCts = new CancellationTokenSource();
+        _refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        _ = RefreshLoopAsync(_refreshCts.Token);
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken ct)
+    {
+        if (_refreshTimer is null)
+            return;
+
+        try
+        {
+            while (await _refreshTimer.WaitForNextTickAsync(ct))
+                await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    public void Dispose()
+    {
+        _refreshCts?.Cancel();
+        _refreshTimer?.Dispose();
+        _refreshCts?.Dispose();
+    }
+}
