@@ -162,6 +162,51 @@
       "source": "hvo-website-usersecrets",
       "type": "volume",
       "target": "/home/vscode/.microsoft/usersecrets"
+    },
+    {
+      "source": "hvo-opencode-config",
+      "type": "volume",
+      "target": "/home/vscode/.config/opencode"
+    },
+    {
+      "source": "hvo-opencode-data",
+      "type": "volume",
+      "target": "/home/vscode/.local/share/opencode"
+    },
+    {
+      "source": "hvo-opencode-install",
+      "type": "volume",
+      "target": "/home/vscode/.opencode"
+    },
+    {
+      "source": "hvo-gh-config",
+      "type": "volume",
+      "target": "/home/vscode/.config/gh"
+    },
+    {
+      "source": "hvo-azure-config",
+      "type": "volume",
+      "target": "/home/vscode/.azure"
+    },
+    {
+      "source": "hvo-ssh-config",
+      "type": "volume",
+      "target": "/home/vscode/.ssh"
+    },
+    {
+      "source": "hvo-docker-client-config",
+      "type": "volume",
+      "target": "/home/vscode/.docker"
+    },
+    {
+      "source": "hvo-dotnet-tools",
+      "type": "volume",
+      "target": "/home/vscode/.dotnet/tools"
+    },
+    {
+      "source": "hvo-aspnet-data-protection",
+      "type": "volume",
+      "target": "/home/vscode/.aspnet/DataProtection-Keys"
     }
   ],
   "postCreateCommand": "bash .devcontainer/post-create.sh",
