@@ -7,6 +7,7 @@ WORKDIR /src
 COPY ["Directory.Build.props", "."]
 COPY ["Directory.Packages.props", "."]
 COPY ["NuGet.config", "."]
+COPY ["src/HVO.WebSite.Themes/HVO.WebSite.Themes.csproj", "src/HVO.WebSite.Themes/"]
 COPY ["src/HVO.Gateway.SolarAssistant/HVO.Gateway.SolarAssistant.csproj", "src/HVO.Gateway.SolarAssistant/"]
 RUN dotnet restore "src/HVO.Gateway.SolarAssistant/HVO.Gateway.SolarAssistant.csproj"
 COPY . .

@@ -1,5 +1,6 @@
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
+using HVO.Gateway.SolarAssistant.Components;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 using HVO.Gateway.SolarAssistant.Workers;
 using Microsoft.EntityFrameworkCore;
@@ -68,6 +69,8 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<SolarAssistantSnap
 builder.Services.AddSingleton<PowerApiForwarder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PowerApiForwarder>());
 builder.Services.AddHealthChecks();
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
 
 var app = builder.Build();
 
@@ -76,6 +79,18 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
     await db.Database.EnsureCreatedAsync();
 }
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error");
+    app.UseHsts();
+}
+
+app.UseStaticFiles();
+app.UseAntiforgery();
+
+app.MapRazorComponents<App>()
+   .AddInteractiveServerRenderMode();
 
 app.MapHealthChecks("/health");
 app.MapGet("/status", (SolarAssistantSnapshotWorker snapshotWorker, PowerApiForwarder forwarder) => new
@@ -90,7 +105,8 @@ app.MapGet("/status", (SolarAssistantSnapshotWorker snapshotWorker, PowerApiForw
         forwarder.LastSentAt,
         forwarder.LastBatchCount,
         forwarder.LastError,
-    }
+    },
+    snapshot = snapshotWorker.LastSnapshot,
 });
 
 await app.RunAsync();

@@ -14,10 +14,12 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
     private readonly ILogger<SolarAssistantSnapshotWorker> _logger;
 
     private volatile string? _lastError;
+    private volatile PowerReadingPayload? _lastSnapshot;
     private long _lastSnapshotAtTicks;
     private volatile int _lastMetricCount;
 
     public string? LastError => _lastError;
+    public PowerReadingPayload? LastSnapshot => _lastSnapshot;
     public DateTime? LastSnapshotAt
     {
         get
@@ -94,6 +96,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         var inserted = await writer.EnqueueAsync(payload, ct);
 
         Volatile.Write(ref _lastSnapshotAtTicks, recordedAt.Ticks);
+        _lastSnapshot = payload;
         _lastError = null;
         if (inserted)
         {

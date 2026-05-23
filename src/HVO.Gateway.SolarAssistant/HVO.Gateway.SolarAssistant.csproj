@@ -24,4 +24,8 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HVO.WebSite.Themes\HVO.WebSite.Themes.csproj" />
+  </ItemGroup>
 </Project>

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 
+- Added a local SolarAssistant gateway monitor UI with Davis-style shell layout, basic status/settings cards, and Playwright coverage
 - Added `Seeding:PowerReadApiKey` support for production read-only power API verification
 - Added independent Azure ACR publishing scripts and documentation for `hvo-website`, `hvo-davis`, `hvo-jkbms`, and `hvo-solarassistant`
 - Added Docker and Docker Compose packaging for the `HVO.Gateway.SolarAssistant` service

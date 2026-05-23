@@ -1,0 +1,34 @@
+@inherits LayoutComponentBase
+
+<div class="solar-shell">
+    <header class="solar-appbar">
+        <div class="solar-frame solar-bar-content">
+            <a class="solar-brand" href="/" aria-label="SolarAssistant gateway status">
+                <span class="solar-brand-mark" aria-hidden="true">SA</span>
+                <span class="solar-brand-copy">
+                    <span class="solar-brand-title">Hualapai Valley Observatory</span>
+                    <span class="solar-brand-subtitle">SolarAssistant Gateway</span>
+                </span>
+            </a>
+
+            <nav class="solar-nav" aria-label="Primary navigation">
+                <NavLink class="solar-nav-link" href="/" Match="NavLinkMatch.All">Status</NavLink>
+                <NavLink class="solar-nav-link" href="/monitor">Monitor</NavLink>
+            </nav>
+        </div>
+    </header>
+
+    <main class="solar-main">
+        <div class="solar-frame solar-content">
+            @Body
+        </div>
+    </main>
+
+    <footer class="solar-footer">
+        <div class="solar-frame solar-footer-grid">
+            <span class="solar-footer-chip solar-footer-chip-info">Read-only monitoring</span>
+            <span class="solar-footer-chip solar-footer-chip-success">SQLite outbox</span>
+            <span class="solar-footer-chip solar-footer-chip-info">@DateTimeOffset.Now.ToLocalTime().ToString("t")</span>
+        </div>
+    </footer>
+</div>
