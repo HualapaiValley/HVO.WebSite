@@ -212,7 +212,31 @@ public class PowerIngestController : ControllerBase
         var rows = await query
             .OrderByDescending(r => r.RecordedAt)
             .Take(limit)
-            .Select(r => MapToResponse(r))
+            .Select(r => new PowerReadingResponse
+            {
+                Id = r.Id,
+                SourceId = r.SourceId,
+                SourceSystem = r.SourceSystem,
+                DeviceId = r.DeviceId,
+                RecordedAt = r.RecordedAt,
+                PvPowerW = r.PvPowerW,
+                LoadPowerW = r.LoadPowerW,
+                GridPowerW = r.GridPowerW,
+                BatteryPowerW = r.BatteryPowerW,
+                SystemPowerW = r.SystemPowerW,
+                BatteryStateOfChargePercent = r.BatteryStateOfChargePercent,
+                BatteryVoltageV = r.BatteryVoltageV,
+                BatteryCurrentA = r.BatteryCurrentA,
+                BatteryCapacityKwh = r.BatteryCapacityKwh,
+                GridVoltageV = r.GridVoltageV,
+                GridFrequencyHz = r.GridFrequencyHz,
+                OutputVoltageV = r.OutputVoltageV,
+                OutputFrequencyHz = r.OutputFrequencyHz,
+                LoadPercentage = r.LoadPercentage,
+                InverterMode = r.InverterMode,
+                OutputSourcePriority = r.OutputSourcePriority,
+                ChargerSourcePriority = r.ChargerSourcePriority,
+            })
             .ToListAsync(ct);
         return Ok(rows);
     }
@@ -245,32 +269,6 @@ public class PowerIngestController : ControllerBase
             ChargerSourcePriority = NormalizeOptional(request.ChargerSourcePriority),
             CreatedAt = DateTime.UtcNow,
         };
-
-    private static PowerReadingResponse MapToResponse(PowerReading r) => new()
-    {
-        Id = r.Id,
-        SourceId = r.SourceId,
-        SourceSystem = r.SourceSystem,
-        DeviceId = r.DeviceId,
-        RecordedAt = r.RecordedAt,
-        PvPowerW = r.PvPowerW,
-        LoadPowerW = r.LoadPowerW,
-        GridPowerW = r.GridPowerW,
-        BatteryPowerW = r.BatteryPowerW,
-        SystemPowerW = r.SystemPowerW,
-        BatteryStateOfChargePercent = r.BatteryStateOfChargePercent,
-        BatteryVoltageV = r.BatteryVoltageV,
-        BatteryCurrentA = r.BatteryCurrentA,
-        BatteryCapacityKwh = r.BatteryCapacityKwh,
-        GridVoltageV = r.GridVoltageV,
-        GridFrequencyHz = r.GridFrequencyHz,
-        OutputVoltageV = r.OutputVoltageV,
-        OutputFrequencyHz = r.OutputFrequencyHz,
-        LoadPercentage = r.LoadPercentage,
-        InverterMode = r.InverterMode,
-        OutputSourcePriority = r.OutputSourcePriority,
-        ChargerSourcePriority = r.ChargerSourcePriority,
-    };
 
     private static string NormalizeSourceId(string? sourceId) => sourceId?.Trim() ?? string.Empty;
 
