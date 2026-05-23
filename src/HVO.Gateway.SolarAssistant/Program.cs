@@ -83,6 +83,8 @@ builder.Services.AddRazorComponents()
 builder.Services.AddMudServices();
 
 var app = builder.Build();
+var exposeDiagnostics = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue("Diagnostics:ExposeDetailedEndpoints", false);
 
 using (var scope = app.Services.CreateScope())
 {
@@ -108,26 +110,29 @@ app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode();
 
 app.MapHealthChecks("/health");
-app.MapGet("/status", (SolarAssistantSnapshotWorker snapshotWorker, PowerApiForwarder forwarder, SolarAssistantGatewayHealthService healthService) => new
+if (exposeDiagnostics)
 {
-    snapshotWorker.LastSnapshotAt,
-    snapshotWorker.LastMetricCount,
-    snapshotWorker.LastError,
-    outbox = new
+    app.MapGet("/status", (SolarAssistantSnapshotWorker snapshotWorker, PowerApiForwarder forwarder, SolarAssistantGatewayHealthService healthService) => new
     {
-        forwarder.PendingCount,
-        forwarder.FailedCount,
-        forwarder.LastSentAt,
-        forwarder.LastBatchCount,
-        forwarder.LastError,
-    },
-    snapshot = snapshotWorker.LastSnapshot,
-    health = healthService.GetSnapshot(),
-});
-app.MapGet("/inventory", (SolarAssistantSnapshotWorker snapshotWorker) => snapshotWorker.LastInventory is null
-    ? Results.NotFound(new { message = "SolarAssistant metric inventory is not available yet." })
-    : Results.Ok(snapshotWorker.LastInventory));
-app.MapGet("/mqtt-inventory", (SolarAssistantMqttDiscoveryWorker mqttWorker) => Results.Ok(mqttWorker.Inventory));
+        snapshotWorker.LastSnapshotAt,
+        snapshotWorker.LastMetricCount,
+        snapshotWorker.LastError,
+        outbox = new
+        {
+            forwarder.PendingCount,
+            forwarder.FailedCount,
+            forwarder.LastSentAt,
+            forwarder.LastBatchCount,
+            forwarder.LastError,
+        },
+        snapshot = snapshotWorker.LastSnapshot,
+        health = healthService.GetSnapshot(),
+    });
+    app.MapGet("/inventory", (SolarAssistantSnapshotWorker snapshotWorker) => snapshotWorker.LastInventory is null
+        ? Results.NotFound(new { message = "SolarAssistant metric inventory is not available yet." })
+        : Results.Ok(snapshotWorker.LastInventory));
+    app.MapGet("/mqtt-inventory", (SolarAssistantMqttDiscoveryWorker mqttWorker) => Results.Ok(mqttWorker.Inventory));
+}
 app.MapGet("/gateway-health", (SolarAssistantGatewayHealthService healthService) => Results.Ok(healthService.GetSnapshot()));
 
 await app.RunAsync();

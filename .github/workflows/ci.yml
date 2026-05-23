@@ -30,7 +30,7 @@ jobs:
           global-json-file: global.json
 
       - name: Restore
-        run: dotnet restore HVO.WebSite.sln --nologo -v minimal
+        run: dotnet restore HVO.WebSite.sln --locked-mode --nologo -v minimal
 
       - name: Build (Debug)
         run: dotnet build HVO.WebSite.sln --no-restore -c Debug --nologo -v minimal /p:ContinuousIntegrationBuild=true
@@ -53,6 +53,22 @@ jobs:
           --logger "trx;LogFileName=tests-integration.trx"
           --collect:"XPlat Code Coverage"
           --results-directory TestResults
+
+      - name: Validate test category conventions
+        run: bash tools/validate-test-categories.sh
+
+      - name: Build (Release)
+        run: dotnet build HVO.WebSite.sln --no-restore -c Release --nologo -v minimal /p:ContinuousIntegrationBuild=true
+
+      - name: Docker build smoke
+        run: |
+          docker build -f src/HVO.WebSite.v9/Dockerfile -t hvo-website-ci:latest .
+          docker build -f src/HVO.Hardware.DavisVantagePro2/Dockerfile -t hvo-davis-ci:latest .
+          docker build -f src/HVO.Hardware.JkBms/Dockerfile -t hvo-jkbms-ci:latest .
+          docker build -f src/HVO.Gateway.SolarAssistant/Dockerfile -t hvo-solarassistant-ci:latest .
+
+      - name: Publish script dry run
+        run: bash tools/validate-publish-acr-dry-run.sh
 
       - name: Upload test results
         if: always()

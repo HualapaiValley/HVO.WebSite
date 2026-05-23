@@ -390,13 +390,26 @@ namespace HVO.WebSite.v9
             // IMPORTANT: These are the RECOMMENDED ASP.NET Core health check endpoints
             // Do NOT duplicate these with custom controllers - use these built-in endpoints:
 
-            // Detailed health endpoint with comprehensive information
-            // Use this for: monitoring dashboards, detailed health reporting, troubleshooting
+            // Minimal public aggregate health endpoint. Detailed health data is restricted to
+            // Development, or can be explicitly enabled in trusted networks with
+            // HealthChecks:ExposeDetailed=true.
+            var exposeDetailedHealth = app.Environment.IsDevelopment()
+                || app.Configuration.GetValue("HealthChecks:ExposeDetailed", false);
             app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
             {
                 ResponseWriter = async (context, report) =>
                 {
                     context.Response.ContentType = "application/json";
+                    if (!exposeDetailedHealth)
+                    {
+                        await context.Response.WriteAsJsonAsync(new
+                        {
+                            status = report.Status.ToString(),
+                            timestamp = DateTime.UtcNow
+                        });
+                        return;
+                    }
+
                     var response = new
                     {
                         status = report.Status.ToString(),
@@ -407,7 +420,7 @@ namespace HVO.WebSite.v9
                             description = x.Value.Description,
                             data = x.Value.Data,
                             duration = x.Value.Duration.ToString(),
-                            exception = x.Value.Exception?.Message,
+                            exception = app.Environment.IsDevelopment() ? x.Value.Exception?.Message : null,
                             tags = x.Value.Tags
                         }),
                         totalDuration = report.TotalDuration.ToString(),

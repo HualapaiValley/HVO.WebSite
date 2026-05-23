@@ -170,9 +170,10 @@ public sealed class PowerApiForwarder : BackgroundService
         }
         catch (JsonException ex)
         {
+            const string error = "Power API response JSON was invalid";
             foreach (var record in ready.Select(x => x.Record))
-                ScheduleRetry(record, "Power API response JSON was invalid", now);
-            _lastError = ex.Message;
+                ScheduleRetry(record, error, now);
+            _lastError = error;
             _logger.LogWarning(ex, "Invalid JSON response while forwarding {Count} power record(s)", ready.Count);
         }
 

@@ -28,25 +28,18 @@ services:
     build:
       context: .
       dockerfile: src/HVO.WebSite.v9/Dockerfile
-      args:
-        WEBSITE_RUNTIME: ${WEBSITE_RUNTIME:-linux-x64}
-        CERT_IP: ${WEBSITE_CERT_IP:-127.0.0.1}
-        CERT_PASSWORD: ${WEBSITE_CERT_PASSWORD:-HVODev2026}
     hostname: hvo-website
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      # Local container deployments opt into HTTPS explicitly.
-      # ACA should leave the image on HTTP-only and terminate TLS at ingress.
-      ASPNETCORE_URLS: "https://+:443;http://+:8080"
-      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/aspnetapp.pfx
-      ASPNETCORE_Kestrel__Certificates__Default__Password: ${WEBSITE_CERT_PASSWORD:-HVODev2026}
+      # Keep the image HTTP-only; terminate TLS at ingress/reverse proxy or mount
+      # a runtime certificate and override Kestrel settings explicitly.
+      ASPNETCORE_URLS: "http://+:8080"
       # Key Vault — loaded by DefaultAzureCredential using the SP below
       KeyVault__Uri: ${AZURE_KEYVAULT_URI}
       # Azure service principal used to authenticate to Key Vault
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
-      # HTTPS on 443 (self-signed cert baked into the local image).
       # Port 8080 stays available for service-to-service traffic and health checks.
       # Disable HTTPS redirect — internal services post to http://hvo-website:8080
       # and must not be redirected to HTTPS where the self-signed cert would be rejected.
@@ -62,7 +55,6 @@ services:
       - data-protection:/root/.aspnet/DataProtection-Keys
     ports:
       - "80:8080"
-      - "443:443"
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/health/live" ]
@@ -171,6 +163,7 @@ services:
       OTEL_SERVICE_NAME: hvo-solarassistant
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      Diagnostics__ExposeDetailedEndpoints: ${SOLAR_ASSISTANT_EXPOSE_DETAILED_ENDPOINTS:-false}
     volumes:
       - solarassistant-outbox:/app/data
     restart: unless-stopped

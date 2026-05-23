@@ -14,15 +14,13 @@ ensure_opencode_state_dirs() {
 	local share_dir="$local_dir/share"
 	local opencode_share_dir="$share_dir/opencode"
 
-	if [ ! -d "$local_dir" ]; then
-		mkdir -p "$local_dir"
-	fi
-
-	if [ ! -w "$local_dir" ] || [ ! -O "$local_dir" ]; then
-		sudo chown -R "$(id -u)":"$(id -g)" "$local_dir"
-	fi
-
-	mkdir -p "$state_dir" "$opencode_share_dir"
+	mkdir -p "$local_dir" "$share_dir" 2>/dev/null || sudo mkdir -p "$local_dir" "$share_dir"
+	for dir in "$state_dir" "$opencode_share_dir"; do
+		mkdir -p "$dir" 2>/dev/null || sudo mkdir -p "$dir"
+		if [ ! -w "$dir" ] || [ ! -O "$dir" ]; then
+			sudo chown -R "$(id -u)":"$(id -g)" "$dir"
+		fi
+	done
 }
 
 ensure_xdg_open() {

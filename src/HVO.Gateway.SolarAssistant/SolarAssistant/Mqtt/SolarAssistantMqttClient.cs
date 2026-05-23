@@ -9,7 +9,9 @@ namespace HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 public sealed class SolarAssistantMqttClient
 {
     private const int KeepAliveSeconds = 30;
+    private const int OperationTimeoutSeconds = 30;
     private static readonly TimeSpan PingInterval = TimeSpan.FromSeconds(KeepAliveSeconds / 2);
+    private static readonly TimeSpan PingResponseTimeout = TimeSpan.FromSeconds(KeepAliveSeconds + 5);
 
     private readonly SolarAssistantOptions _options;
 
@@ -25,13 +27,31 @@ public sealed class SolarAssistantMqttClient
         CancellationToken ct)
     {
         using var tcp = new TcpClient();
-        await tcp.ConnectAsync(_options.Host, _options.MqttPort, ct);
+
+        try
+        {
+            await WithTimeoutAsync(
+                tcp.ConnectAsync(_options.Host, _options.MqttPort, ct).AsTask(),
+                TimeSpan.FromSeconds(OperationTimeoutSeconds),
+                tcp.Dispose,
+                "MQTT TCP connect timed out.",
+                ct);
+        }
+        catch
+        {
+            tcp.Dispose();
+            throw;
+        }
+
         await using var stream = tcp.GetStream();
 
-        await ConnectAsync(stream, ct);
-        await SubscribeAsync(stream, subscriptions, ct);
+        await ConnectAsync(stream, tcp.Dispose, ct);
+        await SubscribeAsync(stream, subscriptions, tcp.Dispose, ct);
         onSubscribed();
 
+        var lastPacketAt = DateTime.UtcNow;
+        var awaitingPingResponse = false;
+        var pingSentAt = DateTime.MinValue;
         var readTask = ReadPacketAsync(stream, ct);
         while (!ct.IsCancellationRequested)
         {
@@ -39,7 +59,15 @@ public sealed class SolarAssistantMqttClient
             if (completed != readTask)
             {
                 ct.ThrowIfCancellationRequested();
+                if (awaitingPingResponse && DateTime.UtcNow - pingSentAt > PingResponseTimeout)
+                {
+                    tcp.Dispose();
+                    throw new TimeoutException("MQTT broker did not respond to keepalive ping.");
+                }
+
                 await WritePacketAsync(stream, packetType: 12, flags: 0, [], [], ct);
+                awaitingPingResponse = true;
+                pingSentAt = DateTime.UtcNow;
                 continue;
             }
 
@@ -47,11 +75,18 @@ public sealed class SolarAssistantMqttClient
             if (packet is null)
                 return;
 
+            lastPacketAt = DateTime.UtcNow;
             readTask = ReadPacketAsync(stream, ct);
 
             var (packetType, flags, payload) = packet.Value;
             if (packetType == 13)
+            {
+                awaitingPingResponse = false;
                 continue;
+            }
+
+            if (awaitingPingResponse && DateTime.UtcNow - lastPacketAt <= PingResponseTimeout)
+                awaitingPingResponse = false;
             if (packetType != 3)
                 continue;
 
@@ -61,7 +96,7 @@ public sealed class SolarAssistantMqttClient
         }
     }
 
-    private async Task ConnectAsync(NetworkStream stream, CancellationToken ct)
+    private async Task ConnectAsync(NetworkStream stream, Action onTimeout, CancellationToken ct)
     {
         var clientId = $"{_options.MqttClientId}-{Environment.MachineName}-{Environment.ProcessId}";
         var variableHeader = new List<byte>();
@@ -90,7 +125,8 @@ public sealed class SolarAssistantMqttClient
 
         await WritePacketAsync(stream, packetType: 1, flags: 0, variableHeader, payload, ct);
 
-        var response = await ReadPacketAsync(stream, ct) ?? throw new InvalidOperationException("MQTT broker closed before CONNACK.");
+        var response = await ReadPacketWithTimeoutAsync(stream, onTimeout, "MQTT broker did not send CONNACK in time.", ct)
+            ?? throw new InvalidOperationException("MQTT broker closed before CONNACK.");
         if (response.PacketType != 2 || response.Payload.Length < 2)
             throw new InvalidOperationException("MQTT broker returned an invalid CONNACK.");
 
@@ -99,7 +135,7 @@ public sealed class SolarAssistantMqttClient
             throw new InvalidOperationException($"MQTT CONNACK rejected connection with return code {returnCode}.");
     }
 
-    private static async Task SubscribeAsync(NetworkStream stream, IReadOnlyList<string> subscriptions, CancellationToken ct)
+    private static async Task SubscribeAsync(NetworkStream stream, IReadOnlyList<string> subscriptions, Action onTimeout, CancellationToken ct)
     {
         var variableHeader = new List<byte>();
         WriteUInt16(variableHeader, 1);
@@ -113,7 +149,8 @@ public sealed class SolarAssistantMqttClient
 
         await WritePacketAsync(stream, packetType: 8, flags: 2, variableHeader, payload, ct);
 
-        var response = await ReadPacketAsync(stream, ct) ?? throw new InvalidOperationException("MQTT broker closed before SUBACK.");
+        var response = await ReadPacketWithTimeoutAsync(stream, onTimeout, "MQTT broker did not send SUBACK in time.", ct)
+            ?? throw new InvalidOperationException("MQTT broker closed before SUBACK.");
         if (response.PacketType != 9 || response.Payload.Length < 2)
             throw new InvalidOperationException("MQTT broker returned an invalid SUBACK.");
 
@@ -183,6 +220,52 @@ public sealed class SolarAssistantMqttClient
         var payload = new byte[remaining];
         await stream.ReadExactlyAsync(payload, ct);
         return ((byte)(first.Value >> 4), (byte)(first.Value & 0x0F), payload);
+    }
+
+    private static Task<(byte PacketType, byte Flags, byte[] Payload)?> ReadPacketWithTimeoutAsync(
+        NetworkStream stream,
+        Action onTimeout,
+        string timeoutMessage,
+        CancellationToken ct) => WithTimeoutAsync(
+            ReadPacketAsync(stream, ct),
+            TimeSpan.FromSeconds(OperationTimeoutSeconds),
+            onTimeout,
+            timeoutMessage,
+            ct);
+
+    private static async Task<T> WithTimeoutAsync<T>(
+        Task<T> operation,
+        TimeSpan timeout,
+        Action onTimeout,
+        string timeoutMessage,
+        CancellationToken ct)
+    {
+        var completed = await Task.WhenAny(operation, Task.Delay(timeout, ct));
+        if (completed == operation)
+            return await operation;
+
+        onTimeout();
+        ct.ThrowIfCancellationRequested();
+        throw new TimeoutException(timeoutMessage);
+    }
+
+    private static async Task WithTimeoutAsync(
+        Task operation,
+        TimeSpan timeout,
+        Action onTimeout,
+        string timeoutMessage,
+        CancellationToken ct)
+    {
+        var completed = await Task.WhenAny(operation, Task.Delay(timeout, ct));
+        if (completed == operation)
+        {
+            await operation;
+            return;
+        }
+
+        onTimeout();
+        ct.ThrowIfCancellationRequested();
+        throw new TimeoutException(timeoutMessage);
     }
 
     private static async Task WritePacketAsync(

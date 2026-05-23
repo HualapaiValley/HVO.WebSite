@@ -7,9 +7,14 @@ WORKDIR /src
 COPY ["Directory.Build.props", "."]
 COPY ["Directory.Packages.props", "."]
 COPY ["NuGet.config", "."]
+COPY ["src/HVO.Staging/packages.lock.json", "src/HVO.Staging/"]
+COPY ["src/HVO.WebSite.Themes/packages.lock.json", "src/HVO.WebSite.Themes/"]
+COPY ["src/HVO.Hardware.DavisVantagePro2/packages.lock.json", "src/HVO.Hardware.DavisVantagePro2/"]
 COPY ["src/HVO.Hardware.DavisVantagePro2/HVO.Hardware.DavisVantagePro2.csproj", "src/HVO.Hardware.DavisVantagePro2/"]
-RUN dotnet restore "src/HVO.Hardware.DavisVantagePro2/HVO.Hardware.DavisVantagePro2.csproj"
+COPY ["src/HVO.Staging/HVO.Staging.csproj", "src/HVO.Staging/"]
+COPY ["src/HVO.WebSite.Themes/HVO.WebSite.Themes.csproj", "src/HVO.WebSite.Themes/"]
 COPY . .
+RUN dotnet restore "src/HVO.Hardware.DavisVantagePro2/HVO.Hardware.DavisVantagePro2.csproj" --locked-mode
 WORKDIR "/src/src/HVO.Hardware.DavisVantagePro2"
 RUN dotnet build -c Release -o /app/build
 

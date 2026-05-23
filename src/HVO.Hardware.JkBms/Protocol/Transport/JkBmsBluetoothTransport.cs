@@ -40,11 +40,9 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     private bool _isConnected;
     private bool _disposed;
 
-    // Buffer for accumulating chunked BLE notifications.
-    // _rxBuffer is written only from OnPropertyChanged (D-Bus dispatch thread) and reset
-    // at the start of each DoExchangeAsync call on the worker thread. Both operations are
-    // never concurrent: the worker sends the write command then blocks on the channel;
-    // notifications arrive and are processed while the worker waits.
+    // Buffer for accumulating chunked BLE notifications. D-Bus notification callbacks
+    // can overlap the exchange reset path, so every mutation is protected by this lock.
+    private readonly object _rxBufferLock = new();
     private readonly List<byte> _rxBuffer = [];
 
     // Assembled frames are enqueued here. Using an unbounded Channel ensures that if
@@ -369,7 +367,10 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     private async Task<byte[]> DoExchangeAsync(byte[] command, CancellationToken ct)
     {
         // Reset receive state and drain any frames left over from a previous exchange.
-        _rxBuffer.Clear();
+        lock (_rxBufferLock)
+        {
+            _rxBuffer.Clear();
+        }
         while (_frameChannel.Reader.TryRead(out _)) { }
 
         // Write the command using Write Command (GATT opcode 0x52, write-without-response).
@@ -462,11 +463,20 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
         {
             if (pair.Key == "Value" && pair.Value is byte[] value)
             {
-                if (JkBmsProtocol.TryAccumulateFrame(_rxBuffer, value.AsSpan(), out var frame))
+                byte[]? frame = null;
+                lock (_rxBufferLock)
+                {
+                    if (JkBmsProtocol.TryAccumulateFrame(_rxBuffer, value.AsSpan(), out var completedFrame))
+                        frame = completedFrame;
+                }
+
+                if (frame is not null)
+                {
                     // TryWrite always succeeds on an unbounded channel unless the channel is
                     // completed (i.e. the transport is disposed). If disposed, dropping the
                     // frame is the correct behaviour — discard the result intentionally.
                     _ = _frameChannel.Writer.TryWrite(frame);
+                }
             }
         }
     }

@@ -68,7 +68,13 @@ public class BmsController : ControllerBase
 
         var requestValidationErrors = ValidateRequests(requests);
         if (requestValidationErrors.Count > 0)
-            return BadRequest(new ValidationProblemDetails(requestValidationErrors));
+        {
+            foreach (var (key, messages) in requestValidationErrors)
+                foreach (var message in messages)
+                    ModelState.AddModelError(key, message);
+
+            return ValidationProblem(ModelState);
+        }
 
         // ── Resolve devices (upsert by address) ───────────────────────────────
 
