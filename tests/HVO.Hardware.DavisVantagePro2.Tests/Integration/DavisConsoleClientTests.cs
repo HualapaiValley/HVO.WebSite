@@ -16,6 +16,7 @@ namespace HVO.Hardware.DavisVantagePro2.Tests.Integration;
 /// these tests intentionally run a bit slower than pure unit tests.
 /// </summary>
 [TestClass]
+[TestCategory("Integration")]
 public class DavisConsoleClientTests
 {
     private static DavisConsoleClient CreateClient(int port) =>

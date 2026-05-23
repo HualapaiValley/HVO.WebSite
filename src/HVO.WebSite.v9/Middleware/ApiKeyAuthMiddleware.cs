@@ -84,8 +84,7 @@ public class ApiKeyAuthMiddleware
         if (apiKey.ExpiresAt.HasValue && apiKey.ExpiresAt.Value < DateTime.UtcNow)
             return null;
 
-        // Update LastUsedAt — fire-and-forget, don't block the request
-        _ = UpdateLastUsedAsync(db, apiKey.Id, ct);
+        await UpdateLastUsedAsync(db, apiKey.Id, ct);
 
         var claims = new List<Claim>
         {
@@ -113,7 +112,7 @@ public class ApiKeyAuthMiddleware
         return new ClaimsPrincipal(identity);
     }
 
-    private static async Task UpdateLastUsedAsync(HvoV9DbContext db, Guid keyId, CancellationToken ct)
+    private async Task UpdateLastUsedAsync(HvoV9DbContext db, Guid keyId, CancellationToken ct)
     {
         try
         {
@@ -121,9 +120,10 @@ public class ApiKeyAuthMiddleware
                 .Where(k => k.Id == keyId)
                 .ExecuteUpdateAsync(s => s.SetProperty(k => k.LastUsedAt, DateTime.UtcNow), ct);
         }
-        catch
+        catch (Exception ex)
         {
             // Non-critical — don't fail the request
+            _logger.LogDebug(ex, "Failed to update LastUsedAt for API key {ApiKeyId}", keyId);
         }
     }
 

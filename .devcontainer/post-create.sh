@@ -75,10 +75,45 @@ else
 	echo "⚠  Base script not loaded — running inline fallback..."
 	sudo chown -R vscode:vscode /home/vscode/.dotnet || true
 	dotnet --info
-	sudo apt-get update -y && sudo apt-get install -y jq ripgrep || true
+	sudo apt-get update -y && sudo apt-get install -y jq ripgrep sqlite3 python3 nodejs npm openssh-client || true
 	if getent group docker >/dev/null 2>&1; then sudo usermod -aG docker vscode || true; fi
 	if [ -S /var/run/docker.sock ]; then sudo chmod 666 /var/run/docker.sock || true; fi
 fi
+
+# Baseline packages should already be present from the Dockerfile. Keep this
+# idempotent fallback so older cached images still recover during post-create.
+missing_packages=()
+command -v sqlite3 >/dev/null 2>&1 || missing_packages+=(sqlite3)
+command -v python3 >/dev/null 2>&1 || missing_packages+=(python3 python3-pip python3-venv)
+command -v node >/dev/null 2>&1 || missing_packages+=(nodejs)
+command -v npm >/dev/null 2>&1 || missing_packages+=(npm)
+command -v rg >/dev/null 2>&1 || missing_packages+=(ripgrep)
+command -v jq >/dev/null 2>&1 || missing_packages+=(jq)
+command -v ssh >/dev/null 2>&1 || missing_packages+=(openssh-client)
+if (( ${#missing_packages[@]} > 0 )); then
+	echo "Installing missing baseline packages: ${missing_packages[*]}"
+	sudo apt-get update -y
+	sudo apt-get install -y --no-install-recommends "${missing_packages[@]}"
+fi
+
+# NuGet uses ~/.local/share/NuGet for vulnerability metadata by default. Ensure
+# that path and the explicit cache paths are writable after restored volumes or
+# VS Code create nested mount parent directories.
+nuget_local_home="$HOME/.local"
+if [ ! -d "$nuget_local_home" ]; then
+	mkdir -p "$nuget_local_home"
+fi
+if [ ! -w "$nuget_local_home" ] || [ ! -O "$nuget_local_home" ]; then
+	sudo chown -R "$(id -u)":"$(id -g)" "$nuget_local_home" 2>/dev/null || true
+fi
+
+nuget_share_home="$nuget_local_home/share"
+nuget_data_home="$HOME/.local/share/NuGet"
+export NUGET_HTTP_CACHE_PATH="${NUGET_HTTP_CACHE_PATH:-$HOME/.nuget/v3-cache}"
+export NUGET_PLUGINS_CACHE_PATH="${NUGET_PLUGINS_CACHE_PATH:-$HOME/.nuget/plugins-cache}"
+mkdir -p "$nuget_share_home" "$nuget_data_home" "$NUGET_HTTP_CACHE_PATH" "$NUGET_PLUGINS_CACHE_PATH" "/tmp/NuGetScratch$(id -un)"
+sudo chown -R "$(id -u)":"$(id -g)" "$HOME/.local" "$NUGET_HTTP_CACHE_PATH" "$NUGET_PLUGINS_CACHE_PATH" "/tmp/NuGetScratch$(id -un)" 2>/dev/null || true
+chmod -R u+rwX "$nuget_data_home" "$NUGET_HTTP_CACHE_PATH" "$NUGET_PLUGINS_CACHE_PATH" "/tmp/NuGetScratch$(id -un)" 2>/dev/null || true
 
 # Install fonts (not in base script — needed for the website's PDF/chart rendering)
 sudo apt-get install -y --no-install-recommends \
@@ -187,9 +222,10 @@ else
 	dotnet tool install --global microsoft.sqlpackage
 fi
 
-# Restore NuGet packages
+# Restore NuGet packages. Force the first restore after container creation so
+# generated assets use the explicit writable NuGet cache locations above.
 echo "Restoring NuGet packages..."
-dotnet restore HVO.WebSite.sln --configfile NuGet.config || true
+dotnet restore HVO.WebSite.sln --configfile NuGet.config --force || true
 
 # Install Azure CLI
 echo "Installing Azure CLI..."
@@ -228,5 +264,9 @@ echo "sqlpackage: $(sqlpackage --version 2>/dev/null || echo 'not installed')"
 echo "gh:         $(gh --version 2>/dev/null | head -1 || echo 'not installed')"
 echo "az:         $(az version --query '"azure-cli"' -o tsv 2>/dev/null || echo 'not installed')"
 echo "opencode:   $(opencode --version 2>/dev/null || echo 'not installed')"
+echo "sqlite3:    $(sqlite3 --version 2>/dev/null | awk '{print $1}' || echo 'not installed')"
+echo "python3:    $(python3 --version 2>/dev/null || echo 'not installed')"
+echo "node:       $(node --version 2>/dev/null || echo 'not installed')"
+echo "npm:        $(npm --version 2>/dev/null || echo 'not installed')"
 
 echo "Post-create setup completed successfully!"

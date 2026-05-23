@@ -26,6 +26,7 @@ namespace HVO.Hardware.DavisVantagePro2.Tests.Integration;
 /// </list>
 /// </summary>
 [TestClass]
+[TestCategory("Integration")]
 public class VantageStationTests
 {
     private static (DavisConsoleClient client, VantageStation station) CreatePair(int port)

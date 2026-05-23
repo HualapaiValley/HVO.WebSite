@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "HVO.Astronomy": {
+        "type": "Direct",
+        "requested": "[1.0.0, )",
+        "resolved": "1.0.0",
+        "contentHash": "8xQ+OJtefxw9yRDp2+quKKvxzZ8f032wDLwpeFFyP0LqwUQwpK3Lk55MdB5Ey6PfSkvMHNUyH3M5TsI+94ylMg=="
+      },
+      "HVO.Weather": {
+        "type": "Direct",
+        "requested": "[1.0.0, )",
+        "resolved": "1.0.0",
+        "contentHash": "tZpl6bFpbwQKx4+lC9e0FW5ehrmovOdfI0ff/X55BhrddP4O5WC72SxCGf6skKruhTRJGnPhhe3bU/ss8BALaw=="
+      }
+    }
+  }
+}

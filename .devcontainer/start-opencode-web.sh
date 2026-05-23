@@ -8,6 +8,31 @@ LOG_FILE="/tmp/opencode-web.log"
 
 export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
 
+ensure_opencode_state_dirs() {
+	local local_dir="$HOME/.local"
+	local state_dir="$local_dir/state"
+	local share_dir="$local_dir/share"
+	local opencode_share_dir="$share_dir/opencode"
+
+	mkdir -p "$local_dir" "$share_dir" 2>/dev/null || sudo mkdir -p "$local_dir" "$share_dir"
+	for dir in "$state_dir" "$opencode_share_dir"; do
+		mkdir -p "$dir" 2>/dev/null || sudo mkdir -p "$dir"
+		if [ ! -w "$dir" ] || [ ! -O "$dir" ]; then
+			sudo chown -R "$(id -u)":"$(id -g)" "$dir"
+		fi
+	done
+}
+
+ensure_xdg_open() {
+	if command -v xdg-open >/dev/null 2>&1; then
+		return 0
+	fi
+
+	mkdir -p "$HOME/.local/bin"
+	printf '%s\n' '#!/bin/sh' 'if [ -n "${BROWSER:-}" ]; then' '	"$BROWSER" "$@" >/dev/null 2>&1 &' 'fi' 'exit 0' > "$HOME/.local/bin/xdg-open"
+	chmod +x "$HOME/.local/bin/xdg-open"
+}
+
 if ! command -v opencode >/dev/null 2>&1; then
 	echo "opencode is not installed; skipping opencode web startup." >> "$LOG_FILE"
 	exit 0
@@ -21,6 +46,9 @@ if [ -z "${OPENCODE_SERVER_PASSWORD:-}" ]; then
 	echo "OPENCODE_SERVER_PASSWORD is not set; skipping opencode web startup." >> "$LOG_FILE"
 	exit 0
 fi
+
+ensure_opencode_state_dirs
+ensure_xdg_open
 
 cd "$REPO_ROOT"
 echo "Starting opencode web on ${HOST}:${PORT}." >> "$LOG_FILE"

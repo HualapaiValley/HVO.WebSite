@@ -120,46 +120,61 @@ public sealed class PowerApiForwarder : BackgroundService
             record.LastAttemptedAtUtc = now;
         }
 
+        var ready = new List<(OutboxRecord Record, PowerReadingPayload Payload)>();
         try
         {
-            var payloads = pending
-                .Select(r => JsonSerializer.Deserialize<PowerReadingPayload>(r.Payload, JsonOptions))
-                .Where(p => p is not null)
-                .ToArray();
-
-            using var response = await _httpFactory
-                .CreateClient("PowerApi")
-                .PostAsJsonAsync(_options.ApiEndpoint, payloads, JsonOptions, ct);
-
-            if (response.IsSuccessStatusCode)
+            foreach (var record in pending)
             {
-                var body = await response.Content.ReadFromJsonAsync<PowerBatchResponse>(JsonOptions, ct);
-                MarkBatchResult(pending, body, now);
+                if (TryReadPayload(record, out var payload))
+                    ready.Add((record, payload));
             }
-            else
+
+            if (ready.Count > 0)
             {
-                var body = await ReadBoundedBodyAsync(response, ct);
-                var error = $"HTTP {(int)response.StatusCode}: {body}";
-                foreach (var record in pending)
-                    ScheduleRetry(record, error, now);
-                _lastError = error;
-                _logger.LogWarning("Power API forward failed for {Count} record(s): {Error}", pending.Count, error);
+                var payloads = ready.Select(x => x.Payload).ToArray();
+
+                using var response = await _httpFactory
+                    .CreateClient("PowerApi")
+                    .PostAsJsonAsync(_options.ApiEndpoint, payloads, JsonOptions, ct);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var body = await response.Content.ReadFromJsonAsync<PowerBatchResponse>(JsonOptions, ct);
+                    MarkBatchResult(ready.Select(x => x.Record), body, now);
+                }
+                else
+                {
+                    var body = await ReadBoundedBodyAsync(response, ct);
+                    var error = $"HTTP {(int)response.StatusCode}: {body}";
+                    foreach (var record in ready.Select(x => x.Record))
+                        ScheduleRetry(record, error, now);
+                    _lastError = error;
+                    _logger.LogWarning("Power API forward failed for {Count} record(s): {Error}", ready.Count, error);
+                }
             }
         }
         catch (HttpRequestException ex)
         {
-            foreach (var record in pending)
+            foreach (var record in ready.Select(x => x.Record))
                 ScheduleRetry(record, ex.Message, now);
             _lastError = ex.Message;
-            _logger.LogWarning(ex, "HTTP error forwarding {Count} power record(s)", pending.Count);
+            _logger.LogWarning(ex, "HTTP error forwarding {Count} power record(s)", ready.Count);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
             const string error = "Request timed out";
-            foreach (var record in pending)
+            foreach (var record in ready.Select(x => x.Record))
                 ScheduleRetry(record, error, now);
             _lastError = error;
-            _logger.LogWarning("Power API request timed out for {Count} record(s)", pending.Count);
+            _logger.LogWarning("Power API request timed out for {Count} record(s)", ready.Count);
+        }
+        catch (JsonException ex)
+        {
+            const string error = "Power API response JSON was invalid";
+            foreach (var record in ready.Select(x => x.Record))
+                ScheduleRetry(record, error, now);
+            _lastError = error;
+            _logger.LogWarning(ex, "Invalid JSON response while forwarding {Count} power record(s)", ready.Count);
         }
 
         await db.SaveChangesAsync(ct);
@@ -180,7 +195,27 @@ public sealed class PowerApiForwarder : BackgroundService
             _logger.LogInformation("Power outbox compaction deleted {Count} sent record(s)", deleted);
     }
 
-    private void MarkBatchResult(List<OutboxRecord> records, PowerBatchResponse? response, DateTime sentAt)
+    private bool TryReadPayload(OutboxRecord record, out PowerReadingPayload payload)
+    {
+        try
+        {
+            payload = JsonSerializer.Deserialize<PowerReadingPayload>(record.Payload, JsonOptions)
+                ?? throw new JsonException("Payload deserialized to null.");
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            const string error = "Outbox payload JSON is invalid.";
+            record.Status = OutboxStatus.Failed;
+            record.LastError = error;
+            _lastError = error;
+            _logger.LogError(ex, "Power outbox record {Id} has invalid JSON and was not forwarded", record.Id);
+            payload = null!;
+            return false;
+        }
+    }
+
+    private void MarkBatchResult(IEnumerable<OutboxRecord> records, PowerBatchResponse? response, DateTime sentAt)
     {
         var failures = response?.Failed ?? [];
         var sentCount = 0;

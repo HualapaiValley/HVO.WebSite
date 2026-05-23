@@ -3,6 +3,7 @@ using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Health;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace HVO.Gateway.SolarAssistant.Tests.SolarAssistant;
 
@@ -135,6 +136,52 @@ public sealed class SolarAssistantGatewayHealthServiceTests
         health.Alerts.Should().BeEmpty();
     }
 
+    [TestMethod]
+    public async Task HealthCheck_ReturnsUnhealthy_WhenGatewayStateIsCritical()
+    {
+        var healthCheck = new SolarAssistantGatewayHealthCheck(new StaticGatewayHealthService(new SolarAssistantGatewayHealthSnapshot
+        {
+            State = "critical",
+            Alerts =
+            [
+                new SolarAssistantGatewayHealthAlert
+                {
+                    Code = "rest-stale",
+                    Severity = SolarAssistantGatewayHealthSeverity.Critical,
+                    Message = "REST snapshot is stale.",
+                }
+            ],
+        }));
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Description.Should().Contain("rest-stale");
+        result.Data["state"].Should().Be("critical");
+    }
+
+    [TestMethod]
+    public async Task HealthCheck_ReturnsDegraded_WhenGatewayStateIsWarning()
+    {
+        var healthCheck = new SolarAssistantGatewayHealthCheck(new StaticGatewayHealthService(new SolarAssistantGatewayHealthSnapshot
+        {
+            State = "warning",
+            Alerts =
+            [
+                new SolarAssistantGatewayHealthAlert
+                {
+                    Code = "mqtt-stale",
+                    Severity = SolarAssistantGatewayHealthSeverity.Warning,
+                    Message = "MQTT discovery/state messages are stale.",
+                }
+            ],
+        }));
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        result.Status.Should().Be(HealthStatus.Degraded);
+    }
+
     private static SolarAssistantOptions Options() => new()
     {
         Host = "solarassistant.local",
@@ -162,4 +209,16 @@ public sealed class SolarAssistantGatewayHealthServiceTests
         ConnectionState = state,
         LastMessageAtUtc = lastMessageAtUtc,
     };
+
+    private sealed class StaticGatewayHealthService : IGatewayHealthSnapshotProvider
+    {
+        private readonly SolarAssistantGatewayHealthSnapshot _snapshot;
+
+        public StaticGatewayHealthService(SolarAssistantGatewayHealthSnapshot snapshot)
+        {
+            _snapshot = snapshot;
+        }
+
+        public SolarAssistantGatewayHealthSnapshot GetSnapshot(DateTime? nowUtc = null) => _snapshot;
+    }
 }
