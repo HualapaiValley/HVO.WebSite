@@ -1,0 +1,311 @@
+{
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "hvo.raw",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "hvo.ingest",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "hvo.dead",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "hvo.weather.raw.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "hvo.dead",
+        "x-dead-letter-routing-key": "hvo.weather.raw.v1"
+      }
+    },
+    {
+      "name": "hvo.weather.sensor.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "hvo.dead",
+        "x-dead-letter-routing-key": "hvo.weather.sensor.v1"
+      }
+    },
+    {
+      "name": "hvo.weather.alarm.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "hvo.dead",
+        "x-dead-letter-routing-key": "hvo.weather.alarm.v1"
+      }
+    },
+    {
+      "name": "hvo.environment.reading.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "hvo.dead",
+        "x-dead-letter-routing-key": "hvo.environment.reading.v1"
+      }
+    },
+    {
+      "name": "hvo.power.reading.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "hvo.dead",
+        "x-dead-letter-routing-key": "hvo.power.reading.v1"
+      }
+    },
+    {
+      "name": "hvo.bms.reading.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "hvo.dead",
+        "x-dead-letter-routing-key": "hvo.bms.reading.v1"
+      }
+    },
+    {
+      "name": "hvo.weather.raw.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "hvo.weather.sensor.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "hvo.weather.alarm.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "hvo.environment.reading.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "hvo.power.reading.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "hvo.bms.reading.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "solarassistant.raw",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "hvo.dead",
+        "x-dead-letter-routing-key": "solarassistant.raw"
+      }
+    },
+    {
+      "name": "esphome.raw",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "hvo.dead",
+        "x-dead-letter-routing-key": "esphome.raw"
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "source": "hvo.ingest",
+      "vhost": "/",
+      "destination": "hvo.weather.raw.v1",
+      "destination_type": "queue",
+      "routing_key": "hvo.ingest.weather.raw.v1.#",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.ingest",
+      "vhost": "/",
+      "destination": "hvo.weather.sensor.v1",
+      "destination_type": "queue",
+      "routing_key": "hvo.ingest.weather.sensor.v1.#",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.ingest",
+      "vhost": "/",
+      "destination": "hvo.weather.alarm.v1",
+      "destination_type": "queue",
+      "routing_key": "hvo.ingest.weather.alarm.v1.#",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.ingest",
+      "vhost": "/",
+      "destination": "hvo.environment.reading.v1",
+      "destination_type": "queue",
+      "routing_key": "hvo.ingest.environment.reading.v1.#",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.ingest",
+      "vhost": "/",
+      "destination": "hvo.power.reading.v1",
+      "destination_type": "queue",
+      "routing_key": "hvo.ingest.power.reading.v1.#",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.ingest",
+      "vhost": "/",
+      "destination": "hvo.bms.reading.v1",
+      "destination_type": "queue",
+      "routing_key": "hvo.ingest.bms.reading.v1.#",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.dead",
+      "vhost": "/",
+      "destination": "hvo.weather.raw.v1.dlq",
+      "destination_type": "queue",
+      "routing_key": "hvo.weather.raw.v1",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.dead",
+      "vhost": "/",
+      "destination": "hvo.weather.sensor.v1.dlq",
+      "destination_type": "queue",
+      "routing_key": "hvo.weather.sensor.v1",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.dead",
+      "vhost": "/",
+      "destination": "hvo.weather.alarm.v1.dlq",
+      "destination_type": "queue",
+      "routing_key": "hvo.weather.alarm.v1",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.dead",
+      "vhost": "/",
+      "destination": "hvo.environment.reading.v1.dlq",
+      "destination_type": "queue",
+      "routing_key": "hvo.environment.reading.v1",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.dead",
+      "vhost": "/",
+      "destination": "hvo.power.reading.v1.dlq",
+      "destination_type": "queue",
+      "routing_key": "hvo.power.reading.v1",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.dead",
+      "vhost": "/",
+      "destination": "hvo.bms.reading.v1.dlq",
+      "destination_type": "queue",
+      "routing_key": "hvo.bms.reading.v1",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.raw",
+      "vhost": "/",
+      "destination": "solarassistant.raw",
+      "destination_type": "queue",
+      "routing_key": "solarassistant.#",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.raw",
+      "vhost": "/",
+      "destination": "solarassistant.raw",
+      "destination_type": "queue",
+      "routing_key": "solar_assistant.#",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.raw",
+      "vhost": "/",
+      "destination": "esphome.raw",
+      "destination_type": "queue",
+      "routing_key": "esphome.#",
+      "arguments": {}
+    },
+    {
+      "source": "hvo.raw",
+      "vhost": "/",
+      "destination": "esphome.raw",
+      "destination_type": "queue",
+      "routing_key": "hvo.esphome.#",
+      "arguments": {}
+    }
+  ],
+  "policies": []
+}
