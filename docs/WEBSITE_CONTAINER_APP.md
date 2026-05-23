@@ -52,6 +52,8 @@ The website startup currently depends on the following configuration sources:
 | `AzureAd:ClientSecret` | Entra app client secret |
 | `ASPNETCORE_URLS` | Keep ACA on `http://+:8080` |
 | `EnableHttpsRedirect` | Should be set for ACA behavior intentionally, not left implicit |
+| `Seeding:PowerApiKey` | Optional write-only `ingest:power` key seed for power gateway ingest |
+| `Seeding:PowerReadApiKey` | Optional `read:power` key seed for operational verification of recent power readings |
 
 ## Configuration Strategy
 
