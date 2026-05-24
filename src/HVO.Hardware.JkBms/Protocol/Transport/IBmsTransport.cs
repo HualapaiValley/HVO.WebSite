@@ -12,9 +12,8 @@ public interface IBmsTransport : IAsyncDisposable
     byte[]? LastSettingsFrame { get; }
 
     /// <summary>
-    /// Complete GATT setup on an already-connected BlueZ Device object.
-    /// Called by the scan loop immediately after a DeviceFound event fires,
-    /// while the advertising report is still live.
+     /// Complete GATT setup on an already-connected BlueZ Device object.
+    /// Called by the adapter coordinator while discovery is active for the target device.
     /// </summary>
     Task ConnectWithDeviceAsync(Device device, CancellationToken ct);
 

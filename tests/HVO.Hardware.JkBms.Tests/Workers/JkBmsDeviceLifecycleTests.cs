@@ -88,6 +88,38 @@ public class JkBmsDeviceLifecycleTests
         coordinator.Requests.Should().ContainSingle(r => r.AdapterName == "hci1" && r.Address == config.Address);
     }
 
+    [TestMethod]
+    public async Task RunAsync_ConnectFailure_HonorsComputedBackoffBeforeRetry()
+    {
+        var config = new BmsDeviceConfig { Address = "AA:BB:CC:DD:EE:22", Alias = "bank-3" };
+        var state = new DevicePollState
+        {
+            Address = config.Address,
+            Alias = config.Alias,
+            PollIntervalSeconds = 3600,
+            NextPollAt = DateTime.UtcNow,
+            BackoffLevel = 2,
+        };
+
+        var transport = new FakeBmsTransport(config.Address);
+        var factory = new FakeBmsTransportFactory(_ => transport);
+        var coordinator = new FakeBluetoothAdapterCoordinator();
+        coordinator.EnqueueFailure(new TimeoutException("connect failed"));
+        coordinator.EnqueueSuccess();
+
+        await using var device = CreateDevice(config, state, factory, coordinator);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(3500));
+        var runTask = device.RunAsync(cts.Token);
+
+        await Task.Delay(3200, CancellationToken.None);
+        cts.Cancel();
+        await runTask.AwaitCancellationAsync();
+
+        coordinator.ConnectCallCount.Should().Be(1,
+            because: "the reconnect loop should wait for the computed backoff instead of retrying after a fixed delay");
+    }
+
     private static JkBmsDevice CreateDevice(
         BmsDeviceConfig config,
         DevicePollState state,

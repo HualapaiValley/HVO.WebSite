@@ -20,8 +20,8 @@ namespace HVO.Hardware.JkBms.Protocol.Transport;
  /// </summary>
 internal sealed class BluetoothAdapterCoordinator(ILogger<BluetoothAdapterCoordinator> logger) : IBluetoothAdapterCoordinator
 {
+    private static readonly TimeSpan KnownDeviceFreshnessWait = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan ScanWindowDuration = TimeSpan.FromSeconds(8);
-    private static readonly TimeSpan ConnectRetryDelay = TimeSpan.FromSeconds(3);
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> AdapterLocks = new(StringComparer.OrdinalIgnoreCase);
 
     public async Task ConnectAsync(
@@ -56,43 +56,46 @@ internal sealed class BluetoothAdapterCoordinator(ILogger<BluetoothAdapterCoordi
 
         var adapter = await GetAdapterAsync(adapterName);
 
-        var device = await ResolveDeviceAsync(adapter, adapterName, address, ct);
-
-        logger.LogInformation(
-            "Bluetooth adapter {Adapter} connecting to {Address}",
-            adapterName,
-            address);
-
+        await TryStartDiscoveryAsync(adapter, adapterName, ct);
         try
         {
-            await connectAsync(device, ct);
-            logger.LogDebug(
-                "Connect callback completed for {Address} on {Adapter}",
-                address,
-                adapterName);
+            var device = await ResolveDeviceAsync(adapter, adapterName, address, ct);
+
+            logger.LogInformation(
+                "Bluetooth adapter {Adapter} connecting to {Address}",
+                adapterName,
+                address);
+
+            try
+            {
+                await connectAsync(device, ct);
+                logger.LogDebug(
+                    "Connect callback completed for {Address} on {Adapter}",
+                    address,
+                    adapterName);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Connect callback failed for {Address} on {Adapter}",
+                    address,
+                    adapterName);
+                throw;
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            logger.LogWarning(ex,
-                "Connect callback failed for {Address} on {Adapter}",
-                address,
-                adapterName);
-            await Task.Delay(ConnectRetryDelay, ct);
-            throw;
+            await TryStopDiscoveryAsync(adapter, adapterName, CancellationToken.None);
         }
     }
 
     private async Task<Device> ResolveDeviceAsync(Adapter adapter, string adapterName, string address, CancellationToken ct)
     {
-        var knownDevices = await adapter.GetDevicesAsync();
-        foreach (var knownDevice in knownDevices)
-        {
-            if (string.Equals(await knownDevice.GetAddressAsync(), address, StringComparison.OrdinalIgnoreCase))
-                return knownDevice;
-        }
-
+        var knownDevice = await TryGetKnownDeviceAsync(adapter, address);
         logger.LogDebug(
-            "Scanning on {Adapter} for {Address}",
+            knownDevice is null
+                ? "Scanning on {Adapter} for {Address}"
+                : "Waiting for a fresh advertisement on {Adapter} for known device {Address}",
             adapterName,
             address);
 
@@ -113,10 +116,22 @@ internal sealed class BluetoothAdapterCoordinator(ILogger<BluetoothAdapterCoordi
         adapter.DeviceFound += OnDeviceFound;
         try
         {
-            await TryStartDiscoveryAsync(adapter, adapterName, ct);
+            var scanWindow = knownDevice is null ? ScanWindowDuration : KnownDeviceFreshnessWait;
             using var scanCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            scanCts.CancelAfter(ScanWindowDuration);
-            return await seenDevice.Task.WaitAsync(scanCts.Token);
+            scanCts.CancelAfter(scanWindow);
+
+            try
+            {
+                return await seenDevice.Task.WaitAsync(scanCts.Token);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested && knownDevice is not null)
+            {
+                logger.LogDebug(
+                    "No fresh advertisement seen for cached device {Address} on {Adapter}; using cached BlueZ device",
+                    address,
+                    adapterName);
+                return knownDevice;
+            }
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -125,8 +140,19 @@ internal sealed class BluetoothAdapterCoordinator(ILogger<BluetoothAdapterCoordi
         finally
         {
             adapter.DeviceFound -= OnDeviceFound;
-            await TryStopDiscoveryAsync(adapter, adapterName, CancellationToken.None);
         }
+    }
+
+    private static async Task<Device?> TryGetKnownDeviceAsync(Adapter adapter, string address)
+    {
+        var knownDevices = await adapter.GetDevicesAsync();
+        foreach (var knownDevice in knownDevices)
+        {
+            if (string.Equals(await knownDevice.GetAddressAsync(), address, StringComparison.OrdinalIgnoreCase))
+                return knownDevice;
+        }
+
+        return null;
     }
 
     private static string? MacFromObjectPath(string path)

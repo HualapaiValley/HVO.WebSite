@@ -10,11 +10,11 @@ namespace HVO.Hardware.JkBms.Protocol.Transport;
 /// BLE transport for JK BMS devices using Linux.Bluetooth (BlueZ D-Bus).
 ///
 /// Connection lifecycle:
-///   The scan loop calls <see cref="ConnectWithDeviceAsync"/> with a pre-connected
-///   BlueZ Device object immediately when the device is seen advertising. This transport
-///   then completes the GATT setup (ServicesResolved, characteristic discovery, notifications).
-///   <see cref="ExchangeAsync"/> polls using the established GATT connection and reconnects
-///   automatically if the link is lost by waiting for the next scan event.
+///   <see cref="ConnectWithDeviceAsync"/> is called with a coordinator-resolved BlueZ
+///   Device while adapter discovery is active for the target. This transport completes
+///   the GATT setup (ServicesResolved, characteristic discovery, notifications).
+///   <see cref="ExchangeAsync"/> requires that established connection; if the link drops,
+///   the caller must request a new coordinator-managed session.
 ///
 /// Thread safety: serialise all calls — do not invoke concurrently.
 /// </summary>
@@ -57,7 +57,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
 
     /// <summary>
     /// Complete GATT setup on an already-connected BlueZ Device object supplied
-    /// by the scan loop. The device is connected at the HCI level; this method
+    /// by the adapter coordinator. The device is connected at the HCI level; this method
     /// waits for ServicesResolved then discovers characteristics and starts notifications.
     /// </summary>
     public async Task ConnectWithDeviceAsync(Device device, CancellationToken ct)
@@ -71,9 +71,9 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
 
         try
         {
-            // Initiate the HCI-level connection. ConnectAsync() requires a live advertising
-            // report from an active scan — the coordinator guarantees the scan is running when
-            // this method is called, so the device object already has a fresh adv report.
+            // Initiate the HCI-level connection while adapter discovery is still active.
+            // BlueZ is more reliable when the target has been observed recently and the
+            // coordinator keeps discovery running through this call.
             _logger.LogInformation("BLE calling ConnectAsync on {Address}", DeviceAddress);
             try
             {
@@ -252,7 +252,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     {
         if (!IsConnected)
             throw new JkBmsConnectException(DeviceAddress, 0,
-                new InvalidOperationException("Transport is not connected. Waiting for scan loop to reconnect."));
+                new InvalidOperationException("Transport is not connected. Wait for the adapter coordinator to establish a new BLE session."));
 
         try
         {

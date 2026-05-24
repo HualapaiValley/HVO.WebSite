@@ -2,6 +2,7 @@ using FluentAssertions;
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Protocol.Transport;
+using Linux.Bluetooth;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace HVO.Hardware.JkBms.Tests.Live;
@@ -40,8 +41,10 @@ namespace HVO.Hardware.JkBms.Tests.Live;
 [TestCategory("Live")]
 public class LiveBmsTests
 {
+    private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(15);
     private static string? _address;
     private static JkBmsBluetoothTransport? _transport;
+    private static string? _setupFailure;
 
     [ClassInitialize]
     public static async Task ClassInitialize(TestContext context)
@@ -56,10 +59,16 @@ public class LiveBmsTests
             exchangeTimeout: TimeSpan.FromSeconds(10),
             NullLogger<JkBmsBluetoothTransport>.Instance);
 
-        // Live connect requires a BlueZ Device object from an active scan.
-        // This test class is intentionally skipped unless run with a real adapter and scan loop.
-        // ConnectWithDeviceAsync cannot be called here without a live scan-provided Device.
-        // ClassInitialize succeeds silently; individual tests call SkipIfNotLive().
+        try
+        {
+            var adapter = await GetAdapterAsync(Environment.GetEnvironmentVariable("JK_BMS_LIVE_ADAPTER"));
+            var device = await FindDeviceAsync(adapter, _address, CancellationToken.None);
+            await _transport.ConnectWithDeviceAsync(device, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _setupFailure = $"Live BLE setup failed for {_address}: {ex.Message}";
+        }
     }
 
     [ClassCleanup]
@@ -74,10 +83,72 @@ public class LiveBmsTests
 
     private static void SkipIfNotLive()
     {
+        if (!string.IsNullOrWhiteSpace(_setupFailure))
+            Assert.Inconclusive(_setupFailure);
+
         if (string.IsNullOrWhiteSpace(_address) || _transport is null)
             Assert.Inconclusive(
                 "Set JK_BMS_LIVE_ADDRESS to run live tests " +
                 "(e.g. JK_BMS_LIVE_ADDRESS=C8:47:8C:EC:1B:0F dotnet test --filter TestCategory=Live).");
+    }
+
+    private static async Task<Adapter> GetAdapterAsync(string? adapterName)
+    {
+        var adapters = await BlueZManager.GetAdaptersAsync();
+        if (adapters.Count == 0)
+            throw new InvalidOperationException("No BlueZ adapters were found.");
+
+        if (!string.IsNullOrWhiteSpace(adapterName))
+        {
+            return adapters.FirstOrDefault(a =>
+                       a.ObjectPath.ToString().EndsWith("/" + adapterName, StringComparison.OrdinalIgnoreCase))
+                   ?? throw new InvalidOperationException($"Bluetooth adapter '{adapterName}' was not found.");
+        }
+
+        return adapters[0];
+    }
+
+    private static async Task<Device> FindDeviceAsync(Adapter adapter, string address, CancellationToken ct)
+    {
+        var knownDevices = await adapter.GetDevicesAsync();
+        foreach (var knownDevice in knownDevices)
+        {
+            if (string.Equals(await knownDevice.GetAddressAsync(), address, StringComparison.OrdinalIgnoreCase))
+                return knownDevice;
+        }
+
+        var seenDevice = new TaskCompletionSource<Device>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Task OnDeviceFound(Adapter _, DeviceFoundEventArgs args)
+        {
+            _ = Task.Run(async () =>
+            {
+                if (string.Equals(await args.Device.GetAddressAsync(), address, StringComparison.OrdinalIgnoreCase))
+                    seenDevice.TrySetResult(args.Device);
+            }, CancellationToken.None);
+
+            return Task.CompletedTask;
+        }
+
+        adapter.DeviceFound += OnDeviceFound;
+        try
+        {
+            await adapter.StartDiscoveryAsync();
+            using var scanCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            scanCts.CancelAfter(ScanTimeout);
+            return await seenDevice.Task.WaitAsync(scanCts.Token);
+        }
+        finally
+        {
+            adapter.DeviceFound -= OnDeviceFound;
+            try
+            {
+                await adapter.StopDiscoveryAsync();
+            }
+            catch
+            {
+            }
+        }
     }
 
     // ── Connect lifecycle ─────────────────────────────────────────────────────

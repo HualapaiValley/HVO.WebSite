@@ -10,10 +10,10 @@ namespace HVO.Hardware.JkBms.Protocol;
 ///
 /// Lifecycle:
 ///   This client is long-lived — create one instance per device at startup and
-///   hold it for the application lifetime. The underlying <see cref="IBmsTransport"/>
-///   maintains an owned BLE connection and reconnects automatically if the link drops.
-///   Call <see cref="DisconnectAsync"/> when the caller needs to release the BLE
-///   controller slot between poll cycles.
+///   hold it for the application lifetime. The caller must use
+///   <see cref="ConnectWithDeviceAsync"/> with a coordinator-resolved BlueZ
+///   <see cref="Device"/> before issuing polls. Call <see cref="DisconnectAsync"/>
+///   when the caller needs to release the BLE session.
 ///
 ///   Dispose the client (via <see cref="DisposeAsync"/>) when the application shuts
 ///   down to cleanly close the BLE connection.
@@ -46,14 +46,16 @@ public sealed class JkBmsClient : IAsyncDisposable
         _transport.ConnectWithDeviceAsync(device, ct);
 
     /// <summary>
-    /// Explicitly release the BLE connection. The next exchange will reconnect lazily.
+    /// Explicitly release the BLE connection. Polling remains unavailable until the
+    /// caller establishes a new session with <see cref="ConnectWithDeviceAsync"/>.
     /// </summary>
     public Task DisconnectAsync() => _transport.DisconnectAsync();
 
     /// <summary>
     /// Send the cell-info command and return the parsed response.
     ///
-    /// The transport connects on first use and reuses the connection afterward.
+    /// Requires an active transport connection established by
+    /// <see cref="ConnectWithDeviceAsync"/>.
     /// </summary>
     /// <exception cref="JkBmsConnectException">Thrown when the device cannot be reached.</exception>
     /// <exception cref="JkBmsTimeoutException">Thrown when the device does not respond in time.</exception>
@@ -93,7 +95,8 @@ public sealed class JkBmsClient : IAsyncDisposable
     /// <summary>
     /// Send the device-info command and return the parsed response.
     ///
-    /// The transport connects on first use and reuses the connection afterward.
+    /// Requires an active transport connection established by
+    /// <see cref="ConnectWithDeviceAsync"/>.
     /// </summary>
     public async Task<DeviceInfoPacket> PollDeviceInfoAsync(CancellationToken ct)
     {

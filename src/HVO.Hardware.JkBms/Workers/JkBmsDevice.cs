@@ -13,14 +13,15 @@ namespace HVO.Hardware.JkBms.Workers;
 /// reconnect/backoff state, and status updates.
 ///
 /// Connection lifecycle:
-///   The scan loop (run by <see cref="BmsPollerWorker"/>) calls
-///   <see cref="SignalDeviceReadyAsync"/> when a BLE advertising report for this device
-///   is seen. That hands the BlueZ Device object to the transport for GATT setup and
-///   unblocks the poll loop. The poll loop runs until the transport goes disconnected
-///   or a poll fails, then waits for the next <see cref="SignalDeviceReadyAsync"/> call.
+///   The device loop asks <see cref="IBluetoothAdapterCoordinator"/> to resolve and connect
+///   one BLE session on its assigned adapter. Once connected, it initializes session metadata
+///   and polls until the transport disconnects or a poll fails, then backs off and requests
+///   another coordinator-managed session.
 /// </summary>
 public sealed class JkBmsDevice : IAsyncDisposable
 {
+    private static readonly TimeSpan MaxBackoffDelay = TimeSpan.FromSeconds(30);
+
     private readonly BmsDeviceConfig _config;
     private readonly string _adapterName;
     private readonly JkBmsOptions _options;
@@ -102,7 +103,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
                     State.ConsecutiveErrors++;
                     State.LastError = ex.Message;
                     State.BackoffLevel = Math.Min(State.BackoffLevel + 1, 10);
-                    State.NextPollAt = DateTime.UtcNow.AddSeconds(Math.Min((int)Math.Pow(2, State.BackoffLevel), 30));
+                    State.NextPollAt = DateTime.UtcNow.Add(GetBackoffDelay(State.BackoffLevel));
                     _onStateChanged();
 
                     _logger.LogWarning(
@@ -111,7 +112,10 @@ public sealed class JkBmsDevice : IAsyncDisposable
                         State.Alias,
                         State.Address);
 
-                    await Task.Delay(TimeSpan.FromSeconds(2), ct);
+                    var reconnectDelay = State.NextPollAt - DateTime.UtcNow;
+                    if (reconnectDelay > TimeSpan.Zero)
+                        await Task.Delay(reconnectDelay, ct);
+
                     continue;
                 }
 
@@ -263,8 +267,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
 
             // Use a shorter backoff here — the transport is likely disconnected;
             // the actual reconnect wait is driven by BLE re-advertisement, not a timer.
-            var backoffSeconds = Math.Min((int)Math.Pow(2, State.BackoffLevel), 30);
-            State.NextPollAt = DateTime.UtcNow.AddSeconds(backoffSeconds);
+            State.NextPollAt = DateTime.UtcNow.Add(GetBackoffDelay(State.BackoffLevel));
 
             pollScope.RecordException(ex);
             pollScope.Fail(ex);
@@ -310,6 +313,9 @@ public sealed class JkBmsDevice : IAsyncDisposable
         var transport = _transportFactory.Create(_config.Address, _adapterName);
         return new JkBmsClient(transport, _loggerFactory.CreateLogger<JkBmsClient>());
     }
+
+    private static TimeSpan GetBackoffDelay(int backoffLevel) =>
+        TimeSpan.FromSeconds(Math.Min((int)Math.Pow(2, backoffLevel), (int)MaxBackoffDelay.TotalSeconds));
 
     public async ValueTask DisposeAsync() => await _client.DisposeAsync();
 }
