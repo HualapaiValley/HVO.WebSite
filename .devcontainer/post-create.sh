@@ -62,6 +62,28 @@ fi
 # Shared setup — .NET, CLI tools, Docker, SSH, .env bootstrap
 # ─────────────────────────────────────────────────────────────────────
 
+_ensure_user_writable_dir() {
+	local dir="$1"
+	local mode="${2:-}"
+	mkdir -p "$dir"
+	if [ ! -w "$dir" ] || [ ! -O "$dir" ]; then
+		sudo chown -R "$(id -u)":"$(id -g)" "$dir" 2>/dev/null || true
+	fi
+	if [ -n "$mode" ]; then
+		chmod "$mode" "$dir" 2>/dev/null || true
+	fi
+}
+
+# Named volumes can be created as root-owned mount points. Normalize ownership
+# before the shared setup restores SSH keys or writes CLI configuration.
+_ensure_user_writable_dir "$HOME/.ssh" 700
+_ensure_user_writable_dir "$HOME/.docker"
+_ensure_user_writable_dir "$HOME/.config/gh"
+_ensure_user_writable_dir "$HOME/.azure"
+_ensure_user_writable_dir "$HOME/.dotnet/tools"
+_ensure_user_writable_dir "$HOME/.opencode"
+_ensure_user_writable_dir "$HOME/.aspnet/DataProtection-Keys"
+
 # [CUSTOMIZE] .env gist ID for this repo
 ENV_GIST="f343db002d980ebe5fcc51413b0b7227"
 

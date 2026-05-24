@@ -26,6 +26,6 @@ internal sealed class JkBmsBluetoothTransportFactory : IBmsTransportFactory
         var connectTimeout = TimeSpan.FromSeconds(_options.Value.ConnectTimeoutSeconds);
         var exchangeTimeout = TimeSpan.FromSeconds(_options.Value.ExchangeTimeoutSeconds);
         var logger = _loggerFactory.CreateLogger<JkBmsBluetoothTransport>();
-        return new JkBmsBluetoothTransport(address, adapterName, connectTimeout, exchangeTimeout, logger);
+        return new JkBmsBluetoothTransport(address, connectTimeout, exchangeTimeout, logger);
     }
 }
