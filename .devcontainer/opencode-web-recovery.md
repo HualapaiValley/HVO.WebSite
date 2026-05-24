@@ -11,7 +11,8 @@ Run `opencode web` automatically inside the devcontainer, forward the web UI thr
 - Current `opencode` exists at `/home/vscode/.opencode/bin/opencode`.
 - Current `opencode` version is `1.15.7`.
 - The devcontainer already has a `postCreateCommand` and `postAttachCommand`, so the setup should not replace them.
-- OpenCode web defaults to `0.0.0.0` inside the devcontainer so VS Code/devcontainer port forwarding can see the listener. Startup still requires `OPENCODE_SERVER_PASSWORD`.
+- OpenCode web defaults to `0.0.0.0` inside the devcontainer so VS Code/devcontainer port forwarding can see the listener.
+- The startup script fully detaches the server with `setsid` and writes an explicit readiness result to `/tmp/opencode-web.log`.
 
 ## Changes Made
 
@@ -34,7 +35,7 @@ Run `opencode web` automatically inside the devcontainer, forward the web UI thr
 - Disable automatic opencode startup by removing or commenting the `postStartCommand` entry in `.devcontainer/devcontainer.json`.
 - If port forwarding causes issues, remove `4096` from `forwardPorts` and remove the `4096` entry from `portsAttributes`.
 - If OpenCode is not installed, `.devcontainer/start-opencode-web.sh` logs a skip message and exits without failing container startup.
-- If `OPENCODE_SERVER_PASSWORD` is not set, `.devcontainer/start-opencode-web.sh` logs a skip message and exits without starting the web UI.
+- If `OPENCODE_SERVER_PASSWORD` is not set, `.devcontainer/start-opencode-web.sh` logs that the server is starting without authentication.
 - If the server starts but the browser cannot connect, inspect `/tmp/opencode-web.log` and try running manually inside the container:
 
 ```bash

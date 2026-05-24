@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Added `Seeding:PowerReadApiKey` support for production read-only power API verification
 - Added independent Azure ACR publishing scripts and documentation for `hvo-website`, `hvo-davis`, `hvo-jkbms`, and `hvo-solarassistant`
 - Added Docker and Docker Compose packaging for the `HVO.Gateway.SolarAssistant` service
-- Added website Azure Container App deployment notes and standardized the shared Key Vault target on `hvoobs-kv`
+- Added website Azure Container App deployment notes and standardized the project-specific Key Vault target on `hvoobs-kv`
 - Made website container HTTPS listener configuration deployment-dependent so local Docker can keep HTTPS while ACA stays HTTP-only behind ingress
 - Documented the website configuration strategy: Key Vault for secrets, env/appsettings for deployment shape, and `v9.SiteConfiguration` for live runtime settings
 - Added a cached `ISiteConfigurationService` over `v9.SiteConfiguration` for runtime-editable website settings
