@@ -91,9 +91,12 @@ builder.Services.AddOpenTelemetryExport(options =>
     options.AdditionalMeterNames.Add("hvo.davis");
     options.AdditionalActivitySources.Add("hvo.davis");
 });
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tb => tb.AddOtlpExporter())
-    .WithMetrics(mb => mb.AddOtlpExporter());
+if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
+{
+    builder.Services.AddOpenTelemetry()
+        .WithTracing(tb => tb.AddOtlpExporter())
+        .WithMetrics(mb => mb.AddOtlpExporter());
+}
 builder.Services.AddSingleton<DavisTelemetry>();
 builder.Services.AddTelemetryStatistics();
 builder.Services.AddTelemetryHealthCheck();

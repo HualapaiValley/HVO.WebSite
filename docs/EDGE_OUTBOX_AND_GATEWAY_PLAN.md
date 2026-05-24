@@ -2,6 +2,8 @@
 
 Status: planning baseline.
 
+Update: gateway deployment direction is now Pi-first for hardware-facing services. `devPi5` is the current validated BLE edge target.
+
 This document captures the near-term direction after the RabbitMQ/Service Bus ingest POC. The active production path remains:
 
 ```text
@@ -18,6 +20,49 @@ The goal is to extract the common outbox/API-forwarding pattern from the current
 - Defer ESPHome implementation until hardware is deployed and real topics/API behavior are known.
 - Keep the website as the central API, validation, persistence, migration, dashboard, and future command/control boundary.
 - Keep each edge service isolated with its own image, configuration, data directory, SQLite outbox, logs, and status surface.
+- Prefer Pi-class `linux-arm64` hosts for direct hardware gateway deployment.
+- Use the repo devcontainer on `hvo-dev` as the primary development environment; use Pi targets for hardware integration testing and deployment.
+- Keep `hvo-docker` focused on observability/supporting infrastructure rather than BLE polling.
+
+## Deployment Direction
+
+The active deployment direction for hardware-facing gateways is:
+
+```text
+Azure = website + public APIs + central persistence
+Pi edge hosts = hardware polling + local outbox + gateway UI + API forwarding
+hvo-docker = Grafana/telemetry/supporting infrastructure
+```
+
+This direction is based on validated BLE results on `devPi5`:
+
+- `.NET 10` minimal JK BLE console app works on bare host.
+- The same app works inside Docker with mounted `/run/dbus/system_bus_socket` and `--privileged`.
+- `devPi5` successfully maintained 7 concurrent JK BMS BLE connections and polled all 7 devices across repeated rounds.
+
+Implications:
+
+- BLE gateway work should target Pi deployment first.
+- Additional BLE capacity should come from adding adapters to Pi-class edge hosts, not by moving collectors back to VM-based hosts.
+- New BLE gateways such as Govee and future remote sensor collectors should follow the same Pi-hosted ARM64 pattern.
+- Additional Pi targets such as `roofControl` and `allsky` can reuse the same ARM64 gateway/container architecture.
+
+## Development Workflow
+
+Recommended workflow:
+
+- Continue primary coding in the repo devcontainer on `hvo-dev`.
+- Build and test non-hardware logic there by default.
+- Deploy gateway images to Pi targets through Docker contexts for hardware validation.
+- Use direct SSH sessions to Pi hosts only for host-level BLE diagnostics such as `btmon`, `bluetoothctl`, `btmgmt`, and targeted repro apps.
+
+Current Docker context baseline:
+
+```bash
+docker context create devpi5 --docker "host=ssh://roys@devPi5"
+docker --context devpi5 ps
+docker --context devpi5 compose up -d --build
+```
 
 ## Current Outbox References
 

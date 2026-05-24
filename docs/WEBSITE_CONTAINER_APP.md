@@ -32,7 +32,7 @@ The current agreed starting shape for the website Container App is:
 | Replicas | `minReplicas=1`, `maxReplicas=1` |
 | Sizing | `1 vCPU`, `2 GiB` memory |
 | Database connectivity | Azure SQL over the public endpoint for now |
-| Key Vault standard | Standardize on `https://hvoobs-kv.vault.azure.net/` |
+| Key Vault standard | Standardize project-specific website secrets on `https://hvoobs-kv.vault.azure.net/` |
 | Website auth secret | Use Entra app `ClientSecret` for the website deployment |
 | Telemetry | Publish application telemetry to Application Insights and enable ACA platform logs |
 | Health probes | Use `/health/live` and `/health/ready` |

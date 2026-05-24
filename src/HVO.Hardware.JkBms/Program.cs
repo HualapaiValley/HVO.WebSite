@@ -102,9 +102,12 @@ builder.Services.AddOpenTelemetryExport(options =>
     options.AdditionalMeterNames.Add("hvo.jkbms");
     options.AdditionalActivitySources.Add("hvo.jkbms");
 });
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tb => tb.AddOtlpExporter())
-    .WithMetrics(mb => mb.AddOtlpExporter());
+if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
+{
+    builder.Services.AddOpenTelemetry()
+        .WithTracing(tb => tb.AddOtlpExporter())
+        .WithMetrics(mb => mb.AddOtlpExporter());
+}
 builder.Services.AddSingleton<BmsTelemetry>();
 builder.Services.AddTelemetryStatistics();
 builder.Services.AddTelemetryHealthCheck();
@@ -112,6 +115,7 @@ builder.Services.AddHealthChecks()
     .AddCheck<TelemetryHealthCheck>("telemetry");
 
 // ── BLE transport ─────────────────────────────────────────────────────────────
+builder.Services.AddSingleton<IBluetoothAdapterCoordinator, BluetoothAdapterCoordinator>();
 builder.Services.AddSingleton<IBmsTransportFactory, JkBmsBluetoothTransportFactory>();
 
 // ── Alarm handler ─────────────────────────────────────────────────────────────

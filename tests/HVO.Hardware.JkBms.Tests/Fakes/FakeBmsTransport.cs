@@ -1,6 +1,7 @@
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Transport;
 using HVO.Hardware.JkBms.Tests.Fakes;
+using Linux.Bluetooth;
 
 namespace HVO.Hardware.JkBms.Tests.Fakes;
 
@@ -60,7 +61,7 @@ public sealed class FakeBmsTransport : IBmsTransport
         _frameQueue = new Queue<byte[]>(frameSequence ?? []);
     }
 
-    public Task ConnectAsync(CancellationToken ct)
+    public Task ConnectWithDeviceAsync(Device device, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         ConnectCallCount++;
