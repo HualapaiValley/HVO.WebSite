@@ -3,6 +3,7 @@ using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Protocol.Transport;
 using Linux.Bluetooth;
+using Linux.Bluetooth.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace HVO.Hardware.JkBms.Tests.Live;
@@ -119,7 +120,7 @@ public class LiveBmsTests
 
         var seenDevice = new TaskCompletionSource<Device>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        Task OnDeviceFound(Adapter _, DeviceFoundEventArgs args)
+        Task OnDeviceFound(Adapter sender, DeviceFoundEventArgs args)
         {
             _ = Task.Run(async () =>
             {

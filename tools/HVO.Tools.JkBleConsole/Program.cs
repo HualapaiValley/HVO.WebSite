@@ -229,7 +229,7 @@ internal static class JkBleConsole
 
         var tcs = new TaskCompletionSource<Device>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        Task OnDeviceFound(Adapter _, DeviceFoundEventArgs eventArgs)
+        Task OnDeviceFound(Adapter sender, DeviceFoundEventArgs eventArgs)
         {
             Task.Run(async () =>
             {

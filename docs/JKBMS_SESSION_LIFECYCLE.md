@@ -6,7 +6,7 @@ Status: active refactor target for Pi-hosted deployment on `devPi5`.
 
 The current `HVO.Hardware.JkBms` runtime still centers reconnect behavior around persistent BLE scan loops. That was useful while proving out BlueZ connection constraints, but it is not the best long-term model for the validated Pi deployment.
 
-The proven reference is `src/HVO.Tools.JkBleConsole`, which successfully:
+The proven reference is `tools/HVO.Tools.JkBleConsole`, which successfully:
 
 - resolved all configured JK devices on `devPi5`
 - connected them sequentially

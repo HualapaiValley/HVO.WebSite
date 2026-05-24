@@ -5,10 +5,10 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY ["Directory.Packages.props", "."]
 COPY ["NuGet.config", "."]
-COPY ["src/HVO.Tools.JkBleConsole/HVO.Tools.JkBleConsole.csproj", "src/HVO.Tools.JkBleConsole/"]
+COPY ["tools/HVO.Tools.JkBleConsole/HVO.Tools.JkBleConsole.csproj", "tools/HVO.Tools.JkBleConsole/"]
 COPY . .
-RUN dotnet restore "src/HVO.Tools.JkBleConsole/HVO.Tools.JkBleConsole.csproj"
-WORKDIR "/src/src/HVO.Tools.JkBleConsole"
+RUN dotnet restore "tools/HVO.Tools.JkBleConsole/HVO.Tools.JkBleConsole.csproj"
+WORKDIR "/src/tools/HVO.Tools.JkBleConsole"
 RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
