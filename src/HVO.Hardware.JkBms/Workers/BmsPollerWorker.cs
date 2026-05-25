@@ -32,6 +32,7 @@ public sealed class DevicePollState
 {
     public string Address { get; init; } = string.Empty;
     public string Alias { get; init; } = string.Empty;
+    public string AdapterName { get; init; } = string.Empty;
     public int PollIntervalSeconds { get; init; }
 
     // These fields are read by Blazor UI threads while the worker loop writes them.
@@ -48,6 +49,14 @@ public sealed class DevicePollState
     private volatile DeviceInfoPacket? _latestDeviceInfo;
     private volatile string? _lastSentConfigHash;
     private volatile string? _lastSentDeviceInfoHash;
+    private volatile int _sessionEstablishedCount;
+    private volatile int _sessionDisconnectedCount;
+    private volatile int _sessionRequestFailureCount;
+    private volatile int _isSessionConnected;
+    private volatile string? _lastDisconnectReason;
+    private volatile int _lastSessionDurationSeconds;
+    private long _lastConnectedAtTicks;
+    private long _lastDisconnectedAtTicks;
 
     public DateTime NextPollAt
     {
@@ -115,6 +124,83 @@ public sealed class DevicePollState
     {
         get => _lastSentDeviceInfoHash;
         set => _lastSentDeviceInfoHash = value;
+    }
+
+    public int SessionEstablishedCount
+    {
+        get => _sessionEstablishedCount;
+        set => _sessionEstablishedCount = value;
+    }
+
+    public int SessionDisconnectedCount
+    {
+        get => _sessionDisconnectedCount;
+        set => _sessionDisconnectedCount = value;
+    }
+
+    public int SessionRequestFailureCount
+    {
+        get => _sessionRequestFailureCount;
+        set => _sessionRequestFailureCount = value;
+    }
+
+    public bool IsSessionConnected
+    {
+        get => _isSessionConnected != 0;
+        set => _isSessionConnected = value ? 1 : 0;
+    }
+
+    public DateTime? LastConnectedAt
+    {
+        get
+        {
+            var t = Volatile.Read(ref _lastConnectedAtTicks);
+            return t == 0 ? null : new DateTime(t, DateTimeKind.Utc);
+        }
+        set => Volatile.Write(ref _lastConnectedAtTicks, value?.Ticks ?? 0L);
+    }
+
+    public DateTime? LastDisconnectedAt
+    {
+        get
+        {
+            var t = Volatile.Read(ref _lastDisconnectedAtTicks);
+            return t == 0 ? null : new DateTime(t, DateTimeKind.Utc);
+        }
+        set => Volatile.Write(ref _lastDisconnectedAtTicks, value?.Ticks ?? 0L);
+    }
+
+    public string? LastDisconnectReason
+    {
+        get => _lastDisconnectReason;
+        set => _lastDisconnectReason = value;
+    }
+
+    public int LastSessionDurationSeconds
+    {
+        get => _lastSessionDurationSeconds;
+        set => _lastSessionDurationSeconds = value;
+    }
+
+    public void RecordSessionEstablished(DateTime connectedAtUtc)
+    {
+        SessionEstablishedCount++;
+        IsSessionConnected = true;
+        LastConnectedAt = connectedAtUtc;
+        LastDisconnectReason = null;
+        LastSessionDurationSeconds = 0;
+    }
+
+    public void RecordSessionDisconnected(DateTime disconnectedAtUtc, string reason)
+    {
+        SessionDisconnectedCount++;
+        IsSessionConnected = false;
+        LastDisconnectedAt = disconnectedAtUtc;
+        LastDisconnectReason = reason;
+
+        var connectedAt = LastConnectedAt;
+        if (connectedAt.HasValue && disconnectedAtUtc >= connectedAt.Value)
+            LastSessionDurationSeconds = (int)(disconnectedAtUtc - connectedAt.Value).TotalSeconds;
     }
 }
 
@@ -185,6 +271,7 @@ public sealed class BmsPollerWorker : BackgroundService
             {
                 Address = d.Address,
                 Alias = d.Alias,
+                AdapterName = string.IsNullOrWhiteSpace(d.HciAdapter) ? _options.HciAdapter : d.HciAdapter,
                 PollIntervalSeconds = d.PollIntervalSeconds > 0
                     ? d.PollIntervalSeconds
                     : _options.DefaultPollIntervalSeconds,

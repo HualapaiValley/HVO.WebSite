@@ -17,6 +17,7 @@ else
         <thead>
             <tr>
                 <th>Alias</th>
+                <th>Adapter</th>
                 <th>Address</th>
                 <th>SOC</th>
                 <th>Voltage</th>
@@ -24,6 +25,7 @@ else
                 <th>Δ Cell</th>
                 <th>Temp (bat)</th>
                 <th>Errors</th>
+                <th>Sessions</th>
                 <th>Last Poll</th>
                 <th>Status</th>
             </tr>
@@ -34,6 +36,7 @@ else
                 var r = device.LatestReading;
                 <tr class="@(device.ConsecutiveErrors > 0 ? "row-error" : "")">
                     <td><a href="/device/@device.Address">@device.Alias</a></td>
+                    <td class="monospace">@device.AdapterName</td>
                     <td class="monospace">@device.Address</td>
                     @if (r is not null)
                     {
@@ -48,9 +51,20 @@ else
                         <td colspan="5" class="cell-none">—</td>
                     }
                     <td>@device.ConsecutiveErrors</td>
+                    <td>
+                        <small>
+                            up @device.SessionEstablishedCount<br />
+                            drop @device.SessionDisconnectedCount<br />
+                            fail @device.SessionRequestFailureCount
+                        </small>
+                    </td>
                     <td>@(device.LastPollAt?.ToString("HH:mm:ss") ?? "—")</td>
                     <td>
-                        @if (device.ConsecutiveErrors > 0)
+                        @if (device.IsSessionConnected && r is not null)
+                        {
+                            <span class="badge badge-ok">Connected</span>
+                        }
+                        else if (device.ConsecutiveErrors > 0)
                         {
                             <span class="badge badge-error">Error</span>
                             <small>@device.LastError</small>
@@ -61,7 +75,7 @@ else
                         }
                         else if (r is not null)
                         {
-                            <span class="badge badge-ok">OK</span>
+                            <span class="badge badge-warn">Disconnected</span>
                         }
                         else
                         {

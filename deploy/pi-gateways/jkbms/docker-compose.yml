@@ -39,6 +39,26 @@ services:
       JkBms__Devices__6__Alias: ${JKBMS_DEVICE_6_ALIAS:-}
       JkBms__Devices__6__HciAdapter: ${JKBMS_DEVICE_6_ADAPTER:-}
       JkBms__Devices__6__Enabled: ${JKBMS_DEVICE_6_ENABLED:-true}
+      JkBms__Devices__7__Address: ${JKBMS_DEVICE_7_ADDRESS:-}
+      JkBms__Devices__7__Alias: ${JKBMS_DEVICE_7_ALIAS:-}
+      JkBms__Devices__7__HciAdapter: ${JKBMS_DEVICE_7_ADAPTER:-}
+      JkBms__Devices__7__Enabled: ${JKBMS_DEVICE_7_ENABLED:-true}
+      JkBms__Devices__8__Address: ${JKBMS_DEVICE_8_ADDRESS:-}
+      JkBms__Devices__8__Alias: ${JKBMS_DEVICE_8_ALIAS:-}
+      JkBms__Devices__8__HciAdapter: ${JKBMS_DEVICE_8_ADAPTER:-}
+      JkBms__Devices__8__Enabled: ${JKBMS_DEVICE_8_ENABLED:-true}
+      JkBms__Devices__9__Address: ${JKBMS_DEVICE_9_ADDRESS:-}
+      JkBms__Devices__9__Alias: ${JKBMS_DEVICE_9_ALIAS:-}
+      JkBms__Devices__9__HciAdapter: ${JKBMS_DEVICE_9_ADAPTER:-}
+      JkBms__Devices__9__Enabled: ${JKBMS_DEVICE_9_ENABLED:-true}
+      JkBms__Devices__10__Address: ${JKBMS_DEVICE_10_ADDRESS:-}
+      JkBms__Devices__10__Alias: ${JKBMS_DEVICE_10_ALIAS:-}
+      JkBms__Devices__10__HciAdapter: ${JKBMS_DEVICE_10_ADAPTER:-}
+      JkBms__Devices__10__Enabled: ${JKBMS_DEVICE_10_ENABLED:-true}
+      JkBms__Devices__11__Address: ${JKBMS_DEVICE_11_ADDRESS:-}
+      JkBms__Devices__11__Alias: ${JKBMS_DEVICE_11_ALIAS:-}
+      JkBms__Devices__11__HciAdapter: ${JKBMS_DEVICE_11_ADAPTER:-}
+      JkBms__Devices__11__Enabled: ${JKBMS_DEVICE_11_ENABLED:-true}
       Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL}/api/v1/bms/readings"
       Outbox__ApiKey: ${BMS_API_KEY}
       Outbox__DbPath: /app/data/outbox.db

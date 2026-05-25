@@ -1,0 +1,26 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="@ShellTheme" IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnThemeModeChanged" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout Class="gateway-layout">
+    <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="gateway-appbar">
+        <MudText Typo="Typo.h5">Victron SmartShunt Gateway</MudText>
+        <MudSpacer />
+        <MudButton Href="/" Variant="@GetNavVariant("")" Color="Color.Inherit">Status</MudButton>
+        <MudButton Href="/monitor" Variant="@GetNavVariant("monitor")" Color="Color.Inherit">Monitor</MudButton>
+        <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" OnClick="ToggleTheme" />
+    </MudAppBar>
+
+    <MudMainContent Class="gateway-main">
+        @Body
+    </MudMainContent>
+
+    <MudAppBar Bottom="true" Fixed="true" Elevation="0" Dense="true" Class="gateway-appbar gateway-footer">
+        <MudText Typo="Typo.caption">@FooterHealthText</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.caption">@DateTimeOffset.Now.ToLocalTime().ToString("t")</MudText>
+    </MudAppBar>
+</MudLayout>

@@ -242,7 +242,7 @@ Future integrations should fit into the existing edge collector model.
 | Integration | Recommended Boundary |
 |-------------|----------------------|
 | SolarAssistant / EG4 6500EX | First-pass read-only source/provider gateway that inventories via REST, prefers validated MQTT live state topics, keeps WebSocket as a fallback/diagnostic stream, writes a local SQLite outbox, then posts to a typed power ingest API |
-| Victron SmartShunt | Edge collector or MQTT gateway depending on available local integration |
+| Victron SmartShunt | Edge collector; public paired GATT for production baseline, optional private enrichment later |
 | TPLink outlets/lights | Deferred; likely closer to a dedicated Davis-style app with its own UI than a pure monitoring gateway |
 | Govee BLE sensors | ESPHome or BLE edge collector that decodes sensor values locally |
 | ESPHome nodes | Treat as edge decoders that expose values through MQTT or ESPHome native API to a provider-specific gateway, not as a generic transparent BLE adapter |

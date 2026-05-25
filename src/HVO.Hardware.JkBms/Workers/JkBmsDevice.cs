@@ -100,6 +100,8 @@ public sealed class JkBmsDevice : IAsyncDisposable
                 }
                 catch (Exception ex)
                 {
+                    State.IsSessionConnected = false;
+                    State.SessionRequestFailureCount++;
                     State.ConsecutiveErrors++;
                     State.LastError = ex.Message;
                     State.BackoffLevel = Math.Min(State.BackoffLevel + 1, 10);
@@ -119,11 +121,31 @@ public sealed class JkBmsDevice : IAsyncDisposable
                     continue;
                 }
 
+                var connectedAtUtc = DateTime.UtcNow;
+                State.RecordSessionEstablished(connectedAtUtc);
+                _onStateChanged();
+
                 _logger.LogInformation(
                     "BLE session established for {Alias} ({Address}); starting poll loop",
                     State.Alias, State.Address);
 
                 await InitializeSessionMetadataAsync(ct);
+
+                if (!_client.IsConnected)
+                {
+                    var reason = State.LastError ?? "Transport disconnected during session initialization.";
+                    State.RecordSessionDisconnected(DateTime.UtcNow, reason);
+                    _onStateChanged();
+
+                    _logger.LogWarning(
+                        "BLE session dropped during initialization for {Alias} ({Address}): {Reason}",
+                        State.Alias,
+                        State.Address,
+                        reason);
+
+                    await ResetClientAsync();
+                    continue;
+                }
 
                 // Poll until the transport disconnects or an unrecoverable error occurs.
                 await PollUntilDisconnectedAsync(ct);
@@ -151,9 +173,13 @@ public sealed class JkBmsDevice : IAsyncDisposable
             var stillConnected = await PollOnceAsync(ct);
             if (!stillConnected)
             {
+                var reason = State.LastError ?? "Transport disconnected during polling.";
+                State.RecordSessionDisconnected(DateTime.UtcNow, reason);
+                _onStateChanged();
+
                 _logger.LogInformation(
-                    "Transport disconnected for {Alias} ({Address}); resetting for reconnect",
-                    State.Alias, State.Address);
+                    "Transport disconnected for {Alias} ({Address}); resetting for reconnect. Disconnects={Disconnects} LastSessionSeconds={Duration} Reason={Reason}",
+                    State.Alias, State.Address, State.SessionDisconnectedCount, State.LastSessionDurationSeconds, reason);
                 await ResetClientAsync();
                 return;
             }

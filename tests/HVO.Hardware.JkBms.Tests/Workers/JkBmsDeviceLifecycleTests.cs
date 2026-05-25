@@ -22,6 +22,7 @@ public class JkBmsDeviceLifecycleTests
         {
             Address = config.Address,
             Alias = config.Alias,
+            AdapterName = "hci1",
             PollIntervalSeconds = 3600,
             NextPollAt = DateTime.UtcNow,
         };
@@ -46,6 +47,8 @@ public class JkBmsDeviceLifecycleTests
         state.LastPollAt.Should().BeNull();
         state.LastError.Should().Contain("connect failed");
         state.ConsecutiveErrors.Should().BeGreaterThan(0);
+        state.SessionRequestFailureCount.Should().BeGreaterThan(0);
+        state.SessionEstablishedCount.Should().Be(0);
     }
 
     [TestMethod]
@@ -56,6 +59,7 @@ public class JkBmsDeviceLifecycleTests
         {
             Address = config.Address,
             Alias = config.Alias,
+            AdapterName = "hci1",
             PollIntervalSeconds = 3600,
             NextPollAt = DateTime.UtcNow,
         };
@@ -85,6 +89,8 @@ public class JkBmsDeviceLifecycleTests
         state.LatestDeviceInfo!.ManufacturerName.Should().Be("JIKONG");
         state.LatestDeviceInfo.HardwareName.Should().Be("JK-B2A24");
         state.LastPollAt.Should().NotBeNull();
+        state.SessionEstablishedCount.Should().Be(1);
+        state.AdapterName.Should().Be("hci1");
         coordinator.Requests.Should().ContainSingle(r => r.AdapterName == "hci1" && r.Address == config.Address);
     }
 

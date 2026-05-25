@@ -1,0 +1,28 @@
+body {
+    margin: 0;
+    font-family: Inter, Roboto, Arial, sans-serif;
+}
+
+.gateway-layout {
+    min-height: 100vh;
+}
+
+.gateway-appbar {
+    padding-inline: 1rem;
+}
+
+.gateway-main {
+    padding: 5rem 1rem 4rem;
+}
+
+.gateway-page {
+    padding-bottom: 2rem;
+}
+
+.gateway-card {
+    min-height: 11rem;
+}
+
+.gateway-footer {
+    padding-inline: 1rem;
+}

@@ -18,6 +18,7 @@ Project history guidance:
 ## Current Discovery And Design Notes
 
 - `SOLARASSISTANT_DISCOVERY.md`: sanitized discovery findings for the local SolarAssistant integration
+- `SMARTSHUNT_PLAN.md`: confirmed SmartShunt data inventory, screen mapping, retention plan, and initial collector architecture
 - `davis-console-nonloop-values.md`: Davis console field inventory and UI-relevant protocol values
 - `JKBMS_SESSION_LIFECYCLE.md`: JK BMS session-lifecycle notes for the current BLE runtime direction
 

@@ -158,6 +158,30 @@ else
             <span class="label">Poll Interval</span>
             <span class="value">@_state.PollIntervalSeconds s</span>
 
+            <span class="label">Adapter</span>
+            <span class="value monospace">@_state.AdapterName</span>
+
+            <span class="label">Session State</span>
+            <span class="value">@(_state.IsSessionConnected ? "Connected" : "Disconnected")</span>
+
+            <span class="label">Session Establishes</span>
+            <span class="value">@_state.SessionEstablishedCount</span>
+
+            <span class="label">Session Disconnects</span>
+            <span class="value @(_state.SessionDisconnectedCount > 0 ? "value-warn" : "")">@_state.SessionDisconnectedCount</span>
+
+            <span class="label">Connect Failures</span>
+            <span class="value @(_state.SessionRequestFailureCount > 0 ? "value-error" : "")">@_state.SessionRequestFailureCount</span>
+
+            <span class="label">Last Connected</span>
+            <span class="value">@(_state.LastConnectedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—") UTC</span>
+
+            <span class="label">Last Disconnected</span>
+            <span class="value">@(_state.LastDisconnectedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—") UTC</span>
+
+            <span class="label">Last Session Length</span>
+            <span class="value">@(_state.LastSessionDurationSeconds > 0 ? $"{_state.LastSessionDurationSeconds} s" : "—")</span>
+
             <span class="label">Consecutive Errors</span>
             <span class="value @(_state.ConsecutiveErrors > 0 ? "value-error" : "")">@_state.ConsecutiveErrors</span>
 
@@ -165,6 +189,12 @@ else
             {
                 <span class="label">Last Error</span>
                 <span class="value value-error">@_state.LastError</span>
+            }
+
+            @if (_state.LastDisconnectReason is not null)
+            {
+                <span class="label">Last Disconnect Reason</span>
+                <span class="value value-warn">@_state.LastDisconnectReason</span>
             }
         </div>
     }
