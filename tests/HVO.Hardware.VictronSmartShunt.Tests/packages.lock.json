@@ -10,9 +10,9 @@
       },
       "FluentAssertions": {
         "type": "Direct",
-        "requested": "[8.7.1, )",
-        "resolved": "8.7.1",
-        "contentHash": "6DZCiDwyRfsaEvgpNQgahedldMfllILm6rOqyaxW8mHlsdkCIXENb3EnXQcmWu0l0TnAnZ+B4XZqyXQF4YE9jA=="
+        "requested": "[8.10.0, )",
+        "resolved": "8.10.0",
+        "contentHash": "yGvv+xp0gHFgGwhQcGoDdKIrhLhPi3zYYWWLLHPMctr+G6PWD7QH8L4wqoa5WRZquPbfSV/cP1MraI7ppAHrWw=="
       },
       "Microsoft.Extensions.Options": {
         "type": "Direct",
