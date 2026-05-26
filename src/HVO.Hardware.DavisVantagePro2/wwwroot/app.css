@@ -775,6 +775,7 @@ table.station-table tr:hover td {
 }
 
 :root {
+    --shell-page-hero-image: url("/_content/HVO.WebSite.Themes/images/observatory-background.jpg");
     --shell-font-family: "Open Sans Custom", "Segoe UI", sans-serif;
     --shell-header-height: 80px;
     --shell-footer-height: 56px;

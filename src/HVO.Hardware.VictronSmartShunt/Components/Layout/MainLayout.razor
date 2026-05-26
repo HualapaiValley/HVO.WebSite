@@ -1,26 +1,77 @@
 @inherits LayoutComponentBase
 
-<MudThemeProvider Theme="@ShellTheme" IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnThemeModeChanged" />
+<MudThemeProvider Theme="@ShellTheme" IsDarkMode="@_shellState.IsDarkMode" IsDarkModeChanged="@OnThemeModeChanged" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<MudLayout Class="gateway-layout">
-    <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="gateway-appbar">
-        <MudText Typo="Typo.h5">Victron SmartShunt Gateway</MudText>
-        <MudSpacer />
-        <MudButton Href="/" Variant="@GetNavVariant("")" Color="Color.Inherit">Status</MudButton>
-        <MudButton Href="/monitor" Variant="@GetNavVariant("monitor")" Color="Color.Inherit">Monitor</MudButton>
-        <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" OnClick="ToggleTheme" />
+<CascadingValue Value="@_shellState" IsFixed="true">
+<MudLayout Class="@($"smartshunt-shell {LayoutThemeClass}")">
+    <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
+        <div class="shell-frame shell-bar-content shell-header-frame">
+            <div class="shell-brand-block">
+                <div class="shell-brand-mark shell-brand-mark-gateway" aria-hidden="true">
+                    <span>SS</span>
+                </div>
+                <div class="shell-brand-copy">
+                    <MudText Typo="Typo.h5" Class="shell-brand-text">Hualapai Valley Observatory</MudText>
+                    <MudText Typo="Typo.caption" Class="shell-brand-subtitle">VICTRON SMARTSHUNT DASHBOARD</MudText>
+                </div>
+            </div>
+            <nav class="shell-header-nav" aria-label="Primary navigation">
+                <MudButton Href="/" Variant="@GetNavLinkVariant("Overview")" Color="Color.Inherit" Class="@GetNavLinkClass("Overview")">Overview</MudButton>
+                <MudButton Href="/telemetry" Variant="@GetNavLinkVariant("Telemetry")" Color="Color.Inherit" Class="@GetNavLinkClass("Telemetry")">Telemetry</MudButton>
+            </nav>
+            <MudSpacer />
+            <div class="shell-header-actions" aria-label="Header actions">
+                <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium" aria-label="@ThemeSelectorLabel" OnClick="ToggleTheme" />
+            </div>
+        </div>
     </MudAppBar>
 
-    <MudMainContent Class="gateway-main">
-        @Body
+    <MudMainContent Class="shell-main">
+        <div class="shell-frame shell-content">
+            @Body
+        </div>
     </MudMainContent>
 
-    <MudAppBar Bottom="true" Fixed="true" Elevation="0" Dense="true" Class="gateway-appbar gateway-footer">
-        <MudText Typo="Typo.caption">@FooterHealthText</MudText>
-        <MudSpacer />
-        <MudText Typo="Typo.caption">@DateTimeOffset.Now.ToLocalTime().ToString("t")</MudText>
+    <MudAppBar Bottom="true" Fixed="true" Elevation="0" Dense="true" Class="shell-appbar shell-appbar-footer">
+        <div class="shell-frame shell-bar-content shell-footer-frame">
+            <div class="shell-footer-layout" aria-label="Footer sections">
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-1">
+                    @if (GetFooterIndicatorClass(_shellState.FooterSlot1.Indicator) is { } slot1IndicatorClass)
+                    {
+                        <span class="@slot1IndicatorClass" aria-hidden="true"></span>
+                    }
+                    @_shellState.FooterSlot1.Text
+                </MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-2">@_shellState.FooterSlot2.Text</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-3">@_shellState.FooterSlot3.Text</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-4">@_shellState.FooterSlot4.Text</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-5">
+                    @if (GetFooterIndicatorClass(_shellState.FooterSlot5.Indicator) is { } slot5IndicatorClass)
+                    {
+                        <span class="@slot5IndicatorClass" aria-hidden="true"></span>
+                    }
+                    @_shellState.FooterSlot5.Text
+                </MudText>
+            </div>
+        </div>
     </MudAppBar>
+
+    <div id="blazor-error-ui" data-nosnippet>
+        <div class="shell-blazor-error-card">
+            <div class="shell-blazor-error-copy">
+                <strong>Blazor circuit interrupted</strong>
+                <span>An unhandled error has occurred. Reload to recover the dashboard session.</span>
+            </div>
+            <div class="shell-blazor-error-actions">
+                <a href="." class="reload">Reload</a>
+                <button type="button" class="dismiss" aria-label="Dismiss error message">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="components-reconnect-modal" data-nosnippet></div>
 </MudLayout>
+</CascadingValue>
