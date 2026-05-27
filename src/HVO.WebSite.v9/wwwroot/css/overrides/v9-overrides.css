@@ -86,6 +86,16 @@
     padding: 0.85rem;
 }
 
+.power-bank--warning {
+    border-color: rgba(250, 204, 21, 0.62);
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.14);
+}
+
+.power-bank--stale {
+    border-color: rgba(251, 146, 60, 0.75);
+    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.2);
+}
+
 .power-bank--alarm {
     border-color: rgba(248, 113, 113, 0.7);
     box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.18);
@@ -108,6 +118,14 @@
     color: #bbf7d0;
     font-size: 0.78rem;
     font-weight: 700;
+}
+
+.power-bank--warning .power-bank__header span {
+    color: #fef08a;
+}
+
+.power-bank--stale .power-bank__header span {
+    color: #fed7aa;
 }
 
 .power-bank--alarm .power-bank__header span {

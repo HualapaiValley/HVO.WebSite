@@ -15,6 +15,7 @@ public sealed record PowerStatusViewModel(
     string InverterMode,
     string BatteryBankCount,
     string BatteryAlarmState,
+    string BatteryFreshnessState,
     IReadOnlyList<PowerStatusBankViewModel> BatteryBanks,
     string ObservedAt,
     string SnapshotState)
@@ -31,6 +32,7 @@ public sealed record PowerStatusViewModel(
         InverterMode: "Unknown",
         BatteryBankCount: "--",
         BatteryAlarmState: "Unknown",
+        BatteryFreshnessState: "Unknown",
         BatteryBanks: [],
         ObservedAt: "Waiting for power telemetry",
         SnapshotState: "Waiting");
@@ -42,6 +44,8 @@ public sealed record PowerStatusViewModel(
 
         var batteryPower = snapshot.Battery?.PowerW;
         var gridPower = snapshot.Ac?.GridPowerW;
+
+        var batteryBanks = FormatBanks(snapshot.BatteryBanks, snapshot.ObservedAtUtc);
 
         return new PowerStatusViewModel(
             PvPower: FormatWatts(snapshot.Pv?.PowerW?.Value),
@@ -55,7 +59,8 @@ public sealed record PowerStatusViewModel(
             InverterMode: snapshot.Ac?.InverterMode?.Value ?? "Unknown",
             BatteryBankCount: FormatBankCount(snapshot.Battery?.BankCount?.Value),
             BatteryAlarmState: FormatAlarmState(snapshot.Battery?.HasAlarms?.Value),
-            BatteryBanks: FormatBanks(snapshot.BatteryBanks, snapshot.ObservedAtUtc),
+            BatteryFreshnessState: FormatBankFreshnessState(batteryBanks),
+            BatteryBanks: batteryBanks,
             ObservedAt: $"Observed {snapshot.ObservedAtUtc.ToLocalTime().ToString("dd MMM yyyy - h:mm tt", CultureInfo.InvariantCulture)}",
             SnapshotState: "Live");
     }
@@ -97,6 +102,7 @@ public sealed record PowerStatusViewModel(
                     Voltage: FormatVolts(b.VoltageV?.Value),
                     Current: FormatSignedAmps(b.CurrentA?.Value),
                     DeltaCellVoltage: FormatMillivolts(b.DeltaCellVoltageV?.Value),
+                    FreshnessStatus: FreshnessStatusFor(b.RecordedAtUtc, observedAtUtc),
                     AlarmState: FormatAlarmState(b.HasAlarms?.Value),
                     IsAlarmed: b.HasAlarms?.Value == true))
                 .ToArray()
@@ -130,6 +136,36 @@ public sealed record PowerStatusViewModel(
             : $"{age.TotalDays:0.0} days ago";
     }
 
+    private static string FreshnessStatusFor(DateTime recordedAtUtc, DateTime referenceUtc)
+    {
+        var age = referenceUtc - recordedAtUtc;
+        if (age < TimeSpan.Zero)
+            age = TimeSpan.Zero;
+
+        return age.TotalMinutes switch
+        {
+            >= 15 => "stale",
+            >= 5 => "warning",
+            _ => "fresh",
+        };
+    }
+
+    private static string FormatBankFreshnessState(IReadOnlyList<PowerStatusBankViewModel> banks)
+    {
+        if (banks.Count == 0)
+            return "Unknown";
+
+        var staleCount = banks.Count(b => b.FreshnessStatus == "stale");
+        if (staleCount > 0)
+            return staleCount == 1 ? "1 stale bank" : $"{staleCount} stale banks";
+
+        var warningCount = banks.Count(b => b.FreshnessStatus == "warning");
+        if (warningCount > 0)
+            return warningCount == 1 ? "1 aging bank" : $"{warningCount} aging banks";
+
+        return "All banks fresh";
+    }
+
     private static string FormatFlow(PowerFlowDirection? direction)
         => direction switch
         {
@@ -160,5 +196,6 @@ public sealed record PowerStatusBankViewModel(
     string Voltage,
     string Current,
     string DeltaCellVoltage,
+    string FreshnessStatus,
     string AlarmState,
     bool IsAlarmed);

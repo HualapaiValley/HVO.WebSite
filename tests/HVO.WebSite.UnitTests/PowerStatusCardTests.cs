@@ -50,11 +50,13 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
         component.Markup.Should().Contain("Charging");
         component.Markup.Should().Contain("SmartShunt");
         component.Markup.Should().Contain("bank-1a");
+        component.Find("article.power-bank").ClassList.Should().Contain("power-bank--fresh");
         component.Find("article.power-bank").GetAttribute("aria-labelledby").Should().Be("power-bank-1");
         component.Find("article.power-bank h3").TextContent.Should().Be("bank-1a");
         component.Markup.Should().Contain("54.04 V");
         component.Markup.Should().Contain("3 mV");
         component.Markup.Should().Contain("2 min ago");
+        component.Markup.Should().Contain("All banks fresh");
         component.Markup.Should().Contain("No alarms");
     }
 
