@@ -74,7 +74,29 @@ public sealed class SolarAssistantGatewayHealthServiceTests
     }
 
     [TestMethod]
-    public void Evaluate_ReturnsCritical_ForFailedOutboxAndCriticalBattery()
+    public void Evaluate_ReturnsWarning_ForHistoricalFailedOutbox_WhenCurrentForwardingIsNotFailing()
+    {
+        var now = DateTime.Parse("2026-05-23T12:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+        var health = SolarAssistantGatewayHealthService.Evaluate(
+            Options(),
+            now.AddSeconds(-30),
+            snapshotError: null,
+            Snapshot(soc: 72, loadPower: 900, batteryPower: 200),
+            Mqtt("connected", now.AddSeconds(-15)),
+            pendingOutboxCount: 0,
+            failedOutboxCount: 71,
+            outboxError: null,
+            now);
+
+        health.State.Should().Be("warning");
+        health.Alerts.Should().ContainSingle(a =>
+            a.Code == "outbox-failed" &&
+            a.Severity == SolarAssistantGatewayHealthSeverity.Warning);
+    }
+
+    [TestMethod]
+    public void Evaluate_ReturnsCritical_ForCurrentOutboxFailureAndCriticalBattery()
     {
         var now = DateTime.Parse("2026-05-23T12:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
 
@@ -84,13 +106,13 @@ public sealed class SolarAssistantGatewayHealthServiceTests
             snapshotError: null,
             Snapshot(soc: 15, loadPower: 900, batteryPower: 200),
             Mqtt("connected", now.AddSeconds(-15)),
-            pendingOutboxCount: 0,
-            failedOutboxCount: 1,
-            outboxError: null,
+            pendingOutboxCount: 1,
+            failedOutboxCount: 0,
+            outboxError: "HTTP 401",
             now);
 
         health.State.Should().Be("critical");
-        health.Alerts.Select(a => a.Code).Should().Contain(["outbox-failed", "battery-critical"]);
+        health.Alerts.Select(a => a.Code).Should().Contain(["outbox-error", "battery-critical"]);
         health.Alerts.Should().Contain(a => a.Severity == SolarAssistantGatewayHealthSeverity.Critical);
     }
 
