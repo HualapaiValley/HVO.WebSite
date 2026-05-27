@@ -253,14 +253,25 @@ public class PowerIngestController : ControllerBase
         [FromQuery][Range(1, 1440)] int lookbackMinutes = 60,
         CancellationToken ct = default)
     {
-        var cutoffUtc = DateTime.UtcNow.AddMinutes(-lookbackMinutes);
-        var readings = await _db.PowerReadings
-            .Where(r => r.RecordedAt >= cutoffUtc)
-            .OrderByDescending(r => r.RecordedAt)
-            .Take(500)
-            .ToListAsync(ct);
+        var nowUtc = DateTime.UtcNow;
+        var cutoffUtc = nowUtc.AddMinutes(-lookbackMinutes);
+        var sourceSystems = new[] { "solarassistant", "victron-smartshunt" };
+        var readings = new List<PowerReading>(sourceSystems.Length);
 
-        return Ok(PowerSystemSnapshotComposer.Compose(readings, DateTime.UtcNow));
+        foreach (var sourceSystem in sourceSystems)
+        {
+            var reading = await _db.PowerReadings
+                .AsNoTracking()
+                .Where(r => r.RecordedAt >= cutoffUtc && r.SourceSystem == sourceSystem)
+                .OrderByDescending(r => r.RecordedAt)
+                .ThenByDescending(r => r.Id)
+                .FirstOrDefaultAsync(ct);
+
+            if (reading is not null)
+                readings.Add(reading);
+        }
+
+        return Ok(PowerSystemSnapshotComposer.Compose(readings, nowUtc));
     }
 
     private static PowerReading MapToEntity(

@@ -223,6 +223,35 @@ public sealed class PowerIngestControllerTests
         body.Battery.FlowDirection!.Value.Should().Be(PowerFlowDirection.Charging);
     }
 
+    [TestMethod]
+    public async Task GetLatestSystemSnapshot_DoesNotDropSlowerSourceWhenOtherSourceHasManyRows()
+    {
+        var now = DateTime.UtcNow;
+        var smartShunt = MakeEntity("smartshunt-main", now.AddMinutes(-20), 0, "victron-smartshunt");
+        smartShunt.BatteryVoltageV = 53.7;
+        smartShunt.BatteryPowerW = -900;
+        _db.PowerReadings.Add(smartShunt);
+
+        for (var i = 0; i < 600; i++)
+        {
+            _db.PowerReadings.Add(MakeEntity(
+                $"solarassistant-{i}",
+                now.AddSeconds(-i),
+                pvPowerW: 1000 + i,
+                sourceSystem: "solarassistant"));
+        }
+
+        await _db.SaveChangesAsync();
+
+        var result = await _ctrl.GetLatestSystemSnapshot(lookbackMinutes: 60, CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeOfType<PowerSystemSnapshot>().Subject;
+        body.Pv!.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
+        body.Battery!.VoltageV!.Source.Should().Be(PowerMetricSource.VictronSmartShunt);
+        body.Battery.VoltageV.Value.Should().Be(53.7);
+    }
+
     private static PowerIngestController CreateController(HvoV9DbContext db, PowerIngestTelemetry telemetry)
     {
         var ctrl = new PowerIngestController(db, telemetry, NullLogger<PowerIngestController>.Instance);
