@@ -270,6 +270,42 @@ public sealed class PowerIngestControllerTests
         body.Ac!.LoadPowerW!.Value.Should().Be(900);
     }
 
+    [TestMethod]
+    public async Task GetLatestSystemSnapshot_IncludesLatestJkBmsBatteryBanks()
+    {
+        var now = DateTime.UtcNow;
+        var device = new BmsDevice
+        {
+            Address = "C8:47:8C:E4:56:B0",
+            Alias = "bank-1a",
+            FirstSeenAt = now.AddDays(-1),
+        };
+        _db.BmsDevices.Add(device);
+        await _db.SaveChangesAsync();
+
+        _db.BmsReadings.AddRange(
+            MakeBmsReading(device.Id, now.AddMinutes(-20), 52000, alarmBitmask: 8),
+            MakeBmsReading(device.Id, now.AddMinutes(-2), 53810, alarmBitmask: 0));
+        await _db.SaveChangesAsync();
+
+        var latest = _db.BmsReadings.OrderByDescending(r => r.RecordedAt).First();
+        _db.BmsCellVoltages.AddRange(
+            new BmsCellVoltage { ReadingId = latest.Id, CellIndex = 1, VoltageMv = 3361 },
+            new BmsCellVoltage { ReadingId = latest.Id, CellIndex = 2, VoltageMv = 3364 });
+        await _db.SaveChangesAsync();
+
+        var result = await _ctrl.GetLatestSystemSnapshot(lookbackMinutes: 30, CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeOfType<PowerSystemSnapshot>().Subject;
+        body.BatteryBanks.Should().ContainSingle();
+        body.BatteryBanks![0].BankId.Should().Be("bank-1a");
+        body.BatteryBanks[0].VoltageV!.Value.Should().Be(53.81);
+        body.BatteryBanks[0].MinCellVoltageV!.Value.Should().Be(3.361);
+        body.BatteryBanks[0].HasAlarms!.Value.Should().BeFalse();
+        body.Battery!.BankCount!.Value.Should().Be(1);
+    }
+
     private static PowerIngestController CreateController(HvoV9DbContext db, PowerIngestTelemetry telemetry)
     {
         var ctrl = new PowerIngestController(
@@ -328,5 +364,23 @@ public sealed class PowerIngestControllerTests
         RecordedAt = recordedAt,
         PvPowerW = pvPowerW,
         CreatedAt = DateTime.UtcNow,
+    };
+
+    private static BmsReading MakeBmsReading(int deviceId, DateTime recordedAt, long packVoltageMv, long alarmBitmask) => new()
+    {
+        DeviceId = deviceId,
+        RecordedAt = recordedAt,
+        PackVoltageMv = packVoltageMv,
+        CurrentMa = 7500,
+        PowerWatts = packVoltageMv / 1000.0 * 7.5,
+        SocPercent = 91,
+        SohPercent = 100,
+        BatteryTemp1C = 22.1,
+        BatteryTemp2C = 22.4,
+        PowerTubeC = 23.6,
+        BalancingActive = false,
+        BalancingCurrentMa = 0,
+        DeltaCellVoltageMv = 3,
+        AlarmBitmask = alarmBitmask,
     };
 }

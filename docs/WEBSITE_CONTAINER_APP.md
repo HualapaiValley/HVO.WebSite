@@ -161,7 +161,8 @@ The current ACA deployment is running with:
 
 | Item | Value |
 |------|-------|
-| Image | `hvoobsacr.azurecr.io/hvo-website:1.0.6` |
+| Image | `hvoobsacr.azurecr.io/hvo-website:1.0.8` |
+| Revision | `hvo-website--0000010` |
 | FQDN | `hvo-website.calmsand-72a6c5ac.westus.azurecontainerapps.io` |
 | Ingress | External HTTPS via ACA |
 | Target port | `8080` |
@@ -180,6 +181,7 @@ Verified smoke-test results:
 - `/` returns `200`
 - `/admin` redirects to Microsoft Entra sign-in instead of failing server-side
 - `/admin` now emits an HTTPS `redirect_uri` for `/signin-oidc` that matches the Entra app registration
+- Interactive browser sign-in succeeds and an authorized user can see the live power snapshot card
 
 ## Current Runtime Status
 
@@ -190,7 +192,7 @@ The earlier deployment blockers have been resolved:
 - The website honors ACA forwarded proxy headers, so OIDC redirects now use the external HTTPS hostname instead of internal HTTP.
 - Recent Container App logs no longer show the previous ephemeral or unencrypted Data Protection warnings.
 
-Interactive browser sign-in should now be fully configured, but the final confirmation still requires a real user sign-in through the browser.
+Interactive browser sign-in is confirmed working for an authorized user.
 
 ## Ready-To-Create Checklist
 

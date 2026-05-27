@@ -31,8 +31,20 @@ public sealed class PowerSystemSnapshotProvider(HvoV9DbContext db) : IPowerSyste
                 readings.Add(reading);
         }
 
-        return readings.Count == 0
+        var bmsReadings = (await db.BmsReadings
+                .AsNoTracking()
+                .Include(r => r.Device)
+                .Include(r => r.CellVoltages)
+                .Where(r => r.RecordedAt >= cutoffUtc)
+                .OrderByDescending(r => r.RecordedAt)
+                .ThenByDescending(r => r.Id)
+                .ToListAsync(ct))
+            .GroupBy(r => r.DeviceId)
+            .Select(g => g.First())
+            .ToArray();
+
+        return readings.Count == 0 && bmsReadings.Length == 0
             ? null
-            : PowerSystemSnapshotComposer.Compose(readings, nowUtc);
+            : PowerSystemSnapshotComposer.Compose(readings, nowUtc, bmsReadings);
     }
 }
