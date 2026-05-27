@@ -1,7 +1,9 @@
 using System.Globalization;
+using HVO.Edge.Outbox;
 using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.Workers;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
 using MudBlazor;
 
 namespace HVO.Hardware.JkBms.Components.Layout;
@@ -13,6 +15,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     [Inject] private BmsPollerWorker Poller { get; set; } = default!;
     [Inject] private ForwarderCoordinator Forwarder { get; set; } = default!;
+    [Inject] private IOptions<OutboxOptions> OutboxOptionsAccessor { get; set; } = default!;
 
     private MudTheme ShellTheme { get; } = new()
     {
@@ -43,6 +46,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private string LayoutThemeClass => _shellState.IsDarkMode ? "shell-theme-dark" : "shell-theme-light";
     private string ThemeSelectorIcon => _shellState.IsDarkMode ? Icons.Material.Outlined.DarkMode : Icons.Material.Outlined.LightMode;
     private string ThemeSelectorLabel => _shellState.IsDarkMode ? "Switch to light theme" : "Switch to dark theme";
+    private OutboxOptions OutboxOptions => OutboxOptionsAccessor.Value;
 
     protected override void OnInitialized()
     {
@@ -151,18 +155,25 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private ShellFooterItem BuildApiFooterItem()
     {
-        if (Forwarder.PendingCount > 0 && !string.IsNullOrWhiteSpace(Forwarder.LastError))
-            return new ShellFooterItem("API sync failing", ShellFooterIndicator.Offline);
+        var pendingCount = Forwarder.PendingCount;
+        var evaluation = EdgeOutboxHealthEvaluator.Evaluate(
+            new EdgeOutboxObservation(
+                PendingCount: pendingCount,
+                FailedCount: Forwarder.FailedCount,
+                LastSentAtUtc: Forwarder.LastSentAt,
+                LastBatchCount: Forwarder.LastBatchCount,
+                LastError: pendingCount > 0 ? Forwarder.LastError : null),
+            new EdgeOutboxHealthOptions(
+                PendingWarningCount: OutboxOptions.PendingWarningCount,
+                FailedCriticalCount: OutboxOptions.FailedCriticalCount));
 
-        if (Forwarder.PendingCount > 0)
-            return new ShellFooterItem("API sync pending", ShellFooterIndicator.Warning);
-
-        if (Forwarder.FailedCount > 0)
-            return new ShellFooterItem("API sync degraded", ShellFooterIndicator.Warning);
-
-        if (Forwarder.LastSentAt.HasValue)
-            return new ShellFooterItem("API sync healthy", ShellFooterIndicator.Online);
-
-        return new ShellFooterItem("API sync idle");
+        return evaluation.CurrentSyncState switch
+        {
+            EdgeOutboxSyncState.Failing => new ShellFooterItem("API sync failing", ShellFooterIndicator.Offline),
+            EdgeOutboxSyncState.Pending => new ShellFooterItem("API sync pending", ShellFooterIndicator.Warning),
+            EdgeOutboxSyncState.Degraded => new ShellFooterItem("API sync degraded", ShellFooterIndicator.Warning),
+            EdgeOutboxSyncState.Healthy => new ShellFooterItem("API sync healthy", ShellFooterIndicator.Online),
+            _ => new ShellFooterItem("API sync idle"),
+        };
     }
 }
