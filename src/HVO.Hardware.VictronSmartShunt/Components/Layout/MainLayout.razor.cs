@@ -144,9 +144,13 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private static ShellFooterItem BuildSampleTimestampFooterItem(SmartShuntDeviceSnapshot? sample)
     {
         if (sample is null)
-            return new ShellFooterItem("Waiting for sample");
+            return new ShellFooterItem("Waiting for sample", ShellFooterIndicator.Warning);
 
-        return new ShellFooterItem(FormatFooterTimestamp(sample.RecordedAtUtc));
+        var indicator = DateTime.UtcNow - sample.RecordedAtUtc <= SampleFreshnessThreshold
+            ? ShellFooterIndicator.Online
+            : ShellFooterIndicator.Warning;
+
+        return new ShellFooterItem(FormatFooterTimestamp(sample.RecordedAtUtc), indicator);
     }
 
     private ShellFooterItem BuildApiFooterItem()

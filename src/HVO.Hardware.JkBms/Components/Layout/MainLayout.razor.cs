@@ -105,9 +105,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     {
         var activeDevices = Poller.DeviceStates.Where(state => state.LatestReading is not null).ToList();
         var connectedDevices = Poller.DeviceStates.Count(state => state.IsSessionConnected);
-        var fleetSoc = activeDevices.Count > 0
-            ? activeDevices.Average(state => (double)state.LatestReading!.StateOfChargePercent)
-            : (double?)null;
         var latestPoll = Poller.DeviceStates
             .Where(state => state.LastPollAt.HasValue)
             .OrderByDescending(state => state.LastPollAt)
@@ -139,12 +136,17 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private static ShellFooterItem BuildTimestampFooterItem(DateTime? latestPoll)
     {
         if (!latestPoll.HasValue)
-            return new ShellFooterItem("Waiting for data");
+            return new ShellFooterItem("Waiting for data", ShellFooterIndicator.Warning);
+
+        var indicator = DateTime.UtcNow - latestPoll.Value <= FreshPollThreshold
+            ? ShellFooterIndicator.Online
+            : ShellFooterIndicator.Warning;
 
         return new ShellFooterItem(
             latestPoll.Value
                 .ToLocalTime()
-                .ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture));
+                .ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture),
+            indicator);
     }
 
     private ShellFooterItem BuildApiFooterItem()
