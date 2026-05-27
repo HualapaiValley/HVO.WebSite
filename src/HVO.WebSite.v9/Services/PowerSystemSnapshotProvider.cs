@@ -20,7 +20,9 @@ public sealed class PowerSystemSnapshotProvider(HvoV9DbContext db) : IPowerSyste
         {
             var reading = await db.PowerReadings
                 .AsNoTracking()
-                .Where(r => r.RecordedAt >= cutoffUtc && r.SourceSystem == sourceSystem)
+                .Where(r => r.RecordedAt >= cutoffUtc
+                    && r.SourceSystem != null
+                    && r.SourceSystem.ToLower() == sourceSystem)
                 .OrderByDescending(r => r.RecordedAt)
                 .ThenByDescending(r => r.Id)
                 .FirstOrDefaultAsync(ct);

@@ -12,6 +12,7 @@
     <PackageReference Include="MSTest" />
     <PackageReference Include="Moq" />
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="AngleSharp" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection" />
     <PackageReference Include="bunit" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />

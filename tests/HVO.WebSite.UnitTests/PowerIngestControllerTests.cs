@@ -253,6 +253,23 @@ public sealed class PowerIngestControllerTests
         body.Battery.VoltageV.Value.Should().Be(53.7);
     }
 
+    [TestMethod]
+    public async Task GetLatestSystemSnapshot_MatchesSourceSystemCaseInsensitively()
+    {
+        var now = DateTime.UtcNow;
+        var solarAssistant = MakeEntity("solarassistant-total", now.AddMinutes(-5), 1400, "SolarAssistant");
+        solarAssistant.LoadPowerW = 900;
+        _db.PowerReadings.Add(solarAssistant);
+        await _db.SaveChangesAsync();
+
+        var result = await _ctrl.GetLatestSystemSnapshot(lookbackMinutes: 30, CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeOfType<PowerSystemSnapshot>().Subject;
+        body.Pv!.PowerW!.Value.Should().Be(1400);
+        body.Ac!.LoadPowerW!.Value.Should().Be(900);
+    }
+
     private static PowerIngestController CreateController(HvoV9DbContext db, PowerIngestTelemetry telemetry)
     {
         var ctrl = new PowerIngestController(

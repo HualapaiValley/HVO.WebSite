@@ -267,7 +267,7 @@ public class PowerIngestController : ControllerBase
         DateTime recordedAt) => new()
         {
             SourceId = sourceId,
-            SourceSystem = NormalizeOptional(request.SourceSystem),
+            SourceSystem = NormalizeSourceSystem(request.SourceSystem),
             DeviceId = NormalizeOptional(request.DeviceId),
             RecordedAt = recordedAt,
             PvPowerW = request.PvPowerW,
@@ -294,6 +294,9 @@ public class PowerIngestController : ControllerBase
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? NormalizeSourceSystem(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
     private static DateTime NormalizeRecordedAt(DateTime recordedAt) =>
         recordedAt.ToUniversalTime();
