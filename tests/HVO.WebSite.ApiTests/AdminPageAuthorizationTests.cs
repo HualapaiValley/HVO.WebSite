@@ -60,6 +60,24 @@ public sealed class AdminPageAuthorizationTests
         response.Headers.Location!.ToString().Should().NotContain("/admin");
     }
 
+    [TestMethod]
+    public async Task AdminPage_UsesForwardedHttpsScheme_ForOidcRedirectUri()
+    {
+        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("http://hvo-website.test")
+        });
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.10");
+        client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
+
+        var response = await client.GetAsync("/admin");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location.Should().NotBeNull();
+        response.Headers.Location!.ToString().Should().Contain(Uri.EscapeDataString("https://hvo-website.test/signin-oidc"));
+    }
+
     // -------------------------------------------------------------------------
     // Authenticated — wrong role → cookie Forbid → AccessDenied
     // -------------------------------------------------------------------------
@@ -155,6 +173,8 @@ public sealed class AdminPageAuthorizationTests
                 configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["KeyVault:Uri"] = string.Empty,
+                    ["ForwardedHeaders:Enabled"] = "true",
+                    ["ASPNETCORE_FORWARDEDHEADERS_ENABLED"] = "true",
                     ["AzureAd:ClientId"] = "00000000-0000-0000-0000-000000000001",
                     ["AzureAd:ClientSecret"] = "test-dummy-secret",
                     ["AzureAd:TenantId"] = "00000000-0000-0000-0000-000000000002",

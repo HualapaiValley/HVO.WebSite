@@ -10,7 +10,7 @@
             <p class="lead text-light opacity-75">Current observatory power telemetry, assembled from the live edge gateways.</p>
         </div>
         <div class="col-lg-10">
-            <AuthorizeView Policy="PowerRead">
+            <AuthorizeView Policy="PowerStatusView">
                 <Authorized>
                     <PowerStatusCard />
                 </Authorized>
@@ -18,7 +18,7 @@
                     <section class="power-status-card power-status-card--locked" aria-labelledby="power-status-heading">
                         <p class="power-status-card__eyebrow">Power System</p>
                         <h2 id="power-status-heading">Live Power Snapshot</h2>
-                        <p class="mb-0">Sign in with power read access to view the live power-system card.</p>
+                        <p class="mb-0">Sign in with observatory access to view the live power-system card.</p>
                     </section>
                 </NotAuthorized>
             </AuthorizeView>
