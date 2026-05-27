@@ -29,7 +29,7 @@ public sealed class PowerStatusViewModelTests
             [
                 new PowerSystemBatteryBankSnapshot(
                     BankId: "bank-2a",
-                    RecordedAtUtc: observedAt,
+                    RecordedAtUtc: observedAt.AddMinutes(-45),
                     Source: PowerMetricSource.JkBms,
                     StateOfChargePercent: Value(91d, PowerMetricSource.JkBms, observedAt),
                     VoltageV: Value(54.412d, PowerMetricSource.JkBms, observedAt),
@@ -38,7 +38,7 @@ public sealed class PowerStatusViewModelTests
                     HasAlarms: Value(false, PowerMetricSource.JkBms, observedAt)),
                 new PowerSystemBatteryBankSnapshot(
                     BankId: "bank-1a",
-                    RecordedAtUtc: observedAt,
+                    RecordedAtUtc: observedAt.AddMinutes(-4),
                     Source: PowerMetricSource.JkBms,
                     StateOfChargePercent: Value(90d, PowerMetricSource.JkBms, observedAt),
                     VoltageV: Value(54.037d, PowerMetricSource.JkBms, observedAt),
@@ -63,6 +63,7 @@ public sealed class PowerStatusViewModelTests
         model.BatteryBanks.Should().HaveCount(2);
         model.BatteryBanks[0].BankId.Should().Be("bank-1a");
         model.BatteryBanks[0].HeadingId.Should().Be("power-bank-1");
+        model.BatteryBanks[0].Seen.Should().Be("4 min ago");
         model.BatteryBanks[0].StateOfCharge.Should().Be("90%");
         model.BatteryBanks[0].Voltage.Should().Be("54.04 V");
         model.BatteryBanks[0].Current.Should().Be("+1.2 A");
@@ -71,6 +72,7 @@ public sealed class PowerStatusViewModelTests
         model.BatteryBanks[0].IsAlarmed.Should().BeTrue();
         model.BatteryBanks[1].BankId.Should().Be("bank-2a");
         model.BatteryBanks[1].HeadingId.Should().Be("power-bank-2");
+        model.BatteryBanks[1].Seen.Should().Be("45 min ago");
         model.SnapshotState.Should().Be("Live");
     }
 
@@ -80,6 +82,30 @@ public sealed class PowerStatusViewModelTests
         var model = PowerStatusViewModel.FromSnapshot(null);
 
         model.Should().Be(PowerStatusViewModel.Empty);
+    }
+
+    [TestMethod]
+    public void FromSnapshot_TruncatesBankFreshnessBelowHourBoundary()
+    {
+        var observedAt = new DateTime(2026, 5, 27, 19, 30, 0, DateTimeKind.Utc);
+        var snapshot = new PowerSystemSnapshot(
+            ObservedAtUtc: observedAt,
+            BatteryBanks:
+            [
+                new PowerSystemBatteryBankSnapshot(
+                    BankId: "bank-1a",
+                    RecordedAtUtc: observedAt.AddMinutes(-59).AddSeconds(-45),
+                    Source: PowerMetricSource.JkBms),
+                new PowerSystemBatteryBankSnapshot(
+                    BankId: "bank-2a",
+                    RecordedAtUtc: observedAt.AddHours(-2).AddMinutes(-30),
+                    Source: PowerMetricSource.JkBms),
+            ]);
+
+        var model = PowerStatusViewModel.FromSnapshot(snapshot);
+
+        model.BatteryBanks[0].Seen.Should().Be("59 min ago");
+        model.BatteryBanks[1].Seen.Should().Be("2 hr ago");
     }
 
     private static SourcedValue<T> Value<T>(T value, PowerMetricSource source, DateTime recordedAt)
