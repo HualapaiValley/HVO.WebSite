@@ -26,7 +26,21 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
                 Battery: new PowerSystemBatterySnapshot(
                     StateOfChargePercent: Value(100d, PowerMetricSource.SolarAssistant, observedAt),
                     PowerW: Value(-900d, PowerMetricSource.VictronSmartShunt, observedAt),
-                    FlowDirection: Value(PowerFlowDirection.Charging, PowerMetricSource.VictronSmartShunt, observedAt)))));
+                    FlowDirection: Value(PowerFlowDirection.Charging, PowerMetricSource.VictronSmartShunt, observedAt),
+                    BankCount: Value(1, PowerMetricSource.JkBms, observedAt),
+                    HasAlarms: Value(false, PowerMetricSource.JkBms, observedAt)),
+                BatteryBanks:
+                [
+                    new PowerSystemBatteryBankSnapshot(
+                        BankId: "bank-1a",
+                        RecordedAtUtc: observedAt,
+                        Source: PowerMetricSource.JkBms,
+                        StateOfChargePercent: Value(91d, PowerMetricSource.JkBms, observedAt),
+                        VoltageV: Value(54.037d, PowerMetricSource.JkBms, observedAt),
+                        CurrentA: Value(-2.4d, PowerMetricSource.JkBms, observedAt),
+                        DeltaCellVoltageV: Value(0.003d, PowerMetricSource.JkBms, observedAt),
+                        HasAlarms: Value(false, PowerMetricSource.JkBms, observedAt)),
+                ])));
 
         var component = RenderComponent<PowerStatusCard>();
 
@@ -35,6 +49,10 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
         component.Markup.Should().Contain("-900 W");
         component.Markup.Should().Contain("Charging");
         component.Markup.Should().Contain("SmartShunt");
+        component.Markup.Should().Contain("bank-1a");
+        component.Markup.Should().Contain("54.04 V");
+        component.Markup.Should().Contain("3 mV");
+        component.Markup.Should().Contain("No alarms");
     }
 
     private static SourcedValue<T> Value<T>(T value, PowerMetricSource source, DateTime recordedAt)

@@ -15,6 +15,7 @@ public sealed record PowerStatusViewModel(
     string InverterMode,
     string BatteryBankCount,
     string BatteryAlarmState,
+    IReadOnlyList<PowerStatusBankViewModel> BatteryBanks,
     string ObservedAt,
     string SnapshotState)
 {
@@ -30,6 +31,7 @@ public sealed record PowerStatusViewModel(
         InverterMode: "Unknown",
         BatteryBankCount: "--",
         BatteryAlarmState: "Unknown",
+        BatteryBanks: [],
         ObservedAt: "Waiting for power telemetry",
         SnapshotState: "Waiting");
 
@@ -53,6 +55,7 @@ public sealed record PowerStatusViewModel(
             InverterMode: snapshot.Ac?.InverterMode?.Value ?? "Unknown",
             BatteryBankCount: FormatBankCount(snapshot.Battery?.BankCount?.Value),
             BatteryAlarmState: FormatAlarmState(snapshot.Battery?.HasAlarms?.Value),
+            BatteryBanks: FormatBanks(snapshot.BatteryBanks),
             ObservedAt: $"Observed {snapshot.ObservedAtUtc.ToLocalTime().ToString("dd MMM yyyy - h:mm tt", CultureInfo.InvariantCulture)}",
             SnapshotState: "Live");
     }
@@ -82,6 +85,30 @@ public sealed record PowerStatusViewModel(
             _ => "Unknown",
         };
 
+    private static IReadOnlyList<PowerStatusBankViewModel> FormatBanks(IReadOnlyList<PowerSystemBatteryBankSnapshot>? banks)
+        => banks is { Count: > 0 }
+            ? banks
+                .OrderBy(b => b.BankId, StringComparer.OrdinalIgnoreCase)
+                .Select(b => new PowerStatusBankViewModel(
+                    BankId: b.BankId,
+                    StateOfCharge: FormatPercent(b.StateOfChargePercent?.Value),
+                    Voltage: FormatVolts(b.VoltageV?.Value),
+                    Current: FormatSignedAmps(b.CurrentA?.Value),
+                    DeltaCellVoltage: FormatMillivolts(b.DeltaCellVoltageV?.Value),
+                    AlarmState: FormatAlarmState(b.HasAlarms?.Value),
+                    IsAlarmed: b.HasAlarms?.Value == true))
+                .ToArray()
+            : [];
+
+    private static string FormatVolts(double? value)
+        => value.HasValue ? $"{value.Value:0.00} V" : "--";
+
+    private static string FormatSignedAmps(double? value)
+        => value.HasValue ? $"{value.Value:+0.0;-0.0;0.0} A" : "--";
+
+    private static string FormatMillivolts(double? value)
+        => value.HasValue ? $"{value.Value * 1000:0} mV" : "--";
+
     private static string FormatFlow(PowerFlowDirection? direction)
         => direction switch
         {
@@ -103,3 +130,12 @@ public sealed record PowerStatusViewModel(
             _ => "No source",
         };
 }
+
+public sealed record PowerStatusBankViewModel(
+    string BankId,
+    string StateOfCharge,
+    string Voltage,
+    string Current,
+    string DeltaCellVoltage,
+    string AlarmState,
+    bool IsAlarmed);

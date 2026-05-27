@@ -24,7 +24,28 @@ public sealed class PowerStatusViewModelTests
                 PowerW: Value(2700d, PowerMetricSource.VictronSmartShunt, observedAt),
                 FlowDirection: Value(PowerFlowDirection.Discharging, PowerMetricSource.VictronSmartShunt, observedAt),
                 BankCount: Value(7, PowerMetricSource.JkBms, observedAt),
-                HasAlarms: Value(false, PowerMetricSource.JkBms, observedAt)));
+                HasAlarms: Value(false, PowerMetricSource.JkBms, observedAt)),
+            BatteryBanks:
+            [
+                new PowerSystemBatteryBankSnapshot(
+                    BankId: "bank-2a",
+                    RecordedAtUtc: observedAt,
+                    Source: PowerMetricSource.JkBms,
+                    StateOfChargePercent: Value(91d, PowerMetricSource.JkBms, observedAt),
+                    VoltageV: Value(54.412d, PowerMetricSource.JkBms, observedAt),
+                    CurrentA: Value(-3.24d, PowerMetricSource.JkBms, observedAt),
+                    DeltaCellVoltageV: Value(0.004d, PowerMetricSource.JkBms, observedAt),
+                    HasAlarms: Value(false, PowerMetricSource.JkBms, observedAt)),
+                new PowerSystemBatteryBankSnapshot(
+                    BankId: "bank-1a",
+                    RecordedAtUtc: observedAt,
+                    Source: PowerMetricSource.JkBms,
+                    StateOfChargePercent: Value(90d, PowerMetricSource.JkBms, observedAt),
+                    VoltageV: Value(54.037d, PowerMetricSource.JkBms, observedAt),
+                    CurrentA: Value(1.2d, PowerMetricSource.JkBms, observedAt),
+                    DeltaCellVoltageV: Value(0.003d, PowerMetricSource.JkBms, observedAt),
+                    HasAlarms: Value(true, PowerMetricSource.JkBms, observedAt)),
+            ]);
 
         var model = PowerStatusViewModel.FromSnapshot(snapshot);
 
@@ -39,6 +60,15 @@ public sealed class PowerStatusViewModelTests
         model.InverterMode.Should().Be("Solar/Battery");
         model.BatteryBankCount.Should().Be("7 banks");
         model.BatteryAlarmState.Should().Be("No alarms");
+        model.BatteryBanks.Should().HaveCount(2);
+        model.BatteryBanks[0].BankId.Should().Be("bank-1a");
+        model.BatteryBanks[0].StateOfCharge.Should().Be("90%");
+        model.BatteryBanks[0].Voltage.Should().Be("54.04 V");
+        model.BatteryBanks[0].Current.Should().Be("+1.2 A");
+        model.BatteryBanks[0].DeltaCellVoltage.Should().Be("3 mV");
+        model.BatteryBanks[0].AlarmState.Should().Be("Active alarm");
+        model.BatteryBanks[0].IsAlarmed.Should().BeTrue();
+        model.BatteryBanks[1].BankId.Should().Be("bank-2a");
         model.SnapshotState.Should().Be("Live");
     }
 
