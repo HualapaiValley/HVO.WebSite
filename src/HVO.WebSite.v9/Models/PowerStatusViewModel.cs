@@ -117,12 +117,17 @@ public sealed record PowerStatusViewModel(
         if (age < TimeSpan.Zero)
             age = TimeSpan.Zero;
 
-        return age.TotalMinutes switch
-        {
-            < 1 => "just now",
-            < 60 => $"{age.TotalMinutes:0} min ago",
-            _ => $"{age.TotalHours:0.0} hr ago",
-        };
+        var minutes = (int)age.TotalMinutes;
+        if (minutes < 1)
+            return "just now";
+
+        if (minutes < 60)
+            return $"{minutes} min ago";
+
+        var hours = (int)age.TotalHours;
+        return hours < 24
+            ? $"{hours} hr ago"
+            : $"{age.TotalDays:0.0} days ago";
     }
 
     private static string FormatFlow(PowerFlowDirection? direction)

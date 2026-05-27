@@ -84,6 +84,30 @@ public sealed class PowerStatusViewModelTests
         model.Should().Be(PowerStatusViewModel.Empty);
     }
 
+    [TestMethod]
+    public void FromSnapshot_TruncatesBankFreshnessBelowHourBoundary()
+    {
+        var observedAt = new DateTime(2026, 5, 27, 19, 30, 0, DateTimeKind.Utc);
+        var snapshot = new PowerSystemSnapshot(
+            ObservedAtUtc: observedAt,
+            BatteryBanks:
+            [
+                new PowerSystemBatteryBankSnapshot(
+                    BankId: "bank-1a",
+                    RecordedAtUtc: observedAt.AddMinutes(-59).AddSeconds(-45),
+                    Source: PowerMetricSource.JkBms),
+                new PowerSystemBatteryBankSnapshot(
+                    BankId: "bank-2a",
+                    RecordedAtUtc: observedAt.AddHours(-2).AddMinutes(-30),
+                    Source: PowerMetricSource.JkBms),
+            ]);
+
+        var model = PowerStatusViewModel.FromSnapshot(snapshot);
+
+        model.BatteryBanks[0].Seen.Should().Be("59 min ago");
+        model.BatteryBanks[1].Seen.Should().Be("2 hr ago");
+    }
+
     private static SourcedValue<T> Value<T>(T value, PowerMetricSource source, DateTime recordedAt)
         => new(value, source, recordedAt);
 }
