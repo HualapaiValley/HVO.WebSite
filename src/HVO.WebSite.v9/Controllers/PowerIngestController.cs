@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Asp.Versioning;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Telemetry;
 using Microsoft.AspNetCore.Authorization;
@@ -239,6 +240,27 @@ public class PowerIngestController : ControllerBase
             })
             .ToListAsync(ct);
         return Ok(rows);
+    }
+
+    /// <summary>Returns the latest composed power-system snapshot from recent source readings.</summary>
+    [HttpGet("system/latest")]
+    [Authorize(Policy = "PowerRead")]
+    [ProducesResponseType(typeof(PowerSystemSnapshot), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerSystemSnapshot>> GetLatestSystemSnapshot(
+        [FromQuery][Range(1, 1440)] int lookbackMinutes = 60,
+        CancellationToken ct = default)
+    {
+        var cutoffUtc = DateTime.UtcNow.AddMinutes(-lookbackMinutes);
+        var readings = await _db.PowerReadings
+            .Where(r => r.RecordedAt >= cutoffUtc)
+            .OrderByDescending(r => r.RecordedAt)
+            .Take(500)
+            .ToListAsync(ct);
+
+        return Ok(PowerSystemSnapshotComposer.Compose(readings, DateTime.UtcNow));
     }
 
     private static PowerReading MapToEntity(

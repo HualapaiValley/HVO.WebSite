@@ -1,6 +1,7 @@
 using FluentAssertions;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Controllers;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Telemetry;
@@ -190,6 +191,38 @@ public sealed class PowerIngestControllerTests
         body.All(r => r.SourceId == "source-a").Should().BeTrue();
     }
 
+    [TestMethod]
+    public async Task GetLatestSystemSnapshot_ComposesRecentSourceReadings()
+    {
+        var now = DateTime.UtcNow;
+        var solarAssistant = MakeEntity("solarassistant-total", now.AddMinutes(-5), 1300, "solarassistant");
+        solarAssistant.LoadPowerW = 875;
+        solarAssistant.GridPowerW = -25;
+        solarAssistant.BatteryStateOfChargePercent = 82;
+
+        var smartShunt = MakeEntity("smartshunt-main", now.AddMinutes(-2), 0, "victron-smartshunt");
+        smartShunt.BatteryVoltageV = 53.74;
+        smartShunt.BatteryCurrentA = -20.72;
+        smartShunt.BatteryPowerW = -1113;
+        smartShunt.BatteryStateOfChargePercent = 0;
+
+        _db.PowerReadings.AddRange(
+            solarAssistant,
+            smartShunt,
+            MakeEntity("old-source", now.AddHours(-2), 9999, "solarassistant"));
+        await _db.SaveChangesAsync();
+
+        var result = await _ctrl.GetLatestSystemSnapshot(lookbackMinutes: 30, CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeOfType<PowerSystemSnapshot>().Subject;
+        body.Pv!.PowerW!.Value.Should().Be(1300);
+        body.Ac!.GridFlowDirection!.Value.Should().Be(PowerFlowDirection.Export);
+        body.Battery!.StateOfChargePercent!.Value.Should().Be(82);
+        body.Battery.VoltageV!.Source.Should().Be(PowerMetricSource.VictronSmartShunt);
+        body.Battery.FlowDirection!.Value.Should().Be(PowerFlowDirection.Charging);
+    }
+
     private static PowerIngestController CreateController(HvoV9DbContext db, PowerIngestTelemetry telemetry)
     {
         var ctrl = new PowerIngestController(db, telemetry, NullLogger<PowerIngestController>.Instance);
@@ -233,12 +266,15 @@ public sealed class PowerIngestControllerTests
         InverterMode = inverterMode,
     };
 
-    private static PowerReading MakeEntity(string sourceId, string recordedAt, double pvPowerW) => new()
+    private static PowerReading MakeEntity(string sourceId, string recordedAt, double pvPowerW) =>
+        MakeEntity(sourceId, DateTime.Parse(recordedAt, null, System.Globalization.DateTimeStyles.RoundtripKind), pvPowerW, "solarassistant");
+
+    private static PowerReading MakeEntity(string sourceId, DateTime recordedAt, double pvPowerW, string sourceSystem) => new()
     {
         SourceId = sourceId,
-        SourceSystem = "solarassistant",
+        SourceSystem = sourceSystem,
         DeviceId = "total",
-        RecordedAt = DateTime.Parse(recordedAt, null, System.Globalization.DateTimeStyles.RoundtripKind),
+        RecordedAt = recordedAt,
         PvPowerW = pvPowerW,
         CreatedAt = DateTime.UtcNow,
     };
