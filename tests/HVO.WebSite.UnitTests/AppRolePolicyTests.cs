@@ -30,6 +30,22 @@ public class AppRolePolicyTests
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
     }
 
+    private static ClaimsPrincipal UserWithScope(string scope) =>
+        new(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.Name, "test@example.com"),
+            new Claim("scope", scope)
+        }, "TestAuth"));
+
+    private static void AddPowerStatusViewPolicy(AuthorizationOptions options)
+    {
+        options.AddPolicy("PowerStatusView", p => p.RequireAssertion(context =>
+            context.User.IsInRole(AppRoles.User)
+            || context.User.IsInRole(AppRoles.Admin)
+            || context.User.HasClaim("scope", ApiScopes.PowerRead)
+            || context.User.HasClaim("scope", ApiScopes.ApiRead)));
+    }
+
     private static ClaimsPrincipal AnonymousUser() =>
         new ClaimsPrincipal(new ClaimsIdentity());
 
@@ -137,6 +153,70 @@ public class AppRolePolicyTests
             o.AddPolicy("UserOrAdmin", p => p.RequireRole(AppRoles.User, AppRoles.Admin)));
 
         var result = await authz.AuthorizeAsync(UserWithRoles(), null, "UserOrAdmin");
+
+        result.Succeeded.Should().BeFalse();
+    }
+
+    // -------------------------------------------------------------------------
+    // PowerStatusView policy
+    // -------------------------------------------------------------------------
+
+    [TestMethod]
+    public async Task PowerStatusView_AllowsAdminRole()
+    {
+        var authz = BuildAuthorizationService(AddPowerStatusViewPolicy);
+
+        var result = await authz.AuthorizeAsync(UserWithRoles("Admin"), null, "PowerStatusView");
+
+        result.Succeeded.Should().BeTrue();
+    }
+
+    [TestMethod]
+    public async Task PowerStatusView_AllowsUserRole()
+    {
+        var authz = BuildAuthorizationService(AddPowerStatusViewPolicy);
+
+        var result = await authz.AuthorizeAsync(UserWithRoles("User"), null, "PowerStatusView");
+
+        result.Succeeded.Should().BeTrue();
+    }
+
+    [TestMethod]
+    public async Task PowerStatusView_AllowsPowerReadScope()
+    {
+        var authz = BuildAuthorizationService(AddPowerStatusViewPolicy);
+
+        var result = await authz.AuthorizeAsync(UserWithScope(ApiScopes.PowerRead), null, "PowerStatusView");
+
+        result.Succeeded.Should().BeTrue();
+    }
+
+    [TestMethod]
+    public async Task PowerStatusView_AllowsApiReadScope()
+    {
+        var authz = BuildAuthorizationService(AddPowerStatusViewPolicy);
+
+        var result = await authz.AuthorizeAsync(UserWithScope(ApiScopes.ApiRead), null, "PowerStatusView");
+
+        result.Succeeded.Should().BeTrue();
+    }
+
+    [TestMethod]
+    public async Task PowerStatusView_DeniesAnonymous()
+    {
+        var authz = BuildAuthorizationService(AddPowerStatusViewPolicy);
+
+        var result = await authz.AuthorizeAsync(AnonymousUser(), null, "PowerStatusView");
+
+        result.Succeeded.Should().BeFalse();
+    }
+
+    [TestMethod]
+    public async Task PowerStatusView_DeniesUserWithNoRolesOrScopes()
+    {
+        var authz = BuildAuthorizationService(AddPowerStatusViewPolicy);
+
+        var result = await authz.AuthorizeAsync(UserWithRoles(), null, "PowerStatusView");
 
         result.Succeeded.Should().BeFalse();
     }
