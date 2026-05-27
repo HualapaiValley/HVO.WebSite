@@ -161,8 +161,8 @@ The current ACA deployment is running with:
 
 | Item | Value |
 |------|-------|
-| Image | `hvoobsacr.azurecr.io/hvo-website:1.0.12` |
-| Revision | `hvo-website--0000014` |
+| Image | `hvoobsacr.azurecr.io/hvo-website:1.0.13` |
+| Revision | `hvo-website--0000015` |
 | FQDN | `hvo-website.calmsand-72a6c5ac.westus.azurecontainerapps.io` |
 | Ingress | External HTTPS via ACA |
 | Target port | `8080` |
@@ -182,8 +182,8 @@ Verified smoke-test results:
 - `/admin` redirects to Microsoft Entra sign-in instead of failing server-side
 - `/admin` now emits an HTTPS `redirect_uri` for `/signin-oidc` that matches the Entra app registration
 - Interactive browser sign-in succeeds and an authorized user can see the live power snapshot card
-- Authenticated `/api/v1/power/system/latest` includes 7 JK BMS battery banks with aggregate `bankCount=7` and `hasAlarms=false`
-- The live power card displays per-bank freshness using each bank reading timestamp
+- Authenticated `/api/v1/power/system/latest` includes 7 JK BMS battery banks with aggregate `bankCount=7`
+- The live power card displays per-bank freshness using each bank reading timestamp and highlights aging or stale banks while preserving alarm styling
 
 ## Current Runtime Status
 
