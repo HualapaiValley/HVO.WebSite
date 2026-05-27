@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using FluentAssertions;
 using HVO.Edge.Contracts.PowerSystem;
 
@@ -7,6 +8,11 @@ namespace HVO.Edge.Contracts.Tests;
 [TestClass]
 public sealed class PowerSystemSnapshotTests
 {
+    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
+
     [TestMethod]
     public void PowerSystemSnapshot_SupportsSourceProvenancePerMetric()
     {
@@ -46,10 +52,12 @@ public sealed class PowerSystemSnapshotTests
                     DeltaCellVoltageV: new SourcedValue<double>(0.003, PowerMetricSource.JkBms, recordedAtUtc))
             ]);
 
-        var json = JsonSerializer.Serialize(snapshot);
-        var result = JsonSerializer.Deserialize<PowerSystemSnapshot>(json);
+        var json = JsonSerializer.Serialize(snapshot, WebJsonOptions);
+        var result = JsonSerializer.Deserialize<PowerSystemSnapshot>(json, WebJsonOptions);
 
         result.Should().NotBeNull();
+        json.Should().Contain("\"loadPowerW\"");
+        json.Should().Contain("\"source\":\"SolarAssistant\"");
         result!.ObservedAtUtc.Should().Be(recordedAtUtc);
         result.Ac!.LoadPowerW!.Value.Should().Be(875.25);
         result.Ac.InverterMode!.Value.Should().Be("Battery");
