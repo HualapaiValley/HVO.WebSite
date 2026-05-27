@@ -89,8 +89,9 @@ public sealed record PowerStatusViewModel(
         => banks is { Count: > 0 }
             ? banks
                 .OrderBy(b => b.BankId, StringComparer.OrdinalIgnoreCase)
-                .Select(b => new PowerStatusBankViewModel(
+                .Select((b, index) => new PowerStatusBankViewModel(
                     BankId: b.BankId,
+                    HeadingId: $"power-bank-{index + 1}",
                     StateOfCharge: FormatPercent(b.StateOfChargePercent?.Value),
                     Voltage: FormatVolts(b.VoltageV?.Value),
                     Current: FormatSignedAmps(b.CurrentA?.Value),
@@ -133,6 +134,7 @@ public sealed record PowerStatusViewModel(
 
 public sealed record PowerStatusBankViewModel(
     string BankId,
+    string HeadingId,
     string StateOfCharge,
     string Voltage,
     string Current,
