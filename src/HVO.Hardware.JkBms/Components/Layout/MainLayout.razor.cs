@@ -155,13 +155,14 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private ShellFooterItem BuildApiFooterItem()
     {
+        var pendingCount = Forwarder.PendingCount;
         var evaluation = EdgeOutboxHealthEvaluator.Evaluate(
             new EdgeOutboxObservation(
-                PendingCount: Forwarder.PendingCount,
+                PendingCount: pendingCount,
                 FailedCount: Forwarder.FailedCount,
                 LastSentAtUtc: Forwarder.LastSentAt,
                 LastBatchCount: Forwarder.LastBatchCount,
-                LastError: Forwarder.LastError),
+                LastError: pendingCount > 0 ? Forwarder.LastError : null),
             new EdgeOutboxHealthOptions(
                 PendingWarningCount: OutboxOptions.PendingWarningCount,
                 FailedCriticalCount: OutboxOptions.FailedCriticalCount));

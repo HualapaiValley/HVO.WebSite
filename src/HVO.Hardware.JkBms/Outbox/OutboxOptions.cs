@@ -40,7 +40,7 @@ public sealed class OutboxOptions
     [Range(0, 100000)]
     public int PendingWarningCount { get; set; } = 10;
 
-    /// <summary>Classify historical failed outbox records as over-threshold at this count. Historical failures warn/degrade; current forwarding failures are critical. Set to 0 to disable.</summary>
+    /// <summary>Classify historical failed outbox records as over-threshold at this count. Historical failures still warn/degrade; set to 0 to disable only the over-threshold classification.</summary>
     [Range(0, 100000)]
     public int FailedCriticalCount { get; set; } = 1;
 
