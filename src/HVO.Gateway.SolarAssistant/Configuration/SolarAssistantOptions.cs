@@ -78,7 +78,7 @@ public sealed class SolarAssistantOptions
     [Range(0, 100000)]
     public int OutboxPendingWarningCount { get; set; } = 10;
 
-    /// <summary>Raise a critical local alert when failed outbox records reach this count. Set to 0 to disable.</summary>
+    /// <summary>Classify historical failed outbox records as over-threshold at this count. Historical failures warn/degrade; current forwarding failures are critical. Set to 0 to disable.</summary>
     [Range(0, 100000)]
     public int OutboxFailedCriticalCount { get; set; } = 1;
 

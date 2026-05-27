@@ -12,10 +12,10 @@ public static class EdgeOutboxHealthEvaluator
         options ??= EdgeOutboxHealthOptions.Default;
 
         if (observation.PendingCount < 0)
-            throw new ArgumentOutOfRangeException(nameof(observation), observation.PendingCount, "Pending count cannot be negative.");
+            throw new ArgumentOutOfRangeException(nameof(observation.PendingCount), observation.PendingCount, "Pending count cannot be negative.");
 
         if (observation.FailedCount < 0)
-            throw new ArgumentOutOfRangeException(nameof(observation), observation.FailedCount, "Failed count cannot be negative.");
+            throw new ArgumentOutOfRangeException(nameof(observation.FailedCount), observation.FailedCount, "Failed count cannot be negative.");
 
         var syncState = GetSyncState(observation);
         var historicalFailureState = GetHistoricalFailureState(observation, options);

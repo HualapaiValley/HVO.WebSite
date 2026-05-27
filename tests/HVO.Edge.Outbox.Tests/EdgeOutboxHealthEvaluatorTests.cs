@@ -8,7 +8,7 @@ namespace HVO.Edge.Outbox.Tests;
 public sealed class EdgeOutboxHealthEvaluatorTests
 {
     [TestMethod]
-    public void Evaluate_returns_healthy_when_idle_without_backlog_or_failures()
+    public void Evaluate_ReturnsHealthy_WhenIdleWithoutBacklogOrFailures()
     {
         var result = EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(0, 0));
 
@@ -19,7 +19,7 @@ public sealed class EdgeOutboxHealthEvaluatorTests
     }
 
     [TestMethod]
-    public void Evaluate_returns_healthy_when_recent_send_succeeded_without_backlog_or_failures()
+    public void Evaluate_ReturnsHealthy_WhenRecentSendSucceededWithoutBacklogOrFailures()
     {
         var result = EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(
             PendingCount: 0,
@@ -33,7 +33,7 @@ public sealed class EdgeOutboxHealthEvaluatorTests
     }
 
     [TestMethod]
-    public void Evaluate_warns_for_pending_backlog_over_threshold()
+    public void Evaluate_WarnsForPendingBacklog_WhenOverThreshold()
     {
         var result = EdgeOutboxHealthEvaluator.Evaluate(
             new EdgeOutboxObservation(PendingCount: 11, FailedCount: 0),
@@ -45,7 +45,7 @@ public sealed class EdgeOutboxHealthEvaluatorTests
     }
 
     [TestMethod]
-    public void Evaluate_marks_current_forwarding_failure_as_critical()
+    public void Evaluate_MarksCurrentForwardingFailure_AsCritical()
     {
         var result = EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(
             PendingCount: 1,
@@ -58,7 +58,7 @@ public sealed class EdgeOutboxHealthEvaluatorTests
     }
 
     [TestMethod]
-    public void Evaluate_keeps_historical_failures_warning_when_current_sync_is_not_failing()
+    public void Evaluate_KeepsHistoricalFailuresWarning_WhenCurrentSyncIsNotFailing()
     {
         var result = EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(
             PendingCount: 0,
@@ -73,7 +73,7 @@ public sealed class EdgeOutboxHealthEvaluatorTests
     }
 
     [TestMethod]
-    public void Evaluate_allows_failed_threshold_to_disable_over_threshold_classification()
+    public void Evaluate_AllowsFailedThreshold_ToDisableOverThresholdClassification()
     {
         var result = EdgeOutboxHealthEvaluator.Evaluate(
             new EdgeOutboxObservation(PendingCount: 0, FailedCount: 3),
@@ -84,10 +84,20 @@ public sealed class EdgeOutboxHealthEvaluatorTests
     }
 
     [TestMethod]
-    public void Evaluate_rejects_negative_counts()
+    public void Evaluate_RejectsNegativePendingCount()
     {
         var act = () => EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(-1, 0));
 
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        act.Should().Throw<ArgumentOutOfRangeException>()
+            .Which.ParamName.Should().Be(nameof(EdgeOutboxObservation.PendingCount));
+    }
+
+    [TestMethod]
+    public void Evaluate_RejectsNegativeFailedCount()
+    {
+        var act = () => EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(0, -1));
+
+        act.Should().Throw<ArgumentOutOfRangeException>()
+            .Which.ParamName.Should().Be(nameof(EdgeOutboxObservation.FailedCount));
     }
 }
