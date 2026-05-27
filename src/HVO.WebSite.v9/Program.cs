@@ -9,6 +9,7 @@ using HVO.Enterprise.Telemetry.Serilog;
 using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Components.Web;
 using HVO.WebSite.v9.Middleware;
+using HVO.WebSite.v9.Services;
 using Microsoft.AspNetCore.Http.Features;
 using System.Text.Json.Serialization;
 using Scalar.AspNetCore;
@@ -142,6 +143,7 @@ namespace HVO.WebSite.v9
 
             // API key cache — short-lived to avoid DB hit on every request
             services.AddMemoryCache();
+            services.AddScoped<IPowerSystemSnapshotProvider, PowerSystemSnapshotProvider>();
 
             // Add MVC controllers (includes Microsoft Identity UI controllers for sign-in/sign-out)
             services.AddControllersWithViews()

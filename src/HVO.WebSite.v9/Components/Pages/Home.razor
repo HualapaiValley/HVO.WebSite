@@ -3,9 +3,25 @@
 <PageTitle>Home</PageTitle>
 
 <section class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 text-center">
+    <div class="row justify-content-center g-4">
+        <div class="col-lg-10 text-center">
+            <p class="text-uppercase text-info fw-semibold mb-2">Hualapai Valley Observatory</p>
             <h1 class="display-3 text-light">Home</h1>
+            <p class="lead text-light opacity-75">Current observatory power telemetry, assembled from the live edge gateways.</p>
+        </div>
+        <div class="col-lg-10">
+            <AuthorizeView Policy="PowerRead">
+                <Authorized>
+                    <PowerStatusCard />
+                </Authorized>
+                <NotAuthorized>
+                    <section class="power-status-card power-status-card--locked" aria-labelledby="power-status-heading">
+                        <p class="power-status-card__eyebrow">Power System</p>
+                        <h2 id="power-status-heading">Live Power Snapshot</h2>
+                        <p class="mb-0">Sign in with power read access to view the live power-system card.</p>
+                    </section>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
     </div>
 </section>

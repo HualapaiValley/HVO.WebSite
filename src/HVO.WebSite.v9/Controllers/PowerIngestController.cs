@@ -5,6 +5,7 @@ using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Models;
+using HVO.WebSite.v9.Services;
 using HVO.WebSite.v9.Telemetry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -25,15 +26,18 @@ public class PowerIngestController : ControllerBase
     private readonly HvoV9DbContext _db;
     private readonly PowerIngestTelemetry _telemetry;
     private readonly ILogger<PowerIngestController> _logger;
+    private readonly IPowerSystemSnapshotProvider _snapshotProvider;
 
     public PowerIngestController(
         HvoV9DbContext db,
         PowerIngestTelemetry telemetry,
-        ILogger<PowerIngestController> logger)
+        ILogger<PowerIngestController> logger,
+        IPowerSystemSnapshotProvider snapshotProvider)
     {
         _db = db;
         _telemetry = telemetry;
         _logger = logger;
+        _snapshotProvider = snapshotProvider;
     }
 
     /// <summary>
@@ -253,25 +257,8 @@ public class PowerIngestController : ControllerBase
         [FromQuery][Range(1, 1440)] int lookbackMinutes = 60,
         CancellationToken ct = default)
     {
-        var nowUtc = DateTime.UtcNow;
-        var cutoffUtc = nowUtc.AddMinutes(-lookbackMinutes);
-        var sourceSystems = new[] { "solarassistant", "victron-smartshunt" };
-        var readings = new List<PowerReading>(sourceSystems.Length);
-
-        foreach (var sourceSystem in sourceSystems)
-        {
-            var reading = await _db.PowerReadings
-                .AsNoTracking()
-                .Where(r => r.RecordedAt >= cutoffUtc && r.SourceSystem == sourceSystem)
-                .OrderByDescending(r => r.RecordedAt)
-                .ThenByDescending(r => r.Id)
-                .FirstOrDefaultAsync(ct);
-
-            if (reading is not null)
-                readings.Add(reading);
-        }
-
-        return Ok(PowerSystemSnapshotComposer.Compose(readings, nowUtc));
+        return Ok(await _snapshotProvider.GetLatestAsync(lookbackMinutes, ct)
+            ?? PowerSystemSnapshotComposer.Compose([], DateTime.UtcNow));
     }
 
     private static PowerReading MapToEntity(
@@ -280,7 +267,7 @@ public class PowerIngestController : ControllerBase
         DateTime recordedAt) => new()
         {
             SourceId = sourceId,
-            SourceSystem = NormalizeOptional(request.SourceSystem),
+            SourceSystem = NormalizeSourceSystem(request.SourceSystem),
             DeviceId = NormalizeOptional(request.DeviceId),
             RecordedAt = recordedAt,
             PvPowerW = request.PvPowerW,
@@ -307,6 +294,9 @@ public class PowerIngestController : ControllerBase
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? NormalizeSourceSystem(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
     private static DateTime NormalizeRecordedAt(DateTime recordedAt) =>
         recordedAt.ToUniversalTime();
