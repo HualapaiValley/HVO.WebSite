@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Added Docker and Docker Compose packaging for the `HVO.Gateway.SolarAssistant` service
 - Published `hvo-website` container image `1.0.6` to `hvoobsacr.azurecr.io` and deployed the latest power-system snapshot API to Azure Container Apps
 - Published `hvo-website` container image `1.0.8` to `hvoobsacr.azurecr.io`, fixed ACA HTTPS sign-in redirects, and verified browser sign-in to the live power snapshot card
+- Published `hvo-website` container image `1.0.11` to `hvoobsacr.azurecr.io`, deployed JK BMS bank details on the live power card, and resolved PR review feedback on BMS query efficiency and bank-card accessibility
 - Added website Azure Container App deployment notes and standardized the project-specific Key Vault target on `hvoobs-kv`
 - Made website container HTTPS listener configuration deployment-dependent so local Docker can keep HTTPS while ACA stays HTTP-only behind ingress
 - Documented the website configuration strategy: Key Vault for secrets, env/appsettings for deployment shape, and `v9.SiteConfiguration` for live runtime settings
