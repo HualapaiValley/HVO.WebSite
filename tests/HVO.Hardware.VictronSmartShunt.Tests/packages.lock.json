@@ -477,9 +477,19 @@
         "resolved": "0.20.0",
         "contentHash": "zbWoimlpWKBIyc9JqNr26f0pnJ7W5M78XCks0J02qXEQykWzIgzR3ZCIO7yZyeqww+Oz2Jh+62GnkErNLyIG9w=="
       },
+      "hvo.edge.contracts": {
+        "type": "Project"
+      },
+      "hvo.edge.outbox": {
+        "type": "Project",
+        "dependencies": {
+          "HVO.Edge.Contracts": "[1.0.0, )"
+        }
+      },
       "hvo.hardware.victronsmartshunt": {
         "type": "Project",
         "dependencies": {
+          "HVO.Edge.Outbox": "[1.0.0, )",
           "HVO.WebSite.Themes": "[1.0.0, )",
           "Linux.Bluetooth": "[5.67.1, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.7, )",

@@ -68,7 +68,26 @@ public sealed class SmartShuntGatewayHealthServiceTests
     }
 
     [TestMethod]
-    public void Evaluate_ReturnsCritical_ForOutboxFailureAndLowBattery()
+    public void Evaluate_ReturnsWarning_ForHistoricalFailedOutbox_WhenCurrentForwardingIsNotFailing()
+    {
+        var health = SmartShuntGatewayHealthService.Evaluate(
+            Options(),
+            DateTime.UtcNow,
+            lastError: null,
+            Snapshot(72),
+            pendingOutboxCount: 0,
+            failedOutboxCount: 71,
+            outboxError: null,
+            now: DateTime.UtcNow);
+
+        health.State.Should().Be("warning");
+        health.Alerts.Should().ContainSingle(a =>
+            a.Code == "outbox-failed" &&
+            a.Severity == SmartShuntGatewayHealthSeverity.Warning);
+    }
+
+    [TestMethod]
+    public void Evaluate_ReturnsCritical_ForCurrentOutboxFailureAndLowBattery()
     {
         var health = SmartShuntGatewayHealthService.Evaluate(
             Options(),
@@ -77,11 +96,14 @@ public sealed class SmartShuntGatewayHealthServiceTests
             Snapshot(10),
             pendingOutboxCount: 0,
             failedOutboxCount: 1,
-            outboxError: null,
+            outboxError: "website validation rejected payload",
             now: DateTime.UtcNow);
 
         health.State.Should().Be("critical");
-        health.Alerts.Select(a => a.Code).Should().Contain(["outbox-failed", "battery-critical"]);
+        health.Alerts.Select(a => a.Code).Should().Contain(["outbox-error", "outbox-failed", "battery-critical"]);
+        health.Alerts.Should().Contain(a =>
+            a.Code == "outbox-error" &&
+            a.Severity == SmartShuntGatewayHealthSeverity.Critical);
     }
 
     [TestMethod]
