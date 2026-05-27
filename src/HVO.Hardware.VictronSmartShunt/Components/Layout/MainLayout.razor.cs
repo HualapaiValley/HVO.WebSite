@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
@@ -12,6 +13,8 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 {
     private static readonly TimeSpan SampleFreshnessThreshold = TimeSpan.FromSeconds(20);
     private readonly ShellLayoutState _shellState = new();
+    private PeriodicTimer? _refreshTimer;
+    private CancellationTokenSource? _refreshCts;
 
     [Inject] private SmartShuntGatewayHealthService HealthService { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
@@ -49,13 +52,19 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     {
         _shellState.Changed += HandleShellStateChanged;
         Navigation.LocationChanged += HandleLocationChanged;
+        _refreshCts = new CancellationTokenSource();
+        _refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(5));
         UpdateFooter();
+        _ = RefreshLoopAsync(_refreshCts.Token);
     }
 
     public void Dispose()
     {
         _shellState.Changed -= HandleShellStateChanged;
         Navigation.LocationChanged -= HandleLocationChanged;
+        _refreshCts?.Cancel();
+        _refreshTimer?.Dispose();
+        _refreshCts?.Dispose();
     }
 
     private Variant GetNavLinkVariant(string section)
@@ -112,18 +121,12 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     {
         var sample = Worker.LastSnapshot;
         var health = HealthService.GetSnapshot();
-        var sampleState = BuildSampleFooterItem(sample);
-        var modeText = Options.PublicOnly
-            ? "Public-only mode"
-            : Options.EnablePrivateEnrichment
-                ? "Public + private mode"
-                : "Custom mode";
 
         _shellState.SetFooter(
             BuildHealthFooterItem(health),
-            new ShellFooterItem(Options.DeviceId),
-            sampleState,
-            new ShellFooterItem(modeText),
+            new ShellFooterItem(string.IsNullOrWhiteSpace(Options.DeviceId) ? "SmartShunt device" : Options.DeviceId),
+            BuildSampleTimestampFooterItem(sample),
+            new ShellFooterItem($"Outbox: {Forwarder.PendingCount} pending - {Forwarder.FailedCount} failed"),
             BuildApiFooterItem());
     }
 
@@ -138,14 +141,16 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         };
     }
 
-    private static ShellFooterItem BuildSampleFooterItem(SmartShuntDeviceSnapshot? sample)
+    private static ShellFooterItem BuildSampleTimestampFooterItem(SmartShuntDeviceSnapshot? sample)
     {
         if (sample is null)
-            return new ShellFooterItem("Waiting for live sample", ShellFooterIndicator.Warning);
+            return new ShellFooterItem("Waiting for sample", ShellFooterIndicator.Warning);
 
-        return DateTime.UtcNow - sample.RecordedAtUtc <= SampleFreshnessThreshold
-            ? new ShellFooterItem($"Live {sample.RecordedAtUtc.ToLocalTime():HH:mm:ss}", ShellFooterIndicator.Online)
-            : new ShellFooterItem($"Sample stale {sample.RecordedAtUtc.ToLocalTime():HH:mm:ss}", ShellFooterIndicator.Warning);
+        var indicator = DateTime.UtcNow - sample.RecordedAtUtc <= SampleFreshnessThreshold
+            ? ShellFooterIndicator.Online
+            : ShellFooterIndicator.Warning;
+
+        return new ShellFooterItem(FormatFooterTimestamp(sample.RecordedAtUtc), indicator);
     }
 
     private ShellFooterItem BuildApiFooterItem()
@@ -163,5 +168,31 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
             return new ShellFooterItem("API sync healthy", ShellFooterIndicator.Online);
 
         return new ShellFooterItem("API sync idle");
+    }
+
+    private static string FormatFooterTimestamp(DateTime value)
+        => new DateTimeOffset(value, TimeSpan.Zero)
+            .ToLocalTime()
+            .ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture);
+
+    private async Task RefreshLoopAsync(CancellationToken ct)
+    {
+        if (_refreshTimer is null)
+            return;
+
+        try
+        {
+            while (await _refreshTimer.WaitForNextTickAsync(ct))
+            {
+                UpdateFooter();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 }

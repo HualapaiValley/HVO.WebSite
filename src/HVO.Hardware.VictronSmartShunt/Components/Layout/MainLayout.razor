@@ -46,7 +46,13 @@
                     @_shellState.FooterSlot1.Text
                 </MudText>
                 <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-2">@_shellState.FooterSlot2.Text</MudText>
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-3">@_shellState.FooterSlot3.Text</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-3">
+                    @if (GetFooterIndicatorClass(_shellState.FooterSlot3.Indicator) is { } slot3IndicatorClass)
+                    {
+                        <span class="@slot3IndicatorClass" aria-hidden="true"></span>
+                    }
+                    @_shellState.FooterSlot3.Text
+                </MudText>
                 <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-4">@_shellState.FooterSlot4.Text</MudText>
                 <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-5">
                     @if (GetFooterIndicatorClass(_shellState.FooterSlot5.Indicator) is { } slot5IndicatorClass)
