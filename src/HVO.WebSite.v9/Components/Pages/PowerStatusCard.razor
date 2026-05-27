@@ -42,9 +42,9 @@
         <div class="power-bank-grid" aria-label="JK BMS battery banks">
             @foreach (var bank in _viewModel.BatteryBanks)
             {
-                <article class="power-bank @(bank.IsAlarmed ? "power-bank--alarm" : null)">
+                <article class="power-bank @(bank.IsAlarmed ? "power-bank--alarm" : null)" aria-labelledby="@BankHeadingId(bank)">
                     <div class="power-bank__header">
-                        <strong>@bank.BankId</strong>
+                        <h3 id="@BankHeadingId(bank)">@bank.BankId</h3>
                         <span>@bank.AlarmState</span>
                     </div>
                     <dl>
@@ -58,3 +58,7 @@
         </div>
     }
 </section>
+
+@code {
+    private static string BankHeadingId(Models.PowerStatusBankViewModel bank) => $"power-bank-{bank.BankId}";
+}

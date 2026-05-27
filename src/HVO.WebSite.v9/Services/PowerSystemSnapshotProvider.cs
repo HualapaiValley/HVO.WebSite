@@ -31,17 +31,25 @@ public sealed class PowerSystemSnapshotProvider(HvoV9DbContext db) : IPowerSyste
                 readings.Add(reading);
         }
 
-        var bmsReadings = (await db.BmsReadings
+        var latestBmsReadingIds = await db.BmsReadings
                 .AsNoTracking()
+                .Where(r => r.RecordedAt >= cutoffUtc)
+                .GroupBy(r => r.DeviceId)
+                .Select(g => g
+                    .OrderByDescending(r => r.RecordedAt)
+                    .ThenByDescending(r => r.Id)
+                    .Select(r => r.Id)
+                    .First())
+                .ToArrayAsync(ct);
+
+        var bmsReadings = latestBmsReadingIds.Length == 0
+            ? []
+            : await db.BmsReadings
+                .AsNoTrackingWithIdentityResolution()
                 .Include(r => r.Device)
                 .Include(r => r.CellVoltages)
-                .Where(r => r.RecordedAt >= cutoffUtc)
-                .OrderByDescending(r => r.RecordedAt)
-                .ThenByDescending(r => r.Id)
-                .ToListAsync(ct))
-            .GroupBy(r => r.DeviceId)
-            .Select(g => g.First())
-            .ToArray();
+                .Where(r => latestBmsReadingIds.Contains(r.Id))
+                .ToArrayAsync(ct);
 
         return readings.Count == 0 && bmsReadings.Length == 0
             ? null

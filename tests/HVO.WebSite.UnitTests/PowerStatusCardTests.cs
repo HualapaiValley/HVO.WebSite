@@ -50,6 +50,7 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
         component.Markup.Should().Contain("Charging");
         component.Markup.Should().Contain("SmartShunt");
         component.Markup.Should().Contain("bank-1a");
+        component.Markup.Should().Contain("aria-labelledby=\"power-bank-bank-1a\"");
         component.Markup.Should().Contain("54.04 V");
         component.Markup.Should().Contain("3 mV");
         component.Markup.Should().Contain("No alarms");
