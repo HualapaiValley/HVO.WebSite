@@ -1,3 +1,5 @@
+using HVO.Edge.Contracts;
+using HVO.Edge.Outbox;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
 using HVO.Hardware.VictronSmartShunt.Workers;
@@ -53,14 +55,7 @@ public sealed class SmartShuntGatewayHealthService(
             alerts.Add(Alert("stale", SmartShuntGatewayHealthSeverity.Critical, "Latest SmartShunt sample is stale."));
         }
 
-        if (failedOutboxCount >= options.OutboxFailedCriticalCount && options.OutboxFailedCriticalCount > 0)
-            alerts.Add(Alert("outbox-failed", SmartShuntGatewayHealthSeverity.Critical, $"{failedOutboxCount} outbox record(s) failed."));
-
-        if (pendingOutboxCount > options.OutboxPendingWarningCount)
-            alerts.Add(Alert("outbox-backlog", SmartShuntGatewayHealthSeverity.Warning, $"{pendingOutboxCount} outbox record(s) are pending."));
-
-        if (!string.IsNullOrWhiteSpace(outboxError))
-            alerts.Add(Alert("outbox-error", SmartShuntGatewayHealthSeverity.Warning, $"Outbox forwarder error: {outboxError}"));
+        alerts.AddRange(BuildOutboxAlerts(options, pendingOutboxCount, failedOutboxCount, outboxError));
 
         var batterySocLooksInvalid = snapshot is not null
             && snapshot.StateOfChargePercent.HasValue
@@ -94,4 +89,45 @@ public sealed class SmartShuntGatewayHealthService(
             Severity = severity,
             Message = message,
         };
+
+    private static IReadOnlyList<SmartShuntGatewayHealthAlert> BuildOutboxAlerts(
+        SmartShuntOptions options,
+        int pendingOutboxCount,
+        int failedOutboxCount,
+        string? outboxError)
+    {
+        var evaluation = EdgeOutboxHealthEvaluator.Evaluate(
+            new EdgeOutboxObservation(
+                PendingCount: pendingOutboxCount,
+                FailedCount: failedOutboxCount,
+                LastError: outboxError),
+            new EdgeOutboxHealthOptions(
+                PendingWarningCount: options.OutboxPendingWarningCount,
+                FailedCriticalCount: options.OutboxFailedCriticalCount));
+
+        return evaluation.Alerts
+            .Select(MapOutboxAlert)
+            .ToArray();
+    }
+
+    private static SmartShuntGatewayHealthAlert MapOutboxAlert(GatewayHealthAlert alert)
+    {
+        return Alert(
+            MapOutboxAlertCode(alert.Code),
+            alert.Severity switch
+            {
+                GatewayAlertSeverity.Critical => SmartShuntGatewayHealthSeverity.Critical,
+                GatewayAlertSeverity.Warning => SmartShuntGatewayHealthSeverity.Warning,
+                _ => SmartShuntGatewayHealthSeverity.Info,
+            },
+            alert.Message);
+    }
+
+    private static string MapOutboxAlertCode(string code) => code switch
+    {
+        "outbox-current-sync-failing" => "outbox-error",
+        "outbox-pending-backlog" => "outbox-backlog",
+        "outbox-historical-failures" or "outbox-historical-failures-over-threshold" => "outbox-failed",
+        _ => code,
+    };
 }
