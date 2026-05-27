@@ -1,3 +1,4 @@
+using System.Globalization;
 using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.Workers;
 using Microsoft.AspNetCore.Components;
@@ -115,9 +116,9 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
         _shellState.SetFooter(
             BuildConnectivityFooterItem(connectedDevices, Poller.DeviceStates.Count),
-            new ShellFooterItem($"Avg SoC {(fleetSoc.HasValue ? $"{fleetSoc.Value:0.0}%" : "--")}"),
-            BuildFreshnessFooterItem(latestPoll),
-            new ShellFooterItem($"{activeDevices.Count} reporting bank(s)"),
+            new ShellFooterItem($"JK fleet: {Poller.DeviceStates.Count} bank(s)"),
+            BuildTimestampFooterItem(latestPoll),
+            new ShellFooterItem($"Outbox: {Forwarder.PendingCount} pending - {Forwarder.FailedCount} failed"),
             BuildApiFooterItem());
     }
 
@@ -135,14 +136,15 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         return new ShellFooterItem($"{connectedDevices}/{totalDevices} banks connected", ShellFooterIndicator.Warning);
     }
 
-    private static ShellFooterItem BuildFreshnessFooterItem(DateTime? latestPoll)
+    private static ShellFooterItem BuildTimestampFooterItem(DateTime? latestPoll)
     {
         if (!latestPoll.HasValue)
-            return new ShellFooterItem("Waiting for first poll", ShellFooterIndicator.Warning);
+            return new ShellFooterItem("Waiting for data");
 
-        return DateTime.UtcNow - latestPoll.Value <= FreshPollThreshold
-            ? new ShellFooterItem($"Latest poll {latestPoll.Value.ToLocalTime():HH:mm:ss}", ShellFooterIndicator.Online)
-            : new ShellFooterItem($"Poll stale {latestPoll.Value.ToLocalTime():HH:mm:ss}", ShellFooterIndicator.Warning);
+        return new ShellFooterItem(
+            latestPoll.Value
+                .ToLocalTime()
+                .ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture));
     }
 
     private ShellFooterItem BuildApiFooterItem()
