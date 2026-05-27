@@ -22,7 +22,9 @@ public sealed class PowerStatusViewModelTests
             Battery: new PowerSystemBatterySnapshot(
                 StateOfChargePercent: Value(100d, PowerMetricSource.SolarAssistant, observedAt),
                 PowerW: Value(2700d, PowerMetricSource.VictronSmartShunt, observedAt),
-                FlowDirection: Value(PowerFlowDirection.Discharging, PowerMetricSource.VictronSmartShunt, observedAt)));
+                FlowDirection: Value(PowerFlowDirection.Discharging, PowerMetricSource.VictronSmartShunt, observedAt),
+                BankCount: Value(7, PowerMetricSource.JkBms, observedAt),
+                HasAlarms: Value(false, PowerMetricSource.JkBms, observedAt)));
 
         var model = PowerStatusViewModel.FromSnapshot(snapshot);
 
@@ -35,6 +37,8 @@ public sealed class PowerStatusViewModelTests
         model.GridPower.Should().Be("0 W");
         model.GridFlow.Should().Be("Idle");
         model.InverterMode.Should().Be("Solar/Battery");
+        model.BatteryBankCount.Should().Be("7 banks");
+        model.BatteryAlarmState.Should().Be("No alarms");
         model.SnapshotState.Should().Be("Live");
     }
 

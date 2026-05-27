@@ -13,6 +13,8 @@ public sealed record PowerStatusViewModel(
     string GridPower,
     string GridFlow,
     string InverterMode,
+    string BatteryBankCount,
+    string BatteryAlarmState,
     string ObservedAt,
     string SnapshotState)
 {
@@ -26,6 +28,8 @@ public sealed record PowerStatusViewModel(
         GridPower: "--",
         GridFlow: "Unknown",
         InverterMode: "Unknown",
+        BatteryBankCount: "--",
+        BatteryAlarmState: "Unknown",
         ObservedAt: "Waiting for power telemetry",
         SnapshotState: "Waiting");
 
@@ -47,6 +51,8 @@ public sealed record PowerStatusViewModel(
             GridPower: FormatSignedWatts(gridPower?.Value),
             GridFlow: FormatFlow(snapshot.Ac?.GridFlowDirection?.Value),
             InverterMode: snapshot.Ac?.InverterMode?.Value ?? "Unknown",
+            BatteryBankCount: FormatBankCount(snapshot.Battery?.BankCount?.Value),
+            BatteryAlarmState: FormatAlarmState(snapshot.Battery?.HasAlarms?.Value),
             ObservedAt: $"Observed {snapshot.ObservedAtUtc.ToLocalTime().ToString("dd MMM yyyy - h:mm tt", CultureInfo.InvariantCulture)}",
             SnapshotState: "Live");
     }
@@ -59,6 +65,22 @@ public sealed record PowerStatusViewModel(
 
     private static string FormatPercent(double? value)
         => value.HasValue ? $"{value.Value:0}%" : "--";
+
+    private static string FormatBankCount(int? value)
+        => value switch
+        {
+            > 1 => $"{value.Value} banks",
+            1 => "1 bank",
+            _ => "--",
+        };
+
+    private static string FormatAlarmState(bool? hasAlarms)
+        => hasAlarms switch
+        {
+            true => "Active alarm",
+            false => "No alarms",
+            _ => "Unknown",
+        };
 
     private static string FormatFlow(PowerFlowDirection? direction)
         => direction switch
