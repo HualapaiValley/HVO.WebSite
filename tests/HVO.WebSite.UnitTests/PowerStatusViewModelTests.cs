@@ -60,6 +60,7 @@ public sealed class PowerStatusViewModelTests
         model.InverterMode.Should().Be("Solar/Battery");
         model.BatteryBankCount.Should().Be("7 banks");
         model.BatteryAlarmState.Should().Be("No alarms");
+        model.BatteryFreshnessState.Should().Be("1 stale bank");
         model.BatteryBanks.Should().HaveCount(2);
         model.BatteryBanks[0].BankId.Should().Be("bank-1a");
         model.BatteryBanks[0].HeadingId.Should().Be("power-bank-1");
@@ -68,12 +69,33 @@ public sealed class PowerStatusViewModelTests
         model.BatteryBanks[0].Voltage.Should().Be("54.04 V");
         model.BatteryBanks[0].Current.Should().Be("+1.2 A");
         model.BatteryBanks[0].DeltaCellVoltage.Should().Be("3 mV");
+        model.BatteryBanks[0].FreshnessStatus.Should().Be("fresh");
         model.BatteryBanks[0].AlarmState.Should().Be("Active alarm");
         model.BatteryBanks[0].IsAlarmed.Should().BeTrue();
         model.BatteryBanks[1].BankId.Should().Be("bank-2a");
         model.BatteryBanks[1].HeadingId.Should().Be("power-bank-2");
         model.BatteryBanks[1].Seen.Should().Be("45 min ago");
+        model.BatteryBanks[1].FreshnessStatus.Should().Be("stale");
         model.SnapshotState.Should().Be("Live");
+    }
+
+    [TestMethod]
+    public void FromSnapshot_FormatsAgingBankFreshnessState()
+    {
+        var observedAt = new DateTime(2026, 5, 27, 19, 30, 0, DateTimeKind.Utc);
+        var snapshot = new PowerSystemSnapshot(
+            ObservedAtUtc: observedAt,
+            BatteryBanks:
+            [
+                new PowerSystemBatteryBankSnapshot("bank-1a", observedAt.AddMinutes(-7), PowerMetricSource.JkBms),
+                new PowerSystemBatteryBankSnapshot("bank-2a", observedAt.AddMinutes(-2), PowerMetricSource.JkBms),
+            ]);
+
+        var model = PowerStatusViewModel.FromSnapshot(snapshot);
+
+        model.BatteryFreshnessState.Should().Be("1 aging bank");
+        model.BatteryBanks[0].FreshnessStatus.Should().Be("warning");
+        model.BatteryBanks[1].FreshnessStatus.Should().Be("fresh");
     }
 
     [TestMethod]

@@ -91,6 +91,16 @@
     box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.18);
 }
 
+.power-bank--warning {
+    border-color: rgba(250, 204, 21, 0.62);
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.14);
+}
+
+.power-bank--stale {
+    border-color: rgba(251, 146, 60, 0.75);
+    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.2);
+}
+
 .power-bank__header {
     align-items: center;
     display: flex;
@@ -112,6 +122,14 @@
 
 .power-bank--alarm .power-bank__header span {
     color: #fecaca;
+}
+
+.power-bank--warning .power-bank__header span {
+    color: #fef08a;
+}
+
+.power-bank--stale .power-bank__header span {
+    color: #fed7aa;
 }
 
 .power-bank dl {
