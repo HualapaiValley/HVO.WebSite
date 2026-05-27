@@ -1,0 +1,51 @@
+@using HVO.WebSite.v9.Models
+@using HVO.WebSite.v9.Services
+@inject IPowerSystemSnapshotProvider SnapshotProvider
+
+<section class="power-status-card" aria-labelledby="power-status-heading">
+    <div class="power-status-card__header">
+        <div>
+            <p class="power-status-card__eyebrow">Power System</p>
+            <h2 id="power-status-heading">Live Power Snapshot</h2>
+        </div>
+        <span class="power-status-card__state">@_viewModel.SnapshotState</span>
+    </div>
+
+    <div class="power-status-card__grid">
+        <article class="power-metric power-metric--solar">
+            <span>PV</span>
+            <strong>@_viewModel.PvPower</strong>
+        </article>
+        <article class="power-metric power-metric--load">
+            <span>Load</span>
+            <strong>@_viewModel.LoadPower</strong>
+        </article>
+        <article class="power-metric power-metric--battery">
+            <span>Battery</span>
+            <strong>@_viewModel.BatteryPower</strong>
+            <small>@_viewModel.BatteryFlow</small>
+        </article>
+        <article class="power-metric power-metric--grid">
+            <span>Grid</span>
+            <strong>@_viewModel.GridPower</strong>
+            <small>@_viewModel.GridFlow</small>
+        </article>
+    </div>
+
+    <div class="power-status-card__footer">
+        <span>Battery SOC <strong>@_viewModel.BatteryStateOfCharge</strong></span>
+        <span>Battery source <strong>@_viewModel.BatterySource</strong></span>
+        <span>Mode <strong>@_viewModel.InverterMode</strong></span>
+        <span>@_viewModel.ObservedAt</span>
+    </div>
+</section>
+
+@code {
+    private PowerStatusViewModel _viewModel = PowerStatusViewModel.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var snapshot = await SnapshotProvider.GetLatestAsync();
+        _viewModel = PowerStatusViewModel.FromSnapshot(snapshot);
+    }
+}

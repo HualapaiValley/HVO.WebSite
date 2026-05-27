@@ -161,7 +161,7 @@ The current ACA deployment is running with:
 
 | Item | Value |
 |------|-------|
-| Image | `hvoobsacr.azurecr.io/hvo-website:1.0.3` |
+| Image | `hvoobsacr.azurecr.io/hvo-website:1.0.6` |
 | FQDN | `hvo-website.calmsand-72a6c5ac.westus.azurecontainerapps.io` |
 | Ingress | External HTTPS via ACA |
 | Target port | `8080` |
@@ -176,6 +176,7 @@ Verified smoke-test results:
 
 - `/health/live` returns `200`
 - `/health/ready` returns `200`
+- Authenticated `/api/v1/power/system/latest` returns `200` with a composed `PowerSystemSnapshot`
 - `/` returns `200`
 - `/admin` redirects to Microsoft Entra sign-in instead of failing server-side
 - `/admin` now emits an HTTPS `redirect_uri` for `/signin-oidc` that matches the Entra app registration

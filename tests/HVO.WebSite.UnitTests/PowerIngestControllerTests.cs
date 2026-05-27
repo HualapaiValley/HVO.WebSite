@@ -4,6 +4,7 @@ using HVO.DataModels.Models.V9;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Controllers;
 using HVO.WebSite.v9.Models;
+using HVO.WebSite.v9.Services;
 using HVO.WebSite.v9.Telemetry;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -254,7 +255,11 @@ public sealed class PowerIngestControllerTests
 
     private static PowerIngestController CreateController(HvoV9DbContext db, PowerIngestTelemetry telemetry)
     {
-        var ctrl = new PowerIngestController(db, telemetry, NullLogger<PowerIngestController>.Instance);
+        var ctrl = new PowerIngestController(
+            db,
+            telemetry,
+            NullLogger<PowerIngestController>.Instance,
+            new PowerSystemSnapshotProvider(db));
         ctrl.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
