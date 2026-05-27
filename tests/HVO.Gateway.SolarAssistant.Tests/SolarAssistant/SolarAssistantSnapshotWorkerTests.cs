@@ -153,6 +153,33 @@ public sealed class SolarAssistantSnapshotWorkerTests
         worker.History.Should().ContainSingle(h => h.PvPowerW == 222);
     }
 
+    [TestMethod]
+    public async Task PollOnceAsync_NoMetrics_IgnoresInvalidOutboxPayload()
+    {
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+            db.OutboxRecords.Add(new OutboxRecord
+            {
+                SourceId = "solarassistant-total",
+                DeviceId = "total",
+                RecordedAtUtc = DateTime.UtcNow,
+                Payload = "{not-json",
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var client = _provider.GetRequiredService<FakeSolarAssistantClient>();
+        client.SetMetrics([]);
+        var worker = _provider.GetRequiredService<SolarAssistantSnapshotWorker>();
+
+        var queued = await worker.PollOnceAsync(CancellationToken.None);
+
+        queued.Should().BeFalse();
+        worker.LastSnapshot.Should().BeNull();
+        worker.History.Should().BeEmpty();
+    }
+
     private sealed class FakeSolarAssistantClient : ISolarAssistantClient
     {
         private IReadOnlyList<SolarAssistantMetric> _metrics;

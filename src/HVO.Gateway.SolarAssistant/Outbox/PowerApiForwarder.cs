@@ -219,6 +219,7 @@ public sealed class PowerApiForwarder : BackgroundService
     {
         var failures = response?.Failed ?? [];
         var sentCount = 0;
+        string? lastFailureError = null;
 
         foreach (var record in records)
         {
@@ -229,6 +230,7 @@ public sealed class PowerApiForwarder : BackgroundService
             {
                 record.Status = OutboxStatus.Failed;
                 record.LastError = failure.Error;
+                lastFailureError = failure.Error;
                 _logger.LogWarning(
                     "Power outbox record {Id} dead-lettered by website validation: {Error}",
                     record.Id,
@@ -243,7 +245,7 @@ public sealed class PowerApiForwarder : BackgroundService
         }
 
         _lastBatchCount = sentCount;
-        _lastError = null;
+        _lastError = lastFailureError;
         Volatile.Write(ref _lastSentAtTicks, sentAt.Ticks);
         _logger.LogInformation("Forwarded {Count} power record(s)", sentCount);
     }

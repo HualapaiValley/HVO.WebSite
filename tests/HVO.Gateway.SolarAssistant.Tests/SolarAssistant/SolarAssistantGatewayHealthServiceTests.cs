@@ -117,6 +117,28 @@ public sealed class SolarAssistantGatewayHealthServiceTests
     }
 
     [TestMethod]
+    public void Evaluate_ReturnsCritical_ForCurrentOutboxFailureWithoutPendingRows()
+    {
+        var now = DateTime.Parse("2026-05-23T12:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+        var health = SolarAssistantGatewayHealthService.Evaluate(
+            Options(),
+            now.AddSeconds(-30),
+            snapshotError: null,
+            Snapshot(soc: 72, loadPower: 900, batteryPower: 200),
+            Mqtt("connected", now.AddSeconds(-15)),
+            pendingOutboxCount: 0,
+            failedOutboxCount: 1,
+            outboxError: "website validation rejected payload",
+            now);
+
+        health.State.Should().Be("critical");
+        health.Alerts.Should().Contain(a =>
+            a.Code == "outbox-error" &&
+            a.Severity == SolarAssistantGatewayHealthSeverity.Critical);
+    }
+
+    [TestMethod]
     public void Evaluate_ReturnsWarnings_ForLowBatteryHighLoadAndHighDischarge()
     {
         var now = DateTime.Parse("2026-05-23T12:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);

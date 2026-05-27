@@ -135,38 +135,40 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         if (_lastSnapshot is not null)
             return false;
 
-        await using var scope = _scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-        var payloadJson = await db.OutboxRecords
-            .AsNoTracking()
-            .OrderByDescending(r => r.RecordedAtUtc)
-            .Select(r => r.Payload)
-            .FirstOrDefaultAsync(ct);
-        if (string.IsNullOrWhiteSpace(payloadJson))
-            return false;
-
-        PowerReadingPayload? payload;
         try
         {
-            payload = JsonSerializer.Deserialize<PowerReadingPayload>(payloadJson, JsonOptions);
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+            var payloadJson = await db.OutboxRecords
+                .AsNoTracking()
+                .OrderByDescending(r => r.RecordedAtUtc)
+                .Select(r => r.Payload)
+                .FirstOrDefaultAsync(ct);
+            if (string.IsNullOrWhiteSpace(payloadJson))
+                return false;
+
+            var payload = JsonSerializer.Deserialize<PowerReadingPayload>(payloadJson, JsonOptions);
+            if (payload is null || payload.RecordedAtUtc == default)
+                return false;
+
+            var recordedAt = payload.RecordedAtUtc.ToUniversalTime();
+            Volatile.Write(ref _lastSnapshotAtTicks, recordedAt.Ticks);
+            _lastSnapshot = payload;
+            AddHistory(payload);
+            _logger.LogInformation(
+                "Hydrated SolarAssistant dashboard snapshot from local outbox record at {RecordedAt:O}",
+                recordedAt);
+            return true;
         }
-        catch (JsonException ex)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to hydrate SolarAssistant snapshot from local outbox payload.");
             return false;
         }
-
-        if (payload is null || payload.RecordedAtUtc == default)
-            return false;
-
-        var recordedAt = payload.RecordedAtUtc.ToUniversalTime();
-        Volatile.Write(ref _lastSnapshotAtTicks, recordedAt.Ticks);
-        _lastSnapshot = payload;
-        AddHistory(payload);
-        _logger.LogInformation(
-            "Hydrated SolarAssistant dashboard snapshot from local outbox record at {RecordedAt:O}",
-            recordedAt);
-        return true;
     }
 
     private void AddHistory(PowerReadingPayload payload)

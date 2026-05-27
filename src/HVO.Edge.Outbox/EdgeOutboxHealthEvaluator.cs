@@ -30,7 +30,7 @@ public static class EdgeOutboxHealthEvaluator
 
     private static EdgeOutboxSyncState GetSyncState(EdgeOutboxObservation observation)
     {
-        if (observation.PendingCount > 0 && !string.IsNullOrWhiteSpace(observation.LastError))
+        if (!string.IsNullOrWhiteSpace(observation.LastError))
             return EdgeOutboxSyncState.Failing;
 
         if (observation.PendingCount > 0)

@@ -58,6 +58,19 @@ public sealed class EdgeOutboxHealthEvaluatorTests
     }
 
     [TestMethod]
+    public void Evaluate_MarksCurrentForwardingFailure_AsCriticalWithoutPendingRows()
+    {
+        var result = EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(
+            PendingCount: 0,
+            FailedCount: 1,
+            LastError: "website validation rejected payload"));
+
+        result.HealthState.Should().Be(GatewayHealthState.Critical);
+        result.CurrentSyncState.Should().Be(EdgeOutboxSyncState.Failing);
+        result.Alerts.Should().Contain(alert => alert.Code == "outbox-current-sync-failing" && alert.Severity == GatewayAlertSeverity.Critical);
+    }
+
+    [TestMethod]
     public void Evaluate_KeepsHistoricalFailuresWarning_WhenCurrentSyncIsNotFailing()
     {
         var result = EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(
