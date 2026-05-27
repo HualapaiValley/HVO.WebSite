@@ -882,6 +882,9 @@
           "System.Security.Cryptography.Xml": "[10.0.7, )"
         }
       },
+      "hvo.edge.contracts": {
+        "type": "Project"
+      },
       "hvo.staging": {
         "type": "Project",
         "dependencies": {
@@ -904,6 +907,7 @@
           "Azure.Security.KeyVault.Secrets": "[4.10.0, )",
           "HVO.Core": "[1.1.1, )",
           "HVO.DataModels": "[1.0.0, )",
+          "HVO.Edge.Contracts": "[1.0.0, )",
           "HVO.Enterprise.Telemetry": "[1.0.3, )",
           "HVO.Enterprise.Telemetry.AppInsights": "[1.0.3, )",
           "HVO.Enterprise.Telemetry.Serilog": "[2.0.1, )",

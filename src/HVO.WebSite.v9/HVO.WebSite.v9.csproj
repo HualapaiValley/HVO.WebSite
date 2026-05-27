@@ -36,6 +36,7 @@
 
   <ItemGroup>
     <PackageReference Include="HVO.Core" />
+    <ProjectReference Include="..\HVO.Edge.Contracts\HVO.Edge.Contracts.csproj" />
     <ProjectReference Include="..\HVO.DataModels\HVO.DataModels.csproj" />
     <ProjectReference Include="..\HVO.WebSite.Themes\HVO.WebSite.Themes.csproj" />
   </ItemGroup>
