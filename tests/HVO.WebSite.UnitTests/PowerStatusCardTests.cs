@@ -33,7 +33,7 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
                 [
                     new PowerSystemBatteryBankSnapshot(
                         BankId: "bank-1a",
-                        RecordedAtUtc: observedAt,
+                        RecordedAtUtc: observedAt.AddMinutes(-2),
                         Source: PowerMetricSource.JkBms,
                         StateOfChargePercent: Value(91d, PowerMetricSource.JkBms, observedAt),
                         VoltageV: Value(54.037d, PowerMetricSource.JkBms, observedAt),
@@ -54,6 +54,7 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
         component.Find("article.power-bank h3").TextContent.Should().Be("bank-1a");
         component.Markup.Should().Contain("54.04 V");
         component.Markup.Should().Contain("3 mV");
+        component.Markup.Should().Contain("2 min ago");
         component.Markup.Should().Contain("No alarms");
     }
 

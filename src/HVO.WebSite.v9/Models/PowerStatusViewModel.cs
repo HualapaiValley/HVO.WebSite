@@ -55,7 +55,7 @@ public sealed record PowerStatusViewModel(
             InverterMode: snapshot.Ac?.InverterMode?.Value ?? "Unknown",
             BatteryBankCount: FormatBankCount(snapshot.Battery?.BankCount?.Value),
             BatteryAlarmState: FormatAlarmState(snapshot.Battery?.HasAlarms?.Value),
-            BatteryBanks: FormatBanks(snapshot.BatteryBanks),
+            BatteryBanks: FormatBanks(snapshot.BatteryBanks, snapshot.ObservedAtUtc),
             ObservedAt: $"Observed {snapshot.ObservedAtUtc.ToLocalTime().ToString("dd MMM yyyy - h:mm tt", CultureInfo.InvariantCulture)}",
             SnapshotState: "Live");
     }
@@ -85,13 +85,14 @@ public sealed record PowerStatusViewModel(
             _ => "Unknown",
         };
 
-    private static IReadOnlyList<PowerStatusBankViewModel> FormatBanks(IReadOnlyList<PowerSystemBatteryBankSnapshot>? banks)
+    private static IReadOnlyList<PowerStatusBankViewModel> FormatBanks(IReadOnlyList<PowerSystemBatteryBankSnapshot>? banks, DateTime observedAtUtc)
         => banks is { Count: > 0 }
             ? banks
                 .OrderBy(b => b.BankId, StringComparer.OrdinalIgnoreCase)
                 .Select((b, index) => new PowerStatusBankViewModel(
                     BankId: b.BankId,
                     HeadingId: $"power-bank-{index + 1}",
+                    Seen: FormatRelativeAge(b.RecordedAtUtc, observedAtUtc),
                     StateOfCharge: FormatPercent(b.StateOfChargePercent?.Value),
                     Voltage: FormatVolts(b.VoltageV?.Value),
                     Current: FormatSignedAmps(b.CurrentA?.Value),
@@ -109,6 +110,20 @@ public sealed record PowerStatusViewModel(
 
     private static string FormatMillivolts(double? value)
         => value.HasValue ? $"{value.Value * 1000:0} mV" : "--";
+
+    private static string FormatRelativeAge(DateTime recordedAtUtc, DateTime referenceUtc)
+    {
+        var age = referenceUtc - recordedAtUtc;
+        if (age < TimeSpan.Zero)
+            age = TimeSpan.Zero;
+
+        return age.TotalMinutes switch
+        {
+            < 1 => "just now",
+            < 60 => $"{age.TotalMinutes:0} min ago",
+            _ => $"{age.TotalHours:0.0} hr ago",
+        };
+    }
 
     private static string FormatFlow(PowerFlowDirection? direction)
         => direction switch
@@ -135,6 +150,7 @@ public sealed record PowerStatusViewModel(
 public sealed record PowerStatusBankViewModel(
     string BankId,
     string HeadingId,
+    string Seen,
     string StateOfCharge,
     string Voltage,
     string Current,
