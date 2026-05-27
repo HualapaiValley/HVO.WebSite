@@ -1,6 +1,8 @@
+using System.Text.Json;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Gateway.SolarAssistant.Workers;
@@ -8,6 +10,8 @@ namespace HVO.Gateway.SolarAssistant.Workers;
 /// <summary>Polls SolarAssistant REST metrics and writes normalized aggregate power snapshots to the outbox.</summary>
 public sealed class SolarAssistantSnapshotWorker : BackgroundService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISolarAssistantClient _client;
     private readonly SolarAssistantOptions _options;
@@ -77,6 +81,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
             {
                 _lastError = ex.Message;
                 _logger.LogWarning(ex, "SolarAssistant snapshot poll failed");
+                await TryHydrateLatestSnapshotAsync(stoppingToken);
             }
 
             try
@@ -97,6 +102,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         if (metrics.Count == 0)
         {
             _logger.LogDebug("SolarAssistant snapshot poll returned no metrics.");
+            await TryHydrateLatestSnapshotAsync(ct);
             return false;
         }
 
@@ -122,6 +128,47 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         }
 
         return inserted;
+    }
+
+    private async Task<bool> TryHydrateLatestSnapshotAsync(CancellationToken ct)
+    {
+        if (_lastSnapshot is not null)
+            return false;
+
+        try
+        {
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+            var payloadJson = await db.OutboxRecords
+                .AsNoTracking()
+                .OrderByDescending(r => r.RecordedAtUtc)
+                .Select(r => r.Payload)
+                .FirstOrDefaultAsync(ct);
+            if (string.IsNullOrWhiteSpace(payloadJson))
+                return false;
+
+            var payload = JsonSerializer.Deserialize<PowerReadingPayload>(payloadJson, JsonOptions);
+            if (payload is null || payload.RecordedAtUtc == default)
+                return false;
+
+            var recordedAt = payload.RecordedAtUtc.ToUniversalTime();
+            Volatile.Write(ref _lastSnapshotAtTicks, recordedAt.Ticks);
+            _lastSnapshot = payload;
+            AddHistory(payload);
+            _logger.LogInformation(
+                "Hydrated SolarAssistant dashboard snapshot from local outbox record at {RecordedAt:O}",
+                recordedAt);
+            return true;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to hydrate SolarAssistant snapshot from local outbox payload.");
+            return false;
+        }
     }
 
     private void AddHistory(PowerReadingPayload payload)

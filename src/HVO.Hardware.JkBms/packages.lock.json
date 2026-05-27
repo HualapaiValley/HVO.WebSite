@@ -76,6 +76,12 @@
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
+      "MudBlazor": {
+        "type": "Direct",
+        "requested": "[9.4.0, )",
+        "resolved": "9.4.0",
+        "contentHash": "p6BF8zmt4c/yi/hD9hP7yPioUK5loOnif19gwIEANq6I46407QnSu0HTW1NuALC5seRKcWb2pBP5LwC8aBE2Mg=="
+      },
       "OpenTelemetry.Api": {
         "type": "Direct",
         "requested": "[1.15.3, )",
@@ -446,6 +452,18 @@
         "type": "Transitive",
         "resolved": "0.20.0",
         "contentHash": "zbWoimlpWKBIyc9JqNr26f0pnJ7W5M78XCks0J02qXEQykWzIgzR3ZCIO7yZyeqww+Oz2Jh+62GnkErNLyIG9w=="
+      },
+      "hvo.edge.contracts": {
+        "type": "Project"
+      },
+      "hvo.edge.outbox": {
+        "type": "Project",
+        "dependencies": {
+          "HVO.Edge.Contracts": "[1.0.0, )"
+        }
+      },
+      "hvo.website.themes": {
+        "type": "Project"
       },
       "Microsoft.EntityFrameworkCore": {
         "type": "CentralTransitive",

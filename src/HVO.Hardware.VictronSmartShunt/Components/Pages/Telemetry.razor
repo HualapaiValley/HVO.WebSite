@@ -1,0 +1,112 @@
+@page "/telemetry"
+@inherits SmartShuntPageBase
+
+<PageTitle>SmartShunt Telemetry</PageTitle>
+
+<MudPaper Class="layout-canvas shell-page" Elevation="0" aria-label="SmartShunt telemetry content area">
+    <MudStack Class="shell-page-stack smartshunt-page-stack">
+        <section class="smartshunt-hero" aria-label="Telemetry header">
+            <div class="smartshunt-hero-copy">
+                <MudText Typo="Typo.overline" Class="smartshunt-eyebrow">Telemetry Inventory</MudText>
+                <MudText Typo="Typo.h3" Class="smartshunt-hero-title">@PageHeadingText</MudText>
+                <MudText Typo="Typo.body1" Class="smartshunt-hero-summary">@PageSummaryText</MudText>
+            </div>
+            <div class="smartshunt-hero-meta">
+                <div class="smartshunt-stat-chip">
+                    <span>Private enrichment</span>
+                    <strong>@PrivateEnrichmentStateText</strong>
+                </div>
+                <div class="smartshunt-stat-chip">
+                    <span>Overlay updated</span>
+                    <strong>@FormatTimestamp(PrivateInfo?.RecordedAtUtc)</strong>
+                </div>
+                <div class="smartshunt-stat-chip">
+                    <span>Session mode</span>
+                    <strong>@ModeSummary</strong>
+                </div>
+            </div>
+        </section>
+
+        <div class="smartshunt-grid smartshunt-grid-telemetry">
+            <MudPaper Class="smartshunt-card" Elevation="0">
+                <div class="smartshunt-card-head">
+                    <div>
+                        <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">Identity</MudText>
+                        <MudText Typo="Typo.h5">Private device metadata</MudText>
+                    </div>
+                </div>
+
+                <dl class="smartshunt-detail-list">
+                    <div><dt>Firmware</dt><dd>@RenderPrivateText(PrivateInfo?.FirmwareVersion)</dd></div>
+                    <div><dt>Serial</dt><dd>@RenderPrivateText(PrivateInfo?.SerialNumber)</dd></div>
+                    <div><dt>Product raw</dt><dd>@RenderPrivateText(PrivateInfo?.ProductId)</dd></div>
+                    <div><dt>Product family raw</dt><dd>@RenderPrivateText(PrivateInfo?.ProductFamilyRaw)</dd></div>
+                    <div><dt>Metadata 0x50</dt><dd>@RenderPrivateText(PrivateInfo?.ProductMetadata)</dd></div>
+                    <div><dt>Metadata 0x09 raw</dt><dd>@RenderPrivateText(PrivateInfo?.ProductMetadataRaw)</dd></div>
+                </dl>
+            </MudPaper>
+
+            <MudPaper Class="smartshunt-card" Elevation="0">
+                <div class="smartshunt-card-head">
+                    <div>
+                        <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">History overlay</MudText>
+                        <MudText Typo="Typo.h5">Discharge and cycle history</MudText>
+                    </div>
+                </div>
+
+                <dl class="smartshunt-detail-list">
+                    <div><dt>Deepest discharge</dt><dd>@RenderField(LatestSnapshot?.DeepestDischargeAh, FormatAh, isPrivateField: true)</dd></div>
+                    <div><dt>Last discharge</dt><dd>@RenderField(LatestSnapshot?.LastDischargeAh, FormatAh, isPrivateField: true)</dd></div>
+                    <div><dt>Average discharge</dt><dd>@RenderField(LatestSnapshot?.AverageDischargeAh, FormatAh, isPrivateField: true)</dd></div>
+                    <div><dt>Charge cycles</dt><dd>@RenderField(LatestSnapshot?.TotalChargeCycles, FormatCount, isPrivateField: true)</dd></div>
+                    <div><dt>Full discharges</dt><dd>@RenderField(LatestSnapshot?.FullDischarges, FormatCount, isPrivateField: true)</dd></div>
+                    <div><dt>Cumulative drawn</dt><dd>@RenderField(LatestSnapshot?.CumulativeAhDrawn, FormatAh, isPrivateField: true)</dd></div>
+                </dl>
+            </MudPaper>
+
+            <MudPaper Class="smartshunt-card" Elevation="0">
+                <div class="smartshunt-card-head">
+                    <div>
+                        <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">Voltage and alarms</MudText>
+                        <MudText Typo="Typo.h5">Private thresholds and counters</MudText>
+                    </div>
+                </div>
+
+                <dl class="smartshunt-detail-list">
+                    <div><dt>Min battery voltage</dt><dd>@RenderField(LatestSnapshot?.MinBatteryVoltageV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>Max battery voltage</dt><dd>@RenderField(LatestSnapshot?.MaxBatteryVoltageV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>Min starter voltage</dt><dd>@RenderField(LatestSnapshot?.MinStarterVoltageV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>Max starter voltage</dt><dd>@RenderField(LatestSnapshot?.MaxStarterVoltageV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>Low voltage alarms</dt><dd>@RenderField(LatestSnapshot?.LowVoltageAlarms, FormatCount, isPrivateField: true)</dd></div>
+                    <div><dt>High voltage alarms</dt><dd>@RenderField(LatestSnapshot?.HighVoltageAlarms, FormatCount, isPrivateField: true)</dd></div>
+                    <div><dt>Synchronizations</dt><dd>@RenderField(LatestSnapshot?.Synchronizations, FormatCount, isPrivateField: true)</dd></div>
+                    <div><dt>Time since last full</dt><dd>@RenderField(LatestSnapshot?.TimeSinceLastFullSeconds, FormatSeconds, isPrivateField: true)</dd></div>
+                </dl>
+            </MudPaper>
+
+            <MudPaper Class="smartshunt-card" Elevation="0">
+                <div class="smartshunt-card-head">
+                    <div>
+                        <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">Energy and thresholds</MudText>
+                        <MudText Typo="Typo.h5">Optional private values</MudText>
+                    </div>
+                </div>
+
+                <dl class="smartshunt-detail-list">
+                    <div><dt>Discharged energy</dt><dd>@RenderField(LatestSnapshot?.DischargedEnergyKwh, FormatKwh, isPrivateField: true)</dd></div>
+                    <div><dt>Charged energy</dt><dd>@RenderField(LatestSnapshot?.ChargedEnergyKwh, FormatKwh, isPrivateField: true)</dd></div>
+                    <div><dt>Low voltage set</dt><dd>@RenderField(LatestSnapshot?.AlarmLowVoltageSetV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>Low voltage clear</dt><dd>@RenderField(LatestSnapshot?.AlarmLowVoltageClearV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>High voltage set</dt><dd>@RenderField(LatestSnapshot?.AlarmHighVoltageSetV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>High voltage clear</dt><dd>@RenderField(LatestSnapshot?.AlarmHighVoltageClearV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>Low starter set</dt><dd>@RenderField(LatestSnapshot?.AlarmLowStarterSetV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>Low starter clear</dt><dd>@RenderField(LatestSnapshot?.AlarmLowStarterClearV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>High starter set</dt><dd>@RenderField(LatestSnapshot?.AlarmHighStarterSetV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>High starter clear</dt><dd>@RenderField(LatestSnapshot?.AlarmHighStarterClearV, FormatVolts, isPrivateField: true)</dd></div>
+                    <div><dt>Low SoC set</dt><dd>@RenderField(LatestSnapshot?.AlarmLowSocSetPercent, FormatPercent, isPrivateField: true)</dd></div>
+                    <div><dt>Low SoC clear</dt><dd>@RenderField(LatestSnapshot?.AlarmLowSocClearPercent, FormatPercent, isPrivateField: true)</dd></div>
+                </dl>
+            </MudPaper>
+        </div>
+    </MudStack>
+</MudPaper>

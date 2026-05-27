@@ -16,6 +16,7 @@ using HVO.Hardware.JkBms.Protocol.Transport;
 using HVO.Hardware.JkBms.Telemetry;
 using HVO.Hardware.JkBms.Workers;
 using Microsoft.EntityFrameworkCore;
+using MudBlazor.Services;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
@@ -159,6 +160,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<ForwarderCoordinat
 // ── Blazor Server ──────────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddMudServices();
 
 var app = builder.Build();
 

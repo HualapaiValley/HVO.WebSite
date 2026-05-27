@@ -266,7 +266,7 @@
                                             }
                                             @foreach (var series in _temperaturePlot.Series)
                                             {
-                                                   <path d="@series.LinePath" fill="none" stroke="@series.StrokeColor" stroke-width="1.5"
+                                                   <path d="@series.LinePath" fill="none" stroke="@series.StrokeColor" stroke-width="var(--shell-chart-line-width)"
                                                       stroke-linecap="round" stroke-linejoin="round"></path>
                                                 @if (series.CurrentPoint is not null)
                                                 {
@@ -327,7 +327,7 @@
                                             </g>
                                             @foreach (var series in _windPlot.Series)
                                             {
-                                                   <path d="@series.LinePath" fill="none" stroke="@series.StrokeColor" stroke-width="1.5"
+                                                   <path d="@series.LinePath" fill="none" stroke="@series.StrokeColor" stroke-width="var(--shell-chart-line-width)"
                                                       stroke-linecap="round" stroke-linejoin="round"></path>
                                                 @if (series.CurrentPoint is not null)
                                                 {
@@ -390,7 +390,7 @@
                                     }
                                     @foreach (var series in _solarPlot.Series)
                                     {
-                                        <path d="@series.LinePath" fill="none" stroke="@series.StrokeColor" stroke-width="1.5"
+                                        <path d="@series.LinePath" fill="none" stroke="@series.StrokeColor" stroke-width="var(--shell-chart-line-width)"
                                               stroke-linecap="round" stroke-linejoin="round"></path>
                                         @if (series.CurrentPoint is not null)
                                         {
@@ -469,4 +469,3 @@
         </MudStack>
     </MudPaper>
 </div>
-

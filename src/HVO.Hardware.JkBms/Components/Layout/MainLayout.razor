@@ -1,17 +1,84 @@
 @inherits LayoutComponentBase
 
-<div class="admin-shell">
-    <nav class="admin-nav">
-        <div class="nav-header">
-            <span class="nav-title">JK BMS</span>
-        </div>
-        <ul>
-            <li><NavLink href="/" Match="NavLinkMatch.All">Status</NavLink></li>
-            <li><NavLink href="/devices">Devices</NavLink></li>
-        </ul>
-    </nav>
+<MudThemeProvider Theme="@ShellTheme" IsDarkMode="@_shellState.IsDarkMode" IsDarkModeChanged="@OnThemeModeChanged" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-    <main class="admin-content">
-        @Body
-    </main>
-</div>
+<CascadingValue Value="@_shellState" IsFixed="true">
+<MudLayout Class="@LayoutThemeClass">
+    <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
+        <div class="shell-frame shell-bar-content shell-header-frame">
+            <div class="shell-brand-block">
+                <div class="shell-brand-mark shell-brand-mark-jk" aria-hidden="true">JK</div>
+                <div class="shell-brand-copy">
+                    <MudText Typo="Typo.h5" Class="shell-brand-text">Hualapai Valley Observatory</MudText>
+                    <MudText Typo="Typo.caption" Class="shell-brand-subtitle">JK BMS DASHBOARD</MudText>
+                </div>
+            </div>
+
+            <nav class="shell-header-nav" aria-label="Primary navigation">
+                <MudButton Href="/" Variant="@GetNavLinkVariant("Overview")" Color="Color.Inherit" Class="@GetNavLinkClass("Overview")">Overview</MudButton>
+                <MudButton Href="/devices" Variant="@GetNavLinkVariant("Banks")" Color="Color.Inherit" Class="@GetNavLinkClass("Banks")">Banks</MudButton>
+            </nav>
+
+            <MudSpacer />
+
+            <div class="shell-header-actions" aria-label="Header actions">
+                <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium" aria-label="@ThemeSelectorLabel" OnClick="ToggleTheme" />
+            </div>
+        </div>
+    </MudAppBar>
+
+    <MudMainContent Class="shell-main">
+        <div class="shell-frame shell-content">
+            @Body
+        </div>
+    </MudMainContent>
+
+    <MudAppBar Bottom="true" Fixed="true" Elevation="0" Dense="true" Class="shell-appbar shell-appbar-footer">
+        <div class="shell-frame shell-bar-content shell-footer-frame">
+            <div class="shell-footer-layout" aria-label="Footer sections">
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-1">
+                    @if (GetFooterIndicatorClass(_shellState.FooterSlot1.Indicator) is { } slot1Class)
+                    {
+                        <span class="@slot1Class" aria-hidden="true"></span>
+                    }
+                    @_shellState.FooterSlot1.Text
+                </MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-2">@_shellState.FooterSlot2.Text</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-3">
+                    @if (GetFooterIndicatorClass(_shellState.FooterSlot3.Indicator) is { } slot3Class)
+                    {
+                        <span class="@slot3Class" aria-hidden="true"></span>
+                    }
+                    @_shellState.FooterSlot3.Text
+                </MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-4">@_shellState.FooterSlot4.Text</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-5">
+                    @if (GetFooterIndicatorClass(_shellState.FooterSlot5.Indicator) is { } slot5Class)
+                    {
+                        <span class="@slot5Class" aria-hidden="true"></span>
+                    }
+                    @_shellState.FooterSlot5.Text
+                </MudText>
+            </div>
+        </div>
+    </MudAppBar>
+
+    <div id="blazor-error-ui" data-nosnippet>
+        <div class="shell-blazor-error-card">
+            <div class="shell-blazor-error-copy">
+                <strong>Blazor circuit interrupted</strong>
+                <span>An unhandled error has occurred. Reload to recover the dashboard session.</span>
+            </div>
+            <div class="shell-blazor-error-actions">
+                <a href="." class="reload">Reload</a>
+                <button type="button" class="dismiss" aria-label="Dismiss error message">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="components-reconnect-modal" data-nosnippet></div>
+</MudLayout>
+</CascadingValue>

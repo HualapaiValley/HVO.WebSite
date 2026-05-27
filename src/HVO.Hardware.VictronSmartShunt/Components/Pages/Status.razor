@@ -1,135 +1,190 @@
 @page "/"
-@page "/monitor"
+@inherits SmartShuntPageBase
 
-<PageTitle>SmartShunt Status</PageTitle>
+<PageTitle>SmartShunt Overview</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.False" Class="gateway-page">
-    <MudText Typo="Typo.h4" GutterBottom="true">SmartShunt Status</MudText>
+<MudPaper Class="layout-canvas shell-page" Elevation="0" aria-label="SmartShunt overview content area">
+    <MudStack Class="shell-page-stack smartshunt-page-stack">
+        <section class="smartshunt-hero" aria-label="Overview header">
+            <div class="smartshunt-hero-copy">
+                <MudText Typo="Typo.overline" Class="smartshunt-eyebrow">Battery Monitor Overview</MudText>
+                <MudText Typo="Typo.h3" Class="smartshunt-hero-title">@PageHeadingText</MudText>
+                <MudText Typo="Typo.body1" Class="smartshunt-hero-summary">@PageSummaryText</MudText>
+            </div>
+            <div class="smartshunt-hero-meta">
+                <div class="smartshunt-stat-chip">
+                    <span>Last sample</span>
+                    <strong>@FormatTimestamp(Worker.LastSnapshotAt)</strong>
+                </div>
+                <div class="smartshunt-stat-chip">
+                    <span>Gateway</span>
+                    <strong>@HealthLabel</strong>
+                </div>
+                <div class="smartshunt-stat-chip">
+                    <span>Data path</span>
+                    <strong>@(LatestSnapshot?.DataPath ?? "waiting")</strong>
+                </div>
+            </div>
+        </section>
 
-    <MudGrid Spacing="3">
-        <MudItem xs="12" md="6" xl="3">
-            <MudPaper Class="pa-4 gateway-card" Elevation="1">
-                <MudText Typo="Typo.overline">Gateway</MudText>
-                <MudText Typo="Typo.h6">@Health.State.ToUpperInvariant()</MudText>
-                <MudText Typo="Typo.body2">Address: @DisplayAddress</MudText>
-                <MudText Typo="Typo.body2">Adapter: @Options.Adapter</MudText>
-                <MudText Typo="Typo.body2">Mode: @ModeSummary</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="6" xl="3">
-            <MudPaper Class="pa-4 gateway-card" Elevation="1">
-                <MudText Typo="Typo.overline">Live Telemetry</MudText>
-                <MudText Typo="Typo.h6">@FormatPercent(LatestSnapshot?.StateOfChargePercent)</MudText>
-                <MudText Typo="Typo.body2">Voltage: @FormatVolts(LatestSnapshot?.VoltageV)</MudText>
-                <MudText Typo="Typo.body2">Current: @CurrentDisplay</MudText>
-                <MudText Typo="Typo.body2">Power: @FormatWatts(LatestSnapshot?.PowerW)</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="6" xl="3">
-            <MudPaper Class="pa-4 gateway-card" Elevation="1">
-                <MudText Typo="Typo.overline">Extended Fields</MudText>
-                <MudText Typo="Typo.h6">Consumed: @FormatAh(LatestSnapshot?.ConsumedAh)</MudText>
-                <MudText Typo="Typo.body2">Remaining: @FormatMinutes(LatestSnapshot?.RemainingMinutes)</MudText>
-                <MudText Typo="Typo.body2">Starter voltage: @FormatVolts(LatestSnapshot?.StarterVoltageV)</MudText>
-                <MudText Typo="Typo.body2">Temperature: @FormatTemperature(LatestSnapshot?.TemperatureC)</MudText>
-                <MudText Typo="Typo.body2">Public session: @FormatBool(LatestSnapshot?.PublicSessionActive)</MudText>
-                <MudText Typo="Typo.body2">Private enrichment: @FormatBool(LatestSnapshot?.PrivateEnrichmentActive)</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="6" xl="3">
-            <MudPaper Class="pa-4 gateway-card" Elevation="1">
-                <MudText Typo="Typo.overline">Outbox</MudText>
-                <MudText Typo="Typo.h6">Pending @Forwarder.PendingCount</MudText>
-                <MudText Typo="Typo.body2">Failed: @Forwarder.FailedCount</MudText>
-                <MudText Typo="Typo.body2">Last sent: @FormatTimestamp(Forwarder.LastSentAt)</MudText>
-                <MudText Typo="Typo.body2">Last batch: @Forwarder.LastBatchCount</MudText>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
+        <div class="smartshunt-grid smartshunt-grid-overview">
+            <MudPaper Class="smartshunt-card smartshunt-card-primary" Elevation="0">
+                <div class="smartshunt-card-head">
+                    <div>
+                        <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">Live battery</MudText>
+                        <MudText Typo="Typo.h5">Primary telemetry</MudText>
+                    </div>
+                    <span class="smartshunt-badge @TelemetryModeBadgeClass">@ModeSummary</span>
+                </div>
 
-    <MudGrid Spacing="3" Class="mt-1">
-        <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4 gateway-card" Elevation="1">
-                <MudText Typo="Typo.h6" GutterBottom="true">Device State</MudText>
-                <MudText Typo="Typo.body2">SourceId: @Options.SourceId</MudText>
-                <MudText Typo="Typo.body2">DeviceId: @Options.DeviceId</MudText>
-                <MudText Typo="Typo.body2">Last sample: @FormatTimestamp(Worker.LastSnapshotAt)</MudText>
-                <MudText Typo="Typo.body2">Data path: @(LatestSnapshot?.DataPath ?? "--")</MudText>
-                <MudText Typo="Typo.body2">Last error: @(Worker.LastError ?? "--")</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4 gateway-card" Elevation="1">
-                <MudText Typo="Typo.h6" GutterBottom="true">Private Info</MudText>
-                <MudText Typo="Typo.body2">Firmware: @(PrivateInfo?.FirmwareVersion ?? "--")</MudText>
-                <MudText Typo="Typo.body2">Serial: @(PrivateInfo?.SerialNumber ?? "--")</MudText>
-                <MudText Typo="Typo.body2">Product raw: @(PrivateInfo?.ProductId ?? "--")</MudText>
-                <MudText Typo="Typo.body2">Product family raw: @(PrivateInfo?.ProductFamilyRaw ?? "--")</MudText>
-                <MudText Typo="Typo.body2">Metadata 0x50: @(PrivateInfo?.ProductMetadata ?? "--")</MudText>
-                <MudText Typo="Typo.body2">Metadata 0x09 raw: @(PrivateInfo?.ProductMetadataRaw ?? "--")</MudText>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
+                <div class="smartshunt-gauge-grid" aria-label="Primary battery gauges">
+                    <div class="smartshunt-gauge-tile">
+                        <div class="smartshunt-gauge" style="@SocGaugeStyle">
+                            <div class="smartshunt-gauge-inner">
+                                <span>SoC</span>
+                                <strong>@FormatPercent(LatestSnapshot?.StateOfChargePercent)</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="smartshunt-gauge-tile">
+                        <div class="smartshunt-gauge" style="@VoltageGaugeStyle">
+                            <div class="smartshunt-gauge-inner">
+                                <span>Voltage</span>
+                                <strong>@FormatVolts(LatestSnapshot?.VoltageV)</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="smartshunt-gauge-tile">
+                        <div class="smartshunt-gauge" style="@PowerGaugeStyle">
+                            <div class="smartshunt-gauge-inner">
+                                <span>Power</span>
+                                <strong>@FormatWatts(LatestSnapshot?.PowerW)</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-    <MudGrid Spacing="3" Class="mt-1">
-        <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4 gateway-card" Elevation="1">
-                <MudText Typo="Typo.h6" GutterBottom="true">History Overlay</MudText>
-                <MudText Typo="Typo.body2">Deepest discharge: @FormatAh(LatestSnapshot?.DeepestDischargeAh)</MudText>
-                <MudText Typo="Typo.body2">Last discharge: @FormatAh(LatestSnapshot?.LastDischargeAh)</MudText>
-                <MudText Typo="Typo.body2">Average discharge: @FormatAh(LatestSnapshot?.AverageDischargeAh)</MudText>
-                <MudText Typo="Typo.body2">Charge cycles: @FormatCount(LatestSnapshot?.TotalChargeCycles)</MudText>
-                <MudText Typo="Typo.body2">Full discharges: @FormatCount(LatestSnapshot?.FullDischarges)</MudText>
-                <MudText Typo="Typo.body2">Cumulative drawn: @FormatAh(LatestSnapshot?.CumulativeAhDrawn)</MudText>
+                <div class="smartshunt-metric-grid">
+                    <div class="smartshunt-metric-tile">
+                        <span>State of charge</span>
+                        <strong>@FormatPercent(LatestSnapshot?.StateOfChargePercent)</strong>
+                    </div>
+                    <div class="smartshunt-metric-tile">
+                        <span>Voltage</span>
+                        <strong>@FormatVolts(LatestSnapshot?.VoltageV)</strong>
+                    </div>
+                    <div class="smartshunt-metric-tile">
+                        <span>Current</span>
+                        <strong>@CurrentDisplay</strong>
+                    </div>
+                    <div class="smartshunt-metric-tile">
+                        <span>Power</span>
+                        <strong>@FormatWatts(LatestSnapshot?.PowerW)</strong>
+                    </div>
+                    <div class="smartshunt-metric-tile">
+                        <span>Consumed Ah</span>
+                        <strong>@FormatAh(LatestSnapshot?.ConsumedAh)</strong>
+                    </div>
+                    <div class="smartshunt-metric-tile">
+                        <span>Remaining time</span>
+                        <strong>@RenderField(LatestSnapshot?.RemainingMinutes, FormatMinutes, isPrivateField: false)</strong>
+                    </div>
+                </div>
             </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4 gateway-card" Elevation="1">
-                <MudText Typo="Typo.h6" GutterBottom="true">Additional Overlay</MudText>
-                <MudText Typo="Typo.body2">Time since last full: @FormatSeconds(LatestSnapshot?.TimeSinceLastFullSeconds)</MudText>
-                <MudText Typo="Typo.body2">Synchronizations: @FormatCount(LatestSnapshot?.Synchronizations)</MudText>
-                <MudText Typo="Typo.body2">Low voltage alarms: @FormatCount(LatestSnapshot?.LowVoltageAlarms)</MudText>
-                <MudText Typo="Typo.body2">High voltage alarms: @FormatCount(LatestSnapshot?.HighVoltageAlarms)</MudText>
-                <MudText Typo="Typo.body2">Min battery voltage: @FormatVolts(LatestSnapshot?.MinBatteryVoltageV)</MudText>
-                <MudText Typo="Typo.body2">Max battery voltage: @FormatVolts(LatestSnapshot?.MaxBatteryVoltageV)</MudText>
-                <MudText Typo="Typo.body2">Min starter voltage: @FormatVolts(LatestSnapshot?.MinStarterVoltageV)</MudText>
-                <MudText Typo="Typo.body2">Max starter voltage: @FormatVolts(LatestSnapshot?.MaxStarterVoltageV)</MudText>
-                <MudText Typo="Typo.body2">Discharged energy: @FormatKwh(LatestSnapshot?.DischargedEnergyKwh)</MudText>
-                <MudText Typo="Typo.body2">Charged energy: @FormatKwh(LatestSnapshot?.ChargedEnergyKwh)</MudText>
-                <MudText Typo="Typo.body2">Charge status coarse: @FormatPercent(LatestSnapshot?.ChargeStatusCoarsePercent)</MudText>
-                <MudText Typo="Typo.body2">Current coarse: @FormatAmps(LatestSnapshot?.CurrentCoarseA)</MudText>
-                <MudText Typo="Typo.body2">Streaming counter: @FormatCount(LatestSnapshot?.StreamingCounter)</MudText>
-                <MudText Typo="Typo.body2">Overlay timestamp: @FormatTimestamp(PrivateInfo?.RecordedAtUtc)</MudText>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
 
-    <MudGrid Spacing="3" Class="mt-1">
-        <MudItem xs="12">
-            <MudPaper Class="pa-4 gateway-card" Elevation="1">
-                <MudText Typo="Typo.h6" GutterBottom="true">Alarm Threshold Overlay</MudText>
-                <MudText Typo="Typo.body2">Low voltage set: @FormatVolts(LatestSnapshot?.AlarmLowVoltageSetV)</MudText>
-                <MudText Typo="Typo.body2">Low voltage clear: @FormatVolts(LatestSnapshot?.AlarmLowVoltageClearV)</MudText>
-                <MudText Typo="Typo.body2">High voltage set: @FormatVolts(LatestSnapshot?.AlarmHighVoltageSetV)</MudText>
-                <MudText Typo="Typo.body2">High voltage clear: @FormatVolts(LatestSnapshot?.AlarmHighVoltageClearV)</MudText>
-                <MudText Typo="Typo.body2">Low starter set: @FormatVolts(LatestSnapshot?.AlarmLowStarterSetV)</MudText>
-                <MudText Typo="Typo.body2">Low starter clear: @FormatVolts(LatestSnapshot?.AlarmLowStarterClearV)</MudText>
-                <MudText Typo="Typo.body2">High starter set: @FormatVolts(LatestSnapshot?.AlarmHighStarterSetV)</MudText>
-                <MudText Typo="Typo.body2">High starter clear: @FormatVolts(LatestSnapshot?.AlarmHighStarterClearV)</MudText>
-                <MudText Typo="Typo.body2">Low SoC set: @FormatPercent(LatestSnapshot?.AlarmLowSocSetPercent)</MudText>
-                <MudText Typo="Typo.body2">Low SoC clear: @FormatPercent(LatestSnapshot?.AlarmLowSocClearPercent)</MudText>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
+            <MudPaper Class="smartshunt-card" Elevation="0">
+                <div class="smartshunt-card-head">
+                    <div>
+                        <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">Gateway state</MudText>
+                        <MudText Typo="Typo.h5">Collector runtime</MudText>
+                    </div>
+                </div>
 
-    @if (Health.Alerts.Count > 0)
-    {
-        <MudPaper Class="pa-4 gateway-card mt-4" Elevation="1">
-            <MudText Typo="Typo.h6" GutterBottom="true">Health Alerts</MudText>
-            @foreach (var alert in Health.Alerts)
-            {
-                <MudAlert Severity="@MapSeverity(alert.Severity)" Dense="true" Class="mb-2">@alert.Message</MudAlert>
-            }
+                <dl class="smartshunt-detail-list">
+                    <div><dt>Address</dt><dd>@DisplayAddress</dd></div>
+                    <div><dt>Adapter</dt><dd>@Options.Adapter</dd></div>
+                    <div><dt>Source ID</dt><dd>@Options.SourceId</dd></div>
+                    <div><dt>Device ID</dt><dd>@Options.DeviceId</dd></div>
+                    <div><dt>Public session</dt><dd>@FormatBool(LatestSnapshot?.PublicSessionActive)</dd></div>
+                    <div><dt>Private enrichment</dt><dd>@PrivateEnrichmentStateText</dd></div>
+                    <div><dt>Last error</dt><dd>@(Worker.LastError ?? "None")</dd></div>
+                    <div><dt>Status endpoint</dt><dd>/status</dd></div>
+                </dl>
+            </MudPaper>
+
+            <MudPaper Class="smartshunt-card" Elevation="0">
+                <div class="smartshunt-card-head">
+                    <div>
+                        <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">Optional live fields</MudText>
+                        <MudText Typo="Typo.h5">Device-reported extras</MudText>
+                    </div>
+                </div>
+
+                <dl class="smartshunt-detail-list">
+                    <div><dt>Starter voltage</dt><dd>@RenderField(LatestSnapshot?.StarterVoltageV, FormatVolts)</dd></div>
+                    <div><dt>Temperature</dt><dd>@RenderField(LatestSnapshot?.TemperatureC, FormatTemperature)</dd></div>
+                    <div><dt>Remaining time</dt><dd>@RenderField(LatestSnapshot?.RemainingMinutes, FormatMinutes)</dd></div>
+                    <div><dt>Current coarse</dt><dd>@RenderField(LatestSnapshot?.CurrentCoarseA, FormatAmps, isPrivateField: true)</dd></div>
+                    <div><dt>Charge status coarse</dt><dd>@RenderField(LatestSnapshot?.ChargeStatusCoarsePercent, FormatPercent, isPrivateField: true)</dd></div>
+                    <div><dt>Streaming counter</dt><dd>@RenderField(LatestSnapshot?.StreamingCounter, FormatCount, isPrivateField: true)</dd></div>
+                </dl>
+            </MudPaper>
+
+            <MudPaper Class="smartshunt-card" Elevation="0">
+                <div class="smartshunt-card-head">
+                    <div>
+                        <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">Outbox</MudText>
+                        <MudText Typo="Typo.h5">Forwarding health</MudText>
+                    </div>
+                </div>
+
+                <dl class="smartshunt-detail-list">
+                    <div><dt>Pending</dt><dd>@Forwarder.PendingCount</dd></div>
+                    <div><dt>Failed</dt><dd>@Forwarder.FailedCount</dd></div>
+                    <div><dt>Last sent</dt><dd>@FormatTimestamp(Forwarder.LastSentAt)</dd></div>
+                    <div><dt>Last batch</dt><dd>@Forwarder.LastBatchCount</dd></div>
+                </dl>
+            </MudPaper>
+        </div>
+
+        <MudPaper Class="smartshunt-card smartshunt-card-note" Elevation="0">
+            <div class="smartshunt-card-head">
+                <div>
+                    <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">Field visibility</MudText>
+                    <MudText Typo="Typo.h5">Why some values are blank</MudText>
+                </div>
+            </div>
+
+            <div class="smartshunt-note-grid">
+                <div>
+                    <span class="smartshunt-inline-badge smartshunt-inline-badge-warning">Private disabled</span>
+                    <p>Private-enrichment fields are intentionally unavailable while `PublicOnly=true` or `EnablePrivateEnrichment=false`.</p>
+                </div>
+                <div>
+                    <span class="smartshunt-inline-badge smartshunt-inline-badge-neutral">Not reported</span>
+                    <p>Some optional public fields such as starter voltage, temperature, or remaining time are not present on every device/session.</p>
+                </div>
+                <div>
+                    <span class="smartshunt-inline-badge smartshunt-inline-badge-success">Live</span>
+                    <p>Battery SoC, voltage, current, power, and consumed amp-hours are the current production baseline.</p>
+                </div>
+            </div>
         </MudPaper>
-    }
-</MudContainer>
+
+        @if (Health.Alerts.Count > 0)
+        {
+            <MudPaper Class="smartshunt-card" Elevation="0">
+                <div class="smartshunt-card-head">
+                    <div>
+                        <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">Health alerts</MudText>
+                        <MudText Typo="Typo.h5">Gateway warnings</MudText>
+                    </div>
+                </div>
+                @foreach (var alert in Health.Alerts)
+                {
+                    <MudAlert Severity="@MapSeverity(alert.Severity)" Dense="true" Class="mb-2">@alert.Message</MudAlert>
+                }
+            </MudPaper>
+        }
+    </MudStack>
+</MudPaper>
