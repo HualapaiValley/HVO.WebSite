@@ -271,39 +271,44 @@ public sealed class PowerIngestControllerTests
     }
 
     [TestMethod]
-    public async Task GetLatestSystemSnapshot_IncludesLatestJkBmsBatteryBanks()
+    public async Task GetLatestSystemSnapshot_IncludesLatestJkBmsBatteryBanksPerDevice()
     {
         var now = DateTime.UtcNow;
-        var device = new BmsDevice
-        {
-            Address = "C8:47:8C:E4:56:B0",
-            Alias = "bank-1a",
-            FirstSeenAt = now.AddDays(-1),
-        };
-        _db.BmsDevices.Add(device);
+        var device1 = MakeBmsDevice("C8:47:8C:E4:56:B0", "bank-1a", now);
+        var device2 = MakeBmsDevice("C8:47:8C:EC:1B:0F", "bank-2a", now);
+        _db.BmsDevices.AddRange(device1, device2);
         await _db.SaveChangesAsync();
 
         _db.BmsReadings.AddRange(
-            MakeBmsReading(device.Id, now.AddMinutes(-20), 52000, alarmBitmask: 8),
-            MakeBmsReading(device.Id, now.AddMinutes(-2), 53810, alarmBitmask: 0));
+            MakeBmsReading(device1.Id, now.AddMinutes(-20), 52000, alarmBitmask: 8),
+            MakeBmsReading(device1.Id, now.AddMinutes(-2), 53810, alarmBitmask: 0),
+            MakeBmsReading(device2.Id, now.AddMinutes(-25), 51000, alarmBitmask: 16),
+            MakeBmsReading(device2.Id, now.AddMinutes(-3), 54210, alarmBitmask: 0));
         await _db.SaveChangesAsync();
 
-        var latest = _db.BmsReadings.OrderByDescending(r => r.RecordedAt).First();
+        var latestDevice1 = _db.BmsReadings.Where(r => r.DeviceId == device1.Id).OrderByDescending(r => r.RecordedAt).First();
+        var latestDevice2 = _db.BmsReadings.Where(r => r.DeviceId == device2.Id).OrderByDescending(r => r.RecordedAt).First();
         _db.BmsCellVoltages.AddRange(
-            new BmsCellVoltage { ReadingId = latest.Id, CellIndex = 1, VoltageMv = 3361 },
-            new BmsCellVoltage { ReadingId = latest.Id, CellIndex = 2, VoltageMv = 3364 });
+            new BmsCellVoltage { ReadingId = latestDevice1.Id, CellIndex = 1, VoltageMv = 3361 },
+            new BmsCellVoltage { ReadingId = latestDevice1.Id, CellIndex = 2, VoltageMv = 3364 },
+            new BmsCellVoltage { ReadingId = latestDevice2.Id, CellIndex = 1, VoltageMv = 3388 },
+            new BmsCellVoltage { ReadingId = latestDevice2.Id, CellIndex = 2, VoltageMv = 3392 });
         await _db.SaveChangesAsync();
 
         var result = await _ctrl.GetLatestSystemSnapshot(lookbackMinutes: 30, CancellationToken.None);
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var body = ok.Value.Should().BeOfType<PowerSystemSnapshot>().Subject;
-        body.BatteryBanks.Should().ContainSingle();
+        body.BatteryBanks.Should().HaveCount(2);
         body.BatteryBanks![0].BankId.Should().Be("bank-1a");
         body.BatteryBanks[0].VoltageV!.Value.Should().Be(53.81);
         body.BatteryBanks[0].MinCellVoltageV!.Value.Should().Be(3.361);
         body.BatteryBanks[0].HasAlarms!.Value.Should().BeFalse();
-        body.Battery!.BankCount!.Value.Should().Be(1);
+        body.BatteryBanks[1].BankId.Should().Be("bank-2a");
+        body.BatteryBanks[1].VoltageV!.Value.Should().Be(54.21);
+        body.BatteryBanks[1].MinCellVoltageV!.Value.Should().Be(3.388);
+        body.BatteryBanks[1].HasAlarms!.Value.Should().BeFalse();
+        body.Battery!.BankCount!.Value.Should().Be(2);
     }
 
     private static PowerIngestController CreateController(HvoV9DbContext db, PowerIngestTelemetry telemetry)
@@ -364,6 +369,13 @@ public sealed class PowerIngestControllerTests
         RecordedAt = recordedAt,
         PvPowerW = pvPowerW,
         CreatedAt = DateTime.UtcNow,
+    };
+
+    private static BmsDevice MakeBmsDevice(string address, string alias, DateTime now) => new()
+    {
+        Address = address,
+        Alias = alias,
+        FirstSeenAt = now.AddDays(-1),
     };
 
     private static BmsReading MakeBmsReading(int deviceId, DateTime recordedAt, long packVoltageMv, long alarmBitmask) => new()

@@ -62,6 +62,7 @@ public sealed class PowerStatusViewModelTests
         model.BatteryAlarmState.Should().Be("No alarms");
         model.BatteryBanks.Should().HaveCount(2);
         model.BatteryBanks[0].BankId.Should().Be("bank-1a");
+        model.BatteryBanks[0].HeadingId.Should().Be("power-bank-1");
         model.BatteryBanks[0].StateOfCharge.Should().Be("90%");
         model.BatteryBanks[0].Voltage.Should().Be("54.04 V");
         model.BatteryBanks[0].Current.Should().Be("+1.2 A");
@@ -69,6 +70,7 @@ public sealed class PowerStatusViewModelTests
         model.BatteryBanks[0].AlarmState.Should().Be("Active alarm");
         model.BatteryBanks[0].IsAlarmed.Should().BeTrue();
         model.BatteryBanks[1].BankId.Should().Be("bank-2a");
+        model.BatteryBanks[1].HeadingId.Should().Be("power-bank-2");
         model.SnapshotState.Should().Be("Live");
     }
 
