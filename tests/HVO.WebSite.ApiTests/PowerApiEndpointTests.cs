@@ -248,6 +248,46 @@ public sealed class PowerApiEndpointTests
         latestConfiguration!.CommandCapabilities.Single().CommandTopic.Should().EndWith("/set");
     }
 
+    [TestMethod]
+    public async Task EnergyAndInverterDetailEndpoints_RequireScopesAndReturnLatestSnapshots()
+    {
+        var sourceId = $"solarassistant-{Guid.NewGuid():N}";
+        _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+
+        var energyResponse = await _client.PostAsJsonAsync("/api/v1/power/energy", new PowerEnergyPayload
+        {
+            SourceId = sourceId,
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = DateTime.UtcNow,
+            Counters = [new PowerEnergyCounter { Key = "pv_energy", Name = "PV energy", ValueKwh = 123.4 }],
+        });
+        var detailResponse = await _client.PostAsJsonAsync("/api/v1/power/inverter-detail", new PowerInverterDetailPayload
+        {
+            SourceId = sourceId,
+            SourceSystem = "solarassistant",
+            DeviceId = "inverter_1",
+            RecordedAtUtc = DateTime.UtcNow,
+            PvStrings = [new PowerPvStringDetail { StringId = "1", PowerW = 600 }],
+        });
+
+        energyResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        _client.DefaultRequestHeaders.Remove("X-Api-Key");
+        _client.DefaultRequestHeaders.Add("X-Api-Key", ReadPlaintext);
+        var latestEnergyResponse = await _client.GetAsync($"/api/v1/power/energy/latest?sourceId={sourceId}");
+        var latestDetailResponse = await _client.GetAsync($"/api/v1/power/inverter-detail/latest?sourceId={sourceId}");
+
+        latestEnergyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var latestEnergy = await latestEnergyResponse.Content.ReadFromJsonAsync<PowerEnergySnapshotResponse>();
+        latestEnergy!.Counters.Single().ValueKwh.Should().Be(123.4);
+
+        latestDetailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var latestDetail = await latestDetailResponse.Content.ReadFromJsonAsync<PowerInverterDetailSnapshotResponse>();
+        latestDetail!.PvStrings.Single().PowerW.Should().Be(600);
+    }
+
     private static PowerReadingIngestRequest ValidPayload(
         string sourceId,
         string recordedAt = "2026-05-23T07:00:00Z",

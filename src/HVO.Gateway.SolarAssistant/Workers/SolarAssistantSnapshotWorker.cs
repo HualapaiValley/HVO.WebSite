@@ -1,4 +1,5 @@
 using System.Text.Json;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
@@ -24,6 +25,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
     private volatile string? _lastError;
     private volatile SolarAssistantMetricInventory? _lastInventory;
     private long _lastInventoryConfigQueuedAtTicks;
+    private volatile PowerEnergyPayload? _lastEnergy;
     private volatile PowerReadingPayload? _lastSnapshot;
     private long _lastSnapshotAtTicks;
     private volatile int _lastMetricCount;
@@ -120,14 +122,19 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         var recordedAt = DateTime.UtcNow;
         _lastInventory = SolarAssistantMetricInventoryBuilder.Build(metrics, recordedAt);
         var payload = SolarAssistantPowerMapper.MapTotalSnapshot(metrics, _options, recordedAt);
+        var energy = SolarAssistantEnergyInverterDetailMapper.MapEnergy(metrics, _options, recordedAt, _lastEnergy);
+        var inverterDetail = SolarAssistantEnergyInverterDetailMapper.MapInverterDetail(metrics, _options, recordedAt);
 
         await using var scope = _scopeFactory.CreateAsyncScope();
         var writer = scope.ServiceProvider.GetRequiredService<PowerOutboxWriter>();
         var inserted = await writer.EnqueueAsync(payload, ct);
         await TryEnqueueInventoryConfigurationAsync(scope.ServiceProvider, metrics, recordedAt, ct);
+        await TryEnqueueEnergyInverterDetailAsync(scope.ServiceProvider, energy, inverterDetail, ct);
 
         Volatile.Write(ref _lastSnapshotAtTicks, recordedAt.Ticks);
         _lastSnapshot = payload;
+        if (energy.Counters.Count > 0)
+            _lastEnergy = energy;
         AddHistory(payload);
         _lastError = null;
         if (inserted)
@@ -166,6 +173,23 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
                 inventory.Devices.Count,
                 configuration.Settings.Count,
                 configuration.CommandCapabilities.Count);
+        }
+    }
+
+    private static async Task TryEnqueueEnergyInverterDetailAsync(
+        IServiceProvider serviceProvider,
+        PowerEnergyPayload energy,
+        PowerInverterDetailPayload inverterDetail,
+        CancellationToken ct)
+    {
+        var writer = serviceProvider.GetRequiredService<PowerInventoryConfigurationWriter>();
+        if (energy.Counters.Count > 0)
+            await writer.EnqueueEnergyAsync(energy, ct);
+
+        if (inverterDetail.PvStrings.Count > 0 || inverterDetail.Load is not null || inverterDetail.Battery is not null ||
+            inverterDetail.TemperatureC is not null || inverterDetail.Statuses.Count > 0)
+        {
+            await writer.EnqueueInverterDetailAsync(inverterDetail, ct);
         }
     }
 

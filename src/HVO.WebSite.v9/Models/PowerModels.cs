@@ -126,3 +126,30 @@ public class PowerConfigurationSnapshotResponse
     public IReadOnlyList<PowerConfigurationSetting> Settings { get; init; } = [];
     public IReadOnlyList<PowerCommandCapability> CommandCapabilities { get; init; } = [];
 }
+
+public class PowerEnergySnapshotResponse
+{
+    public string SourceId { get; init; } = string.Empty;
+    public string? SourceSystem { get; init; }
+    public string? DeviceId { get; init; }
+    public DateTime RecordedAtUtc { get; init; }
+    public bool IsPresent { get; init; }
+    public bool IsStale { get; init; }
+    public bool CounterResetDetected { get; init; }
+    public IReadOnlyList<PowerEnergyCounter> Counters { get; init; } = [];
+}
+
+public class PowerInverterDetailSnapshotResponse
+{
+    public string SourceId { get; init; } = string.Empty;
+    public string? SourceSystem { get; init; }
+    public string? DeviceId { get; init; }
+    public DateTime RecordedAtUtc { get; init; }
+    public bool IsPresent { get; init; }
+    public bool IsStale { get; init; }
+    public IReadOnlyList<PowerPvStringDetail> PvStrings { get; init; } = [];
+    public PowerInverterLoadDetail? Load { get; init; }
+    public PowerInverterBatteryDetail? Battery { get; init; }
+    public double? TemperatureC { get; init; }
+    public IReadOnlyList<PowerInverterStatusDetail> Statuses { get; init; } = [];
+}

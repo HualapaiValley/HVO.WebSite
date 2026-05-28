@@ -378,11 +378,19 @@ Acceptance criteria:
 
 ### Phase 4: Energy And Inverter Detail Streams
 
+Status: implemented in `power.energy.v1` and `power.inverter-detail.v1` streams.
+
 Scope:
 
 - Confirm observed energy counter values, reset behavior, monotonicity, sign convention, and cadence.
 - Decide which PV string, inverter load detail, temperature, and status-bit values belong centrally.
 - Add typed payloads and APIs for implemented values.
+
+Implementation notes:
+
+- Energy counters are persisted only when observed and are kept as separate import/export and charge/discharge counters; no signed net-energy inference is made.
+- Counter drops are flagged as reset evidence instead of being smoothed or rewritten.
+- Inverter detail is bounded to PV string, load, inverter-side battery, temperature, and status fields; arbitrary raw metrics remain out of central history.
 
 Acceptance criteria:
 

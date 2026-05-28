@@ -29,6 +29,9 @@ public class PowerIngestController : ControllerBase
     private const int MaxInventoryDevices = 50;
     private const int MaxConfigurationSettings = 200;
     private const int MaxCommandCapabilities = 100;
+    private const int MaxEnergyCounters = 20;
+    private const int MaxPvStrings = 8;
+    private const int MaxInverterStatuses = 20;
     private const int MaxSnapshotStringLength = 256;
     private const int MaxSnapshotValueLength = 1024;
 
@@ -312,6 +315,108 @@ public class PowerIngestController : ControllerBase
         return CreatedAtAction(nameof(GetLatestConfiguration), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
     }
 
+    [HttpPost("energy")]
+    [Authorize(Policy = "PowerIngest")]
+    [ProducesResponseType(typeof(PowerSnapshotIngestResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerSnapshotIngestResponse>> IngestEnergy(
+        [FromBody] PowerEnergyPayload request,
+        CancellationToken ct)
+    {
+        var sourceId = NormalizeSourceId(request.SourceId);
+        var recordedAt = NormalizeRecordedAt(request.RecordedAtUtc);
+        var validationResults = ValidateCommonSnapshot(sourceId, request.SourceSystem, request.DeviceId, recordedAt);
+        ValidateEnergy(validationResults, request);
+        if (validationResults.Count > 0)
+            return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+
+        var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
+        var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
+        if (await _db.PowerEnergySnapshots.AnyAsync(
+            r => r.SourceId == sourceId && (r.RecordedAt == recordedAt || r.PayloadHash == payloadHash), ct))
+        {
+            return CreatedAtAction(nameof(GetLatestEnergy), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        _db.PowerEnergySnapshots.Add(new PowerEnergySnapshot
+        {
+            SourceId = sourceId,
+            SourceSystem = NormalizeSourceSystem(request.SourceSystem),
+            DeviceId = NormalizeOptional(request.DeviceId),
+            RecordedAt = recordedAt,
+            CounterCount = request.Counters.Count,
+            CounterResetDetected = request.CounterResetDetected,
+            PayloadJson = payloadJson,
+            PayloadHash = payloadHash,
+            CreatedAt = DateTime.UtcNow,
+        });
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            return CreatedAtAction(nameof(GetLatestEnergy), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        return CreatedAtAction(nameof(GetLatestEnergy), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
+    }
+
+    [HttpPost("inverter-detail")]
+    [Authorize(Policy = "PowerIngest")]
+    [ProducesResponseType(typeof(PowerSnapshotIngestResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerSnapshotIngestResponse>> IngestInverterDetail(
+        [FromBody] PowerInverterDetailPayload request,
+        CancellationToken ct)
+    {
+        var sourceId = NormalizeSourceId(request.SourceId);
+        var recordedAt = NormalizeRecordedAt(request.RecordedAtUtc);
+        var validationResults = ValidateCommonSnapshot(sourceId, request.SourceSystem, request.DeviceId, recordedAt);
+        ValidateInverterDetail(validationResults, request);
+        if (validationResults.Count > 0)
+            return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+
+        var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
+        var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
+        if (await _db.PowerInverterDetailSnapshots.AnyAsync(
+            r => r.SourceId == sourceId && (r.RecordedAt == recordedAt || r.PayloadHash == payloadHash), ct))
+        {
+            return CreatedAtAction(nameof(GetLatestInverterDetail), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        _db.PowerInverterDetailSnapshots.Add(new PowerInverterDetailSnapshot
+        {
+            SourceId = sourceId,
+            SourceSystem = NormalizeSourceSystem(request.SourceSystem),
+            DeviceId = NormalizeOptional(request.DeviceId),
+            RecordedAt = recordedAt,
+            PvStringCount = request.PvStrings.Count,
+            StatusCount = request.Statuses.Count,
+            PayloadJson = payloadJson,
+            PayloadHash = payloadHash,
+            CreatedAt = DateTime.UtcNow,
+        });
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            return CreatedAtAction(nameof(GetLatestInverterDetail), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        return CreatedAtAction(nameof(GetLatestInverterDetail), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
+    }
+
     /// <summary>Returns recent normalized power readings.</summary>
     [HttpGet("readings/recent")]
     [Authorize(Policy = "PowerRead")]
@@ -391,6 +496,77 @@ public class PowerIngestController : ControllerBase
     {
         var snapshots = await _inventoryConfigurationProvider.GetLatestAsync(sourceId, staleAfterMinutes, ct);
         return Ok(snapshots.Configuration);
+    }
+
+    [HttpGet("energy/latest")]
+    [Authorize(Policy = "PowerRead")]
+    [ProducesResponseType(typeof(PowerEnergySnapshotResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerEnergySnapshotResponse>> GetLatestEnergy(
+        [FromQuery] string sourceId = "solarassistant-total",
+        [FromQuery][Range(1, 10080)] int staleAfterMinutes = 1440,
+        CancellationToken ct = default)
+    {
+        var normalized = NormalizeSourceId(sourceId);
+        var row = await _db.PowerEnergySnapshots
+            .AsNoTracking()
+            .Where(r => r.SourceId == normalized)
+            .OrderByDescending(r => r.RecordedAt)
+            .FirstOrDefaultAsync(ct);
+        if (row is null)
+            return Ok(new PowerEnergySnapshotResponse { SourceId = normalized, IsPresent = false, IsStale = true });
+
+        var payload = JsonSerializer.Deserialize<PowerEnergyPayload>(row.PayloadJson, JsonOptions) ?? new PowerEnergyPayload();
+        return Ok(new PowerEnergySnapshotResponse
+        {
+            SourceId = row.SourceId,
+            SourceSystem = row.SourceSystem,
+            DeviceId = row.DeviceId,
+            RecordedAtUtc = row.RecordedAt,
+            IsPresent = true,
+            IsStale = DateTime.UtcNow - row.RecordedAt > TimeSpan.FromMinutes(staleAfterMinutes),
+            CounterResetDetected = payload.CounterResetDetected,
+            Counters = payload.Counters,
+        });
+    }
+
+    [HttpGet("inverter-detail/latest")]
+    [Authorize(Policy = "PowerRead")]
+    [ProducesResponseType(typeof(PowerInverterDetailSnapshotResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerInverterDetailSnapshotResponse>> GetLatestInverterDetail(
+        [FromQuery] string sourceId = "solarassistant-total",
+        [FromQuery][Range(1, 10080)] int staleAfterMinutes = 1440,
+        CancellationToken ct = default)
+    {
+        var normalized = NormalizeSourceId(sourceId);
+        var row = await _db.PowerInverterDetailSnapshots
+            .AsNoTracking()
+            .Where(r => r.SourceId == normalized)
+            .OrderByDescending(r => r.RecordedAt)
+            .FirstOrDefaultAsync(ct);
+        if (row is null)
+            return Ok(new PowerInverterDetailSnapshotResponse { SourceId = normalized, IsPresent = false, IsStale = true });
+
+        var payload = JsonSerializer.Deserialize<PowerInverterDetailPayload>(row.PayloadJson, JsonOptions) ?? new PowerInverterDetailPayload();
+        return Ok(new PowerInverterDetailSnapshotResponse
+        {
+            SourceId = row.SourceId,
+            SourceSystem = row.SourceSystem,
+            DeviceId = row.DeviceId,
+            RecordedAtUtc = row.RecordedAt,
+            IsPresent = true,
+            IsStale = DateTime.UtcNow - row.RecordedAt > TimeSpan.FromMinutes(staleAfterMinutes),
+            PvStrings = payload.PvStrings,
+            Load = payload.Load,
+            Battery = payload.Battery,
+            TemperatureC = payload.TemperatureC,
+            Statuses = payload.Statuses,
+        });
     }
 
     /// <summary>Returns the latest composed power-system snapshot from recent source readings.</summary>
@@ -478,6 +654,13 @@ public class PowerIngestController : ControllerBase
             results.Add(new ValidationResult($"The field {memberName} must be between {minimum} and {maximum}.", [memberName]));
     }
 
+    private static void ValidateRange(
+        List<ValidationResult> results,
+        string memberName,
+        double value,
+        double minimum,
+        double maximum) => ValidateRange(results, memberName, (double?)value, minimum, maximum);
+
     private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
         ex.InnerException is SqlException sqlEx &&
         (sqlEx.Number == 2601 || sqlEx.Number == 2627);
@@ -535,6 +718,57 @@ public class PowerIngestController : ControllerBase
             ValidateRequiredString(results, $"CommandCapabilities[{i}].CommandTopic", capability.CommandTopic, MaxSnapshotStringLength);
             ValidateMaxLength(results, $"CommandCapabilities[{i}].StateTopic", capability.StateTopic, MaxSnapshotStringLength);
             ValidateMaxLength(results, $"CommandCapabilities[{i}].DeviceId", capability.DeviceId, MaxSnapshotStringLength);
+        }
+    }
+
+    private static void ValidateEnergy(List<ValidationResult> results, PowerEnergyPayload request)
+    {
+        ValidateCount(results, nameof(request.Counters), request.Counters.Count, MaxEnergyCounters);
+        for (var i = 0; i < request.Counters.Count; i++)
+        {
+            var counter = request.Counters[i];
+            ValidateRequiredString(results, $"Counters[{i}].Key", counter.Key, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"Counters[{i}].Name", counter.Name, MaxSnapshotStringLength);
+            ValidateRange(results, $"Counters[{i}].ValueKwh", counter.ValueKwh, 0, 1_000_000_000);
+            ValidateMaxLength(results, $"Counters[{i}].DeviceId", counter.DeviceId, MaxSnapshotStringLength);
+            ValidateMaxLength(results, $"Counters[{i}].SourceTopic", counter.SourceTopic, MaxSnapshotStringLength);
+        }
+    }
+
+    private static void ValidateInverterDetail(List<ValidationResult> results, PowerInverterDetailPayload request)
+    {
+        ValidateCount(results, nameof(request.PvStrings), request.PvStrings.Count, MaxPvStrings);
+        ValidateCount(results, nameof(request.Statuses), request.Statuses.Count, MaxInverterStatuses);
+        for (var i = 0; i < request.PvStrings.Count; i++)
+        {
+            var pv = request.PvStrings[i];
+            ValidateRequiredString(results, $"PvStrings[{i}].StringId", pv.StringId, MaxSnapshotStringLength);
+            ValidateRange(results, $"PvStrings[{i}].PowerW", pv.PowerW, 0, 1_000_000);
+            ValidateRange(results, $"PvStrings[{i}].VoltageV", pv.VoltageV, 0, 10_000);
+            ValidateRange(results, $"PvStrings[{i}].CurrentA", pv.CurrentA, 0, 10_000);
+        }
+
+        if (request.Load is not null)
+        {
+            ValidateRange(results, "Load.LoadPowerW", request.Load.LoadPowerW, 0, 1_000_000);
+            ValidateRange(results, "Load.LoadApparentPowerVa", request.Load.LoadApparentPowerVa, 0, 1_000_000);
+            ValidateRange(results, "Load.SystemAndLoadPowerW", request.Load.SystemAndLoadPowerW, -1_000_000, 1_000_000);
+        }
+
+        if (request.Battery is not null)
+        {
+            ValidateRange(results, "Battery.VoltageV", request.Battery.VoltageV, 0, 1_000);
+            ValidateRange(results, "Battery.CurrentA", request.Battery.CurrentA, -10_000, 10_000);
+            ValidateRange(results, "Battery.PowerW", request.Battery.PowerW, -1_000_000, 1_000_000);
+        }
+
+        ValidateRange(results, nameof(request.TemperatureC), request.TemperatureC, -100, 200);
+        for (var i = 0; i < request.Statuses.Count; i++)
+        {
+            var status = request.Statuses[i];
+            ValidateRequiredString(results, $"Statuses[{i}].Key", status.Key, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"Statuses[{i}].Value", status.Value, MaxSnapshotValueLength);
+            ValidateMaxLength(results, $"Statuses[{i}].SourceTopic", status.SourceTopic, MaxSnapshotStringLength);
         }
     }
 

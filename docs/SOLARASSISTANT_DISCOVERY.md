@@ -63,10 +63,10 @@ These are useful for long-term observatory power history, capacity planning, and
 
 | Area | Topics | Suggested treatment |
 |------|--------|---------------------|
-| Energy counters | `total/pv_energy`, `total/load_energy`, `total/grid_energy_in`, `total/grid_energy_out`, `total/battery_energy_in`, `total/battery_energy_out` | Advertised by MQTT discovery, but not returned by REST and not observed on MQTT state during the follow-up sample; defer DB fields until values are observable |
-| PV strings | `inverter_1/pv_power_1`, `inverter_1/pv_power_2`, `inverter_1/pv_voltage_1`, `inverter_1/pv_voltage_2`, `inverter_1/pv_current_1`, `inverter_1/pv_current_2` | Persist if string-level diagnostics matter; otherwise keep local until needed |
-| Inverter load detail | `inverter_1/load_power`, `inverter_1/load_apparent_power`, `inverter_1/system_and_load_power` | Persist only if distinct from `total/load_power` and useful historically |
-| Battery detail | `battery_1/power`, `battery_1/state_of_charge`, `inverter_1/battery_voltage`, `inverter_1/battery_current`, `inverter_1/battery_power` | Avoid duplicate central fields unless source meaning differs from total/battery aggregate |
+| Energy counters | `total/pv_energy`, `total/load_energy`, `total/grid_energy_in`, `total/grid_energy_out`, `total/battery_energy_in`, `total/battery_energy_out` | Persist as low-frequency `power.energy.v1` snapshots only when values are present. Import/export and charge/discharge remain separate monotonic counters; do not infer signed net energy. Counter drops are flagged as reset evidence. |
+| PV strings | `inverter_1/pv_power_1`, `inverter_1/pv_power_2`, `inverter_1/pv_voltage_1`, `inverter_1/pv_voltage_2`, `inverter_1/pv_current_1`, `inverter_1/pv_current_2` | Persist as `power.inverter-detail.v1` for string-level diagnostics and chart overlays. |
+| Inverter load detail | `inverter_1/load_power`, `inverter_1/load_apparent_power`, `inverter_1/system_and_load_power` | Persist as typed inverter detail when present; keep separate from aggregate `total/load_power`. |
+| Battery detail | `battery_1/power`, `battery_1/state_of_charge`, `inverter_1/battery_voltage`, `inverter_1/battery_current`, `inverter_1/battery_power` | Persist inverter-side voltage/current/power as detail when present; fleet battery truth still comes from source precedence in the aggregate snapshot. |
 
 ## Local-Only Or Operator Metadata
 
@@ -75,7 +75,7 @@ These are valuable on the gateway UI but should not automatically become high-ca
 | Area | Examples | Reason |
 |------|----------|--------|
 | Hardware identity | `inverter_1/model_name`, `inverter_1/model_number`, `inverter_1/serial_number`, `inverter_1/firmware_version` | Store as local/device inventory or occasional config snapshot, not every power reading |
-| Temperatures/status bits | `inverter_1/temperature`, `inverter_1/status_1`, `status_2`, `status_3`, `status_4` | Useful for local diagnostics; centralize later if alerts need history |
+| Temperatures/status bits | `inverter_1/temperature`, `inverter_1/status_1`, `status_2`, `status_3`, `status_4` | Persist only as bounded typed inverter detail snapshots; do not persist arbitrary raw metrics. |
 | Settings/selects | `output_source_priority`, `charger_source_priority`, `max_charge_current`, `max_grid_charge_current`, `shutdown_battery_voltage`, `back_to_battery_voltage`, etc. | Track as configuration snapshots or command capabilities, not per-snapshot telemetry |
 | Command topics | `solar_assistant/.../set` | Read-only inventory for now; no writes without a separate safety/auth/audit design |
 
@@ -85,19 +85,21 @@ Persist now:
 
 - Continue sending the normalized aggregate power snapshot to v9 `PowerReading`.
 - Include the REST aliases discovered above so populated fields match SolarAssistant's actual topic names.
+- Add low-frequency `power.energy.v1` snapshots for observed cumulative counters.
+- Add low-frequency `power.inverter-detail.v1` snapshots for PV string, load, inverter-side battery, temperature, and bounded status details.
 
-Persist next after review:
+Defer until separately justified:
 
-- Add cumulative energy counters only after the advertised MQTT state topics publish observable values and their reset behavior is understood.
-- Consider PV string fields only if string-level troubleshooting is valuable centrally.
-- Add a low-frequency device/config snapshot table for hardware identity and settings changes.
+- High-cardinality raw metric history.
+- Additional diagnostic/status topics beyond bounded inverter detail.
+- Any command/write behavior.
 
 Keep local for now:
 
 - Home Assistant discovery entity metadata.
 - MQTT command topics and select options.
 - Hardware identity cards, firmware/model/serial, and gateway capability inventory.
-- Diagnostic/status topics until they become alert inputs.
+- Raw Home Assistant state payload values outside typed contracts.
 
 ## Gateway Changes From This Pass
 
@@ -109,5 +111,6 @@ Keep local for now:
 - The mapper now recognizes SolarAssistant aliases such as `total/system_power`, `total/battery_voltage`, `total/ac_output_voltage`, and `total/inverter_mode`.
 - The local monitor now uses the same MudBlazor shell/header/footer/layout pattern as the Davis gateway while keeping SolarAssistant-specific cards.
 - The local monitor keeps a bounded in-memory rolling history and renders PV, load, grid, and battery power trend cards. This is local-only display state and does not change central DB persistence.
+- Phase 4 adds typed `power.energy.v1` and `power.inverter-detail.v1` streams with API validation and reset/sign-convention tests before central persistence is enabled.
 
 Live deployment after this pass reported MQTT connected with `48` entities, `42` state topics, `14` command topics, and `1` discovered device.

@@ -40,6 +40,36 @@ public sealed class PowerInventoryConfigurationWriter(EdgeOutboxStore<OutboxDbCo
             PayloadJson: payloadJson), ct);
     }
 
+    public async Task<bool> EnqueueEnergyAsync(PowerEnergyPayload payload, CancellationToken ct)
+    {
+        var payloadJson = JsonSerializer.Serialize(payload, JsonOptions);
+        if (await HasLatestPayloadAsync(payload.SourceId, PowerOutboxPayloadTypes.Energy, payloadJson, ct))
+            return false;
+
+        return await _store.EnqueueAsync(new EdgeOutboxMessage(
+            SourceId: payload.SourceId,
+            DeviceId: payload.DeviceId,
+            RecordedAtUtc: payload.RecordedAtUtc,
+            PayloadType: PowerOutboxPayloadTypes.Energy,
+            PayloadVersion: PowerOutboxPayloadTypes.EnergyVersion,
+            PayloadJson: payloadJson), ct);
+    }
+
+    public async Task<bool> EnqueueInverterDetailAsync(PowerInverterDetailPayload payload, CancellationToken ct)
+    {
+        var payloadJson = JsonSerializer.Serialize(payload, JsonOptions);
+        if (await HasLatestPayloadAsync(payload.SourceId, PowerOutboxPayloadTypes.InverterDetail, payloadJson, ct))
+            return false;
+
+        return await _store.EnqueueAsync(new EdgeOutboxMessage(
+            SourceId: payload.SourceId,
+            DeviceId: payload.DeviceId,
+            RecordedAtUtc: payload.RecordedAtUtc,
+            PayloadType: PowerOutboxPayloadTypes.InverterDetail,
+            PayloadVersion: PowerOutboxPayloadTypes.InverterDetailVersion,
+            PayloadJson: payloadJson), ct);
+    }
+
     private async Task<bool> HasLatestPayloadAsync(string sourceId, string payloadType, string payloadJson, CancellationToken ct)
     {
         var latest = await _store.Db.OutboxRecords

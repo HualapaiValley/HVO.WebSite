@@ -199,6 +199,22 @@ public sealed class PowerApiForwarderTests
                 Settings = [new PowerConfigurationSetting { Key = "inverter_1.output_source_priority", Name = "Output source priority", Value = "Solar/Battery" }],
                 CommandCapabilities = [new PowerCommandCapability { Key = "inverter_1.output_source_priority", Name = "Output source priority", CommandTopic = "solar_assistant/inverter_1/output_source_priority/set" }],
             }, CancellationToken.None);
+            await writer.EnqueueEnergyAsync(new PowerEnergyPayload
+            {
+                SourceId = "solarassistant-total",
+                SourceSystem = "solarassistant",
+                DeviceId = "total",
+                RecordedAtUtc = DateTime.Parse("2026-05-28T04:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
+                Counters = [new PowerEnergyCounter { Key = "pv_energy", Name = "PV energy", ValueKwh = 123.4 }],
+            }, CancellationToken.None);
+            await writer.EnqueueInverterDetailAsync(new PowerInverterDetailPayload
+            {
+                SourceId = "solarassistant-total",
+                SourceSystem = "solarassistant",
+                DeviceId = "inverter_1",
+                RecordedAtUtc = DateTime.Parse("2026-05-28T04:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
+                PvStrings = [new PowerPvStringDetail { StringId = "1", PowerW = 600 }],
+            }, CancellationToken.None);
         }
 
         await _provider.GetRequiredService<PowerApiForwarder>().SweepAsync(CancellationToken.None);
@@ -206,6 +222,8 @@ public sealed class PowerApiForwarderTests
         _handler.Requests.Select(r => r.RequestUri!.ToString()).Should().Contain([
             "https://hvo.example/api/v1/power/device-inventory",
             "https://hvo.example/api/v1/power/configuration",
+            "https://hvo.example/api/v1/power/energy",
+            "https://hvo.example/api/v1/power/inverter-detail",
         ]);
         using var verifyScope = _provider.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OutboxDbContext>();

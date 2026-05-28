@@ -8,4 +8,8 @@ public static class PowerOutboxPayloadTypes
     public const string DeviceInventoryVersion = "1";
     public const string Configuration = "power.configuration";
     public const string ConfigurationVersion = "1";
+    public const string Energy = "power.energy";
+    public const string EnergyVersion = "1";
+    public const string InverterDetail = "power.inverter-detail";
+    public const string InverterDetailVersion = "1";
 }

@@ -409,6 +409,82 @@ public sealed class PowerIngestControllerTests
         _db.PowerConfigurationSnapshots.Should().BeEmpty();
     }
 
+    [TestMethod]
+    public async Task IngestEnergy_PersistsCountersAndLatestHandlesCounterResetFlag()
+    {
+        var payload = new PowerEnergyPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = DateTime.UtcNow,
+            CounterResetDetected = true,
+            Counters = [new PowerEnergyCounter { Key = "pv_energy", Name = "PV energy", ValueKwh = 123.4, SourceTopic = "total/pv_energy" }],
+        };
+
+        var ingest = await _ctrl.IngestEnergy(payload, CancellationToken.None);
+        var latest = await _ctrl.GetLatestEnergy("solarassistant-total", staleAfterMinutes: 1440, CancellationToken.None);
+
+        ((CreatedAtActionResult)ingest.Result!).Value.Should().BeEquivalentTo(new { Inserted = true, Skipped = false });
+        var body = ((OkObjectResult)latest.Result!).Value.Should().BeOfType<PowerEnergySnapshotResponse>().Subject;
+        body.IsPresent.Should().BeTrue();
+        body.CounterResetDetected.Should().BeTrue();
+        body.Counters.Single().ValueKwh.Should().Be(123.4);
+    }
+
+    [TestMethod]
+    public async Task IngestInverterDetail_PersistsTypedDiagnosticDetails()
+    {
+        var payload = new PowerInverterDetailPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "inverter_1",
+            RecordedAtUtc = DateTime.UtcNow,
+            PvStrings = [new PowerPvStringDetail { StringId = "1", PowerW = 600, VoltageV = 120, CurrentA = 5 }],
+            Load = new PowerInverterLoadDetail { LoadPowerW = 550, LoadApparentPowerVa = 700 },
+            Battery = new PowerInverterBatteryDetail { PowerW = -200, VoltageV = 53.2 },
+            TemperatureC = 31.2,
+            Statuses = [new PowerInverterStatusDetail { Key = "inverter_1.status_1", Value = "normal", SourceTopic = "inverter_1/status_1" }],
+        };
+
+        var ingest = await _ctrl.IngestInverterDetail(payload, CancellationToken.None);
+        var latest = await _ctrl.GetLatestInverterDetail("solarassistant-total", staleAfterMinutes: 1440, CancellationToken.None);
+
+        ((CreatedAtActionResult)ingest.Result!).Value.Should().BeEquivalentTo(new { Inserted = true, Skipped = false });
+        var body = ((OkObjectResult)latest.Result!).Value.Should().BeOfType<PowerInverterDetailSnapshotResponse>().Subject;
+        body.IsPresent.Should().BeTrue();
+        body.PvStrings.Single().PowerW.Should().Be(600);
+        body.Battery!.PowerW.Should().Be(-200);
+        body.Statuses.Single().Value.Should().Be("normal");
+    }
+
+    [TestMethod]
+    public async Task IngestEnergyAndInverterDetail_RejectInvalidRangesAndOversizedCollections()
+    {
+        var energy = await _ctrl.IngestEnergy(new PowerEnergyPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = DateTime.UtcNow,
+            Counters = [new PowerEnergyCounter { Key = "pv_energy", Name = "PV energy", ValueKwh = -1 }],
+        }, CancellationToken.None);
+        var inverter = await _ctrl.IngestInverterDetail(new PowerInverterDetailPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "inverter_1",
+            RecordedAtUtc = DateTime.UtcNow,
+            PvStrings = Enumerable.Range(0, 9).Select(i => new PowerPvStringDetail { StringId = i.ToString(), PowerW = 1 }).ToArray(),
+        }, CancellationToken.None);
+
+        energy.Result.Should().BeOfType<BadRequestObjectResult>();
+        inverter.Result.Should().BeOfType<BadRequestObjectResult>();
+        _db.PowerEnergySnapshots.Should().BeEmpty();
+        _db.PowerInverterDetailSnapshots.Should().BeEmpty();
+    }
+
     private static PowerIngestController CreateController(HvoV9DbContext db, PowerIngestTelemetry telemetry)
     {
         var ctrl = new PowerIngestController(
