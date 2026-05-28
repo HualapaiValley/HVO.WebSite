@@ -12,7 +12,7 @@ Important design choices:
 - LOOP1 is refreshed once per worker batch for console status, forecast, sunrise/sunset, monthly/yearly totals, and extra sensors.
 - Archive records are handled separately because they are interval records, not live readings.
 - Console writes exist in HVO code but must remain local-only unless a later safety design adds auth, confirmation, and audit controls.
-- HVO currently exposes many values as `*F`, `*Mph`, and `*Inches`; this should be treated as HVO-normalized naming, not proof that display-unit settings are irrelevant.
+- HVO keeps parser/outbox values normalized as `*F`, `*Mph`, `*Inches`, and `*InHg`, while local UI and current-weather API display fields convert those values using cached console display-unit settings.
 
 ## Implementation Decision Log
 
@@ -24,12 +24,12 @@ Important design choices:
 | Treat archive records as separate from live LOOP records. | Accepted | Archive records are interval/high/low/aggregate records; live LOOP records are instantaneous/current records. | Central storage may need separate archive payload/table. |
 | Keep live rain fields semantically separate. | Accepted | Daily, storm, rate, 15-minute, hourly, 24-hour, monthly, yearly, and archive interval rain are not interchangeable. | Do not map live totals into generic `RainfallInches`. |
 | Use rain bucket type, not rain display units, for rain conversion. | Accepted, pending live validation | Protocol and mature drivers treat bucket type as the conversion source. | Live-validate actual bucket type and display-unit independence. |
-| Treat `*F`, `*Mph`, and `*Inches` names as HVO-normalized values. | Accepted as current behavior, needs redesign | Current code exposes normalized-unit property names. | Before API lock, separate raw/vendor values, normalized values, and display settings. |
+| Treat `*F`, `*Mph`, and `*Inches` names as HVO-normalized values. | Accepted as current behavior, needs versioned API redesign | Current parser/outbox code exposes normalized-unit property names; UI/API display fields convert using console settings. | Before API lock, keep raw/vendor, normalized, and display fields explicitly separated. |
 | Serialize all console access through `VantageStation`. | Accepted | Davis console supports one active command/stream session; background LOOP and interactive commands must coordinate. | `SemaphoreSlim`, console mode tracking, and LOOP interruption are central implementation concepts. |
 | Allow interactive commands to interrupt active LOOP streaming. | Accepted | UI/API operations should not wait for a full LOOP batch when command mode is needed. | Live polling may pause briefly; long archive downloads pause longer. |
 | Keep write/destructive operations local-only until safety design exists. | Accepted | Time, EEPROM, alarm, barometer, archive interval, and archive clear can materially change console behavior. | Require local auth, confirmation, audit logging, read-back, and allowlist before broad UI exposure. |
 | Use local SQLite outbox for store-and-forward. | Accepted | Keeps telemetry resilient to website/API outages. | Archive/live idempotency and payload versioning need final review. |
-| Do not claim full Davis protocol coverage yet. | Accepted | Current implementation covers HVO's practical needs but official command-by-command coverage is not complete. | Complete command coverage table and test matrix first. |
+| Do not claim full Davis protocol implementation yet. | Accepted | The official command summary is covered in docs, but many commands are intentionally unsupported/deferred and some field-level tables still need deeper review. | Keep support status explicit and add tests before supporting any deferred command. |
 
 ## Project Layout
 
@@ -344,42 +344,42 @@ Archive catchup notes:
 - `WeatherStationWorker` uses `_archiveCatchupGate` so only one catchup runs at a time.
 - `GetArchiveSinceAsync` holds the station semaphore while downloading pages.
 - Archive records are interval records and are written as archive outbox entries.
-- HVO has a `fallbackOnEmpty` option in `GetArchiveSinceAsync`, but startup catchup currently calls without enabling it.
+- Startup/top-off catchup calls `GetArchiveSinceAsync` with `fallbackOnEmpty` enabled so zero-page responses for older timestamps retry with a full-archive request.
 - Long archive downloads can interrupt live LOOP polling because the Davis console only supports one active protocol session at a time.
 
 ## Implementation Caveats And Debt
 
 | Caveat | Impact | Follow-up |
 |--------|--------|-----------|
-| HVO exposes many values as `*F`, `*Mph`, `*Inches`. | Public consumers can confuse protocol units, console display settings, and HVO-normalized units. | Fix local models/API to explicitly distinguish raw/vendor values, normalized values, and display preferences before locking APIs. |
-| Parser currently does not vary temperature/wind/barometer by console display settings. | Expected to be correct per protocol, but must be live-validated. | Change console display units and confirm raw LOOP/archive bytes remain protocol-unit encoded. |
+| HVO exposes many normalized values as `*F`, `*Mph`, `*Inches`. | Public consumers can confuse protocol units, console display settings, and HVO-normalized units if only suffix fields are used. | Current weather API includes display-unit settings and a converted display sub-object; keep this separation in future contracts. |
+| Parser intentionally does not vary temperature/wind/barometer by console display settings. | Expected to be protocol-compliant; local UI/API presentation converts from normalized values using cached display settings. | Change console display units and confirm raw LOOP/archive bytes remain protocol-unit encoded. |
 | Rain fields have different reset/window semantics. | Mapping them into one central `RainfallInches` field would be wrong. | Keep daily/rate/storm/rolling/archive interval fields separate. |
 | Archive and live records are different shapes. | A single weather payload/table can lose semantics. | Decide whether archive records get a separate central contract/table. |
-| `DMPAFT` fallback on zero pages is implemented but not used by startup catchup. | Some edge recoveries may miss oldest available records. | Decide whether startup catchup should enable `fallbackOnEmpty`. |
+| `DMPAFT` fallback on zero pages is enabled for startup/top-off catchup. | If a requested timestamp predates the circular buffer and firmware returns zero pages, HVO retries with a full-archive request to recover oldest available records. | Live-validate this edge case on real hardware. |
 
 ## Implementation Readiness Assessment
 
-Current assessment: HVO has a good practical Davis implementation for live telemetry, archive catchup, core settings, diagnostics, and many write paths. It should not yet be described as a complete Davis protocol implementation until the official PDF is checked command-by-command and supported writes are validated against live hardware or a protocol simulator.
+Current assessment: HVO has a good practical Davis implementation for live telemetry, archive catchup, core settings, diagnostics, and many write paths. It should not yet be described as a complete Davis protocol implementation until the official PDF is checked command-by-command and risky writes have read-back/safety design plus explicit live-validation decisions.
 
 | Area | Current HVO status | Readiness | Next action |
 |------|--------------------|-----------|-------------|
-| TCP/WeatherLink IP transport | Implemented with wakeup, ACK prefix handling, send pacing, command mode tracking, LOOP interruption, and retries. | Good | Add simulator tests for ACK prefix, NAK/retry, timeout, and command-mode recovery. |
-| CRC | Implemented. | Good | Add known-vector unit test for `0xCEC6 0x03A2 -> 0xE2B4` and packet-validity tests. |
-| LOOP1/LOOP2 live parsing | Implemented for broad live/status field set. | Good | Add golden-packet unit tests covering dash/null sentinels, wind direction edge cases, and rain bucket conversions. |
-| Archive parsing | Implemented for type B records and DMPAFT pages. | Good | Add golden-page simulator tests and timestamp conversion tests. |
+| TCP/WeatherLink IP transport | Implemented with wakeup, ACK prefix handling for command and CRC payload ACKs, send pacing, command mode tracking, LOOP interruption, and retries. | Good | Keep live stress tests manual because the WeatherLink/IP adapter can become unstable during repeated connect/stress cycles. |
+| CRC | Implemented. | Good | Keep packet-validity and retry tests; re-check any external numeric reference vectors before documenting them. |
+| LOOP1/LOOP2 live parsing | Implemented for broad live/status field set with parser tests for sentinels, wind edges, precision wind fields, and rain bucket conversions. | Good | Complete official field-by-field coverage review before claiming exhaustive protocol coverage. |
+| Archive parsing | Implemented for type B records and DMPAFT pages with parser and fake-server coverage for current flows. | Good | Live-validate timestamp conversion across timezone/DST settings. |
 | EEPROM settings reads | Implemented for key settings used by HVO. | Good for current needs | Compare against official PDF and decide whether additional EEPROM fields should be read or explicitly out of scope. |
-| Diagnostics reads | `BARDATA`, `RXCHECK`, `RECEIVERS`, firmware/hardware reads implemented. | Good for current needs | Add simulator tests for text/binary response parsing. |
-| Write operations | Many writes implemented. | Structurally good, not fully validated | Build a write-operation validation matrix before broad UI exposure. |
-| Full Davis command coverage | Not proven. | Incomplete/unknown | Create command-by-command coverage table from official PDF. |
-| Unit normalization | HVO-normalized properties exist, mostly Fahrenheit/mph/inches. | Needs cleanup before API lock | Define raw/vendor vs normalized vs display settings in local API and models. |
+| Diagnostics reads | `BARDATA`, `RXCHECK`, `RECEIVERS`, firmware/hardware reads implemented with fake-server coverage for text/binary response parsing. | Good for current needs | Keep live diagnostics read-only; treat repeated live suite instability as adapter limitation unless a cooldown/reset design is added. |
+| Write operations | Many writes implemented with simulator coverage for current command/payload flows and CRC-protected payload retries. | Structurally good, not live-validated for risky writes | Add read-back verification and safety gates before broad UI exposure. |
+| Full Davis command coverage | Command summary reviewed; many commands deferred. | Documented, not fully implemented | Keep unsupported/deferred commands explicit; do not claim full driver implementation. |
+| Unit normalization | HVO-normalized parser/outbox properties exist; display conversion exists for local UI and current-weather API. | Better, still needs versioned API design before lock | Keep raw/vendor vs normalized vs display settings explicit in local API and models. |
 | Safety/audit around writes | Code paths exist; UI/safety design not complete. | Not production-exposure ready | Require local-only auth, confirmation, audit logs, and rollback/read-back strategy for risky writes. |
 
 ## Update Plan
 
-1. Create a command coverage table in `manufacturer-protocol.md` with every official Davis command, current HVO support status, test status, and safety classification.
+1. Maintain the command coverage table in `manufacturer-protocol.md` as support changes; it now covers the Rev 2.6.1 command summary extracted from the local PDF.
 2. Add an HVO operation coverage table in this document for each public `VantageStation` method, including side effects, simulator-test status, and live-test status.
-3. Add protocol simulator tests for `DavisConsoleClient` and `VantageStation` flows instead of relying only on mocked method calls.
-4. Add golden-packet parser tests for LOOP1, LOOP2, archive record, archive page, CRC, sentinels, and rain bucket conversions.
+3. Continue extending protocol simulator tests for newly supported `DavisConsoleClient` and `VantageStation` flows; current core read/write flows have fake-server coverage.
+4. Continue parser field review against the official PDF; current LOOP/archive tests cover core fields, sentinels, rain bucket conversions, wind edges, and CRC framing.
 5. Redesign local/API DTOs to separate vendor/raw fields, HVO-normalized fields, and console display settings before locking external contracts.
-6. Validate all write paths on live hardware or explicitly mark unsupported/deferred.
+6. Validate risky write paths on live hardware only after read-back/safety design, or explicitly mark unsupported/deferred.
 7. Add safety gates for destructive or configuration-changing writes before UI exposure.

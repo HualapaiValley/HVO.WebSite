@@ -1,5 +1,6 @@
 using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
+using HVO.Hardware.DavisVantagePro2.Station;
 using HVO.Hardware.DavisVantagePro2.Components.Layout;
 using HVO.Astronomy;
 using Microsoft.AspNetCore.Components;
@@ -208,9 +209,19 @@ public partial class Status : IDisposable
 
     private double? FeelsLikeF => _reading?.ThswF ?? _reading?.HeatIndexF ?? _reading?.WindChillF ?? _reading?.OutsideTemperatureF;
 
+    private string TemperatureUnitSuffix => DisplayUnitConverter.TemperatureSuffix(Station.TemperatureUnits);
+
+    private string PressureUnitSuffix => DisplayUnitConverter.PressureSuffix(Station.BarometerUnits);
+
+    private string RainUnitSuffix => DisplayUnitConverter.RainSuffix(Station.RainUnits);
+
+    private string RainRateUnitSuffix => DisplayUnitConverter.RainRateSuffix(Station.RainUnits);
+
+    private string WindUnitSuffix => DisplayUnitConverter.WindSuffix(Station.WindUnits);
+
     private string WindDirectionText => DisplayCompass(_reading?.WindDirectionDegrees);
 
-    private string WindSummary => $"{DisplayWhole(_reading?.WindSpeedMph)} mph, gust {DisplayWhole(_reading?.WindGust10MinMph)}";
+    private string WindSummary => $"{DisplayWind(_reading?.WindSpeedMph)} {WindUnitSuffix}, gust {DisplayWind(_reading?.WindGust10MinMph)}";
 
     private string WindDirectionSpreadText => DisplayDirectionRange(_reading?.WindDirectionDegrees, _reading?.WindGust10MinDirectionDegrees);
 
@@ -316,8 +327,8 @@ public partial class Status : IDisposable
         _temperaturePlot = BuildPlotModel(
             clampMinimumToZero: false,
             minimumRange: 8d,
-            new PlotSeriesSpec(sample => sample.OutsideTemperatureF, _reading?.OutsideTemperatureF, TemperatureOutsideColor),
-            new PlotSeriesSpec(sample => sample.InsideTemperatureF, _reading?.InsideTemperatureF, TemperatureInsideColor));
+            new PlotSeriesSpec(sample => DisplayTemperatureValue(sample.OutsideTemperatureF), DisplayTemperatureValue(_reading?.OutsideTemperatureF), TemperatureOutsideColor),
+            new PlotSeriesSpec(sample => DisplayTemperatureValue(sample.InsideTemperatureF), DisplayTemperatureValue(_reading?.InsideTemperatureF), TemperatureInsideColor));
 
         _solarPlot = BuildPlotModel(
             clampMinimumToZero: true,
@@ -327,8 +338,8 @@ public partial class Status : IDisposable
         _windPlot = BuildPlotModel(
             clampMinimumToZero: true,
             minimumRange: 10d,
-            new PlotSeriesSpec(sample => sample.WindSpeed2MinAvgMph, _reading?.WindSpeed2MinAvgMph, WindAverageColor),
-            new PlotSeriesSpec(sample => sample.WindGust10MinMph, _reading?.WindGust10MinMph, WindGustColor));
+            new PlotSeriesSpec(sample => DisplayWindValue(sample.WindSpeed2MinAvgMph), DisplayWindValue(_reading?.WindSpeed2MinAvgMph), WindAverageColor),
+            new PlotSeriesSpec(sample => DisplayWindValue(sample.WindGust10MinMph), DisplayWindValue(_reading?.WindGust10MinMph), WindGustColor));
 
         RefreshCelestialModels();
     }
@@ -781,16 +792,17 @@ public partial class Status : IDisposable
             reading.WindGust10MinMph);
     }
 
-    private static string PressureMarkerLeft(double? pressure)
+    private string PressureMarkerLeft(double? pressure)
     {
-        if (pressure is null)
+        double? displayPressure = DisplayPressureValue(pressure);
+        if (displayPressure is null)
         {
             return "50%";
         }
 
-        const double minimum = 26.5;
-        const double maximum = 30.5;
-        double clamped = Math.Clamp(pressure.Value, minimum, maximum);
+        double minimum = DisplayPressureValue(26.5) ?? 26.5;
+        double maximum = DisplayPressureValue(30.5) ?? 30.5;
+        double clamped = Math.Clamp(displayPressure.Value, minimum, maximum);
         double percent = ((clamped - minimum) / (maximum - minimum)) * 100.0;
         return $"{percent.ToString("F0", CultureInfo.InvariantCulture)}%";
     }
@@ -816,15 +828,29 @@ public partial class Status : IDisposable
                   .ToString("h:mm:ss tt", CultureInfo.InvariantCulture)
             : null;
 
-    private static string DisplayTemperature(double? value) => value?.ToString("F1", CultureInfo.InvariantCulture) ?? "--";
+    private double? DisplayTemperatureValue(double? fahrenheit) =>
+        DisplayUnitConverter.Temperature(fahrenheit, Station.TemperatureUnits);
+
+    private double? DisplayPressureValue(double? inHg) =>
+        DisplayUnitConverter.Pressure(inHg, Station.BarometerUnits);
+
+    private double? DisplayRainValue(double? inches) =>
+        DisplayUnitConverter.Rain(inches, Station.RainUnits);
+
+    private double? DisplayWindValue(double? mph) =>
+        DisplayUnitConverter.WindSpeed(mph, Station.WindUnits);
+
+    private string DisplayTemperature(double? value) => DisplayTemperatureValue(value)?.ToString("F1", CultureInfo.InvariantCulture) ?? "--";
 
     private static string DisplayWhole(double? value) => value?.ToString("F0", CultureInfo.InvariantCulture) ?? "--";
 
-    private static string DisplayPressure(double? value) => value?.ToString("F2", CultureInfo.InvariantCulture) ?? "--";
+    private string DisplayPressure(double? value) => DisplayPressureValue(value)?.ToString(PressureUnitSuffix is "inHg" ? "F2" : "F1", CultureInfo.InvariantCulture) ?? "--";
 
-    private static string DisplayRain(double? value) => value?.ToString("F2", CultureInfo.InvariantCulture) ?? "--";
+    private string DisplayRain(double? value) => DisplayRainValue(value)?.ToString(RainUnitSuffix is "in" ? "F2" : "F1", CultureInfo.InvariantCulture) ?? "--";
 
-    private static string DisplayEt(double? value) => value?.ToString("F3", CultureInfo.InvariantCulture) ?? "--";
+    private string DisplayEt(double? value) => DisplayRainValue(value)?.ToString(RainUnitSuffix is "in" ? "F3" : "F2", CultureInfo.InvariantCulture) ?? "--";
+
+    private string DisplayWind(double? value) => DisplayWindValue(value)?.ToString(WindUnitSuffix is "mph" or "km/h" or "knots" ? "F0" : "F1", CultureInfo.InvariantCulture) ?? "--";
 
     private static string DisplayUv(double? value) => value?.ToString("F1", CultureInfo.InvariantCulture) ?? "--";
 

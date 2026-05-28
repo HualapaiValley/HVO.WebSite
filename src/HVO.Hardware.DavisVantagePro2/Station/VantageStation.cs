@@ -46,6 +46,10 @@ public sealed class VantageStation : IAsyncDisposable
     public double GmtOffsetHours { get; private set; }
     public double? LatitudeDegrees { get; private set; }
     public double? LongitudeDegrees { get; private set; }
+    public string BarometerUnits { get; private set; } = "inHg";
+    public string TemperatureUnits { get; private set; } = "°F";
+    public string RainUnits { get; private set; } = "inch";
+    public string WindUnits { get; private set; } = "mph";
     public bool IsConnected => _client.IsConnected;
 
     /// <summary>
@@ -101,6 +105,10 @@ public sealed class VantageStation : IAsyncDisposable
         LatitudeDegrees = settings.LatitudeDegrees;
         LongitudeDegrees = settings.LongitudeDegrees;
         AltitudeFeet = settings.AltitudeFeet;
+        BarometerUnits = settings.BarometerUnits;
+        TemperatureUnits = settings.TemperatureUnits;
+        RainUnits = settings.RainUnits;
+        WindUnits = settings.WindUnits;
         _setupHydrated = true;
     }
 
@@ -305,10 +313,10 @@ public sealed class VantageStation : IAsyncDisposable
 
             // Encode date/time stamp for DMPAFT
             byte[] dateStamp = EncodeDmpaftDate(since);
-            await _client.SendDataWithCrc16Async(dateStamp, ct, maxTries: 1);
+            await _client.SendDataWithCrc16Async(dateStamp, ct, maxTries: _maxTries);
 
             // Read page/index response
-            byte[] resp = await _client.GetDataWithCrc16Async(DavisProtocol.DmpaftResponseBytes, ct, maxTries: 1);
+            byte[] resp = await _client.GetDataWithCrc16Async(DavisProtocol.DmpaftResponseBytes, ct, maxTries: _maxTries);
             int nPages = BinaryPrimitives.ReadUInt16LittleEndian(resp[0..]);
             int startIndex = BinaryPrimitives.ReadUInt16LittleEndian(resp[2..]);
             _logger.LogDebug("DMPAFT: {Pages} pages, start index {Idx}", nPages, startIndex);
@@ -321,8 +329,8 @@ public sealed class VantageStation : IAsyncDisposable
                 _logger.LogDebug("DMPAFT: 0 pages for {Since}; retrying with full archive", since);
                 await EnsureCommandModeLockedAsync(ct);
                 await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdDmpaft}\n"), ct);
-                await _client.SendDataWithCrc16Async(EncodeDmpaftDate(DateTime.MinValue), ct, maxTries: 1);
-                resp = await _client.GetDataWithCrc16Async(DavisProtocol.DmpaftResponseBytes, ct, maxTries: 1);
+                await _client.SendDataWithCrc16Async(EncodeDmpaftDate(DateTime.MinValue), ct, maxTries: _maxTries);
+                resp = await _client.GetDataWithCrc16Async(DavisProtocol.DmpaftResponseBytes, ct, maxTries: _maxTries);
                 nPages = BinaryPrimitives.ReadUInt16LittleEndian(resp[0..]);
                 startIndex = BinaryPrimitives.ReadUInt16LittleEndian(resp[2..]);
                 _logger.LogDebug("DMPAFT full archive: {Pages} pages, start index {Idx}", nPages, startIndex);
@@ -334,7 +342,7 @@ public sealed class VantageStation : IAsyncDisposable
             {
                 byte[] pageData = await _client.GetDataWithCrc16Async(
                     DavisProtocol.ArchivePageBytes, ct,
-                    prompt: [DavisProtocol.Ack], maxTries: 1);
+                    prompt: [DavisProtocol.Ack], maxTries: _maxTries);
 
                 for (int idx = startIndex; idx < DavisProtocol.ArchiveRecordsPerPage; idx++)
                 {
@@ -547,7 +555,7 @@ public sealed class VantageStation : IAsyncDisposable
             //        "C  2.3", "R  1.003", "BARCAL  0.012", "GAIN  1", "OFFSET  0"
             return new BarometerData
             {
-                CurrentPressureInHg = ParseRequiredDouble(lines, 0, 1, DavisProtocol.CmdBardata),
+                CurrentPressureInHg = ParseBarometerInHg(lines, 0, 1, DavisProtocol.CmdBardata),
                 AltitudeFeet = ParseRequiredDouble(lines, 1, 1, DavisProtocol.CmdBardata),
                 DewPointF = ParseRequiredDouble(lines, 2, 2, DavisProtocol.CmdBardata),
                 VirtualTemperatureF = ParseRequiredDouble(lines, 3, 2, DavisProtocol.CmdBardata),
@@ -681,7 +689,7 @@ public sealed class VantageStation : IAsyncDisposable
                 (byte)t.Second, (byte)t.Minute, (byte)t.Hour,
                 (byte)t.Day, (byte)t.Month, (byte)(t.Year - 1900)
             ];
-            await _client.SendDataWithCrc16Async(payload, ct, maxTries: 1);
+            await _client.SendDataWithCrc16Async(payload, ct, maxTries: _maxTries);
             _logger.LogInformation("Console clock set to {T}", t);
         }
         finally { _lock.Release(); }
@@ -1057,6 +1065,7 @@ public sealed class VantageStation : IAsyncDisposable
 
     private async Task ReadSetupFromEepromAsync(CancellationToken ct)
     {
+        byte[] unitBits = await ReadEepromAsync(DavisProtocol.EepromUnitBits, 1, ct);
         byte[] setupBits = await ReadEepromAsync(DavisProtocol.EepromSetupBits, 1, ct);
         byte[] archByte = await ReadEepromAsync(DavisProtocol.EepromArchiveInterval, 1, ct);
         byte[] gmtOrZone = await ReadEepromAsync(DavisProtocol.EepromGmtOrZone, 1, ct);
@@ -1072,13 +1081,17 @@ public sealed class VantageStation : IAsyncDisposable
         GmtOffsetHours = BinaryPrimitives.ReadInt16LittleEndian(gmtOffB) / 100.0;
         LatitudeDegrees = BinaryPrimitives.ReadInt16LittleEndian(latBytes) / 10.0;
         LongitudeDegrees = BinaryPrimitives.ReadInt16LittleEndian(lonBytes) / 10.0;
+        BarometerUnits = BaroUnitName(unitBits[0] & 0x03);
+        TemperatureUnits = TempUnitName((unitBits[0] & 0x0C) >> 2);
+        RainUnits = (unitBits[0] & 0x20) != 0 ? "mm" : "inch";
+        WindUnits = WindUnitName((unitBits[0] & 0xC0) >> 6);
         _setupHydrated = true;
     }
 
     private async Task<DateTime> GetConsoleTimeInternalAsync(CancellationToken ct)
     {
         await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdGettime}\n"), ct);
-        byte[] buf = await _client.GetDataWithCrc16Async(8, ct, maxTries: 1);
+        byte[] buf = await _client.GetDataWithCrc16Async(8, ct, maxTries: _maxTries);
         // Layout: sec, min, hr, day, mon, yr (since 1900), [2 CRC]
         int sec = buf[0], min = buf[1], hr = buf[2], day = buf[3], mon = buf[4], yr = buf[5] + 1900;
         return new DateTime(yr, mon, day, hr, min, sec, DateTimeKind.Local);
@@ -1087,8 +1100,21 @@ public sealed class VantageStation : IAsyncDisposable
     private async Task<byte[]> ReadEepromAsync(ushort address, int bytes, CancellationToken ct)
     {
         string cmd = $"{DavisProtocol.CmdEebrd} {address:X} {bytes:X}\n";
-        await _client.SendDataAsync(Encoding.ASCII.GetBytes(cmd), ct);
-        byte[] data = await _client.GetDataWithCrc16Async(bytes + 2, ct, maxTries: 1);
+        byte[] cmdBytes = Encoding.ASCII.GetBytes(cmd);
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await _client.SendDataAsync(cmdBytes, ct);
+                break;
+            }
+            catch (DavisException ex) when (attempt < _maxTries)
+            {
+                _logger.LogDebug(ex, "EEPROM read command {Command} attempt {Attempt} failed", cmd.TrimEnd(), attempt);
+            }
+        }
+
+        byte[] data = await _client.GetDataWithCrc16Async(bytes + 2, ct, maxTries: _maxTries);
         return data[..bytes];
     }
 
@@ -1096,7 +1122,7 @@ public sealed class VantageStation : IAsyncDisposable
     {
         string cmd = $"{DavisProtocol.CmdEebwr} {address:X} {data.Length:X}\n";
         await _client.SendDataAsync(Encoding.ASCII.GetBytes(cmd), ct);
-        await _client.SendDataWithCrc16Async(data, ct, maxTries: 1);
+        await _client.SendDataWithCrc16Async(data, ct, maxTries: _maxTries);
     }
 
     private async Task WriteEepromByteAsync(ushort address, byte value, CancellationToken ct)
@@ -1275,6 +1301,12 @@ public sealed class VantageStation : IAsyncDisposable
             return value;
 
         throw new DavisProtocolException($"Command '{command}' returned non-numeric value '{parts[wordIdx]}' at line {lineIdx + 1}, field {wordIdx + 1}.");
+    }
+
+    private static double ParseBarometerInHg(string[] lines, int lineIdx, int wordIdx, string command)
+    {
+        double value = ParseRequiredDouble(lines, lineIdx, wordIdx, command);
+        return value > 1000 ? value / 1000.0 : value;
     }
 
     private static int ParseRequiredInt(string[] lines, int lineIdx, int wordIdx, string command)

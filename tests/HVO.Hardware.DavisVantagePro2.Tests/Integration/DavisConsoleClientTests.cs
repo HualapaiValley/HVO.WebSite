@@ -294,12 +294,67 @@ public class DavisConsoleClientTests
     }
 
     [TestMethod]
-    public async Task SendDataAsync_WithLfButInvalidCr_ThrowsDavisProtocolException()
+    public async Task SendDataAsync_WithLfCrPrefixedAck_DoesNotThrow()
     {
         await using var server = new FakeDavisServer();
         server
             .WakeStep()
-            .Step(8, [DavisProtocol.Lf, 0xFF, DavisProtocol.Ack])
+            .Step(8, [DavisProtocol.Lf, DavisProtocol.Cr, DavisProtocol.Ack])
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+        await client.WakeAsync(maxTries: 1);
+
+        Func<Task> act = () => client.SendDataAsync(
+            System.Text.Encoding.ASCII.GetBytes("GETTIME\n"), CancellationToken.None);
+        await act.Should().NotThrowAsync();
+    }
+
+    [TestMethod]
+    public async Task SendDataAsync_WithLfPrefixedAck_DoesNotThrow()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(8, [DavisProtocol.Lf, DavisProtocol.Ack])
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+        await client.WakeAsync(maxTries: 1);
+
+        Func<Task> act = () => client.SendDataAsync(
+            System.Text.Encoding.ASCII.GetBytes("GETTIME\n"), CancellationToken.None);
+        await act.Should().NotThrowAsync();
+    }
+
+    [TestMethod]
+    public async Task SendDataAsync_WithLfCrNoiseBeforeAck_DoesNotThrow()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(8, [DavisProtocol.Lf, DavisProtocol.Cr, DavisProtocol.Lf, DavisProtocol.Ack])
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+        await client.WakeAsync(maxTries: 1);
+
+        Func<Task> act = () => client.SendDataAsync(
+            System.Text.Encoding.ASCII.GetBytes("GETTIME\n"), CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    [TestMethod]
+    public async Task SendDataAsync_WithInvalidAckByte_ThrowsDavisProtocolException()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(8, [DavisProtocol.Lf, 0xFF])
             .Start();
 
         using var client = CreateClient(server.Port);
@@ -310,6 +365,58 @@ public class DavisConsoleClientTests
             System.Text.Encoding.ASCII.GetBytes("GETTIME\n"), CancellationToken.None);
 
         await act.Should().ThrowAsync<DavisProtocolException>()
-            .WithMessage("*Expected LF CR prefix*");
+            .WithMessage("*Expected ACK*0xFF*");
+    }
+
+    // ── SendDataWithCrc16Async ────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task SendDataWithCrc16Async_WithLfCrPrefixedAck_DoesNotThrow()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .Step(8, [DavisProtocol.Lf, DavisProtocol.Cr, DavisProtocol.Ack])
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        Func<Task> act = () => client.SendDataWithCrc16Async([1, 2, 3, 4, 5, 6], CancellationToken.None, maxTries: 1);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    [TestMethod]
+    public async Task SendDataWithCrc16Async_WithLfAck_DoesNotThrow()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .Step(8, [DavisProtocol.Lf, DavisProtocol.Ack])
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        Func<Task> act = () => client.SendDataWithCrc16Async([1, 2, 3, 4, 5, 6], CancellationToken.None, maxTries: 1);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    [TestMethod]
+    public async Task SendDataWithCrc16Async_WithInvalidAckByte_RetriesAndThenThrowsDavisCrcException()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .Step(8, [0xFF])
+            .Step(8, [0xFE])
+            .Start();
+
+        using var client = CreateClient(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        Func<Task> act = () => client.SendDataWithCrc16Async([1, 2, 3, 4, 5, 6], CancellationToken.None, maxTries: 2);
+
+        await act.Should().ThrowAsync<DavisCrcException>();
+        server.ReceivedSteps.Should().HaveCount(2);
     }
 }

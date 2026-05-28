@@ -250,7 +250,7 @@ public sealed class WeatherStationWorker(
             int count = 0;
             try
             {
-                await foreach (var rec in station.GetArchiveSinceAsync(since, ct: ct))
+                await foreach (var rec in station.GetArchiveSinceAsync(since, fallbackOnEmpty: true, ct: ct))
                 {
                     await WriteArchiveToOutboxAsync(rec, ct);
                     count++;

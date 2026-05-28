@@ -24,12 +24,12 @@
                             <h2>Station Conditions</h2>
                         </div>
                     </div>
-                    <div class="hero-temp hero-temp-primary mono">@DisplayTemperature(_reading?.OutsideTemperatureF)&deg;F</div>
+                    <div class="hero-temp hero-temp-primary mono">@DisplayTemperature(_reading?.OutsideTemperatureF)@TemperatureUnitSuffix</div>
                     <div class="inside-pill-grid">
                         <div class="status-pill">
                             <div class="status-copy">
                                 <div class="label">Inside Temperature</div>
-                                <div class="value mono">@DisplayTemperature(_reading?.InsideTemperatureF)&deg;F</div>
+                                <div class="value mono">@DisplayTemperature(_reading?.InsideTemperatureF)@TemperatureUnitSuffix</div>
                             </div>
                         </div>
                         <div class="status-pill">
@@ -41,11 +41,11 @@
                     </div>
                     <div class="hero-stack">
                         <div>@ConditionSummary</div>
-                        <div>Feels like <span class="hero-value hero-value-amber mono">@DisplayTemperature(FeelsLikeF)&deg;F</span>
+                        <div>Feels like <span class="hero-value hero-value-amber mono">@DisplayTemperature(FeelsLikeF)@TemperatureUnitSuffix</span>
                         </div>
-                        <div>THSW <span class="hero-value hero-value-amber mono">@DisplayTemperature(_reading?.ThswF)&deg;F</span></div>
+                        <div>THSW <span class="hero-value hero-value-amber mono">@DisplayTemperature(_reading?.ThswF)@TemperatureUnitSuffix</span></div>
                         <div>Dew point <span
-                            class="hero-value hero-value-cyan mono">@DisplayTemperature(_reading?.DewPointF)&deg;F</span></div>
+                            class="hero-value hero-value-cyan mono">@DisplayTemperature(_reading?.DewPointF)@TemperatureUnitSuffix</span></div>
                             <div>Barometric trend <span class="hero-value hero-value-blue">@DisplayTrend(BarometricTrendText)</span></div>
                         </div>
                         <div class="chip-grid">
@@ -55,11 +55,11 @@
                             </div>
                             <div class="chip">
                                 <div class="name">Heat Index</div>
-                                <div class="value mono">@DisplayTemperature(_reading?.HeatIndexF)&deg;F</div>
+                                <div class="value mono">@DisplayTemperature(_reading?.HeatIndexF)@TemperatureUnitSuffix</div>
                             </div>
                             <div class="chip">
                                 <div class="name">Wind Chill</div>
-                                <div class="value mono">@DisplayTemperature(_reading?.WindChillF)&deg;F</div>
+                                <div class="value mono">@DisplayTemperature(_reading?.WindChillF)@TemperatureUnitSuffix</div>
                             </div>
                         </div>
                     </div>
@@ -102,12 +102,12 @@
                         </footer>
                         <div class="instrument-detail-list">
                             <div class="instrument-detail-row"><span>Average speed</span><strong
-                                class="mono">@DisplayWhole(_reading?.WindSpeed10MinAvgMph) mph</strong>
+                                class="mono">@DisplayWind(_reading?.WindSpeed10MinAvgMph) @WindUnitSuffix</strong>
                             </div>
                             <div class="instrument-detail-row"><span>2-minute average</span><strong
-                                class="mono">@DisplayWhole(_reading?.WindSpeed2MinAvgMph) mph</strong></div>
+                                class="mono">@DisplayWind(_reading?.WindSpeed2MinAvgMph) @WindUnitSuffix</strong></div>
                             <div class="instrument-detail-row"><span>10-minute gust</span><strong
-                                class="mono">@DisplayWhole(_reading?.WindGust10MinMph) mph</strong></div>
+                                class="mono">@DisplayWind(_reading?.WindGust10MinMph) @WindUnitSuffix</strong></div>
                             <div class="instrument-detail-row"><span>Direction spread</span><strong
                                 class="mono">@WindDirectionSpreadText</strong></div>
                         </div>
@@ -120,7 +120,7 @@
                                 <div class="barometer-reading">
                                     <strong
                                         class="mono">@DisplayPressure(_reading?.BarometricPressureInHg)</strong>
-                                    <span>barometer inHg</span>
+                                    <span>barometer @PressureUnitSuffix</span>
                                 </div>
                                 <div class="barometer-scale" aria-label="Outside pressure range scale">
                                     <div class="barometer-band">
@@ -128,9 +128,9 @@
                                             style="left: @PressureMarkerLeft(_reading?.BarometricPressureInHg);"></span>
                                     </div>
                                     <div class="barometer-labels mono">
-                                        <span>26.5</span>
-                                        <span>28.5</span>
-                                        <span>30.5</span>
+                                        <span>@DisplayPressure(26.5)</span>
+                                        <span>@DisplayPressure(28.5)</span>
+                                        <span>@DisplayPressure(30.5)</span>
                                     </div>
                                 </div>
                                 <div class="barometer-meta">
@@ -149,7 +149,7 @@
                             <div class="barometer-card">
                                 <div class="barometer-reading">
                                     <strong class="mono">@DisplayPressure(_reading?.PressureRawInHg)</strong>
-                                    <span>console inHg</span>
+                                    <span>console @PressureUnitSuffix</span>
                                 </div>
                                 <div class="barometer-scale" aria-label="Inside pressure range scale">
                                     <div class="barometer-band">
@@ -157,9 +157,9 @@
                                             style="left: @PressureMarkerLeft(_reading?.PressureRawInHg);"></span>
                                     </div>
                                     <div class="barometer-labels mono">
-                                        <span>26.5</span>
-                                        <span>28.5</span>
-                                        <span>30.5</span>
+                                        <span>@DisplayPressure(26.5)</span>
+                                        <span>@DisplayPressure(28.5)</span>
+                                        <span>@DisplayPressure(30.5)</span>
                                     </div>
                                 </div>
                                 <div class="barometer-meta">
@@ -181,7 +181,7 @@
                     <div class="metric">
                         <div class="label">Rain Rate</div>
                         <div class="number metric-number metric-number-cyan mono">@DisplayRain(_reading?.RainRateInchesPerHour)</div>
-                        <div class="foot">in/hr current</div>
+                        <div class="foot">@RainRateUnitSuffix current</div>
                     </div>
                     <div class="metric">
                         <div class="label">15-Min Rain</div>
@@ -211,7 +211,7 @@
                     <div class="metric">
                         <div class="label">Daily ET</div>
                         <div class="number metric-number metric-number-amber mono">@DisplayEt(_reading?.DailyEtInches)</div>
-                        <div class="foot">in evaporative loss</div>
+                        <div class="foot">@RainUnitSuffix evaporative loss</div>
                     </div>
                 </div>
             </div>
@@ -284,10 +284,10 @@
                                 </div>
                                 <div class="rows">
                                     <div class="row"><span>24h low</span><strong
-                                        class="mono">@DisplayTemperature(_outsideTemperature24HourLowF)&deg;F</strong>
+                                        class="mono">@DisplayTemperature(_outsideTemperature24HourLowF)@TemperatureUnitSuffix</strong>
                                     </div>
                                     <div class="row"><span>24h high</span><strong
-                                        class="mono">@DisplayTemperature(_outsideTemperature24HourHighF)&deg;F</strong>
+                                        class="mono">@DisplayTemperature(_outsideTemperature24HourHighF)@TemperatureUnitSuffix</strong>
                                     </div>
                                 </div>
                             </section>
@@ -345,9 +345,9 @@
                                 </div>
                                 <div class="rows">
                                     <div class="row"><span>2-minute average</span><strong
-                                        class="mono">@DisplayWhole(_reading?.WindSpeed2MinAvgMph) mph</strong></div>
+                                        class="mono">@DisplayWind(_reading?.WindSpeed2MinAvgMph) @WindUnitSuffix</strong></div>
                                     <div class="row"><span>10-minute gust</span><strong
-                                        class="mono">@DisplayWhole(_reading?.WindGust10MinMph) mph</strong></div>
+                                        class="mono">@DisplayWind(_reading?.WindGust10MinMph) @WindUnitSuffix</strong></div>
                                 </div>
                             </section>
                         </div>

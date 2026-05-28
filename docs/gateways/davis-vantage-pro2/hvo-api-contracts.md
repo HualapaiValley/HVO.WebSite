@@ -22,6 +22,19 @@ This document describes HVO local APIs, outbox payloads, and central/cloud contr
 | `/api/weather/current` | Current curated conditions | Gateway API key | none | `CurrentConditionsResponse` | Existing endpoint. |
 | `/health` | Container health | none/internal | none | health status | Existing endpoint. |
 
+## Contract Model Principles
+
+Future local/cloud contracts should preserve these distinctions. Current payloads do not fully enforce them yet.
+
+| Concept | Meaning | Current state | Target contract behavior |
+|---------|---------|---------------|--------------------------|
+| Davis protocol/raw value | Value exactly as encoded by the Davis command or packet after only mechanical decode. | Mostly internal to packet parsers. | Expose only when consumers need protocol fidelity; name with `Davis` or `Raw` context. |
+| HVO-normalized value | Value converted into HVO's preferred engineering units, currently deg F, mph, inches, inHg, UTC timestamps. | Most current `*F`, `*Mph`, `*Inches`, `*InHg` fields are HVO-normalized. | Keep unit suffixes explicit and avoid implying console display settings changed the raw protocol. |
+| Console display setting | User preference stored in EEPROM unit bits, such as temperature, wind, rain, or barometer display units. | Read and cached by `VantageStation`; local UI and `/api/weather/current` display fields use these settings for presentation conversion. | Publish in station-config/status streams and display sub-objects; do not mutate protocol-normalized observation fields. |
+| HVO-derived value | Value calculated by HVO from Davis fields rather than reported by the console. | Candidate only for dew/dew-risk style future values. | Include provenance such as `source=DavisConsole` or `source=HvoCalculated` if added. |
+| Live LOOP observation | Instantaneous/current console values plus LOOP1 status cached near the LOOP2 sample time. | Current live outbox is one payload shape. | Keep separate from archive interval records. |
+| Archive interval observation | Davis archive record with interval/high/low/aggregate semantics. | Current archive outbox is separate from live outbox and maps interval rain to `RainfallInches`. | Preserve interval semantics and avoid merging blindly with live current readings. |
+
 ## Live Outbox Payload
 
 Current live outbox payload fields from `WeatherStationWorker.WriteToOutboxAsync`:
@@ -115,6 +128,51 @@ Current archive outbox payload fields from `WeatherStationWorker.WriteArchiveToO
 | Archive rain | Currently mapped to `RainfallInches`. | Archive record rain is interval rainfall. |
 | Console battery/status | Candidate gateway status/config stream. | Not central weather raw today. |
 | Derived weather values | Prefer Davis console-derived live values; mark HVO calculations separately. | Avoid mixing vendor-derived and HVO-calculated values. |
+| Raw vs normalized naming | Current payload names are HVO-normalized by suffix. | Future contracts should explicitly separate protocol/raw values, normalized values, and display settings. |
+| Display unit settings | Current weather API includes normalized fields plus a display-converted sub-object. | Keeps existing unit-suffixed fields stable while allowing UI/API consumers to follow console display preferences. |
+
+## Current Weather Display Sub-Object
+
+`/api/weather/current` keeps existing HVO-normalized fields such as `OutsideTemperatureF`, `WindSpeedMph`, `DailyRainInches`, and `BarometricPressureInHg`. It also returns a `Display` object converted from those normalized values using cached console display settings.
+
+| Display field group | Source normalized fields | Conversion setting |
+|---------------------|--------------------------|--------------------|
+| Temperatures | `*TemperatureF`, `DewPointF`, `HeatIndexF`, `WindChillF` | `VantageStation.TemperatureUnits` (`°F`, `°F×10`, `°C`, `°C×10`) |
+| Pressure | `BarometricPressureInHg`, `PressureRawInHg`, `AltimeterInHg` | `VantageStation.BarometerUnits` (`inHg`, `mmHg`, `hPa`, `mbar`) |
+| Wind | `WindSpeedMph`, `WindSpeed10MinAvgMph`, `WindGust10MinMph` | `VantageStation.WindUnits` (`mph`, `m/s`, `km/h`, `knots`) |
+| Rain/ET | `*RainInches`, `DailyEtInches` | `VantageStation.RainUnits` (`inch`, `mm`) |
+
+The local status dashboard uses the same conversion layer. Parser and outbox payload units remain protocol/HVO-normalized until a deliberate versioned schema change is made.
+
+## Write Safety And Read-Back Policy
+
+These rules apply before exposing any configuration-changing Davis command through a broad local UI or any cloud path. Low-risk local diagnostics can be more permissive, but destructive/configuration writes require this policy.
+
+| Requirement | Policy |
+|-------------|--------|
+| Scope | Writes remain local-only. No central/cloud command path. |
+| Authorization | Require local operator authorization distinct from read-only dashboard access. |
+| Confirmation | Require explicit confirmation describing the exact side effect, especially for clock, archive interval, calibration, alarms, EEPROM, and archive clear. |
+| Allowlist | Expose only reviewed commands. Do not add generic command passthrough. |
+| Audit | Record operator, command, requested values, previous read-back values where available, result, timestamp, and error details. |
+| Read-back | After a write, re-read the affected setting or status and compare expected values where the protocol supports it. |
+| Failure handling | If ACK/write succeeds but read-back fails or differs, mark the operation degraded and require manual verification. |
+| Live testing | High-risk writes require explicit opt-in and a pre-written rollback/manual recovery plan. |
+| Destructive commands | `CLRLOG` must require a separate manual approval step and should never run in automated validation. |
+
+| Write area | Read-back verification |
+|------------|------------------------|
+| Console time | Re-run `GETTIME`; allow a small clock drift tolerance. |
+| Archive interval | Re-read EEPROM archive interval and confirm worker cache updates. |
+| Rain bucket/year start | Re-read setup bits/rain year start and confirm rain conversion assumptions. |
+| Location/timezone/DST/temp logging | Re-read corresponding EEPROM fields and confirm cached station settings. |
+| Calibration | Re-read calibration EEPROM block/field. |
+| Alarm thresholds | Re-read alarm threshold block and compare encoded values. |
+| Active alarm bits clear | Re-read relevant status if exposed by protocol; otherwise mark as command-ACK-only. |
+| Barometer calibration | Re-run `BARDATA` and compare pressure/altitude fields where applicable. |
+| Transmitter/retransmit config | Re-read transmitter EEPROM fields. |
+| Lamp | Low-risk command; ACK or text response is sufficient unless UI needs state. |
+| Archive clear | No automated read-back is sufficient; require manual verification and backup/export decision before execution. |
 
 ## Candidate Streams
 

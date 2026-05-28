@@ -241,6 +241,10 @@ app.MapGet("/api/weather/current", (HttpContext httpContext, WeatherStationWorke
         ObservedAtLocal = observedAtLocal,
         ConsoleTimeZone = station.ConsoleTimeZoneLabel,
         IsConnected = station.IsConnected,
+        TemperatureUnits = station.TemperatureUnits,
+        BarometerUnits = station.BarometerUnits,
+        RainUnits = station.RainUnits,
+        WindUnits = station.WindUnits,
         OutsideTemperatureF = reading.OutsideTemperatureF,
         OutsideHumidityPercent = reading.OutsideHumidityPercent,
         DewPointF = reading.DewPointF,
@@ -272,7 +276,32 @@ app.MapGet("/api/weather/current", (HttpContext httpContext, WeatherStationWorke
         ConsoleBatteryVoltage = reading.ConsoleBatteryVoltage,
         TransmitterLowBatteryChannels = [.. reading.TransmitterLowBatteryChannels],
         PendingOutboxCount = forwarder.PendingCount,
-        FailedOutboxCount = forwarder.FailedCount
+        FailedOutboxCount = forwarder.FailedCount,
+        Display = new DisplayCurrentConditionsResponse
+        {
+            TemperatureUnits = DisplayUnitConverter.TemperatureSuffix(station.TemperatureUnits),
+            BarometerUnits = DisplayUnitConverter.PressureSuffix(station.BarometerUnits),
+            RainUnits = DisplayUnitConverter.RainSuffix(station.RainUnits),
+            WindUnits = DisplayUnitConverter.WindSuffix(station.WindUnits),
+            OutsideTemperature = DisplayUnitConverter.Temperature(reading.OutsideTemperatureF, station.TemperatureUnits),
+            DewPoint = DisplayUnitConverter.Temperature(reading.DewPointF, station.TemperatureUnits),
+            HeatIndex = DisplayUnitConverter.Temperature(reading.HeatIndexF, station.TemperatureUnits),
+            WindChill = DisplayUnitConverter.Temperature(reading.WindChillF, station.TemperatureUnits),
+            InsideTemperature = DisplayUnitConverter.Temperature(reading.InsideTemperatureF, station.TemperatureUnits),
+            BarometricPressure = DisplayUnitConverter.Pressure(reading.BarometricPressureInHg, station.BarometerUnits),
+            PressureRaw = DisplayUnitConverter.Pressure(reading.PressureRawInHg, station.BarometerUnits),
+            Altimeter = DisplayUnitConverter.Pressure(reading.AltimeterInHg, station.BarometerUnits),
+            WindSpeed = DisplayUnitConverter.WindSpeed(reading.WindSpeedMph, station.WindUnits),
+            WindSpeed10MinAvg = DisplayUnitConverter.WindSpeed(reading.WindSpeed10MinAvgMph, station.WindUnits),
+            WindGust10Min = DisplayUnitConverter.WindSpeed(reading.WindGust10MinMph, station.WindUnits),
+            RainRate = DisplayUnitConverter.Rain(reading.RainRateInchesPerHour, station.RainUnits),
+            DailyRain = DisplayUnitConverter.Rain(reading.DailyRainInches, station.RainUnits),
+            Rain24Hour = DisplayUnitConverter.Rain(reading.Rain24HourInches, station.RainUnits),
+            StormRain = DisplayUnitConverter.Rain(reading.StormRainInches, station.RainUnits),
+            DailyEt = DisplayUnitConverter.Rain(reading.DailyEtInches, station.RainUnits),
+            MonthlyRain = DisplayUnitConverter.Rain(reading.MonthlyRainInches, station.RainUnits),
+            YearlyRain = DisplayUnitConverter.Rain(reading.YearlyRainInches, station.RainUnits)
+        }
     };
 
     return Results.Ok(response);

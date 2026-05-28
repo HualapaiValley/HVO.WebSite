@@ -6,6 +6,10 @@ public sealed record CurrentConditionsResponse
     public DateTimeOffset ObservedAtLocal { get; init; }
     public string ConsoleTimeZone { get; init; } = string.Empty;
     public bool IsConnected { get; init; }
+    public string TemperatureUnits { get; init; } = "°F";
+    public string BarometerUnits { get; init; } = "inHg";
+    public string RainUnits { get; init; } = "inch";
+    public string WindUnits { get; init; } = "mph";
 
     public double? OutsideTemperatureF { get; init; }
     public double? OutsideHumidityPercent { get; init; }
@@ -47,4 +51,33 @@ public sealed record CurrentConditionsResponse
 
     public int PendingOutboxCount { get; init; }
     public int FailedOutboxCount { get; init; }
+
+    public DisplayCurrentConditionsResponse? Display { get; init; }
+}
+
+public sealed record DisplayCurrentConditionsResponse
+{
+    public string TemperatureUnits { get; init; } = "°F";
+    public string BarometerUnits { get; init; } = "inHg";
+    public string RainUnits { get; init; } = "inch";
+    public string WindUnits { get; init; } = "mph";
+
+    public double? OutsideTemperature { get; init; }
+    public double? DewPoint { get; init; }
+    public double? HeatIndex { get; init; }
+    public double? WindChill { get; init; }
+    public double? InsideTemperature { get; init; }
+    public double? BarometricPressure { get; init; }
+    public double? PressureRaw { get; init; }
+    public double? Altimeter { get; init; }
+    public double? WindSpeed { get; init; }
+    public double? WindSpeed10MinAvg { get; init; }
+    public double? WindGust10Min { get; init; }
+    public double? RainRate { get; init; }
+    public double? DailyRain { get; init; }
+    public double? Rain24Hour { get; init; }
+    public double? StormRain { get; init; }
+    public double? DailyEt { get; init; }
+    public double? MonthlyRain { get; init; }
+    public double? YearlyRain { get; init; }
 }
