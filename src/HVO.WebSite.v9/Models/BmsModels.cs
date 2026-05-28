@@ -48,7 +48,13 @@ public class BmsReadingRequest
     public int SocPercent { get; init; }
 
     [Range(0, 100)]
+    public int? StateOfChargePercent { get; init; }
+
+    [Range(0, 100)]
     public int SohPercent { get; init; }
+
+    [Range(0, 100)]
+    public int? StateOfHealthPercent { get; init; }
 
     // Capacity
     public long RemainingCapacityMah { get; init; }

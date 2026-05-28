@@ -213,6 +213,8 @@ public class BmsController : ControllerBase
                         : readingReq.TotalVoltageMv ?? 0;
 
                     var powerWatts = packVoltageMv / 1000.0 * readingReq.CurrentMa / 1000.0;
+                    var socPercent = readingReq.StateOfChargePercent ?? readingReq.SocPercent;
+                    var sohPercent = readingReq.StateOfHealthPercent ?? readingReq.SohPercent;
 
                     var reading = new BmsReading
                     {
@@ -221,8 +223,8 @@ public class BmsController : ControllerBase
                         PackVoltageMv = packVoltageMv,
                         CurrentMa = readingReq.CurrentMa,
                         PowerWatts = powerWatts,
-                        SocPercent = (byte)Math.Clamp(readingReq.SocPercent, 0, 100),
-                        SohPercent = (byte)Math.Clamp(readingReq.SohPercent, 0, 100),
+                        SocPercent = (byte)Math.Clamp(socPercent, 0, 100),
+                        SohPercent = (byte)Math.Clamp(sohPercent, 0, 100),
                         RemainingCapacityMah = readingReq.RemainingCapacityMah,
                         NominalCapacityMah = readingReq.NominalCapacityMah,
                         CycleCount = readingReq.CycleCount,

@@ -302,10 +302,12 @@ public sealed class PowerIngestControllerTests
         var body = ok.Value.Should().BeOfType<PowerSystemSnapshot>().Subject;
         body.BatteryBanks.Should().HaveCount(2);
         body.BatteryBanks![0].BankId.Should().Be("bank-1a");
+        body.BatteryBanks[0].StateOfChargePercent!.Value.Should().Be(91);
         body.BatteryBanks[0].VoltageV!.Value.Should().Be(53.81);
         body.BatteryBanks[0].MinCellVoltageV!.Value.Should().Be(3.361);
         body.BatteryBanks[0].HasAlarms!.Value.Should().BeFalse();
         body.BatteryBanks[1].BankId.Should().Be("bank-2a");
+        body.BatteryBanks[1].StateOfChargePercent!.Value.Should().Be(91);
         body.BatteryBanks[1].VoltageV!.Value.Should().Be(54.21);
         body.BatteryBanks[1].MinCellVoltageV!.Value.Should().Be(3.388);
         body.BatteryBanks[1].HasAlarms!.Value.Should().BeFalse();

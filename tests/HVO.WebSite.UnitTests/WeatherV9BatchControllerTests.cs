@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace HVO.WebSite.UnitTests;
 
@@ -203,6 +204,48 @@ public class WeatherV9BatchControllerTests
         body.Inserted.Should().Be(1);
         body.Skipped.Should().Be(0);
         body.Failed.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public async Task IngestRawBatch_DavisLoopPayloadAliases_PersistsWindGustOnly()
+    {
+        using var db = CreateDb();
+        var ctrl = CreateController(db);
+        var json = """
+        [
+          {
+            "StationId": "hvo-davis-01",
+            "RecordedAt": "2026-04-29T06:00:00Z",
+            "TemperatureF": 68.7,
+            "HumidityPercent": 43.0,
+            "BarometricPressureInHg": 29.91,
+            "WindSpeedMph": 7.4,
+            "WindDirectionDegrees": 225,
+            "WindGust10MinMph": 18.6,
+            "RainRateInchesPerHour": 0.12,
+            "DailyRainInches": 0.31,
+            "StormRainInches": 0.44,
+            "SolarRadiationWm2": 742.0,
+            "UvIndex": 4.1
+          }
+        ]
+        """;
+        var batch = JsonSerializer.Deserialize<List<IngestWeatherRawRequest>>(
+            json,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+
+        var result = await ctrl.IngestRawBatch(batch, CancellationToken.None);
+
+        var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
+        var body = created.Value.Should().BeOfType<WeatherRawBatchResponse>().Subject;
+        body.Inserted.Should().Be(1);
+        body.Failed.Should().BeEmpty();
+
+        var saved = db.WeatherRaw.Single();
+        saved.WindGustMph.Should().Be(18.6);
+        saved.RainfallInches.Should().BeNull();
+        saved.SolarRadiationWm2.Should().Be(742.0);
+        saved.UvIndex.Should().Be(4.1);
     }
 
     // -------------------------------------------------------------------------
