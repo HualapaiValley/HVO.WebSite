@@ -155,11 +155,14 @@ public sealed class SolarAssistantGatewayHealthService : IGatewayHealthSnapshotP
 
         if (options.EnableMqttDiscovery)
         {
-            if (!string.Equals(mqttInventory.ConnectionState, "connected", StringComparison.OrdinalIgnoreCase))
+            var mqttFresh = mqttInventory.LastMessageAtUtc is not null &&
+                nowUtc - mqttInventory.LastMessageAtUtc.Value <= TimeSpan.FromSeconds(options.MqttStaleAfterSeconds);
+            if (!mqttFresh && !string.Equals(mqttInventory.ConnectionState, "connected", StringComparison.OrdinalIgnoreCase))
             {
                 alerts.Add(Alert("mqtt-disconnected", SolarAssistantGatewayHealthSeverity.Warning, $"MQTT discovery is {mqttInventory.ConnectionState}."));
             }
-            else if (mqttInventory.LastMessageAtUtc is null)
+
+            if (mqttInventory.LastMessageAtUtc is null)
             {
                 alerts.Add(Alert("mqtt-waiting", SolarAssistantGatewayHealthSeverity.Warning, "MQTT is connected but no discovery/state messages have arrived."));
             }
@@ -291,9 +294,6 @@ public sealed class SolarAssistantGatewayHealthService : IGatewayHealthSnapshotP
 
         if (!string.IsNullOrWhiteSpace(inventory.LastError))
             return GatewaySampleState.Error;
-
-        if (!string.Equals(inventory.ConnectionState, "connected", StringComparison.OrdinalIgnoreCase))
-            return GatewaySampleState.Waiting;
 
         if (inventory.LastMessageAtUtc is null)
             return GatewaySampleState.Waiting;
