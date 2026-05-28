@@ -16,8 +16,10 @@ public sealed class PowerInventoryConfigurationProvider(HvoV9DbContext db) : IPo
         int staleAfterMinutes = 1440,
         CancellationToken ct = default)
     {
-        var snapshots = await GetLatestCentralAsync(sourceId, staleAfterMinutes, ct);
-        return (snapshots.Inventory, snapshots.Configuration);
+        var normalized = string.IsNullOrWhiteSpace(sourceId) ? "solarassistant-total" : sourceId.Trim();
+        var inventory = await GetLatestInventoryRowAsync(normalized, ct);
+        var configuration = await GetLatestConfigurationRowAsync(normalized, ct);
+        return (MapInventory(normalized, inventory, staleAfterMinutes), MapConfiguration(normalized, configuration, staleAfterMinutes));
     }
 
     public async Task<(
@@ -30,16 +32,8 @@ public sealed class PowerInventoryConfigurationProvider(HvoV9DbContext db) : IPo
         CancellationToken ct = default)
     {
         var normalized = string.IsNullOrWhiteSpace(sourceId) ? "solarassistant-total" : sourceId.Trim();
-        var inventory = await _db.PowerDeviceInventorySnapshots
-            .AsNoTracking()
-            .Where(r => r.SourceId == normalized)
-            .OrderByDescending(r => r.RecordedAt)
-            .FirstOrDefaultAsync(ct);
-        var configuration = await _db.PowerConfigurationSnapshots
-            .AsNoTracking()
-            .Where(r => r.SourceId == normalized)
-            .OrderByDescending(r => r.RecordedAt)
-            .FirstOrDefaultAsync(ct);
+        var inventory = await GetLatestInventoryRowAsync(normalized, ct);
+        var configuration = await GetLatestConfigurationRowAsync(normalized, ct);
         var energy = await _db.PowerEnergySnapshots
             .AsNoTracking()
             .Where(r => r.SourceId == normalized)
@@ -57,6 +51,20 @@ public sealed class PowerInventoryConfigurationProvider(HvoV9DbContext db) : IPo
             MapEnergy(normalized, energy, staleAfterMinutes),
             MapInverterDetail(normalized, inverterDetail, staleAfterMinutes));
     }
+
+    private Task<DataModels.Models.V9.PowerDeviceInventorySnapshot?> GetLatestInventoryRowAsync(string sourceId, CancellationToken ct) =>
+        _db.PowerDeviceInventorySnapshots
+            .AsNoTracking()
+            .Where(r => r.SourceId == sourceId)
+            .OrderByDescending(r => r.RecordedAt)
+            .FirstOrDefaultAsync(ct);
+
+    private Task<DataModels.Models.V9.PowerConfigurationSnapshot?> GetLatestConfigurationRowAsync(string sourceId, CancellationToken ct) =>
+        _db.PowerConfigurationSnapshots
+            .AsNoTracking()
+            .Where(r => r.SourceId == sourceId)
+            .OrderByDescending(r => r.RecordedAt)
+            .FirstOrDefaultAsync(ct);
 
     private static PowerDeviceInventorySnapshotResponse MapInventory(string sourceId, DataModels.Models.V9.PowerDeviceInventorySnapshot? row, int staleAfterMinutes)
     {
