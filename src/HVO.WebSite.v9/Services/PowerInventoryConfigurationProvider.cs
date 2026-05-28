@@ -160,15 +160,16 @@ public sealed class PowerInventoryConfigurationProvider(HvoV9DbContext db) : IPo
         if (row is null)
             return new GatewayStatusSnapshotResponse { SourceId = sourceId, IsPresent = false, IsStale = true };
 
+        var recordedAtUtc = DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc);
         var payload = JsonSerializer.Deserialize<GatewayStatusPayload>(row.PayloadJson, JsonOptions);
         return new GatewayStatusSnapshotResponse
         {
             SourceId = row.SourceId,
             SourceSystem = row.SourceSystem,
             DeviceId = row.DeviceId,
-            RecordedAtUtc = row.RecordedAt,
+            RecordedAtUtc = recordedAtUtc,
             IsPresent = true,
-            IsStale = DateTime.UtcNow - row.RecordedAt.ToUniversalTime() > TimeSpan.FromMinutes(staleAfterMinutes),
+            IsStale = DateTime.UtcNow - recordedAtUtc > TimeSpan.FromMinutes(staleAfterMinutes),
             Identity = payload?.Identity,
             Health = payload?.Health,
             Rest = payload?.Rest,

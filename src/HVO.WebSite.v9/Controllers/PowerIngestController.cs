@@ -450,7 +450,7 @@ public class PowerIngestController : ControllerBase
             SourceId = sourceId,
             SourceSystem = NormalizeSourceSystem(request.SourceSystem),
             DeviceId = NormalizeOptional(request.DeviceId),
-            GatewayId = NormalizeSourceId(request.Identity.GatewayId),
+            GatewayId = NormalizeOptional(request.Identity.GatewayId)!,
             HealthState = request.Health.State.ToString(),
             SourceFreshnessState = request.Health.SourceFreshness.ToString(),
             RestState = request.Rest.State.ToString(),
@@ -648,15 +648,16 @@ public class PowerIngestController : ControllerBase
         if (row is null)
             return Ok(new GatewayStatusSnapshotResponse { SourceId = normalized, IsPresent = false, IsStale = true });
 
+        var recordedAtUtc = DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc);
         var payload = JsonSerializer.Deserialize<GatewayStatusPayload>(row.PayloadJson, JsonOptions) ?? new GatewayStatusPayload();
         return Ok(new GatewayStatusSnapshotResponse
         {
             SourceId = row.SourceId,
             SourceSystem = row.SourceSystem,
             DeviceId = row.DeviceId,
-            RecordedAtUtc = row.RecordedAt,
+            RecordedAtUtc = recordedAtUtc,
             IsPresent = true,
-            IsStale = DateTime.UtcNow - row.RecordedAt > TimeSpan.FromMinutes(staleAfterMinutes),
+            IsStale = DateTime.UtcNow - recordedAtUtc > TimeSpan.FromMinutes(staleAfterMinutes),
             Identity = payload.Identity,
             Health = payload.Health,
             Rest = payload.Rest,
@@ -874,7 +875,7 @@ public class PowerIngestController : ControllerBase
 
     private static void ValidateGatewayStatus(List<ValidationResult> results, GatewayStatusPayload request)
     {
-        ValidateRequiredString(results, "Identity.GatewayId", request.Identity.GatewayId, MaxSnapshotStringLength);
+        ValidateRequiredString(results, "Identity.GatewayId", request.Identity.GatewayId, 64);
         ValidateRequiredString(results, "Identity.DisplayName", request.Identity.DisplayName, MaxSnapshotStringLength);
         ValidateRequiredString(results, "Identity.SourceId", request.Identity.SourceId, MaxSnapshotStringLength);
         ValidateMaxLength(results, "Identity.DeviceId", request.Identity.DeviceId, MaxSnapshotStringLength);

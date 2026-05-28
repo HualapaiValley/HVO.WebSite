@@ -553,6 +553,28 @@ public sealed class PowerIngestControllerTests
         _db.GatewayStatusSnapshots.Should().BeEmpty();
     }
 
+    [TestMethod]
+    public async Task IngestGatewayStatus_RejectsGatewayIdBeyondDbLimit()
+    {
+        var observedAt = DateTime.UtcNow;
+        var payload = new GatewayStatusPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = observedAt,
+            Identity = new GatewayIdentity(new string('g', 65), "SolarAssistant Gateway", GatewayDomain.Power, "solarassistant-total", "total"),
+            Health = new GatewayHealthSnapshot(GatewayHealthState.Healthy, observedAt, [], GatewaySampleState.Live),
+            Rest = new GatewayRuntimeSignal(GatewaySampleState.Live),
+            Outbox = new GatewayOutboxStatus(PendingCount: 0, FailedCount: 0),
+        };
+
+        var result = await _ctrl.IngestGatewayStatus(payload, CancellationToken.None);
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+        _db.GatewayStatusSnapshots.Should().BeEmpty();
+    }
+
     private static PowerIngestController CreateController(HvoV9DbContext db, PowerIngestTelemetry telemetry)
     {
         var ctrl = new PowerIngestController(
