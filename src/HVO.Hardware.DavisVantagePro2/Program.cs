@@ -166,6 +166,21 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
     await db.Database.EnsureCreatedAsync();
+    if (!await OutboxFailureKindColumnExistsAsync(db))
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            @"ALTER TABLE OutboxRecords ADD COLUMN FailureKind INTEGER NOT NULL DEFAULT 0;");
+    }
+    await db.Database.ExecuteSqlRawAsync(
+        @"UPDATE OutboxRecords
+          SET Status = 0,
+              FailureKind = 0,
+              NextRetryAtUtc = '0001-01-01 00:00:00',
+              LastError = CASE
+                  WHEN LastError IS NULL OR LastError = '' THEN 'Requeued historical failed outbox record after startup retry classification was added.'
+                  ELSE LastError || ' Requeued after startup retry classification was added.'
+              END
+          WHERE Status = 2 AND FailureKind IN (0, 1);");
     await db.Database.ExecuteSqlRawAsync(
         @"CREATE TABLE IF NOT EXISTS StationSettingsSnapshots (
             Id INTEGER NOT NULL CONSTRAINT PK_StationSettingsSnapshots PRIMARY KEY,
@@ -325,4 +340,26 @@ static bool HasMatchingApiKey(HttpContext httpContext, string configuredApiKey)
     return httpContext.Request.Headers.TryGetValue("X-Api-Key", out var providedApiKey)
         && providedApiKey.Count > 0
         && string.Equals(providedApiKey[0], configuredApiKey, StringComparison.Ordinal);
+}
+
+static async Task<bool> OutboxFailureKindColumnExistsAsync(OutboxDbContext db)
+{
+    await using var command = db.Database.GetDbConnection().CreateCommand();
+    command.CommandText = "PRAGMA table_info(OutboxRecords);";
+
+    if (command.Connection!.State != System.Data.ConnectionState.Open)
+    {
+        await command.Connection.OpenAsync();
+    }
+
+    await using var reader = await command.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+    {
+        if (string.Equals(reader.GetString(1), nameof(OutboxRecord.FailureKind), StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }

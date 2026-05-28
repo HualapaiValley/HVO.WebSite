@@ -32,6 +32,9 @@ public sealed class OutboxRecord
     /// <summary>Last error message (if delivery failed), for diagnostics.</summary>
     public string? LastError { get; set; }
 
+    /// <summary>Failure classification used to distinguish retryable cloud outages from permanent dead letters.</summary>
+    public OutboxFailureKind FailureKind { get; set; } = OutboxFailureKind.None;
+
     /// <summary>UTC time this record was created.</summary>
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
@@ -40,6 +43,14 @@ public sealed class OutboxRecord
 }
 
 public enum OutboxStatus { Pending, Sent, Failed }
+
+public enum OutboxFailureKind
+{
+    None,
+    TransientExhausted,
+    ApiValidation,
+    InvalidPayload,
+}
 
 public sealed class StationSettingsSnapshotEntity
 {
