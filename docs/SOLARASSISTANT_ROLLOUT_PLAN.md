@@ -97,7 +97,7 @@ The payload type/version names below are planning names. Each stream still needs
 | Device inventory | `power.device-inventory.v1` | Low cadence or change-detected | New typed inventory/config API/table | Latest plus change history | Model, serial, firmware, manufacturer, discovered device identity. |
 | Configuration snapshot | `power.configuration.v1` | Low cadence or change-detected | New typed config snapshot API/table | Latest plus change history | Output/charger priority, charge limits, voltage thresholds, available select options. |
 | Command/capability inventory | `power.command-capability.v1` or included in configuration | Low cadence or change-detected | Inventory only | Latest plus change history | Record command topics/options without enabling writes. |
-| Gateway runtime status | `gateway.status.v1` | Low cadence or poll/read endpoint | Future normalized gateway status endpoint | Latest/recent operational status | Source freshness, outbox health, current sync state, local gateway state. |
+| Gateway runtime status | `gateway.status.v1` | Low cadence | Typed gateway status API/table | Latest/recent operational status | Source freshness, REST/MQTT state, outbox health, current sync state, local gateway state. |
 
 The first migration keeps only `power.reading.v1` forwarding behavior unchanged. The rollout is complete only after the other stream categories are implemented or explicitly classified as local-only/deferred.
 
@@ -291,6 +291,7 @@ Recommended minimum tests by rollout phase:
 | Phase 3 | Inventory/config DTO validation tests, REST/MQTT fixture mapping tests, website ingest/read API tests, and UI tests for inventory/config rendering and missing-data states. |
 | Phase 4 | Energy/detail semantic tests for units, signs, counter resets, duplicate handling, source precedence, API validation, and chart/read-model behavior. |
 | Phase 5 | Website page/card component tests for live, stale, partial, and missing-stream states, plus end-to-end API/read-model tests with seeded data. |
+| Phase 6 | Gateway status contract/API tests, outbox forwarding tests, health mapping tests, and central UI rendering of runtime status. |
 
 ## Current Implementation Limits
 
@@ -417,6 +418,31 @@ Implementation notes:
 - The central power card now joins live aggregate power, JK BMS bank detail, SolarAssistant inventory/configuration, energy counters, and inverter detail snapshots from typed website read models.
 - The website still does not connect directly to SolarAssistant REST/MQTT; a configurable diagnostics link can point operators back to the local gateway UI.
 - Local gateway pages remain the detailed troubleshooting surface for REST/MQTT/outbox state.
+
+### Phase 6: Gateway Runtime Status
+
+Status: implemented in `gateway.status.v1`.
+
+Scope:
+
+- Publish normalized gateway runtime status from SolarAssistant through the shared outbox.
+- Persist/read latest central gateway status without requiring direct LAN access to the local dashboard.
+- Show concise REST/MQTT/outbox/health status on the central power card while keeping deep diagnostics local.
+
+Implementation notes:
+
+- Gateway status includes typed health state, alert inventory, REST freshness, MQTT freshness, outbox pending/failed counts, last sync metadata, REST metric count, MQTT entity/state-topic counts, and command-topic count.
+- Gateway status defaults to a low-frequency 60-second cadence through `SolarAssistant:GatewayStatusIntervalSeconds`.
+- Historical failed outbox rows remain warning/degraded status evidence; they do not block current forwarding.
+- Command topics remain inventory/status only. No write/control path was added.
+- The gateway status worker enqueues `gateway.status.v1` through the same local outbox used by the SolarAssistant typed streams and the forwarder posts it to `/api/v1/power/gateway-status`.
+
+Acceptance criteria:
+
+- Central UI can show SolarAssistant gateway runtime health, REST/MQTT freshness, and outbox status from typed persisted status snapshots.
+- Website ingest/read APIs validate, persist, and return latest gateway status snapshots.
+- Gateway forwarding tests prove `gateway.status.v1` routes to the gateway-status endpoint independently of power readings.
+- No local dashboard or SolarAssistant REST/MQTT direct dependency is introduced in the website.
 
 ## Non-Goals
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using Microsoft.EntityFrameworkCore;
@@ -67,6 +68,18 @@ public sealed class PowerInventoryConfigurationWriter(EdgeOutboxStore<OutboxDbCo
             RecordedAtUtc: payload.RecordedAtUtc,
             PayloadType: PowerOutboxPayloadTypes.InverterDetail,
             PayloadVersion: PowerOutboxPayloadTypes.InverterDetailVersion,
+            PayloadJson: payloadJson), ct);
+    }
+
+    public async Task<bool> EnqueueGatewayStatusAsync(GatewayStatusPayload payload, CancellationToken ct)
+    {
+        var payloadJson = JsonSerializer.Serialize(payload, JsonOptions);
+        return await _store.EnqueueAsync(new EdgeOutboxMessage(
+            SourceId: payload.SourceId,
+            DeviceId: payload.DeviceId,
+            RecordedAtUtc: payload.RecordedAtUtc,
+            PayloadType: PowerOutboxPayloadTypes.GatewayStatus,
+            PayloadVersion: PowerOutboxPayloadTypes.GatewayStatusVersion,
             PayloadJson: payloadJson), ct);
     }
 

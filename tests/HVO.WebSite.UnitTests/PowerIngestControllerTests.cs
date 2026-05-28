@@ -1,6 +1,7 @@
 using FluentAssertions;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
+using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Controllers;
 using HVO.WebSite.v9.Models;
@@ -483,6 +484,73 @@ public sealed class PowerIngestControllerTests
         inverter.Result.Should().BeOfType<BadRequestObjectResult>();
         _db.PowerEnergySnapshots.Should().BeEmpty();
         _db.PowerInverterDetailSnapshots.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public async Task IngestGatewayStatus_PersistsRuntimeStatusAndLatestHandlesAlerts()
+    {
+        var observedAt = DateTime.UtcNow;
+        var payload = new GatewayStatusPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = observedAt,
+            Identity = new GatewayIdentity("solarassistant", "SolarAssistant Gateway", GatewayDomain.Power, "solarassistant-total", "total"),
+            Health = new GatewayHealthSnapshot(
+                GatewayHealthState.Warning,
+                observedAt,
+                [new GatewayHealthAlert("outbox-failed", GatewayAlertSeverity.Warning, "Historical failed outbox rows are present.")],
+                GatewaySampleState.Live,
+                OutboxState: "warning",
+                ApiSyncState: "healthy"),
+            Rest = new GatewayRuntimeSignal(GatewaySampleState.Live, observedAt, Detail: "124 REST metric(s)"),
+            Mqtt = new GatewayRuntimeSignal(GatewaySampleState.Live, observedAt, Detail: "48 entit(ies), 42 state topic(s)"),
+            Outbox = new GatewayOutboxStatus(PendingCount: 0, FailedCount: 71, LastSentAtUtc: observedAt, LastBatchCount: 1),
+            RestMetricCount = 124,
+            MqttEntityCount = 48,
+            MqttStateTopicCount = 42,
+            MqttCommandTopicCount = 14,
+        };
+
+        var ingest = await _ctrl.IngestGatewayStatus(payload, CancellationToken.None);
+        var latest = await _ctrl.GetLatestGatewayStatus("solarassistant-total", staleAfterMinutes: 60, CancellationToken.None);
+
+        ((CreatedAtActionResult)ingest.Result!).Value.Should().BeEquivalentTo(new { Inserted = true, Skipped = false });
+        var body = ((OkObjectResult)latest.Result!).Value.Should().BeOfType<GatewayStatusSnapshotResponse>().Subject;
+        body.IsPresent.Should().BeTrue();
+        body.Health!.State.Should().Be(GatewayHealthState.Warning);
+        body.Health.Alerts.Single().Code.Should().Be("outbox-failed");
+        body.Rest!.State.Should().Be(GatewaySampleState.Live);
+        body.Outbox!.FailedCount.Should().Be(71);
+        body.MqttCommandTopicCount.Should().Be(14);
+    }
+
+    [TestMethod]
+    public async Task IngestGatewayStatus_RejectsOversizedAlertsAndNegativeCounts()
+    {
+        var payload = new GatewayStatusPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = DateTime.UtcNow,
+            Identity = new GatewayIdentity("solarassistant", "SolarAssistant Gateway", GatewayDomain.Power, "solarassistant-total", "total"),
+            Health = new GatewayHealthSnapshot(
+                GatewayHealthState.Warning,
+                DateTime.UtcNow,
+                Enumerable.Range(0, 51)
+                    .Select(i => new GatewayHealthAlert($"alert-{i}", GatewayAlertSeverity.Warning, "warning"))
+                    .ToArray(),
+                GatewaySampleState.Live),
+            Rest = new GatewayRuntimeSignal(GatewaySampleState.Live),
+            Outbox = new GatewayOutboxStatus(PendingCount: -1, FailedCount: 0),
+        };
+
+        var result = await _ctrl.IngestGatewayStatus(payload, CancellationToken.None);
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+        _db.GatewayStatusSnapshots.Should().BeEmpty();
     }
 
     private static PowerIngestController CreateController(HvoV9DbContext db, PowerIngestTelemetry telemetry)

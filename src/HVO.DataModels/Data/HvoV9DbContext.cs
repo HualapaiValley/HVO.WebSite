@@ -62,6 +62,8 @@ public class HvoV9DbContext : DbContext
 
     public DbSet<PowerInverterDetailSnapshot> PowerInverterDetailSnapshots { get; set; }
 
+    public DbSet<GatewayStatusSnapshot> GatewayStatusSnapshots { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -293,6 +295,22 @@ public class HvoV9DbContext : DbContext
             entity.Property(e => e.RecordedAt).HasColumnType("datetime2");
             entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
             entity.Property(e => e.SourceId).IsRequired();
+            entity.Property(e => e.PayloadJson).IsRequired();
+            entity.Property(e => e.PayloadHash).HasMaxLength(64).IsRequired();
+        });
+
+        modelBuilder.Entity<GatewayStatusSnapshot>(entity =>
+        {
+            entity.HasIndex(e => e.RecordedAt);
+            entity.HasIndex(e => new { e.SourceId, e.RecordedAt }).IsUnique();
+            entity.HasIndex(e => new { e.SourceId, e.PayloadHash }).IsUnique();
+            entity.Property(e => e.RecordedAt).HasColumnType("datetime2");
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
+            entity.Property(e => e.SourceId).IsRequired();
+            entity.Property(e => e.GatewayId).IsRequired();
+            entity.Property(e => e.HealthState).IsRequired();
+            entity.Property(e => e.SourceFreshnessState).IsRequired();
+            entity.Property(e => e.RestState).IsRequired();
             entity.Property(e => e.PayloadJson).IsRequired();
             entity.Property(e => e.PayloadHash).HasMaxLength(64).IsRequired();
         });

@@ -1,4 +1,5 @@
 using System.Globalization;
+using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 
 namespace HVO.WebSite.v9.Models;
@@ -245,6 +246,79 @@ public sealed record PowerInventoryConfigurationViewModel(
             CommandCapabilitySummary: commandSummary,
             Devices: inventory.Devices.Select(d => $"{d.Name} {d.Model}".Trim()).Where(d => d.Length > 0).Take(3).ToArray(),
             Settings: configuration.Settings.Select(s => s.Name).Where(s => !string.IsNullOrWhiteSpace(s)).Take(5).ToArray());
+    }
+}
+
+public sealed record PowerGatewayStatusViewModel(
+    string State,
+    string HealthSummary,
+    string RestSummary,
+    string MqttSummary,
+    string OutboxSummary,
+    string MetricSummary,
+    string LastSeen,
+    IReadOnlyList<string> Alerts)
+{
+    public static PowerGatewayStatusViewModel Empty { get; } = new(
+        State: "Missing",
+        HealthSummary: "No gateway status received",
+        RestSummary: "No REST status received",
+        MqttSummary: "No MQTT status received",
+        OutboxSummary: "No outbox status received",
+        MetricSummary: "No gateway metrics received",
+        LastSeen: "Waiting for gateway status",
+        Alerts: []);
+
+    public static PowerGatewayStatusViewModel FromSnapshot(GatewayStatusSnapshotResponse status)
+    {
+        if (!status.IsPresent)
+            return Empty;
+
+        var healthState = status.Health?.State ?? GatewayHealthState.Unknown;
+        var state = status.IsStale
+            ? "Stale"
+            : healthState switch
+            {
+                GatewayHealthState.Healthy => "Healthy",
+                GatewayHealthState.Warning => "Warning",
+                GatewayHealthState.Critical => "Critical",
+                _ => "Unknown",
+            };
+
+        var alertCount = status.Health?.Alerts.Count ?? 0;
+        var alerts = status.Health?.Alerts
+            .OrderByDescending(a => a.Severity)
+            .ThenBy(a => a.Code, StringComparer.OrdinalIgnoreCase)
+            .Select(a => $"{a.Code}: {a.Message}")
+            .Take(4)
+            .ToArray() ?? [];
+
+        return new PowerGatewayStatusViewModel(
+            State: state,
+            HealthSummary: alertCount == 0 ? $"{healthState} with no active alerts" : $"{healthState} with {alertCount} alert(s)",
+            RestSummary: FormatSignal(status.Rest),
+            MqttSummary: status.Mqtt is null ? "MQTT disabled or not reported" : FormatSignal(status.Mqtt),
+            OutboxSummary: FormatOutbox(status.Outbox),
+            MetricSummary: $"{status.RestMetricCount ?? 0} REST metric(s), {status.MqttEntityCount ?? 0} MQTT entit(ies), {status.MqttCommandTopicCount ?? 0} command topic(s)",
+            LastSeen: $"Gateway status {status.RecordedAtUtc.ToLocalTime().ToString("dd MMM yyyy - h:mm tt", CultureInfo.InvariantCulture)}",
+            Alerts: alerts);
+    }
+
+    private static string FormatSignal(GatewayRuntimeSignal? signal)
+    {
+        if (signal is null)
+            return "Not reported";
+
+        var detail = string.IsNullOrWhiteSpace(signal.Detail) ? null : $"; {signal.Detail}";
+        return $"{signal.State}{detail}";
+    }
+
+    private static string FormatOutbox(GatewayOutboxStatus? outbox)
+    {
+        if (outbox is null)
+            return "Not reported";
+
+        return $"{outbox.PendingCount} pending, {outbox.FailedCount} failed, last batch {outbox.LastBatchCount}";
     }
 }
 

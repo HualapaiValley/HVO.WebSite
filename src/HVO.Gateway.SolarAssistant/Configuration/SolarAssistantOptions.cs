@@ -74,6 +74,10 @@ public sealed class SolarAssistantOptions
     [Range(10, 86400)]
     public int MqttStaleAfterSeconds { get; set; } = 120;
 
+    /// <summary>Interval for low-frequency normalized gateway runtime status snapshots.</summary>
+    [Range(30, 86400)]
+    public int GatewayStatusIntervalSeconds { get; set; } = 60;
+
     /// <summary>Warn when pending outbox records exceed this count. Set to 0 to warn on any pending record.</summary>
     [Range(0, 100000)]
     public int OutboxPendingWarningCount { get; set; } = 10;

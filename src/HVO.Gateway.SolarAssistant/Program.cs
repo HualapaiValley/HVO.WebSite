@@ -79,6 +79,9 @@ builder.Services.AddSingleton<PowerApiForwarder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PowerApiForwarder>());
 builder.Services.AddSingleton<SolarAssistantGatewayHealthService>();
 builder.Services.AddSingleton<IGatewayHealthSnapshotProvider>(sp => sp.GetRequiredService<SolarAssistantGatewayHealthService>());
+builder.Services.AddSingleton<IGatewayStatusPayloadProvider>(sp => sp.GetRequiredService<SolarAssistantGatewayHealthService>());
+builder.Services.AddSingleton<GatewayStatusSnapshotWorker>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<GatewayStatusSnapshotWorker>());
 builder.Services.AddHealthChecks()
     .AddCheck<SolarAssistantGatewayHealthCheck>("solarassistant-gateway");
 builder.Services.AddRazorComponents()

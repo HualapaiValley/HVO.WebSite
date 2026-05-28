@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
@@ -215,6 +216,17 @@ public sealed class PowerApiForwarderTests
                 RecordedAtUtc = DateTime.Parse("2026-05-28T04:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
                 PvStrings = [new PowerPvStringDetail { StringId = "1", PowerW = 600 }],
             }, CancellationToken.None);
+            await writer.EnqueueGatewayStatusAsync(new GatewayStatusPayload
+            {
+                SourceId = "solarassistant-total",
+                SourceSystem = "solarassistant",
+                DeviceId = "total",
+                RecordedAtUtc = DateTime.Parse("2026-05-28T04:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
+                Identity = new GatewayIdentity("solarassistant", "SolarAssistant Gateway", GatewayDomain.Power, "solarassistant-total", "total"),
+                Health = new GatewayHealthSnapshot(GatewayHealthState.Healthy, DateTime.Parse("2026-05-28T04:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind), [], GatewaySampleState.Live),
+                Rest = new GatewayRuntimeSignal(GatewaySampleState.Live),
+                Outbox = new GatewayOutboxStatus(PendingCount: 0, FailedCount: 0),
+            }, CancellationToken.None);
         }
 
         await _provider.GetRequiredService<PowerApiForwarder>().SweepAsync(CancellationToken.None);
@@ -224,6 +236,7 @@ public sealed class PowerApiForwarderTests
             "https://hvo.example/api/v1/power/configuration",
             "https://hvo.example/api/v1/power/energy",
             "https://hvo.example/api/v1/power/inverter-detail",
+            "https://hvo.example/api/v1/power/gateway-status",
         ]);
         using var verifyScope = _provider.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OutboxDbContext>();

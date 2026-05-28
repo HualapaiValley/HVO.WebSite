@@ -12,4 +12,6 @@ public static class PowerOutboxPayloadTypes
     public const string EnergyVersion = "1";
     public const string InverterDetail = "power.inverter-detail";
     public const string InverterDetailVersion = "1";
+    public const string GatewayStatus = "gateway.status";
+    public const string GatewayStatusVersion = "1";
 }

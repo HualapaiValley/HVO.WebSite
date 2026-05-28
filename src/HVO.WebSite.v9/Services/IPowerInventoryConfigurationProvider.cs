@@ -13,7 +13,8 @@ public interface IPowerInventoryConfigurationProvider
         PowerDeviceInventorySnapshotResponse Inventory,
         PowerConfigurationSnapshotResponse Configuration,
         PowerEnergySnapshotResponse Energy,
-        PowerInverterDetailSnapshotResponse InverterDetail)> GetLatestCentralAsync(
+        PowerInverterDetailSnapshotResponse InverterDetail,
+        GatewayStatusSnapshotResponse GatewayStatus)> GetLatestCentralAsync(
         string sourceId = "solarassistant-total",
         int staleAfterMinutes = 1440,
         CancellationToken ct = default);

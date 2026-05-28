@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HVO.Edge.Contracts;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Health;
@@ -224,6 +225,52 @@ public sealed class SolarAssistantGatewayHealthServiceTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
         result.Status.Should().Be(HealthStatus.Degraded);
+    }
+
+    [TestMethod]
+    public void Evaluate_ReturnsTypedGatewayStatusPayload()
+    {
+        var now = DateTime.Parse("2026-05-23T12:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var health = SolarAssistantGatewayHealthService.Evaluate(
+            Options(),
+            now.AddSeconds(-30),
+            snapshotError: null,
+            Snapshot(soc: 72, loadPower: 900, batteryPower: 200),
+            Mqtt("connected", now.AddSeconds(-15)),
+            pendingOutboxCount: 0,
+            failedOutboxCount: 71,
+            outboxError: null,
+            now);
+
+        var payload = SolarAssistantGatewayHealthService.CreatePayload(
+            Options(),
+            lastSnapshotAtUtc: now.AddSeconds(-30),
+            snapshotError: null,
+            restMetricCount: 124,
+            mqttInventory: new SolarAssistantMqttInventory
+            {
+                ConnectionState = "connected",
+                LastMessageAtUtc = now.AddSeconds(-15),
+                EntityCount = 48,
+                StateTopicCount = 42,
+                CommandTopicCount = 14,
+            },
+            pendingOutboxCount: 0,
+            failedOutboxCount: 71,
+            lastSentAtUtc: now.AddSeconds(-5),
+            lastBatchCount: 1,
+            outboxError: null,
+            health,
+            now);
+
+        payload.SourceId.Should().Be("solarassistant-total");
+        payload.Identity.Domain.Should().Be(GatewayDomain.Power);
+        payload.Health.State.Should().Be(GatewayHealthState.Warning);
+        payload.Health.Alerts.Single().Code.Should().Be("outbox-failed");
+        payload.Rest.State.Should().Be(GatewaySampleState.Live);
+        payload.Mqtt!.State.Should().Be(GatewaySampleState.Live);
+        payload.Outbox.FailedCount.Should().Be(71);
+        payload.MqttCommandTopicCount.Should().Be(14);
     }
 
     private static SolarAssistantOptions Options() => new()
