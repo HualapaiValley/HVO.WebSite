@@ -2,7 +2,7 @@
 
 Status: active design baseline for the next edge-gateway work. This document turns the current Davis, JK BMS, SolarAssistant, and SmartShunt experience into a concrete foundation plan before deeper UI polish or additional hardware models.
 
-Last updated: 2026-05-27
+Last updated: 2026-05-28
 
 ## Recommendation Sequence
 
@@ -132,6 +132,8 @@ The gateway footer now uses a consistent five-slot contract:
 Keep this contract unless a later shared shell package replaces the duplicated layout-state classes.
 
 ## Shared Edge Outbox Direction
+
+SolarAssistant is the first planned shared-outbox migration target, but its rollout is broader than an outbox refactor. Use `docs/SOLARASSISTANT_ROLLOUT_PLAN.md` as the active completion plan for SolarAssistant field coverage, cloud API stream shape, local UI data needs, and typed payload rollout.
 
 ### Decision
 
@@ -278,6 +280,9 @@ Acceptance criteria:
 - Existing API forwarding behavior remains equivalent.
 - Historical failures degrade health without masking current successful sends.
 - Focused tests cover the new evaluator and SolarAssistant mapping.
+- Tests or simulators cover the collector, mapper, outbox, forwarding, website ingest, read-model, and UI states touched by the migration.
+- The SolarAssistant rollout plan remains current and every observed REST/MQTT data category is implemented, explicitly local-only, or explicitly deferred with a reason before SolarAssistant is considered complete.
+- The cloud API direction remains typed by data purpose, starting with existing `power.reading.v1` on `/api/v1/power/readings` and adding inventory/config/energy/detail streams only with defined schemas.
 
 ### PR 3: Migrate SmartShunt Or JK BMS
 
