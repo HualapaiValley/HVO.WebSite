@@ -2,6 +2,7 @@ using FluentAssertions;
 using HVO.DataModels.Data;
 using HVO.WebSite.v9.Controllers;
 using HVO.WebSite.v9.Models;
+using HVO.WebSite.v9.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -9,6 +10,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace HVO.WebSite.UnitTests;
 
@@ -230,6 +232,56 @@ public class BmsControllerTests
 
         var reading = _db.BmsReadings.Single();
         reading.PowerWatts.Should().BeApproximately(52.0, 0.001);
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_HardwarePayloadAliases_PersistStateOfChargeAndHealth()
+    {
+        var recordedAt = DateTime.UtcNow.AddMinutes(-1);
+        var json = $$"""
+        {
+          "reading": {
+            "deviceAddress": "{{DeviceA}}",
+            "deviceAlias": "bank-1a",
+            "recordedAtUtc": "{{recordedAt:O}}",
+            "totalVoltageMv": 53810,
+            "currentMa": 7500,
+            "stateOfChargePercent": 91,
+            "stateOfHealthPercent": 98,
+            "remainingCapacityMah": 227500,
+            "nominalCapacityMah": 250000,
+            "cycleCount": 42,
+            "cycleCapacityMah": 10000000,
+            "batteryTemperature1C": 25.0,
+            "batteryTemperature2C": 25.5,
+            "powerTubeTemperatureC": 30.0,
+            "balancingActive": false,
+            "balancingCurrentMa": 0,
+            "deltaCellVoltageMv": 5,
+            "alarmBitmask": 0,
+            "cellVoltagesMv": [3361, 3364, 3362, 3363],
+            "cellResistancesMOhm": [100, 101, 102, 103]
+          }
+        }
+        """;
+        var request = JsonSerializer.Deserialize<BmsIngestRequest>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+
+        var result = await _ctrl.IngestReadings([request], CancellationToken.None);
+
+        var body = ((CreatedAtActionResult)result.Result!).Value.Should().BeOfType<BmsIngestBatchResponse>().Subject;
+        body.Inserted.Should().Be(1);
+        body.Failed.Should().BeEmpty();
+        var reading = _db.BmsReadings.Single();
+        reading.SocPercent.Should().Be(91);
+        reading.SohPercent.Should().Be(98);
+        reading.PackVoltageMv.Should().Be(53_810);
+        _db.BmsCellVoltages.Should().HaveCount(4);
+
+        var snapshot = await new PowerSystemSnapshotProvider(_db).GetLatestAsync(lookbackMinutes: 10, CancellationToken.None);
+        var viewModel = PowerStatusViewModel.FromSnapshot(snapshot);
+        viewModel.BatteryBanks.Should().ContainSingle();
+        viewModel.BatteryBanks[0].StateOfCharge.Should().Be("91%");
+        viewModel.BatteryBanks[0].Voltage.Should().Be("53.81 V");
     }
 
     // -------------------------------------------------------------------------

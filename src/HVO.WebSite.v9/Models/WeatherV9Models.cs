@@ -31,6 +31,9 @@ public class IngestWeatherRawRequest
     [Range(0, 300)]
     public double? WindGustMph { get; init; }
 
+    [Range(0, 300)]
+    public double? WindGust10MinMph { get; init; }
+
     [Range(0, 359)]
     public int? WindDirectionDegrees { get; init; }
 
