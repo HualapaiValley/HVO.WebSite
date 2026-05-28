@@ -155,11 +155,14 @@ public sealed class SolarAssistantGatewayHealthService : IGatewayHealthSnapshotP
 
         if (options.EnableMqttDiscovery)
         {
-            if (mqttInventory.LastMessageAtUtc is null && !string.Equals(mqttInventory.ConnectionState, "connected", StringComparison.OrdinalIgnoreCase))
+            var mqttFresh = mqttInventory.LastMessageAtUtc is not null &&
+                nowUtc - mqttInventory.LastMessageAtUtc.Value <= TimeSpan.FromSeconds(options.MqttStaleAfterSeconds);
+            if (!mqttFresh && !string.Equals(mqttInventory.ConnectionState, "connected", StringComparison.OrdinalIgnoreCase))
             {
                 alerts.Add(Alert("mqtt-disconnected", SolarAssistantGatewayHealthSeverity.Warning, $"MQTT discovery is {mqttInventory.ConnectionState}."));
             }
-            else if (mqttInventory.LastMessageAtUtc is null)
+
+            if (mqttInventory.LastMessageAtUtc is null)
             {
                 alerts.Add(Alert("mqtt-waiting", SolarAssistantGatewayHealthSeverity.Warning, "MQTT is connected but no discovery/state messages have arrived."));
             }
@@ -293,9 +296,7 @@ public sealed class SolarAssistantGatewayHealthService : IGatewayHealthSnapshotP
             return GatewaySampleState.Error;
 
         if (inventory.LastMessageAtUtc is null)
-            return string.Equals(inventory.ConnectionState, "connected", StringComparison.OrdinalIgnoreCase)
-                ? GatewaySampleState.Waiting
-                : GatewaySampleState.Error;
+            return GatewaySampleState.Waiting;
 
         return nowUtc - inventory.LastMessageAtUtc.Value > TimeSpan.FromSeconds(options.MqttStaleAfterSeconds)
             ? GatewaySampleState.Stale

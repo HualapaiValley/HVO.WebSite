@@ -95,6 +95,26 @@ public sealed class SolarAssistantGatewayHealthServiceTests
     }
 
     [TestMethod]
+    public void Evaluate_ReturnsWarning_ForMqttReconnect_WhenMessagesAreStale()
+    {
+        var now = DateTime.Parse("2026-05-23T12:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+        var health = SolarAssistantGatewayHealthService.Evaluate(
+            Options(),
+            now.AddSeconds(-30),
+            snapshotError: null,
+            Snapshot(soc: 72, loadPower: 900, batteryPower: 200),
+            Mqtt("connecting", now.AddSeconds(-121)),
+            pendingOutboxCount: 0,
+            failedOutboxCount: 0,
+            outboxError: null,
+            now);
+
+        health.State.Should().Be("warning");
+        health.Alerts.Select(a => a.Code).Should().Contain(["mqtt-disconnected", "mqtt-stale"]);
+    }
+
+    [TestMethod]
     public void Evaluate_ReturnsWarning_ForHistoricalFailedOutbox_WhenCurrentForwardingIsNotFailing()
     {
         var now = DateTime.Parse("2026-05-23T12:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
