@@ -2,6 +2,7 @@ using Bunit;
 using FluentAssertions;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Components.Pages;
+using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -29,7 +30,7 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
                     FlowDirection: Value(PowerFlowDirection.Charging, PowerMetricSource.VictronSmartShunt, observedAt),
                     BankCount: Value(1, PowerMetricSource.JkBms, observedAt),
                     HasAlarms: Value(false, PowerMetricSource.JkBms, observedAt)),
-                BatteryBanks:
+                     BatteryBanks:
                 [
                     new PowerSystemBatteryBankSnapshot(
                         BankId: "bank-1a",
@@ -40,7 +41,25 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
                         CurrentA: Value(-2.4d, PowerMetricSource.JkBms, observedAt),
                         DeltaCellVoltageV: Value(0.003d, PowerMetricSource.JkBms, observedAt),
                         HasAlarms: Value(false, PowerMetricSource.JkBms, observedAt)),
-                ])));
+                 ])));
+        Services.AddSingleton<IPowerInventoryConfigurationProvider>(new StubPowerInventoryConfigurationProvider(
+            new PowerDeviceInventorySnapshotResponse
+            {
+                SourceId = "solarassistant-total",
+                IsPresent = true,
+                IsStale = false,
+                RestMetricCount = 124,
+                MqttEntityCount = 48,
+                Devices = [new PowerDeviceInventoryDevice { DeviceId = "eg4-6500ex", Name = "EG4 6500EX", Model = "6500EX" }],
+            },
+            new PowerConfigurationSnapshotResponse
+            {
+                SourceId = "solarassistant-total",
+                IsPresent = true,
+                IsStale = false,
+                Settings = [new PowerConfigurationSetting { Key = "inverter_1.output_source_priority", Name = "Output source priority" }],
+                CommandCapabilities = [new PowerCommandCapability { Key = "inverter_1.output_source_priority", Name = "Output source priority", CommandTopic = "solar_assistant/inverter_1/output_source_priority/set" }],
+            }));
 
         var component = RenderComponent<PowerStatusCard>();
 
@@ -58,6 +77,10 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
         component.Markup.Should().Contain("2 min ago");
         component.Markup.Should().Contain("All banks fresh");
         component.Markup.Should().Contain("No alarms");
+        component.Markup.Should().Contain("SolarAssistant Inventory");
+        component.Markup.Should().Contain("Current");
+        component.Markup.Should().Contain("EG4 6500EX 6500EX");
+        component.Markup.Should().Contain("writes disabled");
     }
 
     private static SourcedValue<T> Value<T>(T value, PowerMetricSource source, DateTime recordedAt)
@@ -67,5 +90,15 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
     {
         public Task<PowerSystemSnapshot?> GetLatestAsync(int lookbackMinutes = 60, CancellationToken ct = default)
             => Task.FromResult(snapshot);
+    }
+
+    private sealed class StubPowerInventoryConfigurationProvider(
+        PowerDeviceInventorySnapshotResponse inventory,
+        PowerConfigurationSnapshotResponse configuration) : IPowerInventoryConfigurationProvider
+    {
+        public Task<(PowerDeviceInventorySnapshotResponse Inventory, PowerConfigurationSnapshotResponse Configuration)> GetLatestAsync(
+            string sourceId = "solarassistant-total",
+            int staleAfterMinutes = 1440,
+            CancellationToken ct = default) => Task.FromResult((inventory, configuration));
     }
 }

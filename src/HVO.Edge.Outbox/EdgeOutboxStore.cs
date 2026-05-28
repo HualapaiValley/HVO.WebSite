@@ -7,6 +7,8 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
 {
     private readonly TContext _db = db;
 
+    public TContext Db => _db;
+
     public async Task<bool> EnqueueAsync(EdgeOutboxMessage message, CancellationToken ct)
     {
         var sourceId = NormalizeRequired(message.SourceId, nameof(message.SourceId));

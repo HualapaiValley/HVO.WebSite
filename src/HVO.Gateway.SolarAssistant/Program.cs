@@ -54,6 +54,7 @@ var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
 builder.Services.AddDbContext<OutboxDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
 builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
 builder.Services.AddScoped<PowerOutboxWriter>();
+builder.Services.AddScoped<PowerInventoryConfigurationWriter>();
 
 builder.Services.AddHttpClient("SolarAssistantRest", (sp, client) =>
 {

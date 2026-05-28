@@ -59,4 +59,24 @@
             }
         </div>
     }
+
+    <section class="power-inventory" aria-labelledby="power-inventory-heading">
+        <div class="power-bank__header">
+            <h3 id="power-inventory-heading">SolarAssistant Inventory</h3>
+            <span>@_inventoryConfiguration.State</span>
+        </div>
+        <dl>
+            <div><dt>Devices</dt><dd>@_inventoryConfiguration.DeviceSummary</dd></div>
+            <div><dt>Configuration</dt><dd>@_inventoryConfiguration.ConfigurationSummary</dd></div>
+            <div><dt>Command inventory</dt><dd>@_inventoryConfiguration.CommandCapabilitySummary</dd></div>
+        </dl>
+        @if (_inventoryConfiguration.Devices.Count > 0)
+        {
+            <p>Known devices: @string.Join(", ", _inventoryConfiguration.Devices)</p>
+        }
+        @if (_inventoryConfiguration.Settings.Count > 0)
+        {
+            <p>Settings: @string.Join(", ", _inventoryConfiguration.Settings)</p>
+        }
+    </section>
 </section>

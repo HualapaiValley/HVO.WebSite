@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 
 namespace HVO.Gateway.SolarAssistant.Tests.SolarAssistant;
@@ -25,5 +26,24 @@ public sealed class SolarAssistantMetricInventoryBuilderTests
         inventory.Topics.Single(t => t.Topic == "total/pv_power").Classification.Should().Be(SolarAssistantMetricClassification.DbCandidate);
         inventory.Topics.Single(t => t.Topic == "inverter_1/pv_power_1").Classification.Should().Be(SolarAssistantMetricClassification.Review);
         inventory.Topics.Single(t => t.Topic == "inverter_1/serial_number").Classification.Should().Be(SolarAssistantMetricClassification.LocalOnly);
+    }
+
+    [TestMethod]
+    public void MapConfiguration_CapturesReadOnlySettingsFromRestMetrics()
+    {
+        var payload = SolarAssistantInventoryConfigurationMapper.MapConfiguration(
+            [
+                new SolarAssistantMetric { Topic = "inverter_1/output_source_priority", Name = "Output source priority", Value = "Solar/Battery/Utility" },
+                new SolarAssistantMetric { Topic = "inverter_1/max_charge_current", Name = "Max charge current", Value = 80, Unit = "A" },
+            ],
+            new HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt.SolarAssistantMqttInventory(),
+            new SolarAssistantOptions { TotalSourceId = "configured-source", TotalDeviceId = "configured-device" },
+            new DateTime(2026, 5, 28, 4, 0, 0, DateTimeKind.Utc));
+
+        payload.SourceId.Should().Be("configured-source");
+        payload.DeviceId.Should().Be("configured-device");
+        payload.Settings.Should().Contain(s => s.Key == "inverter_1.output_source_priority" && s.Value == "Solar/Battery/Utility");
+        payload.Settings.Should().Contain(s => s.Key == "inverter_1.max_charge_current" && s.Unit == "A");
+        payload.CommandCapabilities.Should().BeEmpty();
     }
 }

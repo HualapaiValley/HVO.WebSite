@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
@@ -172,6 +173,72 @@ public sealed class PowerApiForwarderTests
         row.Status.Should().Be(EdgeOutboxStatus.Failed);
         row.LastError.Should().Be("Outbox payload JSON is invalid.");
         _handler.Requests.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public async Task SweepAsync_ForwardsInventoryAndConfigurationToTypedEndpoints()
+    {
+        using (var scope = _provider.CreateScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
+            var writer = new PowerInventoryConfigurationWriter(store);
+            await writer.EnqueueDeviceInventoryAsync(new PowerDeviceInventoryPayload
+            {
+                SourceId = "solarassistant-total",
+                SourceSystem = "solarassistant",
+                DeviceId = "total",
+                RecordedAtUtc = DateTime.Parse("2026-05-28T04:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
+                Devices = [new PowerDeviceInventoryDevice { DeviceId = "eg4-6500ex", Name = "EG4 6500EX", Manufacturer = "EG4", Model = "6500EX" }],
+            }, CancellationToken.None);
+            await writer.EnqueueConfigurationAsync(new PowerConfigurationPayload
+            {
+                SourceId = "solarassistant-total",
+                SourceSystem = "solarassistant",
+                DeviceId = "total",
+                RecordedAtUtc = DateTime.Parse("2026-05-28T04:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
+                Settings = [new PowerConfigurationSetting { Key = "inverter_1.output_source_priority", Name = "Output source priority", Value = "Solar/Battery" }],
+                CommandCapabilities = [new PowerCommandCapability { Key = "inverter_1.output_source_priority", Name = "Output source priority", CommandTopic = "solar_assistant/inverter_1/output_source_priority/set" }],
+            }, CancellationToken.None);
+        }
+
+        await _provider.GetRequiredService<PowerApiForwarder>().SweepAsync(CancellationToken.None);
+
+        _handler.Requests.Select(r => r.RequestUri!.ToString()).Should().Contain([
+            "https://hvo.example/api/v1/power/device-inventory",
+            "https://hvo.example/api/v1/power/configuration",
+        ]);
+        using var verifyScope = _provider.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        verifyDb.OutboxRecords.Should().OnlyContain(r => r.Status == EdgeOutboxStatus.Sent);
+    }
+
+    [TestMethod]
+    public async Task InventoryConfigurationWriter_SkipsUnchangedSnapshots()
+    {
+        using var scope = _provider.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
+        var writer = new PowerInventoryConfigurationWriter(store);
+        var payload = new PowerDeviceInventoryPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = DateTime.Parse("2026-05-28T04:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
+            Devices = [new PowerDeviceInventoryDevice { DeviceId = "eg4-6500ex", Name = "EG4 6500EX" }],
+        };
+
+        var first = await writer.EnqueueDeviceInventoryAsync(payload, CancellationToken.None);
+        var second = await writer.EnqueueDeviceInventoryAsync(new PowerDeviceInventoryPayload
+        {
+            SourceId = payload.SourceId,
+            SourceSystem = payload.SourceSystem,
+            DeviceId = payload.DeviceId,
+            RecordedAtUtc = payload.RecordedAtUtc.AddMinutes(5),
+            Devices = payload.Devices,
+        }, CancellationToken.None);
+
+        first.Should().BeTrue();
+        second.Should().BeFalse();
     }
 
     private async Task SeedRecordAsync(string sourceId, string recordedAt)

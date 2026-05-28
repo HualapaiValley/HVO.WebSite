@@ -199,3 +199,51 @@ public sealed record PowerStatusBankViewModel(
     string FreshnessStatus,
     string AlarmState,
     bool IsAlarmed);
+
+public sealed record PowerInventoryConfigurationViewModel(
+    string State,
+    string DeviceSummary,
+    string ConfigurationSummary,
+    string CommandCapabilitySummary,
+    IReadOnlyList<string> Devices,
+    IReadOnlyList<string> Settings)
+{
+    public static PowerInventoryConfigurationViewModel Empty { get; } = new(
+        State: "Missing",
+        DeviceSummary: "No device inventory received",
+        ConfigurationSummary: "No configuration snapshot received",
+        CommandCapabilitySummary: "No command capabilities inventoried",
+        Devices: [],
+        Settings: []);
+
+    public static PowerInventoryConfigurationViewModel FromSnapshots(
+        PowerDeviceInventorySnapshotResponse inventory,
+        PowerConfigurationSnapshotResponse configuration)
+    {
+        var state = (inventory.IsPresent, inventory.IsStale, configuration.IsPresent, configuration.IsStale) switch
+        {
+            (true, false, true, false) => "Current",
+            (false, _, false, _) => "Missing",
+            (_, true, _, _) or (_, _, _, true) => "Stale",
+            _ => "Partial",
+        };
+
+        var deviceSummary = inventory.IsPresent
+            ? $"{inventory.Devices.Count} device(s), {inventory.RestMetricCount} REST metric(s), {inventory.MqttEntityCount} MQTT entit(ies)"
+            : "No device inventory received";
+        var configurationSummary = configuration.IsPresent
+            ? $"{configuration.Settings.Count} read-only setting(s)"
+            : "No configuration snapshot received";
+        var commandSummary = configuration.IsPresent
+            ? $"{configuration.CommandCapabilities.Count} command capabilit(ies) inventoried; writes disabled"
+            : "No command capabilities inventoried";
+
+        return new PowerInventoryConfigurationViewModel(
+            State: state,
+            DeviceSummary: deviceSummary,
+            ConfigurationSummary: configurationSummary,
+            CommandCapabilitySummary: commandSummary,
+            Devices: inventory.Devices.Select(d => $"{d.Name} {d.Model}".Trim()).Where(d => d.Length > 0).Take(3).ToArray(),
+            Settings: configuration.Settings.Select(s => s.Name).Where(s => !string.IsNullOrWhiteSpace(s)).Take(5).ToArray());
+    }
+}

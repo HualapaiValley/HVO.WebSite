@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 
@@ -77,6 +78,36 @@ public sealed class SolarAssistantMqttInventoryStoreTests
         entity.Should().NotBeNull();
         entity!.CommandTopic.Should().Be("solar_assistant/inverter_1/output_source_priority/set");
         entity.Classification.Should().Be(SolarAssistantMetricClassification.DbCandidate);
+    }
+
+    [TestMethod]
+    public void MapInventoryAndConfiguration_CapturesMqttDeviceAndCommandCapabilities()
+    {
+        var store = new SolarAssistantMqttInventoryStore();
+        store.Apply(new SolarAssistantMqttMessage
+        {
+            Topic = "homeassistant/select/inverter_1_output_source_priority/config",
+            Payload = """
+            {
+              "name":"Output source priority",
+              "stat_t":"solar_assistant/inverter_1/output_source_priority/state",
+              "cmd_t":"solar_assistant/inverter_1/output_source_priority/set",
+              "dev":{"name":"EG4 6500EX","mf":"EG4","mdl":"6500EX","sw":"2026.1"}
+            }
+            """,
+            ReceivedAtUtc = DateTime.UtcNow,
+        });
+
+        var options = new SolarAssistantOptions { TotalSourceId = "configured-source", TotalDeviceId = "configured-device" };
+        var inventory = SolarAssistantInventoryConfigurationMapper.MapDeviceInventory([], store.Snapshot, options, DateTime.UtcNow);
+        var configuration = SolarAssistantInventoryConfigurationMapper.MapConfiguration([], store.Snapshot, options, DateTime.UtcNow);
+
+        inventory.SourceId.Should().Be("configured-source");
+        configuration.SourceId.Should().Be("configured-source");
+        inventory.Devices.Single().Name.Should().Be("EG4 6500EX");
+        inventory.Devices.Single().Manufacturer.Should().Be("EG4");
+        configuration.CommandCapabilities.Single().CommandTopic.Should().Be("solar_assistant/inverter_1/output_source_priority/set");
+        configuration.Settings.Should().Contain(s => s.Key == "inverter_1.output_source_priority");
     }
 
     [TestMethod]

@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
@@ -108,7 +109,24 @@ public sealed class PowerApiForwarder : BackgroundService
         _failedCount = await store.CountFailedAsync(PowerOutboxPayloadTypes.PowerReading, ct);
 
         if (pending.Count == 0 || IsPlaceholderConfig)
+        {
+            if (!IsPlaceholderConfig)
+            {
+                await ForwardSnapshotPayloadsAsync<PowerDeviceInventoryPayload>(
+                    store,
+                    PowerOutboxPayloadTypes.DeviceInventory,
+                    BuildPowerEndpoint("device-inventory"),
+                    now,
+                    ct);
+                await ForwardSnapshotPayloadsAsync<PowerConfigurationPayload>(
+                    store,
+                    PowerOutboxPayloadTypes.Configuration,
+                    BuildPowerEndpoint("configuration"),
+                    now,
+                    ct);
+            }
             return;
+        }
 
         store.MarkAttempt(pending, now);
 
@@ -172,6 +190,70 @@ public sealed class PowerApiForwarder : BackgroundService
         await store.SaveChangesAsync(ct);
         _pendingCount = await store.CountPendingAsync(PowerOutboxPayloadTypes.PowerReading, ct);
         _failedCount = await store.CountFailedAsync(PowerOutboxPayloadTypes.PowerReading, ct);
+
+        await ForwardSnapshotPayloadsAsync<PowerDeviceInventoryPayload>(
+            store,
+            PowerOutboxPayloadTypes.DeviceInventory,
+            BuildPowerEndpoint("device-inventory"),
+            now,
+            ct);
+        await ForwardSnapshotPayloadsAsync<PowerConfigurationPayload>(
+            store,
+            PowerOutboxPayloadTypes.Configuration,
+            BuildPowerEndpoint("configuration"),
+            now,
+            ct);
+    }
+
+    private async Task ForwardSnapshotPayloadsAsync<TPayload>(
+        EdgeOutboxStore<OutboxDbContext> store,
+        string payloadType,
+        string endpoint,
+        DateTime now,
+        CancellationToken ct)
+    {
+        if (IsPlaceholderConfig)
+            return;
+
+        var pending = await store.GetReadyBatchAsync(payloadType, now, _options.BatchSize, ct);
+        if (pending.Count == 0)
+            return;
+
+        store.MarkAttempt(pending, now);
+        foreach (var record in pending)
+        {
+            if (!TryReadPayload<TPayload>(record, out var payload))
+                continue;
+
+            try
+            {
+                using var response = await _httpFactory
+                    .CreateClient("PowerApi")
+                    .PostAsJsonAsync(endpoint, payload, JsonOptions, ct);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    record.Status = EdgeOutboxStatus.Sent;
+                    record.SentAtUtc = now;
+                    record.LastError = null;
+                    _logger.LogInformation("Forwarded {PayloadType} outbox record {Id}", payloadType, record.Id);
+                    continue;
+                }
+
+                var body = await ReadBoundedBodyAsync(response, ct);
+                store.ScheduleRetry(record, $"HTTP {(int)response.StatusCode}: {body}", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+            }
+            catch (HttpRequestException ex)
+            {
+                store.ScheduleRetry(record, ex.Message, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+            }
+            catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+            {
+                store.ScheduleRetry(record, "Request timed out", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+            }
+        }
+
+        await store.SaveChangesAsync(ct);
     }
 
     private async Task CompactAsync(CancellationToken ct)
@@ -186,9 +268,14 @@ public sealed class PowerApiForwarder : BackgroundService
 
     private bool TryReadPayload(EdgeOutboxRecord record, out PowerReadingPayload payload)
     {
+        return TryReadPayload<PowerReadingPayload>(record, out payload);
+    }
+
+    private bool TryReadPayload<TPayload>(EdgeOutboxRecord record, out TPayload payload)
+    {
         try
         {
-            payload = JsonSerializer.Deserialize<PowerReadingPayload>(record.PayloadJson, JsonOptions)
+            payload = JsonSerializer.Deserialize<TPayload>(record.PayloadJson, JsonOptions)
                 ?? throw new JsonException("Payload deserialized to null.");
             return true;
         }
@@ -199,9 +286,17 @@ public sealed class PowerApiForwarder : BackgroundService
             record.LastError = error;
             _lastError = error;
             _logger.LogError(ex, "Power outbox record {Id} has invalid JSON and was not forwarded", record.Id);
-            payload = null!;
+            payload = default!;
             return false;
         }
+    }
+
+    private string BuildPowerEndpoint(string leaf)
+    {
+        var endpoint = _options.ApiEndpoint.TrimEnd('/');
+        if (endpoint.EndsWith("/readings", StringComparison.OrdinalIgnoreCase))
+            endpoint = endpoint[..^"/readings".Length];
+        return $"{endpoint}/{leaf}";
     }
 
     private void MarkBatchResult(IEnumerable<EdgeOutboxRecord> records, PowerBatchResponse? response, DateTime sentAt)
