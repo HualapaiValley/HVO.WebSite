@@ -161,8 +161,8 @@ The current ACA deployment is running with:
 
 | Item | Value |
 |------|-------|
-| Image | `hvoobsacr.azurecr.io/hvo-website:1.0.13` |
-| Revision | `hvo-website--0000015` |
+| Image | `hvoobsacr.azurecr.io/hvo-website:1.0.14` |
+| Revision | `hvo-website--0000016` |
 | FQDN | `hvo-website.calmsand-72a6c5ac.westus.azurecontainerapps.io` |
 | Ingress | External HTTPS via ACA |
 | Target port | `8080` |
@@ -184,6 +184,7 @@ Verified smoke-test results:
 - Interactive browser sign-in succeeds and an authorized user can see the live power snapshot card
 - Authenticated `/api/v1/power/system/latest` includes 7 JK BMS battery banks with aggregate `bankCount=7`
 - The live power card displays per-bank freshness using each bank reading timestamp and highlights aging or stale banks while preserving alarm styling
+- The deployment includes NuGet maintenance updates for ASP.NET Core test/OpenAPI packages plus Azure Key Vault and Azure Monitor OpenTelemetry packages
 
 ## Current Runtime Status
 
