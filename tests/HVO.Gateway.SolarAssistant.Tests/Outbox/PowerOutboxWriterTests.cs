@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 using Microsoft.Data.Sqlite;
@@ -12,6 +13,7 @@ public sealed class PowerOutboxWriterTests
 {
     private SqliteConnection _conn = null!;
     private OutboxDbContext _db = null!;
+    private EdgeOutboxStore<OutboxDbContext> _store = null!;
     private PowerOutboxWriter _writer = null!;
 
     [TestInitialize]
@@ -21,7 +23,8 @@ public sealed class PowerOutboxWriterTests
         _conn.Open();
         _db = new OutboxDbContext(new DbContextOptionsBuilder<OutboxDbContext>().UseSqlite(_conn).Options);
         _db.Database.EnsureCreated();
-        _writer = new PowerOutboxWriter(_db, NullLogger<PowerOutboxWriter>.Instance);
+        _store = new EdgeOutboxStore<OutboxDbContext>(_db);
+        _writer = new PowerOutboxWriter(_store, NullLogger<PowerOutboxWriter>.Instance);
     }
 
     [TestCleanup]
@@ -42,8 +45,10 @@ public sealed class PowerOutboxWriterTests
         var row = _db.OutboxRecords.Single();
         row.SourceId.Should().Be("solarassistant-total");
         row.DeviceId.Should().Be("total");
-        row.Status.Should().Be(OutboxStatus.Pending);
-        row.Payload.Should().Contain("pvPowerW");
+        row.PayloadType.Should().Be(PowerOutboxPayloadTypes.PowerReading);
+        row.PayloadVersion.Should().Be(PowerOutboxPayloadTypes.PowerReadingVersion);
+        row.Status.Should().Be(EdgeOutboxStatus.Pending);
+        row.PayloadJson.Should().Contain("pvPowerW");
     }
 
     [TestMethod]

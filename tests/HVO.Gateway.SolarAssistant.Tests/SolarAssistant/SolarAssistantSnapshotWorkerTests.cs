@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
@@ -27,6 +28,7 @@ public sealed class SolarAssistantSnapshotWorkerTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<OutboxDbContext>(o => o.UseSqlite(_conn));
+        services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
         services.AddScoped<PowerOutboxWriter>();
         services.AddSingleton<IOptions<SolarAssistantOptions>>(Options.Create(new SolarAssistantOptions
         {
@@ -79,8 +81,10 @@ public sealed class SolarAssistantSnapshotWorkerTests
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
         var row = db.OutboxRecords.Single();
         row.SourceId.Should().Be("solarassistant-total");
-        row.Payload.Should().Contain("1234");
-        row.Payload.Should().Contain("pvPowerW");
+        row.PayloadType.Should().Be(PowerOutboxPayloadTypes.PowerReading);
+        row.PayloadVersion.Should().Be(PowerOutboxPayloadTypes.PowerReadingVersion);
+        row.PayloadJson.Should().Contain("1234");
+        row.PayloadJson.Should().Contain("pvPowerW");
     }
 
     [TestMethod]
@@ -108,12 +112,14 @@ public sealed class SolarAssistantSnapshotWorkerTests
         using (var scope = _provider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-            db.OutboxRecords.Add(new OutboxRecord
+            db.OutboxRecords.Add(new EdgeOutboxRecord
             {
                 SourceId = "solarassistant-total",
                 DeviceId = "total",
+                PayloadType = PowerOutboxPayloadTypes.PowerReading,
+                PayloadVersion = PowerOutboxPayloadTypes.PowerReadingVersion,
                 RecordedAtUtc = recordedAt.AddMinutes(-5),
-                Payload = JsonSerializer.Serialize(new PowerReadingPayload
+                PayloadJson = JsonSerializer.Serialize(new PowerReadingPayload
                 {
                     SourceId = "solarassistant-total",
                     DeviceId = "total",
@@ -121,12 +127,14 @@ public sealed class SolarAssistantSnapshotWorkerTests
                     PvPowerW = 111,
                 }, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
             });
-            db.OutboxRecords.Add(new OutboxRecord
+            db.OutboxRecords.Add(new EdgeOutboxRecord
             {
                 SourceId = "solarassistant-total",
                 DeviceId = "total",
+                PayloadType = PowerOutboxPayloadTypes.PowerReading,
+                PayloadVersion = PowerOutboxPayloadTypes.PowerReadingVersion,
                 RecordedAtUtc = recordedAt,
-                Payload = JsonSerializer.Serialize(new PowerReadingPayload
+                PayloadJson = JsonSerializer.Serialize(new PowerReadingPayload
                 {
                     SourceId = "solarassistant-total",
                     DeviceId = "total",
@@ -159,12 +167,14 @@ public sealed class SolarAssistantSnapshotWorkerTests
         using (var scope = _provider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-            db.OutboxRecords.Add(new OutboxRecord
+            db.OutboxRecords.Add(new EdgeOutboxRecord
             {
                 SourceId = "solarassistant-total",
                 DeviceId = "total",
+                PayloadType = PowerOutboxPayloadTypes.PowerReading,
+                PayloadVersion = PowerOutboxPayloadTypes.PowerReadingVersion,
                 RecordedAtUtc = DateTime.UtcNow,
-                Payload = "{not-json",
+                PayloadJson = "{not-json",
             });
             await db.SaveChangesAsync();
         }
