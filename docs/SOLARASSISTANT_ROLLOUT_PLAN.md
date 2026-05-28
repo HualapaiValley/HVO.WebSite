@@ -400,6 +400,8 @@ Acceptance criteria:
 
 ### Phase 5: Central UI Integration
 
+Status: implemented on the central power status card.
+
 Scope:
 
 - Build central website views from typed streams.
@@ -409,6 +411,12 @@ Scope:
 Acceptance criteria:
 
 - Website UI can show live power, trends, energy summaries, device identity, and configuration snapshots without requiring direct LAN access to SolarAssistant.
+
+Implementation notes:
+
+- The central power card now joins live aggregate power, JK BMS bank detail, SolarAssistant inventory/configuration, energy counters, and inverter detail snapshots from typed website read models.
+- The website still does not connect directly to SolarAssistant REST/MQTT; a configurable diagnostics link can point operators back to the local gateway UI.
+- Local gateway pages remain the detailed troubleshooting surface for REST/MQTT/outbox state.
 
 ## Non-Goals
 
