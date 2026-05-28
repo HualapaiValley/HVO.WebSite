@@ -1,0 +1,384 @@
+:root {
+}
+
+.smartshunt-shell.shell-theme-dark {
+    --shell-page-background:
+        linear-gradient(180deg, rgba(4, 9, 18, 0.84) 0%, rgba(3, 7, 14, 0.92) 100%),
+        radial-gradient(circle at 58% 72%, rgba(255, 180, 70, 0.18), transparent 26%),
+        radial-gradient(circle at 22% 14%, rgba(69, 140, 255, 0.24), transparent 34%),
+        var(--shell-page-hero-image, none) var(--shell-page-background-image-position) / var(--shell-page-background-image-size) no-repeat;
+    --shell-page-text: #e8f1ff;
+    --shell-card-background: rgba(12, 20, 34, 0.88);
+    --shell-card-foreground: #f9fafb;
+    --shell-card-border: rgba(117, 152, 205, 0.22);
+    --shell-card-inner-border: rgba(255, 255, 255, 0.04);
+    --shell-card-shadow: 0 18px 42px rgba(2, 5, 10, 0.44);
+    --shell-brand-title: #f8fbff;
+    --shell-brand-subtitle: #8da4c7;
+    --shell-content-background: linear-gradient(180deg, rgba(10, 18, 31, 0.94), rgba(6, 12, 22, 0.98));
+    --shell-content-border: rgba(92, 122, 172, 0.24);
+    --shell-content-shadow: 0 24px 52px rgba(1, 4, 8, 0.44);
+}
+
+.smartshunt-shell.shell-theme-light {
+    --shell-page-background:
+        linear-gradient(180deg, rgba(244, 248, 253, 0.86) 0%, rgba(225, 235, 247, 0.94) 100%),
+        radial-gradient(circle at 58% 72%, rgba(217, 182, 86, 0.12), transparent 24%),
+        radial-gradient(circle at 26% 16%, rgba(101, 151, 229, 0.14), transparent 30%),
+        var(--shell-page-hero-image, none) var(--shell-page-background-image-position) / var(--shell-page-background-image-size) no-repeat;
+    --shell-page-text: #10233f;
+    --shell-card-background: rgba(255, 255, 255, 0.82);
+    --shell-card-foreground: #10233f;
+    --shell-card-border: rgba(128, 151, 185, 0.34);
+    --shell-card-inner-border: rgba(255, 255, 255, 0.88);
+    --shell-card-shadow: 0 24px 44px rgba(65, 89, 125, 0.18);
+    --shell-brand-title: #183250;
+    --shell-brand-subtitle: #56708f;
+    --shell-content-background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(242, 247, 253, 0.94));
+    --shell-content-border: rgba(176, 194, 219, 0.64);
+    --shell-content-shadow: 0 24px 44px rgba(82, 106, 143, 0.16);
+}
+
+.shell-brand-mark {
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #f8fbff;
+    background: linear-gradient(180deg, rgba(39, 50, 68, 0.98), rgba(17, 24, 36, 0.96));
+    border: 1px solid rgba(188, 203, 223, 0.22);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 10px 24px rgba(8, 13, 22, 0.28);
+}
+
+.shell-brand-mark-gateway {
+    background: linear-gradient(145deg, rgba(88, 190, 255, 0.36), rgba(53, 94, 174, 0.62));
+}
+
+.smartshunt-page-stack {
+    color: var(--shell-page-text);
+}
+
+.smartshunt-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.95fr);
+    gap: 1rem;
+    padding: 1.25rem 1.35rem;
+    border-radius: 24px;
+    background: var(--shell-content-background);
+    border: 1px solid var(--shell-content-border);
+    box-shadow: var(--shell-content-shadow);
+}
+
+.smartshunt-hero-copy {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.smartshunt-eyebrow,
+.smartshunt-card-kicker {
+    color: #7c93b0 !important;
+    letter-spacing: 0.16em !important;
+}
+
+.smartshunt-shell.shell-theme-light .smartshunt-eyebrow,
+.smartshunt-shell.shell-theme-light .smartshunt-card-kicker {
+    color: #68809f !important;
+}
+
+.smartshunt-hero-title {
+    margin: 0;
+    font-weight: 700 !important;
+}
+
+.smartshunt-hero-summary {
+    max-width: 52rem;
+    color: #97acc8 !important;
+}
+
+.smartshunt-shell.shell-theme-light .smartshunt-hero-summary {
+    color: #4f6887 !important;
+}
+
+.smartshunt-hero-meta {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.smartshunt-stat-chip,
+.smartshunt-metric-tile {
+    display: grid;
+    gap: 0.18rem;
+    padding: 0.9rem 1rem;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(16, 29, 48, 0.92), rgba(10, 18, 31, 0.96));
+    border: 1px solid rgba(126, 157, 196, 0.16);
+    color: #ebf5ff;
+}
+
+.smartshunt-shell.shell-theme-light .smartshunt-stat-chip,
+.smartshunt-shell.shell-theme-light .smartshunt-metric-tile {
+    background: rgba(255, 255, 255, 0.74);
+    border-color: rgba(128, 151, 185, 0.2);
+    color: #10233f;
+}
+
+.smartshunt-stat-chip span,
+.smartshunt-metric-tile span,
+.smartshunt-inline-badge {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.smartshunt-stat-chip strong,
+.smartshunt-metric-tile strong {
+    font-size: 1rem;
+}
+
+.smartshunt-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.smartshunt-grid-overview {
+    grid-template-columns: 1.35fr 1fr;
+}
+
+.smartshunt-gauge-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.smartshunt-gauge-tile {
+    display: grid;
+    place-items: center;
+}
+
+.smartshunt-gauge {
+    --gauge-value: 0;
+    --gauge-color: #6ea8ff;
+    width: 10.5rem;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background:
+        radial-gradient(circle at center, rgba(4, 8, 14, 0.94) 0 55%, transparent 56%),
+        conic-gradient(var(--gauge-color) calc(var(--gauge-value) * 1%), rgba(126, 157, 196, 0.14) 0);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+        0 20px 36px rgba(2, 5, 10, 0.28);
+}
+
+.smartshunt-shell.shell-theme-light .smartshunt-gauge {
+    background:
+        radial-gradient(circle at center, rgba(255, 255, 255, 0.92) 0 55%, transparent 56%),
+        conic-gradient(var(--gauge-color) calc(var(--gauge-value) * 1%), rgba(128, 151, 185, 0.18) 0);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+        0 18px 32px rgba(65, 89, 125, 0.14);
+}
+
+.smartshunt-gauge-inner {
+    width: 65%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 0.16rem;
+    background: rgba(10, 18, 31, 0.86);
+    border: 1px solid rgba(126, 157, 196, 0.14);
+    color: #ebf5ff;
+    text-align: center;
+}
+
+.smartshunt-shell.shell-theme-light .smartshunt-gauge-inner {
+    background: rgba(255, 255, 255, 0.84);
+    border-color: rgba(128, 151, 185, 0.18);
+    color: #10233f;
+}
+
+.smartshunt-gauge-inner span {
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8da4c7;
+}
+
+.smartshunt-shell.shell-theme-light .smartshunt-gauge-inner span {
+    color: #68809f;
+}
+
+.smartshunt-gauge-inner strong {
+    font-size: 1rem;
+    line-height: 1.1;
+}
+
+.smartshunt-grid-telemetry {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.smartshunt-card {
+    padding: 1.2rem 1.25rem;
+    border-radius: 24px;
+    background: var(--shell-content-background);
+    border: 1px solid var(--shell-content-border);
+    box-shadow: var(--shell-content-shadow);
+    color: var(--shell-page-text);
+}
+
+.smartshunt-card-primary {
+    grid-row: span 2;
+}
+
+.smartshunt-card-note {
+    background: linear-gradient(180deg, rgba(17, 28, 45, 0.92), rgba(10, 18, 30, 0.96));
+}
+
+.smartshunt-shell.shell-theme-dark .smartshunt-card-note {
+    background: linear-gradient(180deg, rgba(17, 28, 45, 0.92), rgba(10, 18, 30, 0.96));
+}
+
+.smartshunt-shell.shell-theme-light .smartshunt-card-note {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(242, 247, 253, 0.96));
+}
+
+.smartshunt-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.smartshunt-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.smartshunt-badge-success {
+    background: rgba(43, 155, 103, 0.16);
+    color: #2b9b67;
+}
+
+.smartshunt-badge-warning {
+    background: rgba(199, 134, 27, 0.14);
+    color: #af7318;
+}
+
+.smartshunt-badge-neutral {
+    background: rgba(84, 112, 146, 0.14);
+    color: #4a6588;
+}
+
+.smartshunt-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+.smartshunt-detail-list {
+    display: grid;
+    gap: 0.7rem;
+    margin: 0;
+}
+
+.smartshunt-detail-list div {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 0.9rem;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid rgba(128, 151, 185, 0.16);
+}
+
+.smartshunt-detail-list div:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.smartshunt-detail-list dt {
+    color: #8da4c7;
+    font-size: 0.86rem;
+}
+
+.smartshunt-shell.shell-theme-light .smartshunt-detail-list dt {
+    color: #5a7291;
+}
+
+.smartshunt-detail-list dd {
+    margin: 0;
+    text-align: right;
+    font-weight: 600;
+}
+
+.smartshunt-note-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem;
+}
+
+.smartshunt-note-grid p {
+    margin: 0.45rem 0 0;
+    color: #a6bbd5;
+}
+
+.shell-theme-light .smartshunt-note-grid p {
+    color: #4f6887;
+}
+
+.smartshunt-inline-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.22rem 0.55rem;
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+.smartshunt-inline-badge-warning {
+    background: rgba(255, 202, 102, 0.2);
+    color: #946211;
+}
+
+.smartshunt-inline-badge-neutral {
+    background: rgba(116, 143, 180, 0.14);
+    color: #4f6887;
+}
+
+.smartshunt-inline-badge-success {
+    background: rgba(110, 220, 140, 0.18);
+    color: #20724a;
+}
+
+@media (max-width: 1100px) {
+    .smartshunt-grid-overview,
+    .smartshunt-grid-telemetry,
+    .smartshunt-note-grid,
+    .smartshunt-hero,
+    .smartshunt-gauge-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .smartshunt-card-primary {
+        grid-row: auto;
+    }
+}
+
+@media (max-width: 820px) {
+    .smartshunt-metric-grid,
+    .smartshunt-detail-list div {
+        grid-template-columns: 1fr;
+    }
+
+    .smartshunt-detail-list dd {
+        text-align: left;
+    }
+}

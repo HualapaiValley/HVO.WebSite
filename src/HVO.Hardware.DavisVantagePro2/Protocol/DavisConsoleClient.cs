@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using Microsoft.Extensions.Logging;
 
@@ -11,6 +12,8 @@ namespace HVO.Hardware.DavisVantagePro2.Protocol;
 /// </summary>
 public sealed class DavisConsoleClient : IDisposable
 {
+    private static readonly TimeSpan QueuedReadIdleGrace = TimeSpan.FromMilliseconds(100);
+
     private readonly ILogger<DavisConsoleClient> _logger;
     private readonly string _host;
     private readonly int _port;
@@ -46,8 +49,26 @@ public sealed class DavisConsoleClient : IDisposable
     public void Close()
     {
         // Cancel any pending LOOP before closing
-        try { WriteRaw([DavisProtocol.Lf]); } catch { /* best-effort */ }
+        try { CancelLoop(); } catch { /* best-effort */ }
         CloseInternal();
+    }
+
+    public void CancelLoop()
+    {
+        if (!IsConnected)
+            return;
+
+        WriteRaw([DavisProtocol.Lf]);
+    }
+
+    public async Task CancelLoopAsync(CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            return;
+
+        await WriteAsync([DavisProtocol.Lf], ct);
+        await Task.Delay(QueuedReadIdleGrace, ct);
+        await FlushInputAsync(ct);
     }
 
     private void CloseInternal()
@@ -110,7 +131,7 @@ public sealed class DavisConsoleClient : IDisposable
         int received = 0;
         while (received < count)
         {
-            int n = await _stream!.ReadAsync(buffer.AsMemory(received, count - received), ct);
+            int n = await ReadWithTimeoutAsync(buffer.AsMemory(received, count - received), ct);
             if (n == 0)
                 throw new DavisException("Connection closed by console");
             received += n;
@@ -141,7 +162,9 @@ public sealed class DavisConsoleClient : IDisposable
         byte b = (await ReadExactAsync(1, ct))[0];
         if (b == DavisProtocol.Lf)
         {
-            await ReadExactAsync(1, ct);              // discard \r
+            byte cr = (await ReadExactAsync(1, ct))[0];
+            if (cr != DavisProtocol.Cr)
+                throw new DavisProtocolException($"Expected LF CR prefix, got LF 0x{cr:X2}");
             b = (await ReadExactAsync(1, ct))[0];     // read actual ACK
         }
         if (b != DavisProtocol.Ack)
@@ -174,7 +197,8 @@ public sealed class DavisConsoleClient : IDisposable
     }
 
     /// <summary>
-    /// Send a command string (e.g. "GETTIME\n"), wake the console first.
+    /// Send a command string (e.g. "GETTIME\n") while the console is already
+    /// awake and in command mode.
     /// Returns the response lines after the "OK" prefix.
     /// </summary>
     public async Task<string[]> SendCommandAsync(string command, CancellationToken ct, int maxTries = 3)
@@ -185,14 +209,12 @@ public sealed class DavisConsoleClient : IDisposable
         {
             try
             {
-                await WakeAsync(maxTries: 1, ct);
                 await WriteAsync(cmdBytes, ct);
                 await Task.Delay(500, ct); // console reaction time
 
                 // Read all queued bytes
                 byte[] raw = await ReadQueuedAsync(ct);
-                string response = Encoding.ASCII.GetString(raw).Trim();
-                string[] lines = response.Split(["\n\r", "\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries);
+                string[] lines = ParseResponseLines(raw);
 
                 if (lines.Length > 0 && lines[0] == "OK")
                     return lines[1..];
@@ -209,6 +231,98 @@ public sealed class DavisConsoleClient : IDisposable
     }
 
     /// <summary>
+    /// Send a command and return the raw response bytes after the console reacts.
+    /// Callers must ensure the console is already awake and in command mode.
+    /// Useful for commands such as RECEIVERS that return a binary payload after an OK prefix.
+    /// </summary>
+    public async Task<byte[]> SendCommandRawAsync(string command, CancellationToken ct, int maxTries = 3)
+    {
+        byte[] cmdBytes = Encoding.ASCII.GetBytes(command);
+
+        for (int attempt = 1; attempt <= maxTries; attempt++)
+        {
+            try
+            {
+                await WriteAsync(cmdBytes, ct);
+                await Task.Delay(500, ct);
+
+                byte[] raw = await ReadQueuedAsync(ct);
+                if (TryStripOkPrefix(raw, out byte[] payload))
+                    return payload;
+
+                if (raw.Length > 0)
+                    throw new DavisProtocolException($"Command '{command.TrimEnd()}' returned an invalid OK-prefixed response.");
+
+                _logger.LogDebug("SendCommandRaw attempt {A}: invalid response prefix", attempt);
+            }
+            catch (DavisProtocolException)
+            {
+                throw;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogDebug("SendCommandRaw attempt {A}: {Ex}", attempt, ex.Message);
+            }
+        }
+
+        throw new DavisRetriesExceededException($"Max retries exceeded for command '{command.TrimEnd()}'");
+    }
+
+    /// <summary>
+    /// Send a command that finishes asynchronously and wait until a terminal line is seen.
+    /// Callers must ensure the console is already awake and in command mode.
+    /// Used by Davis commands such as CLRALM that first return OK and later return DONE.
+    /// </summary>
+    public async Task<string[]> SendCommandUntilLineAsync(
+        string command,
+        string terminalLine,
+        CancellationToken ct,
+        TimeSpan? timeout = null,
+        int maxTries = 3)
+    {
+        byte[] cmdBytes = Encoding.ASCII.GetBytes(command);
+        TimeSpan maxWait = timeout ?? TimeSpan.FromSeconds(4);
+
+        for (int attempt = 1; attempt <= maxTries; attempt++)
+        {
+            try
+            {
+                await WriteAsync(cmdBytes, ct);
+
+                DateTime deadline = DateTime.UtcNow + maxWait;
+                var buffer = new List<byte>(256);
+
+                while (DateTime.UtcNow < deadline)
+                {
+                    if (_stream!.DataAvailable)
+                    {
+                        byte[] chunk = await ReadQueuedAsync(ct);
+                        if (chunk.Length > 0)
+                        {
+                            buffer.AddRange(chunk);
+                            string[] lines = ParseResponseLines([.. buffer]);
+                            if (lines.Length > 0 && lines[0] == "OK" && lines.Contains(terminalLine))
+                                return lines[1..];
+                        }
+                    }
+
+                    await Task.Delay(50, ct);
+                }
+
+                string[] finalLines = ParseResponseLines([.. buffer]);
+                _logger.LogDebug("SendCommandUntilLine attempt {A}: timed out waiting for '{Line}', got '{Lines}'",
+                    attempt, terminalLine, string.Join(" | ", finalLines));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogDebug("SendCommandUntilLine attempt {A}: {Ex}", attempt, ex.Message);
+            }
+        }
+
+        throw new DavisRetriesExceededException($"Max retries exceeded for command '{command.TrimEnd()}' waiting for '{terminalLine}'");
+    }
+
+    /// <summary>
     /// Read a validated CRC packet of <paramref name="totalBytes"/> (includes 2 CRC bytes).
     /// Optionally sends a prompt byte (e.g. ACK) before reading.
     /// </summary>
@@ -219,6 +333,7 @@ public sealed class DavisConsoleClient : IDisposable
 
         bool first = true;
         byte[]? buffer = null;
+        Exception? lastException = null;
 
         for (int attempt = 1; attempt <= maxTries; attempt++)
         {
@@ -234,6 +349,7 @@ public sealed class DavisConsoleClient : IDisposable
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                lastException = ex;
                 _logger.LogDebug("GetDataWithCrc16 attempt {A}: {Ex}", attempt, ex.Message);
             }
 
@@ -242,6 +358,12 @@ public sealed class DavisConsoleClient : IDisposable
 
         if (buffer is not null)
             throw new DavisCrcException("CRC validation failed after max retries");
+
+        if (lastException is DavisException davisException)
+            ExceptionDispatchInfo.Capture(davisException).Throw();
+
+        if (lastException is not null)
+            throw new DavisException(lastException.Message, lastException);
 
         throw new DavisException("No data received from console");
     }
@@ -272,15 +394,83 @@ public sealed class DavisConsoleClient : IDisposable
     {
         var buffer = new List<byte>(256);
         var tmp = new byte[256];
-        // Read in a short loop while data is available
         while (_stream!.DataAvailable || buffer.Count == 0)
         {
-            int n = await _stream.ReadAsync(tmp.AsMemory(0, 256), ct);
+            int n = await ReadWithTimeoutAsync(tmp.AsMemory(0, 256), ct);
             if (n == 0) break;
             buffer.AddRange(tmp[..n]);
-            if (!_stream.DataAvailable) break;
+
+            if (_stream.DataAvailable)
+                continue;
+
+            await Task.Delay(QueuedReadIdleGrace, ct);
+            if (!_stream.DataAvailable)
+                break;
         }
+
         return [.. buffer];
+    }
+
+    private async Task<int> ReadWithTimeoutAsync(Memory<byte> buffer, CancellationToken ct)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(_socketTimeout);
+
+        try
+        {
+            return await _stream!.ReadAsync(buffer, timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new DavisException($"Timed out reading from Davis console after {_socketTimeout.TotalSeconds:N1} seconds");
+        }
+    }
+
+    private static string[] ParseResponseLines(byte[] raw)
+    {
+        string response = Encoding.ASCII.GetString(raw).Trim();
+        return response.Split(["\n\r", "\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private static bool TryStripOkPrefix(byte[] raw, out byte[] payload)
+    {
+        payload = [];
+        if (raw.Length == 0)
+            return false;
+
+        int index = 0;
+        if (TryConsumeLineBreak(raw, ref index) && index >= raw.Length)
+            return false;
+
+        if (raw.Length - index < 2 || raw[index] != (byte)'O' || raw[index + 1] != (byte)'K')
+            return false;
+
+        index += 2;
+        TryConsumeLineBreak(raw, ref index);
+
+        payload = raw[index..];
+        return true;
+    }
+
+    private static bool TryConsumeLineBreak(byte[] raw, ref int index)
+    {
+        if (raw.Length - index >= 2)
+        {
+            if ((raw[index] == DavisProtocol.Lf && raw[index + 1] == DavisProtocol.Cr)
+                || (raw[index] == DavisProtocol.Cr && raw[index + 1] == DavisProtocol.Lf))
+            {
+                index += 2;
+                return true;
+            }
+        }
+
+        if (index < raw.Length && (raw[index] == DavisProtocol.Lf || raw[index] == DavisProtocol.Cr))
+        {
+            index++;
+            return true;
+        }
+
+        return false;
     }
 
     // ── Low-level write (sync, for close path) ───────────────────────────────

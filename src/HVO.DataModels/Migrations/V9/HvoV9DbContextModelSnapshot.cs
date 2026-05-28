@@ -687,6 +687,99 @@ namespace HVO.DataModels.Migrations.V9
                     b.ToTable("ImageMetadata", "v9");
                 });
 
+            modelBuilder.Entity("HVO.DataModels.Models.V9.PowerReading", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<double?>("BatteryCapacityKwh")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("BatteryCurrentA")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("BatteryPowerW")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("BatteryStateOfChargePercent")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("BatteryVoltageV")
+                        .HasColumnType("float");
+
+                    b.Property<string>("ChargerSourcePriority")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeviceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<double?>("GridFrequencyHz")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("GridPowerW")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("GridVoltageV")
+                        .HasColumnType("float");
+
+                    b.Property<string>("InverterMode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<double?>("LoadPercentage")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("LoadPowerW")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("OutputFrequencyHz")
+                        .HasColumnType("float");
+
+                    b.Property<string>("OutputSourcePriority")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<double?>("OutputVoltageV")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("PvPowerW")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SourceId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("SourceSystem")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<double?>("SystemPowerW")
+                        .HasColumnType("float");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordedAt");
+
+                    b.HasIndex("SourceId", "RecordedAt")
+                        .IsUnique();
+
+                    b.HasIndex("SourceSystem", "RecordedAt");
+
+                    b.ToTable("PowerReading", "v9");
+                });
+
             modelBuilder.Entity("HVO.DataModels.Models.V9.SiteConfiguration", b =>
                 {
                     b.Property<string>("Key")

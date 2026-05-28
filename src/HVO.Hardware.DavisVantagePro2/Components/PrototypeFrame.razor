@@ -1,0 +1,32 @@
+<div class="proto-page">
+    <div class="proto-frame">
+        <header class="proto-header">
+            <div class="proto-header-left">
+                <div class="proto-mark" aria-hidden="true">HVO</div>
+                <div class="proto-header-copy">
+                    <div class="proto-eyebrow">@Eyebrow</div>
+                    <h1 class="proto-headline">@Title</h1>
+                </div>
+            </div>
+
+            <div class="proto-header-meta">
+                <div class="proto-header-right">
+                    <div class="proto-pill"><span class="proto-dot"></span><strong>Live loop active</strong></div>
+                    <div class="proto-pill"><strong>Hualapai Valley, AZ</strong></div>
+                    <div class="proto-pill"><strong class="proto-mono">08 May 2026 - 8:04 AM</strong></div>
+                </div>
+
+                @if (HeaderAside is not null)
+                {
+                    <div class="proto-header-actions">
+                        @HeaderAside
+                    </div>
+                }
+            </div>
+        </header>
+
+        <div class="proto-content">
+            @ChildContent
+        </div>
+    </div>
+</div>

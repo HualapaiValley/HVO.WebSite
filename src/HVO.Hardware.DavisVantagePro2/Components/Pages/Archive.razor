@@ -1,152 +1,216 @@
 @page "/archive"
+@page "/archive-browser"
 @rendermode InteractiveServer
 @using HVO.Hardware.DavisVantagePro2.Station
 @inject VantageStation Station
 
-<h1>Archive</h1>
+<div class="archive-page">
+    <MudPaper Class="layout-canvas shell-page" Elevation="0" aria-label="Archive console content area">
+        <div class="shell-page-stack archive-stack">
+            <h1 class="page-heading">Archive And History</h1>
 
-<h2>Archive Interval</h2>
-<div class="form-row">
-    <label>Interval (minutes)</label>
-    <select @bind="_interval">
-        <option value="1">1 min</option>
-        <option value="5">5 min</option>
-        <option value="10">10 min</option>
-        <option value="15">15 min</option>
-        <option value="30">30 min</option>
-        <option value="60">60 min</option>
-        <option value="120">120 min</option>
-    </select>
-    <button class="btn btn-primary" @onclick="SaveIntervalAsync">Set Interval</button>
-</div>
+            @if (_msg is not null)
+            {
+                <div class="callout @(_isError ? "error" : "success")">@_msg</div>
+            }
 
-<h2 style="margin-top:2rem">Clear Archive Memory</h2>
-<p style="color:#f38ba8;font-size:.875rem">
-    ⚠ This permanently erases all archived data on the console. This cannot be undone.
-</p>
+            <div class="archive-grid">
+                <section class="card-shell summary-card">
+                    <div class="section-head">
+                        <div>
+                            <div class="eyebrow">Archive Console</div>
+                            <h2>Archive Status</h2>
+                        </div>
+                    </div>
 
-@if (!_confirmClear)
-{
-    <button class="btn btn-danger" @onclick="() => _confirmClear = true">Clear Archive…</button>
-}
-else
-{
-    <p style="color:#f38ba8;font-size:.875rem;font-weight:600">Are you absolutely sure?</p>
-    <button class="btn btn-danger" @onclick="ClearAsync">Yes, clear all archive data</button>
-    <button class="btn" style="margin-left:.5rem" @onclick="() => _confirmClear = false">Cancel</button>
-}
+                    <div class="summary-pills">
+                        <div class="pill-card">
+                            <span>Archive interval</span>
+                            <strong class="mono">@_interval min</strong>
+                        </div>
+                        <div class="pill-card">
+                            <span>Loaded records</span>
+                            <strong class="mono">@(_historyRecords?.Count ?? 0)</strong>
+                        </div>
+                        <div class="pill-card">
+                            <span>Console time zone</span>
+                            <strong>@Station.ConsoleTimeZoneLabel</strong>
+                        </div>
+                    </div>
+                </section>
 
-@if (_msg is not null)
-{
-    <div class="alert @(_isError ? "alert-error" : "alert-success")" style="margin-top:.75rem">@_msg</div>
-}
+                <section class="card-shell settings-card">
+                    <div class="section-head">
+                        <div>
+                            <div class="eyebrow">Configuration</div>
+                            <h2>Archive Interval</h2>
+                        </div>
+                    </div>
 
-<h2 style="margin-top:2rem">Archive History</h2>
-<div class="form-row">
-    <label>Since</label>
-    <input type="datetime-local"
-           value="@_since.ToString("yyyy-MM-ddTHH:mm")"
-           @onchange="e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _since = d; }"
-           style="font-size:.875rem" />
-    <button class="btn btn-primary" @onclick="LoadHistoryAsync" disabled="@_historyLoading">
-        @if (_historyLoading) { <span>Loading…</span> } else { <span>Load</span> }
-    </button>
-    <button class="btn" @onclick='() => { _since = DateTime.Now.AddDays(-1); }' disabled="@_historyLoading"
-            style="margin-left:.25rem">
-        Last 24 h
-    </button>
-</div>
+                    <div class="control-stack">
+                        <label class="field-label" for="archive-interval">Interval (minutes)</label>
+                        <div class="control-row">
+                            <select id="archive-interval" @bind="_interval">
+                                <option value="1">1 min</option>
+                                <option value="5">5 min</option>
+                                <option value="10">10 min</option>
+                                <option value="15">15 min</option>
+                                <option value="30">30 min</option>
+                                <option value="60">60 min</option>
+                                <option value="120">120 min</option>
+                            </select>
+                            <button class="action-btn primary" @onclick="SaveIntervalAsync">Set Interval</button>
+                        </div>
+                    </div>
+                </section>
 
-@if (_historyLoading)
-{
-    <p style="margin-top:.75rem;color:#cdd6f4">⏳ Fetching archive records from console…</p>
-}
-else if (_historyError is not null)
-{
-    <div class="alert alert-error" style="margin-top:.75rem">@_historyError</div>
-}
-else if (_historyRecords is not null)
-{
-    <p style="margin-top:.5rem;font-size:.875rem;color:#a6adc8">
-        @_historyRecords.Count record@(_historyRecords.Count == 1 ? "" : "s") loaded
-        since @_historySince.ToString("yyyy-MM-dd HH:mm")
-        @if (_hasMore) { <span> — more available</span> }
-    </p>
+                <section class="card-shell danger-card">
+                    <div class="section-head">
+                        <div>
+                            <div class="eyebrow">Danger Zone</div>
+                            <h2>Clear Archive Memory</h2>
+                        </div>
+                    </div>
 
-    @if (_historyRecords.Count == 0)
-    {
-        <p style="color:#a6adc8">No records found for the selected time range.</p>
-    }
-    else
-    {
-        <div style="overflow-x:auto;margin-top:.5rem">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Date / Time<br /><small>@Station.ConsoleTimeZoneLabel</small></th>
-                        <th>Outside Temp °F<br /><small>avg / high / low</small></th>
-                        <th>Inside Temp °F</th>
-                        <th>Outside Humidity %</th>
-                        <th>Inside Humidity %</th>
-                        <th>Pressure inHg</th>
-                        <th>Wind Speed mph</th>
-                        <th>Wind Gust mph</th>
-                        <th>Rain in</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var r in PagedRecords)
+                    <p class="danger-copy">This permanently erases all archived data on the console. This cannot be undone.</p>
+
+                    @if (!_confirmClear)
                     {
-                        <tr>
-                            <td>@r.DateTimeLocal.ToString("yyyy-MM-dd HH:mm")</td>
-                            <td>
-                                @Fmt(r.OutsideTemperatureF) /
-                                @Fmt(r.HighOutsideTemperatureF) /
-                                @Fmt(r.LowOutsideTemperatureF)
-                            </td>
-                            <td>@Fmt(r.InsideTemperatureF)</td>
-                            <td>@Fmt(r.OutsideHumidityPercent)</td>
-                            <td>@Fmt(r.InsideHumidityPercent)</td>
-                            <td>@Fmt(r.BarometricPressureInHg, "F3")</td>
-                            <td>@Fmt(r.WindSpeedMph)</td>
-                            <td>@Fmt(r.WindGustMph)</td>
-                            <td>@Fmt(r.RainInches, "F2")</td>
-                        </tr>
+                        <button class="action-btn danger" @onclick="() => _confirmClear = true">Clear Archive…</button>
                     }
-                </tbody>
-            </table>
-        </div>
-
-        @* ── Pagination controls ─────────────────────────────────────────── *@
-        @if (TotalPages > 1 || _hasMore)
-        {
-            <div style="display:flex;align-items:center;gap:.5rem;margin-top:.75rem;flex-wrap:wrap">
-                @if (TotalPages > 1)
-                {
-                    <button class="btn" @onclick='() => _displayPage = 1'
-                            disabled="@(_displayPage == 1)">«</button>
-                    <button class="btn" @onclick='() => _displayPage--'
-                            disabled="@(_displayPage == 1)">‹</button>
-                    <span style="font-size:.875rem;color:#cdd6f4">
-                        Page @_displayPage of @TotalPages
-                        &nbsp;(@((_displayPage - 1) * PageSize + 1)–@(Math.Min(_displayPage * PageSize, _historyRecords.Count))
-                        of @_historyRecords.Count)
-                    </span>
-                    <button class="btn" @onclick='() => _displayPage++'
-                            disabled="@(_displayPage >= TotalPages)">›</button>
-                    <button class="btn" @onclick='() => _displayPage = TotalPages'
-                            disabled="@(_displayPage >= TotalPages)">»</button>
-                }
-
-                @if (_hasMore)
-                {
-                    <button class="btn btn-primary" @onclick="LoadMoreAsync"
-                            disabled="@_historyLoading" style="margin-left:auto">
-                        Load more from console…
-                    </button>
-                }
+                    else
+                    {
+                        <div class="confirm-box">
+                            <p>Are you absolutely sure?</p>
+                            <div class="control-row">
+                                <button class="action-btn danger" @onclick="ClearAsync">Yes, clear all archive data</button>
+                                <button class="action-btn" @onclick="() => _confirmClear = false">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                </section>
             </div>
-        }
-    }
-}
+
+            <section class="card-shell history-card">
+                <div class="section-head">
+                    <div>
+                        <div class="eyebrow">Historical Pull</div>
+                        <h2>Archive History</h2>
+                    </div>
+                </div>
+
+                <div class="history-toolbar">
+                    <div class="control-stack">
+                        <label class="field-label" for="archive-since">Since</label>
+                        <input id="archive-since" type="datetime-local" value="@_since.ToString("yyyy-MM-ddTHH:mm")"
+                               @onchange="OnSinceChanged" />
+                    </div>
+
+                    <div class="toolbar-actions">
+                        <button class="action-btn primary" @onclick="LoadHistoryAsync" disabled="@_historyLoading">
+                            @if (_historyLoading)
+                            {
+                                <span>Loading…</span>
+                            }
+                            else
+                            {
+                                <span>Load</span>
+                            }
+                        </button>
+                        <button class="action-btn" @onclick='() => { _since = DateTime.Now.AddDays(-1); }'
+                                disabled="@_historyLoading">Last 24 h</button>
+                    </div>
+                </div>
+
+                @if (_historyLoading)
+                {
+                    <div class="callout info">Fetching archive records from console…</div>
+                }
+                else if (_historyError is not null)
+                {
+                    <div class="callout error">@_historyError</div>
+                }
+                else if (_historyRecords is not null)
+                {
+                    <div class="history-summary">
+                        <span>@_historyRecords.Count record@(_historyRecords.Count == 1 ? "" : "s") loaded since @_historySince.ToString("yyyy-MM-dd HH:mm")</span>
+                        @if (_hasMore)
+                        {
+                            <span>More records are available.</span>
+                        }
+                    </div>
+
+                    @if (_historyRecords.Count == 0)
+                    {
+                        <div class="callout muted">No records found for the selected time range.</div>
+                    }
+                    else
+                    {
+                        <div class="table-wrap">
+                            <table class="archive-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date / Time<br /><small>@Station.ConsoleTimeZoneLabel</small></th>
+                                        <th>Outside Temp °F<br /><small>avg / high / low</small></th>
+                                        <th>Inside Temp °F</th>
+                                        <th>Outside Humidity %</th>
+                                        <th>Inside Humidity %</th>
+                                        <th>Pressure inHg</th>
+                                        <th>Wind Speed mph</th>
+                                        <th>Wind Gust mph</th>
+                                        <th>Rain in</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in PagedRecords)
+                                    {
+                                        <tr>
+                                            <td>@r.DateTimeLocal.ToString("yyyy-MM-dd HH:mm")</td>
+                                            <td>
+                                                @Fmt(r.OutsideTemperatureF) /
+                                                @Fmt(r.HighOutsideTemperatureF) /
+                                                @Fmt(r.LowOutsideTemperatureF)
+                                            </td>
+                                            <td>@Fmt(r.InsideTemperatureF)</td>
+                                            <td>@Fmt(r.OutsideHumidityPercent)</td>
+                                            <td>@Fmt(r.InsideHumidityPercent)</td>
+                                            <td>@Fmt(r.BarometricPressureInHg, "F3")</td>
+                                            <td>@Fmt(r.WindSpeedMph)</td>
+                                            <td>@Fmt(r.WindGustMph)</td>
+                                            <td>@Fmt(r.RainInches, "F2")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @if (TotalPages > 1 || _hasMore)
+                        {
+                            <div class="pagination-bar">
+                                @if (TotalPages > 1)
+                                {
+                                    <div class="pager-group">
+                                        <button class="action-btn" @onclick='() => _displayPage = 1' disabled="@(_displayPage == 1)">«</button>
+                                        <button class="action-btn" @onclick='() => _displayPage--' disabled="@(_displayPage == 1)">‹</button>
+                                        <span class="page-state">
+                                            Page @_displayPage of @TotalPages
+                                            (@((_displayPage - 1) * PageSize + 1)–@(Math.Min(_displayPage * PageSize, _historyRecords.Count)) of @_historyRecords.Count)
+                                        </span>
+                                        <button class="action-btn" @onclick='() => _displayPage++' disabled="@(_displayPage >= TotalPages)">›</button>
+                                        <button class="action-btn" @onclick='() => _displayPage = TotalPages' disabled="@(_displayPage >= TotalPages)">»</button>
+                                    </div>
+                                }
+
+                                @if (_hasMore)
+                                {
+                                    <button class="action-btn primary push-right" @onclick="LoadMoreAsync" disabled="@_historyLoading">Load more from console…</button>
+                                }
+                            </div>
+                        }
+                    }
+                }
+            </section>
+        </div>
+    </MudPaper>
+</div>
 

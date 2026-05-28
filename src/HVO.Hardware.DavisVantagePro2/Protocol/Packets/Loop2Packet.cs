@@ -100,7 +100,7 @@ public sealed record Loop2Packet
     public double? DailyEtInches { get; init; }
 
     // ── Barometric trend ──────────────────────────────────────────────────────
-    /// <summary>Barometric trend icon (-2=FF, -1=F, 0=S, 1=R, 2=RR). Null = unknown.</summary>
+    /// <summary>Raw Davis barometric trend icon/value from the LOOP packet. Common values are -60, -20, 0, 20, 60.</summary>
     public int? BarometricTrend { get; init; }
 
     // ── Console status (LOOP1 only) ───────────────────────────────────────────
@@ -217,11 +217,11 @@ public sealed record Loop2Packet
         {
             RecordedAtUtc = DateTime.UtcNow,
 
-            BarometricPressureInHg = ReadUshort(buffer, 7) is ushort bar and > 0
+            BarometricPressureInHg = ReadUshort(buffer, 7) is ushort bar and > 0 and not 0xFFFF
                 ? bar / 1000.0 : null,
-            PressureRawInHg = ReadUshort(buffer, 65) is ushort pr and > 0
+            PressureRawInHg = ReadUshort(buffer, 65) is ushort pr and > 0 and not 0xFFFF
                 ? pr / 1000.0 : null,
-            AltimeterInHg = ReadUshort(buffer, 69) is ushort alt and > 0
+            AltimeterInHg = ReadUshort(buffer, 69) is ushort alt and > 0 and not 0xFFFF
                 ? alt / 1000.0 : null,
 
             InsideTemperatureF = DecodeSignedTemp(buffer, 9),
@@ -250,14 +250,14 @@ public sealed record Loop2Packet
             HourRainInches = DecodeRain(ReadUshort(buffer, 54), bucketType),
             Rain24HourInches = DecodeRain(ReadUshort(buffer, 58), bucketType),
 
-            DailyEtInches = ReadUshort(buffer, 56) / 1000.0,
+            DailyEtInches = ReadUshort(buffer, 56) is ushort et and > 0 and not 0xFFFF
+                ? et / 1000.0 : null,
 
             UvIndex = buffer[43] != 0xFF ? buffer[43] / 10.0 : null,
             SolarRadiationWm2 = ReadUshort(buffer, 44) is ushort rad and not 0x7FFF
                 ? (double)rad : null,
 
-            BarometricTrend = (sbyte)buffer[3] is sbyte trend
-                and (>= -3 and <= 3) ? (int)trend : null,
+            BarometricTrend = (sbyte)buffer[3],
         };
     }
 
@@ -328,8 +328,7 @@ public sealed record Loop2Packet
             SunriseTime = ReadUshort(buffer, 91),
             SunsetTime = ReadUshort(buffer, 93),
 
-            BarometricTrend = (sbyte)buffer[3] is sbyte trend
-                and (>= -3 and <= 3) ? (int)trend : null,
+            BarometricTrend = (sbyte)buffer[3],
         };
 
     // ── Decode helpers ────────────────────────────────────────────────────────
@@ -365,11 +364,16 @@ public sealed record Loop2Packet
         return raw != unchecked((short)0x7FFF) ? raw / 10.0 : null;
     }
 
-    /// <summary>Decode a signed 16-bit °F value stored directly (not × 10). 0x7FFF = null.</summary>
+    /// <summary>Decode a signed 16-bit °F value stored directly (not × 10).</summary>
     private static double? DecodeSignedFahrenheit(ReadOnlySpan<byte> b, int offset)
     {
-        short raw = ReadShort(b, offset);
-        return (raw & 0xFFFF) != 0x7FFF ? (double)raw : null;
+        ushort raw = ReadUshort(b, offset);
+        if (raw is 0x00FF or 0x7FFF or 0xFFFF)
+        {
+            return null;
+        }
+
+        return (short)raw;
     }
 
     /// <summary>Wind chill: 0x00FF in the lower byte = null.</summary>
@@ -382,15 +386,15 @@ public sealed record Loop2Packet
     private static double? DecodeWindDir16(ReadOnlySpan<byte> b, int offset)
     {
         ushort raw = ReadUshort(b, offset);
-        if (raw == 0x7FFF || raw == 0) return null;
+        if (raw is 0 or 0x7FFF or 0xFFFF || raw > 360) return null;
         return raw == 360 ? 0.0 : (double)raw;
     }
 
-    /// <summary>LOOP2 wind speed fields (10-min avg, 2-min avg) are × 10. 0xFFFF = null.</summary>
+    /// <summary>LOOP2 wind speed fields (10-min avg, 2-min avg) are × 10.</summary>
     private static double? DecodeWindSpeedLoop2(ReadOnlySpan<byte> b, int offset)
     {
         ushort raw = ReadUshort(b, offset);
-        return raw != 0xFFFF ? raw / 10.0 : null;
+        return raw is not (0x7FFF or 0xFFFF) ? raw / 10.0 : null;
     }
 
     /// <summary>

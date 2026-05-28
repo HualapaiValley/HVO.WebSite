@@ -1,32 +1,94 @@
 @page "/info"
-@rendermode InteractiveServer
+@page "/station-info"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using HVO.Hardware.DavisVantagePro2.Station
 @inject VantageStation Station
 
-<h1>Station Info</h1>
-
-@if (_loading)
-{
-    <p><span class="spinner"></span> Loading…</p>
-}
-else if (_error is not null)
-{
-    <div class="alert alert-error">@_error</div>
-}
-else if (_info is not null)
-{
-    <div class="data-grid">
-        <span class="label">Hardware</span>        <span class="value">@_info.HardwareDescription</span>
-        <span class="label">Hardware Type</span>   <span class="value">@_info.HardwareType</span>
-        <span class="label">Model Type</span>      <span class="value">@_info.ModelType</span>
-        <span class="label">Firmware Version</span><span class="value">@_info.FirmwareVersion</span>
-        <span class="label">Firmware Date</span>   <span class="value">@_info.FirmwareDate</span>
-        <span class="label">Console Time</span>    <span class="value">@_info.ConsoleTime.ToString("yyyy-MM-dd HH:mm:ss")</span>
-        <span class="label">System Time</span>     <span class="value">@DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")</span>
-        <span class="label">Drift</span>
-        <span class="value">@((DateTime.Now - _info.ConsoleTime).TotalSeconds.ToString("F1")) s</span>
-    </div>
+@{
+    DateTime now = DateTime.Now;
 }
 
-<button class="btn btn-primary" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+<div class="station-info-page">
+    <MudPaper Class="layout-canvas shell-page" Elevation="0" aria-label="Station information content area">
+        <div class="shell-page-stack station-info-stack">
+            <h1 class="page-heading">Station Info</h1>
+
+            @if (SiteState.IsInitializing && Info is null)
+            {
+                <div class="callout info">Loading station information snapshot…</div>
+            }
+
+            @if (ErrorMessage is not null)
+            {
+                <div class="callout error callout-with-action">
+                    <span>@ErrorMessage</span>
+                    <button class="action-btn" @onclick="LoadAsync" disabled="@SiteState.IsRefreshingStationInfo">Retry</button>
+                </div>
+            }
+
+            <div class="info-grid">
+                <section class="card-shell summary-card">
+                    <div class="section-head">
+                        <div>
+                            <div class="eyebrow">Console Identity</div>
+                            <h2>Hardware Profile</h2>
+                        </div>
+                        <div class="card-actions">
+                            <button class="action-btn primary" @onclick="LoadAsync" disabled="@SiteState.IsRefreshingStationInfo">@(SiteState.IsRefreshingStationInfo ? "Refreshing…" : "Refresh")</button>
+                        </div>
+                    </div>
+
+                    <div class="summary-pills">
+                        <div class="pill-card">
+                            <span>Hardware</span>
+                            <strong>@HardwareDescriptionText</strong>
+                        </div>
+                        <div class="pill-card">
+                            <span>Model Type</span>
+                            <strong>@ModelTypeText</strong>
+                        </div>
+                        <div class="pill-card">
+                            <span>Firmware</span>
+                            <strong>@FirmwareVersionText</strong>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card-shell timing-card">
+                    <div class="section-head">
+                        <div>
+                            <div class="eyebrow">Clock Health</div>
+                            <h2>Time Alignment</h2>
+                        </div>
+                    </div>
+
+                    <div class="data-pairs">
+                        <div class="pair"><span>Console time</span><strong class="mono">@ConsoleTimeText</strong></div>
+                        <div class="pair"><span>System time</span><strong class="mono">@now.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
+                        <div class="pair"><span>Drift</span><strong class="mono">@DriftText</strong></div>
+                        <div class="pair"><span>Time zone</span><strong>@Station.ConsoleTimeZoneLabel</strong></div>
+                    </div>
+                </section>
+            </div>
+
+            <section class="card-shell detail-card">
+                <div class="section-head">
+                    <div>
+                        <div class="eyebrow">Detail</div>
+                        <h2>Station Fields</h2>
+                    </div>
+                </div>
+
+                <div class="detail-grid">
+                    <div class="detail-item"><span>Hardware</span><strong>@HardwareDescriptionText</strong></div>
+                    <div class="detail-item"><span>Hardware Type</span><strong>@(Info?.HardwareType.ToString() ?? "-")</strong></div>
+                    <div class="detail-item"><span>Model Type</span><strong>@ModelTypeText</strong></div>
+                    <div class="detail-item"><span>Firmware Version</span><strong>@FirmwareVersionText</strong></div>
+                    <div class="detail-item"><span>Firmware Date</span><strong>@FirmwareDateText</strong></div>
+                    <div class="detail-item"><span>Snapshot Status</span><strong>@SnapshotStatusText</strong></div>
+                </div>
+            </section>
+        </div>
+    </MudPaper>
+</div>
 

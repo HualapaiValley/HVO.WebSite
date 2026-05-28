@@ -43,7 +43,6 @@
         "ms-playwright.playwright",
         "ms-azuretools.vscode-docker",
         "GitHub.copilot",
-        "GitHub.copilot-chat",
         "github.vscode-github-actions"
       ],
       "settings": {
@@ -74,7 +73,9 @@
   // Non-secret env vars available in the running container environment
   "containerEnv": {
     "ASPNETCORE_ENVIRONMENT": "Development",
-    "DOTNET_ENVIRONMENT": "Development"
+    "DOTNET_ENVIRONMENT": "Development",
+    "NUGET_HTTP_CACHE_PATH": "/home/vscode/.nuget/v3-cache",
+    "NUGET_PLUGINS_CACHE_PATH": "/home/vscode/.nuget/plugins-cache"
   },
   // Host-sourced vars injected by VS Code from /etc/environment on hvo-dev-host
   // Secrets (AZURE_*, ConnectionStrings__*, etc.) come from .env via post-create.sh
@@ -86,9 +87,14 @@
     "GIT_AUTHOR_NAME": "${localEnv:GIT_AUTHOR_NAME}",
     "GIT_AUTHOR_EMAIL": "${localEnv:GIT_AUTHOR_EMAIL}",
     "GIT_COMMITTER_NAME": "${localEnv:GIT_COMMITTER_NAME}",
-    "GIT_COMMITTER_EMAIL": "${localEnv:GIT_COMMITTER_EMAIL}"
+    "GIT_COMMITTER_EMAIL": "${localEnv:GIT_COMMITTER_EMAIL}",
+    // Required for automatic opencode web startup. Set on the host to protect the web UI.
+    "OPENCODE_SERVER_PASSWORD": "${localEnv:OPENCODE_SERVER_PASSWORD}",
+    // Optional: override the devcontainer default bind host used by start-opencode-web.sh.
+    "OPENCODE_WEB_HOST": "${localEnv:OPENCODE_WEB_HOST}"
   },
   "forwardPorts": [
+    4096,
     5000,
     5001,
     5100,
@@ -97,6 +103,10 @@
     8080
   ],
   "portsAttributes": {
+    "4096": {
+      "label": "OpenCode Web",
+      "onAutoForward": "notify"
+    },
     "5000": {
       "onAutoForward": "silent",
       "elevateIfNeeded": true
@@ -153,9 +163,55 @@
       "source": "hvo-website-usersecrets",
       "type": "volume",
       "target": "/home/vscode/.microsoft/usersecrets"
+    },
+    {
+      "source": "hvo-opencode-config",
+      "type": "volume",
+      "target": "/home/vscode/.config/opencode"
+    },
+    {
+      "source": "hvo-opencode-data",
+      "type": "volume",
+      "target": "/home/vscode/.local/share/opencode"
+    },
+    {
+      "source": "hvo-opencode-install",
+      "type": "volume",
+      "target": "/home/vscode/.opencode"
+    },
+    {
+      "source": "hvo-gh-config",
+      "type": "volume",
+      "target": "/home/vscode/.config/gh"
+    },
+    {
+      "source": "hvo-azure-config",
+      "type": "volume",
+      "target": "/home/vscode/.azure"
+    },
+    {
+      "source": "hvo-ssh-config",
+      "type": "volume",
+      "target": "/home/vscode/.ssh"
+    },
+    {
+      "source": "hvo-docker-client-config",
+      "type": "volume",
+      "target": "/home/vscode/.docker"
+    },
+    {
+      "source": "hvo-dotnet-tools",
+      "type": "volume",
+      "target": "/home/vscode/.dotnet/tools"
+    },
+    {
+      "source": "hvo-aspnet-data-protection",
+      "type": "volume",
+      "target": "/home/vscode/.aspnet/DataProtection-Keys"
     }
   ],
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
-  "postAttachCommand": "bash .devcontainer/post-attach.sh",
+  "postCreateCommand": "bash /workspaces/HVO.WebSite/.devcontainer/post-create.sh",
+  "postStartCommand": "bash /workspaces/HVO.WebSite/.devcontainer/start-opencode-web.sh",
+  "postAttachCommand": "bash /workspaces/HVO.WebSite/.devcontainer/post-attach.sh",
   "remoteUser": "vscode"
 }

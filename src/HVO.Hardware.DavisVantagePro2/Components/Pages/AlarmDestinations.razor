@@ -1,0 +1,107 @@
+@page "/alarms/destinations"
+@rendermode InteractiveServer
+
+<PrototypeFrame Eyebrow="Alarms / Destinations" Title="Alarm Destinations">
+    <HeaderAside>
+        <button class="proto-button primary" type="button">Create destination</button>
+        <button class="proto-button" type="button">Test delivery</button>
+        <button class="proto-button success" type="button">Save changes</button>
+    </HeaderAside>
+
+    <ChildContent>
+
+        <section class="proto-card">
+            <div class="proto-section-head">
+                <div>
+                    <div class="proto-eyebrow">Destination Grid</div>
+                    <h2>Configured Destinations</h2>
+                </div>
+            </div>
+            <div class="proto-table-wrap">
+                <table class="proto-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Address / Target</th>
+                            <th>Enabled</th>
+                            <th>Last test</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Email Ops</td>
+                            <td>Email</td>
+                            <td>ops@example.com</td>
+                            <td>Yes</td>
+                            <td>Success</td>
+                        </tr>
+                        <tr>
+                            <td>SMS Night</td>
+                            <td>SMS</td>
+                            <td>+1-555-0109</td>
+                            <td>Yes</td>
+                            <td>Not tested</td>
+                        </tr>
+                        <tr>
+                            <td>Discord Hook</td>
+                            <td>Webhook</td>
+                            <td>https://hooks.example/discord/hvo</td>
+                            <td>Yes</td>
+                            <td>Success</td>
+                        </tr>
+                        <tr>
+                            <td>Console Lamp</td>
+                            <td>Console action</td>
+                            <td>Lamp toggle</td>
+                            <td>Yes</td>
+                            <td>N/A</td>
+                        </tr>
+                        <tr>
+                            <td>Console Sound?</td>
+                            <td>Console action</td>
+                            <td>Unsupported / unknown</td>
+                            <td>No</td>
+                            <td>N/A</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="proto-card">
+            <div class="proto-section-head">
+                <div>
+                    <div class="proto-eyebrow">Destination Editor</div>
+                    <h2>Email Ops</h2>
+                </div>
+            </div>
+            <div class="proto-form-grid">
+                <div class="proto-field"><label class="proto-field-label">Type</label><select class="proto-select">
+                    <option selected>Email</option>
+                    <option>SMS</option>
+                    <option>Webhook</option>
+                    <option>Console action</option>
+                </select></div>
+                <div class="proto-field"><label class="proto-field-label">Display name</label><input class="proto-input"
+                                                                                                         value="Email Ops" /></div>
+                    <div class="proto-field"><label class="proto-field-label">Address / endpoint</label><input
+                        class="proto-input" value="ops@example.com" /></div>
+                        <div class="proto-field"><label class="proto-field-label">Credential or secret ref</label><input
+                            class="proto-input" value="kv://observatory/alerts/email-ops" /></div>
+                            <div class="proto-field"><label class="proto-field-label">Quiet hours</label><input class="proto-input"
+                                                                                                                    value="22:00-05:00 local" /></div>
+                                <div class="proto-field"><label class="proto-field-label">Escalation</label><input class="proto-input"
+                                                                                                                       value="Critical -> SMS Night after 5 min" /></div>
+                                </div>
+                                <div class="proto-toggle" style="margin-top: 18px;">
+                                    <span class="proto-toggle-track"></span>
+                                    <span>Enabled</span>
+                                </div>
+                                <div class="proto-action-row" style="margin-top: 18px;">
+                                    <button class="proto-button success" type="button">Save destination</button>
+                                    <button class="proto-button primary" type="button">Send test</button>
+                                </div>
+                            </section>
+                        </ChildContent>
+                    </PrototypeFrame>

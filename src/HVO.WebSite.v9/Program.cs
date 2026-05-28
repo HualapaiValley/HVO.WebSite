@@ -9,6 +9,7 @@ using HVO.Enterprise.Telemetry.Serilog;
 using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Components.Web;
 using HVO.WebSite.v9.Middleware;
+using HVO.WebSite.v9.Services;
 using Microsoft.AspNetCore.Http.Features;
 using System.Text.Json.Serialization;
 using Scalar.AspNetCore;
@@ -16,12 +17,17 @@ using HVO.DataModels.Data;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using System.Net.Http;
+using System.Net;
 using Azure.Identity;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
+using HVO.WebSite.v9.Telemetry;
+using OpenTelemetry.Metrics;
 namespace HVO.WebSite.v9
 {
     /// <summary>
@@ -115,6 +121,9 @@ namespace HVO.WebSite.v9
                 .AddInteractiveServerComponents();
             services.AddCascadingAuthenticationState();
 
+            ConfigureDataProtection(services, configuration);
+            ConfigureForwardedHeaders(services, configuration);
+
             // Add Microsoft Entra ID authentication (OpenID Connect + cookie auth)
             // Client secret is loaded from Key Vault at startup (AzureAd--ClientSecret)
             services.AddMicrosoftIdentityWebAppAuthentication(configuration, "AzureAd");
@@ -126,6 +135,12 @@ namespace HVO.WebSite.v9
                 options.AddPolicy("ImageIngest", p => p.RequireClaim("scope", ApiScopes.ImageIngest));
                 options.AddPolicy("PowerIngest", p => p.RequireClaim("scope", ApiScopes.PowerIngest));
                 options.AddPolicy("BmsIngest", p => p.RequireClaim("scope", ApiScopes.BmsIngest));
+                options.AddPolicy("PowerRead", p => p.RequireClaim("scope", ApiScopes.PowerRead, ApiScopes.ApiRead));
+                options.AddPolicy("PowerStatusView", p => p.RequireAssertion(context =>
+                    context.User.IsInRole(AppRoles.User)
+                    || context.User.IsInRole(AppRoles.Admin)
+                    || context.User.HasClaim("scope", ApiScopes.PowerRead)
+                    || context.User.HasClaim("scope", ApiScopes.ApiRead)));
                 options.AddPolicy("WeatherRead", p => p.RequireClaim("scope", ApiScopes.WeatherRead, ApiScopes.ApiRead));
                 options.AddPolicy("AdminOnly", p => p.RequireRole(AppRoles.Admin));
                 options.AddPolicy("UserOrAdmin", p => p.RequireRole(AppRoles.User, AppRoles.Admin));
@@ -133,6 +148,7 @@ namespace HVO.WebSite.v9
 
             // API key cache — short-lived to avoid DB hit on every request
             services.AddMemoryCache();
+            services.AddScoped<IPowerSystemSnapshotProvider, PowerSystemSnapshotProvider>();
 
             // Add MVC controllers (includes Microsoft Identity UI controllers for sign-in/sign-out)
             services.AddControllersWithViews()
@@ -232,6 +248,7 @@ namespace HVO.WebSite.v9
                     {
                         options.ConnectionString = appInsightsConnectionString;
                     })
+                    .WithMetrics(mb => mb.AddMeter(PowerIngestTelemetry.MeterName))
                     .ConfigureResource(rb => rb.AddService(
                         serviceName: serviceName,
                         serviceInstanceId: Environment.MachineName));
@@ -242,6 +259,8 @@ namespace HVO.WebSite.v9
 
             // Add application services
             services.AddScoped<HVO.WebSite.v9.Services.IWeatherService, HVO.WebSite.v9.Services.WeatherService>();
+            services.AddScoped<HVO.WebSite.v9.Services.ISiteConfigurationService, HVO.WebSite.v9.Services.SiteConfigurationService>();
+            services.AddSingleton<PowerIngestTelemetry>();
 
             // Configure HttpClient for Blazor Server components
             // In Development (or when configured), trust the local dev certificate to avoid SSL issues over port forwarding
@@ -269,6 +288,57 @@ namespace HVO.WebSite.v9
             services.AddHostedService<Services.ApiKeySeedService>();
         }
 
+        private static void ConfigureDataProtection(IServiceCollection services, IConfiguration configuration)
+        {
+            var dataProtection = services.AddDataProtection()
+                .SetApplicationName(configuration["DataProtection:ApplicationName"] ?? "HVO.WebSite.v9");
+
+            var blobUri = configuration["DataProtection:BlobUri"];
+            var keyIdentifier = configuration["DataProtection:KeyIdentifier"];
+
+            if (string.IsNullOrWhiteSpace(blobUri) || string.IsNullOrWhiteSpace(keyIdentifier))
+            {
+                return;
+            }
+
+            var credential = new DefaultAzureCredential();
+            dataProtection
+                .PersistKeysToAzureBlobStorage(new Uri(blobUri), credential)
+                .ProtectKeysWithAzureKeyVault(new Uri(keyIdentifier), credential);
+        }
+
+        private static void ConfigureForwardedHeaders(IServiceCollection services, IConfiguration configuration)
+        {
+            var forwardedHeadersEnabled = configuration.GetValue("ForwardedHeaders:Enabled",
+                configuration.GetValue("ASPNETCORE_FORWARDEDHEADERS_ENABLED", false));
+
+            if (!forwardedHeadersEnabled)
+            {
+                return;
+            }
+
+            services.PostConfigure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+                // Trust only the nearest proxy hop and let the host-level
+                // ASPNETCORE_FORWARDEDHEADERS_ENABLED switch control whether
+                // proxy forwarding is enabled for this deployment.
+                options.ForwardLimit = 1;
+
+                var configuredKnownNetworks = configuration.GetSection("ForwardedHeaders:KnownNetworks").Exists();
+                var configuredKnownProxies = configuration.GetSection("ForwardedHeaders:KnownProxies").Exists();
+                if (!configuredKnownNetworks && !configuredKnownProxies)
+                {
+                    options.KnownIPNetworks.Clear();
+#pragma warning disable ASPDEPR005
+                    options.KnownNetworks.Clear();
+#pragma warning restore ASPDEPR005
+                    options.KnownProxies.Clear();
+                }
+            });
+        }
+
         private static void Configure(WebApplication app)
         {
             // ============================================================================
@@ -282,6 +352,25 @@ namespace HVO.WebSite.v9
             // 5. Authorization (UseAuthorization)
             // 6. Endpoint mapping (MapControllers, MapHealthChecks, etc.)
             // ============================================================================
+
+            var forwardedHeadersEnabled = app.Configuration.GetValue("ForwardedHeaders:Enabled",
+                app.Configuration.GetValue("ASPNETCORE_FORWARDEDHEADERS_ENABLED", false));
+            if (forwardedHeadersEnabled)
+            {
+                // Respect proxy-provided scheme/remote IP only when the deployment
+                // explicitly opts into forwarded header processing.
+                app.UseForwardedHeaders();
+                app.Use((context, next) =>
+                {
+                    if (context.Request.Headers.TryGetValue("X-Forwarded-Proto", out var protoValues)
+                        && string.Equals(protoValues.FirstOrDefault(), "https", StringComparison.OrdinalIgnoreCase))
+                    {
+                        context.Request.Scheme = Uri.UriSchemeHttps;
+                    }
+
+                    return next(context);
+                });
+            }
 
             // Add exception handling middleware
             app.UseExceptionHandler();
@@ -323,13 +412,26 @@ namespace HVO.WebSite.v9
             // IMPORTANT: These are the RECOMMENDED ASP.NET Core health check endpoints
             // Do NOT duplicate these with custom controllers - use these built-in endpoints:
 
-            // Detailed health endpoint with comprehensive information
-            // Use this for: monitoring dashboards, detailed health reporting, troubleshooting
+            // Minimal public aggregate health endpoint. Detailed health data is restricted to
+            // Development, or can be explicitly enabled in trusted networks with
+            // HealthChecks:ExposeDetailed=true.
+            var exposeDetailedHealth = app.Environment.IsDevelopment()
+                || app.Configuration.GetValue("HealthChecks:ExposeDetailed", false);
             app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
             {
                 ResponseWriter = async (context, report) =>
                 {
                     context.Response.ContentType = "application/json";
+                    if (!exposeDetailedHealth)
+                    {
+                        await context.Response.WriteAsJsonAsync(new
+                        {
+                            status = report.Status.ToString(),
+                            timestamp = DateTime.UtcNow
+                        });
+                        return;
+                    }
+
                     var response = new
                     {
                         status = report.Status.ToString(),
@@ -340,7 +442,7 @@ namespace HVO.WebSite.v9
                             description = x.Value.Description,
                             data = x.Value.Data,
                             duration = x.Value.Duration.ToString(),
-                            exception = x.Value.Exception?.Message,
+                            exception = app.Environment.IsDevelopment() ? x.Value.Exception?.Message : null,
                             tags = x.Value.Tags
                         }),
                         totalDuration = report.TotalDuration.ToString(),

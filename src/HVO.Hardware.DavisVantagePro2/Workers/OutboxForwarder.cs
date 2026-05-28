@@ -178,6 +178,7 @@ public sealed class OutboxForwarder(
                 }
 
                 LastSentAt = sentAt;
+                LastError = null;
                 LastBatchCount = sentCount;
                 telemetry.OutboxRecordsForwarded.Add(sentCount);
 

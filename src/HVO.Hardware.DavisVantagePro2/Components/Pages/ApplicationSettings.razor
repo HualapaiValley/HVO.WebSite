@@ -1,0 +1,100 @@
+@page "/application-settings"
+@rendermode InteractiveServer
+
+<PrototypeFrame Eyebrow="Application Settings" Title="Application Settings">
+    <HeaderAside>
+        <div class="proto-pill"><span>Environment</span><strong>Production</strong></div>
+        <div class="proto-pill"><span>Config source</span><strong>appsettings.Production.json</strong></div>
+        <div class="proto-pill"><span>Restart required</span><strong>Worker / Outbox</strong></div>
+    </HeaderAside>
+
+    <ChildContent>
+
+        <div class="proto-grid">
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Station Worker</div>
+                        <h2>Worker Configuration</h2>
+                    </div>
+                    <button class="proto-button success" type="button">Save worker settings</button>
+                </div>
+                <div class="proto-form-grid">
+                    <div class="proto-field"><label class="proto-field-label">Host</label><input class="proto-input"
+                                                                                                     value="192.168.10.44" /></div>
+                        <div class="proto-field"><label class="proto-field-label">Port</label><input
+                            class="proto-input proto-mono" type="number" min="1" max="65535" step="1" required value="22222" /></div>
+                            <div class="proto-field"><label class="proto-field-label">Socket timeout (s)</label><input
+                                class="proto-input proto-mono" type="number" min="1" max="300" step="1" required value="20" /></div>
+                                <div class="proto-field"><label class="proto-field-label">Max consecutive errors</label><input
+                                    class="proto-input proto-mono" type="number" min="1" max="100" step="1" required value="5" /></div>
+                                    <div class="proto-field"><label class="proto-field-label">Station ID</label><input
+                                        class="proto-input" value="HVO-DAVIS-01" /></div>
+                                    </div>
+                                </section>
+
+                                <section class="proto-card">
+                                    <div class="proto-section-head">
+                                        <div>
+                                            <div class="proto-eyebrow">Archive Catch-up</div>
+                                            <h2>Archive Catch-up</h2>
+                                        </div>
+                                        <button class="proto-button primary" type="button">Run top-off now</button>
+                                    </div>
+                                    <div class="proto-detail-grid">
+                                        <div class="proto-stat"><span>Startup mode</span><strong>Enabled</strong></div>
+                                        <div class="proto-stat"><span>Lookback hours</span><strong class="proto-mono">48</strong></div>
+                                        <div class="proto-stat"><span>Latest persisted</span><strong class="proto-mono">08 May 2026 - 2:20 PM</strong></div>
+                                            <div class="proto-stat"><span>Sync lag</span><strong class="proto-mono">00:15:00</strong></div>
+                                        </div>
+                                    </section>
+                                </div>
+
+                                <section class="proto-card">
+                                    <div class="proto-section-head">
+                                        <div>
+                                            <div class="proto-eyebrow">Outbox / API Forwarder</div>
+                                            <h2>Outbox Configuration</h2>
+                                        </div>
+                                        <button class="proto-button success" type="button">Save outbox settings</button>
+                                    </div>
+                                    <div class="proto-form-grid">
+                                        <div class="proto-field"><label class="proto-field-label">API endpoint</label><input class="proto-input"
+                                                                                                                                 value="https://weather-api.hvo.local/api/weather" /></div>
+                                            <div class="proto-field"><label class="proto-field-label">API key</label><input class="proto-input"
+                                                                                                                                value="••••••••••••••••••••" /></div>
+                                                <div class="proto-field"><label class="proto-field-label">Batch size</label><input
+                                                    class="proto-input proto-mono" type="number" min="1" max="1000" step="1" required value="100" /></div>
+                                                    <div class="proto-field"><label class="proto-field-label">Sweep interval (s)</label><input
+                                                        class="proto-input proto-mono" type="number" min="1" max="3600" step="1" required value="30" /></div>
+                                                        <div class="proto-field"><label class="proto-field-label">Max retry attempts</label><input
+                                                            class="proto-input proto-mono" type="number" min="0" max="100" step="1" required value="10" /></div>
+                                                            <div class="proto-field"><label class="proto-field-label">Max backoff (s)</label><input
+                                                                class="proto-input proto-mono" type="number" min="1" max="3600" step="1" required value="300" /></div>
+                                                                <div class="proto-field"><label class="proto-field-label">SQLite DB path</label><input
+                                                                    class="proto-input" value="/var/lib/hvo/davis/outbox.db" /></div>
+                                                                </div>
+                                                                <div class="proto-stat-grid" style="margin-top: 18px;">
+                                                                    <div class="proto-stat"><span>Pending count</span><strong class="proto-mono">12</strong></div>
+                                                                    <div class="proto-stat"><span>Failed count</span><strong class="proto-mono">0</strong></div>
+                                                                    <div class="proto-stat"><span>Last sweep</span><strong class="proto-mono">08 May 2026 - 2:34 PM</strong></div>
+                                                                    </div>
+                                                                </section>
+
+                                                                <section class="proto-card">
+                                                                    <div class="proto-section-head">
+                                                                        <div>
+                                                                            <div class="proto-eyebrow">Local Cache / Snapshot</div>
+                                                                            <h2>Cached Station Snapshot</h2>
+                                                                        </div>
+                                                                        <button class="proto-button primary" type="button">Refresh cached settings</button>
+                                                                    </div>
+                                                                    <div class="proto-three-column">
+                                                                        <div class="proto-stat"><span>Saved at</span><strong class="proto-mono">08 May 2026 - 2:33 PM</strong>
+                                                                        </div>
+                                                                        <div class="proto-stat"><span>Snapshot freshness</span><strong class="proto-mono">1m 49s</strong></div>
+                                                                        <div class="proto-stat"><span>Startup action</span><strong>Would run catch-up</strong></div>
+                                                                    </div>
+                                                                </section>
+                                                            </ChildContent>
+                                                        </PrototypeFrame>

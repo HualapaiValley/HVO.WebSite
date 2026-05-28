@@ -1,0 +1,129 @@
+@page "/prototype/station-info"
+@rendermode InteractiveServer
+
+<PrototypeFrame Eyebrow="Station Info / Diagnostics" Title="Station Info">
+    <HeaderAside>
+        <div class="proto-pill">
+            <span>Console time</span>
+            <strong class="proto-mono">08 May 2026 - 2:34 PM</strong>
+        </div>
+        <div class="proto-pill">
+            <span>Last refresh</span>
+            <strong class="proto-mono">08 May 2026 - 2:35 PM</strong>
+        </div>
+        <button class="proto-button primary" type="button">Refresh</button>
+    </HeaderAside>
+
+    <ChildContent>
+
+        <div class="proto-grid">
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Identity</div>
+                        <h2>Hardware Profile</h2>
+                    </div>
+                </div>
+                <div class="proto-stat-grid">
+                    <div class="proto-stat"><span>Hardware name</span><strong>Vantage Vue</strong></div>
+                    <div class="proto-stat"><span>Hardware type</span><strong>17</strong></div>
+                    <div class="proto-stat"><span>Model type</span><strong>2</strong></div>
+                </div>
+                <div class="proto-detail-grid" style="margin-top: 18px;">
+                    <div class="proto-stat"><span>Firmware version</span><strong>3.15</strong></div>
+                    <div class="proto-stat"><span>Firmware date</span><strong>Mar 29 2013</strong></div>
+                </div>
+            </section>
+
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Clock Health</div>
+                        <h2>Time Alignment</h2>
+                    </div>
+                </div>
+                <div class="proto-detail-grid">
+                    <div class="proto-stat"><span>Console time</span><strong class="proto-mono">08 May 2026 - 2:34 PM</strong></div>
+                        <div class="proto-stat"><span>System time</span><strong class="proto-mono">08 May 2026 - 2:34 PM</strong></div>
+                            <div class="proto-stat"><span>Drift</span><strong class="proto-mono">5.0 s</strong></div>
+                            <div class="proto-stat"><span>Time zone</span><strong>Arizona (MST)</strong></div>
+                        </div>
+                        <div class="proto-action-row" style="margin-top: 18px;">
+                            <button class="proto-button primary" type="button">Sync now</button>
+                            <button class="proto-button" type="button">Open console settings</button>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="proto-grid">
+                    <section class="proto-card">
+                        <div class="proto-section-head">
+                            <div>
+                                <div class="proto-eyebrow">Reception</div>
+                                <h2>Reception Stats</h2>
+                            </div>
+                        </div>
+                        <div class="proto-detail-grid">
+                            <div class="proto-stat"><span>Packets received</span><strong class="proto-mono">12345</strong></div>
+                            <div class="proto-stat"><span>Packets missed</span><strong class="proto-mono">67</strong></div>
+                            <div class="proto-stat"><span>Resync count</span><strong class="proto-mono">2</strong></div>
+                            <div class="proto-stat"><span>CRC errors</span><strong class="proto-mono">3</strong></div>
+                            <div class="proto-stat"><span>Longest good stretch</span><strong class="proto-mono">12340</strong>
+                            </div>
+                            <div class="proto-stat"><span>Reception percent</span><strong class="proto-mono">99.46%</strong>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="proto-card">
+                        <div class="proto-section-head">
+                            <div>
+                                <div class="proto-eyebrow">Transmitters</div>
+                                <h2>Heard Channels</h2>
+                            </div>
+                        </div>
+                        <div class="proto-list-stack">
+                            <div class="proto-list-item">
+                                <strong>Channels heard now</strong>
+                                <div class="proto-inline-list">
+                                    <span>1 · ISS</span>
+                                    <span>3 · Temp/Humidity</span>
+                                    <span>6 · Soil</span>
+                                </div>
+                            </div>
+                            <div class="proto-list-item">
+                                <strong>Last refreshed</strong>
+                                <span class="proto-mono">08 May 2026 - 2:35 PM</span>
+                            </div>
+                            <div class="proto-list-item">
+                                <strong>Configured vs heard</strong>
+                                <span>Configured 1, 3, 4, 6, 8 · Heard 1, 3, 6</span>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <section class="proto-card">
+                    <div class="proto-section-head">
+                        <div>
+                            <div class="proto-eyebrow">Barometer Service</div>
+                            <h2>Barometer Data</h2>
+                        </div>
+                        <button class="proto-button" type="button">Open barometer calibration</button>
+                    </div>
+                    <div class="proto-three-column">
+                        <div class="proto-stat"><span>Current pressure</span><strong class="proto-mono">29.990 inHg</strong>
+                        </div>
+                        <div class="proto-stat"><span>Altitude</span><strong class="proto-mono">4500 ft</strong></div>
+                        <div class="proto-stat"><span>Dew point</span><strong class="proto-mono">55 F</strong></div>
+                        <div class="proto-stat"><span>Virtual temp</span><strong class="proto-mono">62 F</strong></div>
+                        <div class="proto-stat"><span>Correction factor</span><strong class="proto-mono">2.3</strong></div>
+                        <div class="proto-stat"><span>Correction ratio</span><strong class="proto-mono">1.003</strong></div>
+                        <div class="proto-stat"><span>Correction constant</span><strong class="proto-mono">0.012 inHg</strong>
+                        </div>
+                        <div class="proto-stat"><span>Gain</span><strong class="proto-mono">1</strong></div>
+                        <div class="proto-stat"><span>Error offset</span><strong class="proto-mono">0</strong></div>
+                    </div>
+                </section>
+            </ChildContent>
+        </PrototypeFrame>

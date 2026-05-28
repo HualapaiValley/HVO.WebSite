@@ -1,0 +1,1638 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Hualapai Valley Observatory</title>
+    <style>
+        @font-face {
+            font-family: "Open Sans Custom";
+            src: url("../../../HVO.WebSite.Themes/wwwroot/fonts/OpenSans-Regular.ttf") format("truetype");
+            font-weight: 400;
+        }
+
+        @font-face {
+            font-family: "Open Sans Custom";
+            src: url("../../../HVO.WebSite.Themes/wwwroot/fonts/OpenSans-Semibold.ttf") format("truetype");
+            font-weight: 600;
+        }
+
+        :root {
+            color-scheme: dark;
+            --text: #ebf5ff;
+            --muted: #8ba4bf;
+            --blue: #58beff;
+            --cyan: #83e4ff;
+            --green: #57d38d;
+            --amber: #ffcf66;
+            --shadow: 0 30px 90px rgba(1, 6, 12, 0.52);
+            --radius-xl: 30px;
+            --radius-lg: 22px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Open Sans Custom", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 12% 8%, rgba(88, 190, 255, 0.16), transparent 22%),
+                radial-gradient(circle at 86% 14%, rgba(255, 207, 102, 0.12), transparent 20%),
+                linear-gradient(180deg, #0a1521 0%, #050c14 44%, #03070d 100%);
+        }
+
+        body.nav-open {
+            overflow: hidden;
+        }
+
+        .nav-scrim {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 8, 14, 0.62);
+            backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 180ms ease;
+            z-index: 30;
+        }
+
+        body.nav-open .nav-scrim {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .nav-drawer {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            bottom: 18px;
+            width: min(360px, calc(100vw - 36px));
+            padding: 18px;
+            border-radius: 30px;
+            border: 1px solid rgba(126, 157, 196, 0.16);
+            background:
+                linear-gradient(180deg, rgba(10, 20, 34, 0.98), rgba(6, 12, 21, 0.98)),
+                linear-gradient(135deg, rgba(88, 190, 255, 0.05), rgba(255, 207, 102, 0.04));
+            box-shadow: 0 28px 70px rgba(1, 6, 12, 0.56);
+            transform: translateX(calc(-100% - 24px));
+            transition: transform 220ms ease;
+            z-index: 40;
+            display: grid;
+            grid-template-rows: auto auto 1fr auto;
+            gap: 18px;
+        }
+
+        body.nav-open .nav-drawer {
+            transform: translateX(0);
+        }
+
+        .nav-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .nav-title {
+            display: grid;
+            gap: 6px;
+        }
+
+        .nav-title .eyebrow {
+            font-size: 0.7rem;
+            letter-spacing: 0.16em;
+        }
+
+        .nav-title strong {
+            font-size: 1.2rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .nav-close,
+        .nav-trigger {
+            border: 1px solid rgba(126, 157, 196, 0.16);
+            background: rgba(15, 31, 50, 0.82);
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        .nav-close {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            display: grid;
+            place-items: center;
+            font-size: 1.15rem;
+        }
+
+        .nav-trigger {
+            min-height: 46px;
+            padding: 0 16px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font: inherit;
+            flex-shrink: 0;
+        }
+
+        .nav-trigger .bars {
+            display: inline-grid;
+            gap: 4px;
+        }
+
+        .nav-trigger .bars span {
+            display: block;
+            width: 16px;
+            height: 2px;
+            border-radius: 999px;
+            background: var(--cyan);
+        }
+
+        .nav-summary {
+            padding: 14px 16px;
+            border-radius: 20px;
+            background: rgba(14, 29, 47, 0.78);
+            border: 1px solid rgba(126, 157, 196, 0.12);
+        }
+
+        .nav-summary p {
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 0.94rem;
+            line-height: 1.45;
+        }
+
+        .nav-groups {
+            min-height: 0;
+            overflow: auto;
+            display: grid;
+            gap: 16px;
+            padding-right: 6px;
+        }
+
+        .nav-group {
+            display: grid;
+            gap: 10px;
+        }
+
+        .nav-group-label {
+            color: var(--muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+        }
+
+        .nav-link {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            text-decoration: none;
+            color: var(--text);
+            background: rgba(14, 29, 47, 0.82);
+            border: 1px solid rgba(126, 157, 196, 0.12);
+            transition: border-color 180ms ease, transform 180ms ease, background 180ms ease;
+        }
+
+        .nav-link:hover {
+            transform: translateX(2px);
+            border-color: rgba(88, 190, 255, 0.28);
+            background: rgba(16, 34, 55, 0.9);
+        }
+
+        .nav-link.active {
+            background: linear-gradient(135deg, rgba(88, 190, 255, 0.16), rgba(14, 29, 47, 0.94));
+            border-color: rgba(88, 190, 255, 0.28);
+        }
+
+        .nav-link.disabled {
+            opacity: 0.7;
+        }
+
+        .nav-link-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            background: rgba(88, 190, 255, 0.12);
+            color: var(--cyan);
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .nav-link-copy {
+            min-width: 0;
+        }
+
+        .nav-link-copy strong {
+            display: block;
+            font-size: 0.98rem;
+            font-weight: 600;
+        }
+
+        .nav-link-copy span {
+            display: block;
+            margin-top: 3px;
+            color: var(--muted);
+            font-size: 0.84rem;
+        }
+
+        .nav-link-badge {
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--muted);
+            font-size: 0.76rem;
+            white-space: nowrap;
+        }
+
+        .nav-footer {
+            display: grid;
+            gap: 10px;
+            padding-top: 2px;
+        }
+
+        .nav-footer .pill {
+            justify-content: flex-start;
+        }
+
+        .frame {
+            width: min(1520px, calc(100vw - 26px));
+            margin: 14px auto;
+            padding: 22px;
+            border-radius: 36px;
+            border: 1px solid rgba(126, 157, 196, 0.14);
+            background:
+                linear-gradient(180deg, rgba(8, 18, 30, 0.98), rgba(5, 11, 19, 0.98)),
+                linear-gradient(135deg, rgba(88, 190, 255, 0.05), rgba(255, 207, 102, 0.04));
+            box-shadow: var(--shadow);
+        }
+
+        .header {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 20px;
+            padding: 8px 6px 20px;
+            align-items: end;
+            border-bottom: 1px solid rgba(126, 157, 196, 0.12);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-copy {
+            display: grid;
+            gap: 0;
+        }
+
+        .mark {
+            width: 58px;
+            height: 58px;
+            border-radius: 18px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(145deg, rgba(88, 190, 255, 0.22), rgba(88, 190, 255, 0.08));
+            border: 1px solid rgba(131, 228, 255, 0.2);
+            color: var(--cyan);
+            font-weight: 600;
+            letter-spacing: 0.12em;
+        }
+
+        .eyebrow {
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            font-size: 0.78rem;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin: 0;
+        }
+
+        .headline {
+            margin-top: 6px;
+            font-size: 1.9rem;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+        }
+
+        .subhead {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 0.96rem;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .pill {
+            min-height: 42px;
+            padding: 0 14px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(15, 31, 50, 0.78);
+            border: 1px solid rgba(126, 157, 196, 0.16);
+            font-size: 0.92rem;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 0 7px rgba(87, 211, 141, 0.12);
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 0.98fr 1.02fr;
+            gap: 20px;
+            margin-top: 20px;
+            align-items: start;
+        }
+
+        .column {
+            display: grid;
+            gap: 20px;
+        }
+
+        .card {
+            position: relative;
+            overflow: hidden;
+            border-radius: var(--radius-xl);
+            background: linear-gradient(180deg, rgba(10, 20, 34, 0.96), rgba(7, 15, 25, 0.94));
+            border: 1px solid rgba(126, 157, 196, 0.14);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        }
+
+        .card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(88, 190, 255, 0.04), transparent 45%, rgba(255, 207, 102, 0.03));
+            pointer-events: none;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .section-head small {
+            color: var(--muted);
+            font-size: 0.86rem;
+        }
+
+        .hero .section-head h2 {
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 20px;
+            min-height: 280px;
+        }
+
+        .hero-temp {
+            font-size: clamp(4rem, 7vw, 5.5rem);
+            line-height: 0.92;
+            margin: 22px 0 28px;
+            font-weight: 600;
+            letter-spacing: -0.06em;
+        }
+
+        .hero-stack {
+            display: grid;
+            gap: 10px;
+            color: var(--muted);
+        }
+
+        .hero-stack> :first-child {
+            margin-bottom: 12px;
+        }
+
+        .hero-stack> :not(:first-child) {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .hero-stack> :not(:first-child) span {
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .console-face {
+            display: grid;
+            align-content: start;
+            grid-template-rows: auto auto 1fr;
+            border-radius: 28px;
+            background:
+                radial-gradient(circle at 50% 38%, rgba(255, 207, 102, 0.16), transparent 34%),
+                radial-gradient(circle at 28% 28%, rgba(131, 228, 255, 0.14), transparent 24%),
+                linear-gradient(180deg, rgba(15, 32, 52, 0.9), rgba(9, 18, 30, 0.82));
+            border: 1px solid rgba(126, 157, 196, 0.14);
+            padding: 18px;
+            gap: 6px;
+        }
+
+        .celestial-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .celestial-head small {
+            color: var(--muted);
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .celestial-head strong {
+            display: none;
+        }
+
+        .celestial-icon {
+            display: grid;
+            place-items: center;
+            padding: 0;
+            margin: -14px -10px -14px;
+            min-height: 136px;
+            overflow: hidden;
+        }
+
+        .celestial-icon svg {
+            width: min(116%, 460px);
+            height: auto;
+        }
+
+        .celestial-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .celestial-stat {
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: rgba(8, 18, 30, 0.4);
+            border: 1px solid rgba(126, 157, 196, 0.1);
+            text-align: center;
+        }
+
+        .celestial-stat span {
+            display: block;
+            color: var(--muted);
+            font-size: 0.74rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .celestial-stat strong {
+            display: block;
+            margin-top: 8px;
+            text-align: center;
+            font-size: 1.35rem;
+            font-weight: 600;
+            line-height: 1.1;
+            white-space: nowrap;
+        }
+
+        .chip-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .chip,
+        .metric,
+        .subcard,
+        .instrument,
+        .plot-panel,
+        .health {
+            background: rgba(14, 29, 47, 0.86);
+            border: 1px solid rgba(126, 157, 196, 0.12);
+        }
+
+        .chip {
+            padding: 14px 16px;
+            border-radius: 18px;
+        }
+
+        .hero .chip {
+            text-align: center;
+        }
+
+        .chip .name,
+        .metric .label,
+        .health .label {
+            color: var(--muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .chip .value {
+            margin-top: 8px;
+            font-size: 1.35rem;
+            font-weight: 600;
+        }
+
+        .hero .chip .name {
+            font-size: 0.74rem;
+            letter-spacing: 0.08em;
+            white-space: nowrap;
+        }
+
+        .hero .chip .value {
+            text-align: center;
+        }
+
+        .instrument-cluster {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 16px;
+            align-items: stretch;
+        }
+
+        .instrument {
+            padding: 18px;
+            border-radius: 24px;
+        }
+
+        .instrument h3 {
+            margin-bottom: 10px;
+            color: var(--muted);
+            font-size: 0.98rem;
+            font-weight: 600;
+        }
+
+        .instrument footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: baseline;
+            margin-top: 10px;
+        }
+
+        .instrument strong {
+            font-size: 1.72rem;
+            font-weight: 600;
+            letter-spacing: -0.04em;
+        }
+
+        .instrument .readout-compact {
+            font-size: 0.88rem;
+            font-weight: 600;
+            letter-spacing: 0;
+            line-height: 1.2;
+        }
+
+        .instrument .readout-compact.muted-value {
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+        .instrument footer span {
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+
+        .barometer-card {
+            display: grid;
+            gap: 14px;
+        }
+
+        .barometer-reading {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .barometer-reading strong {
+            font-size: 2rem;
+            font-weight: 600;
+            letter-spacing: -0.04em;
+        }
+
+        .barometer-reading span {
+            color: var(--muted);
+            font-size: 0.86rem;
+        }
+
+        .barometer-scale {
+            display: grid;
+            gap: 8px;
+        }
+
+        .barometer-band {
+            position: relative;
+            height: 14px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(88, 190, 255, 0.18), rgba(255, 207, 102, 0.18));
+            border: 1px solid rgba(126, 157, 196, 0.12);
+            overflow: hidden;
+        }
+
+        .barometer-band::before {
+            content: "";
+            position: absolute;
+            inset: 3px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(88, 190, 255, 0.26), rgba(255, 207, 102, 0.3));
+        }
+
+        .barometer-marker {
+            position: absolute;
+            top: -4px;
+            width: 3px;
+            height: 22px;
+            border-radius: 999px;
+            background: #edf6ff;
+            box-shadow: 0 0 0 2px rgba(8, 18, 30, 0.7);
+            z-index: 1;
+        }
+
+        .barometer-labels {
+            display: flex;
+            justify-content: space-between;
+            color: var(--muted);
+            font-size: 0.76rem;
+        }
+
+        .barometer-meta {
+            display: grid;
+            gap: 8px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(126, 157, 196, 0.1);
+        }
+
+        .barometer-row {
+            display: grid;
+            grid-template-columns: 88px minmax(0, 1fr);
+            gap: 10px;
+            align-items: baseline;
+            color: var(--muted);
+            font-size: 0.84rem;
+        }
+
+        .barometer-row strong {
+            color: var(--text);
+            font-size: 0.84rem;
+            font-weight: 600;
+            justify-self: end;
+            text-align: right;
+        }
+
+        .side-stack {
+            display: grid;
+            gap: 16px;
+        }
+
+        .instrument-detail-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(126, 157, 196, 0.1);
+        }
+
+        .instrument-detail-row {
+            display: grid;
+            grid-template-columns: 120px minmax(0, 1fr);
+            gap: 12px;
+            align-items: baseline;
+            color: var(--muted);
+            font-size: 0.86rem;
+        }
+
+        .instrument-detail-row strong {
+            color: var(--text);
+            font-size: 0.82rem;
+            font-weight: 600;
+            letter-spacing: 0;
+            justify-self: end;
+            text-align: right;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .metric {
+            padding: 16px;
+            border-radius: 20px;
+            min-height: 118px;
+        }
+
+        .metric .number {
+            margin-top: 16px;
+            font-size: 1.82rem;
+            font-weight: 600;
+            letter-spacing: -0.04em;
+        }
+
+        .metric .foot {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 0.84rem;
+        }
+
+        .history-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .plot-panel {
+            padding: 18px;
+            border-radius: 24px;
+        }
+
+        .plot-panel h3 {
+            margin-bottom: 6px;
+            font-size: 1rem;
+        }
+
+        .plot-panel p {
+            color: var(--muted);
+            font-size: 0.86rem;
+            margin-bottom: 12px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .subcard {
+            padding: 18px;
+            border-radius: 22px;
+        }
+
+        .subcard h3 {
+            margin-bottom: 14px;
+            font-size: 1rem;
+        }
+
+        .rows {
+            display: grid;
+            gap: 10px;
+        }
+
+        .data-pairs {
+            display: grid;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .pair {
+            display: grid;
+            grid-template-columns: 112px minmax(0, 1fr);
+            gap: 12px;
+            align-items: baseline;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .pair span {
+            min-width: 0;
+        }
+
+        .pair strong {
+            min-width: 0;
+            color: var(--text);
+            font-weight: 600;
+            justify-self: start;
+            text-align: left;
+            overflow-wrap: anywhere;
+        }
+
+        .moon-summary {
+            display: grid;
+            gap: 10px;
+            align-content: start;
+            min-width: 0;
+            grid-template-columns: 1fr;
+        }
+
+        .moon-summary .pair strong {
+            justify-self: end;
+            text-align: right;
+        }
+
+        .sun-strip {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 2px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(126, 157, 196, 0.1);
+        }
+
+        .moon-side .sun-strip {
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .moon-summary .sun-strip {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .sun-pill {
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: rgba(8, 18, 30, 0.44);
+            border: 1px solid rgba(126, 157, 196, 0.1);
+        }
+
+        .sun-pill span {
+            display: block;
+            color: var(--muted);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .sun-pill strong {
+            display: block;
+            margin-top: 8px;
+            color: var(--text);
+            font-size: 1rem;
+            font-weight: 600;
+            text-align: left;
+        }
+
+        .inside-card .pair {
+            grid-template-columns: 98px minmax(0, 1fr);
+        }
+
+        .inside-card .pair strong {
+            justify-self: end;
+            text-align: right;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .row strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .health-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .health {
+            padding: 14px 16px;
+            border-radius: 18px;
+        }
+
+        .health .state {
+            margin-top: 8px;
+            font-size: 1.04rem;
+            font-weight: 600;
+        }
+
+        .moon-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-areas:
+                "graphic"
+                "summary";
+            gap: 16px;
+            align-items: start;
+        }
+
+        .moon-graphic {
+            grid-area: graphic;
+            display: grid;
+            place-items: center;
+        }
+
+        .moon-side {
+            grid-area: side;
+            min-width: 0;
+            display: none;
+        }
+
+        .moon-layout .moon-summary {
+            grid-area: summary;
+        }
+
+        .status-footer {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: rgba(14, 29, 47, 0.82);
+            border: 1px solid rgba(126, 157, 196, 0.12);
+        }
+
+        .status-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            background: rgba(88, 190, 255, 0.14);
+            color: var(--cyan);
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .status-copy {
+            min-width: 0;
+        }
+
+        .status-copy .label {
+            color: var(--muted);
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .status-copy .value {
+            margin-top: 4px;
+            color: var(--text);
+            font-size: 0.98rem;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .mono {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .blue {
+            color: var(--blue);
+        }
+
+        .cyan {
+            color: var(--cyan);
+        }
+
+        .green {
+            color: var(--green);
+        }
+
+        .amber {
+            color: var(--amber);
+        }
+
+        @media (max-width: 1240px) {
+
+            .layout,
+            .hero,
+            .history-grid,
+            .summary-grid,
+            .instrument-cluster {
+                grid-template-columns: 1fr;
+            }
+
+            .metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .status-footer {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 760px) {
+            .nav-drawer {
+                top: 8px;
+                left: 8px;
+                bottom: 8px;
+                width: calc(100vw - 16px);
+                border-radius: 24px;
+            }
+
+            .frame {
+                width: calc(100vw - 12px);
+                margin: 6px auto;
+                padding: 14px;
+                border-radius: 24px;
+            }
+
+            .header,
+            .chip-grid,
+            .metrics,
+            .health-grid,
+            .moon-layout,
+            .status-footer {
+                grid-template-columns: 1fr;
+            }
+
+            .celestial-grid,
+            .sun-strip,
+            .moon-summary {
+                grid-template-columns: 1fr;
+            }
+
+            .header-left {
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+
+            .header-right {
+                justify-content: flex-start;
+            }
+
+            .hero-temp {
+                font-size: 3.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="nav-scrim" data-nav-close></div>
+    <aside id="weather-nav" class="nav-drawer" aria-label="Dashboard navigation" aria-hidden="true">
+        <div class="nav-topbar">
+            <div class="nav-title">
+                <div class="eyebrow">Navigation</div>
+                <strong>Weather Station</strong>
+            </div>
+            <button class="nav-close" type="button" aria-label="Close navigation" data-nav-close>&times;</button>
+        </div>
+
+        <div class="nav-summary">
+            <div class="eyebrow">Reference Layout</div>
+            <p>This drawer is the navigation pattern study for the weather station dashboard and adjacent pages.</p>
+        </div>
+
+        <nav class="nav-groups">
+            <div class="nav-group">
+                <div class="nav-group-label">Current View</div>
+                <a class="nav-link active" href="#station-conditions" data-nav-close>
+                    <div class="nav-link-icon">D</div>
+                    <div class="nav-link-copy">
+                        <strong>Dashboard</strong>
+                        <span>Station overview and live conditions</span>
+                    </div>
+                    <div class="nav-link-badge">Live</div>
+                </a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-label">Sections</div>
+                <a class="nav-link" href="#primary-instruments" data-nav-close>
+                    <div class="nav-link-icon">I</div>
+                    <div class="nav-link-copy">
+                        <strong>Instruments</strong>
+                        <span>Wind, barometer, and station hardware</span>
+                    </div>
+                    <div class="nav-link-badge">2</div>
+                </a>
+                <a class="nav-link" href="#weather-rain-metrics" data-nav-close>
+                    <div class="nav-link-icon">R</div>
+                    <div class="nav-link-copy">
+                        <strong>Rain Metrics</strong>
+                        <span>Rainfall, ET, and metric summaries</span>
+                    </div>
+                    <div class="nav-link-badge">6</div>
+                </a>
+                <a class="nav-link" href="#last-24-hours" data-nav-close>
+                    <div class="nav-link-icon">24</div>
+                    <div class="nav-link-copy">
+                        <strong>24 Hour Trends</strong>
+                        <span>Temperature and solar history panels</span>
+                    </div>
+                    <div class="nav-link-badge">Charts</div>
+                </a>
+                <a class="nav-link" href="#astronomical-info" data-nav-close>
+                    <div class="nav-link-icon">A</div>
+                    <div class="nav-link-copy">
+                        <strong>Astronomical Info</strong>
+                        <span>Sun, moon, and phase timing</span>
+                    </div>
+                    <div class="nav-link-badge">Now</div>
+                </a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-label">Planned Pages</div>
+                <a class="nav-link disabled" href="#" data-nav-close>
+                    <div class="nav-link-icon">H</div>
+                    <div class="nav-link-copy">
+                        <strong>History</strong>
+                        <span>Long-range weather charts and archive drill-in</span>
+                    </div>
+                    <div class="nav-link-badge">Next</div>
+                </a>
+                <a class="nav-link disabled" href="#" data-nav-close>
+                    <div class="nav-link-icon">S</div>
+                    <div class="nav-link-copy">
+                        <strong>Station Health</strong>
+                        <span>Battery, link quality, and forwarding status</span>
+                    </div>
+                    <div class="nav-link-badge">Planned</div>
+                </a>
+                <a class="nav-link disabled" href="#" data-nav-close>
+                    <div class="nav-link-icon">⚙</div>
+                    <div class="nav-link-copy">
+                        <strong>Settings</strong>
+                        <span>Units, thresholds, and admin controls</span>
+                    </div>
+                    <div class="nav-link-badge">Admin</div>
+                </a>
+            </div>
+        </nav>
+
+        <div class="nav-footer">
+            <div class="pill"><span class="dot"></span>Drawer pattern under review</div>
+            <div class="pill">Slide-out navigation with section pills</div>
+        </div>
+    </aside>
+
+    <div class="frame">
+        <header class="header">
+            <div class="header-left">
+                <button class="nav-trigger" type="button" aria-label="Open navigation" aria-expanded="false"
+                    aria-controls="weather-nav">
+                    <span class="bars" aria-hidden="true"><span></span><span></span><span></span></span>
+                    <span>Navigate</span>
+                </button>
+                <div class="mark">HVO</div>
+                <div class="header-copy">
+                    <div class="eyebrow">Weather Station Dashboard</div>
+                    <h1 class="headline">Hualapai Valley Observatory</h1>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="pill"><span class="dot"></span>Live loop active</div>
+                <div class="pill">Hualapai Valley, AZ</div>
+                <div class="pill mono">07 May 2026 · 2:34 PM</div>
+            </div>
+        </header>
+
+        <div class="layout">
+            <section class="column">
+                <article class="card" id="station-conditions">
+                    <div class="card-body hero">
+                        <div>
+                            <div class="section-head">
+                                <div>
+                                    <h2>Station Conditions</h2>
+                                </div>
+                            </div>
+                            <div class="eyebrow">Outside temperature</div>
+                            <div class="hero-temp mono">72.4&deg;F</div>
+                            <div class="hero-stack">
+                                <div>Mostly clear, dry air, light breeze from the northwest.</div>
+                                <div>Feels like <span class="amber mono">74.1&deg;F</span></div>
+                                <div>Dew point <span class="cyan mono">51.8&deg;F</span></div>
+                                <div>Barometric trend <span class="blue">steady</span></div>
+                            </div>
+                            <div class="chip-grid">
+                                <div class="chip">
+                                    <div class="name">Humidity</div>
+                                    <div class="value mono">34%</div>
+                                </div>
+                                <div class="chip">
+                                    <div class="name">Heat Index</div>
+                                    <div class="value mono">74.1&deg;F</div>
+                                </div>
+                                <div class="chip">
+                                    <div class="name">Wind Chill</div>
+                                    <div class="value mono">71.2&deg;F</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="console-face" id="astronomical-info">
+                            <div class="celestial-head">
+                                <div>
+                                    <small>Astronomical Info</small>
+                                    <strong>Rise And Set</strong>
+                                </div>
+                            </div>
+                            <div class="celestial-icon">
+                                <svg width="460" height="335" viewBox="0 0 220 160"
+                                    aria-label="Sun and moon timing graphic">
+                                    <path d="M24 122C58 92 88 78 112 78C139 78 165 92 196 122" fill="none"
+                                        stroke="rgba(255,207,102,0.36)" stroke-width="4" stroke-linecap="round"></path>
+                                    <circle cx="138" cy="62" r="18" fill="#ffcf66"></circle>
+                                    <circle cx="138" cy="62" r="28" fill="rgba(255,207,102,0.08)"></circle>
+                                    <path d="M36 124H186" stroke="rgba(126,157,196,0.24)" stroke-width="3"
+                                        stroke-linecap="round"></path>
+                                    <circle cx="48" cy="116" r="12" fill="#f0f4ff" opacity="0.9"></circle>
+                                    <ellipse cx="44" cy="116" rx="7" ry="12" fill="#09131e"></ellipse>
+                                </svg>
+                            </div>
+                            <div class="celestial-grid">
+                                <div class="celestial-stat"><span>Sunrise</span><strong class="mono">5:24 AM</strong>
+                                </div>
+                                <div class="celestial-stat"><span>Sunset</span><strong class="mono">7:14 PM</strong>
+                                </div>
+                                <div class="celestial-stat"><span>Moonrise</span><strong class="mono">3:41 PM</strong>
+                                </div>
+                                <div class="celestial-stat"><span>Moonset</span><strong class="mono">3:12 AM</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="card" id="primary-instruments">
+                    <div class="card-body">
+                        <div class="section-head">
+                            <div>
+                                <h2>Primary Instruments</h2>
+                            </div>
+                        </div>
+                        <div class="instrument-cluster">
+                            <section class="instrument">
+                                <h3>Wind Compass</h3>
+                                <svg viewBox="0 0 240 240" width="100%" aria-label="Wind direction compass">
+                                    <circle cx="120" cy="120" r="102" fill="rgba(8,18,30,0.96)"
+                                        stroke="rgba(126,157,196,0.18)" stroke-width="2"></circle>
+                                    <circle cx="120" cy="120" r="84" fill="none" stroke="rgba(126,157,196,0.12)"
+                                        stroke-width="1"></circle>
+                                    <circle cx="120" cy="120" r="64" fill="none" stroke="rgba(126,157,196,0.08)"
+                                        stroke-width="1"></circle>
+                                    <g stroke="rgba(126,157,196,0.28)" stroke-linecap="round">
+                                        <line x1="120" y1="20" x2="120" y2="36" stroke-width="2"></line>
+                                        <line x1="120" y1="204" x2="120" y2="220" stroke-width="2"></line>
+                                        <line x1="20" y1="120" x2="36" y2="120" stroke-width="2"></line>
+                                        <line x1="204" y1="120" x2="220" y2="120" stroke-width="2"></line>
+                                        <line x1="49" y1="49" x2="60" y2="60" stroke-width="1.5"></line>
+                                        <line x1="180" y1="180" x2="191" y2="191" stroke-width="1.5"></line>
+                                        <line x1="49" y1="191" x2="60" y2="180" stroke-width="1.5"></line>
+                                        <line x1="180" y1="60" x2="191" y2="49" stroke-width="1.5"></line>
+                                    </g>
+                                    <g fill="#8ba4bf" font-size="18" font-weight="600" text-anchor="middle">
+                                        <text x="120" y="54">N</text>
+                                        <text x="190" y="126">E</text>
+                                        <text x="120" y="198">S</text>
+                                        <text x="50" y="126">W</text>
+                                    </g>
+                                    <g transform="rotate(326 120 120)">
+                                        <path d="M120 34L133 118L120 108L107 118Z" fill="#58beff"></path>
+                                        <path d="M120 206L132 126L120 132L108 126Z" fill="rgba(255,207,102,0.9)"></path>
+                                    </g>
+                                    <circle cx="120" cy="120" r="10" fill="#ebf5ff"></circle>
+                                    <circle cx="120" cy="120" r="5" fill="#58beff"></circle>
+                                </svg>
+                                <footer>
+                                    <strong class="mono readout-compact">NNW 326&deg;</strong>
+                                    <span class="readout-compact muted-value">12 mph, gust 18</span>
+                                </footer>
+                                <div class="instrument-detail-list">
+                                    <div class="instrument-detail-row"><span>Average speed</span><strong class="mono">12
+                                            mph</strong></div>
+                                    <div class="instrument-detail-row"><span>10-minute gust</span><strong
+                                            class="mono">18 mph</strong></div>
+                                    <div class="instrument-detail-row"><span>Direction spread</span><strong
+                                            class="mono">312&deg;-338&deg;</strong></div>
+                                </div>
+                            </section>
+
+                            <div class="side-stack">
+                                <section class="instrument">
+                                    <h3>Outside Pressure</h3>
+                                    <div class="barometer-card">
+                                        <div class="barometer-reading">
+                                            <strong class="mono">29.87</strong>
+                                            <span>steady trend</span>
+                                        </div>
+                                        <div class="barometer-scale" aria-label="Outside pressure range scale">
+                                            <div class="barometer-band">
+                                                <span class="barometer-marker" style="left: 67%;"></span>
+                                            </div>
+                                            <div class="barometer-labels mono">
+                                                <span>28.5</span>
+                                                <span>29.5</span>
+                                                <span>30.5</span>
+                                            </div>
+                                        </div>
+                                        <div class="barometer-meta">
+                                            <div class="barometer-row"><span>Trend</span><strong>Steady</strong></div>
+                                            <div class="barometer-row"><span>24h low</span><strong
+                                                    class="mono">29.72</strong></div>
+                                            <div class="barometer-row"><span>24h high</span><strong
+                                                    class="mono">29.94</strong></div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section class="instrument">
+                                    <h3>Inside Pressure</h3>
+                                    <div class="barometer-card">
+                                        <div class="barometer-reading">
+                                            <strong class="mono">29.92</strong>
+                                            <span>console inHg</span>
+                                        </div>
+                                        <div class="barometer-scale" aria-label="Inside pressure range scale">
+                                            <div class="barometer-band">
+                                                <span class="barometer-marker" style="left: 70%;"></span>
+                                            </div>
+                                            <div class="barometer-labels mono">
+                                                <span>28.5</span>
+                                                <span>29.5</span>
+                                                <span>30.5</span>
+                                            </div>
+                                        </div>
+                                        <div class="barometer-meta">
+                                            <div class="barometer-row"><span>Trend</span><strong>Steady</strong></div>
+                                            <div class="barometer-row"><span>24h low</span><strong
+                                                    class="mono">29.79</strong></div>
+                                            <div class="barometer-row"><span>24h high</span><strong
+                                                    class="mono">29.97</strong></div>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </section>
+
+            <section class="column">
+                <article class="card" id="weather-rain-metrics">
+                    <div class="card-body">
+                        <div class="section-head">
+                            <div>
+                                <h2>Weather And Rain Metrics</h2>
+                            </div>
+                        </div>
+                        <div class="metrics">
+                            <div class="metric">
+                                <div class="label">Rain Rate</div>
+                                <div class="number mono cyan">0.00</div>
+                                <div class="foot">in/hr current</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Daily Rain</div>
+                                <div class="number mono cyan">0.12</div>
+                                <div class="foot">since midnight</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Storm Rain</div>
+                                <div class="number mono blue">0.18</div>
+                                <div class="foot">active event</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Monthly Rain</div>
+                                <div class="number mono blue">0.44</div>
+                                <div class="foot">month to date</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Yearly Rain</div>
+                                <div class="number mono blue">3.21</div>
+                                <div class="foot">year to date</div>
+                            </div>
+                            <div class="metric">
+                                <div class="label">Daily ET</div>
+                                <div class="number mono amber">0.133</div>
+                                <div class="foot">in evaporative loss</div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="card" id="last-24-hours">
+                    <div class="card-body">
+                        <div class="section-head">
+                            <div>
+                                <h2>Last 24 Hours</h2>
+                            </div>
+                        </div>
+                        <div class="history-grid">
+                            <section class="plot-panel">
+                                <h3>Temperature</h3>
+                                <p>Outside air over the last 24 hours with daily low and high.</p>
+                                <svg viewBox="0 0 520 260" width="100%" aria-label="24 hour temperature history">
+                                    <g stroke="rgba(126,157,196,0.08)">
+                                        <line x1="0" y1="40" x2="520" y2="40"></line>
+                                        <line x1="0" y1="90" x2="520" y2="90"></line>
+                                        <line x1="0" y1="140" x2="520" y2="140"></line>
+                                        <line x1="0" y1="190" x2="520" y2="190"></line>
+                                        <line x1="0" y1="240" x2="520" y2="240"></line>
+                                    </g>
+                                    <g fill="#8ba4bf" font-size="12">
+                                        <text x="4" y="34">82</text>
+                                        <text x="4" y="84">74</text>
+                                        <text x="4" y="134">66</text>
+                                        <text x="4" y="184">58</text>
+                                        <text x="4" y="234">50</text>
+                                    </g>
+                                    <path
+                                        d="M0 184L32 188L64 194L96 202L128 208L160 214L192 210L224 200L256 182L288 154L320 122L352 100L384 86L416 92L448 110L480 126L520 138L520 260L0 260Z"
+                                        fill="rgba(88,190,255,0.14)"></path>
+                                    <path
+                                        d="M0 184L32 188L64 194L96 202L128 208L160 214L192 210L224 200L256 182L288 154L320 122L352 100L384 86L416 92L448 110L480 126L520 138"
+                                        fill="none" stroke="#83e4ff" stroke-width="4" stroke-linecap="round"
+                                        stroke-linejoin="round"></path>
+                                </svg>
+                                <div class="rows">
+                                    <div class="row"><span>24h low</span><strong class="mono">54.8&deg;F</strong></div>
+                                    <div class="row"><span>24h high</span><strong class="mono">75.6&deg;F</strong></div>
+                                </div>
+                            </section>
+
+                            <section class="plot-panel">
+                                <h3>Solar Radiation</h3>
+                                <p>Solar output over the last 24 hours with daylight peak profile.</p>
+                                <svg viewBox="0 0 520 260" width="100%" aria-label="24 hour solar history">
+                                    <g stroke="rgba(126,157,196,0.08)">
+                                        <line x1="0" y1="40" x2="520" y2="40"></line>
+                                        <line x1="0" y1="90" x2="520" y2="90"></line>
+                                        <line x1="0" y1="140" x2="520" y2="140"></line>
+                                        <line x1="0" y1="190" x2="520" y2="190"></line>
+                                        <line x1="0" y1="240" x2="520" y2="240"></line>
+                                    </g>
+                                    <g fill="#8ba4bf" font-size="12">
+                                        <text x="4" y="34">1200</text>
+                                        <text x="4" y="84">900</text>
+                                        <text x="4" y="134">600</text>
+                                        <text x="4" y="184">300</text>
+                                        <text x="4" y="234">0</text>
+                                    </g>
+                                    <path
+                                        d="M0 240L64 240L96 240L128 236L160 226L192 188L224 134L256 86L288 58L320 74L352 118L384 170L416 210L448 230L480 238L520 240L520 260L0 260Z"
+                                        fill="rgba(255,207,102,0.18)"></path>
+                                    <path
+                                        d="M0 240L64 240L96 240L128 236L160 226L192 188L224 134L256 86L288 58L320 74L352 118L384 170L416 210L448 230L480 238L520 240"
+                                        fill="none" stroke="#ffcf66" stroke-width="4" stroke-linecap="round"
+                                        stroke-linejoin="round"></path>
+                                </svg>
+                                <div class="rows">
+                                    <div class="row"><span>Current solar</span><strong class="mono">642 W/m^2</strong>
+                                    </div>
+                                    <div class="row"><span>Peak solar today</span><strong class="mono">1018
+                                            W/m^2</strong></div>
+                                    <div class="row"><span>Current UV index</span><strong class="mono">4.2</strong>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="card">
+                    <div class="card-body summary-grid">
+                        <section class="subcard">
+                            <h3>Moon Phase</h3>
+                            <div class="moon-layout">
+                                <div class="moon-graphic">
+                                    <svg width="120" height="120" viewBox="0 0 120 120"
+                                        aria-label="Waxing gibbous moon phase graphic">
+                                        <circle cx="60" cy="60" r="42" fill="#f0f4ff"></circle>
+                                        <ellipse cx="48" cy="60" rx="26" ry="42" fill="#09131e"></ellipse>
+                                        <ellipse cx="56" cy="60" rx="9" ry="42" fill="#09131e" opacity="0.2"></ellipse>
+                                        <circle cx="46" cy="46" r="4" fill="rgba(9,19,30,0.16)"></circle>
+                                        <circle cx="72" cy="62" r="6" fill="rgba(9,19,30,0.12)"></circle>
+                                        <circle cx="58" cy="78" r="3" fill="rgba(9,19,30,0.14)"></circle>
+                                    </svg>
+                                </div>
+                                <div class="moon-summary">
+                                    <div class="data-pairs">
+                                        <div class="pair"><span>Moon phase</span><strong>Waxing gibbous</strong></div>
+                                        <div class="pair"><span>Illumination</span><strong class="mono">68%</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="subcard inside-card">
+                            <h3>Inside Conditions</h3>
+                            <div class="data-pairs">
+                                <div class="pair"><span>Temperature</span><strong class="mono">68.1&deg;F</strong></div>
+                                <div class="pair"><span>Humidity</span><strong class="mono">42%</strong></div>
+                                <div class="pair"><span>Bar trend</span><strong>Steady</strong></div>
+                                <div class="pair"><span>Archive interval</span><strong class="mono">10 min</strong>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </article>
+            </section>
+        </div>
+
+        <footer class="status-footer">
+            <div class="status-pill" title="Station connection status">
+                <div class="status-icon">●</div>
+                <div class="status-copy">
+                    <div class="label">Connection</div>
+                    <div class="value green">Online</div>
+                </div>
+            </div>
+            <div class="status-pill" title="Console battery voltage">
+                <div class="status-icon">🔋</div>
+                <div class="status-copy">
+                    <div class="label">Console Battery</div>
+                    <div class="value mono">4.92 V</div>
+                </div>
+            </div>
+            <div class="status-pill" title="Transmitter battery status summary">
+                <div class="status-icon">📡</div>
+                <div class="status-copy">
+                    <div class="label">Transmitters</div>
+                    <div class="value">All OK</div>
+                </div>
+            </div>
+            <div class="status-pill" title="Pending weather records waiting to forward">
+                <div class="status-icon">⇅</div>
+                <div class="status-copy">
+                    <div class="label">Outbox Queue</div>
+                    <div class="value mono">12 pending</div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        (function () {
+            const body = document.body;
+            const drawer = document.querySelector('.nav-drawer');
+            const trigger = document.querySelector('.nav-trigger');
+            const closers = document.querySelectorAll('[data-nav-close]');
+
+            function setNavOpen(isOpen) {
+                body.classList.toggle('nav-open', isOpen);
+                drawer.setAttribute('aria-hidden', String(!isOpen));
+                trigger.setAttribute('aria-expanded', String(isOpen));
+            }
+
+            trigger.addEventListener('click', function () {
+                setNavOpen(!body.classList.contains('nav-open'));
+            });
+
+            closers.forEach(function (element) {
+                element.addEventListener('click', function () {
+                    setNavOpen(false);
+                });
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    setNavOpen(false);
+                }
+            });
+        }());
+    </script>
+</body>
+
+</html>

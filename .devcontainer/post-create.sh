@@ -62,6 +62,28 @@ fi
 # Shared setup — .NET, CLI tools, Docker, SSH, .env bootstrap
 # ─────────────────────────────────────────────────────────────────────
 
+_ensure_user_writable_dir() {
+	local dir="$1"
+	local mode="${2:-}"
+	mkdir -p "$dir"
+	if [ ! -w "$dir" ] || [ ! -O "$dir" ]; then
+		sudo chown -R "$(id -u)":"$(id -g)" "$dir" 2>/dev/null || true
+	fi
+	if [ -n "$mode" ]; then
+		chmod "$mode" "$dir" 2>/dev/null || true
+	fi
+}
+
+# Named volumes can be created as root-owned mount points. Normalize ownership
+# before the shared setup restores SSH keys or writes CLI configuration.
+_ensure_user_writable_dir "$HOME/.ssh" 700
+_ensure_user_writable_dir "$HOME/.docker"
+_ensure_user_writable_dir "$HOME/.config/gh"
+_ensure_user_writable_dir "$HOME/.azure"
+_ensure_user_writable_dir "$HOME/.dotnet/tools"
+_ensure_user_writable_dir "$HOME/.opencode"
+_ensure_user_writable_dir "$HOME/.aspnet/DataProtection-Keys"
+
 # [CUSTOMIZE] .env gist ID for this repo
 ENV_GIST="f343db002d980ebe5fcc51413b0b7227"
 
@@ -75,10 +97,45 @@ else
 	echo "⚠  Base script not loaded — running inline fallback..."
 	sudo chown -R vscode:vscode /home/vscode/.dotnet || true
 	dotnet --info
-	sudo apt-get update -y && sudo apt-get install -y jq ripgrep || true
+	sudo apt-get update -y && sudo apt-get install -y jq ripgrep sqlite3 python3 nodejs npm openssh-client || true
 	if getent group docker >/dev/null 2>&1; then sudo usermod -aG docker vscode || true; fi
 	if [ -S /var/run/docker.sock ]; then sudo chmod 666 /var/run/docker.sock || true; fi
 fi
+
+# Baseline packages should already be present from the Dockerfile. Keep this
+# idempotent fallback so older cached images still recover during post-create.
+missing_packages=()
+command -v sqlite3 >/dev/null 2>&1 || missing_packages+=(sqlite3)
+command -v python3 >/dev/null 2>&1 || missing_packages+=(python3 python3-pip python3-venv)
+command -v node >/dev/null 2>&1 || missing_packages+=(nodejs)
+command -v npm >/dev/null 2>&1 || missing_packages+=(npm)
+command -v rg >/dev/null 2>&1 || missing_packages+=(ripgrep)
+command -v jq >/dev/null 2>&1 || missing_packages+=(jq)
+command -v ssh >/dev/null 2>&1 || missing_packages+=(openssh-client)
+if (( ${#missing_packages[@]} > 0 )); then
+	echo "Installing missing baseline packages: ${missing_packages[*]}"
+	sudo apt-get update -y
+	sudo apt-get install -y --no-install-recommends "${missing_packages[@]}"
+fi
+
+# NuGet uses ~/.local/share/NuGet for vulnerability metadata by default. Ensure
+# that path and the explicit cache paths are writable after restored volumes or
+# VS Code create nested mount parent directories.
+nuget_local_home="$HOME/.local"
+if [ ! -d "$nuget_local_home" ]; then
+	mkdir -p "$nuget_local_home"
+fi
+if [ ! -w "$nuget_local_home" ] || [ ! -O "$nuget_local_home" ]; then
+	sudo chown -R "$(id -u)":"$(id -g)" "$nuget_local_home" 2>/dev/null || true
+fi
+
+nuget_share_home="$nuget_local_home/share"
+nuget_data_home="$HOME/.local/share/NuGet"
+export NUGET_HTTP_CACHE_PATH="${NUGET_HTTP_CACHE_PATH:-$HOME/.nuget/v3-cache}"
+export NUGET_PLUGINS_CACHE_PATH="${NUGET_PLUGINS_CACHE_PATH:-$HOME/.nuget/plugins-cache}"
+mkdir -p "$nuget_share_home" "$nuget_data_home" "$NUGET_HTTP_CACHE_PATH" "$NUGET_PLUGINS_CACHE_PATH" "/tmp/NuGetScratch$(id -un)"
+sudo chown -R "$(id -u)":"$(id -g)" "$HOME/.local" "$NUGET_HTTP_CACHE_PATH" "$NUGET_PLUGINS_CACHE_PATH" "/tmp/NuGetScratch$(id -un)" 2>/dev/null || true
+chmod -R u+rwX "$nuget_data_home" "$NUGET_HTTP_CACHE_PATH" "$NUGET_PLUGINS_CACHE_PATH" "/tmp/NuGetScratch$(id -un)" 2>/dev/null || true
 
 # Install fonts (not in base script — needed for the website's PDF/chart rendering)
 sudo apt-get install -y --no-install-recommends \
@@ -138,13 +195,37 @@ else
 	echo "Warning: No GitHub credentials detected — set GH_PAT in /etc/environment on hvo-dev-host and rebuild."
 fi
 
-# Ensure dotnet tools directory is on PATH for this session and future shells
-export PATH="$HOME/.dotnet/tools:$PATH"
+# Ensure dotnet tools and an existing OpenCode install are on PATH for this session and future shells.
+export PATH="$HOME/.opencode/bin:$HOME/.dotnet/tools:$PATH"
 for _rc in /home/vscode/.bashrc /home/vscode/.zshrc; do
 	if [[ -f "$_rc" ]] && ! grep -q '\.dotnet/tools' "$_rc" 2>/dev/null; then
 		printf '\nexport PATH="$HOME/.dotnet/tools:$PATH"\n' >> "$_rc"
 	fi
+	if [[ -f "$_rc" ]] && ! grep -q '\.opencode/bin' "$_rc" 2>/dev/null; then
+		printf '\nexport PATH="$HOME/.opencode/bin:$PATH"\n' >> "$_rc"
+	fi
 done
+
+# Install a pinned OpenCode CLI release without executing remote install scripts.
+OPENCODE_VERSION="1.15.7"
+OPENCODE_ASSET="opencode-linux-x64.tar.gz"
+OPENCODE_SHA256="6f7f95f13917b9aab8421dbb7e121abf2fecfecdccd16fd5b497f522f454f928"
+echo "Checking OpenCode CLI..."
+if [[ "$(opencode --version 2>/dev/null || true)" != "${OPENCODE_VERSION}" ]]; then
+	if [[ "$(uname -s)" == "Linux" && "$(uname -m)" == "x86_64" ]]; then
+		_tmp_opencode_dir="$(mktemp -d)"
+		curl -fsSL \
+			-o "${_tmp_opencode_dir}/${OPENCODE_ASSET}" \
+			"https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/${OPENCODE_ASSET}"
+		printf '%s  %s\n' "${OPENCODE_SHA256}" "${_tmp_opencode_dir}/${OPENCODE_ASSET}" | sha256sum -c -
+		mkdir -p "$HOME/.opencode/bin"
+		tar -xzf "${_tmp_opencode_dir}/${OPENCODE_ASSET}" -C "$HOME/.opencode/bin"
+		chmod +x "$HOME/.opencode/bin/opencode"
+		rm -rf "${_tmp_opencode_dir}"
+	else
+		echo "Warning: pinned OpenCode install only supports Linux x86_64 in this devcontainer."
+	fi
+fi
 
 # Install .NET global tools
 echo "Installing .NET global tools..."
@@ -163,9 +244,10 @@ else
 	dotnet tool install --global microsoft.sqlpackage
 fi
 
-# Restore NuGet packages
+# Restore NuGet packages. Force the first restore after container creation so
+# generated assets use the explicit writable NuGet cache locations above.
 echo "Restoring NuGet packages..."
-dotnet restore HVO.WebSite.sln --configfile NuGet.config || true
+dotnet restore HVO.WebSite.sln --configfile NuGet.config --force || true
 
 # Install Azure CLI
 echo "Installing Azure CLI..."
@@ -203,5 +285,10 @@ echo "dotnet-ef:  $(dotnet ef --version 2>/dev/null || echo 'not installed')"
 echo "sqlpackage: $(sqlpackage --version 2>/dev/null || echo 'not installed')"
 echo "gh:         $(gh --version 2>/dev/null | head -1 || echo 'not installed')"
 echo "az:         $(az version --query '"azure-cli"' -o tsv 2>/dev/null || echo 'not installed')"
+echo "opencode:   $(opencode --version 2>/dev/null || echo 'not installed')"
+echo "sqlite3:    $(sqlite3 --version 2>/dev/null | awk '{print $1}' || echo 'not installed')"
+echo "python3:    $(python3 --version 2>/dev/null || echo 'not installed')"
+echo "node:       $(node --version 2>/dev/null || echo 'not installed')"
+echo "npm:        $(npm --version 2>/dev/null || echo 'not installed')"
 
 echo "Post-create setup completed successfully!"

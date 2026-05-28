@@ -1,3 +1,5 @@
+using System.Globalization;
+using HVO.Hardware.DavisVantagePro2.Components.Layout;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
@@ -6,7 +8,11 @@ namespace HVO.Hardware.DavisVantagePro2.Components.Pages;
 
 public partial class Archive : IAsyncDisposable
 {
+    private const string PageHeadingText = "Archive and history";
+    private const string PageSummaryText = "Console archive controls and on-demand historical pulls presented inside the shared Davis shell frame.";
+
     [Inject] private ILogger<Archive> Logger { get; set; } = default!;
+    [CascadingParameter] private ShellLayoutState? ShellLayoutState { get; set; }
 
     // ── Archive Interval ─────────────────────────────────────────────────────
 
@@ -14,6 +20,17 @@ public partial class Archive : IAsyncDisposable
     private bool _confirmClear;
     private string? _msg;
     private bool _isError;
+
+    protected override void OnInitialized()
+    {
+        _interval = Math.Max(1, Station.ArchiveIntervalSeconds / 60);
+        UpdateShell();
+    }
+
+    protected override void OnParametersSet()
+    {
+        UpdateShell();
+    }
 
     private async Task SaveIntervalAsync()
     {
@@ -27,6 +44,10 @@ public partial class Archive : IAsyncDisposable
         {
             Logger.LogError(ex, "Failed to set archive interval to {Minutes} minutes", _interval);
             _msg = ex.Message; _isError = true;
+        }
+        finally
+        {
+            UpdateShell();
         }
     }
 
@@ -44,6 +65,10 @@ public partial class Archive : IAsyncDisposable
         {
             Logger.LogError(ex, "Failed to clear archive memory");
             _msg = ex.Message; _isError = true;
+        }
+        finally
+        {
+            UpdateShell();
         }
     }
 
@@ -68,6 +93,19 @@ public partial class Archive : IAsyncDisposable
     private IEnumerable<ArchiveRecord> PagedRecords =>
         _historyRecords?.Skip((_displayPage - 1) * PageSize).Take(PageSize)
         ?? [];
+
+    private void OnSinceChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParseExact(
+            e.Value?.ToString(),
+            ["yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss"],
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var since))
+        {
+            _since = since;
+        }
+    }
 
     private async Task LoadHistoryAsync()
     {
@@ -124,6 +162,7 @@ public partial class Archive : IAsyncDisposable
         finally
         {
             _historyLoading = false;
+            UpdateShell();
         }
     }
 
@@ -167,6 +206,7 @@ public partial class Archive : IAsyncDisposable
         finally
         {
             _historyLoading = false;
+            UpdateShell();
         }
     }
 
@@ -181,4 +221,9 @@ public partial class Archive : IAsyncDisposable
 
     internal static string Fmt(double? v, string fmt = "F1") =>
         v.HasValue ? v.Value.ToString(fmt) : "—";
+
+    private void UpdateShell()
+    {
+        ShellLayoutState?.SetPage("Archive", PageHeadingText, PageSummaryText);
+    }
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <!-- Keep routine test runs from hanging on unavailable live devices or broken simulators. -->
+    <TestSessionTimeout>120000</TestSessionTimeout>
+  </RunConfiguration>
+  <MSTest>
+    <MapInconclusiveToFailed>false</MapInconclusiveToFailed>
+  </MSTest>
+</RunSettings>

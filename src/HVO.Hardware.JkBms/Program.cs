@@ -16,6 +16,7 @@ using HVO.Hardware.JkBms.Protocol.Transport;
 using HVO.Hardware.JkBms.Telemetry;
 using HVO.Hardware.JkBms.Workers;
 using Microsoft.EntityFrameworkCore;
+using MudBlazor.Services;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
@@ -102,9 +103,12 @@ builder.Services.AddOpenTelemetryExport(options =>
     options.AdditionalMeterNames.Add("hvo.jkbms");
     options.AdditionalActivitySources.Add("hvo.jkbms");
 });
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tb => tb.AddOtlpExporter())
-    .WithMetrics(mb => mb.AddOtlpExporter());
+if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
+{
+    builder.Services.AddOpenTelemetry()
+        .WithTracing(tb => tb.AddOtlpExporter())
+        .WithMetrics(mb => mb.AddOtlpExporter());
+}
 builder.Services.AddSingleton<BmsTelemetry>();
 builder.Services.AddTelemetryStatistics();
 builder.Services.AddTelemetryHealthCheck();
@@ -112,12 +116,18 @@ builder.Services.AddHealthChecks()
     .AddCheck<TelemetryHealthCheck>("telemetry");
 
 // ── BLE transport ─────────────────────────────────────────────────────────────
+builder.Services.AddSingleton<IBluetoothAdapterCoordinator, BluetoothAdapterCoordinator>();
 builder.Services.AddSingleton<IBmsTransportFactory, JkBmsBluetoothTransportFactory>();
 
 // ── Alarm handler ─────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IBmsAlarmHandler, NullAlarmHandler>();
 
 // ── SQLite outbox ──────────────────────────────────────────────────────────────
+// NOTE: outboxConfig is deserialized here manually (before the DI container is built)
+// solely to resolve the DB file path for AddDbContext. The options are also bound via
+// AddOptions<OutboxOptions>() above, which applies DataAnnotations validation at startup.
+// Do not consolidate these two reads — the DI-bound options are not available until after
+// builder.Build(), which is too late to supply the connection string.
 var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
 string dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
     ? outboxConfig.DbPath
@@ -150,6 +160,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<ForwarderCoordinat
 // ── Blazor Server ──────────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddMudServices();
 
 var app = builder.Build();
 

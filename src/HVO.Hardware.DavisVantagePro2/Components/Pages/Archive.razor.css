@@ -1,0 +1,288 @@
+.archive-page {
+    padding: 0;
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    color: var(--shell-page-text);
+}
+
+.archive-page > .layout-canvas {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+}
+
+.archive-stack {
+    display: grid;
+    gap: 18px;
+}
+
+.page-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.card-shell {
+    border-radius: 30px;
+    border: 1px solid rgba(126, 157, 196, 0.14);
+    background:
+        linear-gradient(180deg, rgba(10, 20, 34, 0.96), rgba(7, 15, 25, 0.94)),
+        linear-gradient(135deg, rgba(88, 190, 255, 0.04), rgba(255, 207, 102, 0.03));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    padding: 24px;
+}
+
+.eyebrow {
+    color: #8ba4bf;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.78rem;
+}
+
+.section-head h2 {
+    margin: 6px 0 0;
+    color: #ebf5ff;
+}
+
+.danger-copy,
+.history-summary,
+.callout,
+.page-state,
+.section-head,
+.field-label,
+.archive-table small {
+    color: #8ba4bf;
+}
+
+.summary-pills {
+    display: grid;
+    gap: 12px;
+}
+
+.pill-card {
+    padding: 16px 18px;
+    border-radius: 20px;
+    background: rgba(14, 29, 47, 0.82);
+    border: 1px solid rgba(126, 157, 196, 0.12);
+    display: grid;
+    gap: 8px;
+}
+
+.pill-card span,
+.nav-text,
+.field-label {
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.pill-card strong {
+    color: #ebf5ff;
+    font-size: 1.2rem;
+}
+
+.archive-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.archive-grid .danger-card {
+    grid-column: 1 / -1;
+}
+
+.section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.control-stack {
+    display: grid;
+    gap: 10px;
+}
+
+.control-row,
+.toolbar-actions,
+.pager-group,
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+select,
+input[type="datetime-local"] {
+    min-height: 42px;
+    padding: 0.55rem 0.8rem;
+    border-radius: 14px;
+    border: 1px solid rgba(126, 157, 196, 0.16);
+    background: rgba(15, 31, 50, 0.78);
+    color: #ebf5ff;
+    font: inherit;
+}
+
+.action-btn {
+    min-height: 42px;
+    padding: 0 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(126, 157, 196, 0.16);
+    background: rgba(15, 31, 50, 0.78);
+    color: #ebf5ff;
+    cursor: pointer;
+    font: inherit;
+}
+
+.action-btn.primary {
+    background: rgba(88, 190, 255, 0.18);
+    border-color: rgba(88, 190, 255, 0.28);
+}
+
+.action-btn.danger,
+.danger-card {
+    border-color: rgba(243, 139, 168, 0.18);
+}
+
+.action-btn.danger {
+    background: rgba(243, 139, 168, 0.16);
+}
+
+.action-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.confirm-box {
+    display: grid;
+    gap: 12px;
+}
+
+.confirm-box p {
+    margin: 0;
+    color: #ffb4c8;
+    font-weight: 600;
+}
+
+.callout {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(14, 29, 47, 0.82);
+    border: 1px solid rgba(126, 157, 196, 0.12);
+}
+
+.callout.success {
+    border-color: rgba(87, 211, 141, 0.22);
+    color: #b8f0ce;
+}
+
+.callout.error {
+    border-color: rgba(243, 139, 168, 0.22);
+    color: #ffb4c8;
+}
+
+.callout.info,
+.callout.muted {
+    color: #c6d6e8;
+}
+
+.history-card {
+    display: grid;
+    gap: 16px;
+}
+
+.history-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: end;
+    flex-wrap: wrap;
+}
+
+.history-summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 0.9rem;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+.archive-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: #ebf5ff;
+    font-size: 0.9rem;
+}
+
+.archive-table th,
+.archive-table td {
+    padding: 0.75rem 0.8rem;
+    border-bottom: 1px solid rgba(126, 157, 196, 0.12);
+    text-align: left;
+    vertical-align: top;
+}
+
+.archive-table thead th {
+    color: #8ba4bf;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.archive-table tbody tr:hover td {
+    background: rgba(15, 31, 50, 0.46);
+}
+
+.pagination-bar {
+    justify-content: space-between;
+}
+
+.push-right {
+    margin-left: auto;
+}
+
+.mono {
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1100px) {
+
+    .archive-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .archive-grid .danger-card {
+        grid-column: auto;
+    }
+}
+
+@media (max-width: 760px) {
+    .card-shell {
+        padding: 16px;
+        border-radius: 24px;
+    }
+
+    .history-toolbar,
+    .pagination-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .push-right {
+        margin-left: 0;
+    }
+}

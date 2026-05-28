@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using HVO.Hardware.DavisVantagePro2.Station.Models;
 
 namespace HVO.Hardware.DavisVantagePro2.Outbox;
 
@@ -40,10 +41,105 @@ public sealed class OutboxRecord
 
 public enum OutboxStatus { Pending, Sent, Failed }
 
+public sealed class StationSettingsSnapshotEntity
+{
+    public int Id { get; set; }
+    public DateTime SavedAtUtc { get; set; }
+    public int ArchiveIntervalSeconds { get; set; }
+    public double? LatitudeDegrees { get; set; }
+    public double? LongitudeDegrees { get; set; }
+    public double? AltitudeFeet { get; set; }
+    public int RainYearStartMonth { get; set; }
+    public int RainBucketType { get; set; }
+    public string DstSetting { get; set; } = string.Empty;
+    public bool UseTimezoneCode { get; set; }
+    public int TimezoneCode { get; set; }
+    public double GmtOffsetHours { get; set; }
+    public string TemperatureLogging { get; set; } = string.Empty;
+    public string BarometerUnits { get; set; } = string.Empty;
+    public string TemperatureUnits { get; set; } = string.Empty;
+    public string RainUnits { get; set; } = string.Empty;
+    public string WindUnits { get; set; } = string.Empty;
+
+    public StationSettings ToStationSettings() => new()
+    {
+        ArchiveIntervalSeconds = ArchiveIntervalSeconds,
+        LatitudeDegrees = LatitudeDegrees,
+        LongitudeDegrees = LongitudeDegrees,
+        AltitudeFeet = AltitudeFeet,
+        RainYearStartMonth = RainYearStartMonth,
+        RainBucketType = RainBucketType,
+        DstSetting = DstSetting,
+        UseTimezoneCode = UseTimezoneCode,
+        TimezoneCode = TimezoneCode,
+        GmtOffsetHours = GmtOffsetHours,
+        TemperatureLogging = TemperatureLogging,
+        BarometerUnits = BarometerUnits,
+        TemperatureUnits = TemperatureUnits,
+        RainUnits = RainUnits,
+        WindUnits = WindUnits,
+    };
+
+    public void Apply(StationSettings settings, DateTime savedAtUtc)
+    {
+        SavedAtUtc = savedAtUtc;
+        ArchiveIntervalSeconds = settings.ArchiveIntervalSeconds;
+        LatitudeDegrees = settings.LatitudeDegrees;
+        LongitudeDegrees = settings.LongitudeDegrees;
+        AltitudeFeet = settings.AltitudeFeet;
+        RainYearStartMonth = settings.RainYearStartMonth;
+        RainBucketType = settings.RainBucketType;
+        DstSetting = settings.DstSetting;
+        UseTimezoneCode = settings.UseTimezoneCode;
+        TimezoneCode = settings.TimezoneCode;
+        GmtOffsetHours = settings.GmtOffsetHours;
+        TemperatureLogging = settings.TemperatureLogging;
+        BarometerUnits = settings.BarometerUnits;
+        TemperatureUnits = settings.TemperatureUnits;
+        RainUnits = settings.RainUnits;
+        WindUnits = settings.WindUnits;
+    }
+}
+
+public sealed class StationInfoSnapshotEntity
+{
+    public int Id { get; set; }
+    public DateTime SavedAtUtc { get; set; }
+    public string HardwareName { get; set; } = string.Empty;
+    public int HardwareType { get; set; }
+    public int ModelType { get; set; }
+    public string FirmwareVersion { get; set; } = string.Empty;
+    public string FirmwareDate { get; set; } = string.Empty;
+    public DateTime ConsoleTime { get; set; }
+
+    public StationInfo ToStationInfo() => new()
+    {
+        HardwareName = HardwareName,
+        HardwareType = HardwareType,
+        ModelType = ModelType,
+        FirmwareVersion = FirmwareVersion,
+        FirmwareDate = FirmwareDate,
+        ConsoleTime = ConsoleTime,
+    };
+
+    public void Apply(StationInfo stationInfo, DateTime savedAtUtc)
+    {
+        SavedAtUtc = savedAtUtc;
+        HardwareName = stationInfo.HardwareName;
+        HardwareType = stationInfo.HardwareType;
+        ModelType = stationInfo.ModelType;
+        FirmwareVersion = stationInfo.FirmwareVersion;
+        FirmwareDate = stationInfo.FirmwareDate;
+        ConsoleTime = stationInfo.ConsoleTime;
+    }
+}
+
 /// <summary>EF Core DbContext for the local SQLite outbox database.</summary>
 public sealed class OutboxDbContext(DbContextOptions<OutboxDbContext> options) : DbContext(options)
 {
     public DbSet<OutboxRecord> OutboxRecords => Set<OutboxRecord>();
+    public DbSet<StationSettingsSnapshotEntity> StationSettingsSnapshots => Set<StationSettingsSnapshotEntity>();
+    public DbSet<StationInfoSnapshotEntity> StationInfoSnapshots => Set<StationInfoSnapshotEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,6 +151,29 @@ public sealed class OutboxDbContext(DbContextOptions<OutboxDbContext> options) :
             e.HasIndex(r => r.RecordedAtUtc).IsUnique();
             e.HasIndex(r => r.IsArchiveRecord);
             e.Property(r => r.Payload).IsRequired();
+        });
+
+        modelBuilder.Entity<StationSettingsSnapshotEntity>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Id).ValueGeneratedNever();
+            e.Property(r => r.SavedAtUtc).IsRequired();
+            e.Property(r => r.DstSetting).IsRequired();
+            e.Property(r => r.TemperatureLogging).IsRequired();
+            e.Property(r => r.BarometerUnits).IsRequired();
+            e.Property(r => r.TemperatureUnits).IsRequired();
+            e.Property(r => r.RainUnits).IsRequired();
+            e.Property(r => r.WindUnits).IsRequired();
+        });
+
+        modelBuilder.Entity<StationInfoSnapshotEntity>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Id).ValueGeneratedNever();
+            e.Property(r => r.SavedAtUtc).IsRequired();
+            e.Property(r => r.HardwareName).IsRequired();
+            e.Property(r => r.FirmwareVersion).IsRequired();
+            e.Property(r => r.FirmwareDate).IsRequired();
         });
     }
 }

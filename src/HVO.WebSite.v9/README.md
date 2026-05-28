@@ -57,15 +57,28 @@ Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET C
 
 **Entra ID roles** (`AppRoles.cs`): `Admin`, `User`
 
-**API key scopes** (`ApiScopes.cs`): `ingest:weather`, `ingest:bms`, `ingest:images`, `ingest:power`, `read:weather`, `read:api`
+**API key scopes** (`ApiScopes.cs`): `ingest:weather`, `ingest:bms`, `ingest:images`, `ingest:power`, `read:weather`, `read:power`, `read:api`
 
 ## Configuration
 
 | Key | Description |
 |-----|-------------|
-| `EnableHttpsRedirect` | `false` disables HTTPS redirect (required for internal HTTP traffic from sidecars) |
+| `ASPNETCORE_URLS` | Deployment-specific listener binding. Use `http://+:8080` for ACA and `https://+:443;http://+:8080` for local container HTTPS |
+| `EnableHttpsRedirect` | Keep `false` for local sidecar traffic and for ACA when ingress owns HTTP to HTTPS behavior |
 | `AzureAd:*` | Microsoft Entra ID OIDC settings |
 | `ConnectionStrings:HualapaiValleyObservatory` | Azure SQL connection string |
-| `ASPNETCORE_Kestrel__Certificates__Default__*` | TLS certificate path and password (production) |
+| `Seeding:PowerApiKey` | Optional write-only `ingest:power` key seed for power gateways |
+| `Seeding:PowerReadApiKey` | Optional `read:power` key seed for operational power API verification |
+| `ASPNETCORE_Kestrel__Certificates__Default__*` | TLS certificate path and password for local container HTTPS |
+
+Configuration should be split by purpose:
+
+- secrets belong in Key Vault
+- deployment and hosting values belong in appsettings plus environment overrides
+- runtime-editable non-secret values should move into the `v9.SiteConfiguration` table instead of accumulating in environment variables
+
+The website now includes `ISiteConfigurationService`, which reads and caches `v9.SiteConfiguration` values for runtime use.
+
+See [docs/WEBSITE_CONTAINER_APP.md](docs/WEBSITE_CONTAINER_APP.md) for the website deployment and configuration strategy.
 
 See `Program.cs` for service registration and middleware pipeline.

@@ -1,0 +1,968 @@
+.dashboard-page {
+    padding: 0;
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-family: "Open Sans Custom", "Segoe UI", sans-serif;
+    color: var(--dashboard-text);
+}
+
+.status-page-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.dashboard-page > .layout-canvas {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+}
+
+.frame {
+    width: min(1520px, 100%);
+    margin: 0 auto;
+    padding: 22px;
+    border-radius: 36px;
+    border: 1px solid rgba(126, 157, 196, 0.14);
+    background:
+        linear-gradient(180deg, rgba(8, 18, 30, 0.98), rgba(5, 11, 19, 0.98)),
+        linear-gradient(135deg, rgba(88, 190, 255, 0.05), rgba(255, 207, 102, 0.04));
+    box-shadow: 0 30px 90px rgba(1, 6, 12, 0.52);
+}
+
+.status-frame {
+    display: grid;
+    gap: 20px;
+}
+
+.layout-grid {
+    display: grid;
+    grid-template-columns: 0.98fr 1.02fr;
+    gap: 20px;
+    align-items: start;
+}
+
+.layout-grid-history {
+    grid-template-columns: 1fr;
+}
+
+.layout-grid-history > .column {
+    gap: 12px;
+}
+
+.column {
+    display: grid;
+    gap: 20px;
+}
+
+.card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 30px;
+    background: var(--dashboard-surface-card);
+    border: 1px solid var(--dashboard-surface-border);
+    box-shadow: inset 0 1px 0 var(--dashboard-surface-highlight);
+}
+
+.card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--dashboard-surface-overlay);
+    pointer-events: none;
+}
+
+.card-body {
+    padding: 24px;
+}
+
+.station-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    align-items: start;
+}
+
+.station-column,
+.station-overview-grid > :first-child {
+    min-width: 0;
+}
+
+.card-top-span .instrument,
+.card-top-span .side-stack {
+    height: 100%;
+}
+
+.station-column-primary {
+    display: grid;
+    align-content: start;
+}
+
+.station-nested-card {
+    padding: 18px;
+    border-radius: 24px;
+    background: var(--dashboard-surface-panel-strong);
+    border: 1px solid var(--dashboard-surface-border-strong);
+    box-shadow: inset 0 1px 0 var(--dashboard-surface-highlight);
+}
+
+.station-pressure-panel {
+    padding: 0;
+    background: transparent;
+    border: 0;
+}
+
+.card-rain-span .card-body {
+    padding-bottom: 22px;
+}
+
+.section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.section-head h2,
+.card h2,
+.card h3,
+.card p {
+    margin: 0;
+}
+
+.dashboard-page .section-head h2 {
+    color: var(--dashboard-text) !important;
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    line-height: 24px !important;
+    letter-spacing: normal !important;
+    opacity: 1 !important;
+}
+
+.hero {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 20px;
+    min-height: 280px;
+}
+
+.hero-single {
+    grid-template-columns: 1fr;
+    min-height: auto;
+}
+
+.hero-temp {
+    font-size: clamp(4rem, 7vw, 5.5rem);
+    line-height: 0.92;
+    margin: 22px 0 28px;
+    font-weight: 600;
+    letter-spacing: -0.06em;
+}
+
+.hero-temp-primary {
+    color: var(--dashboard-hero);
+    opacity: 1;
+}
+
+.inside-pill-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: -8px 0 18px;
+}
+
+.inside-pill-grid .status-pill {
+    min-width: 0;
+    justify-content: center;
+    text-align: center;
+    padding-inline: 12px;
+}
+
+.inside-pill-grid .status-copy .label {
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+}
+
+.inside-pill-grid .status-copy {
+    width: 100%;
+    display: grid;
+    justify-items: center;
+    text-align: center;
+}
+
+.hero-stack {
+    display: grid;
+    gap: 10px;
+    color: var(--dashboard-muted);
+}
+
+.hero-stack> :first-child {
+    margin-bottom: 12px;
+}
+
+.hero-stack> :not(:first-child) {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.hero-stack> :not(:first-child) span {
+    margin-left: auto;
+    text-align: right;
+}
+
+.hero-value {
+    display: inline-block;
+    margin-left: auto;
+    padding: 0;
+    background: none !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    font-weight: 600;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.hero-value-blue {
+    color: var(--dashboard-accent-blue);
+}
+
+.hero-value-cyan {
+    color: var(--dashboard-accent-cyan);
+}
+
+.hero-value-amber {
+    color: var(--dashboard-accent-amber);
+}
+
+.chip-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.chip,
+.metric,
+.subcard,
+.instrument,
+.plot-panel,
+.status-pill {
+    background: var(--dashboard-surface-panel);
+    border: 1px solid var(--dashboard-surface-border-soft);
+}
+
+.chip {
+    padding: 14px 16px;
+    border-radius: 18px;
+    text-align: center;
+}
+
+.chip .name {
+    color: var(--dashboard-muted);
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+}
+
+.chip .value {
+    margin-top: 8px;
+    color: var(--dashboard-text);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.15;
+    text-align: center;
+}
+
+.console-face {
+    display: grid;
+    align-content: start;
+    grid-template-rows: auto auto 1fr;
+    border-radius: 28px;
+    background: var(--dashboard-surface-console);
+    border: 1px solid var(--dashboard-surface-border);
+    padding: 14px;
+    gap: 4px;
+}
+
+.celestial-icon {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    margin: -6px -14px 0;
+    min-height: 164px;
+    overflow: hidden;
+}
+
+.celestial-graphic {
+    width: min(126%, 580px);
+    max-width: none;
+    height: auto;
+}
+
+.celestial-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.celestial-grid-primary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.celestial-grid-secondary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.celestial-stat {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: var(--dashboard-surface-stat);
+    border: 1px solid var(--dashboard-surface-border-soft);
+    text-align: center;
+}
+
+.celestial-stat span {
+    display: block;
+    color: var(--dashboard-muted);
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.celestial-stat strong {
+    display: block;
+    margin-top: 8px;
+    color: var(--dashboard-text);
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.instrument-cluster,
+.history-grid,
+.summary-grid {
+    display: grid;
+    gap: 16px;
+}
+
+.history-grid,
+.summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.summary-grid-standalone {
+    margin-top: 0;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+
+.solar-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 30px;
+    background: var(--dashboard-surface-card);
+    border: 1px solid var(--dashboard-surface-border);
+    box-shadow: inset 0 1px 0 var(--dashboard-surface-highlight);
+}
+
+.solar-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--dashboard-surface-overlay);
+    pointer-events: none;
+}
+
+.instrument-cluster {
+    grid-template-columns: 1.05fr 0.95fr;
+}
+
+.side-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.side-stack > :last-child {
+    margin-top: auto;
+}
+
+.instrument,
+.plot-panel,
+.subcard {
+    min-width: 0;
+    padding: 18px;
+    border-radius: 24px;
+}
+
+.chart-panel {
+    display: grid;
+    align-content: start;
+    min-width: 0;
+}
+
+.chart-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin: 2px 0 10px;
+    color: var(--dashboard-muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.chart-key-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chart-key-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.chart-key-swatch-temperature-outside {
+    background: #69d3ff;
+}
+
+.chart-key-swatch-temperature-inside {
+    background: #ffb86c;
+}
+
+.chart-key-swatch-wind-average {
+    background: #7ae0ff;
+}
+
+.chart-key-swatch-wind-gust {
+    background: #ff9f5a;
+}
+
+.status-chart {
+    margin: 4px 0 14px;
+    min-height: 320px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.status-chart-compact,
+.solar-card .status-chart {
+    min-height: 276px;
+}
+
+.status-chart-svg {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+}
+
+.status-chart-svg-compact {
+    aspect-ratio: 520 / 236;
+}
+
+.status-chart-empty {
+    min-height: 320px;
+    display: grid;
+    place-items: center;
+    border: 1px dashed var(--dashboard-chart-empty-border);
+    border-radius: 18px;
+    color: var(--dashboard-muted);
+    background: var(--dashboard-chart-empty-background);
+    font-size: 0.9rem;
+}
+
+.status-chart-compact .status-chart-empty,
+.solar-card .status-chart-empty {
+    min-height: 276px;
+}
+
+.status-chart text {
+    font-family: "Open Sans Custom", "Segoe UI", sans-serif;
+}
+
+.station-pressure-panel {
+    padding-top: 18px;
+    padding-bottom: 18px;
+    height: auto !important;
+}
+
+.instrument h3,
+.plot-panel h3,
+.subcard h3 {
+    margin-bottom: 14px;
+}
+
+.dashboard-page .instrument h3 {
+    color: var(--dashboard-muted) !important;
+    font-size: 0.98rem !important;
+    font-weight: 600 !important;
+    line-height: normal !important;
+    opacity: 1 !important;
+}
+
+.wind-compass-card h3 {
+    margin-bottom: 8px;
+}
+
+.wind-compass-svg {
+    display: block;
+    margin: -1px auto -1px;
+}
+
+.dashboard-page .plot-panel h3,
+.dashboard-page .subcard h3 {
+    color: var(--dashboard-text) !important;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    line-height: normal !important;
+    opacity: 1 !important;
+}
+
+.dashboard-page .plot-panel p {
+    color: var(--dashboard-muted) !important;
+    font-size: 0.86rem !important;
+    font-weight: 400 !important;
+    line-height: normal !important;
+    margin-bottom: 12px !important;
+    opacity: 1 !important;
+}
+
+.instrument footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+    align-items: baseline;
+}
+
+.wind-compass-card footer {
+    margin-top: 6px;
+}
+
+.readout-compact {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.15;
+}
+
+.muted-value {
+    color: var(--dashboard-muted);
+}
+
+.instrument-detail-list,
+.barometer-meta,
+.rows,
+.data-pairs {
+    display: grid;
+    gap: 10px;
+}
+
+.dashboard-page .rows {
+    margin-top: 0 !important;
+    gap: 10px !important;
+}
+
+.instrument-detail-row span,
+.barometer-row span,
+.row span,
+.pair span,
+.metric .foot {
+    color: var(--dashboard-muted);
+}
+
+.barometer-card {
+    display: grid;
+    gap: 14px;
+}
+
+.barometer-row {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 10px;
+    align-items: baseline;
+    color: var(--dashboard-muted);
+    font-size: 0.84rem;
+}
+
+.barometer-row strong {
+    color: var(--dashboard-text);
+    font-size: 0.84rem;
+    font-weight: 600;
+    justify-self: end;
+    text-align: right;
+}
+
+.barometer-reading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.barometer-reading strong {
+    color: var(--dashboard-text);
+    font-size: 2rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.barometer-reading span {
+    color: var(--dashboard-muted);
+    font-size: 0.92rem;
+}
+
+.barometer-band {
+    position: relative;
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--dashboard-accent-blue) 18%, transparent), color-mix(in srgb, var(--dashboard-accent-amber) 28%, transparent), color-mix(in srgb, var(--dashboard-accent-success) 20%, transparent));
+}
+
+.barometer-marker {
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--dashboard-marker-fill);
+    border: 2px solid var(--dashboard-accent-blue);
+    transform: translate(-50%, -50%);
+}
+
+.barometer-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    color: var(--dashboard-muted);
+    font-size: 0.78rem;
+}
+
+.console-meta {
+    margin-top: 4px;
+}
+
+.instrument-detail-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--dashboard-surface-border-soft);
+}
+
+.wind-compass-card .instrument-detail-list {
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 8px;
+}
+
+.instrument-detail-row {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 12px;
+    align-items: baseline;
+    color: var(--dashboard-muted);
+    font-size: 0.86rem;
+}
+
+.instrument-detail-row strong {
+    color: var(--dashboard-text);
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    justify-self: end;
+    text-align: right;
+}
+
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.metric {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    text-align: center;
+    padding: 16px;
+    min-height: 118px;
+}
+
+.metric .label {
+    color: var(--dashboard-muted);
+    font-size: 0.8rem;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    box-shadow: none !important;
+    border: 0 !important;
+    opacity: 1;
+}
+
+.metric .number {
+    margin-top: 16px;
+    font-size: 1.82rem;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1;
+}
+
+.metric-number-blue {
+    color: var(--dashboard-accent-blue);
+}
+
+.metric-number-cyan {
+    color: var(--dashboard-accent-cyan);
+}
+
+.metric-number-amber {
+    color: var(--dashboard-accent-amber);
+}
+
+.metric .foot {
+    margin-top: 8px;
+    font-size: 0.84rem;
+}
+
+.metric .label,
+.metric .number,
+.metric .foot {
+    width: 100%;
+    text-align: center;
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    min-width: 0;
+    color: var(--dashboard-muted);
+    font-size: 0.92rem;
+}
+
+.dashboard-page .row {
+    line-height: normal !important;
+}
+
+.dashboard-page .row span,
+.dashboard-page .pair span,
+.dashboard-page .barometer-row span,
+.dashboard-page .instrument-detail-row span,
+.dashboard-page .metric .foot,
+.dashboard-page .hero-stack {
+    color: var(--dashboard-muted) !important;
+    opacity: 1 !important;
+}
+
+.dashboard-page .nowrap-label {
+    white-space: nowrap;
+}
+
+.dashboard-page .row strong {
+    color: var(--dashboard-text) !important;
+    font-weight: 600 !important;
+    opacity: 1 !important;
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.moon-layout {
+    display: grid;
+    gap: 16px;
+}
+
+.moon-graphic {
+    display: grid;
+    place-items: center;
+}
+
+.astronomy-card {
+    padding: 0;
+    overflow: hidden;
+}
+
+.astronomy-card .console-face {
+    height: 100%;
+    border: 0;
+    border-radius: inherit;
+    padding: 18px;
+}
+
+.inside-card .data-pairs,
+.moon-summary .data-pairs {
+    margin-top: 8px;
+}
+
+.data-pairs {
+    min-width: 0;
+}
+
+.pair {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 12px;
+    align-items: baseline;
+    color: var(--dashboard-muted);
+    font-size: 0.92rem;
+}
+
+.pair span {
+    min-width: 0;
+}
+
+.pair strong {
+    min-width: 0;
+    color: var(--dashboard-text);
+    font-weight: 600;
+    justify-self: start;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+.moon-summary .pair strong,
+.inside-card .pair strong {
+    justify-self: end;
+    text-align: right;
+}
+
+.inside-card .pair {
+    grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.dashboard-page .chip .value,
+.dashboard-page .celestial-stat strong,
+.dashboard-page .pair strong,
+.dashboard-page .instrument footer strong,
+.dashboard-page .barometer-reading strong {
+    color: var(--dashboard-text) !important;
+    opacity: 1 !important;
+}
+
+.dashboard-page .pair strong,
+.dashboard-page .instrument footer strong {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+}
+
+.dashboard-page .hero-temp-primary,
+.dashboard-page .hero-value,
+.dashboard-page .metric-number {
+    background: none !important;
+    opacity: 1 !important;
+}
+
+.dashboard-page .metric-number {
+    font-size: 1.82rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.04em !important;
+    line-height: 1 !important;
+}
+
+.dashboard-page .hero-temp-primary {
+    color: var(--dashboard-hero) !important;
+}
+
+.dashboard-page .hero-value-blue,
+.dashboard-page .metric-number-blue {
+    color: var(--dashboard-accent-blue) !important;
+}
+
+.dashboard-page .hero-value-cyan,
+.dashboard-page .metric-number-cyan {
+    color: var(--dashboard-accent-cyan) !important;
+}
+
+.dashboard-page .hero-value-amber,
+.dashboard-page .metric-number-amber {
+    color: var(--dashboard-accent-amber) !important;
+}
+
+.dashboard-page .instrument footer span,
+.dashboard-page .barometer-reading span {
+    color: var(--dashboard-muted) !important;
+    opacity: 1 !important;
+}
+
+.status-footer {
+    display: grid;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.status-pill {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 18px;
+}
+
+.status-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--dashboard-accent-blue) 14%, transparent);
+    color: var(--dashboard-accent-cyan);
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.status-copy {
+    min-width: 0;
+}
+
+.status-copy .label {
+    color: var(--dashboard-muted);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.status-copy .value {
+    margin-top: 4px;
+    color: var(--dashboard-text);
+    font-size: 0.98rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.mono {
+    font-variant-numeric: tabular-nums;
+}
+
+.blue {
+    color: var(--dashboard-accent-blue);
+}
+
+.cyan {
+    color: var(--dashboard-accent-cyan);
+}
+
+.green {
+    color: var(--dashboard-accent-success);
+}
+
+.amber {
+    color: var(--dashboard-accent-amber);
+}
+
+.danger {
+    color: var(--dashboard-accent-danger);
+}

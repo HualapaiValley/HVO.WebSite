@@ -1,0 +1,183 @@
+@page "/"
+@page "/monitor"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<PageTitle>SolarAssistant Gateway</PageTitle>
+
+<MudPaper Class="layout-canvas shell-page" Elevation="0" aria-label="SolarAssistant gateway monitor">
+    <MudStack Class="shell-page-stack solar-dashboard" Spacing="3">
+        <h1 class="solar-page-heading">SolarAssistant Gateway</h1>
+
+        <section class="solar-hero-card" aria-label="Gateway summary">
+            <div class="solar-hero-copy">
+                <MudText Typo="Typo.overline" Class="solar-eyebrow">Live Gateway Status</MudText>
+                <MudText Typo="Typo.h3" Class="solar-hero-title">SolarAssistant Total</MudText>
+                <div class="solar-hero-number">@FormatWatts(LatestSnapshot?.LoadPowerW)</div>
+                <MudText Typo="Typo.body2" Class="solar-muted">Current load from the latest read-only REST snapshot with MQTT discovery metadata tracked locally.</MudText>
+                <div class="solar-pill-row" aria-label="Gateway status summary">
+                    <MudChip T="string" Color="@HealthChipColor" Variant="Variant.Filled" Size="Size.Small">@HealthStatusText</MudChip>
+                    <MudChip T="string" Color="@SnapshotChipColor" Variant="Variant.Filled" Size="Size.Small">@SnapshotStatusText</MudChip>
+                    <MudChip T="string" Color="@MqttChipColor" Variant="Variant.Filled" Size="Size.Small">@MqttStatusText</MudChip>
+                    <MudChip T="string" Color="@ForwarderChipColor" Variant="Variant.Filled" Size="Size.Small">@ForwarderStatusText</MudChip>
+                </div>
+            </div>
+
+            <div class="solar-hero-panel" aria-label="Latest snapshot metadata">
+                <DetailRow Label="Last snapshot" Value="@FormatTimestamp(SnapshotWorker.LastSnapshotAt)" />
+                <DetailRow Label="REST metrics" Value="@SnapshotWorker.LastMetricCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                <DetailRow Label="REST inventory" Value="@InventorySummary" />
+                <DetailRow Label="MQTT inventory" Value="@MqttSummary" />
+                <DetailRow Label="Health" Value="@HealthStatusText" />
+                <DetailRow Label="Source" Value="@(LatestSnapshot?.SourceId ?? SolarOptions.TotalSourceId)" />
+            </div>
+        </section>
+
+        <MudGrid Spacing="3">
+            <MudItem xs="12">
+                <MudPaper Class="solar-card" Elevation="0">
+                    <CardHead Eyebrow="Local Health" Title="Gateway Alerts" LinkHref="/gateway-health" LinkText="JSON" />
+                    @if (Health.Alerts.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Success" Dense="true" Class="solar-alert">No active local gateway alerts.</MudAlert>
+                    }
+                    else
+                    {
+                        <div class="solar-alert-list">
+                            @foreach (var alert in Health.Alerts)
+                            {
+                                <MudAlert Severity="@AlertSeverity(alert.Severity)" Dense="true" Class="solar-alert">
+                                    <strong>@alert.Code</strong>: @alert.Message
+                                </MudAlert>
+                            }
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudPaper Class="solar-card" Elevation="0">
+                    <CardHead Eyebrow="Power" Title="Current Snapshot" />
+                    <div class="solar-metric-grid">
+                        <MetricTile Label="PV" Value="@FormatWatts(LatestSnapshot?.PvPowerW)" />
+                        <MetricTile Label="Load" Value="@FormatWatts(LatestSnapshot?.LoadPowerW)" />
+                        <MetricTile Label="Grid" Value="@FormatWatts(LatestSnapshot?.GridPowerW)" />
+                        <MetricTile Label="Battery" Value="@FormatWatts(LatestSnapshot?.BatteryPowerW)" />
+                        <MetricTile Label="System" Value="@FormatWatts(LatestSnapshot?.SystemPowerW)" />
+                        <MetricTile Label="Load %" Value="@FormatPercent(LatestSnapshot?.LoadPercentage)" />
+                    </div>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudPaper Class="solar-card" Elevation="0">
+                    <CardHead Eyebrow="Battery" Title="Battery State" />
+                    <div class="solar-battery-readout">
+                        <div class="solar-battery-ring" style="--battery-level: @BatteryLevelCss;">
+                            <span>@FormatPercent(LatestSnapshot?.BatteryStateOfChargePercent)</span>
+                        </div>
+                        <div class="solar-detail-list">
+                            <DetailRow Label="Voltage" Value="@FormatVolts(LatestSnapshot?.BatteryVoltageV)" />
+                            <DetailRow Label="Current" Value="@FormatAmps(LatestSnapshot?.BatteryCurrentA)" />
+                            <DetailRow Label="Capacity" Value="@FormatKwh(LatestSnapshot?.BatteryCapacityKwh)" />
+                            <DetailRow Label="Mode" Value="@(LatestSnapshot?.InverterMode ?? "--")" />
+                        </div>
+                    </div>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudPaper Class="solar-card" Elevation="0">
+                    <CardHead Eyebrow="Outbox" Title="Website Forwarding" />
+                    <div class="solar-detail-list">
+                        <DetailRow Label="Pending" Value="@Forwarder.PendingCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                        <DetailRow Label="Failed" Value="@Forwarder.FailedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                        <DetailRow Label="Last sent" Value="@FormatTimestamp(Forwarder.LastSentAt)" />
+                        <DetailRow Label="Endpoint" Value="@EndpointSummary" />
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(Forwarder.LastError))
+                    {
+                        <MudAlert Severity="Severity.Error" Dense="true" Class="solar-alert">@Forwarder.LastError</MudAlert>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudPaper Class="solar-card" Elevation="0">
+                    <CardHead Eyebrow="Settings" Title="Read-only Configuration" />
+                    <div class="solar-detail-list">
+                        <DetailRow Label="Host" Value="@DisplayHost" />
+                        <DetailRow Label="REST port" Value="@SolarOptions.RestPort.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                        <DetailRow Label="MQTT port" Value="@SolarOptions.MqttPort.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                        <DetailRow Label="Poll interval" Value="@($"{SolarOptions.SnapshotIntervalSeconds} s")" />
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(SnapshotWorker.LastError))
+                    {
+                        <MudAlert Severity="Severity.Error" Dense="true" Class="solar-alert">@SnapshotWorker.LastError</MudAlert>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudPaper Class="solar-card" Elevation="0">
+                    <CardHead Eyebrow="Rolling History" Title="Recent Power Trends" />
+                    <div class="solar-history-grid-cards">
+                        <PowerHistoryChart Title="PV Power" LineClass="solar-history-line-amber" Points="@History" ValueSelector="@(p => p.PvPowerW)" />
+                        <PowerHistoryChart Title="Load Power" LineClass="solar-history-line-cyan" Points="@History" ValueSelector="@(p => p.LoadPowerW)" />
+                        <PowerHistoryChart Title="Grid Power" LineClass="solar-history-line-blue" Points="@History" ValueSelector="@(p => p.GridPowerW)" />
+                        <PowerHistoryChart Title="Battery Power" LineClass="solar-history-line-green" Points="@History" ValueSelector="@(p => p.BatteryPowerW)" />
+                    </div>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudPaper Class="solar-card" Elevation="0">
+                    <CardHead Eyebrow="Discovery" Title="REST Metric Inventory" LinkHref="/inventory" LinkText="JSON" />
+                    <div class="solar-detail-list solar-detail-list-wide">
+                        <DetailRow Label="DB candidates" Value="@ClassificationCount("db_candidate").ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                        <DetailRow Label="Review" Value="@ClassificationCount("review").ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                        <DetailRow Label="Local only" Value="@ClassificationCount("local_only").ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                        <DetailRow Label="Groups" Value="@FormatCounts(Inventory?.GroupCounts)" />
+                        <DetailRow Label="Units" Value="@FormatCounts(Inventory?.UnitCounts)" />
+                    </div>
+                    <div class="solar-topic-list" aria-label="Discovered SolarAssistant REST topics">
+                        @foreach (var topic in InventoryTopics)
+                        {
+                            <div class="solar-topic-row">
+                                <span>@topic.Topic</span>
+                                <strong>@topic.Classification</strong>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudPaper Class="solar-card" Elevation="0">
+                    <CardHead Eyebrow="MQTT" Title="Home Assistant Discovery" LinkHref="/mqtt-inventory" LinkText="JSON" />
+                    <div class="solar-detail-list solar-detail-list-wide">
+                        <DetailRow Label="Connection" Value="@MqttInventory.ConnectionState" />
+                        <DetailRow Label="Entities" Value="@MqttInventory.EntityCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                        <DetailRow Label="State topics" Value="@MqttInventory.StateTopicCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                        <DetailRow Label="Command topics" Value="@MqttInventory.CommandTopicCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                        <DetailRow Label="Devices" Value="@FormatDevices(MqttInventory.Devices)" />
+                        <DetailRow Label="Last message" Value="@FormatTimestamp(MqttInventory.LastMessageAtUtc)" />
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(MqttInventory.LastError))
+                    {
+                        <MudAlert Severity="Severity.Warning" Dense="true" Class="solar-alert">@MqttInventory.LastError</MudAlert>
+                    }
+                    <div class="solar-topic-list" aria-label="Discovered SolarAssistant MQTT entities">
+                        @foreach (var entity in MqttEntities)
+                        {
+                            <div class="solar-topic-row solar-topic-row-expanded">
+                                <span>@entity.Name</span>
+                                <small>@(entity.StateTopic ?? entity.DiscoveryTopic)</small>
+                                <strong>@entity.Classification</strong>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudStack>
+</MudPaper>

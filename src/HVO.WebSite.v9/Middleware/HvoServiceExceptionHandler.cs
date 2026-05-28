@@ -18,26 +18,36 @@ public class HvoServiceExceptionHandler(IProblemDetailsService problemDetailsSer
     /// <param name="cancellationToken">Cancellation token for the operation</param>
     /// <returns>True if the exception was handled, false otherwise</returns>
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
+    {
+        var isDevelopment = httpContext.RequestServices
+            .GetRequiredService<IHostEnvironment>()
+            .IsDevelopment();
+
+        var status = exception switch
         {
-            var problemDetails = new ProblemDetails
-            {
-                Status = exception switch
-                {
-                    ArgumentException => StatusCodes.Status400BadRequest,
-                    _ => StatusCodes.Status500InternalServerError
-                },
-                Title = "An error occurred",
-                Type = exception.GetType().Name,
-                Detail = exception.Message
-            };
+            ArgumentException => StatusCodes.Status400BadRequest,
+            _ => StatusCodes.Status500InternalServerError
+        };
 
-            logger.LogError(exception, "Problem Details: {@problemDetails}", problemDetails);
+        var problemDetails = new ProblemDetails
+        {
+            Status = status,
+            Title = status == StatusCodes.Status400BadRequest
+                ? "The request is invalid."
+                : "An unexpected error occurred.",
+            Type = isDevelopment ? exception.GetType().Name : null,
+            Detail = isDevelopment
+                ? exception.Message
+                : "The server could not complete the request. Use the traceId when contacting support."
+        };
 
-            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
-            {
-                Exception = exception,
-                HttpContext = httpContext,
-                ProblemDetails = problemDetails
-            });
-        }
+        logger.LogError(exception, "Unhandled exception for {Method} {Path}", httpContext.Request.Method, httpContext.Request.Path);
+
+        return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+        {
+            Exception = exception,
+            HttpContext = httpContext,
+            ProblemDetails = problemDetails
+        });
     }
+}

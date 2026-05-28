@@ -1,10 +1,13 @@
 # HVO.WebSite — local Docker Compose stack
 #
-# Deploys two services onto a shared Docker network:
+# Deploys the local HVO services onto a shared Docker network:
 #   hvo-website   — ASP.NET Core / Blazor Server web application
-#   hvo-davis     — Davis Vantage Pro 2 hardware driver (sidecar)
+#   hvo-davis     — Davis Vantage Pro 2 hardware driver
+#   hvo-jkbms     — JK BMS battery monitor driver
+#   hvo-solarassistant — SolarAssistant gateway
+#   hvo-smartshunt — Victron SmartShunt gateway
 #
-# Both images are built locally from the repo. No registry is required.
+# Images are built locally from the repo. No registry is required.
 #
 # Prerequisites:
 #   1. All variables below must be set in .env (see .env for reference).
@@ -26,25 +29,26 @@ services:
     build:
       context: .
       dockerfile: src/HVO.WebSite.v9/Dockerfile
-      args:
-        WEBSITE_RUNTIME: ${WEBSITE_RUNTIME:-linux-x64}
     hostname: hvo-website
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      # Keep the image HTTP-only; terminate TLS at ingress/reverse proxy or mount
+      # a runtime certificate and override Kestrel settings explicitly.
+      ASPNETCORE_URLS: "http://+:8080"
       # Key Vault — loaded by DefaultAzureCredential using the SP below
       KeyVault__Uri: ${AZURE_KEYVAULT_URI}
       # Azure service principal used to authenticate to Key Vault
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
-      # HTTPS on 443 (self-signed cert baked into image).
-      # HTTP on 80 redirects to HTTPS; port 8080 stays internal for service-to-service.
-      # Disable HTTPS redirect — sidecars (hvo-davis, hvo-jkbms) post to http://hvo-website:8080
+      # Port 8080 stays available for service-to-service traffic and health checks.
+      # Disable HTTPS redirect — internal services post to http://hvo-website:8080
       # and must not be redirected to HTTPS where the self-signed cert would be rejected.
       EnableHttpsRedirect: "false"
       # Seeds system ingest API keys into the DB on first start
       Seeding__DavisApiKey: ${DAVIS_API_KEY}
       Seeding__BmsApiKey: ${BMS_API_KEY}
+      Seeding__PowerApiKey: ${POWER_API_KEY:-}
       # Connection string — passed directly so Key Vault is not required
       ConnectionStrings__HualapaiValleyObservatory: ${ConnectionStrings__HualapaiValleyObservatory}
       # OTel service name — used by Azure Monitor to identify this service in App Insights
@@ -53,7 +57,6 @@ services:
       - data-protection:/root/.aspnet/DataProtection-Keys
     ports:
       - "80:8080"
-      - "443:443"
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/health/live" ]
@@ -63,65 +66,30 @@ services:
       retries: 3
 
   # ---------------------------------------------------------------------------
-  # OTel Collector sidecar for hvo-davis
-  # Receives OTLP from the Davis app, scrapes container metrics via docker_stats,
-  # and forwards everything to the configured exporter (debug → azuremonitor).
-  # ---------------------------------------------------------------------------
-  otel-collector-davis:
-    build:
-      context: ./otel
-      dockerfile: Dockerfile.davis
-    environment:
-      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
-    user: "0:0"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
-  # OTel Collector sidecar for hvo-jkbms
-  # Receives OTLP from the JkBms app, scrapes container metrics via docker_stats,
-  # and forwards everything to the configured exporter (debug → azuremonitor).
-  # ---------------------------------------------------------------------------
-  otel-collector-jkbms:
-    build:
-      context: ./otel
-      dockerfile: Dockerfile.jkbms
-    environment:
-      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
-    user: "0:0"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
   # Davis Vantage Pro 2 driver — reads from the console, posts to hvo-website
   # ---------------------------------------------------------------------------
   hvo-davis:
     build:
       context: .
       dockerfile: src/HVO.Hardware.DavisVantagePro2/Dockerfile
-    depends_on:
-      hvo-website:
-        condition: service_healthy
-      otel-collector-davis:
-        condition: service_started
     ports:
       - "5100:8080"
     environment:
       # Station TCP address (network-connected console)
       Station__Host: ${DAVIS_STATION_HOST:-192.168.0.121}
       Station__Port: ${DAVIS_STATION_PORT:-22222}
-      Station__ArchiveCatchupOnStartup: "true"
-      # Post readings to the website container — use the service name, not localhost
-      Outbox__ApiEndpoint: "http://hvo-website:8080/api/v1/weather/raw"
+      Station__ArchiveCatchupMode: "Disabled"
+      Station__ArchiveCatchupLookbackHours: "12"
+      # Defaults to the in-stack website service. Set HVO_WEBSITE_PUBLIC_BASE_URL
+      # in .env when you explicitly want local collectors to post to the deployed site.
+      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/weather/raw"
       Outbox__ApiKey: ${DAVIS_API_KEY}
       # Persist the outbox SQLite DB across restarts
       Outbox__DbPath: /app/data/outbox.db
       DOTNET_ENVIRONMENT: Production
-      # OTel — send traces/metrics/logs to the collector sidecar
+      # OTel — send traces/metrics/logs to the global collector
       OTEL_SERVICE_NAME: hvo-davis
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector-davis:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
       - davis-outbox:/app/data
@@ -135,23 +103,19 @@ services:
     build:
       context: .
       dockerfile: src/HVO.Hardware.JkBms/Dockerfile
-    depends_on:
-      hvo-website:
-        condition: service_healthy
-      otel-collector-jkbms:
-        condition: service_started
     ports:
       - "5200:8080"
     environment:
-      # Post readings to the website container — use the service name, not localhost
-      Outbox__ApiEndpoint: "http://hvo-website:8080/api/v1/bms/readings"
+      # Defaults to the in-stack website service. Set HVO_WEBSITE_PUBLIC_BASE_URL
+      # in .env when you explicitly want local collectors to post to the deployed site.
+      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/bms/readings"
       Outbox__ApiKey: ${BMS_API_KEY}
       # Persist the outbox SQLite DB across restarts
       Outbox__DbPath: /app/data/outbox.db
       DOTNET_ENVIRONMENT: Production
-      # OTel — send traces/metrics/logs to the collector sidecar
+      # OTel — send traces/metrics/logs to the global collector
       OTEL_SERVICE_NAME: hvo-jkbms
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector-jkbms:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     # Bluetooth (BLE) requires access to the host's BlueZ daemon via D-Bus.
     # The host must have bluetoothd running and at least one adapter (hci0) available.
@@ -162,10 +126,98 @@ services:
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # SolarAssistant gateway — polls SolarAssistant REST, posts power readings
+  # ---------------------------------------------------------------------------
+  hvo-solarassistant:
+    build:
+      context: .
+      dockerfile: src/HVO.Gateway.SolarAssistant/Dockerfile
+    ports:
+      - "5300:8080"
+    environment:
+      # SolarAssistant read-only REST credentials. Keep values in .env.
+      # Empty host disables REST polling; empty POWER_API_KEY disables forwarding.
+      SolarAssistant__Host: ${SOLAR_ASSISTANT_IP:-}
+      SolarAssistant__RestUsername: ${SOLAR_ASSISTANT_REST_USERNAME:-admin}
+      SolarAssistant__RestPassword: ${SOLAR_ASSISTANT_REST_PASSWORD:-}
+      SolarAssistant__EnableMqttDiscovery: ${SOLAR_ASSISTANT_ENABLE_MQTT_DISCOVERY:-true}
+      SolarAssistant__MqttUsername: ${SOLAR_ASSISTANT_MQTT_USERNAME:-}
+      SolarAssistant__MqttPassword: ${SOLAR_ASSISTANT_MQTT_PASSWORD:-}
+      SolarAssistant__SnapshotIntervalSeconds: ${SOLAR_ASSISTANT_SNAPSHOT_INTERVAL_SECONDS:-30}
+      SolarAssistant__HistoryCapacity: ${SOLAR_ASSISTANT_HISTORY_CAPACITY:-240}
+      SolarAssistant__RestStaleAfterSeconds: ${SOLAR_ASSISTANT_REST_STALE_AFTER_SECONDS:-120}
+      SolarAssistant__MqttStaleAfterSeconds: ${SOLAR_ASSISTANT_MQTT_STALE_AFTER_SECONDS:-120}
+      SolarAssistant__OutboxPendingWarningCount: ${SOLAR_ASSISTANT_OUTBOX_PENDING_WARNING_COUNT:-10}
+      SolarAssistant__OutboxFailedCriticalCount: ${SOLAR_ASSISTANT_OUTBOX_FAILED_CRITICAL_COUNT:-1}
+      SolarAssistant__LowBatteryWarningPercent: ${SOLAR_ASSISTANT_LOW_BATTERY_WARNING_PERCENT:-30}
+      SolarAssistant__CriticalBatteryPercent: ${SOLAR_ASSISTANT_CRITICAL_BATTERY_PERCENT:-15}
+      SolarAssistant__HighLoadWarningW: ${SOLAR_ASSISTANT_HIGH_LOAD_WARNING_W:-5000}
+      SolarAssistant__BatteryDischargeWarningW: ${SOLAR_ASSISTANT_BATTERY_DISCHARGE_WARNING_W:-5000}
+      SolarAssistant__TotalSourceId: ${SOLAR_ASSISTANT_TOTAL_SOURCE_ID:-solarassistant-total}
+      SolarAssistant__TotalDeviceId: ${SOLAR_ASSISTANT_TOTAL_DEVICE_ID:-total}
+      # Defaults to the in-stack website service. Set HVO_WEBSITE_PUBLIC_BASE_URL
+      # in .env when you explicitly want local gateways to post to the deployed site.
+      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/power/readings"
+      Outbox__ApiKey: ${POWER_API_KEY:-}
+      Outbox__DbPath: /app/data/outbox.db
+      DOTNET_ENVIRONMENT: Production
+      OTEL_SERVICE_NAME: hvo-solarassistant
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      Diagnostics__ExposeDetailedEndpoints: ${SOLAR_ASSISTANT_EXPOSE_DETAILED_ENDPOINTS:-false}
+    volumes:
+      - solarassistant-outbox:/app/data
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Victron SmartShunt gateway — paired BLE monitor, posts power readings
+  # ---------------------------------------------------------------------------
+  hvo-smartshunt:
+    build:
+      context: .
+      dockerfile: src/HVO.Hardware.VictronSmartShunt/Dockerfile
+    ports:
+      - "5400:8080"
+    privileged: true
+    environment:
+      SmartShunt__Address: ${SMARTSHUNT_ADDRESS:-}
+      SmartShunt__Adapter: ${SMARTSHUNT_ADAPTER:-hci0}
+      SmartShunt__SourceId: ${SMARTSHUNT_SOURCE_ID:-smartshunt-main}
+      SmartShunt__DeviceId: ${SMARTSHUNT_DEVICE_ID:-smartshunt-lifepo4}
+      SmartShunt__PublicOnly: ${SMARTSHUNT_PUBLIC_ONLY:-true}
+      SmartShunt__EnablePrivateEnrichment: ${SMARTSHUNT_ENABLE_PRIVATE_ENRICHMENT:-false}
+      SmartShunt__SampleIntervalSeconds: ${SMARTSHUNT_SAMPLE_INTERVAL_SECONDS:-5}
+      SmartShunt__SnapshotIntervalSeconds: ${SMARTSHUNT_SNAPSHOT_INTERVAL_SECONDS:-15}
+      SmartShunt__PublicKeepAliveIntervalSeconds: ${SMARTSHUNT_PUBLIC_KEEPALIVE_INTERVAL_SECONDS:-10}
+      SmartShunt__PrivateRefreshIntervalSeconds: ${SMARTSHUNT_PRIVATE_REFRESH_INTERVAL_SECONDS:-900}
+      SmartShunt__HistoryCapacity: ${SMARTSHUNT_HISTORY_CAPACITY:-240}
+      SmartShunt__ConnectionTimeoutSeconds: ${SMARTSHUNT_CONNECTION_TIMEOUT_SECONDS:-20}
+      SmartShunt__SampleStaleAfterSeconds: ${SMARTSHUNT_SAMPLE_STALE_AFTER_SECONDS:-60}
+      SmartShunt__OutboxPendingWarningCount: ${SMARTSHUNT_OUTBOX_PENDING_WARNING_COUNT:-10}
+      SmartShunt__OutboxFailedCriticalCount: ${SMARTSHUNT_OUTBOX_FAILED_CRITICAL_COUNT:-1}
+      SmartShunt__LowBatteryWarningPercent: ${SMARTSHUNT_LOW_BATTERY_WARNING_PERCENT:-30}
+      SmartShunt__CriticalBatteryPercent: ${SMARTSHUNT_CRITICAL_BATTERY_PERCENT:-15}
+      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/power/readings"
+      Outbox__ApiKey: ${POWER_API_KEY:-}
+      Outbox__DbPath: /app/data/outbox.db
+      DOTNET_ENVIRONMENT: Production
+      Diagnostics__ExposeDetailedEndpoints: ${SMARTSHUNT_EXPOSE_DETAILED_ENDPOINTS:-false}
+      OTEL_SERVICE_NAME: hvo-smartshunt
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+    volumes:
+      - smartshunt-outbox:/app/data
+      - smartshunt-data-protection:/root/.aspnet/DataProtection-Keys
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+    restart: unless-stopped
+
 volumes:
   davis-outbox:
   jkbms-outbox:
+  solarassistant-outbox:
+  smartshunt-outbox:
   data-protection:
   davis-data-protection:
   jkbms-data-protection:
-
+  smartshunt-data-protection:

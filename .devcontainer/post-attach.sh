@@ -7,6 +7,13 @@ set -e
 
 ENV_GIST="f343db002d980ebe5fcc51413b0b7227"
 ENV_FILE="/workspaces/HVO.WebSite/.env"
+OPENCODE_START_SCRIPT="/workspaces/HVO.WebSite/.devcontainer/start-opencode-web.sh"
+
+start_opencode_web() {
+	if [ -f "$OPENCODE_START_SCRIPT" ]; then
+		bash "$OPENCODE_START_SCRIPT"
+	fi
+}
 
 # ── Ensure .env sourcing + one-shot fetch hook in .zshrc (idempotent) ─
 ZSHRC="$HOME/.zshrc"
@@ -25,6 +32,7 @@ fi
 # ── Skip fetch if .env already exists ────────────────────────────────
 if [ -f "$ENV_FILE" ]; then
 	echo ".env already present — skipping fetch."
+	start_opencode_web
 	exit 0
 fi
 
@@ -42,6 +50,7 @@ if [ -z "$token" ] && command -v git >/dev/null 2>&1; then
 fi
 if [ -z "$token" ]; then
 	echo "⚠  No GitHub token available yet — .env will be fetched when you open your first terminal."
+	start_opencode_web
 	exit 0
 fi
 
@@ -57,6 +66,7 @@ if [ -z "$env_content" ]; then
 fi
 if [ -z "$env_content" ]; then
 	echo "⚠  Could not fetch .env from gist $ENV_GIST"
+	start_opencode_web
 	exit 0
 fi
 
@@ -69,3 +79,5 @@ set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
+
+start_opencode_web

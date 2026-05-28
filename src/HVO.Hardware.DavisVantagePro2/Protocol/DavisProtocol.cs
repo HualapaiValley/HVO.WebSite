@@ -26,11 +26,14 @@ internal static class DavisProtocol
     public const string CmdSettime = "SETTIME";
     public const string CmdBardata = "BARDATA";
     public const string CmdRxcheck = "RXCHECK";
+    public const string CmdReceivers = "RECEIVERS";
     public const string CmdNver = "NVER";
     public const string CmdVer = "VER";
     public const string CmdWrd = "WRD";
     public const string CmdNewsetup = "NEWSETUP";
     public const string CmdClrlog = "CLRLOG";
+    public const string CmdClralm = "CLRALM";
+    public const string CmdClrbits = "CLRBITS";
     public const string CmdEebrd = "EEBRD";
     public const string CmdEebwr = "EEBWR";
     public const string CmdLamps = "LAMPS";
@@ -80,6 +83,8 @@ internal static class DavisProtocol
     public const ushort EepromTransmitters = 0x19; // 16 bytes, 2 per channel × 8
     public const ushort EepromTempCalib = 0x32; // "<27bh" — temp calibrations
     public const ushort EepromWindDirCalib = 0x4D; // signed short — wind dir offset
+    public const ushort EepromAlarmStart = 0x52; // 94-byte alarm threshold block
+    public const int EepromAlarmBlockSize = 94;
     public const ushort EepromInHumidCalib = 0x44; // in humidity offset (signed byte)
     public const ushort EepromOutHumidCalib = 0x45; // out humidity offset
     public const ushort EepromTempLogging = 0xFFC; // 0=AVERAGE, 1=LAST

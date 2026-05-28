@@ -65,6 +65,10 @@ Always branch from `main`. Use the `feature/` or `fix/` pattern for all work, in
 - **Warnings**: Build must produce **zero warnings and zero errors**
 - **Blazor Components**: Follow file structure conventions (`.razor`, `.razor.cs`, `.razor.css`)
 - **Documentation**: Update docs if the change adds or modifies features, configuration, or components
+- **Project History**: Update `docs/PROJECT_HISTORY.md` when a session changes repo structure, architecture direction, deployment assumptions, or leaves important follow-up context for later work
+- **Container Publishing**: If a change updates image version metadata or publish workflow, update `.env`, sync the private `.env` gist, and document the published version in `CHANGELOG.md`
+
+Project history entries should stay short and curated. Record outcomes, decisions, and next-session context. Do not use `docs/PROJECT_HISTORY.md` as a step-by-step transcript.
 
 ---
 

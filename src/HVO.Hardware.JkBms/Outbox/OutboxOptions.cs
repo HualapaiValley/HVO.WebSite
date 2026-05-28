@@ -36,10 +36,26 @@ public sealed class OutboxOptions
     [Range(1, 500)]
     public int BatchSize { get; set; } = 50;
 
+    /// <summary>Warn when pending outbox records exceed this count. Set to 0 to warn on any pending record.</summary>
+    [Range(0, 100000)]
+    public int PendingWarningCount { get; set; } = 10;
+
+    /// <summary>Classify historical failed outbox records as over-threshold at this count. Historical failures still warn/degrade; set to 0 to disable only the over-threshold classification.</summary>
+    [Range(0, 100000)]
+    public int FailedCriticalCount { get; set; } = 1;
+
     /// <summary>
     /// Path to the SQLite database file.
     /// Defaults to <c>outbox.db</c> in the content root when empty.
     /// In Docker this should be set to <c>/app/data/outbox.db</c>.
     /// </summary>
     public string DbPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Number of days to retain <see cref="OutboxStatus.Sent"/> records before they are
+    /// purged by the compaction task. Set to 0 to disable compaction.
+    /// Defaults to 7 days.
+    /// </summary>
+    [Range(0, 3650)]
+    public int SentRetentionDays { get; set; } = 7;
 }

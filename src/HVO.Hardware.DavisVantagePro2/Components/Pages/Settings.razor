@@ -1,37 +1,68 @@
 @page "/settings"
 @rendermode InteractiveServer
-@using HVO.Hardware.DavisVantagePro2.Station
-@inject VantageStation Station
 
-<h1>Station Settings</h1>
-<p style="color:#6c7086;font-size:.85rem">Read-only summary. Edit individual settings on their dedicated pages.</p>
+<PrototypeFrame Eyebrow="Settings" Title="Settings">
+    <HeaderAside>
+        <div class="proto-pill"><span>Environment</span><strong>Production</strong></div>
+        <div class="proto-pill"><span>Snapshot</span><strong class="proto-mono">08 May 2026 - 2:35 PM</strong></div>
+        <button class="proto-button primary" type="button" disabled aria-disabled="true" title="Prototype-only action">
+            Refresh preferences (prototype only)
+        </button>
+    </HeaderAside>
 
-@if (_loading)
-{
-    <p><span class="spinner"></span> Loading…</p>
-}
-else if (_error is not null)
-{
-    <div class="alert alert-error">@_error</div>
-}
-else if (_s is not null)
-{
-    <div class="data-grid">
-        <span class="label">Archive Interval</span>  <span class="value">@(_s.ArchiveIntervalSeconds / 60) min</span>
-        <span class="label">Latitude</span>           <span class="value">@(_s.LatitudeDegrees?.ToString("F4") ?? "—") °</span>
-        <span class="label">Longitude</span>          <span class="value">@(_s.LongitudeDegrees?.ToString("F4") ?? "—") °</span>
-        <span class="label">Altitude</span>           <span class="value">@(_s.AltitudeFeet?.ToString("F0") ?? "—") ft</span>
-        <span class="label">Rain Bucket</span>        <span class="value">@RainBucketLabel(_s.RainBucketType)</span>
-        <span class="label">Rain Year Start</span>    <span class="value">@_s.RainYearStartMonth</span>
-        <span class="label">DST</span>                <span class="value">@_s.DstSetting</span>
-        <span class="label">Timezone Mode</span>      <span class="value">@_s.TimeZoneLabel</span>
-        <span class="label">Temp Logging</span>       <span class="value">@_s.TemperatureLogging</span>
-        <span class="label">Barometer Units</span>    <span class="value">@_s.BarometerUnits</span>
-        <span class="label">Temperature Units</span>  <span class="value">@_s.TemperatureUnits</span>
-        <span class="label">Rain Units</span>         <span class="value">@_s.RainUnits</span>
-        <span class="label">Wind Units</span>         <span class="value">@_s.WindUnits</span>
-    </div>
-}
+    <ChildContent>
+        <div class="proto-grid">
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">Console Behavior</div>
+                        <h2>Cached Station Settings</h2>
+                    </div>
+                </div>
+                <div class="proto-detail-grid">
+                    <div class="proto-stat"><span>Archive interval</span><strong class="proto-mono">15 min</strong></div>
+                    <div class="proto-stat"><span>Latitude</span><strong class="proto-mono">35.3619</strong></div>
+                    <div class="proto-stat"><span>Longitude</span><strong class="proto-mono">-113.8336</strong></div>
+                    <div class="proto-stat"><span>Altitude</span><strong class="proto-mono">3491 ft</strong></div>
+                    <div class="proto-stat"><span>DST</span><strong>AUTO</strong></div>
+                    <div class="proto-stat"><span>Timezone mode</span><strong>GMT offset</strong></div>
+                    <div class="proto-stat"><span>Temperature logging</span><strong>LAST</strong></div>
+                    <div class="proto-stat"><span>Display units</span><strong>Read-only snapshot</strong></div>
+                </div>
+            </section>
 
-<button class="btn btn-primary" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+            <section class="proto-card">
+                <div class="proto-section-head">
+                    <div>
+                        <div class="proto-eyebrow">App Preferences</div>
+                        <h2>Service Configuration</h2>
+                    </div>
+                </div>
+                <div class="proto-detail-grid">
+                    <div class="proto-stat"><span>Config source</span><strong>appsettings.Production.json</strong></div>
+                    <div class="proto-stat"><span>Theme</span><strong>HVO Dark</strong></div>
+                    <div class="proto-stat"><span>Station ID</span><strong>HVO-DAVIS-01</strong></div>
+                    <div class="proto-stat"><span>Outbox mode</span><strong>Enabled</strong></div>
+                </div>
+            </section>
+        </div>
 
+        <section class="proto-card">
+            <div class="proto-section-head">
+                <div>
+                    <div class="proto-eyebrow">Archive Catch-up</div>
+                    <h2>Startup Behavior</h2>
+                </div>
+                <button class="proto-button success" type="button" disabled aria-disabled="true" title="Prototype-only action">
+                    Run top-off now (prototype only)
+                </button>
+            </div>
+            <div class="proto-detail-grid">
+                <div class="proto-stat"><span>Startup mode</span><strong>Enabled</strong></div>
+                <div class="proto-stat"><span>Lookback hours</span><strong class="proto-mono">48</strong></div>
+                <div class="proto-stat"><span>Latest persisted</span><strong class="proto-mono">08 May 2026 - 2:20 PM</strong></div>
+                <div class="proto-stat"><span>Sync lag</span><strong class="proto-mono">00:15:00</strong></div>
+            </div>
+        </section>
+    </ChildContent>
+</PrototypeFrame>

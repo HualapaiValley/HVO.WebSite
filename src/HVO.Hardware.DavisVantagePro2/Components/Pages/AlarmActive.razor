@@ -1,0 +1,55 @@
+@page "/alarms/active"
+@rendermode InteractiveServer
+
+<PrototypeFrame Eyebrow="Alarms / Active Now" Title="Active Alarms">
+    <HeaderAside>
+        <div class="proto-pill"><span>Open alarms</span><strong class="proto-mono">2</strong></div>
+        <div class="proto-pill"><span>Critical</span><strong class="proto-mono">1</strong></div>
+        <button class="proto-button" type="button">Refresh</button>
+    </HeaderAside>
+
+    <ChildContent>
+
+        <section class="proto-card">
+            <div class="proto-section-head">
+                <div>
+                    <div class="proto-eyebrow">Open Alarms</div>
+                    <h2>Current Alarm State</h2>
+                </div>
+            </div>
+            <div class="proto-active-stack">
+                <div class="proto-active-item">
+                    <div class="proto-control-row">
+                        <strong>High wind</strong>
+                        <span class="proto-badge critical">Critical</span>
+                    </div>
+                    <div class="proto-list-meta">
+                        <span>Source</span><span>ISS</span>
+                        <span>Open since</span><span class="proto-mono">08 May 2026 - 8:11 PM UTC</span>
+                        <span>Current value</span><span class="proto-mono">37 mph</span>
+                    </div>
+                    <div class="proto-list-actions">
+                        <button class="proto-button primary" type="button">Acknowledge</button>
+                        <button class="proto-button" type="button">View history</button>
+                    </div>
+                </div>
+
+                <div class="proto-active-item">
+                    <div class="proto-control-row">
+                        <strong>No packets</strong>
+                        <span class="proto-badge warning">Warning</span>
+                    </div>
+                    <div class="proto-list-meta">
+                        <span>Source</span><span>Station worker</span>
+                        <span>Open since</span><span class="proto-mono">08 May 2026 - 8:13 PM UTC</span>
+                        <span>Current value</span><span class="proto-mono">145 sec</span>
+                    </div>
+                    <div class="proto-list-actions">
+                        <button class="proto-button primary" type="button">Acknowledge</button>
+                        <button class="proto-button" type="button">Retry</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </ChildContent>
+</PrototypeFrame>
