@@ -116,6 +116,33 @@ public class Loop2PacketTests
     }
 
     [TestMethod]
+    public void Parse_RainClicks_BucketType1_Decodes02MmBucketToInches()
+    {
+        // 0.2 mm bucket: 10 clicks = 2.0 mm = 0.078740157 inches.
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes(rainClicks: 10);
+        var packet = Loop2Packet.Parse(buf, bucketType: DavisProtocol.BucketType02Mm);
+        packet.DailyRainInches.Should().BeApproximately(0.078740157, 0.000001);
+    }
+
+    [TestMethod]
+    public void Parse_RainClicks_BucketType2_Decodes01MmBucketToInches()
+    {
+        // 0.1 mm bucket: 10 clicks = 1.0 mm = 0.039370079 inches.
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes(rainClicks: 10);
+        var packet = Loop2Packet.Parse(buf, bucketType: DavisProtocol.BucketType01Mm);
+        packet.DailyRainInches.Should().BeApproximately(0.039370079, 0.000001);
+    }
+
+    [TestMethod]
+    public void Parse_RainClicks_UnknownBucketType_ReturnsNullRainFields()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes(rainClicks: 10);
+        var packet = Loop2Packet.Parse(buf, bucketType: 99);
+        packet.RainRateInchesPerHour.Should().BeNull();
+        packet.DailyRainInches.Should().BeNull();
+    }
+
+    [TestMethod]
     public void Parse_ZeroRainClicks_ReturnsZeroInches()
     {
         byte[] buf = PacketBuilder.BuildLoop2DataBytes(rainClicks: 0);
@@ -197,6 +224,50 @@ public class Loop2PacketTests
         var packet = Loop2Packet.Parse(buf, bucketType: 0);
 
         packet.WindGust10MinDirectionDegrees.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_WindDirection360_NormalizesToZeroDegrees()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes(windDirDeg: 360);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.WindDirectionDegrees.Should().Be(0.0);
+    }
+
+    [TestMethod]
+    public void Parse_WindDirectionZero_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes(windDirDeg: 0);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.WindDirectionDegrees.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_WindDirectionAbove360_ReturnsNull()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes(windDirDeg: 361);
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+        packet.WindDirectionDegrees.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_Loop2PrecisionWindFields_DecodeExpectedUnits()
+    {
+        byte[] buf = PacketBuilder.BuildLoop2DataBytes();
+        buf[18] = 0x7B;
+        buf[19] = 0x00; // 12.3 mph 10-min average
+        buf[20] = 0x2D;
+        buf[21] = 0x00; // 4.5 mph 2-min average
+        buf[22] = 19;   // 19 mph 10-min gust
+        buf[24] = 225;
+        buf[25] = 0x00; // 225 degrees gust direction
+
+        var packet = Loop2Packet.Parse(buf, bucketType: 0);
+
+        packet.WindSpeed10MinAvgMph.Should().BeApproximately(12.3, 0.001);
+        packet.WindSpeed2MinAvgMph.Should().BeApproximately(4.5, 0.001);
+        packet.WindGust10MinMph.Should().Be(19);
+        packet.WindGust10MinDirectionDegrees.Should().Be(225);
     }
 
     [TestMethod]

@@ -34,7 +34,7 @@ This document describes the Davis-defined protocol and data model. It should rea
 | Binary handshakes | Successful requests use ACK `0x06`; failed or retry flows can use NAK `0x21`. | High |
 | CRC validation | A valid packet computes to `0x0000` when CRC is computed over data plus appended CRC bytes. | High |
 | CRC append order | Big-endian: high byte followed by low byte. | High |
-| CRC example | WeeWX confirms `0xCEC6 0x03A2 -> 0xE2B4`. | High |
+| CRC example | Needs re-check before documenting a numeric vector; current HVO packet validation is covered by append/validate tests. | Needs validation |
 | LOOP packet size | 99 total bytes: 95 data bytes, 2 CRC bytes, 2 end bytes. | High |
 | Archive page size | 267 bytes: 1 page byte, 5 records x 52 bytes, 4 unused bytes, 2 CRC bytes. | High |
 | DMPAFT response size | 6 bytes: 2 pages, 2 start index, 2 CRC. | High |
@@ -79,35 +79,77 @@ Protocol/raw units are not the same thing as console display-unit settings.
 
 ## Command Coverage Table
 
-This table is the working checklist for determining whether HVO has full Davis protocol coverage. It is not yet a complete command-by-command transcription of the official PDF.
+This table is the working checklist for determining whether HVO has full Davis protocol coverage. It is based on the Rev 2.6.1 command summary extracted from the local PDF plus current HVO code coverage.
 
 | Command | Vendor purpose | Access/safety | HVO support | HVO method/class | Unit test | Simulator test | Live test | Notes |
 |---------|----------------|---------------|-------------|------------------|-----------|----------------|-----------|-------|
-| Wake sequence | Put console in command mode. | Read/control primitive | Implemented | `DavisConsoleClient.WakeAsync` | Needed | Needed | Needed | Includes retry and `LF CR` response handling. |
-| `LPS 1 1` | Read one LOOP1 packet. | Read-only | Implemented | `VantageStation.GetLoop1Async`, `Loop2Packet.Parse` | Needed | Needed | Optional | Used once per worker batch. |
-| `LPS 2 <count>` | Stream LOOP2 packets. | Read-only | Implemented | `VantageStation.StreamLoop2Async`, `Loop2Packet.Parse` | Needed | Needed | Optional | Main live weather stream. |
-| `LPS 3 2` | Return alternating LOOP1/LOOP2 packets. | Read-only | Implemented | `VantageStation.GetCurrentConditionsAsync` | Needed | Needed | Optional | Used for merged current conditions. |
-| `DMPAFT` | Download archive records after timestamp. | Read-only | Implemented | `VantageStation.GetArchiveSinceAsync` | Needed | Needed | Needed | Startup catchup does not currently enable `fallbackOnEmpty`. |
+| Wake sequence | Put console in command mode. | Read/control primitive | Implemented | `DavisConsoleClient.WakeAsync` | N/A | Covered | Attempted | Includes retry and `LF CR` response handling. Live repeated-connect stress is adapter-sensitive. |
+| `TEST` | Echo `TEST` for connection testing. | Read/test | Not implemented | None | N/A | Not planned | Not planned | Low value for HVO; can be added if needed for diagnostics. |
+| `LPS 1 1` | Read one LOOP1 packet. | Read-only | Implemented | `VantageStation.GetLoop1Async`, `Loop2Packet.Parse` | Covered for current fields | Covered | Optional | Used once per worker batch. |
+| `LPS 2 <count>` | Stream LOOP2 packets. | Read-only | Implemented | `VantageStation.StreamLoop2Async`, `Loop2Packet.Parse` | Covered for current fields | Covered | Optional | Main live weather stream. |
+| `LPS 3 2` | Return alternating LOOP1/LOOP2 packets. | Read-only | Implemented | `VantageStation.GetCurrentConditionsAsync` | Covered via parser tests | Covered | Optional | Used for merged current conditions. |
+| `LOOP <count>` | Stream legacy LOOP packets. | Read-only | Deferred | None; HVO uses `LPS` | Parser partially covered via LOOP1 packet type | Not implemented as command | Not planned | `LPS` supersedes this for HVO's LOOP1/LOOP2 needs. |
+| `HILOWS` | Read current high/low block. | Read-only | Not implemented | None | N/A | Needed if supported | Optional | Out of current HVO scope; current/archive payloads do not use this 436-byte block. |
+| `PUTRAIN` | Set yearly rainfall. | Write/high caution | Not implemented | None | N/A | Needed if supported | Needed with safety | High-risk historical counter write; defer unless operational need appears. |
+| `PUTET` | Set yearly ET. | Write/high caution | Not implemented | None | N/A | Needed if supported | Needed with safety | High-risk historical counter write; defer unless operational need appears. |
+| `DMPAFT` | Download archive records after timestamp. | Read-only | Implemented | `VantageStation.GetArchiveSinceAsync` | Covered for archive record parser | Covered | Needed for circular-buffer edge case | Startup/top-off catchup enables `fallbackOnEmpty`; live edge-case validation remains. |
 | `DMP` | Archive dump. | Read-only | Not primary HVO path | None known | N/A | Needed if supported | Needed if supported | Decide whether out of scope or implement. |
-| `GETTIME` | Read console clock. | Read-only | Implemented | `VantageStation.GetConsoleTimeAsync`, `GetStationInfoAsync` | Needed | Needed | Needed | Console time affects archive UTC conversion. |
-| `SETTIME` | Set console clock. | Write/high caution | Implemented | `VantageStation.SetConsoleTimeAsync` | Needed | Needed | Needed with safety | Requires local-only confirmation/audit before UI exposure. |
-| `BARDATA` | Read barometer and correction data. | Read-only | Implemented | `VantageStation.GetBarometerDataAsync` | Needed | Needed | Optional | Text response parsing. |
-| `RXCHECK` | Read reception counters. | Read-only | Implemented | `VantageStation.GetReceptionStatsAsync` | Needed | Needed | Optional | Text response parsing. |
-| `RECEIVERS` | Read heard transmitters. | Read-only | Implemented | `VantageStation.GetHeardTransmitterIdsAsync` | Needed | Needed | Optional | Binary payload after `OK` prefix. |
-| `NVER` | Read firmware version. | Read-only | Implemented | `VantageStation.GetStationInfoAsync` | Needed | Needed | Optional | Text response parsing. |
-| `VER` | Read firmware date/version string. | Read-only | Implemented | `VantageStation.GetStationInfoAsync` | Needed | Needed | Optional | Text response parsing. |
-| `WRD 12 4D` | Read hardware discriminator. | Read-only | Implemented | `VantageStation.GetStationInfoAsync` | Needed | Needed | Optional | Detects Vantage Pro/Vue family. |
-| `EEBRD` | Read EEPROM bytes. | Read-only | Implemented | `VantageStation.GetStationSettingsAsync`, related read helpers | Needed | Needed | Optional | Used for settings, calibration, alarms, transmitters. |
-| `EEBWR` | Write EEPROM bytes. | Write/high caution | Implemented for selected settings | `VantageStation` write helpers | Needed | Needed | Needed with safety | Must use read-back validation plan. |
-| `NEWSETUP` | Apply changed setup. | Command/high caution | Implemented where needed | `VantageStation.RunNewSetupAsync` | Needed | Needed | Needed with safety | Usually follows selected EEPROM writes. |
-| `SETPER` | Set archive interval. | Write/high caution | Implemented | `VantageStation.SetArchiveIntervalAsync`, `UpdateRainArchiveSettingsAsync` | Needed | Needed | Needed with safety | HVO accepts `1`, `5`, `10`, `15`, `30`, `60`, `120`. |
-| `BAR=` | Set barometer calibration. | Write/high caution | Implemented | `VantageStation.SetBarometerAsync` | Needed | Needed | Needed with safety | Requires careful UI and read-back. |
-| `CLRALM` | Clear configured alarm thresholds. | Command/high caution | Implemented | `VantageStation.ClearAlarmThresholdsAsync` | Needed | Needed | Needed with safety | Waits for `DONE`. |
-| `CLRBITS` | Clear active alarm bits. | Command/high caution | Implemented | `VantageStation.ClearActiveAlarmBitsAsync` | Needed | Needed | Needed with safety | Active alarm state command. |
-| Alarm threshold EEPROM block | Configure alarm thresholds. | Write/high caution | Implemented | `VantageStation.SetAlarmThresholdsAsync` | Needed | Needed | Needed with safety | HVO validates and writes alarm block. |
-| `LAMPS` | Toggle console lamp. | Command/low risk | Implemented | `VantageStation.SetLampAsync` | Needed | Needed | Optional | Low-risk local action. |
-| `CLRLOG` | Clear archive memory. | Destructive | Implemented | `VantageStation.ClearArchiveAsync` | Optional | Needed | Only with explicit manual approval | Destructive; simulator-first. |
-| Other official Davis commands | TBD from official PDF. | TBD | Not documented yet | TBD | TBD | TBD | TBD | Complete this table from official protocol manual before claiming full coverage. |
+| `GETTIME` | Read console clock. | Read-only | Implemented | `VantageStation.GetConsoleTimeAsync`, `GetStationInfoAsync` | N/A | Covered | Covered for basic live read | Console time affects archive UTC conversion; CRC retry is covered. |
+| `SETTIME` | Set console clock. | Write/high caution | Implemented | `VantageStation.SetConsoleTimeAsync` | Payload covered | Covered | Needed with safety | Requires local-only confirmation/audit before UI exposure. |
+| `BARDATA` | Read barometer and correction data. | Read-only | Implemented | `VantageStation.GetBarometerDataAsync` | N/A | Covered | Optional | Text response parsing covers decimal and thousandths-inHg pressure forms. |
+| `RXCHECK` | Read reception counters. | Read-only | Implemented | `VantageStation.GetReceptionStatsAsync` | N/A | Covered | Optional | Text response parsing. |
+| `RXTEST` | Exit `Receiving from` screen and clear RXCHECK CRC count. | Control/diagnostic | Not implemented | None | N/A | Needed if supported | Optional/manual | Potential recovery command after console power loss; not used by current worker. |
+| `RECEIVERS` | Read heard transmitters. | Read-only | Implemented | `VantageStation.GetHeardTransmitterIdsAsync` | N/A | Covered | Optional | Binary payload after `OK` prefix. |
+| `NVER` | Read firmware version. | Read-only | Implemented | `VantageStation.GetStationInfoAsync` | N/A | Covered | Optional | Text response parsing. |
+| `VER` | Read firmware date/version string. | Read-only | Implemented | `VantageStation.GetStationInfoAsync` | N/A | Covered | Optional | Text response parsing. |
+| `WRD 12 4D` | Read hardware discriminator. | Read-only | Implemented | `VantageStation.GetStationInfoAsync` | N/A | Covered | Optional | Detects Vantage Pro/Vue family. |
+| `EEBRD` | Read EEPROM bytes. | Read-only | Implemented | `VantageStation.GetStationSettingsAsync`, related read helpers | N/A | Covered | Optional | Used for settings, calibration, alarms, transmitters; command ACK and data CRC retries are covered. |
+| `EEBWR` | Write EEPROM bytes. | Write/high caution | Implemented for selected settings | `VantageStation` write helpers | Payload covered | Covered | Needed with safety | Payload shape and CRC retry are covered; live writes need read-back validation plan. |
+| `GETEE` | Read full 4K EEPROM block. | Read-only | Not implemented | None | N/A | Needed if supported | Optional | Current HVO reads targeted EEPROM fields only. |
+| `EERD` | Read EEPROM bytes as text hex lines. | Read-only | Not implemented | None | N/A | Needed if supported | Optional | HVO uses binary `EEBRD` instead. |
+| `EEWR` | Write one EEPROM byte as text hex. | Write/high caution | Not implemented | None | N/A | Needed if supported | Needed with safety | HVO uses binary `EEBWR` for selected fields. |
+| `NEWSETUP` | Apply changed setup. | Command/high caution | Implemented where needed | `VantageStation.RunNewSetupAsync` | N/A | Covered | Needed with safety | Usually follows selected EEPROM writes. |
+| `SETPER` | Set archive interval. | Write/high caution | Implemented | `VantageStation.SetArchiveIntervalAsync`, `UpdateRainArchiveSettingsAsync` | N/A | Covered | Needed with safety | HVO accepts `1`, `5`, `10`, `15`, `30`, `60`, `120`. |
+| `BAR=` | Set barometer calibration. | Write/high caution | Implemented | `VantageStation.SetBarometerAsync` | N/A | Covered | Needed with safety | Requires careful UI and read-back. |
+| `CALED` | Read calibrated temperature/humidity values for calibration workflow. | Read-only/calibration | Not implemented | None | N/A | Needed if supported | Optional | HVO reads calibration offsets directly from EEPROM instead. |
+| `CALFIX` | Update display after calibration number changes using raw sensor values. | Write/high caution | Not implemented | None | N/A | Needed if supported | Needed with safety | HVO writes calibration offsets but does not implement this display-refresh workflow. |
+| `CLRALM` | Clear configured alarm thresholds. | Command/high caution | Implemented | `VantageStation.ClearAlarmThresholdsAsync` | N/A | Covered | Needed with safety | Waits for `DONE`. |
+| `CLRCAL` | Clear all temperature/humidity calibration offsets. | Write/high caution | Not implemented | None | N/A | Needed if supported | Needed with safety | Safer to expose individual reviewed calibration writes first. |
+| `CLRGRA` | Clear all console graph points. | Destructive/local display | Not implemented | None | N/A | Needed if supported | Only with explicit manual approval | Not needed for telemetry. |
+| `CLRVAR` | Clear selected rain or ET variable. | Destructive/data | Not implemented | None | N/A | Needed if supported | Only with explicit manual approval | Could alter rain/ET history; defer. |
+| `CLRHIGHS` | Clear daily/monthly/yearly high values. | Destructive/data | Not implemented | None | N/A | Needed if supported | Only with explicit manual approval | Not needed for telemetry. |
+| `CLRLOWS` | Clear daily/monthly/yearly low values. | Destructive/data | Not implemented | None | N/A | Needed if supported | Only with explicit manual approval | Not needed for telemetry. |
+| `CLRBITS` | Clear active alarm bits. | Command/high caution | Implemented | `VantageStation.ClearActiveAlarmBitsAsync` | N/A | Covered | Needed with safety | Active alarm state command. |
+| `CLRDATA` | Clear all current data values to dashes. | Destructive/data | Not implemented | None | N/A | Needed if supported | Only with explicit manual approval | Not needed for telemetry; could disrupt current readings. |
+| Alarm threshold EEPROM block | Configure alarm thresholds. | Write/high caution | Implemented | `VantageStation.SetAlarmThresholdsAsync` | Payload covered | Covered | Needed with safety | HVO validates and writes alarm block. |
+| `LAMPS` | Toggle console lamp. | Command/low risk | Implemented | `VantageStation.SetLampAsync` | N/A | Covered | Optional/gated | Low-risk local action; opt-in live test exists. |
+| `CLRLOG` | Clear archive memory. | Destructive | Implemented | `VantageStation.ClearArchiveAsync` | N/A | Covered for command ACK | Only with explicit manual approval | Destructive; no routine live validation. |
+| `BAUD` | Change console serial baud rate. | Transport/configuration | Not implemented | None | N/A | Not planned | Not planned | Not applicable to current TCP/WeatherLink IP deployment; risky for serial access. |
+| `GAIN` | Set radio receiver gain on Vantage Pro. | Configuration/diagnostic | Not implemented | None | N/A | Not planned | Not planned | Official PDF says not implemented on Vantage Pro2/Vue. |
+| `STOP` | Disable archive record creation. | Write/high caution | Not implemented | None | N/A | Needed if supported | Needed with safety | Not needed for HVO and risks archive gaps. |
+| `START` | Enable archive record creation after `STOP`. | Write/high caution | Not implemented | None | N/A | Needed if supported | Needed with safety | Only useful if `STOP` is supported. |
+
+## Deferred Command Rationale
+
+These commands are intentionally not implemented unless a concrete HVO operational need appears.
+
+| Command/group | Potential HVO value | Why deferred |
+|---------------|---------------------|--------------|
+| `TEST` | Manual connectivity smoke test. | Wake/ACK and real command flows already validate connectivity more directly. |
+| `LOOP` | Legacy current-condition stream. | `LPS` covers HVO's LOOP1, LOOP2, and alternating-packet needs. |
+| `HILOWS` | Richer local dashboard with console high/low values. | Not required for current live/archive telemetry; would need parser/model/API design for the 436-byte block. |
+| `PUTRAIN`, `PUTET` | Maintenance correction of yearly rain/ET counters. | Mutates historical counters; only appropriate behind maintenance UI with confirmation, audit, and read-back. |
+| `GETEE` | Full EEPROM backup/diagnostics. | Current HVO reads targeted EEPROM fields; full dump needs redaction/export policy before exposing. |
+| `EERD`, `EEWR` | Alternate text EEPROM access. | Binary `EEBRD`/`EEBWR` are already implemented and better suited to structured reads/writes with CRC. |
+| `CALED`, `CALFIX` | Guided calibration workflow and display refresh after calibration edits. | Calibration writes need a full safety/read-back workflow before expanding live calibration operations. |
+| `CLRCAL` | Bulk reset of temperature/humidity calibration offsets. | High-risk bulk reset; individual reviewed calibration writes are safer. |
+| `CLRGRA` | Clear console graph points. | Local console display housekeeping only; not useful for HVO telemetry. |
+| `CLRVAR`, `CLRHIGHS`, `CLRLOWS` | Maintenance reset of selected rain/ET/high/low values. | Destructive to console history; requires explicit maintenance workflow and audit. |
+| `CLRDATA` | Clear current data values to dashes. | Can disrupt telemetry and has no normal HVO operational use. |
+| `BAUD` | Serial transport configuration. | Current deployment uses WeatherLink/IP TCP; baud changes are irrelevant and can break serial access. |
+| `GAIN` | Receiver gain control on older Vantage Pro models. | Official PDF says it is not implemented on Vantage Pro2/Vue. |
+| `STOP` | Pause archive creation. | HVO depends on archive records; stopping archive creation risks data gaps. |
+| `START` | Resume archive creation after `STOP`. | Only useful if HVO supports `STOP`; keep as manual recovery unless `STOP` is ever exposed. |
 
 ## LOOP Packets
 

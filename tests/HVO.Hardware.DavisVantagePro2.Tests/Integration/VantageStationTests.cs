@@ -287,6 +287,37 @@ public class VantageStationTests
     }
 
     [TestMethod]
+    public async Task GetConsoleTimeAsync_CrcFailure_RetriesWithNak()
+    {
+        var consoleTime = new DateTime(2025, 3, 20, 14, 30, 45, DateTimeKind.Local);
+        byte[] badTimeResp = PacketBuilder.BuildGetTimeResponse(consoleTime);
+        badTimeResp[^1] ^= 0xFF;
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(8, [DavisProtocol.Ack])
+            .Step(0, badTimeResp)
+            .Step(1, PacketBuilder.BuildGetTimeResponse(consoleTime))
+            .Start();
+
+        var client = new DavisConsoleClient(
+            "127.0.0.1", server.Port, TimeSpan.FromSeconds(1),
+            NullLogger<DavisConsoleClient>.Instance);
+        var station = new VantageStation(
+            client, NullLogger<VantageStation>.Instance, maxTries: 2);
+        await client.OpenAsync(CancellationToken.None);
+
+        DateTime result = await station.GetConsoleTimeAsync();
+
+        result.Should().Be(consoleTime);
+        server.ReceivedSteps[3].Should().Equal([DavisProtocol.Nak]);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
     public async Task GetStationInfoAsync_ParsesHardwareFirmwareAndConsoleTime()
     {
         var consoleTime = new DateTime(2025, 3, 20, 14, 30, 45, DateTimeKind.Local);
@@ -401,6 +432,149 @@ public class VantageStationTests
         settings.LatitudeDegrees.Should().BeApproximately(35.5, 0.01);
         settings.LongitudeDegrees.Should().BeApproximately(-113.8, 0.01);
         settings.AltitudeFeet.Should().Be(2932);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_HydratesCachedDisplayUnitsFromEeprom()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(EepromReadLength(DavisProtocol.EepromUnitBits, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0xE6))
+            .Step(EepromReadLength(DavisProtocol.EepromSetupBits, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x20))
+            .Step(EepromReadLength(DavisProtocol.EepromArchiveInterval, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x0F))
+            .Step(EepromReadLength(DavisProtocol.EepromGmtOrZone, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromTimezoneCode, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x05))
+            .Step(EepromReadLength(DavisProtocol.EepromGmtOffset, 2), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x44, 0xFD))
+            .Step(EepromReadLength(DavisProtocol.EepromLatitude, 2), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x63, 0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromLongitude, 2), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x8E, 0xFB))
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+
+        await station.ConnectAsync(CancellationToken.None);
+
+        station.BarometerUnits.Should().Be("hPa");
+        station.TemperatureUnits.Should().Be("°F×10");
+        station.RainUnits.Should().Be("mm");
+        station.WindUnits.Should().Be("knots");
+
+        await station.DisposeAsync();
+        client.Dispose();
+    }
+
+    [TestMethod]
+    public async Task GetStationSettingsAsync_EepromCrcFailure_RetriesWithNak()
+    {
+        byte[] badUnitBits = PacketBuilder.BuildCrcResponse(0xE6);
+        badUnitBits[^1] ^= 0xFF;
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(EepromReadLength(DavisProtocol.EepromUnitBits, 1), [DavisProtocol.Ack])
+            .Step(0, badUnitBits)
+            .Step(1, PacketBuilder.BuildCrcResponse(0xE6))
+            .Step(EepromReadLength(DavisProtocol.EepromSetupBits, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x20))
+            .Step(EepromReadLength(DavisProtocol.EepromRainYearStart, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x07))
+            .Step(EepromReadLength(DavisProtocol.EepromArchiveInterval, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x0F))
+            .Step(EepromReadLength(DavisProtocol.EepromGmtOrZone, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromManOrAuto, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromDaylightSavings, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromTimezoneCode, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x05))
+            .Step(EepromReadLength(DavisProtocol.EepromTempLogging, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromLatitude, 2), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x63, 0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromLongitude, 2), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x8E, 0xFB))
+            .Step(EepromReadLength(DavisProtocol.EepromAltitude, 2), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x74, 0x0B))
+            .Step(EepromReadLength(DavisProtocol.EepromGmtOffset, 2), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x44, 0xFD))
+            .Start();
+
+        var client = new DavisConsoleClient(
+            "127.0.0.1", server.Port, TimeSpan.FromSeconds(1),
+            NullLogger<DavisConsoleClient>.Instance);
+        var station = new VantageStation(
+            client, NullLogger<VantageStation>.Instance, maxTries: 2);
+        await client.OpenAsync(CancellationToken.None);
+
+        var settings = await station.GetStationSettingsAsync();
+
+        settings.RainBucketType.Should().Be(2);
+        server.ReceivedSteps[3].Should().Equal([DavisProtocol.Nak]);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetStationSettingsAsync_EepromAckTimeout_RetriesCommand()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(EepromReadLength(DavisProtocol.EepromUnitBits, 1), [])
+            .Step(EepromReadLength(DavisProtocol.EepromUnitBits, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0xE6))
+            .Step(EepromReadLength(DavisProtocol.EepromSetupBits, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x20))
+            .Step(EepromReadLength(DavisProtocol.EepromRainYearStart, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x07))
+            .Step(EepromReadLength(DavisProtocol.EepromArchiveInterval, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x0F))
+            .Step(EepromReadLength(DavisProtocol.EepromGmtOrZone, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromManOrAuto, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromDaylightSavings, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromTimezoneCode, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x05))
+            .Step(EepromReadLength(DavisProtocol.EepromTempLogging, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromLatitude, 2), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x63, 0x01))
+            .Step(EepromReadLength(DavisProtocol.EepromLongitude, 2), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x8E, 0xFB))
+            .Step(EepromReadLength(DavisProtocol.EepromAltitude, 2), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x74, 0x0B))
+            .Step(EepromReadLength(DavisProtocol.EepromGmtOffset, 2), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x44, 0xFD))
+            .Start();
+
+        var client = new DavisConsoleClient(
+            "127.0.0.1", server.Port, TimeSpan.FromMilliseconds(100),
+            NullLogger<DavisConsoleClient>.Instance);
+        var station = new VantageStation(
+            client, NullLogger<VantageStation>.Instance, maxTries: 2);
+        await client.OpenAsync(CancellationToken.None);
+
+        var settings = await station.GetStationSettingsAsync();
+
+        settings.RainBucketType.Should().Be(2);
+        server.ReceivedSteps[1].Should().Equal(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdEebrd} {DavisProtocol.EepromUnitBits:X} 1\n"));
+        server.ReceivedSteps[2].Should().Equal(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdEebrd} {DavisProtocol.EepromUnitBits:X} 1\n"));
 
         client.Dispose();
         await station.DisposeAsync();
@@ -840,6 +1014,35 @@ public class VantageStationTests
     }
 
     [TestMethod]
+    public async Task GetBarometerDataAsync_ParsesThousandthsInHgBarValue()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(CommandLength(DavisProtocol.CmdBardata), PacketBuilder.BuildTextResponse(
+                "BAR  29646",
+                "ELEVATION  4500",
+                "DEW POINT  55",
+                "VIRTUAL TEMP  62",
+                "C  2.3",
+                "R  1.003",
+                "BARCAL  0.012",
+                "GAIN  1",
+                "OFFSET  0"))
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var bar = await station.GetBarometerDataAsync();
+
+        bar.CurrentPressureInHg.Should().BeApproximately(29.646, 0.001);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
     public async Task GetBarometerDataAsync_TruncatedResponse_ThrowsDavisProtocolException()
     {
         await using var server = new FakeDavisServer();
@@ -865,6 +1068,8 @@ public class VantageStationTests
         server
             .WakeStep()
             .Step(CommandLength("BAR=29991 -75"), PacketBuilder.BuildTextResponse())
+            .Step(EepromReadLength(DavisProtocol.EepromUnitBits, 1), [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildCrcResponse(0x00))
             .Step(EepromReadLength(DavisProtocol.EepromSetupBits, 1), [DavisProtocol.Ack])
             .Step(0, PacketBuilder.BuildCrcResponse(0x00))
             .Step(EepromReadLength(DavisProtocol.EepromArchiveInterval, 1), [DavisProtocol.Ack])
@@ -932,6 +1137,33 @@ public class VantageStationTests
         station.AltitudeFeet.Should().Be(2932);
         server.ReceivedSteps[2][0].Should().Be(0x74);
         server.ReceivedSteps[2][1].Should().Be(0x0B);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task SetAltitudeAsync_CrcPayloadNak_RetriesWritePayload()
+    {
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(EepromWriteLength(DavisProtocol.EepromAltitude, 2), [DavisProtocol.Ack])
+            .Step(4, [DavisProtocol.Nak])
+            .Step(4, [DavisProtocol.Ack])
+            .Start();
+
+        var client = new DavisConsoleClient(
+            "127.0.0.1", server.Port, TimeSpan.FromSeconds(1),
+            NullLogger<DavisConsoleClient>.Instance);
+        var station = new VantageStation(
+            client, NullLogger<VantageStation>.Instance, maxTries: 2);
+        await client.OpenAsync(CancellationToken.None);
+
+        await station.SetAltitudeAsync(2932.6);
+
+        station.AltitudeFeet.Should().Be(2932);
+        server.ReceivedSteps[2].Should().Equal(server.ReceivedSteps[3]);
 
         client.Dispose();
         await station.DisposeAsync();
@@ -1437,6 +1669,50 @@ public class VantageStationTests
         await station.DisposeAsync();
     }
 
+    [TestMethod]
+    public async Task CommandDuringActiveLoop_InterruptsLoopAndRunsCommand()
+    {
+        byte[] loop2a = PacketBuilder.BuildLoop2Packet(outsideTempF: 65.0);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(8, [DavisProtocol.Ack, .. loop2a])
+            .Step(1, [])
+            .WakeStep()
+            .Step(CommandLength($"{DavisProtocol.CmdLamps} 1"), PacketBuilder.BuildTextResponse())
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var firstPacketSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int packetsSeen = 0;
+
+        Task streamTask = Task.Run(async () =>
+        {
+            await foreach (var packet in station.StreamLoop2Async(2))
+            {
+                packetsSeen++;
+                packet.OutsideTemperatureF.Should().BeApproximately(65.0, 0.1);
+                firstPacketSeen.TrySetResult();
+            }
+        });
+
+        await firstPacketSeen.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await station.SetLampAsync(true);
+        await streamTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        packetsSeen.Should().Be(1);
+        server.ReceivedSteps.Should().HaveCount(5);
+        server.ReceivedSteps[2].Should().Equal([DavisProtocol.Lf]);
+        Encoding.ASCII.GetString(server.ReceivedSteps[4]).Should().Be("LAMPS 1\n");
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
     // ── GetArchiveSinceAsync ──────────────────────────────────────────────────
     //
     // DMPAFT exchange (per GetArchiveSinceAsync implementation):
@@ -1516,6 +1792,81 @@ public class VantageStationTests
             records.Add(r);
 
         records.Should().BeEmpty();
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_HeaderCrcFailure_RetriesWithNak()
+    {
+        byte[] badHeader = PacketBuilder.BuildDmpaftHeader(1);
+        badHeader[^1] ^= 0xFF;
+
+        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(outsideTempF: 67.0);
+        byte[] page = PacketBuilder.BuildArchivePage(0, rec0);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, badHeader)
+            .Step(1, PacketBuilder.BuildDmpaftHeader(1))
+            .Step(1, page)
+            .Start();
+
+        var client = new DavisConsoleClient(
+            "127.0.0.1", server.Port, TimeSpan.FromSeconds(1),
+            NullLogger<DavisConsoleClient>.Instance);
+        var station = new VantageStation(
+            client, NullLogger<VantageStation>.Instance, maxTries: 2);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(DateTime.MinValue))
+            records.Add(r);
+
+        records.Should().HaveCount(1);
+        records[0].OutsideTemperatureF.Should().BeApproximately(67.0, 0.1);
+        server.ReceivedSteps[4].Should().Equal([DavisProtocol.Nak]);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_PageCrcFailure_RetriesWithNak()
+    {
+        byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(outsideTempF: 69.0);
+        byte[] goodPage = PacketBuilder.BuildArchivePage(0, rec0);
+        byte[] badPage = (byte[])goodPage.Clone();
+        badPage[^1] ^= 0xFF;
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(1))
+            .Step(1, badPage)
+            .Step(1, goodPage)
+            .Start();
+
+        var client = new DavisConsoleClient(
+            "127.0.0.1", server.Port, TimeSpan.FromSeconds(1),
+            NullLogger<DavisConsoleClient>.Instance);
+        var station = new VantageStation(
+            client, NullLogger<VantageStation>.Instance, maxTries: 2);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var r in station.GetArchiveSinceAsync(DateTime.MinValue))
+            records.Add(r);
+
+        records.Should().HaveCount(1);
+        records[0].OutsideTemperatureF.Should().BeApproximately(69.0, 0.1);
+        server.ReceivedSteps[5].Should().Equal([DavisProtocol.Nak]);
 
         client.Dispose();
         await station.DisposeAsync();

@@ -58,6 +58,15 @@ public class CrcCalculatorTests
     }
 
     [TestMethod]
+    public void AppendCrc_KnownDavisStylePacket_AppendsBigEndianCrcForInitialZeroPacket()
+    {
+        byte[] result = CrcCalculator.AppendCrc([0xCE, 0xC6, 0x03, 0xA2]);
+
+        result.Should().Equal([0xCE, 0xC6, 0x03, 0xA2, 0x45, 0x52]);
+        CrcCalculator.IsValid(result).Should().BeTrue();
+    }
+
+    [TestMethod]
     public void AppendCrc_EmptyData_ProducesTwoByteOutput()
     {
         byte[] result = CrcCalculator.AppendCrc([]);

@@ -159,16 +159,7 @@ public sealed class DavisConsoleClient : IDisposable
     public async Task SendDataAsync(byte[] data, CancellationToken ct)
     {
         await WriteAsync(data, ct);
-        byte b = (await ReadExactAsync(1, ct))[0];
-        if (b == DavisProtocol.Lf)
-        {
-            byte cr = (await ReadExactAsync(1, ct))[0];
-            if (cr != DavisProtocol.Cr)
-                throw new DavisProtocolException($"Expected LF CR prefix, got LF 0x{cr:X2}");
-            b = (await ReadExactAsync(1, ct))[0];     // read actual ACK
-        }
-        if (b != DavisProtocol.Ack)
-            throw new DavisProtocolException($"Expected ACK (0x06), got 0x{b:X2}");
+        await ReadAckAsync(ct);
     }
 
     /// <summary>
@@ -183,9 +174,8 @@ public sealed class DavisConsoleClient : IDisposable
             try
             {
                 await WriteAsync(withCrc, ct);
-                byte[] ack = await ReadExactAsync(1, ct);
-                if (ack[0] == DavisProtocol.Ack) return;
-                _logger.LogDebug("SendDataWithCrc16 attempt {A}: bad ACK 0x{B:X2}", attempt, ack[0]);
+                await ReadAckAsync(ct);
+                return;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -194,6 +184,27 @@ public sealed class DavisConsoleClient : IDisposable
         }
 
         throw new DavisCrcException($"Unable to send data with CRC after {maxTries} tries");
+    }
+
+    private async Task ReadAckAsync(CancellationToken ct)
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            byte b = (await ReadExactAsync(1, ct))[0];
+            if (b == DavisProtocol.Ack)
+            {
+                return;
+            }
+
+            if (b is DavisProtocol.Lf or DavisProtocol.Cr)
+            {
+                continue;
+            }
+
+            throw new DavisProtocolException($"Expected ACK (0x06), got 0x{b:X2}");
+        }
+
+        throw new DavisProtocolException("Expected ACK (0x06), got only LF/CR prefix bytes.");
     }
 
     /// <summary>

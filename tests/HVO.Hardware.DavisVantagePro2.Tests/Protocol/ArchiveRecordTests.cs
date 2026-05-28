@@ -103,6 +103,31 @@ public class ArchiveRecordTests
         rec!.RainInches.Should().BeApproximately(0.05, 0.001);
     }
 
+    [TestMethod]
+    public void Parse_RainClicks_BucketType1_Decodes02MmBucketToInches()
+    {
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes(rainClicks: 10);
+        var rec = ArchiveRecord.Parse(buf, bucketType: DavisProtocol.BucketType02Mm, archiveIntervalMinutes: 5);
+        rec!.RainInches.Should().BeApproximately(0.078740157, 0.000001);
+    }
+
+    [TestMethod]
+    public void Parse_RainClicks_BucketType2_Decodes01MmBucketToInches()
+    {
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes(rainClicks: 10);
+        var rec = ArchiveRecord.Parse(buf, bucketType: DavisProtocol.BucketType01Mm, archiveIntervalMinutes: 5);
+        rec!.RainInches.Should().BeApproximately(0.039370079, 0.000001);
+    }
+
+    [TestMethod]
+    public void Parse_RainClicks_UnknownBucketType_ReturnsNullRainFields()
+    {
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes(rainClicks: 10);
+        var rec = ArchiveRecord.Parse(buf, bucketType: 99, archiveIntervalMinutes: 5);
+        rec!.RainInches.Should().BeNull();
+        rec.RainRateInchesPerHour.Should().BeNull();
+    }
+
     // ── Null / dash sentinel handling ─────────────────────────────────────────
 
     [TestMethod]
@@ -121,6 +146,66 @@ public class ArchiveRecordTests
         // 0x7FFF already set by the builder
         var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
         rec!.SolarRadiationWm2.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_DashSentinelTemperatures_ReturnNull()
+    {
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes();
+        buf[4] = 0xFF;
+        buf[5] = 0x7F;
+        buf[6] = 0xFF;
+        buf[7] = 0x7F;
+        buf[8] = 0xFF;
+        buf[9] = 0x7F;
+        buf[20] = 0xFF;
+        buf[21] = 0x7F;
+
+        var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
+
+        rec!.OutsideTemperatureF.Should().BeNull();
+        rec.HighOutsideTemperatureF.Should().BeNull();
+        rec.LowOutsideTemperatureF.Should().BeNull();
+        rec.InsideTemperatureF.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_DashSentinelHumidityAndWind_ReturnNull()
+    {
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes();
+        buf[22] = 0xFF;
+        buf[23] = 0xFF;
+        buf[24] = 0xFF;
+        buf[25] = 0xFF;
+        buf[26] = 0xFF;
+        buf[27] = 0xFF;
+
+        var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
+
+        rec!.InsideHumidityPercent.Should().BeNull();
+        rec.OutsideHumidityPercent.Should().BeNull();
+        rec.WindSpeedMph.Should().BeNull();
+        rec.WindGustMph.Should().BeNull();
+        rec.WindGustDirectionDegrees.Should().BeNull();
+        rec.WindDirectionDegrees.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void Parse_DashSentinelRainAndBarometer_ReturnNull()
+    {
+        byte[] buf = PacketBuilder.BuildArchiveDataBytes();
+        buf[10] = 0xFF;
+        buf[11] = 0xFF;
+        buf[12] = 0xFF;
+        buf[13] = 0xFF;
+        buf[14] = 0x00;
+        buf[15] = 0x00;
+
+        var rec = ArchiveRecord.Parse(buf, bucketType: 0, archiveIntervalMinutes: 5);
+
+        rec!.RainInches.Should().BeNull();
+        rec.RainRateInchesPerHour.Should().BeNull();
+        rec.BarometricPressureInHg.Should().BeNull();
     }
 
     // ── Unused record detection ───────────────────────────────────────────────
