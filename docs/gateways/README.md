@@ -50,6 +50,7 @@ Small or placeholder systems can start as one file, but should split before APIs
 | Topic | Document | Status |
 |-------|----------|--------|
 | Camera/media boundary | [camera-media-model.md](camera-media-model.md) | Seeded from legacy/v9 image models and Phase 0 discussion. |
+| Common gateway standards | [common-gateway-standards.md](common-gateway-standards.md) | Draft standard for shared outbox, telemetry, health/status, and gateway-specific extension points. |
 
 ## Process
 
