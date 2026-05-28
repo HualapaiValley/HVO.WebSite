@@ -5,6 +5,7 @@ using HVO.Gateway.SolarAssistant.SolarAssistant;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Health;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 using HVO.Gateway.SolarAssistant.Workers;
+using HVO.Edge.Outbox;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using Serilog;
@@ -51,6 +52,7 @@ var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
     ? outboxConfig.DbPath
     : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
 builder.Services.AddDbContext<OutboxDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
+builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
 builder.Services.AddScoped<PowerOutboxWriter>();
 
 builder.Services.AddHttpClient("SolarAssistantRest", (sp, client) =>
@@ -89,7 +91,10 @@ var exposeDiagnostics = app.Environment.IsDevelopment()
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
+        db,
+        PowerOutboxPayloadTypes.PowerReading,
+        PowerOutboxPayloadTypes.PowerReadingVersion);
 }
 
 if (!app.Environment.IsDevelopment())

@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
@@ -32,6 +33,7 @@ public sealed class PowerApiForwarderTests
 
         var services = new ServiceCollection();
         services.AddDbContext<OutboxDbContext>(o => o.UseSqlite(_conn));
+        services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
         services.AddSingleton<IOptions<OutboxOptions>>(Options.Create(new OutboxOptions
         {
             ApiEndpoint = "https://hvo.example/api/v1/power/readings",
@@ -70,7 +72,7 @@ public sealed class PowerApiForwarderTests
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
         var row = db.OutboxRecords.Single();
-        row.Status.Should().Be(OutboxStatus.Sent);
+        row.Status.Should().Be(EdgeOutboxStatus.Sent);
         row.SentAtUtc.Should().NotBeNull();
         _handler.Requests.Should().HaveCount(1);
         _handler.Requests[0].RequestUri!.ToString().Should().Be("https://hvo.example/api/v1/power/readings");
@@ -91,7 +93,7 @@ public sealed class PowerApiForwarderTests
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
         var row = db.OutboxRecords.Single();
-        row.Status.Should().Be(OutboxStatus.Failed);
+        row.Status.Should().Be(EdgeOutboxStatus.Failed);
         row.LastError.Should().Be("bad payload");
         _provider.GetRequiredService<PowerApiForwarder>().LastError.Should().Be("bad payload");
     }
@@ -110,7 +112,7 @@ public sealed class PowerApiForwarderTests
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
         var row = db.OutboxRecords.Single();
-        row.Status.Should().Be(OutboxStatus.Pending);
+        row.Status.Should().Be(EdgeOutboxStatus.Pending);
         row.AttemptCount.Should().Be(1);
         row.NextRetryAtUtc.Should().BeAfter(DateTime.UtcNow);
         row.LastError.Should().Contain("503");
@@ -122,12 +124,14 @@ public sealed class PowerApiForwarderTests
         using (var scope = _provider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-            db.OutboxRecords.Add(new OutboxRecord
+            db.OutboxRecords.Add(new EdgeOutboxRecord
             {
                 SourceId = "solarassistant-total",
                 DeviceId = "total",
+                PayloadType = PowerOutboxPayloadTypes.PowerReading,
+                PayloadVersion = PowerOutboxPayloadTypes.PowerReadingVersion,
                 RecordedAtUtc = DateTime.Parse("2026-05-23T11:15:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
-                Payload = "not-json",
+                PayloadJson = "not-json",
             });
             await db.SaveChangesAsync();
         }
@@ -137,7 +141,7 @@ public sealed class PowerApiForwarderTests
         using var verifyScope = _provider.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
         var row = verifyDb.OutboxRecords.Single();
-        row.Status.Should().Be(OutboxStatus.Failed);
+        row.Status.Should().Be(EdgeOutboxStatus.Failed);
         row.LastError.Should().Be("Outbox payload JSON is invalid.");
         _handler.Requests.Should().BeEmpty();
     }
@@ -148,12 +152,14 @@ public sealed class PowerApiForwarderTests
         using (var scope = _provider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-            db.OutboxRecords.Add(new OutboxRecord
+            db.OutboxRecords.Add(new EdgeOutboxRecord
             {
                 SourceId = "solarassistant-total",
                 DeviceId = "total",
+                PayloadType = PowerOutboxPayloadTypes.PowerReading,
+                PayloadVersion = PowerOutboxPayloadTypes.PowerReadingVersion,
                 RecordedAtUtc = DateTime.Parse("2026-05-23T11:20:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
-                Payload = "null",
+                PayloadJson = "null",
             });
             await db.SaveChangesAsync();
         }
@@ -163,7 +169,7 @@ public sealed class PowerApiForwarderTests
         using var verifyScope = _provider.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
         var row = verifyDb.OutboxRecords.Single();
-        row.Status.Should().Be(OutboxStatus.Failed);
+        row.Status.Should().Be(EdgeOutboxStatus.Failed);
         row.LastError.Should().Be("Outbox payload JSON is invalid.");
         _handler.Requests.Should().BeEmpty();
     }
@@ -181,12 +187,14 @@ public sealed class PowerApiForwarderTests
             PvPowerW = 1200,
         };
 
-        db.OutboxRecords.Add(new OutboxRecord
+        db.OutboxRecords.Add(new EdgeOutboxRecord
         {
             SourceId = sourceId,
             DeviceId = "total",
+            PayloadType = PowerOutboxPayloadTypes.PowerReading,
+            PayloadVersion = PowerOutboxPayloadTypes.PowerReadingVersion,
             RecordedAtUtc = payload.RecordedAtUtc,
-            Payload = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+            PayloadJson = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
         });
         await db.SaveChangesAsync();
     }

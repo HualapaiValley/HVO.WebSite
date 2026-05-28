@@ -1,4 +1,5 @@
 using System.Text.Json;
+using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
@@ -141,8 +142,9 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
             var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
             var payloadJson = await db.OutboxRecords
                 .AsNoTracking()
+                .Where(r => r.PayloadType == PowerOutboxPayloadTypes.PowerReading)
                 .OrderByDescending(r => r.RecordedAtUtc)
-                .Select(r => r.Payload)
+                .Select(r => r.PayloadJson)
                 .FirstOrDefaultAsync(ct);
             if (string.IsNullOrWhiteSpace(payloadJson))
                 return false;

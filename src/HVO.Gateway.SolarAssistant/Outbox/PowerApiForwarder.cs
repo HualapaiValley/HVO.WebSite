@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Gateway.SolarAssistant.Outbox;
@@ -99,28 +99,20 @@ public sealed class PowerApiForwarder : BackgroundService
     internal async Task SweepAsync(CancellationToken ct)
     {
         await using var serviceScope = _scopeFactory.CreateAsyncScope();
-        var db = serviceScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
         var now = DateTime.UtcNow;
 
-        var pending = await db.OutboxRecords
-            .Where(r => r.Status == OutboxStatus.Pending && r.NextRetryAtUtc <= now)
-            .OrderBy(r => r.RecordedAtUtc)
-            .Take(_options.BatchSize)
-            .ToListAsync(ct);
+        var pending = await store.GetReadyBatchAsync(PowerOutboxPayloadTypes.PowerReading, now, _options.BatchSize, ct);
 
-        _pendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
-        _failedCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
+        _pendingCount = await store.CountPendingAsync(PowerOutboxPayloadTypes.PowerReading, ct);
+        _failedCount = await store.CountFailedAsync(PowerOutboxPayloadTypes.PowerReading, ct);
 
         if (pending.Count == 0 || IsPlaceholderConfig)
             return;
 
-        foreach (var record in pending)
-        {
-            record.AttemptCount++;
-            record.LastAttemptedAtUtc = now;
-        }
+        store.MarkAttempt(pending, now);
 
-        var ready = new List<(OutboxRecord Record, PowerReadingPayload Payload)>();
+        var ready = new List<(EdgeOutboxRecord Record, PowerReadingPayload Payload)>();
         try
         {
             foreach (var record in pending)
@@ -147,7 +139,7 @@ public sealed class PowerApiForwarder : BackgroundService
                     var body = await ReadBoundedBodyAsync(response, ct);
                     var error = $"HTTP {(int)response.StatusCode}: {body}";
                     foreach (var record in ready.Select(x => x.Record))
-                        ScheduleRetry(record, error, now);
+                        store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
                     _lastError = error;
                     _logger.LogWarning("Power API forward failed for {Count} record(s): {Error}", ready.Count, error);
                 }
@@ -156,7 +148,7 @@ public sealed class PowerApiForwarder : BackgroundService
         catch (HttpRequestException ex)
         {
             foreach (var record in ready.Select(x => x.Record))
-                ScheduleRetry(record, ex.Message, now);
+                store.ScheduleRetry(record, ex.Message, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             _lastError = ex.Message;
             _logger.LogWarning(ex, "HTTP error forwarding {Count} power record(s)", ready.Count);
         }
@@ -164,7 +156,7 @@ public sealed class PowerApiForwarder : BackgroundService
         {
             const string error = "Request timed out";
             foreach (var record in ready.Select(x => x.Record))
-                ScheduleRetry(record, error, now);
+                store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             _lastError = error;
             _logger.LogWarning("Power API request timed out for {Count} record(s)", ready.Count);
         }
@@ -172,41 +164,38 @@ public sealed class PowerApiForwarder : BackgroundService
         {
             const string error = "Power API response JSON was invalid";
             foreach (var record in ready.Select(x => x.Record))
-                ScheduleRetry(record, error, now);
+                store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             _lastError = error;
             _logger.LogWarning(ex, "Invalid JSON response while forwarding {Count} power record(s)", ready.Count);
         }
 
-        await db.SaveChangesAsync(ct);
-        _pendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
-        _failedCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
+        await store.SaveChangesAsync(ct);
+        _pendingCount = await store.CountPendingAsync(PowerOutboxPayloadTypes.PowerReading, ct);
+        _failedCount = await store.CountFailedAsync(PowerOutboxPayloadTypes.PowerReading, ct);
     }
 
     private async Task CompactAsync(CancellationToken ct)
     {
-        var cutoff = DateTime.UtcNow.AddDays(-_options.SentRetentionDays);
         await using var serviceScope = _scopeFactory.CreateAsyncScope();
-        var db = serviceScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-        var deleted = await db.OutboxRecords
-            .Where(r => r.Status == OutboxStatus.Sent && r.SentAtUtc.HasValue && r.SentAtUtc.Value < cutoff)
-            .ExecuteDeleteAsync(ct);
+        var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
+        var deleted = await store.CompactSentAsync(TimeSpan.FromDays(_options.SentRetentionDays), ct);
 
         if (deleted > 0)
             _logger.LogInformation("Power outbox compaction deleted {Count} sent record(s)", deleted);
     }
 
-    private bool TryReadPayload(OutboxRecord record, out PowerReadingPayload payload)
+    private bool TryReadPayload(EdgeOutboxRecord record, out PowerReadingPayload payload)
     {
         try
         {
-            payload = JsonSerializer.Deserialize<PowerReadingPayload>(record.Payload, JsonOptions)
+            payload = JsonSerializer.Deserialize<PowerReadingPayload>(record.PayloadJson, JsonOptions)
                 ?? throw new JsonException("Payload deserialized to null.");
             return true;
         }
         catch (JsonException ex)
         {
             const string error = "Outbox payload JSON is invalid.";
-            record.Status = OutboxStatus.Failed;
+            record.Status = EdgeOutboxStatus.Failed;
             record.LastError = error;
             _lastError = error;
             _logger.LogError(ex, "Power outbox record {Id} has invalid JSON and was not forwarded", record.Id);
@@ -215,7 +204,7 @@ public sealed class PowerApiForwarder : BackgroundService
         }
     }
 
-    private void MarkBatchResult(IEnumerable<OutboxRecord> records, PowerBatchResponse? response, DateTime sentAt)
+    private void MarkBatchResult(IEnumerable<EdgeOutboxRecord> records, PowerBatchResponse? response, DateTime sentAt)
     {
         var failures = response?.Failed ?? [];
         var sentCount = 0;
@@ -228,7 +217,7 @@ public sealed class PowerApiForwarder : BackgroundService
                 f.RecordedAtUtc == record.RecordedAtUtc);
             if (failure is not null)
             {
-                record.Status = OutboxStatus.Failed;
+                record.Status = EdgeOutboxStatus.Failed;
                 record.LastError = failure.Error;
                 lastFailureError = failure.Error;
                 _logger.LogWarning(
@@ -238,7 +227,7 @@ public sealed class PowerApiForwarder : BackgroundService
                 continue;
             }
 
-            record.Status = OutboxStatus.Sent;
+            record.Status = EdgeOutboxStatus.Sent;
             record.SentAtUtc = sentAt;
             record.LastError = null;
             sentCount++;
@@ -248,20 +237,6 @@ public sealed class PowerApiForwarder : BackgroundService
         _lastError = lastFailureError;
         Volatile.Write(ref _lastSentAtTicks, sentAt.Ticks);
         _logger.LogInformation("Forwarded {Count} power record(s)", sentCount);
-    }
-
-    private void ScheduleRetry(OutboxRecord record, string error, DateTime now)
-    {
-        record.LastError = error;
-        if (record.AttemptCount >= _options.MaxRetryAttempts)
-        {
-            record.Status = OutboxStatus.Failed;
-            _logger.LogError("Power outbox record {Id} permanently failed after {Attempts} attempts", record.Id, record.AttemptCount);
-            return;
-        }
-
-        var backoff = Math.Min((int)Math.Pow(2, record.AttemptCount), _options.MaxBackoffSeconds);
-        record.NextRetryAtUtc = now.AddSeconds(backoff);
     }
 
     private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
