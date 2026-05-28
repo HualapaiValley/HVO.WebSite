@@ -1102,7 +1102,7 @@
           "Azure.Extensions.AspNetCore.DataProtection.Keys": "[1.6.3, )",
           "Azure.Identity": "[1.21.0, )",
           "Azure.Monitor.OpenTelemetry.AspNetCore": "[1.4.0, )",
-          "Azure.Security.KeyVault.Secrets": "[4.10.0, )",
+          "Azure.Security.KeyVault.Secrets": "[4.11.0, )",
           "HVO.Core": "[1.1.1, )",
           "HVO.DataModels": "[1.0.0, )",
           "HVO.Edge.Contracts": "[1.0.0, )",
@@ -1188,11 +1188,11 @@
       },
       "Azure.Security.KeyVault.Secrets": {
         "type": "CentralTransitive",
-        "requested": "[4.10.0, )",
-        "resolved": "4.10.0",
-        "contentHash": "lcJtcgTkk1gGy59RQhGLJLMyad+zgASMn975PVjMft69q+jjFTo6Nyq5SCtOhPY1WvA0gNI1qYIVN2oikVXDjw==",
+        "requested": "[4.11.0, )",
+        "resolved": "4.11.0",
+        "contentHash": "tjpVczILiXTR9bEynSL1JBU80169hGnTECtGsFjnRz9E1xoIhfUsaUTnB79k995zDkOG61hOI+YBtf5bNqgRIQ==",
         "dependencies": {
-          "Azure.Core": "1.53.0"
+          "Azure.Core": "1.54.0"
         }
       },
       "HVO.Astronomy": {
