@@ -80,6 +80,33 @@ public sealed class SolarAssistantMqttInventoryStoreTests
     }
 
     [TestMethod]
+    public void MapInventoryAndConfiguration_CapturesMqttDeviceAndCommandCapabilities()
+    {
+        var store = new SolarAssistantMqttInventoryStore();
+        store.Apply(new SolarAssistantMqttMessage
+        {
+            Topic = "homeassistant/select/inverter_1_output_source_priority/config",
+            Payload = """
+            {
+              "name":"Output source priority",
+              "stat_t":"solar_assistant/inverter_1/output_source_priority/state",
+              "cmd_t":"solar_assistant/inverter_1/output_source_priority/set",
+              "dev":{"name":"EG4 6500EX","mf":"EG4","mdl":"6500EX","sw":"2026.1"}
+            }
+            """,
+            ReceivedAtUtc = DateTime.UtcNow,
+        });
+
+        var inventory = SolarAssistantInventoryConfigurationMapper.MapDeviceInventory([], store.Snapshot, DateTime.UtcNow);
+        var configuration = SolarAssistantInventoryConfigurationMapper.MapConfiguration([], store.Snapshot, DateTime.UtcNow);
+
+        inventory.Devices.Single().Name.Should().Be("EG4 6500EX");
+        inventory.Devices.Single().Manufacturer.Should().Be("EG4");
+        configuration.CommandCapabilities.Single().CommandTopic.Should().Be("solar_assistant/inverter_1/output_source_priority/set");
+        configuration.Settings.Should().Contain(s => s.Key == "inverter_1.output_source_priority");
+    }
+
+    [TestMethod]
     public void Apply_RemovesHomeAssistantDiscoveryEntity_WhenEmptyRetainedConfigArrives()
     {
         var store = new SolarAssistantMqttInventoryStore();

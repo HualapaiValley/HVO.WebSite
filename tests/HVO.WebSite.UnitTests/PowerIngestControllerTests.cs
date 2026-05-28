@@ -311,13 +311,78 @@ public sealed class PowerIngestControllerTests
         body.Battery!.BankCount!.Value.Should().Be(2);
     }
 
+    [TestMethod]
+    public async Task IngestDeviceInventory_PersistsAndLatestHandlesMissingAndStaleStates()
+    {
+        var missing = await _ctrl.GetLatestDeviceInventory("missing-source", staleAfterMinutes: 1, CancellationToken.None);
+        ((OkObjectResult)missing.Result!).Value.Should().BeEquivalentTo(new { IsPresent = false, IsStale = true, SourceId = "missing-source" });
+
+        var payload = new PowerDeviceInventoryPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = DateTime.UtcNow.AddMinutes(-10),
+            RestMetricCount = 124,
+            MqttEntityCount = 48,
+            MqttStateTopicCount = 42,
+            Devices = [new PowerDeviceInventoryDevice { DeviceId = "eg4-6500ex", Name = "EG4 6500EX", Manufacturer = "EG4", Model = "6500EX", FirmwareVersion = "2026.1" }],
+        };
+
+        var ingest = await _ctrl.IngestDeviceInventory(payload, CancellationToken.None);
+        var duplicate = await _ctrl.IngestDeviceInventory(new PowerDeviceInventoryPayload
+        {
+            SourceId = payload.SourceId,
+            SourceSystem = payload.SourceSystem,
+            DeviceId = payload.DeviceId,
+            RecordedAtUtc = DateTime.UtcNow,
+            RestMetricCount = payload.RestMetricCount,
+            MqttEntityCount = payload.MqttEntityCount,
+            MqttStateTopicCount = payload.MqttStateTopicCount,
+            Devices = payload.Devices,
+        }, CancellationToken.None);
+        var latest = await _ctrl.GetLatestDeviceInventory("solarassistant-total", staleAfterMinutes: 1, CancellationToken.None);
+
+        ((CreatedAtActionResult)ingest.Result!).Value.Should().BeEquivalentTo(new { Inserted = true, Skipped = false });
+        ((CreatedAtActionResult)duplicate.Result!).Value.Should().BeEquivalentTo(new { Inserted = false, Skipped = true });
+        var body = ((OkObjectResult)latest.Result!).Value.Should().BeOfType<PowerDeviceInventorySnapshotResponse>().Subject;
+        body.IsPresent.Should().BeTrue();
+        body.IsStale.Should().BeTrue();
+        body.Devices.Single().Model.Should().Be("6500EX");
+    }
+
+    [TestMethod]
+    public async Task IngestConfiguration_PersistsReadOnlySettingsAndCommandInventory()
+    {
+        var payload = new PowerConfigurationPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = DateTime.UtcNow,
+            Settings = [new PowerConfigurationSetting { Key = "inverter_1.output_source_priority", Name = "Output source priority", Value = "Solar/Battery" }],
+            CommandCapabilities = [new PowerCommandCapability { Key = "inverter_1.output_source_priority", Name = "Output source priority", CommandTopic = "solar_assistant/inverter_1/output_source_priority/set" }],
+        };
+
+        var ingest = await _ctrl.IngestConfiguration(payload, CancellationToken.None);
+        var latest = await _ctrl.GetLatestConfiguration("solarassistant-total", staleAfterMinutes: 1440, CancellationToken.None);
+
+        ((CreatedAtActionResult)ingest.Result!).Value.Should().BeEquivalentTo(new { Inserted = true, Skipped = false });
+        var body = ((OkObjectResult)latest.Result!).Value.Should().BeOfType<PowerConfigurationSnapshotResponse>().Subject;
+        body.IsPresent.Should().BeTrue();
+        body.IsStale.Should().BeFalse();
+        body.Settings.Single().Name.Should().Be("Output source priority");
+        body.CommandCapabilities.Single().CommandTopic.Should().EndWith("/set");
+    }
+
     private static PowerIngestController CreateController(HvoV9DbContext db, PowerIngestTelemetry telemetry)
     {
         var ctrl = new PowerIngestController(
             db,
             telemetry,
             NullLogger<PowerIngestController>.Instance,
-            new PowerSystemSnapshotProvider(db));
+            new PowerSystemSnapshotProvider(db),
+            new PowerInventoryConfigurationProvider(db));
         ctrl.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

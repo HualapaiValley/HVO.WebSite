@@ -4,6 +4,7 @@ using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
+using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 using HVO.Gateway.SolarAssistant.Workers;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -30,6 +31,8 @@ public sealed class SolarAssistantSnapshotWorkerTests
         services.AddDbContext<OutboxDbContext>(o => o.UseSqlite(_conn));
         services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
         services.AddScoped<PowerOutboxWriter>();
+        services.AddScoped<PowerInventoryConfigurationWriter>();
+        services.AddSingleton<SolarAssistantMqttInventoryStore>();
         services.AddSingleton<IOptions<SolarAssistantOptions>>(Options.Create(new SolarAssistantOptions
         {
             Host = "solarassistant.local",

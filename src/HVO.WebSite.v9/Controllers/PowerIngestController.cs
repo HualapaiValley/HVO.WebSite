@@ -1,5 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Asp.Versioning;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
@@ -23,21 +26,26 @@ namespace HVO.WebSite.v9.Controllers;
 [Tags("Power")]
 public class PowerIngestController : ControllerBase
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly HvoV9DbContext _db;
     private readonly PowerIngestTelemetry _telemetry;
     private readonly ILogger<PowerIngestController> _logger;
     private readonly IPowerSystemSnapshotProvider _snapshotProvider;
+    private readonly IPowerInventoryConfigurationProvider _inventoryConfigurationProvider;
 
     public PowerIngestController(
         HvoV9DbContext db,
         PowerIngestTelemetry telemetry,
         ILogger<PowerIngestController> logger,
-        IPowerSystemSnapshotProvider snapshotProvider)
+        IPowerSystemSnapshotProvider snapshotProvider,
+        IPowerInventoryConfigurationProvider inventoryConfigurationProvider)
     {
         _db = db;
         _telemetry = telemetry;
         _logger = logger;
         _snapshotProvider = snapshotProvider;
+        _inventoryConfigurationProvider = inventoryConfigurationProvider;
     }
 
     /// <summary>
@@ -195,6 +203,107 @@ public class PowerIngestController : ControllerBase
             new PowerReadingBatchResponse { Inserted = toInsert.Count, Skipped = skipped, Failed = failures });
     }
 
+    [HttpPost("device-inventory")]
+    [Authorize(Policy = "PowerIngest")]
+    [ProducesResponseType(typeof(PowerSnapshotIngestResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerSnapshotIngestResponse>> IngestDeviceInventory(
+        [FromBody] PowerDeviceInventoryPayload request,
+        CancellationToken ct)
+    {
+        var sourceId = NormalizeSourceId(request.SourceId);
+        var recordedAt = NormalizeRecordedAt(request.RecordedAtUtc);
+        var validationResults = ValidateCommonSnapshot(sourceId, request.SourceSystem, request.DeviceId, recordedAt);
+        if (validationResults.Count > 0)
+            return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+
+        var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
+        var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
+        if (await _db.PowerDeviceInventorySnapshots.AnyAsync(
+            r => r.SourceId == sourceId && (r.RecordedAt == recordedAt || r.PayloadHash == payloadHash), ct))
+        {
+            return CreatedAtAction(nameof(GetLatestDeviceInventory), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        _db.PowerDeviceInventorySnapshots.Add(new PowerDeviceInventorySnapshot
+        {
+            SourceId = sourceId,
+            SourceSystem = NormalizeSourceSystem(request.SourceSystem),
+            DeviceId = NormalizeOptional(request.DeviceId),
+            RecordedAt = recordedAt,
+            RestMetricCount = request.RestMetricCount,
+            MqttEntityCount = request.MqttEntityCount,
+            MqttStateTopicCount = request.MqttStateTopicCount,
+            PayloadJson = payloadJson,
+            PayloadHash = payloadHash,
+            CreatedAt = DateTime.UtcNow,
+        });
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            return CreatedAtAction(nameof(GetLatestDeviceInventory), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        return CreatedAtAction(nameof(GetLatestDeviceInventory), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
+    }
+
+    [HttpPost("configuration")]
+    [Authorize(Policy = "PowerIngest")]
+    [ProducesResponseType(typeof(PowerSnapshotIngestResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerSnapshotIngestResponse>> IngestConfiguration(
+        [FromBody] PowerConfigurationPayload request,
+        CancellationToken ct)
+    {
+        var sourceId = NormalizeSourceId(request.SourceId);
+        var recordedAt = NormalizeRecordedAt(request.RecordedAtUtc);
+        var validationResults = ValidateCommonSnapshot(sourceId, request.SourceSystem, request.DeviceId, recordedAt);
+        if (validationResults.Count > 0)
+            return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+
+        var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
+        var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
+        if (await _db.PowerConfigurationSnapshots.AnyAsync(
+            r => r.SourceId == sourceId && (r.RecordedAt == recordedAt || r.PayloadHash == payloadHash), ct))
+        {
+            return CreatedAtAction(nameof(GetLatestConfiguration), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        _db.PowerConfigurationSnapshots.Add(new PowerConfigurationSnapshot
+        {
+            SourceId = sourceId,
+            SourceSystem = NormalizeSourceSystem(request.SourceSystem),
+            DeviceId = NormalizeOptional(request.DeviceId),
+            RecordedAt = recordedAt,
+            SettingCount = request.Settings.Count,
+            CommandCapabilityCount = request.CommandCapabilities.Count,
+            PayloadJson = payloadJson,
+            PayloadHash = payloadHash,
+            CreatedAt = DateTime.UtcNow,
+        });
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            return CreatedAtAction(nameof(GetLatestConfiguration), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        return CreatedAtAction(nameof(GetLatestConfiguration), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
+    }
+
     /// <summary>Returns recent normalized power readings.</summary>
     [HttpGet("readings/recent")]
     [Authorize(Policy = "PowerRead")]
@@ -244,6 +353,36 @@ public class PowerIngestController : ControllerBase
             })
             .ToListAsync(ct);
         return Ok(rows);
+    }
+
+    [HttpGet("device-inventory/latest")]
+    [Authorize(Policy = "PowerRead")]
+    [ProducesResponseType(typeof(PowerDeviceInventorySnapshotResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerDeviceInventorySnapshotResponse>> GetLatestDeviceInventory(
+        [FromQuery] string sourceId = "solarassistant-total",
+        [FromQuery][Range(1, 10080)] int staleAfterMinutes = 1440,
+        CancellationToken ct = default)
+    {
+        var snapshots = await _inventoryConfigurationProvider.GetLatestAsync(sourceId, staleAfterMinutes, ct);
+        return Ok(snapshots.Inventory);
+    }
+
+    [HttpGet("configuration/latest")]
+    [Authorize(Policy = "PowerRead")]
+    [ProducesResponseType(typeof(PowerConfigurationSnapshotResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerConfigurationSnapshotResponse>> GetLatestConfiguration(
+        [FromQuery] string sourceId = "solarassistant-total",
+        [FromQuery][Range(1, 10080)] int staleAfterMinutes = 1440,
+        CancellationToken ct = default)
+    {
+        var snapshots = await _inventoryConfigurationProvider.GetLatestAsync(sourceId, staleAfterMinutes, ct);
+        return Ok(snapshots.Configuration);
     }
 
     /// <summary>Returns the latest composed power-system snapshot from recent source readings.</summary>
@@ -334,4 +473,52 @@ public class PowerIngestController : ControllerBase
     private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
         ex.InnerException is SqlException sqlEx &&
         (sqlEx.Number == 2601 || sqlEx.Number == 2627);
+
+    private static IReadOnlyList<ValidationResult> ValidateCommonSnapshot(
+        string sourceId,
+        string? sourceSystem,
+        string? deviceId,
+        DateTime recordedAt)
+    {
+        var validationResults = new List<ValidationResult>();
+        if (sourceId.Length == 0)
+            validationResults.Add(new ValidationResult("The SourceId field is required.", ["SourceId"]));
+        ValidateMaxLength(validationResults, "SourceId", sourceId, 64);
+        ValidateMaxLength(validationResults, "SourceSystem", sourceSystem, 64);
+        ValidateMaxLength(validationResults, "DeviceId", deviceId, 64);
+        ValidateRequiredTimestamp(validationResults, "RecordedAtUtc", recordedAt);
+        return validationResults;
+    }
+
+    private static Dictionary<string, string[]> ToValidationDictionary(IEnumerable<ValidationResult> validationResults) =>
+        validationResults
+            .SelectMany(r => r.MemberNames.DefaultIfEmpty(string.Empty), (r, memberName) => new { MemberName = memberName, r.ErrorMessage })
+            .GroupBy(x => x.MemberName)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.ErrorMessage ?? "Validation failed.").ToArray());
+
+    private static string ComputeHash(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string RemoveRecordedAt(string payloadJson)
+    {
+        using var document = JsonDocument.Parse(payloadJson);
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (string.Equals(property.Name, "recordedAtUtc", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                property.WriteTo(writer);
+            }
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
 }

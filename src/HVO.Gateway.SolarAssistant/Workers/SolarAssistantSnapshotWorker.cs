@@ -3,6 +3,7 @@ using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
+using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -22,12 +23,21 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
 
     private volatile string? _lastError;
     private volatile SolarAssistantMetricInventory? _lastInventory;
+    private long _lastInventoryConfigQueuedAtTicks;
     private volatile PowerReadingPayload? _lastSnapshot;
     private long _lastSnapshotAtTicks;
     private volatile int _lastMetricCount;
 
     public string? LastError => _lastError;
     public SolarAssistantMetricInventory? LastInventory => _lastInventory;
+    public DateTime? LastInventoryConfigQueuedAtUtc
+    {
+        get
+        {
+            var ticks = Volatile.Read(ref _lastInventoryConfigQueuedAtTicks);
+            return ticks == 0 ? null : new DateTime(ticks, DateTimeKind.Utc);
+        }
+    }
     public PowerReadingPayload? LastSnapshot => _lastSnapshot;
     public IReadOnlyList<PowerSnapshotHistoryPoint> History
     {
@@ -114,6 +124,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         await using var scope = _scopeFactory.CreateAsyncScope();
         var writer = scope.ServiceProvider.GetRequiredService<PowerOutboxWriter>();
         var inserted = await writer.EnqueueAsync(payload, ct);
+        await TryEnqueueInventoryConfigurationAsync(scope.ServiceProvider, metrics, recordedAt, ct);
 
         Volatile.Write(ref _lastSnapshotAtTicks, recordedAt.Ticks);
         _lastSnapshot = payload;
@@ -129,6 +140,33 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         }
 
         return inserted;
+    }
+
+    private async Task TryEnqueueInventoryConfigurationAsync(
+        IServiceProvider serviceProvider,
+        IReadOnlyList<SolarAssistantMetric> metrics,
+        DateTime recordedAt,
+        CancellationToken ct)
+    {
+        var mqttInventory = serviceProvider.GetRequiredService<SolarAssistantMqttInventoryStore>().Snapshot;
+        var inventory = SolarAssistantInventoryConfigurationMapper.MapDeviceInventory(metrics, mqttInventory, recordedAt);
+        var configuration = SolarAssistantInventoryConfigurationMapper.MapConfiguration(metrics, mqttInventory, recordedAt);
+        if (inventory.Devices.Count == 0 && configuration.Settings.Count == 0 && configuration.CommandCapabilities.Count == 0)
+            return;
+
+        var writer = serviceProvider.GetRequiredService<PowerInventoryConfigurationWriter>();
+        var inventoryInserted = await writer.EnqueueDeviceInventoryAsync(inventory, ct);
+        var configurationInserted = await writer.EnqueueConfigurationAsync(configuration, ct);
+        if (inventoryInserted || configurationInserted)
+        {
+            Volatile.Write(ref _lastInventoryConfigQueuedAtTicks, recordedAt.Ticks);
+            _logger.LogInformation(
+                "Queued SolarAssistant inventory/config snapshot at {RecordedAt:O}: {DeviceCount} device(s), {SettingCount} setting(s), {CapabilityCount} command capabilit(ies)",
+                recordedAt,
+                inventory.Devices.Count,
+                configuration.Settings.Count,
+                configuration.CommandCapabilities.Count);
+        }
     }
 
     private async Task<bool> TryHydrateLatestSnapshotAsync(CancellationToken ct)

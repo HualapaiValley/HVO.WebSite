@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9;
 using HVO.WebSite.v9.Middleware;
 using HVO.WebSite.v9.Models;
@@ -201,6 +202,50 @@ public sealed class PowerApiEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<List<PowerReadingResponse>>();
         body.Should().NotBeNull();
+    }
+
+    [TestMethod]
+    public async Task InventoryAndConfigurationEndpoints_RequireScopesAndReturnLatestSnapshots()
+    {
+        var sourceId = $"solarassistant-{Guid.NewGuid():N}";
+        _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+
+        var inventoryResponse = await _client.PostAsJsonAsync("/api/v1/power/device-inventory", new PowerDeviceInventoryPayload
+        {
+            SourceId = sourceId,
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = DateTime.UtcNow,
+            RestMetricCount = 124,
+            MqttEntityCount = 48,
+            MqttStateTopicCount = 42,
+            Devices = [new PowerDeviceInventoryDevice { DeviceId = "eg4-6500ex", Name = "EG4 6500EX", Model = "6500EX" }],
+        });
+        var configurationResponse = await _client.PostAsJsonAsync("/api/v1/power/configuration", new PowerConfigurationPayload
+        {
+            SourceId = sourceId,
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = DateTime.UtcNow,
+            Settings = [new PowerConfigurationSetting { Key = "inverter_1.output_source_priority", Name = "Output source priority", Value = "Solar/Battery" }],
+            CommandCapabilities = [new PowerCommandCapability { Key = "inverter_1.output_source_priority", Name = "Output source priority", CommandTopic = "solar_assistant/inverter_1/output_source_priority/set" }],
+        });
+
+        inventoryResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        configurationResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        _client.DefaultRequestHeaders.Remove("X-Api-Key");
+        _client.DefaultRequestHeaders.Add("X-Api-Key", ReadPlaintext);
+        var latestInventoryResponse = await _client.GetAsync($"/api/v1/power/device-inventory/latest?sourceId={sourceId}");
+        var latestConfigurationResponse = await _client.GetAsync($"/api/v1/power/configuration/latest?sourceId={sourceId}");
+
+        latestInventoryResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var latestInventory = await latestInventoryResponse.Content.ReadFromJsonAsync<PowerDeviceInventorySnapshotResponse>();
+        latestInventory!.Devices.Single().Model.Should().Be("6500EX");
+
+        latestConfigurationResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var latestConfiguration = await latestConfigurationResponse.Content.ReadFromJsonAsync<PowerConfigurationSnapshotResponse>();
+        latestConfiguration!.CommandCapabilities.Single().CommandTopic.Should().EndWith("/set");
     }
 
     private static PowerReadingIngestRequest ValidPayload(

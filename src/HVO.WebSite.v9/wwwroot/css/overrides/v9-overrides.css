@@ -152,3 +152,36 @@
     font-weight: 700;
     margin: 0;
 }
+
+.power-inventory {
+    background: rgba(15, 23, 42, 0.34);
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    border-radius: 1rem;
+    margin-top: 1.25rem;
+    padding: 0.85rem;
+}
+
+.power-inventory dl {
+    display: grid;
+    gap: 0.65rem;
+    margin: 0;
+}
+
+.power-inventory dt {
+    color: rgba(248, 251, 255, 0.62);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.power-inventory dd,
+.power-inventory p {
+    color: #f8fbff;
+    margin: 0;
+}
+
+.power-inventory p {
+    color: rgba(248, 251, 255, 0.78);
+    margin-top: 0.65rem;
+}

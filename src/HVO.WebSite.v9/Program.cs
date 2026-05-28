@@ -149,6 +149,7 @@ namespace HVO.WebSite.v9
             // API key cache — short-lived to avoid DB hit on every request
             services.AddMemoryCache();
             services.AddScoped<IPowerSystemSnapshotProvider, PowerSystemSnapshotProvider>();
+            services.AddScoped<IPowerInventoryConfigurationProvider, PowerInventoryConfigurationProvider>();
 
             // Add MVC controllers (includes Microsoft Identity UI controllers for sign-in/sign-out)
             services.AddControllersWithViews()
