@@ -247,3 +247,111 @@ public sealed record PowerInventoryConfigurationViewModel(
             Settings: configuration.Settings.Select(s => s.Name).Where(s => !string.IsNullOrWhiteSpace(s)).Take(5).ToArray());
     }
 }
+
+public sealed record PowerSolarAssistantDetailViewModel(
+    string State,
+    string EnergySummary,
+    string EnergyResetState,
+    string PvStringSummary,
+    string InverterLoadSummary,
+    string InverterBatterySummary,
+    string TemperatureSummary,
+    string StatusSummary,
+    IReadOnlyList<string> EnergyCounters,
+    IReadOnlyList<PowerPvStringViewModel> PvStrings,
+    IReadOnlyList<string> Statuses,
+    string? GatewayUrl)
+{
+    public static PowerSolarAssistantDetailViewModel Empty { get; } = new(
+        State: "Missing",
+        EnergySummary: "No energy counters received",
+        EnergyResetState: "No counter reset evidence",
+        PvStringSummary: "No PV string detail received",
+        InverterLoadSummary: "No inverter load detail received",
+        InverterBatterySummary: "No inverter battery detail received",
+        TemperatureSummary: "No temperature detail received",
+        StatusSummary: "No inverter statuses received",
+        EnergyCounters: [],
+        PvStrings: [],
+        Statuses: [],
+        GatewayUrl: null);
+
+    public static PowerSolarAssistantDetailViewModel FromSnapshots(
+        PowerEnergySnapshotResponse energy,
+        PowerInverterDetailSnapshotResponse inverterDetail,
+        string? gatewayUrl)
+    {
+        var state = (energy.IsPresent, energy.IsStale, inverterDetail.IsPresent, inverterDetail.IsStale) switch
+        {
+            (true, false, true, false) => "Current",
+            (false, _, false, _) => "Missing",
+            (_, true, _, _) or (_, _, _, true) => "Stale",
+            _ => "Partial",
+        };
+
+        var counters = energy.Counters
+            .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(c => $"{c.Name} {FormatKwh(c.ValueKwh)}")
+            .Take(6)
+            .ToArray();
+        var pvStrings = inverterDetail.PvStrings
+            .OrderBy(s => s.StringId, StringComparer.OrdinalIgnoreCase)
+            .Select(s => new PowerPvStringViewModel(
+                StringId: s.StringId,
+                Power: FormatWatts(s.PowerW),
+                Voltage: FormatVolts(s.VoltageV),
+                Current: FormatAmps(s.CurrentA)))
+            .ToArray();
+        var statuses = inverterDetail.Statuses
+            .OrderBy(s => s.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(s => $"{s.Key}: {s.Value}")
+            .Take(4)
+            .ToArray();
+
+        return new PowerSolarAssistantDetailViewModel(
+            State: state,
+            EnergySummary: energy.IsPresent
+                ? $"{energy.Counters.Count} energy counter(s)"
+                : "No energy counters received",
+            EnergyResetState: energy.CounterResetDetected ? "Counter reset detected" : "No counter reset evidence",
+            PvStringSummary: inverterDetail.IsPresent
+                ? $"{inverterDetail.PvStrings.Count} PV string(s)"
+                : "No PV string detail received",
+            InverterLoadSummary: inverterDetail.Load is null
+                ? "No inverter load detail received"
+                : $"Load {FormatWatts(inverterDetail.Load.LoadPowerW)}, apparent {FormatVa(inverterDetail.Load.LoadApparentPowerVa)}",
+            InverterBatterySummary: inverterDetail.Battery is null
+                ? "No inverter battery detail received"
+                : $"Battery {FormatSignedWatts(inverterDetail.Battery.PowerW)}, {FormatVolts(inverterDetail.Battery.VoltageV)}",
+            TemperatureSummary: inverterDetail.TemperatureC.HasValue
+                ? $"{inverterDetail.TemperatureC.Value:0} C"
+                : "No temperature detail received",
+            StatusSummary: inverterDetail.IsPresent
+                ? $"{inverterDetail.Statuses.Count} status value(s)"
+                : "No inverter statuses received",
+            EnergyCounters: counters,
+            PvStrings: pvStrings,
+            Statuses: statuses,
+            GatewayUrl: NormalizeUrl(gatewayUrl));
+    }
+
+    private static string FormatKwh(double? value) => value.HasValue ? $"{value.Value:0.##} kWh" : "--";
+
+    private static string FormatWatts(double? value) => value.HasValue ? $"{value.Value:0} W" : "--";
+
+    private static string FormatSignedWatts(double? value) => value.HasValue ? $"{value.Value:+0;-0;0} W" : "--";
+
+    private static string FormatVa(double? value) => value.HasValue ? $"{value.Value:0} VA" : "--";
+
+    private static string FormatVolts(double? value) => value.HasValue ? $"{value.Value:0.0} V" : "--";
+
+    private static string FormatAmps(double? value) => value.HasValue ? $"{value.Value:0.0} A" : "--";
+
+    private static string? NormalizeUrl(string? url) => string.IsNullOrWhiteSpace(url) ? null : url.Trim();
+}
+
+public sealed record PowerPvStringViewModel(
+    string StringId,
+    string Power,
+    string Voltage,
+    string Current);

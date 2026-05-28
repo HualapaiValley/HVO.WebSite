@@ -79,4 +79,46 @@
             <p>Settings: @string.Join(", ", _inventoryConfiguration.Settings)</p>
         }
     </section>
+
+    <section class="power-inventory power-solarassistant-detail" aria-labelledby="power-solarassistant-detail-heading">
+        <div class="power-bank__header">
+            <h3 id="power-solarassistant-detail-heading">SolarAssistant Detail</h3>
+            <span>@_solarAssistantDetail.State</span>
+        </div>
+        <dl>
+            <div><dt>Energy</dt><dd>@_solarAssistantDetail.EnergySummary</dd></div>
+            <div><dt>Counter health</dt><dd>@_solarAssistantDetail.EnergyResetState</dd></div>
+            <div><dt>PV strings</dt><dd>@_solarAssistantDetail.PvStringSummary</dd></div>
+            <div><dt>Inverter load</dt><dd>@_solarAssistantDetail.InverterLoadSummary</dd></div>
+            <div><dt>Inverter battery</dt><dd>@_solarAssistantDetail.InverterBatterySummary</dd></div>
+            <div><dt>Temperature</dt><dd>@_solarAssistantDetail.TemperatureSummary</dd></div>
+            <div><dt>Status values</dt><dd>@_solarAssistantDetail.StatusSummary</dd></div>
+        </dl>
+        @if (_solarAssistantDetail.EnergyCounters.Count > 0)
+        {
+            <p>Energy counters: @string.Join(", ", _solarAssistantDetail.EnergyCounters)</p>
+        }
+        @if (_solarAssistantDetail.PvStrings.Count > 0)
+        {
+            <div class="power-pv-string-grid" aria-label="SolarAssistant PV string diagnostics">
+                @foreach (var pvString in _solarAssistantDetail.PvStrings)
+                {
+                    <article>
+                        <strong>String @pvString.StringId</strong>
+                        <span>@pvString.Power</span>
+                        <span>@pvString.Voltage</span>
+                        <span>@pvString.Current</span>
+                    </article>
+                }
+            </div>
+        }
+        @if (_solarAssistantDetail.Statuses.Count > 0)
+        {
+            <p>Status: @string.Join(", ", _solarAssistantDetail.Statuses)</p>
+        }
+        @if (!string.IsNullOrWhiteSpace(_solarAssistantDetail.GatewayUrl))
+        {
+            <p><a href="@_solarAssistantDetail.GatewayUrl" target="_blank" rel="noopener noreferrer">Open local SolarAssistant gateway diagnostics</a></p>
+        }
+    </section>
 </section>

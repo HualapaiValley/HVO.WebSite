@@ -4,6 +4,7 @@ using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Components.Pages;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HVO.WebSite.UnitTests;
@@ -42,6 +43,25 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
                         DeltaCellVoltageV: Value(0.003d, PowerMetricSource.JkBms, observedAt),
                         HasAlarms: Value(false, PowerMetricSource.JkBms, observedAt)),
                  ])));
+        var energy = new PowerEnergySnapshotResponse
+        {
+            SourceId = "solarassistant-total",
+            IsPresent = true,
+            IsStale = false,
+            Counters = [new PowerEnergyCounter { Key = "pv_energy", Name = "PV energy", ValueKwh = 123.45 }],
+        };
+        var inverterDetail = new PowerInverterDetailSnapshotResponse
+        {
+            SourceId = "solarassistant-total",
+            DeviceId = "inverter_1",
+            IsPresent = true,
+            IsStale = false,
+            PvStrings = [new PowerPvStringDetail { StringId = "1", PowerW = 612, VoltageV = 120.4, CurrentA = 5.1 }],
+            Load = new PowerInverterLoadDetail { LoadPowerW = 474, LoadApparentPowerVa = 700 },
+            Battery = new PowerInverterBatteryDetail { PowerW = -240, VoltageV = 53.1 },
+            TemperatureC = 44,
+            Statuses = [new PowerInverterStatusDetail { Key = "inverter_1.status_1", Value = "normal" }],
+        };
         Services.AddSingleton<IPowerInventoryConfigurationProvider>(new StubPowerInventoryConfigurationProvider(
             new PowerDeviceInventorySnapshotResponse
             {
@@ -59,7 +79,15 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
                 IsStale = false,
                 Settings = [new PowerConfigurationSetting { Key = "inverter_1.output_source_priority", Name = "Output source priority" }],
                 CommandCapabilities = [new PowerCommandCapability { Key = "inverter_1.output_source_priority", Name = "Output source priority", CommandTopic = "solar_assistant/inverter_1/output_source_priority/set" }],
-            }));
+            },
+            energy,
+            inverterDetail));
+        Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["PowerStatus:SolarAssistantGatewayUrl"] = "http://192.168.1.145:5300/",
+            })
+            .Build());
 
         var component = RenderComponent<PowerStatusCard>();
 
@@ -81,6 +109,13 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
         component.Markup.Should().Contain("Current");
         component.Markup.Should().Contain("EG4 6500EX 6500EX");
         component.Markup.Should().Contain("writes disabled");
+        component.Markup.Should().Contain("SolarAssistant Detail");
+        component.Markup.Should().Contain("1 energy counter(s)");
+        component.Markup.Should().Contain("PV energy 123.45 kWh");
+        component.Markup.Should().Contain("String 1");
+        component.Markup.Should().Contain("612 W");
+        component.Markup.Should().Contain("44 C");
+        component.Markup.Should().Contain("Open local SolarAssistant gateway diagnostics");
     }
 
     private static SourcedValue<T> Value<T>(T value, PowerMetricSource source, DateTime recordedAt)
@@ -94,11 +129,26 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
 
     private sealed class StubPowerInventoryConfigurationProvider(
         PowerDeviceInventorySnapshotResponse inventory,
-        PowerConfigurationSnapshotResponse configuration) : IPowerInventoryConfigurationProvider
+        PowerConfigurationSnapshotResponse configuration,
+        PowerEnergySnapshotResponse? energy = null,
+        PowerInverterDetailSnapshotResponse? inverterDetail = null) : IPowerInventoryConfigurationProvider
     {
         public Task<(PowerDeviceInventorySnapshotResponse Inventory, PowerConfigurationSnapshotResponse Configuration)> GetLatestAsync(
             string sourceId = "solarassistant-total",
             int staleAfterMinutes = 1440,
             CancellationToken ct = default) => Task.FromResult((inventory, configuration));
+
+        public Task<(
+            PowerDeviceInventorySnapshotResponse Inventory,
+            PowerConfigurationSnapshotResponse Configuration,
+            PowerEnergySnapshotResponse Energy,
+            PowerInverterDetailSnapshotResponse InverterDetail)> GetLatestCentralAsync(
+            string sourceId = "solarassistant-total",
+            int staleAfterMinutes = 1440,
+            CancellationToken ct = default) => Task.FromResult((
+                inventory,
+                configuration,
+                energy ?? new PowerEnergySnapshotResponse { SourceId = sourceId, IsPresent = false, IsStale = true },
+                inverterDetail ?? new PowerInverterDetailSnapshotResponse { SourceId = sourceId, IsPresent = false, IsStale = true }));
     }
 }
