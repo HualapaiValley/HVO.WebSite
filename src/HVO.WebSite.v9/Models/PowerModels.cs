@@ -1,5 +1,6 @@
 namespace HVO.WebSite.v9.Models;
 
+using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 
 /// <summary>Request body for ingesting a normalized power-system snapshot.</summary>
@@ -152,4 +153,23 @@ public class PowerInverterDetailSnapshotResponse
     public PowerInverterBatteryDetail? Battery { get; init; }
     public double? TemperatureC { get; init; }
     public IReadOnlyList<PowerInverterStatusDetail> Statuses { get; init; } = [];
+}
+
+public class GatewayStatusSnapshotResponse
+{
+    public string SourceId { get; init; } = string.Empty;
+    public string? SourceSystem { get; init; }
+    public string? DeviceId { get; init; }
+    public DateTime RecordedAtUtc { get; init; }
+    public bool IsPresent { get; init; }
+    public bool IsStale { get; init; }
+    public GatewayIdentity? Identity { get; init; }
+    public GatewayHealthSnapshot? Health { get; init; }
+    public GatewayRuntimeSignal? Rest { get; init; }
+    public GatewayRuntimeSignal? Mqtt { get; init; }
+    public GatewayOutboxStatus? Outbox { get; init; }
+    public int? RestMetricCount { get; init; }
+    public int? MqttEntityCount { get; init; }
+    public int? MqttStateTopicCount { get; init; }
+    public int? MqttCommandTopicCount { get; init; }
 }

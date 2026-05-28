@@ -80,6 +80,25 @@
         }
     </section>
 
+    <section class="power-inventory power-gateway-status" aria-labelledby="power-gateway-status-heading">
+        <div class="power-bank__header">
+            <h3 id="power-gateway-status-heading">SolarAssistant Gateway</h3>
+            <span>@_gatewayStatus.State</span>
+        </div>
+        <dl>
+            <div><dt>Health</dt><dd>@_gatewayStatus.HealthSummary</dd></div>
+            <div><dt>REST</dt><dd>@_gatewayStatus.RestSummary</dd></div>
+            <div><dt>MQTT</dt><dd>@_gatewayStatus.MqttSummary</dd></div>
+            <div><dt>Outbox</dt><dd>@_gatewayStatus.OutboxSummary</dd></div>
+            <div><dt>Inventory</dt><dd>@_gatewayStatus.MetricSummary</dd></div>
+            <div><dt>Seen</dt><dd>@_gatewayStatus.LastSeen</dd></div>
+        </dl>
+        @if (_gatewayStatus.Alerts.Count > 0)
+        {
+            <p>Gateway alerts: @string.Join(", ", _gatewayStatus.Alerts)</p>
+        }
+    </section>
+
     <section class="power-inventory power-solarassistant-detail" aria-labelledby="power-solarassistant-detail-heading">
         <div class="power-bank__header">
             <h3 id="power-solarassistant-detail-heading">SolarAssistant Detail</h3>

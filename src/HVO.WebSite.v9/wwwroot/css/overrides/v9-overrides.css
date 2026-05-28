@@ -191,7 +191,8 @@
     font-weight: 700;
 }
 
-.power-solarassistant-detail dl {
+.power-solarassistant-detail dl,
+.power-gateway-status dl {
     grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
 }
 

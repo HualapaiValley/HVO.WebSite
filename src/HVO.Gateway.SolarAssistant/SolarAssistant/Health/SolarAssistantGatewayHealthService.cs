@@ -13,7 +13,12 @@ public interface IGatewayHealthSnapshotProvider
     SolarAssistantGatewayHealthSnapshot GetSnapshot(DateTime? nowUtc = null);
 }
 
-public sealed class SolarAssistantGatewayHealthService : IGatewayHealthSnapshotProvider
+public interface IGatewayStatusPayloadProvider
+{
+    GatewayStatusPayload CreatePayload(DateTime? nowUtc = null);
+}
+
+public sealed class SolarAssistantGatewayHealthService : IGatewayHealthSnapshotProvider, IGatewayStatusPayloadProvider
 {
     private readonly SolarAssistantSnapshotWorker _snapshotWorker;
     private readonly SolarAssistantMqttDiscoveryWorker _mqttWorker;
@@ -42,6 +47,81 @@ public sealed class SolarAssistantGatewayHealthService : IGatewayHealthSnapshotP
         _forwarder.FailedCount,
         _forwarder.LastError,
         nowUtc ?? DateTime.UtcNow);
+
+    public GatewayStatusPayload CreatePayload(DateTime? nowUtc = null)
+    {
+        var now = nowUtc ?? DateTime.UtcNow;
+        var mqttInventory = _mqttWorker.Inventory;
+        var health = GetSnapshot(now);
+        return CreatePayload(
+            _options,
+            _snapshotWorker.LastSnapshotAt,
+            _snapshotWorker.LastError,
+            _snapshotWorker.LastMetricCount,
+            mqttInventory,
+            _forwarder.PendingCount,
+            _forwarder.FailedCount,
+            _forwarder.LastSentAt,
+            _forwarder.LastBatchCount,
+            _forwarder.LastError,
+            health,
+            now);
+    }
+
+    public static GatewayStatusPayload CreatePayload(
+        SolarAssistantOptions options,
+        DateTime? lastSnapshotAtUtc,
+        string? snapshotError,
+        int restMetricCount,
+        SolarAssistantMqttInventory mqttInventory,
+        int pendingOutboxCount,
+        int failedOutboxCount,
+        DateTime? lastSentAtUtc,
+        int lastBatchCount,
+        string? outboxError,
+        SolarAssistantGatewayHealthSnapshot health,
+        DateTime nowUtc) => new()
+        {
+            SourceId = options.TotalSourceId,
+            SourceSystem = "solarassistant",
+            DeviceId = options.TotalDeviceId,
+            RecordedAtUtc = nowUtc,
+            Identity = new GatewayIdentity(
+                GatewayId: "solarassistant",
+                DisplayName: "SolarAssistant Gateway",
+                Domain: GatewayDomain.Power,
+                SourceId: options.TotalSourceId,
+                DeviceId: options.TotalDeviceId),
+            Health = new GatewayHealthSnapshot(
+                State: MapHealthState(health.State),
+                EvaluatedAtUtc: health.EvaluatedAtUtc,
+                Alerts: health.Alerts.Select(MapHealthAlert).ToArray(),
+                SourceFreshness: RestState(options, lastSnapshotAtUtc, snapshotError, nowUtc),
+                OutboxState: OutboxState(pendingOutboxCount, failedOutboxCount, outboxError),
+                ApiSyncState: string.IsNullOrWhiteSpace(outboxError) ? "healthy" : "error"),
+            Rest = new GatewayRuntimeSignal(
+                State: RestState(options, lastSnapshotAtUtc, snapshotError, nowUtc),
+                LastObservedAtUtc: lastSnapshotAtUtc,
+                LastError: snapshotError,
+                Detail: restMetricCount > 0 ? $"{restMetricCount} REST metric(s)" : null),
+            Mqtt = options.EnableMqttDiscovery
+                ? new GatewayRuntimeSignal(
+                    State: MqttState(options, mqttInventory, nowUtc),
+                    LastObservedAtUtc: mqttInventory.LastMessageAtUtc,
+                    LastError: mqttInventory.LastError,
+                    Detail: $"{mqttInventory.EntityCount} entit(ies), {mqttInventory.StateTopicCount} state topic(s)")
+                : null,
+            Outbox = new GatewayOutboxStatus(
+                PendingCount: pendingOutboxCount,
+                FailedCount: failedOutboxCount,
+                LastSentAtUtc: lastSentAtUtc,
+                LastBatchCount: lastBatchCount,
+                LastError: outboxError),
+            RestMetricCount = restMetricCount,
+            MqttEntityCount = mqttInventory.EntityCount,
+            MqttStateTopicCount = mqttInventory.StateTopicCount,
+            MqttCommandTopicCount = mqttInventory.CommandTopicCount,
+        };
 
     public static SolarAssistantGatewayHealthSnapshot Evaluate(
         SolarAssistantOptions options,
@@ -165,4 +245,72 @@ public sealed class SolarAssistantGatewayHealthService : IGatewayHealthSnapshotP
         "outbox-historical-failures" or "outbox-historical-failures-over-threshold" => "outbox-failed",
         _ => code,
     };
+
+    private static GatewayHealthState MapHealthState(string state) => state switch
+    {
+        "healthy" => GatewayHealthState.Healthy,
+        "warning" => GatewayHealthState.Warning,
+        "critical" => GatewayHealthState.Critical,
+        _ => GatewayHealthState.Unknown,
+    };
+
+    private static GatewayHealthAlert MapHealthAlert(SolarAssistantGatewayHealthAlert alert) => new(
+        Code: alert.Code,
+        Severity: alert.Severity switch
+        {
+            SolarAssistantGatewayHealthSeverity.Critical => GatewayAlertSeverity.Critical,
+            SolarAssistantGatewayHealthSeverity.Warning => GatewayAlertSeverity.Warning,
+            _ => GatewayAlertSeverity.Info,
+        },
+        Message: alert.Message);
+
+    private static GatewaySampleState RestState(
+        SolarAssistantOptions options,
+        DateTime? lastSnapshotAtUtc,
+        string? snapshotError,
+        DateTime nowUtc)
+    {
+        if (string.IsNullOrWhiteSpace(options.Host))
+            return GatewaySampleState.Disabled;
+
+        if (!string.IsNullOrWhiteSpace(snapshotError))
+            return GatewaySampleState.Error;
+
+        if (lastSnapshotAtUtc is null)
+            return GatewaySampleState.Waiting;
+
+        return nowUtc - lastSnapshotAtUtc.Value > TimeSpan.FromSeconds(options.RestStaleAfterSeconds)
+            ? GatewaySampleState.Stale
+            : GatewaySampleState.Live;
+    }
+
+    private static GatewaySampleState MqttState(SolarAssistantOptions options, SolarAssistantMqttInventory inventory, DateTime nowUtc)
+    {
+        if (!options.EnableMqttDiscovery || string.Equals(inventory.ConnectionState, "disabled", StringComparison.OrdinalIgnoreCase))
+            return GatewaySampleState.Disabled;
+
+        if (!string.IsNullOrWhiteSpace(inventory.LastError))
+            return GatewaySampleState.Error;
+
+        if (!string.Equals(inventory.ConnectionState, "connected", StringComparison.OrdinalIgnoreCase))
+            return GatewaySampleState.Waiting;
+
+        if (inventory.LastMessageAtUtc is null)
+            return GatewaySampleState.Waiting;
+
+        return nowUtc - inventory.LastMessageAtUtc.Value > TimeSpan.FromSeconds(options.MqttStaleAfterSeconds)
+            ? GatewaySampleState.Stale
+            : GatewaySampleState.Live;
+    }
+
+    private static string OutboxState(int pendingCount, int failedCount, string? lastError)
+    {
+        if (!string.IsNullOrWhiteSpace(lastError))
+            return "error";
+
+        if (failedCount > 0)
+            return "warning";
+
+        return pendingCount > 0 ? "pending" : "healthy";
+    }
 }

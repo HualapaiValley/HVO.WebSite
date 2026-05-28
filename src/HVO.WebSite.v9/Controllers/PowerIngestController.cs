@@ -6,6 +6,7 @@ using System.Text.Json;
 using Asp.Versioning;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
+using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Services;
@@ -32,6 +33,7 @@ public class PowerIngestController : ControllerBase
     private const int MaxEnergyCounters = 20;
     private const int MaxPvStrings = 8;
     private const int MaxInverterStatuses = 20;
+    private const int MaxGatewayAlerts = 50;
     private const int MaxSnapshotStringLength = 256;
     private const int MaxSnapshotValueLength = 1024;
 
@@ -417,6 +419,63 @@ public class PowerIngestController : ControllerBase
         return CreatedAtAction(nameof(GetLatestInverterDetail), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
     }
 
+    [HttpPost("gateway-status")]
+    [Authorize(Policy = "PowerIngest")]
+    [ProducesResponseType(typeof(PowerSnapshotIngestResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerSnapshotIngestResponse>> IngestGatewayStatus(
+        [FromBody] GatewayStatusPayload request,
+        CancellationToken ct)
+    {
+        var sourceId = NormalizeSourceId(request.SourceId);
+        var recordedAt = NormalizeRecordedAt(request.RecordedAtUtc);
+        var validationResults = ValidateCommonSnapshot(sourceId, request.SourceSystem, request.DeviceId, recordedAt);
+        ValidateGatewayStatus(validationResults, request);
+        if (validationResults.Count > 0)
+            return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+
+        var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
+        var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
+        if (await _db.GatewayStatusSnapshots.AnyAsync(
+            r => r.SourceId == sourceId && (r.RecordedAt == recordedAt || r.PayloadHash == payloadHash), ct))
+        {
+            return CreatedAtAction(nameof(GetLatestGatewayStatus), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        _db.GatewayStatusSnapshots.Add(new GatewayStatusSnapshot
+        {
+            SourceId = sourceId,
+            SourceSystem = NormalizeSourceSystem(request.SourceSystem),
+            DeviceId = NormalizeOptional(request.DeviceId),
+            GatewayId = NormalizeOptional(request.Identity.GatewayId)!,
+            HealthState = request.Health.State.ToString(),
+            SourceFreshnessState = request.Health.SourceFreshness.ToString(),
+            RestState = request.Rest.State.ToString(),
+            MqttState = request.Mqtt?.State.ToString(),
+            RecordedAt = recordedAt,
+            AlertCount = request.Health.Alerts.Count,
+            OutboxPendingCount = request.Outbox.PendingCount,
+            OutboxFailedCount = request.Outbox.FailedCount,
+            PayloadJson = payloadJson,
+            PayloadHash = payloadHash,
+            CreatedAt = DateTime.UtcNow,
+        });
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            return CreatedAtAction(nameof(GetLatestGatewayStatus), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        return CreatedAtAction(nameof(GetLatestGatewayStatus), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
+    }
+
     /// <summary>Returns recent normalized power readings.</summary>
     [HttpGet("readings/recent")]
     [Authorize(Policy = "PowerRead")]
@@ -566,6 +625,48 @@ public class PowerIngestController : ControllerBase
             Battery = payload.Battery,
             TemperatureC = payload.TemperatureC,
             Statuses = payload.Statuses,
+        });
+    }
+
+    [HttpGet("gateway-status/latest")]
+    [Authorize(Policy = "PowerRead")]
+    [ProducesResponseType(typeof(GatewayStatusSnapshotResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<GatewayStatusSnapshotResponse>> GetLatestGatewayStatus(
+        [FromQuery] string sourceId = "solarassistant-total",
+        [FromQuery][Range(1, 10080)] int staleAfterMinutes = 60,
+        CancellationToken ct = default)
+    {
+        var normalized = NormalizeSourceId(sourceId);
+        var row = await _db.GatewayStatusSnapshots
+            .AsNoTracking()
+            .Where(r => r.SourceId == normalized)
+            .OrderByDescending(r => r.RecordedAt)
+            .FirstOrDefaultAsync(ct);
+        if (row is null)
+            return Ok(new GatewayStatusSnapshotResponse { SourceId = normalized, IsPresent = false, IsStale = true });
+
+        var recordedAtUtc = DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc);
+        var payload = JsonSerializer.Deserialize<GatewayStatusPayload>(row.PayloadJson, JsonOptions) ?? new GatewayStatusPayload();
+        return Ok(new GatewayStatusSnapshotResponse
+        {
+            SourceId = row.SourceId,
+            SourceSystem = row.SourceSystem,
+            DeviceId = row.DeviceId,
+            RecordedAtUtc = recordedAtUtc,
+            IsPresent = true,
+            IsStale = DateTime.UtcNow - recordedAtUtc > TimeSpan.FromMinutes(staleAfterMinutes),
+            Identity = payload.Identity,
+            Health = payload.Health,
+            Rest = payload.Rest,
+            Mqtt = payload.Mqtt,
+            Outbox = payload.Outbox,
+            RestMetricCount = payload.RestMetricCount,
+            MqttEntityCount = payload.MqttEntityCount,
+            MqttStateTopicCount = payload.MqttStateTopicCount,
+            MqttCommandTopicCount = payload.MqttCommandTopicCount,
         });
     }
 
@@ -770,6 +871,43 @@ public class PowerIngestController : ControllerBase
             ValidateRequiredString(results, $"Statuses[{i}].Value", status.Value, MaxSnapshotValueLength);
             ValidateMaxLength(results, $"Statuses[{i}].SourceTopic", status.SourceTopic, MaxSnapshotStringLength);
         }
+    }
+
+    private static void ValidateGatewayStatus(List<ValidationResult> results, GatewayStatusPayload request)
+    {
+        ValidateRequiredString(results, "Identity.GatewayId", request.Identity.GatewayId, 64);
+        ValidateRequiredString(results, "Identity.DisplayName", request.Identity.DisplayName, MaxSnapshotStringLength);
+        ValidateRequiredString(results, "Identity.SourceId", request.Identity.SourceId, MaxSnapshotStringLength);
+        ValidateMaxLength(results, "Identity.DeviceId", request.Identity.DeviceId, MaxSnapshotStringLength);
+        ValidateMaxLength(results, "Identity.RuntimeHost", request.Identity.RuntimeHost, MaxSnapshotStringLength);
+        ValidateRequiredTimestamp(results, "Health.EvaluatedAtUtc", request.Health.EvaluatedAtUtc);
+        ValidateCount(results, "Health.Alerts", request.Health.Alerts.Count, MaxGatewayAlerts);
+        ValidateMaxLength(results, "Health.OutboxState", request.Health.OutboxState, MaxSnapshotStringLength);
+        ValidateMaxLength(results, "Health.ApiSyncState", request.Health.ApiSyncState, MaxSnapshotStringLength);
+        ValidateRuntimeSignal(results, "Rest", request.Rest);
+        if (request.Mqtt is not null)
+            ValidateRuntimeSignal(results, "Mqtt", request.Mqtt);
+        ValidateRange(results, "Outbox.PendingCount", request.Outbox.PendingCount, 0, 1_000_000);
+        ValidateRange(results, "Outbox.FailedCount", request.Outbox.FailedCount, 0, 1_000_000);
+        ValidateRange(results, "Outbox.LastBatchCount", request.Outbox.LastBatchCount, 0, 1_000_000);
+        ValidateMaxLength(results, "Outbox.LastError", request.Outbox.LastError, MaxSnapshotValueLength);
+        ValidateRange(results, nameof(request.RestMetricCount), request.RestMetricCount, 0, 1_000_000);
+        ValidateRange(results, nameof(request.MqttEntityCount), request.MqttEntityCount, 0, 1_000_000);
+        ValidateRange(results, nameof(request.MqttStateTopicCount), request.MqttStateTopicCount, 0, 1_000_000);
+        ValidateRange(results, nameof(request.MqttCommandTopicCount), request.MqttCommandTopicCount, 0, 1_000_000);
+
+        for (var i = 0; i < request.Health.Alerts.Count; i++)
+        {
+            var alert = request.Health.Alerts[i];
+            ValidateRequiredString(results, $"Health.Alerts[{i}].Code", alert.Code, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"Health.Alerts[{i}].Message", alert.Message, MaxSnapshotValueLength);
+        }
+    }
+
+    private static void ValidateRuntimeSignal(List<ValidationResult> results, string prefix, GatewayRuntimeSignal signal)
+    {
+        ValidateMaxLength(results, $"{prefix}.LastError", signal.LastError, MaxSnapshotValueLength);
+        ValidateMaxLength(results, $"{prefix}.Detail", signal.Detail, MaxSnapshotValueLength);
     }
 
     private static void ValidateCount(List<ValidationResult> results, string memberName, int count, int maximum)

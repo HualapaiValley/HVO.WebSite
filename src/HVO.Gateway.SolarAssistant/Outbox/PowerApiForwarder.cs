@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
@@ -136,6 +137,12 @@ public sealed class PowerApiForwarder : BackgroundService
                     BuildPowerEndpoint("inverter-detail"),
                     now,
                     ct);
+                await ForwardSnapshotPayloadsAsync<GatewayStatusPayload>(
+                    store,
+                    PowerOutboxPayloadTypes.GatewayStatus,
+                    BuildPowerEndpoint("gateway-status"),
+                    now,
+                    ct);
             }
             return;
         }
@@ -225,6 +232,12 @@ public sealed class PowerApiForwarder : BackgroundService
             store,
             PowerOutboxPayloadTypes.InverterDetail,
             BuildPowerEndpoint("inverter-detail"),
+            now,
+            ct);
+        await ForwardSnapshotPayloadsAsync<GatewayStatusPayload>(
+            store,
+            PowerOutboxPayloadTypes.GatewayStatus,
+            BuildPowerEndpoint("gateway-status"),
             now,
             ct);
     }

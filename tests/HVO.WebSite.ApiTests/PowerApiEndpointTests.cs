@@ -1,8 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using FluentAssertions;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
+using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9;
 using HVO.WebSite.v9.Middleware;
@@ -23,6 +26,10 @@ public sealed class PowerApiEndpointTests
     private const string ReadPlaintext = "test-power-read-key-xyz789";
     private const string ApiReadPlaintext = "test-api-read-key-xyz789";
     private const string InvalidPlaintext = "totally-invalid-power-key";
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() }
+    };
 
     private static PowerApiTestFactory _factory = null!;
     private HttpClient _client = null!;
@@ -286,6 +293,54 @@ public sealed class PowerApiEndpointTests
         latestDetailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var latestDetail = await latestDetailResponse.Content.ReadFromJsonAsync<PowerInverterDetailSnapshotResponse>();
         latestDetail!.PvStrings.Single().PowerW.Should().Be(600);
+    }
+
+    [TestMethod]
+    public async Task GatewayStatusEndpoint_RequiresScopesAndReturnsLatestSnapshot()
+    {
+        var sourceId = $"solarassistant-{Guid.NewGuid():N}";
+        var observedAt = DateTime.UtcNow;
+        _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+
+        var ingestResponse = await _client.PostAsJsonAsync("/api/v1/power/gateway-status", new GatewayStatusPayload
+        {
+            SourceId = sourceId,
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = observedAt,
+            Identity = new GatewayIdentity("solarassistant", "SolarAssistant Gateway", GatewayDomain.Power, sourceId, "total"),
+            Health = new GatewayHealthSnapshot(
+                GatewayHealthState.Healthy,
+                observedAt,
+                [],
+                GatewaySampleState.Live,
+                OutboxState: "healthy",
+                ApiSyncState: "healthy"),
+            Rest = new GatewayRuntimeSignal(GatewaySampleState.Live, observedAt, Detail: "124 REST metric(s)"),
+            Mqtt = new GatewayRuntimeSignal(GatewaySampleState.Live, observedAt, Detail: "48 entit(ies), 42 state topic(s)"),
+            Outbox = new GatewayOutboxStatus(PendingCount: 0, FailedCount: 0, LastSentAtUtc: observedAt, LastBatchCount: 1),
+            RestMetricCount = 124,
+            MqttEntityCount = 48,
+            MqttStateTopicCount = 42,
+            MqttCommandTopicCount = 14,
+        });
+
+        ingestResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        _client.DefaultRequestHeaders.Remove("X-Api-Key");
+        _client.DefaultRequestHeaders.Add("X-Api-Key", ReadPlaintext);
+        var latestResponse = await _client.GetAsync($"/api/v1/power/gateway-status/latest?sourceId={sourceId}");
+
+        latestResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var latest = await latestResponse.Content.ReadFromJsonAsync<GatewayStatusSnapshotResponse>(JsonOptions);
+        latest!.Health!.State.Should().Be(GatewayHealthState.Healthy);
+        latest.Rest!.State.Should().Be(GatewaySampleState.Live);
+        latest.MqttCommandTopicCount.Should().Be(14);
+
+        _client.DefaultRequestHeaders.Remove("X-Api-Key");
+        _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+        var forbiddenRead = await _client.GetAsync($"/api/v1/power/gateway-status/latest?sourceId={sourceId}");
+        forbiddenRead.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     private static PowerReadingIngestRequest ValidPayload(

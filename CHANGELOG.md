@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Added
 
 - Added a local SolarAssistant gateway monitor UI with Davis-style shell layout, basic status/settings cards, and Playwright coverage
+- Added typed SolarAssistant `gateway.status.v1` snapshots, central ingest/read APIs, outbox forwarding, and central power-card runtime status
 - Added SolarAssistant REST/MQTT discovery inventory documentation and deployed `hvo-solarassistant` container image `1.0.2` with the gateway `/inventory` endpoint
 - Added read-only SolarAssistant MQTT discovery/state inventory and deployed `hvo-solarassistant` container image `1.0.3` with the gateway `/mqtt-inventory` endpoint
 - Converted the SolarAssistant gateway monitor to the Davis-style MudBlazor shell, header, footer, and card layout

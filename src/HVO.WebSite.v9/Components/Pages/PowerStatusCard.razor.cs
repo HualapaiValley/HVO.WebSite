@@ -12,14 +12,16 @@ public partial class PowerStatusCard : ComponentBase
 
     private PowerStatusViewModel _viewModel = PowerStatusViewModel.Empty;
     private PowerInventoryConfigurationViewModel _inventoryConfiguration = PowerInventoryConfigurationViewModel.Empty;
+    private PowerGatewayStatusViewModel _gatewayStatus = PowerGatewayStatusViewModel.Empty;
     private PowerSolarAssistantDetailViewModel _solarAssistantDetail = PowerSolarAssistantDetailViewModel.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         var snapshot = await SnapshotProvider.GetLatestAsync();
         _viewModel = PowerStatusViewModel.FromSnapshot(snapshot);
-        var (inventory, configuration, energy, inverterDetail) = await InventoryConfigurationProvider.GetLatestCentralAsync();
+        var (inventory, configuration, energy, inverterDetail, gatewayStatus) = await InventoryConfigurationProvider.GetLatestCentralAsync();
         _inventoryConfiguration = PowerInventoryConfigurationViewModel.FromSnapshots(inventory, configuration);
+        _gatewayStatus = PowerGatewayStatusViewModel.FromSnapshot(gatewayStatus);
         _solarAssistantDetail = PowerSolarAssistantDetailViewModel.FromSnapshots(
             energy,
             inverterDetail,

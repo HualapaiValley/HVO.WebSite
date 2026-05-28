@@ -112,5 +112,6 @@ Keep local for now:
 - The local monitor now uses the same MudBlazor shell/header/footer/layout pattern as the Davis gateway while keeping SolarAssistant-specific cards.
 - The local monitor keeps a bounded in-memory rolling history and renders PV, load, grid, and battery power trend cards. This is local-only display state and does not change central DB persistence.
 - Phase 4 adds typed `power.energy.v1` and `power.inverter-detail.v1` streams with API validation and reset/sign-convention tests before central persistence is enabled.
+- Phase 6 adds typed `gateway.status.v1` snapshots for SolarAssistant REST/MQTT freshness, outbox sync state, and gateway health alerts; command topics remain inventory/status only and no write path is added.
 
 Live deployment after this pass reported MQTT connected with `48` entities, `42` state topics, `14` command topics, and `1` discovered device.
