@@ -124,6 +124,18 @@ public sealed class PowerApiForwarder : BackgroundService
                     BuildPowerEndpoint("configuration"),
                     now,
                     ct);
+                await ForwardSnapshotPayloadsAsync<PowerEnergyPayload>(
+                    store,
+                    PowerOutboxPayloadTypes.Energy,
+                    BuildPowerEndpoint("energy"),
+                    now,
+                    ct);
+                await ForwardSnapshotPayloadsAsync<PowerInverterDetailPayload>(
+                    store,
+                    PowerOutboxPayloadTypes.InverterDetail,
+                    BuildPowerEndpoint("inverter-detail"),
+                    now,
+                    ct);
             }
             return;
         }
@@ -201,6 +213,18 @@ public sealed class PowerApiForwarder : BackgroundService
             store,
             PowerOutboxPayloadTypes.Configuration,
             BuildPowerEndpoint("configuration"),
+            now,
+            ct);
+        await ForwardSnapshotPayloadsAsync<PowerEnergyPayload>(
+            store,
+            PowerOutboxPayloadTypes.Energy,
+            BuildPowerEndpoint("energy"),
+            now,
+            ct);
+        await ForwardSnapshotPayloadsAsync<PowerInverterDetailPayload>(
+            store,
+            PowerOutboxPayloadTypes.InverterDetail,
+            BuildPowerEndpoint("inverter-detail"),
             now,
             ct);
     }
