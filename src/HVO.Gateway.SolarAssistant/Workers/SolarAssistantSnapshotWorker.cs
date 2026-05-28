@@ -149,8 +149,8 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         CancellationToken ct)
     {
         var mqttInventory = serviceProvider.GetRequiredService<SolarAssistantMqttInventoryStore>().Snapshot;
-        var inventory = SolarAssistantInventoryConfigurationMapper.MapDeviceInventory(metrics, mqttInventory, recordedAt);
-        var configuration = SolarAssistantInventoryConfigurationMapper.MapConfiguration(metrics, mqttInventory, recordedAt);
+        var inventory = SolarAssistantInventoryConfigurationMapper.MapDeviceInventory(metrics, mqttInventory, _options, recordedAt);
+        var configuration = SolarAssistantInventoryConfigurationMapper.MapConfiguration(metrics, mqttInventory, _options, recordedAt);
         if (inventory.Devices.Count == 0 && configuration.Settings.Count == 0 && configuration.CommandCapabilities.Count == 0)
             return;
 

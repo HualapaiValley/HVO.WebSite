@@ -375,6 +375,40 @@ public sealed class PowerIngestControllerTests
         body.CommandCapabilities.Single().CommandTopic.Should().EndWith("/set");
     }
 
+    [TestMethod]
+    public async Task IngestDeviceInventory_RejectsOversizedNestedStrings()
+    {
+        var result = await _ctrl.IngestDeviceInventory(new PowerDeviceInventoryPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = DateTime.UtcNow,
+            Devices = [new PowerDeviceInventoryDevice { DeviceId = "device-1", Name = new string('x', 257) }],
+        }, CancellationToken.None);
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+        _db.PowerDeviceInventorySnapshots.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public async Task IngestConfiguration_RejectsOversizedNestedCollections()
+    {
+        var result = await _ctrl.IngestConfiguration(new PowerConfigurationPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAtUtc = DateTime.UtcNow,
+            Settings = Enumerable.Range(0, 201)
+                .Select(i => new PowerConfigurationSetting { Key = $"setting-{i}", Name = $"Setting {i}" })
+                .ToArray(),
+        }, CancellationToken.None);
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+        _db.PowerConfigurationSnapshots.Should().BeEmpty();
+    }
+
     private static PowerIngestController CreateController(HvoV9DbContext db, PowerIngestTelemetry telemetry)
     {
         var ctrl = new PowerIngestController(

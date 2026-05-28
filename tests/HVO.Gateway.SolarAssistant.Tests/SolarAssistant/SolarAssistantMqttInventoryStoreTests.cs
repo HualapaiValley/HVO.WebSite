@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 
@@ -97,9 +98,12 @@ public sealed class SolarAssistantMqttInventoryStoreTests
             ReceivedAtUtc = DateTime.UtcNow,
         });
 
-        var inventory = SolarAssistantInventoryConfigurationMapper.MapDeviceInventory([], store.Snapshot, DateTime.UtcNow);
-        var configuration = SolarAssistantInventoryConfigurationMapper.MapConfiguration([], store.Snapshot, DateTime.UtcNow);
+        var options = new SolarAssistantOptions { TotalSourceId = "configured-source", TotalDeviceId = "configured-device" };
+        var inventory = SolarAssistantInventoryConfigurationMapper.MapDeviceInventory([], store.Snapshot, options, DateTime.UtcNow);
+        var configuration = SolarAssistantInventoryConfigurationMapper.MapConfiguration([], store.Snapshot, options, DateTime.UtcNow);
 
+        inventory.SourceId.Should().Be("configured-source");
+        configuration.SourceId.Should().Be("configured-source");
         inventory.Devices.Single().Name.Should().Be("EG4 6500EX");
         inventory.Devices.Single().Manufacturer.Should().Be("EG4");
         configuration.CommandCapabilities.Single().CommandTopic.Should().Be("solar_assistant/inverter_1/output_source_priority/set");

@@ -1,4 +1,5 @@
 using HVO.Edge.Contracts.PowerSystem;
+using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 
 namespace HVO.Gateway.SolarAssistant.SolarAssistant;
@@ -18,6 +19,7 @@ public static class SolarAssistantInventoryConfigurationMapper
     public static PowerDeviceInventoryPayload MapDeviceInventory(
         IReadOnlyList<SolarAssistantMetric> metrics,
         SolarAssistantMqttInventory mqttInventory,
+        SolarAssistantOptions options,
         DateTime recordedAtUtc)
     {
         var devices = mqttInventory.Devices
@@ -50,9 +52,9 @@ public static class SolarAssistantInventoryConfigurationMapper
 
         return new PowerDeviceInventoryPayload
         {
-            SourceId = "solarassistant-total",
+            SourceId = options.TotalSourceId,
             SourceSystem = "solarassistant",
-            DeviceId = "total",
+            DeviceId = options.TotalDeviceId,
             RecordedAtUtc = recordedAtUtc.ToUniversalTime(),
             Devices = devices.OrderBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase).ToArray(),
             RestMetricCount = metrics.Count,
@@ -64,6 +66,7 @@ public static class SolarAssistantInventoryConfigurationMapper
     public static PowerConfigurationPayload MapConfiguration(
         IReadOnlyList<SolarAssistantMetric> metrics,
         SolarAssistantMqttInventory mqttInventory,
+        SolarAssistantOptions options,
         DateTime recordedAtUtc)
     {
         var settings = metrics
@@ -107,9 +110,9 @@ public static class SolarAssistantInventoryConfigurationMapper
 
         return new PowerConfigurationPayload
         {
-            SourceId = "solarassistant-total",
+            SourceId = options.TotalSourceId,
             SourceSystem = "solarassistant",
-            DeviceId = "total",
+            DeviceId = options.TotalDeviceId,
             RecordedAtUtc = recordedAtUtc.ToUniversalTime(),
             Settings = settings,
             CommandCapabilities = commandCapabilities,

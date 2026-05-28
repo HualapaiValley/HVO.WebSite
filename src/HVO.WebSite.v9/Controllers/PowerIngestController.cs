@@ -26,6 +26,12 @@ namespace HVO.WebSite.v9.Controllers;
 [Tags("Power")]
 public class PowerIngestController : ControllerBase
 {
+    private const int MaxInventoryDevices = 50;
+    private const int MaxConfigurationSettings = 200;
+    private const int MaxCommandCapabilities = 100;
+    private const int MaxSnapshotStringLength = 256;
+    private const int MaxSnapshotValueLength = 1024;
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly HvoV9DbContext _db;
@@ -217,6 +223,7 @@ public class PowerIngestController : ControllerBase
         var sourceId = NormalizeSourceId(request.SourceId);
         var recordedAt = NormalizeRecordedAt(request.RecordedAtUtc);
         var validationResults = ValidateCommonSnapshot(sourceId, request.SourceSystem, request.DeviceId, recordedAt);
+        ValidateDeviceInventory(validationResults, request);
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
 
@@ -268,6 +275,7 @@ public class PowerIngestController : ControllerBase
         var sourceId = NormalizeSourceId(request.SourceId);
         var recordedAt = NormalizeRecordedAt(request.RecordedAtUtc);
         var validationResults = ValidateCommonSnapshot(sourceId, request.SourceSystem, request.DeviceId, recordedAt);
+        ValidateConfiguration(validationResults, request);
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
 
@@ -474,7 +482,7 @@ public class PowerIngestController : ControllerBase
         ex.InnerException is SqlException sqlEx &&
         (sqlEx.Number == 2601 || sqlEx.Number == 2627);
 
-    private static IReadOnlyList<ValidationResult> ValidateCommonSnapshot(
+    private static List<ValidationResult> ValidateCommonSnapshot(
         string sourceId,
         string? sourceSystem,
         string? deviceId,
@@ -488,6 +496,63 @@ public class PowerIngestController : ControllerBase
         ValidateMaxLength(validationResults, "DeviceId", deviceId, 64);
         ValidateRequiredTimestamp(validationResults, "RecordedAtUtc", recordedAt);
         return validationResults;
+    }
+
+    private static void ValidateDeviceInventory(List<ValidationResult> results, PowerDeviceInventoryPayload request)
+    {
+        ValidateCount(results, nameof(request.Devices), request.Devices.Count, MaxInventoryDevices);
+        for (var i = 0; i < request.Devices.Count; i++)
+        {
+            var device = request.Devices[i];
+            ValidateRequiredString(results, $"Devices[{i}].DeviceId", device.DeviceId, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"Devices[{i}].Name", device.Name, MaxSnapshotStringLength);
+            ValidateMaxLength(results, $"Devices[{i}].Manufacturer", device.Manufacturer, MaxSnapshotStringLength);
+            ValidateMaxLength(results, $"Devices[{i}].Model", device.Model, MaxSnapshotStringLength);
+            ValidateMaxLength(results, $"Devices[{i}].FirmwareVersion", device.FirmwareVersion, MaxSnapshotStringLength);
+        }
+    }
+
+    private static void ValidateConfiguration(List<ValidationResult> results, PowerConfigurationPayload request)
+    {
+        ValidateCount(results, nameof(request.Settings), request.Settings.Count, MaxConfigurationSettings);
+        ValidateCount(results, nameof(request.CommandCapabilities), request.CommandCapabilities.Count, MaxCommandCapabilities);
+        for (var i = 0; i < request.Settings.Count; i++)
+        {
+            var setting = request.Settings[i];
+            ValidateRequiredString(results, $"Settings[{i}].Key", setting.Key, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"Settings[{i}].Name", setting.Name, MaxSnapshotStringLength);
+            ValidateMaxLength(results, $"Settings[{i}].Value", setting.Value, MaxSnapshotValueLength);
+            ValidateMaxLength(results, $"Settings[{i}].Unit", setting.Unit, MaxSnapshotStringLength);
+            ValidateMaxLength(results, $"Settings[{i}].DeviceId", setting.DeviceId, MaxSnapshotStringLength);
+            ValidateMaxLength(results, $"Settings[{i}].SourceTopic", setting.SourceTopic, MaxSnapshotStringLength);
+        }
+
+        for (var i = 0; i < request.CommandCapabilities.Count; i++)
+        {
+            var capability = request.CommandCapabilities[i];
+            ValidateRequiredString(results, $"CommandCapabilities[{i}].Key", capability.Key, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"CommandCapabilities[{i}].Name", capability.Name, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"CommandCapabilities[{i}].CommandTopic", capability.CommandTopic, MaxSnapshotStringLength);
+            ValidateMaxLength(results, $"CommandCapabilities[{i}].StateTopic", capability.StateTopic, MaxSnapshotStringLength);
+            ValidateMaxLength(results, $"CommandCapabilities[{i}].DeviceId", capability.DeviceId, MaxSnapshotStringLength);
+        }
+    }
+
+    private static void ValidateCount(List<ValidationResult> results, string memberName, int count, int maximum)
+    {
+        if (count > maximum)
+            results.Add(new ValidationResult($"The field {memberName} must contain at most {maximum} item(s).", [memberName]));
+    }
+
+    private static void ValidateRequiredString(List<ValidationResult> results, string memberName, string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            results.Add(new ValidationResult($"The {memberName} field is required.", [memberName]));
+            return;
+        }
+
+        ValidateMaxLength(results, memberName, value, maxLength);
     }
 
     private static Dictionary<string, string[]> ToValidationDictionary(IEnumerable<ValidationResult> validationResults) =>
