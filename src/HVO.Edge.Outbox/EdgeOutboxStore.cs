@@ -17,13 +17,7 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
         if (recordedAt == default)
             throw new InvalidOperationException("Outbox message must include RecordedAtUtc.");
 
-        var exists = await _db.OutboxRecords.AnyAsync(
-            r => r.SourceId == sourceId && r.PayloadType == payloadType && r.RecordedAtUtc == recordedAt,
-            ct);
-        if (exists)
-            return false;
-
-        _db.OutboxRecords.Add(new EdgeOutboxRecord
+        var record = new EdgeOutboxRecord
         {
             SourceId = sourceId,
             DeviceId = NormalizeOptional(message.DeviceId),
@@ -32,10 +26,20 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
             RecordedAtUtc = recordedAt,
             PayloadJson = payloadJson,
             CreatedAtUtc = DateTime.UtcNow,
-        });
+        };
 
-        await _db.SaveChangesAsync(ct);
-        return true;
+        _db.OutboxRecords.Add(record);
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            _db.Entry(record).State = EntityState.Detached;
+            return false;
+        }
     }
 
     public async Task<IReadOnlyList<EdgeOutboxRecord>> GetReadyBatchAsync(
@@ -60,8 +64,24 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
     public Task<int> CountPendingAsync(CancellationToken ct) =>
         _db.OutboxRecords.CountAsync(r => r.Status == EdgeOutboxStatus.Pending, ct);
 
+    public Task<int> CountPendingAsync(string payloadType, CancellationToken ct)
+    {
+        var normalizedPayloadType = NormalizeRequired(payloadType, nameof(payloadType));
+        return _db.OutboxRecords.CountAsync(
+            r => r.PayloadType == normalizedPayloadType && r.Status == EdgeOutboxStatus.Pending,
+            ct);
+    }
+
     public Task<int> CountFailedAsync(CancellationToken ct) =>
         _db.OutboxRecords.CountAsync(r => r.Status == EdgeOutboxStatus.Failed, ct);
+
+    public Task<int> CountFailedAsync(string payloadType, CancellationToken ct)
+    {
+        var normalizedPayloadType = NormalizeRequired(payloadType, nameof(payloadType));
+        return _db.OutboxRecords.CountAsync(
+            r => r.PayloadType == normalizedPayloadType && r.Status == EdgeOutboxStatus.Failed,
+            ct);
+    }
 
     public void MarkAttempt(IEnumerable<EdgeOutboxRecord> records, DateTime nowUtc)
     {
@@ -121,4 +141,33 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool IsUniqueConstraintViolation(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            var typeName = current.GetType().FullName;
+            if (typeName == "Microsoft.Data.Sqlite.SqliteException")
+            {
+                var sqliteErrorCode = current.GetType().GetProperty("SqliteErrorCode")?.GetValue(current) as int?;
+                if (sqliteErrorCode == 19)
+                    return true;
+
+                if (current.Message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            if (typeName == "Microsoft.Data.SqlClient.SqlException" || typeName == "System.Data.SqlClient.SqlException")
+            {
+                foreach (var error in (System.Collections.IEnumerable)current.GetType().GetProperty("Errors")!.GetValue(current)!)
+                {
+                    var number = error.GetType().GetProperty("Number")?.GetValue(error) as int?;
+                    if (number is 2601 or 2627)
+                        return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }

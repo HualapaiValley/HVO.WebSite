@@ -91,7 +91,7 @@ var exposeDiagnostics = app.Environment.IsDevelopment()
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-    await EdgeOutboxDatabaseInitializer.EnsureCreatedAsync(
+    await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
         db,
         PowerOutboxPayloadTypes.PowerReading,
         PowerOutboxPayloadTypes.PowerReadingVersion);

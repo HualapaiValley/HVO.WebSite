@@ -69,6 +69,22 @@ public sealed class EdgeOutboxStoreTests
     }
 
     [TestMethod]
+    public async Task CountAsync_CanFilterByPayloadType()
+    {
+        await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
+        await _store.EnqueueAsync(Message("power.energy", "2026-05-23T10:00:00Z"), CancellationToken.None);
+        var failed = _db.OutboxRecords.Single(r => r.PayloadType == "power.energy");
+        _store.MarkFailed(failed, "bad data");
+        await _store.SaveChangesAsync(CancellationToken.None);
+
+        var readingPending = await _store.CountPendingAsync("power.reading", CancellationToken.None);
+        var readingFailed = await _store.CountFailedAsync("power.reading", CancellationToken.None);
+
+        readingPending.Should().Be(1);
+        readingFailed.Should().Be(0);
+    }
+
+    [TestMethod]
     public async Task ScheduleRetry_MarksFailedAtRetryLimit()
     {
         await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);

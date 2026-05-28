@@ -104,8 +104,8 @@ public sealed class PowerApiForwarder : BackgroundService
 
         var pending = await store.GetReadyBatchAsync(PowerOutboxPayloadTypes.PowerReading, now, _options.BatchSize, ct);
 
-        _pendingCount = await store.CountPendingAsync(ct);
-        _failedCount = await store.CountFailedAsync(ct);
+        _pendingCount = await store.CountPendingAsync(PowerOutboxPayloadTypes.PowerReading, ct);
+        _failedCount = await store.CountFailedAsync(PowerOutboxPayloadTypes.PowerReading, ct);
 
         if (pending.Count == 0 || IsPlaceholderConfig)
             return;
@@ -170,8 +170,8 @@ public sealed class PowerApiForwarder : BackgroundService
         }
 
         await store.SaveChangesAsync(ct);
-        _pendingCount = await store.CountPendingAsync(ct);
-        _failedCount = await store.CountFailedAsync(ct);
+        _pendingCount = await store.CountPendingAsync(PowerOutboxPayloadTypes.PowerReading, ct);
+        _failedCount = await store.CountFailedAsync(PowerOutboxPayloadTypes.PowerReading, ct);
     }
 
     private async Task CompactAsync(CancellationToken ct)

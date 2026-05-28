@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HVO.Edge.Outbox.Tests;
 
 [TestClass]
-public sealed class EdgeOutboxDatabaseInitializerTests
+public sealed class EdgeOutboxSqliteDatabaseInitializerTests
 {
     [TestMethod]
     public async Task EnsureCreatedAsync_AddsPayloadMetadataColumnsToLegacyOutboxTable()
@@ -39,7 +39,7 @@ public sealed class EdgeOutboxDatabaseInitializerTests
 
         await using var db = new TestOutboxDbContext(new DbContextOptionsBuilder<TestOutboxDbContext>().UseSqlite(connection).Options);
 
-        await EdgeOutboxDatabaseInitializer.EnsureCreatedAsync(db, "power.reading", "1");
+        await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(db, "power.reading", "1");
 
         var row = db.OutboxRecords.Single();
         row.PayloadType.Should().Be("power.reading");

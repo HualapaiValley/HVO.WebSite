@@ -2,7 +2,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HVO.Edge.Outbox;
 
-public static class EdgeOutboxDatabaseInitializer
+/// <summary>Initializes or upgrades the shared outbox schema for SQLite-backed edge gateways.</summary>
+public static class EdgeOutboxSqliteDatabaseInitializer
 {
     public static async Task EnsureCreatedAsync(
         EdgeOutboxDbContext db,
@@ -13,6 +14,8 @@ public static class EdgeOutboxDatabaseInitializer
         ArgumentNullException.ThrowIfNull(db);
         var payloadType = NormalizeDefault(defaultPayloadType, nameof(defaultPayloadType));
         var payloadVersion = NormalizeDefault(defaultPayloadVersion, nameof(defaultPayloadVersion));
+        if (!string.Equals(db.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
+            throw new InvalidOperationException("Edge outbox SQLite initialization requires the Microsoft.EntityFrameworkCore.Sqlite provider.");
 
         await db.Database.EnsureCreatedAsync(ct);
         await EnsureColumnAsync(db, "PayloadType", $"TEXT NOT NULL DEFAULT '{EscapeSqlLiteral(payloadType)}'", ct);
