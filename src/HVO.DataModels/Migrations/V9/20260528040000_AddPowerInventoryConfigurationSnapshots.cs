@@ -1,4 +1,6 @@
 using System;
+using HVO.DataModels.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,6 +8,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace HVO.DataModels.Migrations.V9
 {
     /// <inheritdoc />
+    [DbContext(typeof(HvoV9DbContext))]
+    [Migration("20260528040000_AddPowerInventoryConfigurationSnapshots")]
     public partial class AddPowerInventoryConfigurationSnapshots : Migration
     {
         /// <inheritdoc />
