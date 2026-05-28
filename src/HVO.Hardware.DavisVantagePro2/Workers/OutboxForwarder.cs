@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace HVO.Hardware.DavisVantagePro2.Workers;
@@ -96,8 +97,11 @@ public sealed class OutboxForwarder(
         var client = httpFactory.CreateClient("WeatherApi");
         try
         {
-            await ForwardBatchAsync(db, client, pending, ct);
+            await ForwardBatchAsync(client, pending, ct);
             await db.SaveChangesAsync(ct);
+            PendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
+            FailedCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
+            telemetry.SetOutboxQueueDepth(PendingCount);
             sweepScope
                 .WithTag("records_forwarded", LastBatchCount)
                 .WithTag("pending", PendingCount)
@@ -110,19 +114,40 @@ public sealed class OutboxForwarder(
         SweptCompleted?.Invoke();
     }
 
-    private async Task ForwardBatchAsync(OutboxDbContext db, HttpClient client,
-        List<OutboxRecord> records, CancellationToken ct)
+    private async Task ForwardBatchAsync(HttpClient client, List<OutboxRecord> records, CancellationToken ct)
     {
         var batchEndpoint = _options.ApiEndpoint + "/batch";
 
-        // Build JSON array from the already-serialised per-record payloads
-        var batchJson = "[" + string.Join(",", records.Select(r => r.Payload)) + "]";
+        var ready = new List<OutboxRecord>(records.Count);
+        foreach (var record in records)
+        {
+            if (IsValidPayloadJson(record.Payload))
+            {
+                ready.Add(record);
+                continue;
+            }
+
+            MarkFailed(record, OutboxFailureKind.InvalidPayload, "Invalid outbox payload JSON; record cannot be forwarded.");
+            logger.LogError("Dead-lettering outbox record {Id} ({RecordedAt}) because payload JSON is invalid", record.Id, record.RecordedAtUtc);
+        }
 
         foreach (var record in records)
         {
             record.AttemptCount++;
             record.LastAttemptedAtUtc = DateTime.UtcNow;
         }
+
+        if (ready.Count == 0)
+        {
+            LastError = records.Any(r => r.FailureKind == OutboxFailureKind.InvalidPayload)
+                ? "One or more outbox records have invalid payload JSON."
+                : null;
+            LastBatchCount = 0;
+            return;
+        }
+
+        // Build JSON array from the already-serialised per-record payloads.
+        var batchJson = "[" + string.Join(",", ready.Select(r => r.Payload)) + "]";
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try
@@ -140,13 +165,13 @@ public sealed class OutboxForwarder(
                 {
                     // Null deserialization result is unexpected — schedule a retry for all records
                     string error = "Null response body from batch endpoint";
-                    foreach (var record in records)
+                    foreach (var record in ready)
                     {
                         record.LastError = error;
                         ScheduleRetry(record);
                     }
                     LastError = error;
-                    logger.LogWarning("Batch forward returned success status but null body ({Count} records scheduled for retry)", records.Count);
+                    logger.LogWarning("Batch forward returned success status but null body ({Count} records scheduled for retry)", ready.Count);
                     return;
                 }
 
@@ -155,14 +180,13 @@ public sealed class OutboxForwarder(
                 var sentAt = DateTime.UtcNow;
                 int sentCount = 0;
 
-                foreach (var record in records)
+                foreach (var record in ready)
                 {
                     var failure = failedTimes.FirstOrDefault(f => f.RecordedAt == record.RecordedAtUtc);
                     if (failure is not null)
                     {
                         // Permanent validation failure — dead-letter it
-                        record.Status = OutboxStatus.Failed;
-                        record.LastError = failure.Error;
+                        MarkFailed(record, OutboxFailureKind.ApiValidation, failure.Error);
                         logger.LogWarning(
                             "Dead-lettering record {Id} ({RecordedAt}): {Error}",
                             record.Id, record.RecordedAtUtc, failure.Error);
@@ -173,6 +197,7 @@ public sealed class OutboxForwarder(
                         record.Status = OutboxStatus.Sent;
                         record.SentAtUtc = sentAt;
                         record.LastError = null;
+                        record.FailureKind = OutboxFailureKind.None;
                         sentCount++;
                     }
                 }
@@ -184,7 +209,7 @@ public sealed class OutboxForwarder(
 
                 if (result?.Failed?.Count > 0)
                     logger.LogWarning("Batch of {Total}: {Sent} sent/skipped, {Dead} dead-lettered",
-                        records.Count, sentCount, result.Failed.Count);
+                        ready.Count, sentCount, result.Failed.Count);
                 else
                     logger.LogDebug("Forwarded batch of {Count} records", sentCount);
             }
@@ -193,34 +218,34 @@ public sealed class OutboxForwarder(
                 // Transient HTTP failure — retry all with backoff
                 string body = await response.Content.ReadAsStringAsync(ct);
                 string error = $"HTTP {(int)response.StatusCode}: {body[..Math.Min(200, body.Length)]}";
-                foreach (var record in records)
+                foreach (var record in ready)
                 {
                     record.LastError = error;
                     ScheduleRetry(record);
                 }
                 LastError = error;
-                logger.LogWarning("Batch forward failed ({Count} records): {Err}", records.Count, error);
+                logger.LogWarning("Batch forward failed ({Count} records): {Err}", ready.Count, error);
             }
         }
         catch (HttpRequestException ex)
         {
-            foreach (var record in records)
+            foreach (var record in ready)
             {
                 record.LastError = ex.Message;
                 ScheduleRetry(record);
             }
             LastError = ex.Message;
-            logger.LogWarning(ex, "HTTP error forwarding batch of {Count} records", records.Count);
+            logger.LogWarning(ex, "HTTP error forwarding batch of {Count} records", ready.Count);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
-            foreach (var record in records)
+            foreach (var record in ready)
             {
                 record.LastError = "Request timed out";
                 ScheduleRetry(record);
             }
             LastError = "Request timed out";
-            logger.LogWarning("Batch request timed out for {Count} records", records.Count);
+            logger.LogWarning("Batch request timed out for {Count} records", ready.Count);
         }
     }
 
@@ -244,8 +269,8 @@ public sealed class OutboxForwarder(
     {
         if (record.AttemptCount >= _options.MaxRetryAttempts)
         {
-            record.Status = OutboxStatus.Failed;
-            record.LastError = $"Giving up after {record.AttemptCount} attempts. Last error: {record.LastError}";
+            MarkFailed(record, OutboxFailureKind.TransientExhausted,
+                $"Giving up after {record.AttemptCount} attempts. Last error: {record.LastError}");
             logger.LogError("Record {Id} permanently failed after {N} attempts", record.Id, record.AttemptCount);
             return;
         }
@@ -253,5 +278,30 @@ public sealed class OutboxForwarder(
         // Exponential backoff: 2^n seconds, capped
         double delaySec = Math.Min(Math.Pow(2, record.AttemptCount), _options.MaxBackoffSeconds);
         record.NextRetryAtUtc = DateTime.UtcNow.AddSeconds(delaySec);
+        record.Status = OutboxStatus.Pending;
+        record.FailureKind = OutboxFailureKind.None;
+    }
+
+    private static void MarkFailed(OutboxRecord record, OutboxFailureKind kind, string error)
+    {
+        record.Status = OutboxStatus.Failed;
+        record.FailureKind = kind;
+        record.LastError = error;
+    }
+
+    private static bool IsValidPayloadJson(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+            return false;
+
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            return document.RootElement.ValueKind == JsonValueKind.Object;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 }

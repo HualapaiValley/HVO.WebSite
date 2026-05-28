@@ -166,6 +166,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
     await db.Database.EnsureCreatedAsync();
+    await OutboxDatabaseMaintenance.EnsureFailureKindAndRequeueRetryableFailuresAsync(db);
     await db.Database.ExecuteSqlRawAsync(
         @"CREATE TABLE IF NOT EXISTS StationSettingsSnapshots (
             Id INTEGER NOT NULL CONSTRAINT PK_StationSettingsSnapshots PRIMARY KEY,
