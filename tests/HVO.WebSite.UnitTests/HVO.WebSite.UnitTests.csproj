@@ -12,7 +12,9 @@
     <PackageReference Include="MSTest" />
     <PackageReference Include="Moq" />
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="AngleSharp" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection" />
+    <PackageReference Include="bunit" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
@@ -24,6 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/HVO.Edge.Contracts/HVO.Edge.Contracts.csproj" />
     <ProjectReference Include="../../src/HVO.WebSite.v9/HVO.WebSite.v9.csproj" />
     <ProjectReference Include="../../src/HVO.Staging/HVO.Staging.csproj" />
   </ItemGroup>

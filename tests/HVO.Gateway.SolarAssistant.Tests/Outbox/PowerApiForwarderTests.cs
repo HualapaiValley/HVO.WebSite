@@ -93,6 +93,7 @@ public sealed class PowerApiForwarderTests
         var row = db.OutboxRecords.Single();
         row.Status.Should().Be(OutboxStatus.Failed);
         row.LastError.Should().Be("bad payload");
+        _provider.GetRequiredService<PowerApiForwarder>().LastError.Should().Be("bad payload");
     }
 
     [TestMethod]

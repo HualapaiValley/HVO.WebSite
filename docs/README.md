@@ -5,6 +5,7 @@ This directory holds current reference, operational notes, discovery findings, a
 ## Current Reference
 
 - `ARCHITECTURE.md`: current system baseline, deployment boundaries, and active data-flow direction
+- `GATEWAY_FOUNDATION_REVIEW.md`: current gateway foundation plan, shared contract direction, and edge outbox roadmap
 - `CONTAINER_PUBLISHING.md`: ACR publishing workflow and versioning process
 - `WEBSITE_CONTAINER_APP.md`: current Azure Container App notes for the website deployment
 - `PROJECT_HISTORY.md`: session-by-session summary of recent work, decisions, and follow-up context

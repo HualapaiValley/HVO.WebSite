@@ -22,6 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\HVO.Edge.Outbox\HVO.Edge.Outbox.csproj" />
     <ProjectReference Include="..\HVO.WebSite.Themes\HVO.WebSite.Themes.csproj" />
   </ItemGroup>
 

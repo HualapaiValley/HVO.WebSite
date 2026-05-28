@@ -265,7 +265,29 @@ public sealed class BmsPollerWorker : BackgroundService
         _telemetryService = telemetryService;
         _logger = logger;
 
-        var enabledDevices = _options.Devices.Where(d => d.Enabled).ToList();
+        var configuredDevices = _options.Devices
+            .Select((device, index) => new { Device = device, Index = index })
+            .ToList();
+
+        foreach (var entry in configuredDevices.Where(static x => x.Device.Enabled &&
+            (string.IsNullOrWhiteSpace(x.Device.Address) || string.IsNullOrWhiteSpace(x.Device.Alias))))
+        {
+            _logger.LogWarning(
+                "Skipping invalid JK BMS device config at index {Index}. Enabled={Enabled} Address='{Address}' Alias='{Alias}'",
+                entry.Index,
+                entry.Device.Enabled,
+                entry.Device.Address,
+                entry.Device.Alias);
+        }
+
+        var enabledDevices = configuredDevices
+            .Where(static x =>
+                x.Device.Enabled &&
+                !string.IsNullOrWhiteSpace(x.Device.Address) &&
+                !string.IsNullOrWhiteSpace(x.Device.Alias))
+            .Select(static x => x.Device)
+            .ToList();
+
         _devices = enabledDevices
             .Select(d => new DevicePollState
             {

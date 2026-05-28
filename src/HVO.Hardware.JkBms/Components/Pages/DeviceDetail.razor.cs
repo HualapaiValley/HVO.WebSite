@@ -1,3 +1,4 @@
+using HVO.Hardware.JkBms.Components.Layout;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
 
@@ -7,11 +8,13 @@ public partial class DeviceDetail : IDisposable
 {
     [Parameter] public string Address { get; set; } = string.Empty;
     [Inject] private ILogger<DeviceDetail> Logger { get; set; } = default!;
+    [CascadingParameter] private ShellLayoutState? ShellLayoutState { get; set; }
 
     private Workers.DevicePollState? _state;
 
     protected override void OnParametersSet()
     {
+        ShellLayoutState?.SetPage("Banks", "JK bank detail", "Individual bank diagnostics, live pack metrics, and device configuration for a single JK BMS bank.");
         _state = Poller.DeviceStates
             .FirstOrDefault(d => string.Equals(d.Address, Address, StringComparison.OrdinalIgnoreCase));
         if (_state is null)
@@ -30,6 +33,12 @@ public partial class DeviceDetail : IDisposable
     public void Dispose()
     {
         Poller.DeviceStateChanged -= OnStateChanged;
+    }
+
+    private static string BuildGaugeStyle(double value, double min, double max, string color)
+    {
+        var normalized = max > min ? Math.Clamp((value - min) / (max - min) * 100d, 0d, 100d) : 0d;
+        return $"--gauge-value:{normalized:0.##}; --gauge-color:{color};";
     }
 
     /// <summary>Decodes the alarm bitmask into human-readable alarm names.</summary>

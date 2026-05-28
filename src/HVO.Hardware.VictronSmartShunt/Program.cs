@@ -70,6 +70,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<SmartShuntWorker>(
 builder.Services.AddSingleton<PowerApiForwarder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PowerApiForwarder>());
 builder.Services.AddSingleton<SmartShuntGatewayHealthService>();
+builder.Services.AddSingleton<ISmartShuntGatewayHealthSnapshotProvider>(sp => sp.GetRequiredService<SmartShuntGatewayHealthService>());
 
 builder.Services.AddHealthChecks()
     .AddCheck<SmartShuntGatewayHealthCheck>("smartshunt-gateway");

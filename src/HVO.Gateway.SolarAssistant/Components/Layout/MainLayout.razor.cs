@@ -1,14 +1,23 @@
+using System.Globalization;
+using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Health;
+using HVO.Gateway.SolarAssistant.Workers;
 using Microsoft.AspNetCore.Components;
 using MudBlazor;
 
 namespace HVO.Gateway.SolarAssistant.Components.Layout;
 
-public partial class MainLayout : LayoutComponentBase
+public partial class MainLayout : LayoutComponentBase, IDisposable
 {
     private bool _isDarkMode = true;
+    private PeriodicTimer? _refreshTimer;
+    private CancellationTokenSource? _refreshCts;
 
     [Inject] private SolarAssistantGatewayHealthService HealthService { get; set; } = default!;
+
+    [Inject] private SolarAssistantSnapshotWorker SnapshotWorker { get; set; } = default!;
+
+    [Inject] private PowerApiForwarder Forwarder { get; set; } = default!;
 
     [Inject] private NavigationManager Navigation { get; set; } = default!;
 
@@ -52,6 +61,48 @@ public partial class MainLayout : LayoutComponentBase
 
     private SolarAssistantGatewayHealthSnapshot Health => HealthService.GetSnapshot();
 
+    private string FooterSourceText => string.IsNullOrWhiteSpace(SnapshotWorker.LastSnapshot?.SourceId)
+        ? "SolarAssistant gateway"
+        : SnapshotWorker.LastSnapshot!.SourceId;
+
+    private string FooterSampleTimeText => SnapshotWorker.LastSnapshotAt.HasValue
+        ? SnapshotWorker.LastSnapshotAt.Value.ToLocalTime().ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture)
+        : "Waiting for data";
+
+    private string FooterOutboxText => $"Outbox: {Forwarder.PendingCount} pending - {Forwarder.FailedCount} failed";
+
+    private string FooterApiText => Forwarder.PendingCount > 0 && !string.IsNullOrWhiteSpace(Forwarder.LastError)
+        ? "API sync failing"
+        : Forwarder.PendingCount > 0
+            ? "API sync pending"
+            : Forwarder.FailedCount > 0
+                ? "API sync degraded"
+                : Forwarder.LastSentAt.HasValue
+                    ? "API sync healthy"
+                    : "API sync idle";
+
+    private string FooterApiDotClass => Forwarder.PendingCount > 0 && !string.IsNullOrWhiteSpace(Forwarder.LastError)
+        ? "shell-status-dot shell-status-dot-offline"
+        : Forwarder.PendingCount > 0 || Forwarder.FailedCount > 0
+            ? "shell-status-dot shell-status-dot-warning"
+            : Forwarder.LastSentAt.HasValue
+                ? "shell-status-dot shell-status-dot-online"
+                : "shell-status-dot shell-status-dot-warning";
+
+    protected override void OnInitialized()
+    {
+        _refreshCts = new CancellationTokenSource();
+        _refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        _ = RefreshLoopAsync(_refreshCts.Token);
+    }
+
+    public void Dispose()
+    {
+        _refreshCts?.Cancel();
+        _refreshTimer?.Dispose();
+        _refreshCts?.Dispose();
+    }
+
     private string FooterHealthText => Health.State switch
     {
         "healthy" => "Gateway healthy",
@@ -90,5 +141,23 @@ public partial class MainLayout : LayoutComponentBase
     private void ToggleTheme()
     {
         _isDarkMode = !_isDarkMode;
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken ct)
+    {
+        if (_refreshTimer is null)
+            return;
+
+        try
+        {
+            while (await _refreshTimer.WaitForNextTickAsync(ct))
+                await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 }

@@ -807,6 +807,9 @@
           "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.7, )"
         }
       },
+      "hvo.edge.contracts": {
+        "type": "Project"
+      },
       "hvo.website.themes": {
         "type": "Project"
       },

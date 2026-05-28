@@ -45,6 +45,7 @@ public sealed class SmartShuntOptions
     [Range(0, 100000)]
     public int OutboxPendingWarningCount { get; set; } = 10;
 
+    /// <summary>Classify historical failed outbox records as over-threshold at this count. Historical failures warn/degrade; current forwarding failures are critical. Set to 0 to disable.</summary>
     [Range(0, 100000)]
     public int OutboxFailedCriticalCount { get; set; } = 1;
 
