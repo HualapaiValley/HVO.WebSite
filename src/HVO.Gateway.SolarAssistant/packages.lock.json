@@ -439,6 +439,15 @@
           "System.Composition.Runtime": "9.0.0"
         }
       },
+      "hvo.edge.contracts": {
+        "type": "Project"
+      },
+      "hvo.edge.outbox": {
+        "type": "Project",
+        "dependencies": {
+          "HVO.Edge.Contracts": "[1.0.0, )"
+        }
+      },
       "hvo.website.themes": {
         "type": "Project"
       },

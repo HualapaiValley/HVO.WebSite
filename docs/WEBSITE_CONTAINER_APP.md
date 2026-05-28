@@ -32,7 +32,7 @@ The current agreed starting shape for the website Container App is:
 | Replicas | `minReplicas=1`, `maxReplicas=1` |
 | Sizing | `1 vCPU`, `2 GiB` memory |
 | Database connectivity | Azure SQL over the public endpoint for now |
-| Key Vault standard | Standardize on `https://hvoobs-kv.vault.azure.net/` |
+| Key Vault standard | Standardize project-specific website secrets on `https://hvoobs-kv.vault.azure.net/` |
 | Website auth secret | Use Entra app `ClientSecret` for the website deployment |
 | Telemetry | Publish application telemetry to Application Insights and enable ACA platform logs |
 | Health probes | Use `/health/live` and `/health/ready` |
@@ -161,7 +161,8 @@ The current ACA deployment is running with:
 
 | Item | Value |
 |------|-------|
-| Image | `hvoobsacr.azurecr.io/hvo-website:1.0.3` |
+| Image | `hvoobsacr.azurecr.io/hvo-website:1.0.13` |
+| Revision | `hvo-website--0000015` |
 | FQDN | `hvo-website.calmsand-72a6c5ac.westus.azurecontainerapps.io` |
 | Ingress | External HTTPS via ACA |
 | Target port | `8080` |
@@ -176,9 +177,13 @@ Verified smoke-test results:
 
 - `/health/live` returns `200`
 - `/health/ready` returns `200`
+- Authenticated `/api/v1/power/system/latest` returns `200` with a composed `PowerSystemSnapshot`
 - `/` returns `200`
 - `/admin` redirects to Microsoft Entra sign-in instead of failing server-side
 - `/admin` now emits an HTTPS `redirect_uri` for `/signin-oidc` that matches the Entra app registration
+- Interactive browser sign-in succeeds and an authorized user can see the live power snapshot card
+- Authenticated `/api/v1/power/system/latest` includes 7 JK BMS battery banks with aggregate `bankCount=7`
+- The live power card displays per-bank freshness using each bank reading timestamp and highlights aging or stale banks while preserving alarm styling
 
 ## Current Runtime Status
 
@@ -189,7 +194,7 @@ The earlier deployment blockers have been resolved:
 - The website honors ACA forwarded proxy headers, so OIDC redirects now use the external HTTPS hostname instead of internal HTTP.
 - Recent Container App logs no longer show the previous ephemeral or unencrypted Data Protection warnings.
 
-Interactive browser sign-in should now be fully configured, but the final confirmation still requires a real user sign-in through the browser.
+Interactive browser sign-in is confirmed working for an authorized user.
 
 ## Ready-To-Create Checklist
 

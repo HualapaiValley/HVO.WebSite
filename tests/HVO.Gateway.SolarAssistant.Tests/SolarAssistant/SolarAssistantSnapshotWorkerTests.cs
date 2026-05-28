@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
@@ -98,6 +99,85 @@ public sealed class SolarAssistantSnapshotWorkerTests
         worker.History[0].PvPowerW.Should().Be(2000);
         worker.History[1].PvPowerW.Should().Be(3000);
         worker.History.Select(h => h.RecordedAtUtc).Should().BeInAscendingOrder();
+    }
+
+    [TestMethod]
+    public async Task PollOnceAsync_NoMetrics_HydratesLatestSnapshotFromOutbox()
+    {
+        var recordedAt = DateTime.Parse("2026-05-23T10:05:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+            db.OutboxRecords.Add(new OutboxRecord
+            {
+                SourceId = "solarassistant-total",
+                DeviceId = "total",
+                RecordedAtUtc = recordedAt.AddMinutes(-5),
+                Payload = JsonSerializer.Serialize(new PowerReadingPayload
+                {
+                    SourceId = "solarassistant-total",
+                    DeviceId = "total",
+                    RecordedAtUtc = recordedAt.AddMinutes(-5),
+                    PvPowerW = 111,
+                }, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+            });
+            db.OutboxRecords.Add(new OutboxRecord
+            {
+                SourceId = "solarassistant-total",
+                DeviceId = "total",
+                RecordedAtUtc = recordedAt,
+                Payload = JsonSerializer.Serialize(new PowerReadingPayload
+                {
+                    SourceId = "solarassistant-total",
+                    DeviceId = "total",
+                    RecordedAtUtc = recordedAt,
+                    PvPowerW = 222,
+                    LoadPowerW = 333,
+                }, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var client = _provider.GetRequiredService<FakeSolarAssistantClient>();
+        client.SetMetrics([]);
+        var worker = _provider.GetRequiredService<SolarAssistantSnapshotWorker>();
+
+        var queued = await worker.PollOnceAsync(CancellationToken.None);
+
+        queued.Should().BeFalse();
+        worker.LastMetricCount.Should().Be(0);
+        worker.LastSnapshot.Should().NotBeNull();
+        worker.LastSnapshot!.PvPowerW.Should().Be(222);
+        worker.LastSnapshot.LoadPowerW.Should().Be(333);
+        worker.LastSnapshotAt.Should().Be(recordedAt);
+        worker.History.Should().ContainSingle(h => h.PvPowerW == 222);
+    }
+
+    [TestMethod]
+    public async Task PollOnceAsync_NoMetrics_IgnoresInvalidOutboxPayload()
+    {
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+            db.OutboxRecords.Add(new OutboxRecord
+            {
+                SourceId = "solarassistant-total",
+                DeviceId = "total",
+                RecordedAtUtc = DateTime.UtcNow,
+                Payload = "{not-json",
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var client = _provider.GetRequiredService<FakeSolarAssistantClient>();
+        client.SetMetrics([]);
+        var worker = _provider.GetRequiredService<SolarAssistantSnapshotWorker>();
+
+        var queued = await worker.PollOnceAsync(CancellationToken.None);
+
+        queued.Should().BeFalse();
+        worker.LastSnapshot.Should().BeNull();
+        worker.History.Should().BeEmpty();
     }
 
     private sealed class FakeSolarAssistantClient : ISolarAssistantClient

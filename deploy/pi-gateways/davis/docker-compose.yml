@@ -1,0 +1,27 @@
+services:
+  hvo-davis:
+    build:
+      context: ../../..
+      dockerfile: src/HVO.Hardware.DavisVantagePro2/Dockerfile
+    ports:
+      - "5100:8080"
+    environment:
+      Station__Host: ${DAVIS_STATION_HOST}
+      Station__Port: ${DAVIS_STATION_PORT:-22222}
+      Station__ArchiveCatchupMode: "Disabled"
+      Station__ArchiveCatchupLookbackHours: "12"
+      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL}/api/v1/weather/raw"
+      Outbox__ApiKey: ${DAVIS_API_KEY}
+      Outbox__DbPath: /app/data/outbox.db
+      DOTNET_ENVIRONMENT: Production
+      OTEL_SERVICE_NAME: hvo-davis
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+    volumes:
+      - davis-outbox:/app/data
+      - davis-data-protection:/root/.aspnet/DataProtection-Keys
+    restart: unless-stopped
+
+volumes:
+  davis-outbox:
+  davis-data-protection:

@@ -36,6 +36,14 @@ public sealed class OutboxOptions
     [Range(1, 500)]
     public int BatchSize { get; set; } = 50;
 
+    /// <summary>Warn when pending outbox records exceed this count. Set to 0 to warn on any pending record.</summary>
+    [Range(0, 100000)]
+    public int PendingWarningCount { get; set; } = 10;
+
+    /// <summary>Classify historical failed outbox records as over-threshold at this count. Historical failures still warn/degrade; set to 0 to disable only the over-threshold classification.</summary>
+    [Range(0, 100000)]
+    public int FailedCriticalCount { get; set; } = 1;
+
     /// <summary>
     /// Path to the SQLite database file.
     /// Defaults to <c>outbox.db</c> in the content root when empty.

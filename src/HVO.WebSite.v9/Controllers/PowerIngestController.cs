@@ -3,7 +3,9 @@ using System.Diagnostics;
 using Asp.Versioning;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Models;
+using HVO.WebSite.v9.Services;
 using HVO.WebSite.v9.Telemetry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,15 +26,18 @@ public class PowerIngestController : ControllerBase
     private readonly HvoV9DbContext _db;
     private readonly PowerIngestTelemetry _telemetry;
     private readonly ILogger<PowerIngestController> _logger;
+    private readonly IPowerSystemSnapshotProvider _snapshotProvider;
 
     public PowerIngestController(
         HvoV9DbContext db,
         PowerIngestTelemetry telemetry,
-        ILogger<PowerIngestController> logger)
+        ILogger<PowerIngestController> logger,
+        IPowerSystemSnapshotProvider snapshotProvider)
     {
         _db = db;
         _telemetry = telemetry;
         _logger = logger;
+        _snapshotProvider = snapshotProvider;
     }
 
     /// <summary>
@@ -241,13 +246,28 @@ public class PowerIngestController : ControllerBase
         return Ok(rows);
     }
 
+    /// <summary>Returns the latest composed power-system snapshot from recent source readings.</summary>
+    [HttpGet("system/latest")]
+    [Authorize(Policy = "PowerRead")]
+    [ProducesResponseType(typeof(PowerSystemSnapshot), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerSystemSnapshot>> GetLatestSystemSnapshot(
+        [FromQuery][Range(1, 1440)] int lookbackMinutes = 60,
+        CancellationToken ct = default)
+    {
+        return Ok(await _snapshotProvider.GetLatestAsync(lookbackMinutes, ct)
+            ?? PowerSystemSnapshotComposer.Compose([], DateTime.UtcNow));
+    }
+
     private static PowerReading MapToEntity(
         PowerReadingIngestRequest request,
         string sourceId,
         DateTime recordedAt) => new()
         {
             SourceId = sourceId,
-            SourceSystem = NormalizeOptional(request.SourceSystem),
+            SourceSystem = NormalizeSourceSystem(request.SourceSystem),
             DeviceId = NormalizeOptional(request.DeviceId),
             RecordedAt = recordedAt,
             PvPowerW = request.PvPowerW,
@@ -274,6 +294,9 @@ public class PowerIngestController : ControllerBase
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? NormalizeSourceSystem(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
     private static DateTime NormalizeRecordedAt(DateTime recordedAt) =>
         recordedAt.ToUniversalTime();

@@ -31,11 +31,27 @@ Davis Vantage Pro 2 console (TCP)
 JK BMS devices (Bluetooth LE)                                  ▼
         │                                              HVO.WebSite.v9
  HVO.Hardware.JkBms                                  ├─ Blazor SSR dashboard
-   ├─ Blazor SSR UI (status, devices, device detail)  ├─ REST API (API-key auth)
-   ├─ SQLite outbox (durable, idempotent, with retry)  ├─ Azure SQL (EF Core)
-   └─ POST /api/v1/bms/readings  ──────────────────────┤ Role-based auth (Entra ID)
-                                                        └─ Health probes + OpenAPI
+    ├─ Blazor SSR UI (status, devices, device detail)  ├─ REST API (API-key auth)
+    ├─ SQLite outbox (durable, idempotent, with retry)  ├─ Azure SQL (EF Core)
+    └─ POST /api/v1/bms/readings  ──────────────────────┤ Role-based auth (Entra ID)
+                                                         └─ Health probes + OpenAPI
 ```
+
+## Edge Deployment Direction
+
+- Azure remains the central website/API/persistence boundary.
+- Pi-class ARM64 edge hosts are the primary deployment targets for hardware gateway services.
+- `devPi5` is the current validated gateway target for BLE workloads.
+- `hvo-docker` remains the preferred home for shared observability/infrastructure services such as Grafana and telemetry collectors, not direct BLE gateway polling.
+
+Current validated BLE edge baseline:
+
+- Host: `devPi5`
+- Architecture: `linux-arm64`
+- Runtime: `.NET 10`
+- Container runtime: Docker
+- Bluetooth path: BlueZ over mounted system D-Bus socket
+- Proven workload: 7 concurrent JK BMS BLE connections, polled successfully both bare-host and inside Docker
 
 ## Features
 
@@ -122,19 +138,33 @@ See [docs/CONTAINER_PUBLISHING.md](docs/CONTAINER_PUBLISHING.md) for the Azure s
 
 This repository includes a [dev container](.devcontainer/) configuration for a consistent development environment. Open in VS Code or GitHub Codespaces to get started automatically.
 
+Recommended workflow:
+
+- Use the repo devcontainer on `hvo-dev` as the primary development environment.
+- Deploy hardware gateway containers to Pi targets for BLE/runtime validation.
+- Keep direct Pi development available for host-level diagnostics, but treat Pi systems primarily as edge deployment targets.
+
+Docker contexts:
+
+```bash
+docker context ls
+docker --context devpi5 ps
+docker --context devpi5 compose up -d --build
+```
+
 ---
 
 ## Documentation
 
 | Guide | Description |
 |-------|-------------|
+| [Docs Index](docs/README.md) | Entry point for current docs, discovery notes, and archived planning material |
 | [Contributing](CONTRIBUTING.md) | PR workflow, branch naming, coding standards |
 | [Changelog](CHANGELOG.md) | Release history and notable changes |
+| [Project History](docs/PROJECT_HISTORY.md) | Session-by-session working history, key decisions, and next-context notes |
 | [Architecture](docs/ARCHITECTURE.md) | Current system baseline, data flow, collector pattern, and future integration direction |
-| [Edge Outbox And Gateway Plan](docs/EDGE_OUTBOX_AND_GATEWAY_PLAN.md) | Shared edge outbox direction, gateway naming, and SolarAssistant discovery plan |
 | [Container Publishing](docs/CONTAINER_PUBLISHING.md) | Azure ACR inventory, versioning workflow, publish script usage |
 | [Website Container App](docs/WEBSITE_CONTAINER_APP.md) | Azure Container App deployment decisions and runtime requirements for `HVO.WebSite` |
-| [Plan](docs/PLAN.md) | Implementation plan and milestone tracking |
 
 ---
 

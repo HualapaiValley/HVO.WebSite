@@ -2,7 +2,7 @@
 
 Last updated: 2026-05-23
 
-This document captures the current architecture baseline for HVO.WebSite and the expected direction for near-term hardware integrations. It is a current-state reference, not a full implementation plan. Use `docs/PLAN.md` for phase tracking and detailed task checklists. Use `docs/EDGE_OUTBOX_AND_GATEWAY_PLAN.md` for the shared edge outbox and gateway sequence. The validated RabbitMQ/Service Bus ingest POC is archived under `archive/rabbitmq-servicebus-ingest-poc/`.
+This document captures the current architecture baseline for HVO.WebSite and the expected direction for near-term hardware integrations. It is a current-state reference, not a full implementation plan. Use `docs/PROJECT_HISTORY.md` for recent session context and decision notes. The validated RabbitMQ/Service Bus ingest POC was removed from the active repo after being deferred and remains available in git history if needed.
 
 ## System Purpose
 
@@ -103,7 +103,7 @@ Minute and hourly aggregate entities exist for weather and BMS, but the website 
 
 These APIs are the current production ingest boundary. Future domain persistence should stay normalized rather than vendor-oriented, with vendor/provider adapters living in edge services.
 
-## Archived Brokered Ingest POC
+## Deferred Brokered Ingest Option
 
 The brokered ingest POC proved this path end-to-end for `hvo.weather.raw.v1`:
 
@@ -111,7 +111,7 @@ The brokered ingest POC proved this path end-to-end for `hvo.weather.raw.v1`:
 Davis collector -> RabbitMQ -> Azure Service Bus -> Azure Functions -> Azure SQL
 ```
 
-The POC artifacts are archived and not referenced by the active solution. The design is deferred because the current system can meet reliability and operational needs with a simpler per-edge SQLite outbox and typed website APIs.
+The design is deferred because the current system can meet reliability and operational needs with a simpler per-edge SQLite outbox and typed website APIs. The old POC artifacts were removed from the active repo and remain only in git history.
 
 If brokered ingest is revived later, the same general responsibilities apply:
 
@@ -242,7 +242,7 @@ Future integrations should fit into the existing edge collector model.
 | Integration | Recommended Boundary |
 |-------------|----------------------|
 | SolarAssistant / EG4 6500EX | First-pass read-only source/provider gateway that inventories via REST, prefers validated MQTT live state topics, keeps WebSocket as a fallback/diagnostic stream, writes a local SQLite outbox, then posts to a typed power ingest API |
-| Victron SmartShunt | Edge collector or MQTT gateway depending on available local integration |
+| Victron SmartShunt | Edge collector; public paired GATT for production baseline, optional private enrichment later |
 | TPLink outlets/lights | Deferred; likely closer to a dedicated Davis-style app with its own UI than a pure monitoring gateway |
 | Govee BLE sensors | ESPHome or BLE edge collector that decodes sensor values locally |
 | ESPHome nodes | Treat as edge decoders that expose values through MQTT or ESPHome native API to a provider-specific gateway, not as a generic transparent BLE adapter |

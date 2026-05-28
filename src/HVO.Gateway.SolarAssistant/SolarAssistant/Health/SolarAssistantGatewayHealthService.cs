@@ -2,6 +2,8 @@ using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 using HVO.Gateway.SolarAssistant.Workers;
+using HVO.Edge.Contracts;
+using HVO.Edge.Outbox;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Gateway.SolarAssistant.SolarAssistant.Health;
@@ -87,20 +89,7 @@ public sealed class SolarAssistantGatewayHealthService : IGatewayHealthSnapshotP
             }
         }
 
-        if (failedOutboxCount >= options.OutboxFailedCriticalCount && options.OutboxFailedCriticalCount > 0)
-        {
-            alerts.Add(Alert("outbox-failed", SolarAssistantGatewayHealthSeverity.Critical, $"{failedOutboxCount} outbox record(s) failed."));
-        }
-
-        if (pendingOutboxCount > options.OutboxPendingWarningCount)
-        {
-            alerts.Add(Alert("outbox-backlog", SolarAssistantGatewayHealthSeverity.Warning, $"{pendingOutboxCount} outbox record(s) are pending."));
-        }
-
-        if (!string.IsNullOrWhiteSpace(outboxError))
-        {
-            alerts.Add(Alert("outbox-error", SolarAssistantGatewayHealthSeverity.Warning, $"Outbox forwarder error: {outboxError}"));
-        }
+        alerts.AddRange(BuildOutboxAlerts(options, pendingOutboxCount, failedOutboxCount, outboxError));
 
         if (snapshot?.BatteryStateOfChargePercent is { } soc)
         {
@@ -135,4 +124,45 @@ public sealed class SolarAssistantGatewayHealthService : IGatewayHealthSnapshotP
             Severity = severity,
             Message = message,
         };
+
+    private static IReadOnlyList<SolarAssistantGatewayHealthAlert> BuildOutboxAlerts(
+        SolarAssistantOptions options,
+        int pendingOutboxCount,
+        int failedOutboxCount,
+        string? outboxError)
+    {
+        var evaluation = EdgeOutboxHealthEvaluator.Evaluate(
+            new EdgeOutboxObservation(
+                PendingCount: pendingOutboxCount,
+                FailedCount: failedOutboxCount,
+                LastError: outboxError),
+            new EdgeOutboxHealthOptions(
+                PendingWarningCount: options.OutboxPendingWarningCount,
+                FailedCriticalCount: options.OutboxFailedCriticalCount));
+
+        return evaluation.Alerts
+            .Select(MapOutboxAlert)
+            .ToArray();
+    }
+
+    private static SolarAssistantGatewayHealthAlert MapOutboxAlert(GatewayHealthAlert alert)
+    {
+        return Alert(
+            MapOutboxAlertCode(alert.Code),
+            alert.Severity switch
+            {
+                GatewayAlertSeverity.Critical => SolarAssistantGatewayHealthSeverity.Critical,
+                GatewayAlertSeverity.Warning => SolarAssistantGatewayHealthSeverity.Warning,
+                _ => SolarAssistantGatewayHealthSeverity.Info,
+            },
+            alert.Message);
+    }
+
+    private static string MapOutboxAlertCode(string code) => code switch
+    {
+        "outbox-current-sync-failing" => "outbox-error",
+        "outbox-pending-backlog" => "outbox-backlog",
+        "outbox-historical-failures" or "outbox-historical-failures-over-threshold" => "outbox-failed",
+        _ => code,
+    };
 }

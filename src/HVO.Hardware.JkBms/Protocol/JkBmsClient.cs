@@ -1,5 +1,6 @@
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Protocol.Transport;
+using Linux.Bluetooth;
 using Microsoft.Extensions.Logging;
 
 namespace HVO.Hardware.JkBms.Protocol;
@@ -9,9 +10,10 @@ namespace HVO.Hardware.JkBms.Protocol;
 ///
 /// Lifecycle:
 ///   This client is long-lived — create one instance per device at startup and
-///   hold it for the application lifetime. The underlying <see cref="IBmsTransport"/>
-///   maintains a persistent BLE connection; it connects on the first exchange and
-///   reconnects automatically if the connection is lost between calls.
+///   hold it for the application lifetime. The caller must use
+///   <see cref="ConnectWithDeviceAsync"/> with a coordinator-resolved BlueZ
+///   <see cref="Device"/> before issuing polls. Call <see cref="DisconnectAsync"/>
+///   when the caller needs to release the BLE session.
 ///
 ///   Dispose the client (via <see cref="DisposeAsync"/>) when the application shuts
 ///   down to cleanly close the BLE connection.
@@ -33,17 +35,27 @@ public sealed class JkBmsClient : IAsyncDisposable
         _logger = logger;
     }
 
+    /// <summary>True if the underlying BLE transport is currently connected.</summary>
+    public bool IsConnected => _transport.IsConnected;
+
     /// <summary>
-    /// Explicitly establish the BLE connection.  Call this at startup to pre-connect
-    /// before the first poll — avoids lazy-connect latency in the poll loop.
+    /// Complete GATT setup on a pre-connected BlueZ Device supplied by the scan loop.
+    /// Delegates directly to <see cref="IBmsTransport.ConnectWithDeviceAsync"/>.
     /// </summary>
-    public Task ConnectAsync(CancellationToken ct) => _transport.ConnectAsync(ct);
+    public Task ConnectWithDeviceAsync(Device device, CancellationToken ct) =>
+        _transport.ConnectWithDeviceAsync(device, ct);
+
+    /// <summary>
+    /// Explicitly release the BLE connection. Polling remains unavailable until the
+    /// caller establishes a new session with <see cref="ConnectWithDeviceAsync"/>.
+    /// </summary>
+    public Task DisconnectAsync() => _transport.DisconnectAsync();
 
     /// <summary>
     /// Send the cell-info command and return the parsed response.
     ///
-    /// The transport connects on the first call and reconnects automatically if
-    /// the connection was lost since the previous call.
+    /// Requires an active transport connection established by
+    /// <see cref="ConnectWithDeviceAsync"/>.
     /// </summary>
     /// <exception cref="JkBmsConnectException">Thrown when the device cannot be reached.</exception>
     /// <exception cref="JkBmsTimeoutException">Thrown when the device does not respond in time.</exception>
@@ -83,8 +95,8 @@ public sealed class JkBmsClient : IAsyncDisposable
     /// <summary>
     /// Send the device-info command and return the parsed response.
     ///
-    /// The transport connects on the first call and reconnects automatically if
-    /// the connection was lost since the previous call.
+    /// Requires an active transport connection established by
+    /// <see cref="ConnectWithDeviceAsync"/>.
     /// </summary>
     public async Task<DeviceInfoPacket> PollDeviceInfoAsync(CancellationToken ct)
     {

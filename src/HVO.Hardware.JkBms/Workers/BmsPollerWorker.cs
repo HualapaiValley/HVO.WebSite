@@ -32,6 +32,7 @@ public sealed class DevicePollState
 {
     public string Address { get; init; } = string.Empty;
     public string Alias { get; init; } = string.Empty;
+    public string AdapterName { get; init; } = string.Empty;
     public int PollIntervalSeconds { get; init; }
 
     // These fields are read by Blazor UI threads while the worker loop writes them.
@@ -48,6 +49,14 @@ public sealed class DevicePollState
     private volatile DeviceInfoPacket? _latestDeviceInfo;
     private volatile string? _lastSentConfigHash;
     private volatile string? _lastSentDeviceInfoHash;
+    private volatile int _sessionEstablishedCount;
+    private volatile int _sessionDisconnectedCount;
+    private volatile int _sessionRequestFailureCount;
+    private volatile int _isSessionConnected;
+    private volatile string? _lastDisconnectReason;
+    private volatile int _lastSessionDurationSeconds;
+    private long _lastConnectedAtTicks;
+    private long _lastDisconnectedAtTicks;
 
     public DateTime NextPollAt
     {
@@ -116,6 +125,83 @@ public sealed class DevicePollState
         get => _lastSentDeviceInfoHash;
         set => _lastSentDeviceInfoHash = value;
     }
+
+    public int SessionEstablishedCount
+    {
+        get => _sessionEstablishedCount;
+        set => _sessionEstablishedCount = value;
+    }
+
+    public int SessionDisconnectedCount
+    {
+        get => _sessionDisconnectedCount;
+        set => _sessionDisconnectedCount = value;
+    }
+
+    public int SessionRequestFailureCount
+    {
+        get => _sessionRequestFailureCount;
+        set => _sessionRequestFailureCount = value;
+    }
+
+    public bool IsSessionConnected
+    {
+        get => _isSessionConnected != 0;
+        set => _isSessionConnected = value ? 1 : 0;
+    }
+
+    public DateTime? LastConnectedAt
+    {
+        get
+        {
+            var t = Volatile.Read(ref _lastConnectedAtTicks);
+            return t == 0 ? null : new DateTime(t, DateTimeKind.Utc);
+        }
+        set => Volatile.Write(ref _lastConnectedAtTicks, value?.Ticks ?? 0L);
+    }
+
+    public DateTime? LastDisconnectedAt
+    {
+        get
+        {
+            var t = Volatile.Read(ref _lastDisconnectedAtTicks);
+            return t == 0 ? null : new DateTime(t, DateTimeKind.Utc);
+        }
+        set => Volatile.Write(ref _lastDisconnectedAtTicks, value?.Ticks ?? 0L);
+    }
+
+    public string? LastDisconnectReason
+    {
+        get => _lastDisconnectReason;
+        set => _lastDisconnectReason = value;
+    }
+
+    public int LastSessionDurationSeconds
+    {
+        get => _lastSessionDurationSeconds;
+        set => _lastSessionDurationSeconds = value;
+    }
+
+    public void RecordSessionEstablished(DateTime connectedAtUtc)
+    {
+        SessionEstablishedCount++;
+        IsSessionConnected = true;
+        LastConnectedAt = connectedAtUtc;
+        LastDisconnectReason = null;
+        LastSessionDurationSeconds = 0;
+    }
+
+    public void RecordSessionDisconnected(DateTime disconnectedAtUtc, string reason)
+    {
+        SessionDisconnectedCount++;
+        IsSessionConnected = false;
+        LastDisconnectedAt = disconnectedAtUtc;
+        LastDisconnectReason = reason;
+
+        var connectedAt = LastConnectedAt;
+        if (connectedAt.HasValue && disconnectedAtUtc >= connectedAt.Value)
+            LastSessionDurationSeconds = (int)(disconnectedAtUtc - connectedAt.Value).TotalSeconds;
+    }
 }
 
 /// <summary>
@@ -123,17 +209,19 @@ public sealed class DevicePollState
 /// and writes readings to the SQLite outbox.
 ///
 /// Design:
-/// - Single event loop iterates over devices and polls the soonest-due one.
-/// - One long-lived <see cref="JkBmsClient"/> is created per device at startup;
-///   each client holds a persistent BLE connection via its transport.
+/// - One long-lived <see cref="JkBmsDevice"/> session is created per device at startup.
+/// - Each session owns its BLE connection, poll schedule, reconnect/backoff state, and
+///   serial command lane for that specific BMS.
 /// - Per-device exponential backoff on consecutive errors (capped at ~10 min).
 /// - Raises <see cref="DeviceStateChanged"/> after each successful or failed poll so the
 ///   Blazor status page can refresh in real-time.
 /// </summary>
 public sealed class BmsPollerWorker : BackgroundService
 {
-    private readonly Dictionary<string, JkBmsClient> _clients;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBmsTransportFactory _transportFactory;
+    private readonly IBluetoothAdapterCoordinator _adapterCoordinator;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly IBmsAlarmHandler _alarmHandler;
     private readonly JkBmsOptions _options;
     private readonly BmsTelemetry _telemetry;
@@ -141,6 +229,7 @@ public sealed class BmsPollerWorker : BackgroundService
     private readonly ILogger<BmsPollerWorker> _logger;
 
     private readonly List<DevicePollState> _devices;
+    private readonly List<JkBmsDevice> _sessions;
 
     // ── Public state (Blazor status page reads these) ─────────────────────────
 
@@ -157,6 +246,7 @@ public sealed class BmsPollerWorker : BackgroundService
 
     public BmsPollerWorker(
         IBmsTransportFactory transportFactory,
+        IBluetoothAdapterCoordinator adapterCoordinator,
         ILoggerFactory loggerFactory,
         IServiceScopeFactory scopeFactory,
         IBmsAlarmHandler alarmHandler,
@@ -166,39 +256,72 @@ public sealed class BmsPollerWorker : BackgroundService
         ILogger<BmsPollerWorker> logger)
     {
         _scopeFactory = scopeFactory;
+        _transportFactory = transportFactory;
+        _adapterCoordinator = adapterCoordinator;
+        _loggerFactory = loggerFactory;
         _alarmHandler = alarmHandler;
         _options = options.Value;
         _telemetry = telemetry;
         _telemetryService = telemetryService;
         _logger = logger;
 
-        // Create one persistent client per enabled device
-        _clients = _options.Devices
-            .Where(d => d.Enabled)
-            .ToDictionary(
-                d => d.Address,
-                d =>
-                {
-                    var adapterName = string.IsNullOrWhiteSpace(d.HciAdapter)
-                        ? _options.HciAdapter
-                        : d.HciAdapter;
-                    var transport = transportFactory.Create(d.Address, adapterName);
-                    return new JkBmsClient(transport,
-                        loggerFactory.CreateLogger<JkBmsClient>());
-                });
+        var configuredDevices = _options.Devices
+            .Select((device, index) => new { Device = device, Index = index })
+            .ToList();
 
-        var enabledDevices = _options.Devices.Where(d => d.Enabled).ToList();
+        foreach (var entry in configuredDevices.Where(static x => x.Device.Enabled &&
+            (string.IsNullOrWhiteSpace(x.Device.Address) || string.IsNullOrWhiteSpace(x.Device.Alias))))
+        {
+            _logger.LogWarning(
+                "Skipping invalid JK BMS device config at index {Index}. Enabled={Enabled} Address='{Address}' Alias='{Alias}'",
+                entry.Index,
+                entry.Device.Enabled,
+                entry.Device.Address,
+                entry.Device.Alias);
+        }
+
+        var enabledDevices = configuredDevices
+            .Where(static x =>
+                x.Device.Enabled &&
+                !string.IsNullOrWhiteSpace(x.Device.Address) &&
+                !string.IsNullOrWhiteSpace(x.Device.Alias))
+            .Select(static x => x.Device)
+            .ToList();
+
         _devices = enabledDevices
             .Select(d => new DevicePollState
             {
                 Address = d.Address,
                 Alias = d.Alias,
+                AdapterName = string.IsNullOrWhiteSpace(d.HciAdapter) ? _options.HciAdapter : d.HciAdapter,
                 PollIntervalSeconds = d.PollIntervalSeconds > 0
                     ? d.PollIntervalSeconds
                     : _options.DefaultPollIntervalSeconds,
-                // All devices connect in parallel at startup; first polls are staggered
-                // slightly so the HCI adapter isn't hit with 7 simultaneous exchanges.
-                NextPollAt = DateTime.UtcNow.AddSeconds(enabledDevices.IndexOf(d) * 2),
+                // First poll fires immediately after the scan loop signals connect-ready.
+                NextPollAt = DateTime.UtcNow,
+            })
+            .ToList();
+
+        _sessions = enabledDevices
+            .Select(d =>
+            {
+                var adapterName = string.IsNullOrWhiteSpace(d.HciAdapter)
+                    ? _options.HciAdapter
+                    : d.HciAdapter;
+                var state = _devices.First(s => s.Address == d.Address);
+                return new JkBmsDevice(
+                    d,
+                    adapterName,
+                    state,
+                    _options,
+                    _transportFactory,
+                    _adapterCoordinator,
+                    _loggerFactory,
+                    _telemetry,
+                    _telemetryService,
+                    OnSuccessfulPollAsync,
+                    RaiseDeviceStateChanged,
+                    _loggerFactory.CreateLogger<JkBmsDevice>());
             })
             .ToList();
     }
@@ -206,204 +329,43 @@ public sealed class BmsPollerWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation(
-            "BmsPollerWorker starting. {Count} device(s).",
+            "BmsPollerWorker starting {Count} device session(s).",
             _devices.Count);
-
-        // Connect all devices concurrently at startup so the first poll cycle
-        // doesn't block on sequential BLE scan + connect (3-10s per device).
-        // Failures are non-fatal here — ExchangeAsync will retry on the first poll.
-        _logger.LogInformation("BmsPollerWorker connecting all devices in parallel...");
-        await Task.WhenAll(_clients.Select(async kvp =>
-        {
-            var (address, client) = (kvp.Key, kvp.Value);
-            try
-            {
-                await client.ConnectAsync(stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                // Shutdown before all connections established — fine, the loop won't run.
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex,
-                    "Startup connect failed for {Address}; will retry on first poll.", address);
-            }
-        }));
-
-        _logger.LogInformation("BmsPollerWorker startup connect phase complete.");
-
-        // Fetch device info and capture settings for each device that connected successfully.
-        // These are stored in DevicePollState so the UI can display configuration data.
-        await Task.WhenAll(_clients.Select(async kvp =>
-        {
-            var (address, client) = (kvp.Key, kvp.Value);
-            var state = _devices.First(d => d.Address == address);
-            try
-            {
-                state.LatestDeviceInfo = await client.PollDeviceInfoAsync(stoppingToken);
-                state.LatestSettings = client.GetLatestSettings();
-            }
-            catch (OperationCanceledException)
-            {
-                // Shutdown before info fetch — fine.
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex,
-                    "Startup info fetch failed for {Alias} ({Address}); UI will show N/A.",
-                    state.Alias, address);
-            }
-        }));
 
         try
         {
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                var now = DateTime.UtcNow;
-
-                // Find the device most overdue for a poll
-                var device = _devices
-                    .OrderBy(d => d.NextPollAt)
-                    .FirstOrDefault();
-
-                if (device is null)
-                {
-                    await Task.Delay(1_000, stoppingToken);
-                    continue;
-                }
-
-                var waitMs = (int)(device.NextPollAt - now).TotalMilliseconds;
-                if (waitMs > 0)
-                {
-                    await Task.Delay(Math.Min(waitMs, 1_000), stoppingToken);
-                    continue;
-                }
-
-                await PollDeviceAsync(device, stoppingToken);
-            }
+            var sessionTasks = _sessions.Select(s => s.RunAsync(stoppingToken)).ToArray();
+            await Task.WhenAll(sessionTasks);
         }
         finally
         {
-            // Dispose all persistent clients on shutdown
-            foreach (var client in _clients.Values)
-                await client.DisposeAsync();
+            foreach (var session in _sessions)
+                await session.DisposeAsync();
         }
 
         _logger.LogInformation("BmsPollerWorker stopped.");
     }
 
-    private async Task PollDeviceAsync(DevicePollState device, CancellationToken ct)
+    private async Task OnSuccessfulPollAsync(
+        DevicePollState device,
+        JkBmsClient client,
+        CellInfoPacket packet,
+        CancellationToken ct)
     {
-        using var pollScope = _telemetryService.StartOperation("BMS.Poll");
-        pollScope.WithTag("device", device.Alias);
+        var reading = await WriteToOutboxAsync(device, packet, ct);
 
-        _logger.LogDebug("Polling {Alias} ({Address})", device.Alias, device.Address);
-
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        try
+        if (packet.HasAlarms)
         {
-            var packet = await _clients[device.Address].PollCellInfoAsync(ct);
-            sw.Stop();
-
-            _telemetry.DevicePollCount.Add(1,
-                new KeyValuePair<string, object?>("device", device.Alias),
-                new KeyValuePair<string, object?>("result", "success"));
-            _telemetry.DevicePollDurationMs.Record(sw.Elapsed.TotalMilliseconds,
-                new KeyValuePair<string, object?>("device", device.Alias));
-
-            device.LatestReading = packet;
-            device.LastPollAt = DateTime.UtcNow;
-            device.ConsecutiveErrors = 0;
-            device.BackoffLevel = 0;
-            device.LastError = null;
-            device.NextPollAt = DateTime.UtcNow.AddSeconds(device.PollIntervalSeconds);
-
-            // Refresh settings from the spontaneous 0x01 frame the transport captures
-            // each time the BMS connects.  We update on every successful poll so that
-            // the UI eventually shows settings even if the frame wasn't in the buffer
-            // when GetLatestSettings() was called at startup.
-            var freshSettings = _clients[device.Address].GetLatestSettings();
-            if (freshSettings is not null)
-                device.LatestSettings = freshSettings;
-
-            var reading = await WriteToOutboxAsync(device, packet, ct);
-
-            if (packet.HasAlarms)
-            {
-                // Reuse the BmsDeviceReading already built inside WriteToOutboxAsync
-                // rather than calling MapToReading a second time.
-                await _alarmHandler.HandleAsync(reading, ct);
-            }
-
-            pollScope
-                .WithTag("soc_pct", packet.StateOfChargePercent)
-                .WithTag("voltage_mv", packet.TotalVoltageMv)
-                .WithTag("current_ma", packet.CurrentMa)
-                .WithTag("alarms", packet.HasAlarms)
-                .Succeed();
-
-            // Snapshot the delegate before invoking to avoid a race if a subscriber
-            // adds or removes itself concurrently from another thread (e.g. Blazor navigation).
-            var stateChangedHandler = DeviceStateChanged;
-            stateChangedHandler?.Invoke();
-
-            // Log a structured summary with all key metrics.
-            // Cell voltages are emitted as a scope property so they appear as a JSON array
-            // in the structured log file — useful for post-run per-cell drift analysis.
-            using (_logger.BeginScope(new Dictionary<string, object?>
-            {
-                ["CellVoltagesMv"] = string.Join(",", packet.CellVoltagesMv),
-                ["CellCount"] = packet.CellCount,
-            }))
-            {
-                _logger.LogInformation(
-                    "Polled {Alias}: SOC={Soc}%, V={VoltageMv}mV, I={CurrentMa}mA, Δ={DeltaMv}mV, " +
-                    "T1={T1C}°C T2={T2C}°C Tmos={TmosC}°C",
-                    device.Alias,
-                    packet.StateOfChargePercent,
-                    packet.TotalVoltageMv,
-                    packet.CurrentMa,
-                    packet.DeltaCellVoltageMv,
-                    packet.BatteryTemperature1C,
-                    packet.BatteryTemperature2C,
-                    packet.PowerTubeTemperatureC);
-            }
+            // Reuse the BmsDeviceReading already built inside WriteToOutboxAsync
+            // rather than calling MapToReading a second time.
+            await _alarmHandler.HandleAsync(reading, ct);
         }
-        catch (OperationCanceledException ex)
-        {
-            pollScope.Fail(ex);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            sw.Stop();
-            _telemetry.DevicePollCount.Add(1,
-                new KeyValuePair<string, object?>("device", device.Alias),
-                new KeyValuePair<string, object?>("result", "error"));
-            _telemetry.DevicePollDurationMs.Record(sw.Elapsed.TotalMilliseconds,
-                new KeyValuePair<string, object?>("device", device.Alias));
+    }
 
-            device.ConsecutiveErrors++;
-            device.LastError = ex.Message;
-            device.BackoffLevel = Math.Min(device.BackoffLevel + 1, 10);
-
-            // Exponential backoff: 2^level seconds, capped at 10 minutes
-            int backoffSeconds = Math.Min((int)Math.Pow(2, device.BackoffLevel), 600);
-            device.NextPollAt = DateTime.UtcNow.AddSeconds(backoffSeconds);
-
-            pollScope.RecordException(ex);
-            pollScope.Fail(ex);
-
-            // Snapshot before invoking — same thread-safety rationale as the success path.
-            var errorStateChangedHandler = DeviceStateChanged;
-            errorStateChangedHandler?.Invoke();
-
-            _logger.LogWarning(
-                ex,
-                "Poll failed for {Alias} ({Address}), error #{N}. Backoff {Backoff}s.",
-                device.Alias, device.Address, device.ConsecutiveErrors, backoffSeconds);
-        }
+    private void RaiseDeviceStateChanged()
+    {
+        var handler = DeviceStateChanged;
+        handler?.Invoke();
     }
 
     private async Task<BmsDeviceReading> WriteToOutboxAsync(DevicePollState device, CellInfoPacket packet, CancellationToken ct)

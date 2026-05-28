@@ -1,97 +1,244 @@
 @page "/"
 @rendermode InteractiveServer
-@using HVO.Hardware.JkBms.Workers
-@inject BmsPollerWorker Poller
-@inject ForwarderCoordinator Forwarder
 
-<h1>BMS Status</h1>
+<div class="layout-canvas shell-page" aria-label="JK BMS overview content area">
+    <div class="shell-page-stack">
+        <section class="jk-hero" aria-label="Fleet overview header">
+            <div>
+                <div class="jk-eyebrow">Fleet Overview</div>
+                <h1 class="jk-hero-title">@PageHeadingText</h1>
+                <p class="jk-hero-summary">@PageSummaryText</p>
+            </div>
 
-@if (!Poller.DeviceStates.Any())
-{
-    <p>No devices configured.</p>
-}
-else
-{
-<div class="data-table-wrapper">
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Alias</th>
-                <th>Address</th>
-                <th>SOC</th>
-                <th>Voltage</th>
-                <th>Current</th>
-                <th>Δ Cell</th>
-                <th>Temp (bat)</th>
-                <th>Errors</th>
-                <th>Last Poll</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var device in Poller.DeviceStates)
-            {
-                var r = device.LatestReading;
-                <tr class="@(device.ConsecutiveErrors > 0 ? "row-error" : "")">
-                    <td><a href="/device/@device.Address">@device.Alias</a></td>
-                    <td class="monospace">@device.Address</td>
-                    @if (r is not null)
+            <div class="jk-hero-meta">
+                <div class="jk-stat-chip">
+                    <span>Connected banks</span>
+                    <strong>@ConnectedBanks / @TotalBanks</strong>
+                </div>
+                <div class="jk-stat-chip">
+                    <span>Fleet charge</span>
+                    <strong>@DisplayPercent(AverageStateOfChargePercent)</strong>
+                </div>
+                <div class="jk-stat-chip">
+                    <span>Latest poll</span>
+                    <strong>@DisplayClock(LatestPollAtUtc)</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="jk-card" aria-label="Whole system snapshot">
+            <div class="jk-card-head">
+                <div>
+                    <div class="jk-card-kicker">Fleet summary</div>
+                    <h2>Combined battery picture</h2>
+                </div>
+                <div class="jk-summary-pill">
+                    <span>Reporting</span>
+                    <strong>@ReportingBanks bank(s)</strong>
+                </div>
+            </div>
+
+            <div class="jk-gauge-grid">
+                <div class="jk-gauge" style="@AverageSocGaugeStyle">
+                    <div class="jk-gauge-inner">
+                        <span>Avg SoC</span>
+                        <strong>@DisplayPercent(AverageStateOfChargePercent)</strong>
+                    </div>
+                </div>
+                <div class="jk-gauge" style="@AverageVoltageGaugeStyle">
+                    <div class="jk-gauge-inner">
+                        <span>Avg V</span>
+                        <strong>@DisplayVoltage(AverageVoltageV)</strong>
+                    </div>
+                </div>
+                <div class="jk-gauge" style="@CurrentGaugeStyle">
+                    <div class="jk-gauge-inner">
+                        <span>Total A</span>
+                        <strong>@DisplayCurrent(TotalCurrentA)</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="jk-metric-grid">
+                <div class="jk-metric">
+                    <span>Average state of charge</span>
+                    <strong>@DisplayPercent(AverageStateOfChargePercent)</strong>
+                </div>
+                <div class="jk-metric">
+                    <span>Average pack voltage</span>
+                    <strong>@DisplayVoltage(AverageVoltageV)</strong>
+                </div>
+                <div class="jk-metric">
+                    <span>Total current</span>
+                    <strong>@DisplayCurrent(TotalCurrentA)</strong>
+                </div>
+                <div class="jk-metric">
+                    <span>Total nominal capacity</span>
+                    <strong>@DisplayAmpHours(TotalNominalCapacityAh)</strong>
+                </div>
+                <div class="jk-metric">
+                    <span>Average delta cell</span>
+                    <strong>@DisplayMillivolts(AverageDeltaCellMv)</strong>
+                </div>
+                <div class="jk-metric">
+                    <span>Highest battery temp</span>
+                    <strong>@DisplayTemperature(MaxBatteryTemperatureC)</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="jk-card" aria-label="Fleet high and low indicators">
+            <div class="jk-card-head">
+                <div>
+                    <div class="jk-card-kicker">Highlights</div>
+                    <h2>High and low bank indicators</h2>
+                </div>
+            </div>
+
+            <div class="jk-highlight-grid">
+                <article class="jk-highlight-card">
+                    <span class="jk-highlight-label">Highest SoC bank</span>
+                    @if (HighestSocBank is null)
                     {
-                        <td>@r.StateOfChargePercent %</td>
-                        <td>@((r.TotalVoltageMv / 1000.0).ToString("F2")) V</td>
-                        <td>@F1(r.CurrentMa / 1000.0) A</td>
-                        <td class="@(r.DeltaCellVoltageMv > 50 ? "cell-warn" : "")">@r.DeltaCellVoltageMv mV</td>
-                        <td>@r.BatteryTemperature1C.ToString("F1") °C</td>
+                        <strong>--</strong>
+                        <div class="text-secondary">Waiting for readings</div>
                     }
                     else
                     {
-                        <td colspan="5" class="cell-none">—</td>
+                        <strong>@HighestSocBank.Alias</strong>
+                        <div class="jk-highlight-value">@DisplayPercent(HighestSocBank.LatestReading?.StateOfChargePercent)</div>
                     }
-                    <td>@device.ConsecutiveErrors</td>
-                    <td>@(device.LastPollAt?.ToString("HH:mm:ss") ?? "—")</td>
-                    <td>
-                        @if (device.ConsecutiveErrors > 0)
-                        {
-                            <span class="badge badge-error">Error</span>
-                            <small>@device.LastError</small>
-                        }
-                        else if (r?.HasAlarms == true)
-                        {
-                            <span class="badge badge-warn">Alarm</span>
-                        }
-                        else if (r is not null)
-                        {
-                            <span class="badge badge-ok">OK</span>
-                        }
-                        else
-                        {
-                            <span class="badge badge-none">Waiting</span>
-                        }
-                    </td>
-                </tr>
+                </article>
+
+                <article class="jk-highlight-card">
+                    <span class="jk-highlight-label">Lowest SoC bank</span>
+                    @if (LowestSocBank is null)
+                    {
+                        <strong>--</strong>
+                        <div class="text-secondary">Waiting for readings</div>
+                    }
+                    else
+                    {
+                        <strong>@LowestSocBank.Alias</strong>
+                        <div class="jk-highlight-value">@DisplayPercent(LowestSocBank.LatestReading?.StateOfChargePercent)</div>
+                    }
+                </article>
+
+                <article class="jk-highlight-card">
+                    <span class="jk-highlight-label">Highest delta cell</span>
+                    @if (HighestDeltaBank is null)
+                    {
+                        <strong>--</strong>
+                        <div class="text-secondary">Waiting for readings</div>
+                    }
+                    else
+                    {
+                        <strong>@HighestDeltaBank.Alias</strong>
+                        <div class="jk-highlight-value">@DisplayMillivolts(HighestDeltaBank.LatestReading?.DeltaCellVoltageMv)</div>
+                    }
+                </article>
+
+                <article class="jk-highlight-card">
+                    <span class="jk-highlight-label">Hottest bank</span>
+                    @if (HottestBank is null)
+                    {
+                        <strong>--</strong>
+                        <div class="text-secondary">Waiting for readings</div>
+                    }
+                    else
+                    {
+                        <strong>@HottestBank.Alias</strong>
+                        <div class="jk-highlight-value">@DisplayTemperature(HottestBank.LatestReading?.BatteryTemperature1C)</div>
+                    }
+                </article>
+            </div>
+        </section>
+
+        <section class="jk-card" aria-label="Fleet bank status board">
+            <div class="jk-card-head">
+                <div>
+                    <div class="jk-card-kicker">Status board</div>
+                    <h2>At-a-glance bank grid</h2>
+                </div>
+                <a class="shell-nav-link" href="/devices">Open banks and config</a>
+            </div>
+
+            @if (!Poller.DeviceStates.Any())
+            {
+                <p class="placeholder-message">No devices configured.</p>
             }
-        </tbody>
-    </table>
-</div>
-}
+            else
+            {
+                <div class="jk-ataglance-grid">
+                    @foreach (var device in Poller.DeviceStates)
+                    {
+                        var reading = device.LatestReading;
+                        <a class="jk-bank-link" href="/device/@device.Address">
+                            <article class="jk-ataglance-card">
+                                <div class="jk-bank-title-row jk-bank-title-row-compact">
+                                    <div>
+                                        <div class="jk-bank-title">@device.Alias</div>
+                                        <div class="text-secondary">@BankStatusLabel(device, reading)</div>
+                                    </div>
+                                    <span class="jk-health-dot @BankStatusClass(device, reading)" aria-hidden="true"></span>
+                                </div>
 
-<h2>Outbox</h2>
-<div class="data-grid">
-    <span class="label">Pending</span>
-    <span class="value">@Forwarder.PendingCount</span>
+                                <div class="jk-mini-gauge-shell">
+                                    <div class="jk-mini-gauge-track">
+                                        <div class="jk-mini-gauge-fill" style="@MiniGaugeStyle(reading?.StateOfChargePercent)"></div>
+                                    </div>
+                                    <div class="jk-mini-gauge-meta">
+                                        <span>Charge</span>
+                                        <strong>@DisplayPercent(reading?.StateOfChargePercent)</strong>
+                                    </div>
+                                </div>
 
-    <span class="label">Failed</span>
-    <span class="value @(Forwarder.FailedCount > 0 ? "value-error" : "")">@Forwarder.FailedCount</span>
+                                <div class="jk-ataglance-stats">
+                                    <div class="jk-ataglance-stat"><span>Voltage</span><strong>@DisplayVoltage(reading is null ? null : reading.TotalVoltageMv / 1000.0)</strong></div>
+                                    <div class="jk-ataglance-stat"><span>Current</span><strong>@DisplayCurrent(reading is null ? null : reading.CurrentMa / 1000.0)</strong></div>
+                                    <div class="jk-ataglance-stat"><span>Delta</span><strong>@DisplayMillivolts(reading?.DeltaCellVoltageMv)</strong></div>
+                                    <div class="jk-ataglance-stat"><span>Temp</span><strong>@DisplayTemperature(reading?.BatteryTemperature1C)</strong></div>
+                                </div>
 
-    <span class="label">Last Sent</span>
-    <span class="value">@(Forwarder.LastSentAt?.ToString("HH:mm:ss") ?? "—")</span>
+                                <div class="jk-ataglance-footer">
+                                    <span class="badge @BankBadgeClass(device, reading)">@BankStatusLabel(device, reading)</span>
+                                    <span class="text-secondary">@DisplayClock(device.LastPollAt)</span>
+                                </div>
+                            </article>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
 
-    <span class="label">Last Batch</span>
-    <span class="value">@Forwarder.LastBatchCount</span>
-
-    @if (Forwarder.LastError is not null)
-    {
-        <span class="label">Last Error</span>
-        <span class="value value-error">@Forwarder.LastError</span>
-    }
+        <section class="jk-table-shell" aria-label="Fleet balance chart">
+            <div class="jk-card-head jk-card">
+                <div>
+                    <div class="jk-card-kicker">Fleet chart</div>
+                    <h2>Bank charge balance</h2>
+                </div>
+            </div>
+            @if (!ReportingDevices.Any())
+            {
+                <p class="placeholder-message">Charge bars appear after the fleet reports its first readings.</p>
+            }
+            else
+            {
+                <div class="jk-balance-list">
+                    @foreach (var device in ReportingDevices.OrderByDescending(d => d.LatestReading!.StateOfChargePercent))
+                    {
+                        <div class="jk-balance-row">
+                            <div class="jk-balance-labels">
+                                <a href="/device/@device.Address">@device.Alias</a>
+                                <span>@DisplayPercent(device.LatestReading?.StateOfChargePercent)</span>
+                            </div>
+                            <div class="jk-balance-track" aria-hidden="true">
+                                <div class="jk-balance-fill" style="@MiniGaugeStyle(device.LatestReading?.StateOfChargePercent)"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    </div>
 </div>
