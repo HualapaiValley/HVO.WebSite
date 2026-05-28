@@ -1,1 +1,154 @@
 /* Site-specific overrides for HVO.WebSite.v9 live here. Extend the shared theme carefully. */
+
+.power-status-card {
+    background: linear-gradient(135deg, rgba(16, 23, 42, 0.95), rgba(15, 76, 92, 0.75));
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    border-radius: 1.5rem;
+    box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, 0.35);
+    color: #f8fbff;
+    padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+.power-status-card--locked {
+    text-align: center;
+}
+
+.power-status-card__header,
+.power-status-card__footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.power-status-card__eyebrow {
+    color: #7dd3fc;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+}
+
+.power-status-card__state {
+    align-self: flex-start;
+    background: rgba(34, 197, 94, 0.16);
+    border: 1px solid rgba(74, 222, 128, 0.42);
+    border-radius: 999px;
+    color: #bbf7d0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0.35rem 0.8rem;
+}
+
+.power-status-card__grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    margin: 1.25rem 0;
+}
+
+.power-metric {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 1.1rem;
+    padding: 1rem;
+}
+
+.power-metric span,
+.power-metric small,
+.power-status-card__footer span {
+    color: rgba(248, 251, 255, 0.76);
+    display: block;
+}
+
+.power-metric strong {
+    display: block;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    line-height: 1.05;
+}
+
+.power-status-card__footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    padding-top: 1rem;
+}
+
+.power-bank-grid {
+    display: grid;
+    gap: 0.85rem;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    margin-top: 1.25rem;
+}
+
+.power-bank {
+    background: rgba(15, 23, 42, 0.42);
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    border-radius: 1rem;
+    padding: 0.85rem;
+}
+
+.power-bank--warning {
+    border-color: rgba(250, 204, 21, 0.62);
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.14);
+}
+
+.power-bank--stale {
+    border-color: rgba(251, 146, 60, 0.75);
+    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.2);
+}
+
+.power-bank--alarm {
+    border-color: rgba(248, 113, 113, 0.7);
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.18);
+}
+
+.power-bank__header {
+    align-items: center;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.power-bank__header h3 {
+    font-size: 1rem;
+    margin: 0;
+}
+
+.power-bank__header span {
+    color: #bbf7d0;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.power-bank--warning .power-bank__header span {
+    color: #fef08a;
+}
+
+.power-bank--stale .power-bank__header span {
+    color: #fed7aa;
+}
+
+.power-bank--alarm .power-bank__header span {
+    color: #fecaca;
+}
+
+.power-bank dl {
+    display: grid;
+    gap: 0.55rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+}
+
+.power-bank dt {
+    color: rgba(248, 251, 255, 0.62);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.power-bank dd {
+    color: #f8fbff;
+    font-weight: 700;
+    margin: 0;
+}

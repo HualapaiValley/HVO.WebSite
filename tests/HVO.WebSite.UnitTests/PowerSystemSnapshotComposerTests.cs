@@ -57,6 +57,35 @@ public sealed class PowerSystemSnapshotComposerTests
         snapshot.Battery.FlowDirection!.Value.Should().Be(PowerFlowDirection.Discharging);
     }
 
+    [TestMethod]
+    public void Compose_AddsJkBmsBatteryBanksAndAggregateStatus()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+        var snapshot = PowerSystemSnapshotComposer.Compose(
+            [SolarAssistant(now, soc: 82)],
+            now,
+            [
+                JkBmsReading(now.AddSeconds(-5), "bank-2a", alarmBitmask: 0, cellVoltagesMv: [3361, 3364, 3362]),
+                JkBmsReading(now, "bank-1a", alarmBitmask: 4, cellVoltagesMv: [3350, 3353, 3355]),
+            ]);
+
+        snapshot.BatteryBanks.Should().HaveCount(2);
+        snapshot.BatteryBanks![0].BankId.Should().Be("bank-1a");
+        snapshot.BatteryBanks[0].Source.Should().Be(PowerMetricSource.JkBms);
+        snapshot.BatteryBanks[0].VoltageV!.Value.Should().Be(53.81);
+        snapshot.BatteryBanks[0].CurrentA!.Value.Should().Be(7.5);
+        snapshot.BatteryBanks[0].PowerW!.Value.Should().Be(403.575);
+        snapshot.BatteryBanks[0].MinCellVoltageV!.Value.Should().Be(3.35);
+        snapshot.BatteryBanks[0].MaxCellVoltageV!.Value.Should().Be(3.355);
+        snapshot.BatteryBanks[0].DeltaCellVoltageV!.Value.Should().Be(0.005);
+        snapshot.BatteryBanks[0].AverageCellVoltageV!.Value.Should().BeApproximately(3.3526667, 0.000001);
+        snapshot.BatteryBanks[0].HasAlarms!.Value.Should().BeTrue();
+        snapshot.Battery!.BankCount!.Value.Should().Be(2);
+        snapshot.Battery.BankCount.Source.Should().Be(PowerMetricSource.JkBms);
+        snapshot.Battery.HasAlarms!.Value.Should().BeTrue();
+    }
+
     private static PowerReading SolarAssistant(
         DateTime recordedAt,
         double? pvPowerW = null,
@@ -101,5 +130,37 @@ public sealed class PowerSystemSnapshotComposerTests
             BatteryCurrentA = currentA,
             BatteryPowerW = powerW,
             BatteryStateOfChargePercent = soc,
+        };
+
+    private static BmsReading JkBmsReading(
+        DateTime recordedAt,
+        string alias,
+        long alarmBitmask,
+        int[] cellVoltagesMv) => new()
+        {
+            Id = alias == "bank-1a" ? 10 : 11,
+            DeviceId = alias == "bank-1a" ? 1 : 2,
+            Device = new BmsDevice
+            {
+                Id = alias == "bank-1a" ? 1 : 2,
+                Address = alias == "bank-1a" ? "C8:47:8C:E4:56:B0" : "C8:47:8C:EC:1B:0F",
+                Alias = alias,
+            },
+            RecordedAt = recordedAt,
+            PackVoltageMv = 53810,
+            CurrentMa = 7500,
+            PowerWatts = 403.575,
+            SocPercent = 91,
+            SohPercent = 100,
+            BatteryTemp1C = 22.1,
+            BatteryTemp2C = 22.4,
+            PowerTubeC = 23.6,
+            BalancingActive = false,
+            BalancingCurrentMa = 0,
+            DeltaCellVoltageMv = 5,
+            AlarmBitmask = alarmBitmask,
+            CellVoltages = cellVoltagesMv
+                .Select((voltage, index) => new BmsCellVoltage { CellIndex = (byte)(index + 1), VoltageMv = voltage })
+                .ToArray(),
         };
 }

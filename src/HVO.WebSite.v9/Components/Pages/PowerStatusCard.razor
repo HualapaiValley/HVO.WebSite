@@ -1,0 +1,62 @@
+<section class="power-status-card" aria-labelledby="power-status-heading">
+    <div class="power-status-card__header">
+        <div>
+            <p class="power-status-card__eyebrow">Power System</p>
+            <h2 id="power-status-heading">Live Power Snapshot</h2>
+        </div>
+        <span class="power-status-card__state">@_viewModel.SnapshotState</span>
+    </div>
+
+    <div class="power-status-card__grid">
+        <article class="power-metric power-metric--solar">
+            <span>PV</span>
+            <strong>@_viewModel.PvPower</strong>
+        </article>
+        <article class="power-metric power-metric--load">
+            <span>Load</span>
+            <strong>@_viewModel.LoadPower</strong>
+        </article>
+        <article class="power-metric power-metric--battery">
+            <span>Battery</span>
+            <strong>@_viewModel.BatteryPower</strong>
+            <small>@_viewModel.BatteryFlow</small>
+        </article>
+        <article class="power-metric power-metric--grid">
+            <span>Grid</span>
+            <strong>@_viewModel.GridPower</strong>
+            <small>@_viewModel.GridFlow</small>
+        </article>
+    </div>
+
+    <div class="power-status-card__footer">
+        <span>Battery SOC <strong>@_viewModel.BatteryStateOfCharge</strong></span>
+        <span>Battery source <strong>@_viewModel.BatterySource</strong></span>
+        <span>Battery banks <strong>@_viewModel.BatteryBankCount</strong></span>
+        <span>Bank freshness <strong>@_viewModel.BatteryFreshnessState</strong></span>
+        <span>BMS alarms <strong>@_viewModel.BatteryAlarmState</strong></span>
+        <span>Mode <strong>@_viewModel.InverterMode</strong></span>
+        <span>@_viewModel.ObservedAt</span>
+    </div>
+
+    @if (_viewModel.BatteryBanks.Count > 0)
+    {
+        <div class="power-bank-grid" aria-label="JK BMS battery banks">
+            @foreach (var bank in _viewModel.BatteryBanks)
+            {
+                <article class="power-bank power-bank--@bank.FreshnessStatus @(bank.IsAlarmed ? "power-bank--alarm" : null)" aria-labelledby="@bank.HeadingId">
+                    <div class="power-bank__header">
+                        <h3 id="@bank.HeadingId">@bank.BankId</h3>
+                        <span>@bank.AlarmState</span>
+                    </div>
+                    <dl>
+                        <div><dt>SOC</dt><dd>@bank.StateOfCharge</dd></div>
+                        <div><dt>Voltage</dt><dd>@bank.Voltage</dd></div>
+                        <div><dt>Current</dt><dd>@bank.Current</dd></div>
+                        <div><dt>Cell delta</dt><dd>@bank.DeltaCellVoltage</dd></div>
+                        <div><dt>Seen</dt><dd>@bank.Seen</dd></div>
+                    </dl>
+                </article>
+            }
+        </div>
+    }
+</section>

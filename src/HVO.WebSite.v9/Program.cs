@@ -9,6 +9,7 @@ using HVO.Enterprise.Telemetry.Serilog;
 using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Components.Web;
 using HVO.WebSite.v9.Middleware;
+using HVO.WebSite.v9.Services;
 using Microsoft.AspNetCore.Http.Features;
 using System.Text.Json.Serialization;
 using Scalar.AspNetCore;
@@ -135,6 +136,11 @@ namespace HVO.WebSite.v9
                 options.AddPolicy("PowerIngest", p => p.RequireClaim("scope", ApiScopes.PowerIngest));
                 options.AddPolicy("BmsIngest", p => p.RequireClaim("scope", ApiScopes.BmsIngest));
                 options.AddPolicy("PowerRead", p => p.RequireClaim("scope", ApiScopes.PowerRead, ApiScopes.ApiRead));
+                options.AddPolicy("PowerStatusView", p => p.RequireAssertion(context =>
+                    context.User.IsInRole(AppRoles.User)
+                    || context.User.IsInRole(AppRoles.Admin)
+                    || context.User.HasClaim("scope", ApiScopes.PowerRead)
+                    || context.User.HasClaim("scope", ApiScopes.ApiRead)));
                 options.AddPolicy("WeatherRead", p => p.RequireClaim("scope", ApiScopes.WeatherRead, ApiScopes.ApiRead));
                 options.AddPolicy("AdminOnly", p => p.RequireRole(AppRoles.Admin));
                 options.AddPolicy("UserOrAdmin", p => p.RequireRole(AppRoles.User, AppRoles.Admin));
@@ -142,6 +148,7 @@ namespace HVO.WebSite.v9
 
             // API key cache — short-lived to avoid DB hit on every request
             services.AddMemoryCache();
+            services.AddScoped<IPowerSystemSnapshotProvider, PowerSystemSnapshotProvider>();
 
             // Add MVC controllers (includes Microsoft Identity UI controllers for sign-in/sign-out)
             services.AddControllersWithViews()
@@ -319,10 +326,15 @@ namespace HVO.WebSite.v9
                 // proxy forwarding is enabled for this deployment.
                 options.ForwardLimit = 1;
 
-                if (options.KnownIPNetworks.Count == 0 && options.KnownProxies.Count == 0)
+                var configuredKnownNetworks = configuration.GetSection("ForwardedHeaders:KnownNetworks").Exists();
+                var configuredKnownProxies = configuration.GetSection("ForwardedHeaders:KnownProxies").Exists();
+                if (!configuredKnownNetworks && !configuredKnownProxies)
                 {
-                    options.KnownProxies.Add(IPAddress.Loopback);
-                    options.KnownProxies.Add(IPAddress.IPv6Loopback);
+                    options.KnownIPNetworks.Clear();
+#pragma warning disable ASPDEPR005
+                    options.KnownNetworks.Clear();
+#pragma warning restore ASPDEPR005
+                    options.KnownProxies.Clear();
                 }
             });
         }
@@ -341,9 +353,6 @@ namespace HVO.WebSite.v9
             // 6. Endpoint mapping (MapControllers, MapHealthChecks, etc.)
             // ============================================================================
 
-            // Add exception handling middleware
-            app.UseExceptionHandler();
-
             var forwardedHeadersEnabled = app.Configuration.GetValue("ForwardedHeaders:Enabled",
                 app.Configuration.GetValue("ASPNETCORE_FORWARDEDHEADERS_ENABLED", false));
             if (forwardedHeadersEnabled)
@@ -351,7 +360,20 @@ namespace HVO.WebSite.v9
                 // Respect proxy-provided scheme/remote IP only when the deployment
                 // explicitly opts into forwarded header processing.
                 app.UseForwardedHeaders();
+                app.Use((context, next) =>
+                {
+                    if (context.Request.Headers.TryGetValue("X-Forwarded-Proto", out var protoValues)
+                        && string.Equals(protoValues.FirstOrDefault(), "https", StringComparison.OrdinalIgnoreCase))
+                    {
+                        context.Request.Scheme = Uri.UriSchemeHttps;
+                    }
+
+                    return next(context);
+                });
             }
+
+            // Add exception handling middleware
+            app.UseExceptionHandler();
 
             // Add Problem Details middleware for consistent error responses
             app.UseStatusCodePages();
