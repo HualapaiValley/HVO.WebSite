@@ -35,7 +35,7 @@ public sealed class KasaGatewayWorker(
 
         try
         {
-            foreach (var device in options.Value.Devices)
+            foreach (var device in options.Value.Devices.Where(device => device.Enabled))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 

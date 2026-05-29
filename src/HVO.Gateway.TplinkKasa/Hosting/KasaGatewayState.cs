@@ -36,10 +36,11 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options)
 
     public KasaGatewayStatusResponse GetStatus()
     {
+        var configuredDevices = options.Value.Devices.Where(device => device.Enabled).ToArray();
         var devices = _devices.Values.OrderBy(device => device.SourceId ?? string.Empty, StringComparer.OrdinalIgnoreCase).ToArray();
         return new KasaGatewayStatusResponse(
             options.Value.GatewayId,
-            options.Value.Devices.Count,
+            configuredDevices.Length,
             devices.Count(device => device.IsOnline),
             devices.Count(device => device.IsDegraded),
             LastPollStartedAtUtc,
@@ -64,6 +65,7 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options)
     public KasaGatewayInventoryResponse GetInventory() => new(
         options.Value.GatewayId,
         options.Value.Devices
+            .Where(device => device.Enabled)
             .OrderBy(device => device.SourceId, StringComparer.OrdinalIgnoreCase)
             .Select(KasaInventoryDevice.FromConfig)
             .ToArray());

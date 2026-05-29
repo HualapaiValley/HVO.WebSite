@@ -51,6 +51,7 @@ Important:
 - `deploy/pi-gateways/davis`
 - `deploy/pi-gateways/jkbms`
 - `deploy/pi-gateways/solarassistant`
+- `deploy/pi-gateways/tplink-kasa`
 
 Each gateway is deployed independently so Pi rollouts do not depend on the main repo-level compose stack.
 
@@ -64,6 +65,7 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 docker --context devpi5 compose --env-file deploy/pi-gateways/davis/.env -f deploy/pi-gateways/davis/docker-compose.yml up -d --build
 docker --context devpi5 compose --env-file deploy/pi-gateways/jkbms/.env -f deploy/pi-gateways/jkbms/docker-compose.yml up -d --build
 docker --context devpi5 compose --env-file deploy/pi-gateways/solarassistant/.env -f deploy/pi-gateways/solarassistant/docker-compose.yml up -d --build
+docker --context devpi5 compose --env-file deploy/pi-gateways/tplink-kasa/.env -f deploy/pi-gateways/tplink-kasa/docker-compose.yml up -d --build
 ```
 
 ## Current telemetry status
@@ -71,6 +73,16 @@ docker --context devpi5 compose --env-file deploy/pi-gateways/solarassistant/.en
 - Davis supports OTLP export, but the Pi-reachable collector endpoint is not resolved yet. Leave `OTEL_COLLECTOR_ENDPOINT` blank for the first Pi rollout.
 - JK BMS supports OTLP export with the same conditional endpoint wiring used by Davis. Leave `OTEL_COLLECTOR_ENDPOINT` blank until the Pi should emit to a reachable collector.
 - SolarAssistant does not currently wire OpenTelemetry exporters in the app, so OTEL environment variables are intentionally not included here yet.
+- TP-Link/Kasa does not currently wire OpenTelemetry exporters or outbox forwarding; the Phase 1 Pi deployment is local read-only status only.
+
+## TP-Link/Kasa deployment notes
+
+- The Phase 1 gateway polls only configured devices with allowlisted read-only commands.
+- It does not scan continuously, does not forward outbox records, and does not execute device commands.
+- Start with one enabled non-critical pilot device in `deploy/pi-gateways/tplink-kasa/.env`.
+- Configure vendor `DeviceId` as the primary identity; configure `Host` only as the current locator and `MacAddress` as a secondary validation hint.
+- Keep all `KASA_DEVICE_<n>_ENABLED=false` until the device has been explicitly selected for the pilot.
+- `/health` and `/gateway-health` are unauthenticated health endpoints; `/inventory` and `/status` require `X-Api-Key: <KASA_LOCAL_API_KEY>`.
 
 ## JK BMS deployment notes
 
@@ -98,3 +110,4 @@ docker --context devpi5 compose --env-file deploy/pi-gateways/solarassistant/.en
 - Davis UI: `http://<pi-host>:5100`
 - JK BMS UI: `http://<pi-host>:5200`
 - SolarAssistant UI: `http://<pi-host>:5300`
+- TP-Link/Kasa local API: `http://<pi-host>:5400`
