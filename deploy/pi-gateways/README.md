@@ -110,4 +110,5 @@ docker --context devpi5 compose --env-file deploy/pi-gateways/tplink-kasa/.env -
 - Davis UI: `http://<pi-host>:5100`
 - JK BMS UI: `http://<pi-host>:5200`
 - SolarAssistant UI: `http://<pi-host>:5300`
-- TP-Link/Kasa local API: `http://<pi-host>:5400`
+- SmartShunt UI: `http://<pi-host>:5400`
+- TP-Link/Kasa local API: `http://<pi-host>:5500`
