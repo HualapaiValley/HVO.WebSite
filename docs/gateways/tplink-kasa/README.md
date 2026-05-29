@@ -64,7 +64,14 @@ This table is HVO documentation metadata unless a row explicitly says it comes f
 
 Read-only discovery on 2026-05-29 scanned `192.168.1.0/24` and `192.168.2.0/24` for legacy Kasa TCP `9999` responders. The scan sent only `system.get_sysinfo` and `emeter.get_realtime`; it did not send on/off/toggle, schedule, reset, reboot, or configuration commands.
 
-The latest sanitized scan observed 22 legacy responders. One earlier shorter-timeout scan observed 21 responders, so implementation should tolerate intermittent/offline devices.
+The latest sanitized scan observed 22 legacy responders. One earlier shorter-timeout scan observed 21 responders, so implementation should tolerate intermittent/offline devices. Most observed responders were on `192.168.1.0/24`; `192.168.2.0/24` returned fewer devices than expected and may need Wi-Fi recovery/rescan after recent network changes.
+
+Subnet-level result:
+
+| Network | Count | Models observed | Notes |
+|---------|------:|-----------------|-------|
+| `192.168.1.0/24` | 14 | EP25, HS105, HS300, KP200, KL130 | Likely observatory devices based on network location. |
+| `192.168.2.0/24` | 8 | EP25, HS300 | Likely undercounted if home devices need reset/rejoin after Wi-Fi changes. |
 
 | Model | Count | Hardware version | Software version | Device family | Children/outlets observed | Energy fields observed | Notes |
 |-------|------:|------------------|------------------|---------------|---------------------------|------------------------|-------|
@@ -75,19 +82,27 @@ The latest sanitized scan observed 22 legacy responders. One earlier shorter-tim
 | HS105(US) | 1 | `1.0` | `1.5.6 Build 191114 Rel.104204` | `IOT.SMARTPLUGSWITCH` via `type` | none | unsupported response with `err_msg` and `err_code` `-1` | Single-outlet plug with top-level `relay_state`. |
 | KL130(US) | 2 | `1.0` | `1.8.11 Build 191113 Rel.105336` | `IOT.SMARTBULB` | none | none | Bulb status includes `light_state`; light commands are deferred. |
 
+Known likely gaps from operator inventory:
+
+- 3-way light switches were not observed in this scan.
+- Dimmer switches were not observed in this scan.
+- HomeKit-compatible Kasa devices were not specifically identified; they may still expose legacy Kasa, newer authenticated Kasa, HomeKit, Matter, or a combination depending on model/firmware.
+- Tapo/Matter devices were not in initial implementation scope and were not confirmed by the legacy TCP `9999` scan.
+
 ## Recommended Initial Scope
 
-Start with legacy Kasa LAN `IOT`/XOR devices only, because that protocol is the observed installed-device family and can be implemented and simulated deterministically without cloud credentials.
+Start with a device control/configuration library before outbox work. The first library target should be legacy Kasa LAN `IOT`/XOR devices, because that protocol is the observed installed-device family and can be implemented and simulated deterministically without cloud credentials.
 
 Initial candidate capabilities:
 
 - static host polling for configured devices.
+- configuration model for known devices, discovered devices, expected model/hardware/software, network/subnet, capability flags, and safety classification.
 - optional UDP discovery for legacy port `9999` devices.
 - read-only `system.get_sysinfo`.
 - read-only `emeter.get_realtime` when supported.
 - read-only outlet state from top-level `relay_state`, child `children[].state`, and bulb `light_state.on_off` only after parser tests cover the observed shapes.
 - local status dashboard and gateway health.
-- shared edge outbox for device status/power telemetry if a power-metering model is confirmed.
+- shared edge outbox later, after device discovery/configuration and local status are stable.
 
 Explicitly deferred:
 
@@ -102,7 +117,7 @@ Explicitly deferred:
 | Question | Why it matters | Status |
 |----------|----------------|--------|
 | Which exact TP-Link/Kasa/Tapo models are installed or planned? | Determines protocol, auth, capabilities, and safety. | Partially answered by sanitized live scan; final production list still open |
-| Are the devices legacy Kasa LAN devices, newer authenticated Kasa/Tapo devices, or Matter devices? | These are materially different protocol families. | Observed responders are legacy TCP `9999`; newer/authenticated devices not needed for initial implementation unless new hardware appears |
+| Are the devices legacy Kasa LAN devices, newer authenticated Kasa/Tapo devices, HomeKit devices, or Matter devices? | These are materially different protocol families. | Observed responders are legacy TCP `9999`; home `2.x` devices and HomeKit/Tapo/Matter-capable devices need follow-up discovery after Wi-Fi recovery |
 | What loads are connected to each outlet/switch? | Determines command safety and whether any commands can be exposed. | Open |
 | Is power telemetry needed, or only outlet state/inventory? | Determines central storage/outbox model. | Open; EP25 and HS300 energy fields are available if needed |
 | Should HVO ever control these devices, or only monitor them? | Affects local UI, auth, audit, and cloud policy. | Open |

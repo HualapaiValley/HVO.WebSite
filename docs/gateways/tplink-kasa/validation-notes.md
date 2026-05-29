@@ -9,11 +9,18 @@
 | `python-kasa` docs | Discovery ports `9999` and `20002`, legacy/new protocol distinction, authentication requirements, protocol/transport overview. | Medium-high | Community library docs with broad device support. |
 | `python-kasa` supported devices | Many model/hardware/firmware combinations and auth markers. | Medium | Useful for future model checks; observed HVO responders are legacy TCP `9999`. |
 | `plasticrake/tplink-smarthome-simulator` | External simulator exists for legacy Smart Home devices. | Medium | Could be used for comparison; HVO in-process fake preferred for CI. |
-| HVO read-only live scan, 2026-05-29 | 22 legacy TCP `9999` responders found across `192.168.1.0/24` and `192.168.2.0/24`. | High for observed legacy devices | Sent only `system.get_sysinfo` and `emeter.get_realtime`; no writes/switch commands. Committed docs use aggregate/sanitized findings only. |
+| HVO read-only live scan, 2026-05-29 | 22 legacy TCP `9999` responders found across `192.168.1.0/24` and `192.168.2.0/24`. | High for observed devices; incomplete for full estate | Sent only `system.get_sysinfo` and `emeter.get_realtime`; no writes/switch commands. Committed docs use aggregate/sanitized findings only. |
 
 ## Read-Only Live Discovery Notes
 
 Scan scope: `192.168.1.0/24` and `192.168.2.0/24`.
+
+Subnet-level result:
+
+| Network | Count | Models observed | Interpretation |
+|---------|------:|-----------------|----------------|
+| `192.168.1.0/24` | 14 | EP25, HS105, HS300, KP200, KL130 | Likely mostly observatory devices. |
+| `192.168.2.0/24` | 8 | EP25, HS300 | Likely undercounted if home devices need Wi-Fi reset/rejoin after recent network changes. |
 
 Commands sent:
 
@@ -58,6 +65,13 @@ Privacy/safety handling:
 - The `python-kasa --redact` raw command was not used as committed evidence because it still printed aliases and identifiers in this environment.
 - Two scans differed by one responder because of timeout/discovery timing, so the gateway should not treat a missing device as fatal.
 
+Known likely gaps:
+
+- 3-way light switches were not observed.
+- Dimmer switches were not observed.
+- Additional home devices on `192.168.2.0/24` may be offline or not rejoined after Wi-Fi changes.
+- HomeKit-compatible, Tapo, and Matter-capable devices may require a separate discovery/auth path and should not be assumed to use legacy TCP `9999`.
+
 ## Initial Non-Live Validation Plan
 
 1. Unit-test legacy XOR autokey encode/decode with known local round-trip vectors derived from the algorithm.
@@ -74,8 +88,9 @@ Privacy/safety handling:
    - truncated length/payload
    - timeout/no response
 5. Integration-test `KasaLegacyClient` against the fake server.
-6. Worker tests should verify one failing device does not block other devices.
-7. Outbox tests should use common `HVO.Edge.Outbox` behavior for retries/dead letters.
+6. Add configuration/registry tests for configured devices, discovery-only devices, expected model mismatch, expected child count mismatch, and per-network responder counts.
+7. Worker tests should verify one failing device does not block other devices.
+8. Outbox tests should wait until local device configuration and status semantics are stable.
 
 ## External Simulator Option
 
@@ -97,6 +112,7 @@ Suggested environment variables:
 |----------|---------|
 | `KASA_LIVE_HOST` | Device IP/host. |
 | `KASA_LIVE_PORT` | Device port, default `9999` for legacy. |
+| `KASA_LIVE_NETWORK` | Optional network label such as `observatory` or `home` for discovery reports. |
 | `KASA_LIVE_EXPECTED_MODEL` | Optional expected model guard. |
 | `KASA_LIVE_ALLOW_COMMANDS` | Must be `true` before any on/off command tests run. Default false. |
 
@@ -128,6 +144,9 @@ Command live tests are deferred. If ever added, they must:
 | Which exact model/firmware is installed? | Determines protocol family and auth. | Initial sanitized scan captured EP25, HS300, KP200, HS105, and KL130 legacy responders; production subset still needs confirmation. |
 | Does the target device respond on port `9999`? | Confirms legacy scope. | Confirmed for 22 observed responders in scanned subnets. |
 | Does the device require authentication? | Changes protocol implementation. | `python-kasa discover` or HVO discovery. |
+| Which devices exist on `192.168.2.0/24` after Wi-Fi recovery? | Current scan likely undercounts home devices. | Reset/rejoin affected home devices, then rerun read-only discovery. |
+| Which 3-way and dimmer switch models are installed? | Switch/dimmer state and command shapes may differ from plugs/strips/bulbs. | Device labels, native app, and read-only discovery after Wi-Fi recovery. |
+| Are HomeKit/Tapo/Matter-capable devices present? | They may use non-legacy protocols and auth. | Model inventory and separate non-write discovery. |
 | What are exact `system.get_sysinfo` response fields? | Needed for DTO mapping. | Sanitized field names captured; implementation needs committed fake fixtures. |
 | What are exact `emeter.get_realtime` response fields and units? | Needed for power telemetry. | Sanitized field names captured for EP25/HS300; implementation needs committed fake fixtures. |
 | Does energy total reset on command, power loss, firmware update, or app action? | Historical cloud storage semantics. | Manual/live testing; do not infer. |
@@ -137,6 +156,7 @@ Command live tests are deferred. If ever added, they must:
 
 - Production device subset and connected loads are not confirmed.
 - No executable TP-Link/Kasa fixture/test data is captured in repo yet.
+- Home `192.168.2.0/24` inventory is likely incomplete until Wi-Fi recovery/rescan.
 - Central per-device outlet/power payload contract is not locked.
 - Shared `HVO.Edge.Outbox` still needs failure-kind standardization before new gateways should rely on it for production dead-letter classification.
 - Command safety classification is not complete.
@@ -148,8 +168,9 @@ Command live tests are deferred. If ever added, they must:
 | Legacy XOR algorithm | Researched | Needs C# tests. |
 | Legacy TCP framing | Live read-only validated | Needs fake server tests. |
 | Legacy UDP discovery | Researched at high level | Needs packet/framing validation. |
+| Per-network discovery reporting | Live scan manually summarized | Needs configuration/registry implementation. |
 | System info parsing | Live shapes captured; not implemented | Needs sanitized fixtures for EP25/HS105, HS300/KP200, and KL130 shapes. |
 | Energy parsing | Live fields captured; not implemented | Needs fixtures for EP25/HS300 success and HS105 unsupported response. |
-| Outbox forwarding | Not implemented | Use common outbox standard. |
+| Outbox forwarding | Deferred | Establish device library/configuration and local status first; then use common outbox standard. |
 | Local UI | Not implemented | Status/dashboard only initially. |
 | Commands | Deferred | Safety design required. |

@@ -1,6 +1,8 @@
 # TP-Link / Kasa HVO API And Payload Contracts
 
-Status: draft. No local APIs, outbox payloads, or cloud ingest contracts are implemented yet.
+Status: draft. No local APIs, configuration library, outbox payloads, or cloud ingest contracts are implemented yet.
+
+Implementation sequencing: establish local device control/configuration, discovery reporting, and current-state APIs before any outbox/cloud forwarding work.
 
 ## HVO Normalization And Aliases
 
@@ -27,8 +29,13 @@ Candidate mappings for initial legacy read-only scope:
 | Setting | Type | Required | Secret | Runtime editable | Default | Notes |
 |---------|------|----------|--------|------------------|---------|-------|
 | `GatewayId` | string | Yes | No | No | `hvo-tplink-kasa` | Common gateway identity. |
+| `Networks` | array | No | No | App config | empty | Optional network/subnet labels for discovery and status reporting. |
+| `Networks[].Name` | string | Yes when network configured | No | App config | empty | Example labels: `observatory`, `home`. |
+| `Networks[].Cidr` | string | Yes when network configured | No | App config | empty | Example: `192.168.1.0/24`; avoid committing per-device IP inventory. |
+| `Networks[].DiscoveryEnabled` | bool | No | No | App config | false | Enables read-only discovery scans for the network. |
 | `Devices` | array | Yes | No | App config | empty | Static configured device list for initial implementation. |
 | `Devices[].Host` | string | Yes | No | App config | empty | IP or DNS name. Prefer static DHCP reservation. |
+| `Devices[].NetworkName` | string | No | No | App config | empty | Associates a device with a configured network label. |
 | `Devices[].SourceId` | string | Yes | No | App config | empty | Stable source ID for outbox/cloud. |
 | `Devices[].DeviceId` | string | Recommended | No | App config | empty | Stable device ID; may be HVO-assigned until vendor ID is validated. |
 | `Devices[].ExpectedModel` | string | No | No | App config | empty | Used to detect swapped devices. |
@@ -37,6 +44,7 @@ Candidate mappings for initial legacy read-only scope:
 | `Devices[].SupportsEnergyMeter` | bool | No | No | App config | false | Avoids repeated `emeter` errors on non-energy devices. |
 | `Devices[].ExpectedChildCount` | int | No | No | App config | null | Useful for HS300/KP200 devices where outlets are represented as children. |
 | `Devices[].DeviceKind` | enum/string | No | No | App config | `Auto` | Candidate values could be `Plug`, `PowerStrip`, `DualOutlet`, `Bulb`, or `Auto`; do not expose commands from this alone. |
+| `Devices[].ProtocolFamily` | enum/string | No | No | App config | `LegacyKasaTcp9999` initially | Future values may be needed for HomeKit, Matter, Tapo, or newer authenticated Kasa devices. |
 | `Devices[].SafetyClass` | enum/string | Yes before commands | No | App config | `TelemetryOnly` | Commands disabled unless explicitly classified later. |
 | `PollIntervalSeconds` | int | Yes | No | App config | TBD | Must avoid flooding devices. |
 | `SocketTimeoutSeconds` | int | Yes | No | App config | TBD | Applies to TCP command round trips. |
@@ -74,6 +82,8 @@ These are HVO local concepts, not vendor response contracts.
 | `softwareVersion` | string? | Vendor software version if captured. |
 | `isOnline` | bool | Current polling status. |
 | `lastSeenUtc` | DateTime? | Last successful read. |
+| `networkName` | string? | Configured network label for grouping observatory/home devices. |
+| `protocolFamily` | string? | Observed/configured protocol family. |
 | `supportsEnergyMeter` | bool? | Configured/observed capability. |
 | `outletCount` | int? | Child outlet count for strips/dual outlets; `1` for top-level plug if normalized that way. |
 | `isOn` | bool? | Current switch/light state for single-state devices only. Multi-outlet devices use `outlets`. |
