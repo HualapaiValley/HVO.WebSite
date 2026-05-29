@@ -60,7 +60,7 @@ Phase 0 reduces that risk by discovering device capabilities up front:
 | SolarAssistant | Source/proxy | REST, MQTT, WebSocket observed | Yes | 1-2 | Command topics exist but HVO is read-only | `src/HVO.Gateway.SolarAssistant` |
 | Victron SmartShunt | Source | BLE public service plus private enrichment | VictronConnect | 2 | Telemetry now; writes deferred | `src/HVO.Hardware.VictronSmartShunt` |
 | Govee | Source TBD | BLE/LAN/cloud TBD | App/cloud likely | TBD | TBD | No project yet |
-| TP-Link/Kasa | Source/controller TBD; initial recommendation is source/status only | Legacy LAN TCP `9999` confirmed for observed EP25/HS300/KP200/HS105/KL130 responders; UDP discovery and newer Kasa/Tapo auth protocols deferred | Kasa/Tapo app | 1-2 | Commands likely but deferred until connected-load safety is documented | Split docs baseline with sanitized live read-only discovery in `docs/gateways/tplink-kasa/`; no project yet |
+| TP-Link/Kasa | Source/controller TBD; initial implementation is source/status only | Legacy LAN TCP `9999` confirmed for observed EP25/HS300/KP200/HS105/KL130 responders; UDP discovery and newer Kasa/Tapo auth protocols deferred | Kasa/Tapo app | 1-2 | Commands likely but deferred until connected-load safety is documented | `src/HVO.Gateway.TplinkKasa`, `tests/HVO.Gateway.TplinkKasa.Tests`, and split docs in `docs/gateways/tplink-kasa/` |
 | Digital Loggers | Source/controller | HTTP/API TBD | Web UI | 2 | Commands control power outlets | No project yet |
 | Blue Iris | Event source/media proxy | HTTP/JSON/webhooks TBD | Yes | 1 | Commands possible but not primary | No project yet |
 | AllSky Camera | Standalone/consumer/provider | HTTP/file/API TBD | Yes | 1 | Mostly telemetry/media | Existing legacy/v9 image models only |

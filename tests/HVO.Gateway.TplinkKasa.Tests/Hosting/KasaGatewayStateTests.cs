@@ -1,0 +1,87 @@
+using FluentAssertions;
+using HVO.Gateway.TplinkKasa.Configuration;
+using HVO.Gateway.TplinkKasa.Devices;
+using HVO.Gateway.TplinkKasa.Hosting;
+using Microsoft.Extensions.Options;
+
+namespace HVO.Gateway.TplinkKasa.Tests.Hosting;
+
+[TestClass]
+public sealed class KasaGatewayStateTests
+{
+    [TestMethod]
+    public void GetInventory_DoesNotExposeRawDeviceIdOrHost()
+    {
+        var state = CreateState();
+
+        var inventory = state.GetInventory();
+
+        inventory.Devices.Should().ContainSingle();
+        var device = inventory.Devices[0];
+        device.DeviceIdConfigured.Should().BeTrue();
+        device.HostConfigured.Should().BeTrue();
+        device.SourceId.Should().Be("tplink-kasa:observatory-test");
+        var text = System.Text.Json.JsonSerializer.Serialize(inventory);
+        text.Should().NotContain("RAW_DEVICE_ID_SANITIZED");
+        text.Should().NotContain("configured-device-host.example");
+    }
+
+    [TestMethod]
+    public void GetStatus_DoesNotExposeRawDeviceIdHostMacAliasOrRawVendorJson()
+    {
+        var state = CreateState();
+        var config = CreateConfig().Devices[0];
+        var snapshot = new KasaDeviceSnapshot(
+            "RAW_DEVICE_ID_SANITIZED",
+            config.EffectiveSourceId,
+            "configured-device-host.example",
+            DateTimeOffset.UtcNow,
+            true,
+            true,
+            null,
+            "Private Alias",
+            "EP25(US)",
+            "2.0",
+            "1.0.0",
+            "AA:BB:CC:DD:EE:01",
+            KasaDeviceKind.Plug,
+            new HashSet<KasaCapability> { KasaCapability.SwitchState },
+            new HashSet<KasaMetadataCapability> { KasaMetadataCapability.Diagnostics },
+            true,
+            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5)],
+            null,
+            null,
+            System.Text.Json.JsonDocument.Parse("{\"private\":\"raw\"}").RootElement.Clone());
+
+        state.ApplyResult(config, new KasaPollResult(snapshot, null));
+
+        var status = state.GetStatus();
+        var text = System.Text.Json.JsonSerializer.Serialize(status);
+        text.Should().NotContain("RAW_DEVICE_ID_SANITIZED");
+        text.Should().NotContain("configured-device-host.example");
+        text.Should().NotContain("AA:BB:CC:DD:EE:01");
+        text.Should().NotContain("Private Alias");
+        text.Should().NotContain("private-child-id");
+        text.Should().NotContain("raw");
+        status.Devices[0].SourceId.Should().Be("tplink-kasa:observatory-test");
+        status.Devices[0].Outlets.Should().ContainSingle().Which.Index.Should().Be(1);
+    }
+
+    private static KasaGatewayState CreateState() => new(Options.Create(CreateConfig()));
+
+    private static KasaGatewayOptions CreateConfig() => new()
+    {
+        GatewayId = "test-gateway",
+        Devices =
+        [
+            new KasaDeviceConfig
+            {
+                DeviceId = "RAW_DEVICE_ID_SANITIZED",
+                SourceId = "tplink-kasa:observatory-test",
+                Host = "configured-device-host.example",
+                ExpectedModel = "EP25(US)",
+                Capabilities = [KasaCapability.SwitchState]
+            }
+        ]
+    };
+}

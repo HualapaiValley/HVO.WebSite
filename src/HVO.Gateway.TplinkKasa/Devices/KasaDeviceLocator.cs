@@ -57,7 +57,7 @@ public sealed class KasaDeviceLocator(
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or OperationCanceledException or TimeoutException or System.Net.Sockets.SocketException or System.Text.Json.JsonException)
         {
-            return KasaDeviceLocationResult.Failed(ex.Message);
+            return KasaDeviceLocationResult.Failed(KasaFailureMessages.DescribeReadFailure(ex));
         }
     }
 }

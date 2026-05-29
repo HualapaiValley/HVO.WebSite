@@ -2,7 +2,7 @@
 
 ## Design Summary
 
-No HVO TP-Link/Kasa gateway exists yet. The recommended first implementation is a device control/configuration library plus a read-only legacy Kasa LAN gateway targeting confirmed port `9999` devices. Sanitized live discovery found legacy TCP `9999` responders across observatory and home networks after hvo.lan/Tailscale routing was updated for `192.168.9.0/24`.
+An HVO TP-Link/Kasa prototype now exists. The first implementation is a reusable device control/configuration library shape plus a read-only legacy Kasa LAN gateway targeting confirmed port `9999` devices. Sanitized live discovery found legacy TCP `9999` responders across observatory and home networks after hvo.lan/Tailscale routing was updated for `192.168.9.0/24`.
 
 The observed device categories are sufficient to design the first library and local gateway shape: plugs, power strips, dual outlets, switches, 3-way switches, dimmers, and bulbs. The final physical inventory is still incomplete and should be treated as configuration/discovery data, not as a fixed enum of deployed devices.
 
@@ -145,10 +145,20 @@ var energy = energyParser.Parse(response);
 
 Purpose: run operator-initiated read-only probes during setup/research.
 
-Side effects: sends only allowlisted read-only requests. Default output redacts identifiers and locators.
+Side effects: sends only allowlisted read-only requests. Default output redacts identifiers and locators and does not emit stable unsalted hashes. CIDR scans are capped by host count and concurrency.
 
 ```bash
-dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr 192.168.1.0/24 --summary true
+dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr 192.168.1.0/24 --summary true --max-hosts 256
+```
+
+### Phase 1 Read-Only Host
+
+Purpose: run configured-device polling and expose local status/inventory without outbox forwarding or live command execution.
+
+Side effects: polls configured devices with allowlisted read-only requests only. `/status` and `/inventory` require a Davis-style `X-Api-Key` matching `KasaGateway:ApiKey`; `/health` and `/gateway-health` expose local health only. Public DTOs avoid raw vendor device IDs, MACs, aliases, per-device hosts, and raw vendor JSON.
+
+```bash
+dotnet run --project src/HVO.Gateway.TplinkKasa
 ```
 
 ## Data Models
