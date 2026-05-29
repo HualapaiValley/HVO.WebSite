@@ -189,6 +189,9 @@ public sealed class KasaGatewayStateTests
         reviewStatus.Devices.Should().ContainSingle();
         var device = reviewStatus.Devices[0];
         device.Model.Should().Be("EP25(US)");
+        device.DeviceKind.Should().Be("Plug");
+        device.Capabilities.Should().Contain("EnergyRealtime");
+        device.MetadataCapabilities.Should().Contain("ScheduleRead");
         device.IdentityValidated.Should().BeTrue();
         device.HasEnergyStatus.Should().BeTrue();
         device.ReadSupport!.EnergyRealtime.Should().BeTrue();
