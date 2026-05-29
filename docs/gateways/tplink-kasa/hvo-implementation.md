@@ -28,15 +28,19 @@ Initial implementation target:
 - local dashboard/status only at first: basic inventory and current status.
 - shared edge outbox only after local device inventory/configuration and status polling are stable.
 
-## Implemented Capabilities
+## Prototype Capabilities
 
 | Capability | HVO status | Notes |
 |------------|------------|-------|
-| Legacy TCP XOR framing | Planned | Deterministic and testable with fake TCP server. |
-| `system.get_sysinfo` | Planned | First read-only operation; sanitized live shapes captured for EP25, HS105, HS200, HS210, HS220, HS300, KP200, KL130, and LB230. |
-| `emeter.get_realtime` | Planned if device supports it | Must handle unsupported module gracefully; EP25/HS300 returned milli-unit fields, HS105 returned unsupported response. |
+| Legacy TCP XOR framing | Prototype implemented/tested | Deterministic and tested with fake TCP server. |
+| `system.get_sysinfo` | Prototype implemented/tested/live validated | First read-only operation; sanitized live shapes captured for EP25, HS105, HS200, HS210, HS220, HS300, KP200, KL130, and LB230. |
+| `emeter.get_realtime` | Prototype implemented/tested/live validated | Handles unsupported module gracefully; EP25/HS300 returned milli-unit fields, non-energy devices returned unsupported/error shapes. |
+| `schedule.get_rules` | Prototype read-only probe implemented/live validated | Observed supported on switch/plug/strip/dual-outlet legacy devices; observed unsupported on bulb models in latest scan. |
+| `count_down.get_rules` | Prototype read-only probe implemented/live validated | Observed supported on switch/plug/strip/dual-outlet legacy devices; observed unsupported on bulb models in latest scan. |
+| `anti_theft.get_rules` | Prototype read-only probe implemented/live validated | Observed supported on switch/plug/strip/dual-outlet legacy devices; observed unsupported on bulb models in latest scan. |
+| `system.get_led_off` | Prototype read-only probe implemented/live validated | Observed unsupported/error responses in latest scan; keep modeled but not enabled as supported unless validated per device. |
 | Legacy UDP discovery | Candidate after TCP polling | Need UDP framing validation. |
-| Capability research | Planned next | Research full read-only and command protocol coverage per observed model before locking classes/enums. |
+| Capability research | Prototype model exists | Capability flags mean observed/configured availability, not merely possible protocol support. |
 | Device commands | Deferred | Requires safety/auth/audit design. |
 | New Kasa/Tapo auth/KLAP/AES | Deferred | Not needed for observed legacy responders; revisit only if future hardware requires it. |
 | Matter | Out of scope | Treat as separate integration path. |
@@ -51,6 +55,10 @@ Initial implementation target:
 | `src/HVO.Gateway.TplinkKasa/Commands/` | Command mode planning and guarded command executors; live execution requires explicit operator approval. |
 | `src/HVO.Gateway.TplinkKasa/Configuration/KasaGatewayOptions.cs` | Gateway, network, discovery, and device configuration. |
 | `src/HVO.Gateway.TplinkKasa/Configuration/KasaDeviceConfig.cs` | File-backed device configuration shaped for later database storage. |
+| `src/HVO.Gateway.TplinkKasa/Devices/KasaCapabilityDetector.cs` | Prototype profile/capability inference from sysinfo, energy, metadata probes, and config. |
+| `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceLocator.cs` | Prototype configured-host and MAC-assisted locator validation. |
+| `src/HVO.Gateway.TplinkKasa/Devices/KasaEnergyParser.cs` | Prototype parser for realtime energy success and unsupported responses. |
+| `src/HVO.Gateway.TplinkKasa/Devices/KasaReadOnlyProbe.cs` | Prototype read-only single-host and CIDR probe utility. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceRegistry.cs` | Merge configured devices and discovered read-only inventory. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaIdentityValidator.cs` | Verify connected device ID/model/MAC before accepting data or commands. |
 | `src/HVO.Gateway.TplinkKasa/Capabilities/` | Capability records/enums for switch, dimmer, light, energy meter, multi-outlet, and diagnostics. |
@@ -60,6 +68,7 @@ Initial implementation target:
 | `src/HVO.Gateway.TplinkKasa/Outbox/` | Gateway-specific outbox writer/forwarder if central ingest exists. Prefer `HVO.Edge.Outbox`. |
 | `src/HVO.Gateway.TplinkKasa/Components/Pages/Status.razor` | Local status dashboard. |
 | `tests/HVO.Gateway.TplinkKasa.Tests/Fakes/FakeKasaLegacyServer.cs` | In-process TCP fake for XOR/framing and command responses. |
+| `tests/HVO.Gateway.TplinkKasa.Tests/Fixtures/*.json` | Sanitized representative sysinfo, energy, unsupported, schedule, and LED fixtures. |
 
 ## Main Classes And Interfaces
 
@@ -72,16 +81,17 @@ Initial implementation target:
 | `KasaDeviceRegistry` | Tracks configured device IDs, discovered responders, current locator, network location, expected shape, and capability flags. | Worker and local UI. |
 | `KasaDeviceLocator` | Resolves a configured device's current host from configured IP, MAC/ARP hints, and setup discovery results. | Registry, poller, CLI/setup utility. |
 | `KasaIdentityValidator` | Confirms sysinfo identity matches the configured device before data/commands are trusted. | Poller, command service, tests. |
-| `KasaCapabilitySet` | Describes model/instance capabilities without inheritance-heavy device subclasses. | Registry, poller, UI, outbox mapping. |
+| `KasaCapabilityDetector` | Describes model/instance capabilities without inheritance-heavy device subclasses. | Registry, poller, UI, outbox mapping. |
 | `KasaMetadataSnapshot` | Captures optional read-only metadata such as schedules, countdown, away mode, LED state, firmware, and diagnostics when supported. | UI/API/outbox candidates. |
 | `KasaSystemInfoParser` | Converts observed vendor response shapes into HVO snapshots without hiding raw/vendor data. | Poller and tests. |
+| `KasaReadOnlyProbe` | Runs single-host or explicit CIDR read-only capability validation. | CLI/setup utility and live validation. |
 | `KasaDevicePoller` | Coordinates polling all configured devices. | Background worker and local UI. |
 | `KasaGatewayWorker` | Hosted service for polling, outbox enqueue, and health state. | ASP.NET host. |
 | `KasaDeviceSnapshot` | HVO current-state model. | UI/API/outbox. |
 
 ## Public Methods And Samples
 
-### `KasaLegacyClient.SendAsync`
+### `KasaLegacyClient.SendReadOnlyAsync`
 
 Purpose: send a raw legacy JSON command to one configured device and return the JSON response document.
 
@@ -90,10 +100,10 @@ Side effects: none beyond network I/O when used with read-only commands.
 Validation/safety: command builders should be allowlisted; do not expose arbitrary JSON in runtime endpoints.
 
 ```csharp
-using var response = await client.SendAsync(host, KasaCommands.GetSystemInfo(), ct);
+using var response = await client.SendReadOnlyAsync(host, 9999, KasaCommands.GetSystemInfo, ct);
 ```
 
-### `KasaLegacyClient.GetSystemInfoAsync`
+### `KasaSystemInfoParser.Parse`
 
 Purpose: read legacy device system info.
 
@@ -102,10 +112,11 @@ Side effects: none expected.
 Validation/safety: response fields remain vendor/raw until fixtures confirm mappings.
 
 ```csharp
-var info = await client.GetSystemInfoAsync(host, ct);
+using var response = await client.SendReadOnlyAsync(host, 9999, KasaCommands.GetSystemInfo, ct);
+var info = systemInfoParser.Parse(response);
 ```
 
-### `KasaLegacyClient.TryGetRealtimeEnergyAsync`
+### `KasaEnergyParser.Parse`
 
 Purpose: read realtime energy meter fields when the device supports the `emeter` module.
 
@@ -114,7 +125,18 @@ Side effects: none expected.
 Validation/safety: unsupported module should return no reading, not fail the whole device poll.
 
 ```csharp
-var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
+using var response = await client.SendReadOnlyAsync(host, 9999, KasaCommands.GetRealtimeEnergy, ct);
+var energy = energyParser.Parse(response);
+```
+
+### Prototype CLI
+
+Purpose: run operator-initiated read-only probes during setup/research.
+
+Side effects: sends only allowlisted read-only requests. Default output redacts identifiers and locators.
+
+```bash
+dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr 192.168.1.0/24 --summary true
 ```
 
 ## Data Models
@@ -205,6 +227,7 @@ No live command may be sent from automated tests, background polling, or cloud p
 | Treat installed legacy devices as a heterogeneous capability set | Proposed | Live scan observed plugs, power strips, dual outlets, light switches, 3-way switches, dimmers, and multiple bulb models with different capability shapes. | Parser tests need fixtures for all observed shapes. |
 | Prefer capability composition over per-model inheritance | Proposed | The same protocol family spans many model-specific capability combinations. | Use model/firmware as detection hints, not the main type system. |
 | Model all available read-only metadata | Proposed | Energy, schedules, countdown, away mode, LED, diagnostics, firmware, and similar availability affect UI, config, and cloud contracts. | Poll/control support can be staged, but model shape should not ignore known device data categories. |
+| Capabilities mean observed/configured availability | Accepted | Firmware/model differences mean a protocol command existing is not enough. | Live validation corrected the detector so schedule/LED metadata is only marked supported after successful read or explicit config. |
 | Use shared outbox standards | Proposed | New gateway should not duplicate Davis-specific outbox behavior. | May require `HVO.Edge.Outbox` failure-kind updates first. |
 | Build in-process fake server | Proposed | Keeps tests deterministic without Node/npm simulator dependency. | Compare behavior against `plasticrake` simulator later. |
 | Defer commands | Proposed | Load safety unknown. | Add command design only after device/load inventory. |
@@ -227,9 +250,9 @@ No live command may be sent from automated tests, background polling, or cloud p
 |------|--------------------|-----------|-------------|
 | Documentation | Baseline in progress | Medium | Keep PR updated with discovery/config decisions. |
 | Legacy XOR protocol | Research complete enough for prototype | Medium-high | Implement cipher/framing tests. |
-| Capability model | Ready for design, not implemented | High | Research full protocol operations for observed models and define capability enums/records. |
-| Device library/configuration | Not implemented | High priority | Implement registry/options and read-only discovery before outbox. |
+| Capability model | Prototype implemented/tested | Medium-high | Add more fixtures before locking cloud contracts. |
+| Device library/configuration | Prototype implemented | High priority | Add registry/database mapping before outbox. |
 | Device model/firmware | Sanitized live scan captured initial legacy models plus home switch models | Medium-high for observed legacy scope | Confirm production subset and connected loads. |
-| Simulator/mock | External simulator exists; in-process fake planned | High | Implement fake TCP server with fixture responses. |
+| Simulator/mock | In-process fake implemented/tested | High | Compare behavior against external simulator later if needed. |
 | Outbox/cloud | Common standard exists; code needs extension | Medium | Add shared failure kind/requeue support before production. |
 | Commands | Deferred | Low | Require safety design. |

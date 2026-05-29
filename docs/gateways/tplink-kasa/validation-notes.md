@@ -10,6 +10,7 @@
 | `python-kasa` supported devices | Many model/hardware/firmware combinations and auth markers. | Medium | Useful for future model checks; observed HVO responders are legacy TCP `9999`. |
 | `plasticrake/tplink-smarthome-simulator` | External simulator exists for legacy Smart Home devices. | Medium | Could be used for comparison; HVO in-process fake preferred for CI. |
 | HVO read-only live scan, 2026-05-29 | 42 total legacy TCP `9999` responders found across `192.168.1.0/24`, `192.168.2.0/24`, and `192.168.9.0/24` after routing update and added devices. | High for observed devices; incomplete for any non-legacy devices | Sent only `system.get_sysinfo` and `emeter.get_realtime`; no writes/switch/dimmer commands. Committed docs use aggregate/sanitized findings only. |
+| HVO prototype read-only scan, 2026-05-29 | 41 total legacy TCP `9999` responders found with prototype utility after adding read-only metadata probes. | High for observed devices at scan time | Sent only read-only sysinfo, realtime energy, schedule rules, countdown rules, away rules, and LED status requests. No switch/dimmer/write commands. Output was summarized/redacted. |
 
 ## Read-Only Live Discovery Notes
 
@@ -31,6 +32,10 @@ Commands sent:
 
 - `system.get_sysinfo`
 - `emeter.get_realtime`
+- `schedule.get_rules` in prototype validation only
+- `count_down.get_rules` in prototype validation only
+- `anti_theft.get_rules` in prototype validation only
+- `system.get_led_off` in prototype validation only
 
 Commands not sent:
 
@@ -40,6 +45,23 @@ Commands not sent:
 - reset/reboot/factory reset
 - Wi-Fi/cloud/account writes
 - arbitrary command payloads outside the two read-only requests above
+
+Prototype scan commands were allowlisted in code and remained read-only. No `set_*`, `add_rule`, `edit_rule`, `delete_rule`, relay, dimmer, reset, reboot, Wi-Fi, cloud bind/unbind, or arbitrary JSON write command was sent.
+
+Latest prototype read-only summary:
+
+| Network | Count | Device IDs present | MACs present | Energy supported | Models observed |
+|---------|------:|-------------------:|-------------:|-----------------:|-----------------|
+| `192.168.1.0/24` | 14 | 14 | 12 | 6 | EP25, HS105, HS300, KP200, KL130 |
+| `192.168.2.0/24` | 7 | 7 | 7 | 7 | EP25, HS300 |
+| `192.168.9.0/24` | 20 | 20 | 18 | 0 | HS105, HS200, HS210, HS220, KL130, LB230 |
+
+Prototype metadata observations:
+
+- schedule, countdown, and away read operations returned successful responses for switch/plug/strip/dual-outlet legacy devices in the latest scan.
+- bulb models returned unsupported/error responses for the probed schedule/countdown/away/LED module requests in the latest scan.
+- `system.get_led_off` returned unsupported/error responses on all observed latest-scan devices; LED metadata remains modeled but not observed as supported.
+- MAC was absent in the observed KL130/LB230 bulb sysinfo responses. MAC should be configured when known and used as a locator hint, but it cannot be a strict requirement for every legacy model response.
 
 Sanitized result summary:
 
@@ -138,6 +160,27 @@ Design outputs needed before implementation is considered complete:
 11. Command tests should verify dry-run behavior, explicit approval gating, same-session identity validation, and readback handling without live commands in CI.
 12. Outbox tests should wait until local device configuration/database mapping, identity validation, metadata, and status semantics are stable.
 
+Current prototype test coverage:
+
+- `KasaXorCipher` encryption/decryption round-trip and TCP length prefix.
+- `KasaLegacyClient` fake-server read-only request/response and non-allowlisted command rejection.
+- sanitized sysinfo fixture parsing for EP25, HS300, KP200, HS200, HS210, HS220, KL130, and LB230.
+- sanitized realtime energy parsing and milli-unit conversion.
+- unsupported emeter response handling.
+- capability/profile detection for observed model categories.
+- identity validation success, wrong device ID fail-closed, and wrong MAC fail-closed.
+- locator validation for configured host success, wrong-device fail-closed, and MAC-assisted host recovery after a failed configured host.
+- read-only poller success with identity validation and wrong-device-at-IP fail-closed behavior.
+- read-only probe metadata support detection through the fake server.
+
+Current prototype command:
+
+```bash
+dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr 192.168.1.0/24 --summary true
+```
+
+Default CLI output redacts device IDs, MAC addresses, and hosts. Explicit `--include-identifiers true` or `--include-locators true` is required to print them locally.
+
 ## External Simulator Option
 
 The `plasticrake/tplink-smarthome-simulator` project can simulate legacy devices such as HS100, HS105, HS110, HS200, and bulbs. It is useful for cross-checking HVO behavior, but should not be a required CI dependency unless pinned and containerized.
@@ -194,14 +237,14 @@ Command live tests are deferred. If ever added, they must:
 | Question | Why it matters | Validation path |
 |----------|----------------|-----------------|
 | Which exact model/firmware is installed? | Determines protocol family and auth. | Sanitized scans captured EP25, HS105, HS200, HS210, HS220, HS300, KP200, KL130, and LB230 legacy responders; production subset still needs confirmation. |
-| Does the target device respond on port `9999`? | Confirms legacy scope. | Confirmed for 42 observed responders across scanned subnets after route updates and added devices. |
+| Does the target device respond on port `9999`? | Confirms legacy scope. | Confirmed for 42 observed responders in earlier scans and 41 responders in latest prototype scan; counts vary by timeout/device availability. |
 | Does the device require authentication? | Changes protocol implementation. | `python-kasa discover` or HVO discovery. |
 | Which devices exist on `192.168.2.0/24` after Wi-Fi recovery? | Current scan likely undercounts home devices. | Reset/rejoin affected home devices, then rerun read-only discovery. |
 | Which devices exist on `192.168.9.0/24` after routing is configured? | Confirms home switch/bulb inventory. | Route update completed; read-only scan observed 20 legacy responders so far. Keep monitoring per-network counts for routing regressions. |
 | Which 3-way and dimmer switch models are installed? | Switch/dimmer state and command shapes may differ from plugs/strips/bulbs. | Initial read-only scan observed HS210 and HS220; dimmer-specific read-only fields still need validation. |
 | Are HomeKit/Tapo/Matter-capable devices present? | They may use non-legacy protocols and auth. | Model inventory and separate non-write discovery. |
 | Which observed devices have confirmed alternate ecosystems? | Lets HVO document HomeKit/Matter/Tapo options without implementing them unnecessarily. | EP25 HomeKit confirmed from official product page; other observed models are not confirmed from current evidence. |
-| Which identity fields are always present per observed model? | Determines safe primary/secondary identity validation. | Use sanitized fixtures/live reads to confirm `deviceId`, MAC, model, hardware, and firmware availability. |
+| Which identity fields are always present per observed model? | Determines safe primary/secondary identity validation. | Latest prototype scan saw device ID on all responders, MAC on 37 of 41 responders. Bulb-family legacy responses lacked MAC in that run. |
 | Can MAC reliably recover current IP on the target networks? | Determines offline rediscovery support. | Test ARP/table-based lookup and explicit setup scans against configured MACs. |
 | What is the complete read-only protocol surface for each observed device category? | Needed for correct classes/interfaces/enums and UI/telemetry models. | Research references plus sanitized live reads before implementation lock. |
 | Which read-only metadata categories are available per model? | Energy, schedules, countdown, away mode, LED, firmware, and diagnostics should be represented when available. | Research protocol references and add sanitized fixtures per category before enabling polling/UI fields. |
@@ -213,7 +256,7 @@ Command live tests are deferred. If ever added, they must:
 ## Current Blockers Before Implementation Claims
 
 - Production device subset and connected loads are not confirmed.
-- No executable TP-Link/Kasa fixture/test data is captured in repo yet.
+- Sanitized executable TP-Link/Kasa fixture/test data exists for observed initial shapes, but more fixtures are needed for complete metadata/protocol coverage.
 - Home `192.168.2.0/24` inventory is likely incomplete until Wi-Fi recovery/rescan.
 - Home `192.168.9.0/24` inventory is reachable after hvo.lan/Tailscale subnet routing update, but production subset and load safety still need confirmation.
 - Central per-device outlet/power payload contract is not locked.
@@ -226,16 +269,16 @@ Command live tests are deferred. If ever added, they must:
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Legacy XOR algorithm | Researched | Needs C# tests. |
-| Legacy TCP framing | Live read-only validated | Needs fake server tests. |
+| Legacy XOR algorithm | Implemented/tested | C# round-trip tests pass. |
+| Legacy TCP framing | Implemented/tested | Fake server tests cover read-only frame exchange. |
 | Legacy UDP discovery | Researched at high level | Needs packet/framing validation. |
 | Per-network discovery reporting | Live scan manually summarized | Needs configuration/registry implementation. |
-| Identity validation | Planned | Device ID must be primary identity; IP and MAC are locator/validation hints only. |
-| Locator recovery | Planned | Configured IP is the first locator; MAC can support rediscovery after IP change if network ARP/discovery data is available. |
-| Capability model | Planned | Needs per-device protocol research before classes/enums are locked. |
-| Metadata model | Planned | Energy, schedule, countdown, away, LED, firmware, and diagnostics availability should be represented where devices support them. |
-| System info parsing | Live shapes captured; not implemented | Needs sanitized fixtures for single relay, multi-outlet, bulb, dimmer, and unsupported-module shapes. |
-| Energy parsing | Live fields captured; not implemented | Needs fixtures for EP25/HS300 success and HS105 unsupported response. |
+| Identity validation | Prototype implemented/tested | Device ID must be primary identity; IP and MAC are locator/validation hints only. |
+| Locator recovery | Prototype implemented/tested | Configured IP is the first locator; MAC can support rediscovery after IP change if network ARP/discovery data is available. |
+| Capability model | Prototype implemented/tested | Observed capability flags are derived from sysinfo, energy, read-only metadata probes, and config hints. |
+| Metadata model | Prototype implemented/tested | Energy, schedule, countdown, away, LED, firmware, and diagnostics availability are represented where observed/supported. |
+| System info parsing | Prototype implemented/tested | Sanitized fixtures cover single relay, multi-outlet, bulb, dimmer, and unsupported-module shapes. |
+| Energy parsing | Prototype implemented/tested | Fixtures cover milli-unit success and unsupported response. |
 | Outbox forwarding | Deferred | Establish device library/configuration and local status first; then use common outbox standard. |
 | Local UI | Not implemented | Status/dashboard only initially. |
 | Commands | Deferred | Safety design required. |

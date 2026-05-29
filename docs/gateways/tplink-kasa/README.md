@@ -161,10 +161,13 @@ Initial candidate capabilities:
 - operator-initiated discovery/add-device workflow for legacy port `9999` devices; no continuous scanning for new devices.
 - read-only `system.get_sysinfo`.
 - read-only `emeter.get_realtime` when supported.
+- read-only schedule/countdown/away metadata probes when explicitly requested for setup/capability validation.
 - read-only outlet state from top-level `relay_state`, child `children[].state`, and bulb `light_state.on_off` only after parser tests cover the observed shapes.
 - model/capability mapping for plugs, strips, dual outlets, switches, 3-way switches, dimmers, and bulbs.
 - local status dashboard and gateway health.
 - shared edge outbox later, after device discovery/configuration and local status are stable.
+
+Prototype code now exists under `src/HVO.Gateway.TplinkKasa` with tests under `tests/HVO.Gateway.TplinkKasa.Tests`. It includes a read-only legacy TCP client, sanitized fixtures, fake TCP server tests, identity validation, capability detection, and a redacted CLI probe/scan utility.
 
 Explicitly deferred:
 
@@ -181,6 +184,6 @@ Explicitly deferred:
 | Which exact TP-Link/Kasa/Tapo models are installed or planned? | Determines protocol, auth, capabilities, and safety. | Partially answered by sanitized live scan; final production list still open |
 | Are the devices legacy Kasa LAN devices, newer authenticated Kasa/Tapo devices, HomeKit devices, or Matter devices? | These are materially different protocol families. | Observed responders are legacy TCP `9999`; home `2.x` devices and HomeKit/Tapo/Matter-capable devices need follow-up discovery after Wi-Fi recovery |
 | What loads are connected to each outlet/switch? | Determines command safety and whether any commands can be exposed. | Open |
-| Is power telemetry needed, or only outlet state/inventory? | Determines central storage/outbox model. | Open; EP25 and HS300 energy fields are available if needed |
-| Should HVO ever control these devices, or only monitor them? | Affects local UI, auth, audit, and cloud policy. | Open |
+| Is power telemetry needed, or only outlet state/inventory? | Determines central storage/outbox model. | Open; EP25 and HS300 energy fields are available and prototype parser handles milli-units |
+| Should HVO ever control these devices, or only monitor them? | Affects local UI, auth, audit, and cloud policy. | Command-capable design accepted, but live commands require explicit per-device/per-command approval |
 | Which devices remain on `192.168.2.0/24` and should move to `192.168.9.0/24`? | Determines final home network configuration and production polling list. | Open; update as devices are reset/rejoined |

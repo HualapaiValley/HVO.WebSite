@@ -40,6 +40,8 @@ These are HVO local concepts for design and implementation. They are not vendor 
 | `KasaDeviceProfile` | model, hardware version, software version, protocol family, kind, capabilities | Model/firmware detection result, not an inheritance hierarchy. |
 | `KasaMetadataCapability` | `EnergyRealtime`, `EnergyTotal`, `ScheduleRead`, `CountdownRead`, `AwayModeRead`, `LedRead`, `FirmwareInfo`, `SignalInfo`, `Diagnostics` | Describes available read-only metadata independently from whether HVO polls it initially. |
 
+Capability and metadata flags mean observed/configured availability for a device, not merely a command that exists somewhere in the protocol. Firmware/model differences must be validated live or represented by sanitized fixtures before a flag is treated as supported.
+
 ## Local Configuration
 
 Identity rule: `Devices[].DeviceId` is the primary device identity. IP address/host is the current connection locator and may change. MAC address is a secondary locator/validation hint and should be configured when known because it can support ARP-assisted rediscovery after an IP change. The gateway must verify the connected device identity before accepting a poll result or executing any future command.

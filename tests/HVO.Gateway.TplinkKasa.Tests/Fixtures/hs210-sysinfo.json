@@ -1,0 +1,16 @@
+{
+  "system": {
+    "get_sysinfo": {
+      "err_code": 0,
+      "sw_ver": "1.1.0 Build 240101 Rel.000000",
+      "hw_ver": "3.0",
+      "model": "HS210(US)",
+      "deviceId": "HS210_DEVICE_ID_SANITIZED",
+      "alias": "Sanitized HS210",
+      "type": "IOT.SMARTPLUGSWITCH",
+      "mac": "AA:BB:CC:DD:EE:05",
+      "relay_state": 1,
+      "on_time": 456
+    }
+  }
+}

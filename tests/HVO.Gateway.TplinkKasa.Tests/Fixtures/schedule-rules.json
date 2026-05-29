@@ -1,0 +1,8 @@
+{
+  "schedule": {
+    "get_rules": {
+      "err_code": 0,
+      "rule_list": []
+    }
+  }
+}
