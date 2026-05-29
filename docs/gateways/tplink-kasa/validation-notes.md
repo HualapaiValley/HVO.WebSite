@@ -20,7 +20,9 @@ Subnet-level result:
 | Network | Count | Models observed | Interpretation |
 |---------|------:|-----------------|----------------|
 | `192.168.1.0/24` | 14 | EP25, HS105, HS300, KP200, KL130 | Likely mostly observatory devices. |
-| `192.168.2.0/24` | 8 | EP25, HS300 | Likely undercounted if home devices need Wi-Fi reset/rejoin after recent network changes. |
+| `192.168.2.0/24` | 8 | EP25, HS300 | Likely undercounted; about 14 home light switches are expected but did not answer the legacy TCP `9999` read-only scan. |
+
+Follow-up read-only rescan of `192.168.2.0/24` still found only 8 legacy TCP `9999` responders: 7 EP25 devices and 1 HS300 device. No light switch, 3-way switch, or dimmer models answered that scan.
 
 Commands sent:
 
@@ -67,6 +69,7 @@ Privacy/safety handling:
 
 Known likely gaps:
 
+- About 14 home Kasa light switches are expected on `192.168.2.0/24`, but were not observed by the legacy TCP `9999` scan.
 - 3-way light switches were not observed.
 - Dimmer switches were not observed.
 - Additional home devices on `192.168.2.0/24` may be offline or not rejoined after Wi-Fi changes.
