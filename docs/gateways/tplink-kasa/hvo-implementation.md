@@ -156,7 +156,7 @@ dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr 192.168.1.0/24 --
 
 Purpose: run configured-device polling and expose local status/inventory without outbox forwarding or live command execution.
 
-Side effects: polls configured devices with allowlisted read-only requests only. `/status` and `/inventory` require a Davis-style `X-Api-Key` matching `KasaGateway:ApiKey`; `/health` and `/gateway-health` expose local health only. Public DTOs avoid raw vendor device IDs, MACs, aliases, per-device hosts, and raw vendor JSON.
+Side effects: polls configured devices with allowlisted read-only requests only. `/status` and `/inventory` require a Davis-style `X-Api-Key` matching `KasaGateway:ApiKey`; `/health` and `/gateway-health` expose local health only. `/status-review` is unauthenticated and intentionally redacted for local operator/reviewer validation with model/capability/support booleans only, no source IDs, hosts, MACs, aliases, raw JSON, on/off state, or energy readings. Public DTOs avoid raw vendor device IDs, MACs, aliases, per-device hosts, and raw vendor JSON.
 
 ```bash
 dotnet run --project src/HVO.Gateway.TplinkKasa

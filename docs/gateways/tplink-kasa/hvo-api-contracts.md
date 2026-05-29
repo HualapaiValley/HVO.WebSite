@@ -89,10 +89,11 @@ Current Phase 1 local endpoints:
 |----------|--------|------|---------|----------|
 | `/health` | GET | none | Container health check. | ASP.NET health status. |
 | `/gateway-health` | GET | none | Local gateway summary for configured, online, and degraded counts. | `KasaGatewayHealthResponse`. |
+| `/status-review` | GET | none | Redacted review status with model/capability/support booleans only. Does not expose source IDs, hosts, MACs, aliases, raw JSON, on/off state, or energy readings. | `KasaGatewayReviewStatusResponse`. |
 | `/inventory` | GET | `X-Api-Key` | Enabled configured device inventory without raw IDs, hosts, MACs, aliases, or raw vendor JSON. | `KasaGatewayInventoryResponse`. |
 | `/status` | GET | `X-Api-Key` | Current configured-device status including normalized switch/light/energy values and safe typed read metadata. | `KasaGatewayStatusResponse`. |
 
-Local API auth follows the same API-key style as the Davis gateway for `/inventory` and `/status`.
+Local API auth follows the same API-key style as the Davis gateway for `/inventory` and `/status`. The unauthenticated `/status-review` endpoint is intentionally redacted for operator/reviewer validation without sharing the local API key.
 
 Command endpoints can be designed, but live execution must require same-session identity validation and explicit operator approval before sending a command.
 
