@@ -1,6 +1,6 @@
 # TP-Link / Kasa HVO API And Payload Contracts
 
-Status: draft. No local APIs, configuration library, outbox payloads, or cloud ingest contracts are implemented yet.
+Status: draft. A Phase 1 local read-only gateway exposes `/health`, `/gateway-health`, `/inventory`, and `/status`; outbox payloads and cloud ingest contracts are not implemented yet.
 
 Implementation sequencing: establish local device control/configuration, setup discovery reporting, metadata modeling, and current-state APIs before any outbox/cloud forwarding work.
 
@@ -64,12 +64,11 @@ Configuration starts in app/config files for the prototype, but the record shape
 | `Devices[].ExpectedModel` | string | No | No | App config | empty | Used to detect swapped devices. |
 | `Devices[].ExpectedHardwareVersion` | string | No | No | App config | empty | Optional guard for known hardware variants. |
 | `Devices[].ExpectedSoftwareVersion` | string | No | No | App config | empty | Optional inventory/diagnostic guard; firmware may change. |
-| `Devices[].SupportsEnergyMeter` | bool | No | No | App config | false | Avoids repeated `emeter` errors on non-energy devices. |
 | `Devices[].ExpectedChildCount` | int | No | No | App config | null | Useful for HS300/KP200 devices where outlets are represented as children. |
 | `Devices[].DeviceKind` | enum/string | No | No | App config | `Auto` | Candidate values could be `Plug`, `PowerStrip`, `DualOutlet`, `Switch`, `ThreeWaySwitch`, `Dimmer`, `Bulb`, `Unknown`, or `Auto`; do not expose commands from this alone. |
 | `Devices[].ProtocolFamily` | enum/string | No | No | App config | `LegacyKasaTcp9999` initially | Future values may be needed for HomeKit, Matter, Tapo, or newer authenticated Kasa devices. |
 | `Devices[].AlternateEcosystems` | array | No | No | App config/discovery | empty | Metadata such as `HomeKit`, `Matter`, `Alexa`, `GoogleAssistant`, `SmartThings`; do not imply HVO protocol support. |
-| `Devices[].Capabilities` | array | No | No | App config/discovery | observed/configured | Read-only capability flags from profile and discovery. |
+| `Devices[].Capabilities` | array | No | No | App config/discovery | observed/configured | Read-only capability flags from profile and discovery. `EnergyRealtime` is a hint, but realtime energy is also probed after identity validation so supported devices can be discovered from live reads. |
 | `Devices[].MetadataCapabilities` | array | No | No | App config/discovery | observed/configured | Read-only metadata categories available on the device, such as schedules, countdown, away mode, LED, firmware, energy totals, or diagnostics. |
 | `Devices[].CommandCapabilities` | array | No | No | App config | empty | Command possibilities only; runtime commands remain disabled unless safety gates are met. |
 | `Devices[].SafetyClass` | enum/string | Yes before commands | No | App config | `TelemetryOnly` | Commands disabled unless explicitly classified later. |
@@ -84,16 +83,20 @@ Setup/discovery is an app or operator utility function, not normal runtime behav
 
 ## Local APIs
 
-Proposed local endpoints:
+Current Phase 1 local endpoints:
 
 | Endpoint | Method | Auth | Purpose | Response |
 |----------|--------|------|---------|----------|
-| `/api/devices` | GET | local API key TBD | List configured/discovered device summaries. | Array of `KasaDeviceSummary`. |
-| `/api/devices/{deviceId}` | GET | local API key TBD | Current status for one device. | `KasaDeviceSnapshot`. |
-| `/api/gateway/status` | GET | local API key TBD | Gateway health, sample age, outbox state. | Common gateway health/status object. |
-| `/health` | GET | none/internal | Container health check. | ASP.NET health status. |
+| `/health` | GET | none | Container health check. | ASP.NET health status. |
+| `/gateway-health` | GET | none | Local gateway summary for configured, online, and degraded counts. | `KasaGatewayHealthResponse`. |
+| `/status-review` | GET | none | Redacted review status with model/capability/support booleans only. Does not expose source IDs, hosts, MACs, aliases, raw JSON, on/off state, or energy readings. | `KasaGatewayReviewStatusResponse`. |
+| `/status-review/current` | GET | none, temporary review endpoint | Redacted current runtime status/settings for operator review. Includes state, light, energy, and typed metadata values, but still excludes source IDs, hosts, MACs, aliases, child IDs, and raw vendor JSON. | `KasaGatewayReviewCurrentStatusResponse`. |
+| `/inventory` | GET | `X-Api-Key` | Enabled configured device inventory without raw IDs, hosts, MACs, aliases, or raw vendor JSON. | `KasaGatewayInventoryResponse`. |
+| `/status` | GET | `X-Api-Key` | Current configured-device status including normalized switch/light/energy values and safe typed read metadata. | `KasaGatewayStatusResponse`. |
 
-Local API auth should follow the same API-key style as the Davis gateway.
+Local API auth follows the same API-key style as the Davis gateway for `/inventory` and `/status`. The unauthenticated `/status-review` and temporary `/status-review/current` endpoints are intentionally redacted for operator/reviewer validation without sharing the local API key.
+
+Future authenticated API shape should include a full list endpoint and targeted lookup/search endpoints, such as a list by source ID or model plus a by-ID route. Those should remain authenticated because stable IDs and detailed state/settings are operational data.
 
 Command endpoints can be designed, but live execution must require same-session identity validation and explicit operator approval before sending a command.
 
@@ -144,7 +147,23 @@ These are HVO local concepts, not vendor response contracts.
 | `light` | object? | Bulb status for KL130/LB230-style devices. |
 | `rawSystemInfo` | JsonElement? | Optional local diagnostics; do not forward by default. |
 | `rawRealtimeEnergy` | JsonElement? | Optional local diagnostics; do not forward by default. |
-| `metadata` | object? | Optional schedule/countdown/away/LED/firmware/diagnostic metadata when supported and validated. |
+| `readMetadata` | object? | Safe typed schedule/countdown/away/time/timezone/firmware/cloud/dimmer metadata. Raw vendor JSON, aliases, account/cloud values, device IDs, MACs, hosts, and Wi-Fi details are not exposed. |
+
+### `KasaReadMetadataSnapshot`
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `schedule` | object? | `isSupported`, `errorCode`, `errorMessage`, `enabled`, `version`, and `ruleCount` from read-only schedule rules. |
+| `scheduleNextAction` | object? | `isSupported`, error fields, and vendor `type` value. Do not enum-lock type values yet. |
+| `countdown` | object? | Same safe rule metadata shape as `schedule`. |
+| `away` | object? | Same safe rule metadata shape as `schedule`. |
+| `deviceTime` | object? | Safe device clock fields from read-only time query. |
+| `timezone` | object? | Safe timezone index from read-only timezone query. |
+| `firmwareDownload` | object? | Download status/ratio/timing fields; firmware write operations remain blocked. |
+| `cloud` | object? | Safe bind/connect/status flags only; raw account, server, and username values remain excluded. |
+| `cloudFirmware` | object? | Firmware-list count only; raw firmware list details remain excluded. |
+| `dimmer` | object? | HS220 default behavior mode names and dimmer timing/threshold parameters from read-only dimmer queries. |
+| `support` | object | Boolean support flags for each read attempted, including realtime energy support inferred from a successful energy read. |
 
 ### `KasaOutletSnapshot`
 

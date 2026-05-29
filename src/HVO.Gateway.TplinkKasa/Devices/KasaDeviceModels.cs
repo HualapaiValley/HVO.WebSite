@@ -72,7 +72,55 @@ public sealed record KasaDeviceSnapshot(
     IReadOnlyList<KasaOutletSnapshot> Outlets,
     KasaLightSnapshot? Light,
     KasaEnergyReading? Energy,
+    KasaReadMetadataSnapshot? ReadMetadata,
     JsonElement RawSystemInfo);
+
+public sealed record KasaReadMetadataSnapshot(
+    KasaRuleMetadata? Schedule,
+    KasaNextActionMetadata? ScheduleNextAction,
+    KasaRuleMetadata? Countdown,
+    KasaRuleMetadata? Away,
+    KasaDeviceTimeMetadata? DeviceTime,
+    KasaTimezoneMetadata? Timezone,
+    KasaFirmwareDownloadMetadata? FirmwareDownload,
+    KasaCloudMetadata? Cloud,
+    KasaFirmwareListMetadata? CloudFirmware,
+    KasaDimmerMetadata? Dimmer,
+    KasaReadModuleSupport Support);
+
+public sealed record KasaRuleMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, bool? Enabled, int? Version, int? RuleCount);
+
+public sealed record KasaNextActionMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, int? Type);
+
+public sealed record KasaDeviceTimeMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, int? Year, int? Month, int? Day, int? Hour, int? Minute, int? Second);
+
+public sealed record KasaTimezoneMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, int? Index);
+
+public sealed record KasaFirmwareDownloadMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, int? Status, int? Ratio, int? FlashTimeSeconds, int? RebootTimeSeconds);
+
+public sealed record KasaCloudMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, bool? IsBound, bool? IsConnected, int? FirmwareNotifyType, int? IllegalType, bool? StopConnect, int? TcspStatus);
+
+public sealed record KasaFirmwareListMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, int? FirmwareCount);
+
+public sealed record KasaDimmerMetadata(KasaDimmerDefaultBehaviorMetadata? DefaultBehavior, KasaDimmerParameterMetadata? Parameters);
+
+public sealed record KasaDimmerDefaultBehaviorMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, string? SoftOnMode, string? HardOnMode, string? DoubleClickMode, string? LongPressMode);
+
+public sealed record KasaDimmerParameterMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, int? BulbType, int? FadeOnTimeMs, int? FadeOffTimeMs, int? GentleOnTimeMs, int? GentleOffTimeMs, int? MinThreshold, int? RampRate);
+
+public sealed record KasaReadModuleSupport(
+    bool EnergyRealtime,
+    bool ScheduleRules,
+    bool ScheduleNextAction,
+    bool CountdownRules,
+    bool AwayRules,
+    bool DeviceTime,
+    bool Timezone,
+    bool FirmwareDownload,
+    bool CloudInfo,
+    bool CloudFirmwareList,
+    bool DimmerDefaultBehavior,
+    bool DimmerParameters);
 
 public sealed record KasaOutletSnapshot(
     string OutletId,

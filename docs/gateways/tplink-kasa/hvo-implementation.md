@@ -69,6 +69,7 @@ Initial implementation target:
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaCapabilityDetector.cs` | Prototype profile/capability inference from sysinfo, energy, metadata probes, and config. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceLocator.cs` | Prototype configured-host and MAC-assisted locator validation. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaEnergyParser.cs` | Prototype parser for realtime energy success and unsupported responses. |
+| `src/HVO.Gateway.TplinkKasa/Devices/KasaReadMetadataParser.cs` | Typed parser for safe read-only metadata fields from schedules, countdown, away mode, time, firmware/cloud diagnostics, and dimmer detail reads. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaJsonShapeSummarizer.cs` | Sanitized field/type shape summaries for API-guide evidence. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaReadOnlyProbe.cs` | Prototype read-only single-host and CIDR probe utility. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceRegistry.cs` | Merge configured devices and discovered read-only inventory. |
@@ -155,7 +156,7 @@ dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr 192.168.1.0/24 --
 
 Purpose: run configured-device polling and expose local status/inventory without outbox forwarding or live command execution.
 
-Side effects: polls configured devices with allowlisted read-only requests only. `/status` and `/inventory` require a Davis-style `X-Api-Key` matching `KasaGateway:ApiKey`; `/health` and `/gateway-health` expose local health only. Public DTOs avoid raw vendor device IDs, MACs, aliases, per-device hosts, and raw vendor JSON.
+Side effects: polls configured devices with allowlisted read-only requests only. `/status` and `/inventory` require a Davis-style `X-Api-Key` matching `KasaGateway:ApiKey`; `/health` and `/gateway-health` expose local health only. `/status-review` is unauthenticated and intentionally redacted for local operator/reviewer validation with model/capability/support booleans only, no source IDs, hosts, MACs, aliases, raw JSON, on/off state, or energy readings. `/status-review/current` is a temporary unauthenticated review endpoint for current state/settings validation; it includes redacted runtime values but still excludes source IDs, hosts, MACs, aliases, child IDs, and raw vendor JSON. Public DTOs avoid raw vendor device IDs, MACs, aliases, per-device hosts, and raw vendor JSON.
 
 ```bash
 dotnet run --project src/HVO.Gateway.TplinkKasa
@@ -199,11 +200,13 @@ The read-only Pi deployment scaffold lives under `deploy/pi-gateways/tplink-kasa
    - top-level `relay_state` for EP25/HS105 plugs and HS200/HS210/HS220 switches.
    - `children[].state` for HS300/KP200-style multi-outlet devices.
    - `light_state.on_off` for KL130/LB230-style bulbs.
-11. If configured/observed as energy-capable, read `emeter.get_realtime` only after identity validation succeeds.
-12. Convert observed energy milli-units to normalized display units only after preserving raw values.
-13. Update current local snapshots and health state.
-14. Capture supported read-only metadata and availability flags without assuming every device supports every field.
-15. Defer outbox enqueue/forwarding until local discovery, configuration/database mapping, identity validation, metadata, and status semantics are stable.
+11. Opportunistically read `emeter.get_realtime` only after identity validation succeeds so energy-capable devices such as EP25 do not require preconfigured capability flags.
+12. Treat unsupported unconfigured realtime energy as a normal non-degraded result; malformed/network failures still degrade a device when energy is configured or the failure is not a clean unsupported response.
+13. Convert observed energy milli-units to normalized display units only after preserving raw values locally.
+14. Read safe typed metadata for schedule, countdown, away mode, time/timezone, firmware/cloud diagnostics, and HS220 dimmer details.
+15. Update current local snapshots and health state.
+16. Capture supported read-only metadata and availability flags without assuming every device supports every field.
+17. Defer outbox enqueue/forwarding until local discovery, configuration/database mapping, identity validation, metadata, and status semantics are stable.
 
 ## Command Flow
 
@@ -259,6 +262,8 @@ No live command may be sent from automated tests, background polling, or cloud p
 | Prefer capability composition over per-model inheritance | Proposed | The same protocol family spans many model-specific capability combinations. | Use model/firmware as detection hints, not the main type system. |
 | Model all available read-only metadata | Proposed | Energy, schedules, countdown, away mode, LED, diagnostics, firmware, and similar availability affect UI, config, and cloud contracts. | Poll/control support can be staged, but model shape should not ignore known device data categories. |
 | Capabilities mean observed/configured availability | Accepted | Firmware/model differences mean a protocol command existing is not enough. | Live validation corrected the detector so schedule/LED metadata is only marked supported after successful read or explicit config. |
+| Probe realtime energy after identity validation | Accepted | Real EP25 hardware supports energy even when config lacks `EnergyRealtime`; capability should be discovered from the read. | Unsupported unconfigured energy is non-degrading; successful energy adds `EnergyRealtime` capability and `/status` values. |
+| Expose typed read metadata in local `/status` | Accepted | App-comparable read data should not require ad hoc probe scripts after deployment. | Public status includes safe counts/status/mode fields but still excludes raw vendor JSON, aliases, MACs, device IDs, hosts, and cloud/account values. |
 | Use shared outbox standards | Proposed | New gateway should not duplicate Davis-specific outbox behavior. | May require `HVO.Edge.Outbox` failure-kind updates first. |
 | Build in-process fake server | Proposed | Keeps tests deterministic without Node/npm simulator dependency. | Compare behavior against `plasticrake` simulator later. |
 | Defer commands | Proposed | Load safety unknown. | Add command design only after device/load inventory. |

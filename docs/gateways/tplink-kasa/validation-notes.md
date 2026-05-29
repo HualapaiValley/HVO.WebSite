@@ -216,6 +216,8 @@ Current prototype test coverage:
 - default CLI output avoids raw identifiers, locators, and stable unsalted hashes.
 - local gateway inventory/status DTO redaction for raw vendor identifiers, MACs, aliases, hosts, and raw vendor JSON.
 - fake-server coverage for additional read-only icon, download-state, EMeter gain, cloud firmware, bulb, and dimmer probes.
+- poller coverage for opportunistic realtime energy detection after identity validation, unsupported unconfigured energy as non-degraded, typed schedule metadata exposure, and local `/status` read metadata projection.
+- parser coverage for HS220 dimmer default behavior and dimmer parameter fields observed in real-hardware read-only validation.
 
 Current prototype command:
 

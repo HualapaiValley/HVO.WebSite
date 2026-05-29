@@ -62,5 +62,18 @@ services:
       KasaGateway__Devices__2__ExpectedChildCount: ${KASA_DEVICE_2_EXPECTED_CHILD_COUNT:-}
       KasaGateway__Devices__2__DeviceKind: ${KASA_DEVICE_2_DEVICE_KIND:-Auto}
       KasaGateway__Devices__2__SafetyClass: TelemetryOnly
+      KasaGateway__Devices__3__Enabled: ${KASA_DEVICE_3_ENABLED:-false}
+      KasaGateway__Devices__3__DeviceId: ${KASA_DEVICE_3_DEVICE_ID:-}
+      KasaGateway__Devices__3__SourceId: ${KASA_DEVICE_3_SOURCE_ID:-}
+      KasaGateway__Devices__3__Host: ${KASA_DEVICE_3_HOST:-}
+      KasaGateway__Devices__3__Port: ${KASA_DEVICE_3_PORT:-9999}
+      KasaGateway__Devices__3__MacAddress: ${KASA_DEVICE_3_MAC_ADDRESS:-}
+      KasaGateway__Devices__3__NetworkName: ${KASA_DEVICE_3_NETWORK_NAME:-}
+      KasaGateway__Devices__3__ExpectedModel: ${KASA_DEVICE_3_EXPECTED_MODEL:-}
+      KasaGateway__Devices__3__ExpectedHardwareVersion: ${KASA_DEVICE_3_EXPECTED_HARDWARE_VERSION:-}
+      KasaGateway__Devices__3__ExpectedSoftwareVersion: ${KASA_DEVICE_3_EXPECTED_SOFTWARE_VERSION:-}
+      KasaGateway__Devices__3__ExpectedChildCount: ${KASA_DEVICE_3_EXPECTED_CHILD_COUNT:-}
+      KasaGateway__Devices__3__DeviceKind: ${KASA_DEVICE_3_DEVICE_KIND:-Auto}
+      KasaGateway__Devices__3__SafetyClass: TelemetryOnly
       DOTNET_ENVIRONMENT: Production
     restart: unless-stopped

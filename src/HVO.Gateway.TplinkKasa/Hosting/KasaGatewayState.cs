@@ -62,6 +62,34 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options)
             status.LastError);
     }
 
+    public KasaGatewayReviewStatusResponse GetReviewStatus()
+    {
+        var status = GetStatus();
+        return new KasaGatewayReviewStatusResponse(
+            status.GatewayId,
+            status.ConfiguredDeviceCount,
+            status.OnlineDeviceCount,
+            status.DegradedDeviceCount,
+            status.LastPollStartedAtUtc,
+            status.LastPollCompletedAtUtc,
+            status.LastError,
+            status.Devices.Select(KasaReviewDeviceStatus.FromStatus).ToArray());
+    }
+
+    public KasaGatewayReviewCurrentStatusResponse GetReviewCurrentStatus()
+    {
+        var status = GetStatus();
+        return new KasaGatewayReviewCurrentStatusResponse(
+            status.GatewayId,
+            status.ConfiguredDeviceCount,
+            status.OnlineDeviceCount,
+            status.DegradedDeviceCount,
+            status.LastPollStartedAtUtc,
+            status.LastPollCompletedAtUtc,
+            status.LastError,
+            status.Devices.Select(KasaReviewCurrentDeviceStatus.FromStatus).ToArray());
+    }
+
     public KasaGatewayInventoryResponse GetInventory() => new(
         options.Value.GatewayId,
         options.Value.Devices
@@ -93,6 +121,96 @@ public sealed record KasaGatewayHealthResponse(
     DateTimeOffset? LastPollStartedAtUtc,
     DateTimeOffset? LastPollCompletedAtUtc,
     string? LastError);
+
+public sealed record KasaGatewayReviewStatusResponse(
+    string GatewayId,
+    int ConfiguredDeviceCount,
+    int OnlineDeviceCount,
+    int DegradedDeviceCount,
+    DateTimeOffset? LastPollStartedAtUtc,
+    DateTimeOffset? LastPollCompletedAtUtc,
+    string? LastError,
+    IReadOnlyList<KasaReviewDeviceStatus> Devices);
+
+public sealed record KasaGatewayReviewCurrentStatusResponse(
+    string GatewayId,
+    int ConfiguredDeviceCount,
+    int OnlineDeviceCount,
+    int DegradedDeviceCount,
+    DateTimeOffset? LastPollStartedAtUtc,
+    DateTimeOffset? LastPollCompletedAtUtc,
+    string? LastError,
+    IReadOnlyList<KasaReviewCurrentDeviceStatus> Devices);
+
+public sealed record KasaReviewDeviceStatus(
+    string? Model,
+    string? HardwareVersion,
+    string? SoftwareVersion,
+    string DeviceKind,
+    bool IsOnline,
+    bool IdentityValidated,
+    bool IsDegraded,
+    IReadOnlyList<string> Capabilities,
+    IReadOnlyList<string> MetadataCapabilities,
+    int OutletCount,
+    bool HasLightStatus,
+    bool HasEnergyStatus,
+    KasaReadModuleSupport? ReadSupport)
+{
+    public static KasaReviewDeviceStatus FromStatus(KasaDeviceStatus status) => new(
+        status.Model,
+        status.HardwareVersion,
+        status.SoftwareVersion,
+        status.DeviceKind.ToString(),
+        status.IsOnline,
+        status.IdentityValidated,
+        status.IsDegraded,
+        status.Capabilities.Select(capability => capability.ToString()).Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+        status.MetadataCapabilities.Select(capability => capability.ToString()).Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+        status.Outlets.Count,
+        status.Light is not null,
+        status.Energy is not null,
+        status.ReadMetadata?.Support);
+}
+
+public sealed record KasaReviewCurrentDeviceStatus(
+    string? Model,
+    string? HardwareVersion,
+    string? SoftwareVersion,
+    string DeviceKind,
+    DateTimeOffset? ObservedAtUtc,
+    bool IsOnline,
+    bool IdentityValidated,
+    bool IsDegraded,
+    string? FailureReason,
+    string? DegradedReason,
+    IReadOnlyList<string> Capabilities,
+    IReadOnlyList<string> MetadataCapabilities,
+    bool? IsOn,
+    IReadOnlyList<KasaOutletStatus> Outlets,
+    KasaLightStatus? Light,
+    KasaEnergyStatus? Energy,
+    KasaReadMetadataSnapshot? ReadMetadata)
+{
+    public static KasaReviewCurrentDeviceStatus FromStatus(KasaDeviceStatus status) => new(
+        status.Model,
+        status.HardwareVersion,
+        status.SoftwareVersion,
+        status.DeviceKind.ToString(),
+        status.ObservedAtUtc,
+        status.IsOnline,
+        status.IdentityValidated,
+        status.IsDegraded,
+        status.FailureReason,
+        status.DegradedReason,
+        status.Capabilities.Select(capability => capability.ToString()).Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+        status.MetadataCapabilities.Select(capability => capability.ToString()).Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+        status.IsOn,
+        status.Outlets,
+        status.Light,
+        status.Energy,
+        status.ReadMetadata);
+}
 
 public sealed record KasaInventoryDevice(
     bool DeviceIdConfigured,
@@ -151,7 +269,8 @@ public sealed record KasaDeviceStatus(
     bool? IsOn,
     IReadOnlyList<KasaOutletStatus> Outlets,
     KasaLightStatus? Light,
-    KasaEnergyStatus? Energy)
+    KasaEnergyStatus? Energy,
+    KasaReadMetadataSnapshot? ReadMetadata)
 {
     public static KasaDeviceStatus Online(KasaDeviceConfig config, KasaDeviceSnapshot snapshot, string? degradedReason) => new(
         !string.IsNullOrWhiteSpace(config.DeviceId),
@@ -172,7 +291,8 @@ public sealed record KasaDeviceStatus(
         snapshot.IsOn,
         snapshot.Outlets.Select(KasaOutletStatus.FromSnapshot).ToArray(),
         KasaLightStatus.FromSnapshot(snapshot.Light),
-        KasaEnergyStatus.FromReading(snapshot.Energy));
+        KasaEnergyStatus.FromReading(snapshot.Energy),
+        snapshot.ReadMetadata);
 
     public static KasaDeviceStatus Offline(KasaDeviceConfig config, string failureReason) => new(
         !string.IsNullOrWhiteSpace(config.DeviceId),
@@ -192,6 +312,7 @@ public sealed record KasaDeviceStatus(
         config.MetadataCapabilities.ToHashSet(),
         null,
         [],
+        null,
         null,
         null);
 }
