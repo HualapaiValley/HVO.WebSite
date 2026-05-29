@@ -15,7 +15,8 @@ Initial implementation target:
 - `src/HVO.Gateway.TplinkKasa`
 - `tests/HVO.Gateway.TplinkKasa.Tests`
 - device control/configuration library first, before outbox integration.
-- static configured device list with host/IP, network/subnet, optional friendly name, expected model, expected hardware/software, expected child count, capability flags, and safety classification.
+- static configured device list keyed by stable device ID, with host/IP only as a last-known connection locator.
+- network/subnet, optional friendly name, expected model, expected hardware/software, expected child count, capability flags, MAC validation hints, and safety classification.
 - optional legacy UDP discovery and/or read-only subnet scan after TCP polling is stable.
 - read-only polling through legacy TCP `9999` Smart Home/XOR protocol for initial devices.
 - support the observed status shapes: top-level `relay_state`, multi-outlet `children[]`, bulb `light_state`, energy-meter responses, and unsupported-module error responses.
@@ -46,6 +47,7 @@ Initial implementation target:
 | `src/HVO.Gateway.TplinkKasa/Protocol/KasaCommands.cs` | Minimal read-only command builders. |
 | `src/HVO.Gateway.TplinkKasa/Configuration/KasaGatewayOptions.cs` | Gateway, network, discovery, and device configuration. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceRegistry.cs` | Merge configured devices and discovered read-only inventory. |
+| `src/HVO.Gateway.TplinkKasa/Devices/KasaIdentityValidator.cs` | Verify connected device ID/model/MAC before accepting data or commands. |
 | `src/HVO.Gateway.TplinkKasa/Capabilities/` | Capability records/enums for switch, dimmer, light, energy meter, multi-outlet, and diagnostics. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDevicePoller.cs` | Poll configured devices and normalize current state. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceSnapshot.cs` | Current read-only device status model. |
@@ -61,7 +63,8 @@ Initial implementation target:
 | `KasaXorCipher` | Encode/decode legacy Smart Home TCP frames. | Client and fake server tests. |
 | `IKasaLegacyClient` | Abstraction for read-only device commands. | Poller and tests. |
 | `KasaLegacyClient` | Sends JSON commands over TCP `9999` with timeout/retry. | Poller. |
-| `KasaDeviceRegistry` | Tracks configured devices, discovered responders, network location, expected shape, and capability flags. | Worker and local UI. |
+| `KasaDeviceRegistry` | Tracks configured device IDs, discovered responders, current locator, network location, expected shape, and capability flags. | Worker and local UI. |
+| `KasaIdentityValidator` | Confirms sysinfo identity matches the configured device before data/commands are trusted. | Poller, command service, tests. |
 | `KasaCapabilitySet` | Describes model/instance capabilities without inheritance-heavy device subclasses. | Registry, poller, UI, outbox mapping. |
 | `KasaSystemInfoParser` | Converts observed vendor response shapes into HVO snapshots without hiding raw/vendor data. | Poller and tests. |
 | `KasaDevicePoller` | Coordinates polling all configured devices. | Background worker and local UI. |
@@ -110,7 +113,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 
 | Model | Purpose | Notes |
 |-------|---------|-------|
-| `KasaDeviceConfig` | Static HVO configuration for one device. | Host, source/device IDs, expected model, polling interval, safety classification. |
+| `KasaDeviceConfig` | Static HVO configuration for one device. | Device ID, source ID, last-known host, optional MAC, expected model, polling interval, safety classification. |
 | `KasaNetworkConfig` | Subnet/discovery configuration. | Allows observatory/home networks to be scanned separately and reported separately. |
 | `KasaCapabilitySet` | Observed/configured capabilities for one device. | Avoid hard-coding behavior by model only; model/firmware may still matter. |
 | `KasaDeviceSnapshot` | Current state displayed locally and optionally forwarded. | Keep vendor fields and HVO normalized values separated. |
@@ -124,23 +127,27 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 1. Load gateway and device configuration.
 2. Validate network/device configuration and mark missing/placeholder settings as misconfigured.
 3. Optionally perform read-only discovery by configured network and record responder counts per subnet.
-4. Merge discovered devices with the static configured registry without treating discovery-only devices as production telemetry sources until approved.
-5. Poll each configured legacy device on its interval.
-6. Read `system.get_sysinfo`.
-7. Parse status based on observed shape:
+4. Merge discovered devices with the static configured registry by stable device ID, not by IP address.
+5. Use ARP/MAC or discovery results as locator hints only; update the last-known host for a known device after identity validation.
+6. Poll each configured legacy device on its interval using its current locator.
+7. Read `system.get_sysinfo` first.
+8. Validate the connected device ID and any configured guard fields before accepting the poll result.
+9. Parse status based on observed shape:
    - top-level `relay_state` for EP25/HS105 plugs and HS200/HS210/HS220 switches.
    - `children[].state` for HS300/KP200-style multi-outlet devices.
    - `light_state.on_off` for KL130/LB230-style bulbs.
-8. If configured/observed as energy-capable, read `emeter.get_realtime`.
-9. Convert observed energy milli-units to normalized display units only after preserving raw values.
-10. Update current local snapshots and health state.
-11. Defer outbox enqueue/forwarding until local discovery, configuration, and status semantics are stable.
+10. If configured/observed as energy-capable, read `emeter.get_realtime` only after identity validation succeeds.
+11. Convert observed energy milli-units to normalized display units only after preserving raw values.
+12. Update current local snapshots and health state.
+13. Defer outbox enqueue/forwarding until local discovery, configuration, identity validation, and status semantics are stable.
 
 ## Error Handling And Retries
 
 | Scenario | HVO behavior | Notes |
 |----------|--------------|-------|
 | TCP timeout/connect failure | Mark device offline/degraded; continue polling other devices. | Do not crash gateway. |
+| Connected device ID mismatch | Mark configured device as identity mismatch; do not accept telemetry and never run commands. | Protects against DHCP/IP reuse causing wrong-device control. |
+| MAC/ARP mismatch | Treat as locator suspect; force sysinfo identity validation before using the address. | MAC is a hint, not the primary identity. |
 | Invalid length prefix or decrypt failure | Mark protocol error; increment decode failure metric. | Fake server tests should cover. |
 | Malformed JSON response | Mark protocol error; do not enqueue telemetry. | Dead-letter not needed if payload is never enqueued. |
 | Unsupported `emeter` module | Record capability unsupported; continue system-info polling. | Expected for non-energy devices. |
@@ -162,6 +169,8 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 |----------|--------|-----------|--------------------------|
 | Start with legacy Kasa LAN read-only | Proposed | Matches observed installed responders and has the best simulator coverage. | Confirm production subset before deploy. |
 | Build device library/configuration before outbox | Proposed | Inventory and control semantics must be stable before cloud payloads are useful. | Outbox work follows local registry, polling, and status UI. |
+| Use device ID as primary identity | Proposed | IP addresses can change and may be reassigned by DHCP. | All polling/commands must validate identity after connect. |
+| Treat MAC/IP as locator hints | Proposed | MAC can support ARP-assisted lookup, but it is still secondary to device ID. | Discovery may update host locators only after identity validation. |
 | Treat installed legacy devices as a heterogeneous capability set | Proposed | Live scan observed plugs, power strips, dual outlets, light switches, 3-way switches, dimmers, and multiple bulb models with different capability shapes. | Parser tests need fixtures for all observed shapes. |
 | Prefer capability composition over per-model inheritance | Proposed | The same protocol family spans many model-specific capability combinations. | Use model/firmware as detection hints, not the main type system. |
 | Use shared outbox standards | Proposed | New gateway should not duplicate Davis-specific outbox behavior. | May require `HVO.Edge.Outbox` failure-kind updates first. |

@@ -47,6 +47,19 @@ This table is HVO documentation metadata unless a row explicitly says it comes f
 | HVO UI responsibility | Level 1-2: local status, inventory, health, diagnostics; commands only after safety design |
 | HVO safety classification | Read-only telemetry initially; on/off/cycle commands can be low-risk or high-risk depending on connected load |
 
+## Identity And Locator Rules
+
+Device identity must not be based on IP address. TP-Link/Kasa IP addresses can change through DHCP or network moves, and a stale IP could point to a different device later.
+
+HVO identity rules:
+
+- Use the vendor device ID from `system.get_sysinfo` as the primary device identity.
+- Treat IP address/DNS host as a current connection locator only.
+- Treat MAC address as a secondary locator/validation hint; it can help with ARP-assisted lookup but does not replace device ID validation.
+- Every poll should read system info first and validate the connected device against configured identity before accepting data.
+- Any future command path must fail closed unless the connected device identity matches the configured device ID and guard fields.
+- UI actions must target configured device identity, not an IP address.
+
 ## Capability Summary
 
 | Capability group | Read-only | Read-write | Command/action | Local UI | Outbox/cloud | Notes |
@@ -136,7 +149,7 @@ Start with a device control/configuration library before outbox work. The first 
 Initial candidate capabilities:
 
 - static host polling for configured devices.
-- configuration model for known devices, discovered devices, expected model/hardware/software, network/subnet, capability flags, and safety classification.
+- configuration model for known devices, discovered devices, stable device ID, last-known host, optional MAC, expected model/hardware/software, network/subnet, capability flags, and safety classification.
 - optional UDP discovery for legacy port `9999` devices.
 - read-only `system.get_sysinfo`.
 - read-only `emeter.get_realtime` when supported.

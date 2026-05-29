@@ -106,7 +106,8 @@ Design outputs needed before implementation is considered complete:
 
 - protocol client interfaces and transport implementation.
 - capability enums/records and device profile detection.
-- configuration schema for networks, devices, capabilities, and safety.
+- configuration schema for networks, stable device identity, current locators, capabilities, and safety.
+- identity validation path that uses device ID as primary identity and treats IP/MAC as locator hints.
 - local snapshot models for switches, outlets, strips, dimmers, bulbs, and energy meters.
 - local UI/status view model.
 - telemetry/outbox candidate models, after local semantics are stable.
@@ -129,9 +130,10 @@ Design outputs needed before implementation is considered complete:
    - truncated length/payload
    - timeout/no response
 5. Integration-test `KasaLegacyClient` against the fake server.
-6. Add configuration/registry tests for configured devices, discovery-only devices, expected model mismatch, expected child count mismatch, and per-network responder counts.
-7. Worker tests should verify one failing device does not block other devices.
-8. Outbox tests should wait until local device configuration and status semantics are stable.
+6. Add identity tests for configured device ID match, device ID mismatch at reused IP, MAC mismatch, expected model mismatch, and missing identity fields.
+7. Add configuration/registry tests for configured devices, discovery-only devices, expected child count mismatch, ARP/MAC locator hints, and per-network responder counts.
+8. Worker tests should verify one failing or mismatched device does not block other devices.
+9. Outbox tests should wait until local device configuration, identity validation, and status semantics are stable.
 
 ## External Simulator Option
 
@@ -161,6 +163,7 @@ Read-only live tests:
 
 - connect to configured host.
 - read system info.
+- verify configured device ID before accepting any data.
 - verify expected model when configured.
 - parse top-level relay, child outlet, or bulb light state according to observed response shape.
 - read realtime energy if the device is expected to support `emeter`.
@@ -172,6 +175,7 @@ Command live tests are deferred. If ever added, they must:
 
 - require `KASA_LIVE_ALLOW_COMMANDS=true`.
 - require device safety classification.
+- require successful same-session identity validation immediately before command execution.
 - read current state before command.
 - execute command.
 - read back state after command.
@@ -190,6 +194,7 @@ Command live tests are deferred. If ever added, they must:
 | Which 3-way and dimmer switch models are installed? | Switch/dimmer state and command shapes may differ from plugs/strips/bulbs. | Initial read-only scan observed HS210 and HS220; dimmer-specific read-only fields still need validation. |
 | Are HomeKit/Tapo/Matter-capable devices present? | They may use non-legacy protocols and auth. | Model inventory and separate non-write discovery. |
 | Which observed devices have confirmed alternate ecosystems? | Lets HVO document HomeKit/Matter/Tapo options without implementing them unnecessarily. | EP25 HomeKit confirmed from official product page; other observed models are not confirmed from current evidence. |
+| Which identity fields are always present per observed model? | Determines safe primary/secondary identity validation. | Use sanitized fixtures/live reads to confirm `deviceId`, MAC, model, hardware, and firmware availability. |
 | What is the complete read-only protocol surface for each observed device category? | Needed for correct classes/interfaces/enums and UI/telemetry models. | Research references plus sanitized live reads before implementation lock. |
 | What are exact `system.get_sysinfo` response fields? | Needed for DTO mapping. | Sanitized field names captured; implementation needs committed fake fixtures. |
 | What are exact `emeter.get_realtime` response fields and units? | Needed for power telemetry. | Sanitized field names captured for EP25/HS300; implementation needs committed fake fixtures. |
@@ -214,6 +219,7 @@ Command live tests are deferred. If ever added, they must:
 | Legacy TCP framing | Live read-only validated | Needs fake server tests. |
 | Legacy UDP discovery | Researched at high level | Needs packet/framing validation. |
 | Per-network discovery reporting | Live scan manually summarized | Needs configuration/registry implementation. |
+| Identity validation | Planned | Device ID must be primary identity; IP and MAC are locator/validation hints only. |
 | Capability model | Planned | Needs per-device protocol research before classes/enums are locked. |
 | System info parsing | Live shapes captured; not implemented | Needs sanitized fixtures for single relay, multi-outlet, bulb, dimmer, and unsupported-module shapes. |
 | Energy parsing | Live fields captured; not implemented | Needs fixtures for EP25/HS300 success and HS105 unsupported response. |

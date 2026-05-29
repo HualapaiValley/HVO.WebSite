@@ -41,6 +41,8 @@ These are HVO local concepts for design and implementation. They are not vendor 
 
 ## Local Configuration
 
+Identity rule: `Devices[].DeviceId` is the primary device identity. IP address/host is only a connection locator and may change. MAC address is a secondary locator/validation hint. The gateway must verify the connected device identity before accepting a poll result or executing any future command.
+
 | Setting | Type | Required | Secret | Runtime editable | Default | Notes |
 |---------|------|----------|--------|------------------|---------|-------|
 | `GatewayId` | string | Yes | No | No | `hvo-tplink-kasa` | Common gateway identity. |
@@ -49,10 +51,11 @@ These are HVO local concepts for design and implementation. They are not vendor 
 | `Networks[].Cidr` | string | Yes when network configured | No | App config | empty | Example: `192.168.1.0/24`; avoid committing per-device IP inventory. |
 | `Networks[].DiscoveryEnabled` | bool | No | No | App config | false | Enables read-only discovery scans for the network. |
 | `Devices` | array | Yes | No | App config | empty | Static configured device list for initial implementation. |
-| `Devices[].Host` | string | Yes | No | App config | empty | IP or DNS name. Prefer static DHCP reservation. |
+| `Devices[].DeviceId` | string | Yes | No | App config | empty | Primary stable device identity from the device/API. Do not use IP address as identity. |
+| `Devices[].Host` | string | No | No | App config/discovery | empty | Last-known IP or DNS locator used for connection. Must be verified against `DeviceId` after connect. |
+| `Devices[].MacAddress` | string | No | No | App config/discovery | empty | Secondary locator/validation hint. Can support ARP-assisted lookup, but must not replace `DeviceId`. |
 | `Devices[].NetworkName` | string | No | No | App config | empty | Associates a device with a configured network label. |
 | `Devices[].SourceId` | string | Yes | No | App config | empty | Stable source ID for outbox/cloud. |
-| `Devices[].DeviceId` | string | Recommended | No | App config | empty | Stable device ID; may be HVO-assigned until vendor ID is validated. |
 | `Devices[].ExpectedModel` | string | No | No | App config | empty | Used to detect swapped devices. |
 | `Devices[].ExpectedHardwareVersion` | string | No | No | App config | empty | Optional guard for known hardware variants. |
 | `Devices[].ExpectedSoftwareVersion` | string | No | No | App config | empty | Optional inventory/diagnostic guard; firmware may change. |
@@ -66,6 +69,7 @@ These are HVO local concepts for design and implementation. They are not vendor 
 | `Devices[].SafetyClass` | enum/string | Yes before commands | No | App config | `TelemetryOnly` | Commands disabled unless explicitly classified later. |
 | `PollIntervalSeconds` | int | Yes | No | App config | TBD | Must avoid flooding devices. |
 | `SocketTimeoutSeconds` | int | Yes | No | App config | TBD | Applies to TCP command round trips. |
+| `RequireIdentityValidation` | bool | Yes | No | App config | true | Must remain true for production. Requires sysinfo identity match before accepting data or commands. |
 | `Outbox` settings | object | If cloud forwarding enabled | API key secret | App config | shared | Use `HVO.Edge.Outbox` conventions. |
 
 Credentials for newer Kasa/Tapo devices are not part of initial scope. If later needed, use secret configuration and never log usernames/passwords/tokens.
@@ -93,7 +97,8 @@ These are HVO local concepts, not vendor response contracts.
 |-------|------|-------|
 | `deviceId` | string | HVO/device identity. |
 | `sourceId` | string | Outbox/cloud source identity. |
-| `host` | string | Local configured address. |
+| `host` | string | Current/last-known connection locator, not identity. |
+| `macAddress` | string? | Secondary locator/validation hint; redact from public/cloud payloads by default. |
 | `alias` | string? | Vendor or HVO friendly label if validated. |
 | `model` | string? | Vendor model if validated. |
 | `hardwareVersion` | string? | Vendor hardware version if captured. |
@@ -117,6 +122,8 @@ These are HVO local concepts, not vendor response contracts.
 | `sourceId` | string | Outbox/cloud source identity. |
 | `observedAtUtc` | DateTime | Observation time. |
 | `isOnline` | bool | Polling result. |
+| `identityValidated` | bool | True only when connected device matched configured `deviceId` and any configured guard fields. |
+| `identityMismatchReason` | string? | Local diagnostics for swapped IP/DHCP/ARP mismatch. Do not forward by default. |
 | `isOn` | bool? | Current switch state if validated. |
 | `powerW` | double? | Only for validated energy-meter fields. |
 | `voltageV` | double? | Only for validated energy-meter fields. |
@@ -154,9 +161,9 @@ Use the common gateway outbox standards. Do not add a gateway-local outbox unles
 | Stream | Payload type | Cadence | Idempotency key | Cloud treatment | Notes |
 |--------|--------------|---------|-----------------|-----------------|-------|
 | Device inventory | `device.inventory` or future typed name | On startup/change | source/device + content hash | Candidate config snapshot | Model/firmware/MAC/etc. only after field validation. |
-| Device switch state | `device.switch-state` or future typed name | Poll cadence/change | source/device/outlet + recordedAt | Candidate event/status | Must include outlet identity for HS300/KP200. |
+| Device switch state | `device.switch-state` or future typed name | Poll cadence/change | source/device/outlet + recordedAt | Candidate event/status | Only after identity validation succeeds; must include outlet identity for HS300/KP200. |
 | Device light state | `device.light-state` or future typed name | Poll cadence/change | source/device + recordedAt | Candidate status | Bulb support is status-only initially. |
-| Device power telemetry | `power.device-reading` or future typed name | Poll cadence | source/device/outlet-if-known + recordedAt | Candidate telemetry | Keep distinct from inverter/site aggregate power. |
+| Device power telemetry | `power.device-reading` or future typed name | Poll cadence | source/device/outlet-if-known + recordedAt | Candidate telemetry | Only after identity validation succeeds; keep distinct from inverter/site aggregate power. |
 | Gateway status | `gateway.status` | low frequency | gateway + recordedAt | Candidate common status | Should match common gateway standards. |
 
 Do not mix TP-Link per-outlet power with SolarAssistant inverter/site aggregate power without explicit source/device attribution. Same units do not imply same domain semantics.
@@ -182,6 +189,7 @@ If commands are ever added:
 - Do not log credentials, cloud account fields, or raw payloads before reviewing them for sensitive data.
 - Do not forward aliases, MAC addresses, device IDs, coordinates, or connected-load labels by default. Treat them as inventory/debug data requiring explicit review.
 - Prefer static device configuration over unauthenticated broad discovery for production if network exposure is a concern.
+- Never execute a command against an IP address unless the connected device identity has been verified against the configured `DeviceId`. DHCP changes or stale ARP data must fail safe.
 
 ## Open Contract Decisions
 
