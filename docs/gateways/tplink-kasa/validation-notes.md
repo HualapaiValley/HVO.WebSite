@@ -100,6 +100,7 @@ Research targets:
 - LED/night-mode read operations.
 - cloud/account read operations only if safe to sanitize.
 - Tapo/Matter/HomeKit discovery boundary, documented separately from legacy Kasa.
+- alternate ecosystem metadata per observed model, without assuming HVO needs to implement those protocols.
 
 Design outputs needed before implementation is considered complete:
 
@@ -188,6 +189,7 @@ Command live tests are deferred. If ever added, they must:
 | Which devices exist on `192.168.9.0/24` after routing is configured? | Confirms home switch/bulb inventory. | Route update completed; read-only scan observed 20 legacy responders so far. Keep monitoring per-network counts for routing regressions. |
 | Which 3-way and dimmer switch models are installed? | Switch/dimmer state and command shapes may differ from plugs/strips/bulbs. | Initial read-only scan observed HS210 and HS220; dimmer-specific read-only fields still need validation. |
 | Are HomeKit/Tapo/Matter-capable devices present? | They may use non-legacy protocols and auth. | Model inventory and separate non-write discovery. |
+| Which observed devices have confirmed alternate ecosystems? | Lets HVO document HomeKit/Matter/Tapo options without implementing them unnecessarily. | EP25 HomeKit confirmed from official product page; other observed models are not confirmed from current evidence. |
 | What is the complete read-only protocol surface for each observed device category? | Needed for correct classes/interfaces/enums and UI/telemetry models. | Research references plus sanitized live reads before implementation lock. |
 | What are exact `system.get_sysinfo` response fields? | Needed for DTO mapping. | Sanitized field names captured; implementation needs committed fake fixtures. |
 | What are exact `emeter.get_realtime` response fields and units? | Needed for power telemetry. | Sanitized field names captured for EP25/HS300; implementation needs committed fake fixtures. |

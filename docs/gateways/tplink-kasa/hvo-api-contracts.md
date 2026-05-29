@@ -60,6 +60,7 @@ These are HVO local concepts for design and implementation. They are not vendor 
 | `Devices[].ExpectedChildCount` | int | No | No | App config | null | Useful for HS300/KP200 devices where outlets are represented as children. |
 | `Devices[].DeviceKind` | enum/string | No | No | App config | `Auto` | Candidate values could be `Plug`, `PowerStrip`, `DualOutlet`, `Switch`, `ThreeWaySwitch`, `Dimmer`, `Bulb`, `Unknown`, or `Auto`; do not expose commands from this alone. |
 | `Devices[].ProtocolFamily` | enum/string | No | No | App config | `LegacyKasaTcp9999` initially | Future values may be needed for HomeKit, Matter, Tapo, or newer authenticated Kasa devices. |
+| `Devices[].AlternateEcosystems` | array | No | No | App config/discovery | empty | Metadata such as `HomeKit`, `Matter`, `Alexa`, `GoogleAssistant`, `SmartThings`; do not imply HVO protocol support. |
 | `Devices[].Capabilities` | array | No | No | App config/discovery | observed/configured | Read-only capability flags from profile and discovery. |
 | `Devices[].CommandCapabilities` | array | No | No | App config | empty | Command possibilities only; runtime commands remain disabled unless safety gates are met. |
 | `Devices[].SafetyClass` | enum/string | Yes before commands | No | App config | `TelemetryOnly` | Commands disabled unless explicitly classified later. |
@@ -101,6 +102,7 @@ These are HVO local concepts, not vendor response contracts.
 | `lastSeenUtc` | DateTime? | Last successful read. |
 | `networkName` | string? | Configured network label for grouping observatory/home devices. |
 | `protocolFamily` | string? | Observed/configured protocol family. |
+| `alternateEcosystems` | array? | Confirmed ecosystem metadata such as HomeKit or Matter. |
 | `supportsEnergyMeter` | bool? | Configured/observed capability. |
 | `capabilities` | array? | HVO capability flags for local UI and diagnostics. |
 | `commandCapabilities` | array? | Potential command capabilities; not enabled by default. |

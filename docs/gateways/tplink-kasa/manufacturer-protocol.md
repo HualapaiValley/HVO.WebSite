@@ -14,6 +14,7 @@ Important provenance note: the initial research did not find official TP-Link lo
 | `plasticrake/tplink-smarthome-api` README | Legacy Smart Home supported device categories, TCP/UDP send options, simulator reference. |
 | `plasticrake/tplink-smarthome-simulator` README | Simulator existence and legacy device model examples. |
 | HVO read-only live scan on 2026-05-29 | Sanitized legacy TCP `9999` response shapes for EP25, HS300, KP200, HS105, and KL130 devices on HVO networks. |
+| Official TP-Link/Kasa product pages | Feature/context checks for observed models, including HomeKit/Matter wording where present. |
 
 ## Known Hardware / Firmware Variants
 
@@ -23,6 +24,7 @@ Important provenance note: the initial research did not find official TP-Link lo
 | Newer Kasa devices | Some require authentication; some use newer `SMART` protocol and transports such as KLAP/AES over HTTP. | Discovery and `DeviceConfig` in `python-kasa`; model/hardware/firmware list. | Do not assume legacy port `9999` behavior. |
 | Tapo devices | Require authentication according to `python-kasa` supported-device notes; may use `SMART` protocol and newer transports. | Discovery on port `20002`; credentials commonly required. | Out of initial HVO scope unless exact device is confirmed. |
 | Matter-suffixed devices such as some `M` models | May have Matter support and/or authenticated local behavior depending on model. | Model/hardware/firmware confirmation. | Treat as separate capability family until validated. |
+| HomeKit-capable Kasa devices | Some Kasa models are also marketed for Apple HomeKit. | Official product page/model label/native app. | Track as metadata; do not implement HomeKit unless it provides needed extra functionality. |
 
 `python-kasa` supported-device notes mark many specific Kasa/Tapo models and hardware/firmware combinations. Do not infer protocol support from model prefix alone; hardware revision and firmware matter.
 
@@ -44,6 +46,22 @@ The following table is from a sanitized HVO read-only scan. It intentionally omi
 | LB230(E26) | 1 | `1.0` | `1.8.11 Build 191113 Rel.105336` | `IOT.SMARTBULB` from `mic_type` | none observed | `light_state.on_off`; light capability flags present | no realtime energy fields observed |
 
 These observations confirm that a single legacy gateway must handle at least three status shapes: single-outlet/switch top-level `relay_state`, multi-outlet `children[]`, and bulb `light_state`. Energy capability is not implied by smart plug/switch family alone; use `feature` and/or actual `emeter.get_realtime` success. Dimmer-level fields/commands for HS220 were not captured because the live scan did not send dimmer-specific operations.
+
+## Alternate Protocol / Ecosystem Notes
+
+Observed devices can support multiple ecosystems while still responding to legacy Kasa TCP `9999`. HVO should track these as metadata and only implement a non-legacy protocol when legacy Kasa does not provide required functionality or a future device requires a different protocol.
+
+| Model | Legacy TCP `9999` observed | Other protocol/ecosystem status | Evidence |
+|-------|----------------------------|---------------------------------|----------|
+| EP25(US) | Yes | HomeKit confirmed; Matter not confirmed | Official Kasa EP25 page says HomeKit. |
+| HS105(US) | Yes | HomeKit/Matter/Tapo not confirmed | No alternate support confirmed in current evidence. |
+| HS200(US) | Yes | HomeKit/Matter not confirmed | Official page checked; it mentions Kasa app, Alexa, Google Assistant, Wi-Fi. |
+| HS210(US) | Yes | HomeKit/Matter not confirmed | Official page checked; it mentions Kasa app, Alexa, Google Assistant, Wi-Fi. |
+| HS220(US) | Yes | HomeKit/Matter not confirmed | Official page checked; it mentions Kasa app, Alexa, Google Assistant, Wi-Fi. |
+| HS300(US) | Yes | HomeKit/Matter not confirmed | Official page checked; it mentions Kasa app, Alexa, Google Assistant, Wi-Fi. |
+| KP200(US) | Yes | HomeKit/Matter not confirmed | Official page checked; it mentions Kasa app, Alexa, Google Assistant, Wi-Fi. |
+| KL130(US) | Yes | HomeKit/Matter not confirmed | Official page checked; it mentions Kasa app, Alexa, Google Assistant, SmartThings. |
+| LB230(E26) | Yes | HomeKit/Matter not confirmed | Official page checked; it mentions Kasa app, Alexa, Google Assistant. |
 
 ## Communication Summary
 

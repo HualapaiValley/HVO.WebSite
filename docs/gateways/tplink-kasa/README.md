@@ -26,6 +26,7 @@
 | JavaScript library | `plasticrake/tplink-smarthome-api` | Found | Supports legacy Kasa Smart Home devices; explicitly does not support Tapo. |
 | Simulator | `plasticrake/tplink-smarthome-simulator` | Found | Node-based simulator for legacy TP-Link Smart Home devices. Useful for comparison; HVO can also build an in-process fake. |
 | Live read-only discovery | HVO scan of `192.168.1.0/24` and `192.168.2.0/24` on 2026-05-29 | Captured | Used only `system.get_sysinfo` and `emeter.get_realtime` over legacy TCP `9999`; no write/switch commands sent. Committed docs keep aggregate/sanitized model and field data only. |
+| Official product pages | TP-Link/Kasa pages for observed models | Partially checked | EP25 page explicitly says HomeKit. Checked HS200, HS210, HS220, KP200, HS300, KL130, and LB230 pages for feature context; do not infer HomeKit/Matter when not stated. |
 | Official TP-Link docs | TP-Link/Kasa/Tapo local protocol docs | Needed | No official local API reference found during initial research. |
 | Exact HVO hardware | Installed/planned model and firmware | Device types mostly captured | Legacy responders observed for EP25, HS105, HS200, HS210, HS220, HS300, KP200, KL130, and LB230. Final physical device list and connected loads still need operator confirmation. |
 
@@ -87,12 +88,29 @@ Subnet-level result:
 | HS220(US) | 3 | `1.0` | `1.5.11 Build 200214 Rel.152651` | `IOT.SMARTPLUGSWITCH` | none | unsupported response with `err_msg` | Dimmer switch with top-level `relay_state`; dimmer controls deferred. |
 | LB230(E26) | 1 | `1.0` | `1.8.11 Build 191113 Rel.105336` | `IOT.SMARTBULB` | none | none | Bulb status includes `light_state`; light commands are deferred. |
 
+## Alternate Ecosystem / Protocol Flags
+
+The table below tracks non-legacy protocol or ecosystem support separately from the observed legacy TCP `9999` behavior. HVO should not implement HomeKit, Matter, Tapo, or authenticated Kasa protocols unless they provide required extra functionality or are needed for future devices that do not expose legacy Kasa.
+
+| Model | Legacy TCP `9999` observed | HomeKit | Matter | Tapo/new authenticated Kasa | Evidence / notes |
+|-------|----------------------------|---------|--------|----------------------------|------------------|
+| EP25(US) | Yes | Confirmed | Not confirmed | Not required for observed devices | Official Kasa EP25 page identifies it as HomeKit; legacy TCP `9999` also worked. |
+| HS105(US) | Yes | Not confirmed | Not confirmed | Not required for observed devices | Legacy TCP `9999` worked; no alternate protocol evidence captured. |
+| HS200(US) | Yes | Not confirmed | Not confirmed | Not required for observed devices | Official page checked for feature context; HomeKit/Matter not confirmed from checked page. |
+| HS210(US) | Yes | Not confirmed | Not confirmed | Not required for observed devices | Official page checked for feature context; HomeKit/Matter not confirmed from checked page. |
+| HS220(US) | Yes | Not confirmed | Not confirmed | Not required for observed devices | Official page checked for feature context; HomeKit/Matter not confirmed from checked page. |
+| HS300(US) | Yes | Not confirmed | Not confirmed | Not required for observed devices | Official page checked for feature context; HomeKit/Matter not confirmed from checked page. |
+| KP200(US) | Yes | Not confirmed | Not confirmed | Not required for observed devices | Official page checked for feature context; HomeKit/Matter not confirmed from checked page. |
+| KL130(US) | Yes | Not confirmed | Not confirmed | Not required for observed devices | Official page checked for feature context; HomeKit/Matter not confirmed from checked page. |
+| LB230(E26) | Yes | Not confirmed | Not confirmed | Not required for observed devices | Official page checked for feature context; HomeKit/Matter not confirmed from checked page. |
+
 Known likely gaps from operator inventory:
 
 - About 17 home light switch devices are now observed on `192.168.9.0/24` after route updates.
 - `192.168.2.0/24` may still be undercounted for plugs/strips or other devices.
 - Additional devices may already be on `192.168.2.0/24` but should eventually be reset/rejoined to `192.168.9.0/24` for the home Kasa network.
-- HomeKit-compatible Kasa devices were not specifically identified; they may still expose legacy Kasa, newer authenticated Kasa, HomeKit, Matter, or a combination depending on model/firmware.
+- EP25 is confirmed HomeKit-capable from the official product page, but legacy TCP `9999` currently provides the read-only data HVO needs.
+- Other HomeKit-compatible Kasa devices may exist in the broader estate; mark only confirmed model/support combinations in HVO metadata.
 - Tapo/Matter devices were not in initial implementation scope and were not confirmed by the legacy TCP `9999` scan.
 
 ## Phase 0 Conclusion
