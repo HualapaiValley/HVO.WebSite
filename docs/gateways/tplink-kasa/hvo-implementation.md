@@ -2,7 +2,7 @@
 
 ## Design Summary
 
-No HVO TP-Link/Kasa gateway exists yet. The recommended first implementation is a device control/configuration library plus a read-only legacy Kasa LAN gateway targeting confirmed port `9999` devices. Sanitized live discovery found only legacy TCP `9999` responders for the initial observed device set, but the home `192.168.2.0/24` and `192.168.9.0/24` networks are likely undercounted until Wi-Fi recovery/rescan and hvo.lan/Tailscale subnet routing are complete.
+No HVO TP-Link/Kasa gateway exists yet. The recommended first implementation is a device control/configuration library plus a read-only legacy Kasa LAN gateway targeting confirmed port `9999` devices. Sanitized live discovery found legacy TCP `9999` responders across observatory and home networks after hvo.lan/Tailscale routing was updated for `192.168.9.0/24`.
 
 The gateway should use the common gateway standards from [../common-gateway-standards.md](../common-gateway-standards.md): shared identity, shared outbox lifecycle, shared health/status concepts, and common telemetry naming where possible.
 
@@ -26,7 +26,7 @@ Initial implementation target:
 | Capability | HVO status | Notes |
 |------------|------------|-------|
 | Legacy TCP XOR framing | Planned | Deterministic and testable with fake TCP server. |
-| `system.get_sysinfo` | Planned | First read-only operation; sanitized live shapes captured for EP25, HS105, HS300, KP200, and KL130. |
+| `system.get_sysinfo` | Planned | First read-only operation; sanitized live shapes captured for EP25, HS105, HS200, HS210, HS220, HS300, KP200, and KL130. |
 | `emeter.get_realtime` | Planned if device supports it | Must handle unsupported module gracefully; EP25/HS300 returned milli-unit fields, HS105 returned unsupported response. |
 | Legacy UDP discovery | Candidate after TCP polling | Need UDP framing validation. |
 | Device commands | Deferred | Requires safety/auth/audit design. |
@@ -121,7 +121,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 5. Poll each configured legacy device on its interval.
 6. Read `system.get_sysinfo`.
 7. Parse status based on observed shape:
-   - top-level `relay_state` for EP25/HS105-style single outlets.
+   - top-level `relay_state` for EP25/HS105 plugs and HS200/HS210/HS220 switches.
    - `children[].state` for HS300/KP200-style multi-outlet devices.
    - `light_state.on_off` for KL130-style bulbs.
 8. If configured/observed as energy-capable, read `emeter.get_realtime`.
@@ -155,7 +155,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 |----------|--------|-----------|--------------------------|
 | Start with legacy Kasa LAN read-only | Proposed | Matches observed installed responders and has the best simulator coverage. | Confirm production subset before deploy. |
 | Build device library/configuration before outbox | Proposed | Inventory and control semantics must be stable before cloud payloads are useful. | Outbox work follows local registry, polling, and status UI. |
-| Treat installed legacy devices as a heterogeneous capability set | Proposed | Live scan observed plugs, power strips, dual outlets, and bulbs with different state shapes. | Parser tests need fixtures for all observed shapes. |
+| Treat installed legacy devices as a heterogeneous capability set | Proposed | Live scan observed plugs, power strips, dual outlets, light switches, 3-way switches, dimmers, and bulbs with different capability shapes. | Parser tests need fixtures for all observed shapes. |
 | Use shared outbox standards | Proposed | New gateway should not duplicate Davis-specific outbox behavior. | May require `HVO.Edge.Outbox` failure-kind updates first. |
 | Build in-process fake server | Proposed | Keeps tests deterministic without Node/npm simulator dependency. | Compare behavior against `plasticrake` simulator later. |
 | Defer commands | Proposed | Load safety unknown. | Add command design only after device/load inventory. |
@@ -166,7 +166,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 |--------|--------|-----------|
 | Connected loads and production subset unknown | Cannot safely expose commands or decide final cloud payload scope. | Operator inventory and safety classification. |
 | Home network likely undercounted | Some `192.168.2.0/24` devices may need Wi-Fi reset/rejoin after network changes. | Rescan after Wi-Fi recovery and update configuration. |
-| New home switch network not routed | `192.168.9.0/24` returned no legacy responders and needs hvo.lan router plus Tailscale subnet routing before discovery is authoritative. | Add `192.168.9.0/24` to hvo.lan routing/Tailscale path, then rerun read-only discovery. |
+| Home switch network depends on hvo.lan/Tailscale routing | `192.168.9.0/24` returned 17 legacy responders after route updates. | Keep per-network discovery status visible so route regressions are obvious. |
 | Community protocol references, not official docs | Vendor could change protocol/behavior. | Capture live fixtures and cite library/source behavior. |
 | Shared outbox lacks failure kind today | New gateway would either extend shared outbox or temporarily duplicate behavior. | Update `HVO.Edge.Outbox` before or during implementation. |
 | Central ingest contract for outlet/power-device telemetry not finalized | Outbox payload may need new contract. | Design after confirmed device capabilities. |
@@ -178,7 +178,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 | Documentation | Baseline in progress | Medium | Keep PR updated with discovery/config decisions. |
 | Legacy XOR protocol | Research complete enough for prototype | Medium-high | Implement cipher/framing tests. |
 | Device library/configuration | Not implemented | High priority | Implement registry/options and read-only discovery before outbox. |
-| Device model/firmware | Sanitized live scan captured initial legacy models | Medium for full estate, medium-high for observed legacy scope | Configure `192.168.9.0/24` routing, rescan home networks, then confirm production subset and connected loads. |
+| Device model/firmware | Sanitized live scan captured initial legacy models plus home switch models | Medium-high for observed legacy scope | Confirm production subset and connected loads. |
 | Simulator/mock | External simulator exists; in-process fake planned | High | Implement fake TCP server with fixture responses. |
 | Outbox/cloud | Common standard exists; code needs extension | Medium | Add shared failure kind/requeue support before production. |
 | Commands | Deferred | Low | Require safety design. |

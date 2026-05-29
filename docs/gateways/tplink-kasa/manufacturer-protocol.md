@@ -36,10 +36,13 @@ The following table is from a sanitized HVO read-only scan. It intentionally omi
 | HS105(US) | 1 | `1.0` | `1.5.6 Build 191114 Rel.104204` | `IOT.SMARTPLUGSWITCH` from `type` | `TIM` | top-level `relay_state`, `on_time`, `next_action` | unsupported module response contained `err_code` `-1` and `err_msg` |
 | HS300(US) | 4 | `1.0` | `1.0.21 Build 210524 Rel.161309` | `IOT.SMARTPLUGSWITCH` from `mic_type` | `TIM:ENE` | `children[].state`, `children[].on_time`, `children[].next_action`; `child_num` `6` | `current_ma`, `power_mw`, `total_wh`, `voltage_mv` |
 | HS300(US) | 2 | `2.0` | `1.0.12 Build 220121 Rel.175814` | `IOT.SMARTPLUGSWITCH` from `mic_type` | `TIM:ENE` | `children[].state`, `children[].on_time`, `children[].next_action`; `child_num` `6` | `current_ma`, `power_mw`, `slot_id`, `total_wh`, `voltage_mv` |
+| HS200(US) | 11 | `1.0` | `1.2.6 Build 200727 Rel.121953` | `IOT.SMARTPLUGSWITCH` from `type` | `TIM` | top-level `relay_state` | no realtime energy fields observed |
+| HS210(US) | 3 | `1.0` | `1.5.8 Build 191118 Rel.135937` | `IOT.SMARTPLUGSWITCH` from `type` | `TIM` | top-level `relay_state` | unsupported module response contained `err_msg` |
+| HS220(US) | 3 | `1.0` | `1.5.11 Build 200214 Rel.152651` | `IOT.SMARTPLUGSWITCH` from `type` | `TIM` | top-level `relay_state` | unsupported module response contained `err_msg` |
 | KP200(US) | 5 | `1.0` | `1.0.9 Build 200618 Rel.140140` | `IOT.SMARTPLUGSWITCH` from `mic_type` | `TIM` | `children[].state`, `children[].on_time`, `children[].next_action`; `child_num` `2` | no realtime energy fields observed |
 | KL130(US) | 2 | `1.0` | `1.8.11 Build 191113 Rel.105336` | `IOT.SMARTBULB` from `mic_type` | none observed | `light_state.on_off`; `is_dimmable`, `is_color`, and `is_variable_color_temp` flags present | no realtime energy fields observed |
 
-These observations confirm that a single legacy gateway must handle at least three status shapes: single-outlet top-level `relay_state`, multi-outlet `children[]`, and bulb `light_state`. Energy capability is not implied by smart plug/switch family alone; use `feature` and/or actual `emeter.get_realtime` success.
+These observations confirm that a single legacy gateway must handle at least three status shapes: single-outlet/switch top-level `relay_state`, multi-outlet `children[]`, and bulb `light_state`. Energy capability is not implied by smart plug/switch family alone; use `feature` and/or actual `emeter.get_realtime` success. Dimmer-level fields/commands for HS220 were not captured because the live scan did not send dimmer-specific operations.
 
 ## Communication Summary
 
@@ -104,7 +107,7 @@ The tables below include only fields observed in sanitized live captures or name
 | `type` | HS105 | Device family/type | Some devices use `mic_type` instead. |
 | `mic_type` | EP25, HS300, KP200, KL130 | Device family/type | Observed values include `IOT.SMARTPLUGSWITCH` and `IOT.SMARTBULB`. |
 | `feature` | EP25, HS105, HS300, KP200 | Capability hint | Observed `TIM` and `TIM:ENE`; absence does not imply no capabilities for bulbs. |
-| `relay_state` | EP25, HS105 | Top-level switch state | Read-only parser should treat `0`/`1` as observed integer state. |
+| `relay_state` | EP25, HS105, HS200, HS210, HS220 | Top-level switch state | Read-only parser should treat `0`/`1` as observed integer state. |
 | `on_time` | EP25, HS105, child outlets | Seconds on, inferred from field name and values | Treat as device-reported duration; exact reset behavior needs validation. |
 | `next_action` | EP25, HS105, child outlets | Next scheduled action object | Observed nested `type`; schedule semantics not validated. |
 | `children` | HS300, KP200 | Child outlet list | Child fields observed include `state`, `on_time`, and `next_action`. |
