@@ -31,4 +31,14 @@ public sealed class KasaSystemInfoParserTests
         (info.LightState is not null).Should().Be(hasLight);
         info.MacAddress.Should().NotBeNullOrWhiteSpace();
     }
+
+    [TestMethod]
+    public void Parse_BulbMicMac_UsesMicMacAsMacAddress()
+    {
+        using var document = JsonDocument.Parse(FixtureLoader.Read("kl130-sysinfo.json"));
+
+        var info = _parser.Parse(document);
+
+        info.MacAddress.Should().Be("AA:BB:CC:DD:EE:07");
+    }
 }

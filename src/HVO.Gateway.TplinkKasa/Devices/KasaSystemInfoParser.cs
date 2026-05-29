@@ -47,7 +47,7 @@ public sealed class KasaSystemInfoParser
             GetString(sysinfo, "type"),
             GetString(sysinfo, "hw_ver"),
             GetString(sysinfo, "sw_ver"),
-            GetString(sysinfo, "mac"),
+            GetString(sysinfo, "mac") ?? GetString(sysinfo, "mic_mac"),
             GetInt(sysinfo, "relay_state"),
             GetInt(sysinfo, "on_time"),
             children,

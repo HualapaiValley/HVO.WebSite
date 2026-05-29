@@ -8,10 +8,16 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
 {
     private static readonly (string Name, string Command, KasaMetadataCapability Capability)[] MetadataCommands =
     [
+        ("emeterDay", KasaCommands.GetEnergyDayStats(DateTime.UtcNow.Year, DateTime.UtcNow.Month), KasaMetadataCapability.EnergyTotal),
+        ("emeterMonth", KasaCommands.GetEnergyMonthStats(DateTime.UtcNow.Year), KasaMetadataCapability.EnergyTotal),
         ("schedule", KasaCommands.GetScheduleRules, KasaMetadataCapability.ScheduleRead),
+        ("scheduleNextAction", KasaCommands.GetNextScheduleAction, KasaMetadataCapability.ScheduleRead),
         ("countdown", KasaCommands.GetCountdownRules, KasaMetadataCapability.CountdownRead),
         ("away", KasaCommands.GetAwayRules, KasaMetadataCapability.AwayModeRead),
-        ("led", KasaCommands.GetLedState, KasaMetadataCapability.LedRead)
+        ("led", KasaCommands.GetLedState, KasaMetadataCapability.LedRead),
+        ("time", KasaCommands.GetTime, KasaMetadataCapability.Diagnostics),
+        ("timezone", KasaCommands.GetTimezone, KasaMetadataCapability.Diagnostics),
+        ("cloud", KasaCommands.GetCloudInfo, KasaMetadataCapability.Diagnostics)
     ];
 
     public async Task<KasaProbeResult> ProbeAsync(string host, int port, CancellationToken cancellationToken)
@@ -21,6 +27,7 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
             using var sysinfoResponse = await client.SendReadOnlyAsync(host, port, KasaCommands.GetSystemInfo, cancellationToken)
                 .ConfigureAwait(false);
             var sysinfo = systemInfoParser.Parse(sysinfoResponse);
+            var sysinfoShape = KasaJsonShapeSummarizer.Summarize(sysinfoResponse.RootElement);
 
             KasaEnergyReading? energy = null;
             var metadata = new Dictionary<string, KasaReadOnlyModuleResult>(StringComparer.OrdinalIgnoreCase);
@@ -75,7 +82,7 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
             }
 
             profile = profile with { Capabilities = capabilities, MetadataCapabilities = metadataCapabilities };
-            return KasaProbeResult.Success(host, port, sysinfo, energy, profile, metadata);
+            return KasaProbeResult.Success(host, port, sysinfo, sysinfoShape, energy, profile, metadata);
         }
         catch (Exception ex) when (ex is IOException or TimeoutException or OperationCanceledException or InvalidDataException or JsonException or System.Net.Sockets.SocketException)
         {
@@ -179,6 +186,7 @@ public sealed record KasaProbeResult(
     int Port,
     string? FailureReason,
     KasaSystemInfo? SystemInfo,
+    IReadOnlyList<KasaJsonFieldShape> SystemInfoShape,
     KasaEnergyReading? Energy,
     KasaDeviceProfile? Profile,
     IReadOnlyDictionary<string, KasaReadOnlyModuleResult> Metadata)
@@ -187,24 +195,31 @@ public sealed record KasaProbeResult(
         string host,
         int port,
         KasaSystemInfo systemInfo,
+        IReadOnlyList<KasaJsonFieldShape> systemInfoShape,
         KasaEnergyReading? energy,
         KasaDeviceProfile profile,
         IReadOnlyDictionary<string, KasaReadOnlyModuleResult> metadata) =>
-        new(true, host, port, null, systemInfo, energy, profile, metadata);
+        new(true, host, port, null, systemInfo, systemInfoShape, energy, profile, metadata);
 
     public static KasaProbeResult Failed(string host, int port, string reason) =>
-        new(false, host, port, reason, null, null, null, new Dictionary<string, KasaReadOnlyModuleResult>());
+        new(false, host, port, reason, null, [], null, null, new Dictionary<string, KasaReadOnlyModuleResult>());
 }
 
-public sealed record KasaReadOnlyModuleResult(string Name, bool IsSupported, int? ErrorCode, string? ErrorMessage, KasaMetadataCapability? Capability)
+public sealed record KasaReadOnlyModuleResult(
+    string Name,
+    bool IsSupported,
+    int? ErrorCode,
+    string? ErrorMessage,
+    KasaMetadataCapability? Capability,
+    IReadOnlyList<KasaJsonFieldShape> Shape)
 {
     public static KasaReadOnlyModuleResult FromResponse(string name, JsonElement response)
     {
         var errCode = FindFirstErrCode(response);
-        return new KasaReadOnlyModuleResult(name, errCode.GetValueOrDefault(0) == 0, errCode, null, null);
+        return new KasaReadOnlyModuleResult(name, errCode.GetValueOrDefault(0) == 0, errCode, null, null, KasaJsonShapeSummarizer.Summarize(response));
     }
 
-    public static KasaReadOnlyModuleResult Failed(string name, string error) => new(name, false, null, error, null);
+    public static KasaReadOnlyModuleResult Failed(string name, string error) => new(name, false, null, error, null, []);
 
     private static int? FindFirstErrCode(JsonElement element)
     {

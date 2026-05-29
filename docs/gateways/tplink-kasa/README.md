@@ -161,13 +161,13 @@ Initial candidate capabilities:
 - operator-initiated discovery/add-device workflow for legacy port `9999` devices; no continuous scanning for new devices.
 - read-only `system.get_sysinfo`.
 - read-only `emeter.get_realtime` when supported.
-- read-only schedule/countdown/away metadata probes when explicitly requested for setup/capability validation.
+- read-only metadata probes when explicitly requested for setup/capability validation: schedule, next schedule action, countdown, away, cloud info, time, timezone, and energy day/month stats where supported.
 - read-only outlet state from top-level `relay_state`, child `children[].state`, and bulb `light_state.on_off` only after parser tests cover the observed shapes.
 - model/capability mapping for plugs, strips, dual outlets, switches, 3-way switches, dimmers, and bulbs.
 - local status dashboard and gateway health.
 - shared edge outbox later, after device discovery/configuration and local status are stable.
 
-Prototype code now exists under `src/HVO.Gateway.TplinkKasa` with tests under `tests/HVO.Gateway.TplinkKasa.Tests`. It includes a read-only legacy TCP client, sanitized fixtures, fake TCP server tests, identity validation, capability detection, and a redacted CLI probe/scan utility.
+Prototype code now exists under `src/HVO.Gateway.TplinkKasa` with tests under `tests/HVO.Gateway.TplinkKasa.Tests`. It includes a read-only legacy TCP client, sanitized fixtures, fake TCP server tests, identity validation, capability detection, sanitized field/type shape summaries, and a redacted CLI probe/scan utility.
 
 Explicitly deferred:
 

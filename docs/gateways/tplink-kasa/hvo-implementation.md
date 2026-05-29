@@ -35,9 +35,13 @@ Initial implementation target:
 | Legacy TCP XOR framing | Prototype implemented/tested | Deterministic and tested with fake TCP server. |
 | `system.get_sysinfo` | Prototype implemented/tested/live validated | First read-only operation; sanitized live shapes captured for EP25, HS105, HS200, HS210, HS220, HS300, KP200, KL130, and LB230. |
 | `emeter.get_realtime` | Prototype implemented/tested/live validated | Handles unsupported module gracefully; EP25/HS300 returned milli-unit fields, non-energy devices returned unsupported/error shapes. |
+| `emeter.get_daystat` / `emeter.get_monthstat` | Prototype read-only probe implemented/live validated | Supported on EP25/HS300 in latest scan; reset/rollover semantics still unknown. |
 | `schedule.get_rules` | Prototype read-only probe implemented/live validated | Observed supported on switch/plug/strip/dual-outlet legacy devices; observed unsupported on bulb models in latest scan. |
+| `schedule.get_next_action` | Prototype read-only probe implemented/live validated | Observed supported on switch/plug/strip/dual-outlet legacy devices; observed unsupported on bulb models in latest scan. |
 | `count_down.get_rules` | Prototype read-only probe implemented/live validated | Observed supported on switch/plug/strip/dual-outlet legacy devices; observed unsupported on bulb models in latest scan. |
 | `anti_theft.get_rules` | Prototype read-only probe implemented/live validated | Observed supported on switch/plug/strip/dual-outlet legacy devices; observed unsupported on bulb models in latest scan. |
+| `cnCloud.get_info` | Prototype read-only probe implemented/live validated | Treat as sensitive diagnostics; do not forward raw cloud/account values by default. |
+| `time.get_time` / `time.get_timezone` | Prototype read-only probe implemented/live validated | Useful diagnostics; firmware-specific fields vary. |
 | `system.get_led_off` | Prototype read-only probe implemented/live validated | Observed unsupported/error responses in latest scan; keep modeled but not enabled as supported unless validated per device. |
 | Legacy UDP discovery | Candidate after TCP polling | Need UDP framing validation. |
 | Capability research | Prototype model exists | Capability flags mean observed/configured availability, not merely possible protocol support. |
@@ -58,6 +62,7 @@ Initial implementation target:
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaCapabilityDetector.cs` | Prototype profile/capability inference from sysinfo, energy, metadata probes, and config. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceLocator.cs` | Prototype configured-host and MAC-assisted locator validation. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaEnergyParser.cs` | Prototype parser for realtime energy success and unsupported responses. |
+| `src/HVO.Gateway.TplinkKasa/Devices/KasaJsonShapeSummarizer.cs` | Sanitized field/type shape summaries for API-guide evidence. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaReadOnlyProbe.cs` | Prototype read-only single-host and CIDR probe utility. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceRegistry.cs` | Merge configured devices and discovered read-only inventory. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaIdentityValidator.cs` | Verify connected device ID/model/MAC before accepting data or commands. |

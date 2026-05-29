@@ -15,6 +15,7 @@ var timeoutSeconds = GetIntOption(options, "timeout", 3);
 var includeIdentifiers = GetBoolOption(options, "include-identifiers", false);
 var includeLocators = GetBoolOption(options, "include-locators", false);
 var summary = GetBoolOption(options, "summary", false);
+var shapes = GetBoolOption(options, "shapes", false);
 var client = new KasaLegacyClient(TimeSpan.FromSeconds(timeoutSeconds));
 var probe = new KasaReadOnlyProbe(client, new KasaSystemInfoParser(), new KasaEnergyParser(), new KasaCapabilityDetector());
 
@@ -29,7 +30,7 @@ if (command == "probe")
     }
 
     var result = await probe.ProbeAsync(host, port, cts.Token);
-    WriteProbeResult(result, includeIdentifiers, includeLocators);
+    WriteProbeResult(result, includeIdentifiers, includeLocators, shapes);
     return result.IsSuccess ? 0 : 1;
 }
 
@@ -42,13 +43,13 @@ if (!options.TryGetValue("cidr", out var cidr) || string.IsNullOrWhiteSpace(cidr
 var results = await probe.ScanCidrAsync(cidr, port, GetIntOption(options, "concurrency", 32), cts.Token);
 if (summary)
 {
-    WriteScanSummary(results);
+    WriteScanSummary(results, shapes);
     return results.Count > 0 ? 0 : 1;
 }
 
 foreach (var result in results)
 {
-    WriteProbeResult(result, includeIdentifiers, includeLocators);
+    WriteProbeResult(result, includeIdentifiers, includeLocators, shapes);
 }
 
 return results.Count > 0 ? 0 : 1;
@@ -59,7 +60,7 @@ static void PrintUsage()
     Console.WriteLine();
     Console.WriteLine("Usage:");
     Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- probe --host <ip-or-host> [--port 9999]");
-    Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr <x.x.x.x/nn> [--port 9999] [--concurrency 32] [--summary true]");
+    Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr <x.x.x.x/nn> [--port 9999] [--concurrency 32] [--summary true] [--shapes true]");
     Console.WriteLine();
     Console.WriteLine("Only read-only Kasa commands are sent: sysinfo, emeter realtime, schedule/countdown/away rules, and LED status.");
 }
@@ -95,7 +96,7 @@ static int GetIntOption(Dictionary<string, string> options, string name, int def
 static bool GetBoolOption(Dictionary<string, string> options, string name, bool defaultValue) =>
     options.TryGetValue(name, out var text) && bool.TryParse(text, out var value) ? value : defaultValue;
 
-static void WriteProbeResult(KasaProbeResult result, bool includeIdentifiers, bool includeLocators)
+static void WriteProbeResult(KasaProbeResult result, bool includeIdentifiers, bool includeLocators, bool includeShapes)
 {
     var deviceId = result.SystemInfo?.DeviceId;
     var macAddress = KasaJson.NormalizeMacAddress(result.SystemInfo?.MacAddress);
@@ -119,6 +120,7 @@ static void WriteProbeResult(KasaProbeResult result, bool includeIdentifiers, bo
         Kind = result.Profile?.DeviceKind.ToString(),
         Capabilities = result.Profile?.Capabilities.Select(x => x.ToString()).Order().ToArray(),
         MetadataCapabilities = result.Profile?.MetadataCapabilities.Select(x => x.ToString()).Order().ToArray(),
+        SystemInfoShape = includeShapes ? result.SystemInfoShape : null,
         Energy = result.Energy is null ? null : new
         {
             result.Energy.PowerW,
@@ -128,13 +130,20 @@ static void WriteProbeResult(KasaProbeResult result, bool includeIdentifiers, bo
         },
         Metadata = result.Metadata.ToDictionary(
             x => x.Key,
-            x => new { x.Value.IsSupported, x.Value.ErrorCode, x.Value.ErrorMessage, Capability = x.Value.Capability?.ToString() })
+            x => new
+            {
+                x.Value.IsSupported,
+                x.Value.ErrorCode,
+                x.Value.ErrorMessage,
+                Capability = x.Value.Capability?.ToString(),
+                Shape = includeShapes ? x.Value.Shape : null
+            })
     };
 
     Console.WriteLine(JsonSerializer.Serialize(output, new JsonSerializerOptions { WriteIndented = true }));
 }
 
-static void WriteScanSummary(IReadOnlyList<KasaProbeResult> results)
+static void WriteScanSummary(IReadOnlyList<KasaProbeResult> results, bool includeShapes)
 {
     static string CapabilityName(KasaCapability capability) => capability.ToString();
     static string MetadataName(KasaMetadataCapability capability) => capability.ToString();
@@ -169,11 +178,57 @@ static void WriteScanSummary(IReadOnlyList<KasaProbeResult> results)
             .Where(x => x.IsSupported)
             .GroupBy(x => x.Key)
             .OrderBy(x => x.Key)
-            .ToDictionary(x => x.Key, x => x.Count())
+            .ToDictionary(x => x.Key, x => x.Count()),
+        Shapes = includeShapes ? BuildShapeSummary(successful) : null
     };
 
     Console.WriteLine(JsonSerializer.Serialize(output, new JsonSerializerOptions { WriteIndented = true }));
 }
+
+static object BuildShapeSummary(IReadOnlyList<KasaProbeResult> results)
+{
+    return results
+        .GroupBy(result => new
+        {
+            Model = result.SystemInfo?.Model ?? "Unknown",
+            Hardware = result.SystemInfo?.HardwareVersion ?? "Unknown",
+            Software = result.SystemInfo?.SoftwareVersion ?? "Unknown"
+        })
+        .OrderBy(group => group.Key.Model)
+        .ThenBy(group => group.Key.Hardware)
+        .ThenBy(group => group.Key.Software)
+        .Select(group => new
+        {
+            group.Key.Model,
+            group.Key.Hardware,
+            group.Key.Software,
+            Count = group.Count(),
+            SystemInfoFields = MergeShapes(group.SelectMany(result => result.SystemInfoShape)),
+            Modules = group
+                .SelectMany(result => result.Metadata.Values)
+                .GroupBy(module => module.Name, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(moduleGroup => moduleGroup.Key)
+                .Select(moduleGroup => new
+                {
+                    Name = moduleGroup.Key,
+                    Supported = moduleGroup.Count(module => module.IsSupported),
+                    Unsupported = moduleGroup.Count(module => !module.IsSupported),
+                    ErrorCodes = moduleGroup.Select(module => module.ErrorCode).Where(errorCode => errorCode is not null).Distinct().Order().ToArray(),
+                    Fields = MergeShapes(moduleGroup.SelectMany(module => module.Shape))
+                })
+                .ToArray()
+        })
+        .ToArray();
+}
+
+static IReadOnlyList<KasaJsonFieldShape> MergeShapes(IEnumerable<KasaJsonFieldShape> shapes) =>
+    shapes
+        .GroupBy(shape => shape.Path, StringComparer.Ordinal)
+        .Select(group => new KasaJsonFieldShape(
+            group.Key,
+            string.Join("|", group.Select(shape => shape.Kind).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))))
+        .OrderBy(shape => shape.Path, StringComparer.Ordinal)
+        .ToArray();
 
 static string? ShortHash(string? value)
 {

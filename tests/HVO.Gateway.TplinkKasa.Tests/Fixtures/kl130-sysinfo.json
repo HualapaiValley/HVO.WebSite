@@ -8,7 +8,7 @@
       "deviceId": "KL130_DEVICE_ID_SANITIZED",
       "alias": "Sanitized KL130",
       "type": "IOT.SMARTBULB",
-      "mac": "AA:BB:CC:DD:EE:07",
+      "mic_mac": "AA:BB:CC:DD:EE:07",
       "is_dimmable": 1,
       "is_color": 1,
       "is_variable_color_temp": 1,

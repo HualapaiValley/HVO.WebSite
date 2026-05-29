@@ -13,7 +13,7 @@ Important provenance note: the initial research did not find official TP-Link lo
 | `softScheck/tplink-smartplug/tplink-smarthome-commands.txt` | Community command list for HS100/HS110-era devices. |
 | `plasticrake/tplink-smarthome-api` README | Legacy Smart Home supported device categories, TCP/UDP send options, simulator reference. |
 | `plasticrake/tplink-smarthome-simulator` README | Simulator existence and legacy device model examples. |
-| HVO read-only live scan on 2026-05-29 | Sanitized legacy TCP `9999` response shapes for EP25, HS300, KP200, HS105, and KL130 devices on HVO networks. |
+| HVO read-only live scans on 2026-05-29 | Sanitized legacy TCP `9999` response shapes and field/type summaries for EP25, HS105, HS200, HS210, HS220, HS300, KP200, KL130, and LB230 devices on HVO networks. |
 | Official TP-Link/Kasa product pages | Feature/context checks for observed models, including HomeKit/Matter wording where present. |
 
 ## Known Hardware / Firmware Variants
@@ -46,6 +46,58 @@ The following table is from a sanitized HVO read-only scan. It intentionally omi
 | LB230(E26) | 1 | `1.0` | `1.8.11 Build 191113 Rel.105336` | `IOT.SMARTBULB` from `mic_type` | none observed | `light_state.on_off`; light capability flags present | no realtime energy fields observed |
 
 These observations confirm that a single legacy gateway must handle at least three status shapes: single-outlet/switch top-level `relay_state`, multi-outlet `children[]`, and bulb `light_state`. Energy capability is not implied by smart plug/switch family alone; use `feature` and/or actual `emeter.get_realtime` success. Dimmer-level fields/commands for HS220 were not captured because the live scan did not send dimmer-specific operations.
+
+## HVO Read-Only Payload Shape Validation
+
+The prototype utility validates payload shapes without retaining raw values. It records field paths and JSON value kinds only, grouped by model/hardware/software. This is the evidence used for HVO's local API guide.
+
+Latest shape scan summary:
+
+| Network | Responders | Device ID field present | MAC/mic MAC field present | Notes |
+|---------|-----------:|------------------------:|--------------------------:|-------|
+| `192.168.1.0/24` | 14 | 14 | 14 | EP25, HS105, HS300, KP200, KL130. |
+| `192.168.2.0/24` | 7 | 7 | 7 | EP25 and HS300 only in latest scan. |
+| `192.168.9.0/24` | 20 | 20 | 20 | HS105, HS200, HS210, HS220, KL130, LB230. |
+
+Identity fields:
+
+- Plugs, strips, outlets, and switches used `system.get_sysinfo.mac` in observed responses.
+- Bulbs used `system.get_sysinfo.mic_mac` in observed responses.
+- All latest-scan responders had `deviceId` plus either `mac` or `mic_mac`.
+
+Per-model module support from the latest read-only shape scan:
+
+| Model/firmware group | Count | Supported read-only modules | Unsupported/error modules |
+|----------------------|------:|-----------------------------|---------------------------|
+| EP25(US) hw `1.0`, sw `1.0.14 Build 240424 Rel.094105` | 7 | sysinfo, realtime energy, day/month energy stats, schedule rules, next schedule action, countdown rules, away rules, cloud info, time, timezone | LED get returned error `-2` |
+| HS300(US) hw `1.0`, sw `1.0.21 Build 210524 Rel.161309` | 4 | sysinfo, realtime energy, day/month energy stats, schedule rules, next schedule action, countdown rules, away rules, cloud info, time, timezone | LED get returned error `-2` |
+| HS300(US) hw `2.0`, sw `1.0.12 Build 220121 Rel.175814` | 2 | sysinfo, realtime energy, day/month energy stats, schedule rules, next schedule action, countdown rules, away rules, cloud info, time, timezone | LED get returned error `-2`; realtime energy includes `slot_id` |
+| KP200(US) hw `1.0`, sw `1.0.9 Build 200618 Rel.140140` | 5 | sysinfo, schedule rules, next schedule action, countdown rules, away rules, cloud info, time, timezone | emeter realtime/day/month returned error `-1`; LED get returned error `-2` |
+| HS105(US) hw `1.0`, sw `1.5.6 Build 191114 Rel.104204` | 2 | sysinfo, schedule rules, next schedule action, countdown rules, away rules, cloud info, time, timezone | emeter realtime/day/month returned error `-1`; LED get returned error `-2` |
+| HS200(US) hw `1.0`, sw `1.2.6 Build 200727 Rel.121953` | 11 | sysinfo, schedule rules, next schedule action, countdown rules, away rules, cloud info, time, timezone | emeter realtime/day/month returned error `-1`; LED get returned error `-2` |
+| HS210(US) hw `1.0`, sw `1.5.8 Build 191118 Rel.135937` | 3 | sysinfo, schedule rules, next schedule action, countdown rules, away rules, cloud info, time, timezone | emeter realtime/day/month returned error `-1`; LED get returned error `-2` |
+| HS220(US) hw `1.0`, sw `1.5.11 Build 200214 Rel.152651` | 3 | sysinfo, schedule rules, next schedule action, countdown rules, away rules, cloud info, time, timezone | emeter realtime/day/month returned error `-1`; LED get returned error `-2` |
+| KL130(US) hw `1.0`, sw `1.8.11 Build 191113 Rel.105336` | 3 | sysinfo with `light_state`, `preferred_state`, color/dimming flags | emeter, schedule, countdown, away, cloud, time, and timezone returned error `-2001`; LED get returned error `-2000` |
+| LB230(E26) hw `1.0`, sw `1.8.11 Build 191113 Rel.105336` | 1 | sysinfo with `light_state`, `preferred_state`, color/dimming flags | emeter, schedule, countdown, away, cloud, time, and timezone returned error `-2001`; LED get returned error `-2000` |
+
+Read-only response field families confirmed by shape scan:
+
+| Operation | Success shape fields | Unsupported/error shape fields | Notes |
+|-----------|----------------------|--------------------------------|-------|
+| `system.get_sysinfo` single relay/switch | `alias`, `deviceId`, `feature`, `hw_ver`, `mac`, `mic_type`, `model`, `relay_state`, `on_time`, `next_action.type`, `rssi`, `sw_ver`, `updating`, plus model-specific diagnostics | N/A | HS220 also exposes top-level `brightness` and `preferred_state[].brightness`. |
+| `system.get_sysinfo` multi-outlet | `child_num`, `children[]`, `children[].id`, `children[].alias`, `children[].state`, `children[].on_time`, `children[].next_action.type`, plus shared device fields | N/A | HS300 child count `6`; KP200 child count `2`. |
+| `system.get_sysinfo` bulb | `mic_mac`, `light_state.on_off`, `light_state.brightness`, `light_state.hue`, `light_state.saturation`, `light_state.color_temp`, `light_state.mode`, `preferred_state[]`, `is_dimmable`, `is_color`, `is_variable_color_temp` | N/A | Some KL130 responses represented defaults under `light_state.dft_on_state`. Parser must tolerate both direct light fields and nested default state. |
+| `emeter.get_realtime` | `current_ma`, `power_mw`, `total_wh`, `voltage_mv`, `err_code`; HS300 hw `2.0` also `slot_id` | `err_code`, `err_msg` | Supported by EP25 and HS300 groups in latest scan. |
+| `emeter.get_daystat` | `day_list[]`, `day_list[].year`, `day_list[].month`, `day_list[].day`, `day_list[].energy_wh`, `err_code` | `err_code`, `err_msg` | Read-only historical counters; reset/rollover semantics still unknown. |
+| `emeter.get_monthstat` | `month_list[]`, `month_list[].year`, `month_list[].month`, `month_list[].energy_wh`, `err_code` | `err_code`, `err_msg` | Read-only historical counters; reset/rollover semantics still unknown. |
+| `schedule.get_rules` | `enable`, `version`, `rule_list[]`, `err_code`; non-empty switch schedule rules included `id`, `name`, `enable`, `wday[]`, `smin`, `stime_opt`, `sact`, `emin`, `etime_opt`, `eact`, `repeat`, `year`, `month`, `day` | `err_code`, `err_msg` | HVO reads metadata only; writes remain unsupported. |
+| `schedule.get_next_action` | `type`, `err_code` | `err_code`, `err_msg` | Do not enum-lock `type` values yet. |
+| `count_down.get_rules` | `rule_list`, `err_code` | `err_code`, `err_msg` | Latest observed successful rule lists were empty. |
+| `anti_theft.get_rules` | `enable`, `version`, `rule_list`, `err_code` | `err_code`, `err_msg` | Latest observed successful rule lists were empty. |
+| `time.get_time` | `year`, `month`, `mday`, `hour`, `min`, `sec`, optional `wday`, `err_code` | `err_code`, `err_msg` | Switch firmware groups varied on `wday` presence. |
+| `time.get_timezone` | `index`, optional `dst_offset`, `tz_str`, `zone_str`, `err_code` | `err_code`, `err_msg` | Firmware-specific fields vary. |
+| `cnCloud.get_info` | `binded`, `cld_connection`, `server`, `username`, `tcspInfo`, `tcspStatus`, `fwDlPage`, `fwNotifyType`, `illegalType`, `stopConnect`, `err_code` | `err_code`, `err_msg` | Treat as sensitive diagnostics; do not forward raw cloud/account values by default. |
+| `system.get_led_off` | No success shape observed in latest scan | `err_code`, `err_msg` | `led_off` is available in sysinfo for many devices; standalone getter returned errors. |
 
 ## Alternate Protocol / Ecosystem Notes
 

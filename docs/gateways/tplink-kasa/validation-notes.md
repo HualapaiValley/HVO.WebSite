@@ -10,7 +10,7 @@
 | `python-kasa` supported devices | Many model/hardware/firmware combinations and auth markers. | Medium | Useful for future model checks; observed HVO responders are legacy TCP `9999`. |
 | `plasticrake/tplink-smarthome-simulator` | External simulator exists for legacy Smart Home devices. | Medium | Could be used for comparison; HVO in-process fake preferred for CI. |
 | HVO read-only live scan, 2026-05-29 | 42 total legacy TCP `9999` responders found across `192.168.1.0/24`, `192.168.2.0/24`, and `192.168.9.0/24` after routing update and added devices. | High for observed devices; incomplete for any non-legacy devices | Sent only `system.get_sysinfo` and `emeter.get_realtime`; no writes/switch/dimmer commands. Committed docs use aggregate/sanitized findings only. |
-| HVO prototype read-only scan, 2026-05-29 | 41 total legacy TCP `9999` responders found with prototype utility after adding read-only metadata probes. | High for observed devices at scan time | Sent only read-only sysinfo, realtime energy, schedule rules, countdown rules, away rules, and LED status requests. No switch/dimmer/write commands. Output was summarized/redacted. |
+| HVO prototype read-only scan, 2026-05-29 | 41 total legacy TCP `9999` responders found with prototype utility after adding read-only metadata probes. | High for observed devices at scan time | Sent only read-only sysinfo, realtime/day/month energy, schedule rules, next schedule action, countdown rules, away rules, cloud info, time, timezone, and LED status requests. No switch/dimmer/write commands. Output was summarized/redacted. |
 
 ## Read-Only Live Discovery Notes
 
@@ -32,9 +32,15 @@ Commands sent:
 
 - `system.get_sysinfo`
 - `emeter.get_realtime`
+- `emeter.get_daystat` in prototype validation only
+- `emeter.get_monthstat` in prototype validation only
 - `schedule.get_rules` in prototype validation only
+- `schedule.get_next_action` in prototype validation only
 - `count_down.get_rules` in prototype validation only
 - `anti_theft.get_rules` in prototype validation only
+- `cnCloud.get_info` in prototype validation only; field shapes only, raw values not documented
+- `time.get_time` in prototype validation only
+- `time.get_timezone` in prototype validation only
 - `system.get_led_off` in prototype validation only
 
 Commands not sent:
@@ -52,16 +58,17 @@ Latest prototype read-only summary:
 
 | Network | Count | Device IDs present | MACs present | Energy supported | Models observed |
 |---------|------:|-------------------:|-------------:|-----------------:|-----------------|
-| `192.168.1.0/24` | 14 | 14 | 12 | 6 | EP25, HS105, HS300, KP200, KL130 |
+| `192.168.1.0/24` | 14 | 14 | 14 | 6 | EP25, HS105, HS300, KP200, KL130 |
 | `192.168.2.0/24` | 7 | 7 | 7 | 7 | EP25, HS300 |
-| `192.168.9.0/24` | 20 | 20 | 18 | 0 | HS105, HS200, HS210, HS220, KL130, LB230 |
+| `192.168.9.0/24` | 20 | 20 | 20 | 0 | HS105, HS200, HS210, HS220, KL130, LB230 |
 
 Prototype metadata observations:
 
-- schedule, countdown, and away read operations returned successful responses for switch/plug/strip/dual-outlet legacy devices in the latest scan.
-- bulb models returned unsupported/error responses for the probed schedule/countdown/away/LED module requests in the latest scan.
+- schedule, countdown, away, cloud, time, and timezone read operations returned successful responses for switch/plug/strip/dual-outlet legacy devices in the latest scan.
+- day/month energy stats returned successful responses for EP25 and HS300 energy-capable groups.
+- bulb models returned unsupported/error responses for the probed emeter/schedule/countdown/away/cloud/time/timezone/LED module requests in the latest scan.
 - `system.get_led_off` returned unsupported/error responses on all observed latest-scan devices; LED metadata remains modeled but not observed as supported.
-- MAC was absent in the observed KL130/LB230 bulb sysinfo responses. MAC should be configured when known and used as a locator hint, but it cannot be a strict requirement for every legacy model response.
+- bulb MAC identity uses `mic_mac`; other observed legacy families use `mac`.
 
 Sanitized result summary:
 
@@ -172,6 +179,7 @@ Current prototype test coverage:
 - locator validation for configured host success, wrong-device fail-closed, and MAC-assisted host recovery after a failed configured host.
 - read-only poller success with identity validation and wrong-device-at-IP fail-closed behavior.
 - read-only probe metadata support detection through the fake server.
+- sanitized field/type shape summarization for API-guide evidence without raw values.
 
 Current prototype command:
 
@@ -244,7 +252,7 @@ Command live tests are deferred. If ever added, they must:
 | Which 3-way and dimmer switch models are installed? | Switch/dimmer state and command shapes may differ from plugs/strips/bulbs. | Initial read-only scan observed HS210 and HS220; dimmer-specific read-only fields still need validation. |
 | Are HomeKit/Tapo/Matter-capable devices present? | They may use non-legacy protocols and auth. | Model inventory and separate non-write discovery. |
 | Which observed devices have confirmed alternate ecosystems? | Lets HVO document HomeKit/Matter/Tapo options without implementing them unnecessarily. | EP25 HomeKit confirmed from official product page; other observed models are not confirmed from current evidence. |
-| Which identity fields are always present per observed model? | Determines safe primary/secondary identity validation. | Latest prototype scan saw device ID on all responders, MAC on 37 of 41 responders. Bulb-family legacy responses lacked MAC in that run. |
+| Which identity fields are always present per observed model? | Determines safe primary/secondary identity validation. | Latest prototype scan saw device ID on all responders and MAC-equivalent identity on all responders after handling bulb `mic_mac`. |
 | Can MAC reliably recover current IP on the target networks? | Determines offline rediscovery support. | Test ARP/table-based lookup and explicit setup scans against configured MACs. |
 | What is the complete read-only protocol surface for each observed device category? | Needed for correct classes/interfaces/enums and UI/telemetry models. | Research references plus sanitized live reads before implementation lock. |
 | Which read-only metadata categories are available per model? | Energy, schedules, countdown, away mode, LED, firmware, and diagnostics should be represented when available. | Research protocol references and add sanitized fixtures per category before enabling polling/UI fields. |

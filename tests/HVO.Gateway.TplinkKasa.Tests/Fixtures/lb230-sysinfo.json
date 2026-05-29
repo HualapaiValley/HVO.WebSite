@@ -8,7 +8,7 @@
       "deviceId": "LB230_DEVICE_ID_SANITIZED",
       "alias": "Sanitized LB230",
       "type": "IOT.SMARTBULB",
-      "mac": "AA:BB:CC:DD:EE:08",
+      "mic_mac": "AA:BB:CC:DD:EE:08",
       "is_dimmable": 1,
       "is_color": 1,
       "is_variable_color_temp": 1,
