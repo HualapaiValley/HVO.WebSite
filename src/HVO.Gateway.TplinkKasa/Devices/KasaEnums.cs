@@ -44,6 +44,9 @@ public enum KasaMetadataCapability
     CountdownRead,
     AwayModeRead,
     LedRead,
+    BulbLightRead,
+    DimmerRead,
+    WifiScanRead,
     FirmwareInfo,
     SignalInfo,
     Diagnostics

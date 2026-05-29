@@ -29,4 +29,45 @@ public sealed class KasaLegacyClientTests
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
+
+    [TestMethod]
+    public async Task SendReadOnlyAsync_RejectsMixedReadAndWriteCommand()
+    {
+        var client = new KasaLegacyClient(TimeSpan.FromSeconds(2));
+
+        var act = async () => await client.SendReadOnlyAsync(
+            "127.0.0.1",
+            9999,
+            "{\"system\":{\"get_sysinfo\":{},\"set_relay_state\":{\"state\":1}}}",
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [TestMethod]
+    public async Task SendReadOnlyAsync_RejectsRefreshingWifiScanCommand()
+    {
+        var client = new KasaLegacyClient(TimeSpan.FromSeconds(2));
+
+        var act = async () => await client.SendReadOnlyAsync(
+            "127.0.0.1",
+            9999,
+            "{\"netif\":{\"get_scaninfo\":{\"refresh\":1}}}",
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [TestMethod]
+    public async Task SendReadOnlyAsync_AllowsCachedWifiScanCommand()
+    {
+        await using var server = new FakeKasaLegacyServer();
+        server.RespondTo("netif", "get_scaninfo", "{\"netif\":{\"get_scaninfo\":{\"err_code\":0,\"ap_list\":[]}}}");
+        var client = new KasaLegacyClient(TimeSpan.FromSeconds(2));
+
+        using var response = await client.SendReadOnlyAsync("127.0.0.1", server.Port, KasaCommands.GetCachedWifiScanInfo, CancellationToken.None);
+
+        response.RootElement.GetProperty("netif").GetProperty("get_scaninfo").GetProperty("err_code").GetInt32()
+            .Should().Be(0);
+    }
 }

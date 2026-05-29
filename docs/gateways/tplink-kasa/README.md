@@ -2,7 +2,7 @@
 
 ## Status
 
-- Phase 0 status: research baseline plus sanitized read-only live discovery captured; implementation not started. Observed device types are sufficient to start library/model design, but full physical inventory is incomplete.
+- Phase 0 status: research baseline plus sanitized read-only live discovery captured; prototype read-only legacy TCP client/probe implemented. Observed device types are sufficient to start library/model design, but full physical inventory is incomplete.
 - Last updated: 2026-05-29
 - Confidence: high that the observed HVO devices in the scanned subnets include legacy Kasa LAN responders on TCP `9999`; medium for complete production scope because connected loads and command safety are not confirmed.
 - Primary owner: HVO
@@ -26,6 +26,7 @@
 | JavaScript library | `plasticrake/tplink-smarthome-api` | Found | Supports legacy Kasa Smart Home devices; explicitly does not support Tapo. |
 | Simulator | `plasticrake/tplink-smarthome-simulator` | Found | Node-based simulator for legacy TP-Link Smart Home devices. Useful for comparison; HVO can also build an in-process fake. |
 | Live read-only discovery | HVO scan of `192.168.1.0/24` and `192.168.2.0/24` on 2026-05-29 | Captured | Used only `system.get_sysinfo` and `emeter.get_realtime` over legacy TCP `9999`; no write/switch commands sent. Committed docs keep aggregate/sanitized model and field data only. |
+| Prototype read-only probe | `src/HVO.Gateway.TplinkKasa` and tests | Implemented | Covers allowlisted read-only metadata probes, sanitized shape summaries, fake TCP server tests, and explicit rejection of mixed read/write payloads. |
 | Official product pages | TP-Link/Kasa pages for observed models | Partially checked | EP25 page explicitly says HomeKit. Checked HS200, HS210, HS220, KP200, HS300, KL130, and LB230 pages for feature context; do not infer HomeKit/Matter when not stated. |
 | Official TP-Link docs | TP-Link/Kasa/Tapo local protocol docs | Needed | No official local API reference found during initial research. |
 | Exact HVO hardware | Installed/planned model and firmware | Device types mostly captured | Legacy responders observed for EP25, HS105, HS200, HS210, HS220, HS300, KP200, KL130, and LB230. Final physical device list and connected loads still need operator confirmation. |
@@ -161,7 +162,8 @@ Initial candidate capabilities:
 - operator-initiated discovery/add-device workflow for legacy port `9999` devices; no continuous scanning for new devices.
 - read-only `system.get_sysinfo`.
 - read-only `emeter.get_realtime` when supported.
-- read-only metadata probes when explicitly requested for setup/capability validation: schedule, next schedule action, countdown, away, cloud info, time, timezone, and energy day/month stats where supported.
+- read-only metadata probes when explicitly requested for setup/capability validation: schedule, next schedule action, countdown, away, cloud info, cloud firmware list, time, timezone, energy day/month/gain stats where supported, device icon/download-state diagnostics, bulb light details, and HS220 dimmer parameter/details.
+- opt-in, shape-only cached Wi-Fi scan probe using `netif.get_scaninfo refresh:0`; raw SSIDs/BSSIDs must not be printed or committed.
 - read-only outlet state from top-level `relay_state`, child `children[].state`, and bulb `light_state.on_off` only after parser tests cover the observed shapes.
 - model/capability mapping for plugs, strips, dual outlets, switches, 3-way switches, dimmers, and bulbs.
 - local status dashboard and gateway health.
@@ -174,6 +176,7 @@ Explicitly deferred:
 - live on/off/toggle/dimmer commands until an operator explicitly approves a specific test device and command.
 - schedule/countdown/away-mode changes.
 - factory reset, reboot, firmware, cloud bind/unbind, Wi-Fi provisioning.
+- active Wi-Fi scan refresh (`netif.get_scaninfo refresh:1`) unless explicitly approved for a selected device/network.
 - Tapo/new Kasa authenticated `SMART`/KLAP/AES implementation.
 - Matter integration.
 

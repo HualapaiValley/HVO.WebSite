@@ -10,6 +10,9 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
     [
         ("emeterDay", KasaCommands.GetEnergyDayStats(DateTime.UtcNow.Year, DateTime.UtcNow.Month), KasaMetadataCapability.EnergyTotal),
         ("emeterMonth", KasaCommands.GetEnergyMonthStats(DateTime.UtcNow.Year), KasaMetadataCapability.EnergyTotal),
+        ("emeterGain", KasaCommands.GetEnergyGain, KasaMetadataCapability.Diagnostics),
+        ("deviceIcon", KasaCommands.GetDeviceIcon, KasaMetadataCapability.Diagnostics),
+        ("downloadState", KasaCommands.GetDownloadState, KasaMetadataCapability.FirmwareInfo),
         ("schedule", KasaCommands.GetScheduleRules, KasaMetadataCapability.ScheduleRead),
         ("scheduleNextAction", KasaCommands.GetNextScheduleAction, KasaMetadataCapability.ScheduleRead),
         ("countdown", KasaCommands.GetCountdownRules, KasaMetadataCapability.CountdownRead),
@@ -17,10 +20,29 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
         ("led", KasaCommands.GetLedState, KasaMetadataCapability.LedRead),
         ("time", KasaCommands.GetTime, KasaMetadataCapability.Diagnostics),
         ("timezone", KasaCommands.GetTimezone, KasaMetadataCapability.Diagnostics),
-        ("cloud", KasaCommands.GetCloudInfo, KasaMetadataCapability.Diagnostics)
+        ("cloud", KasaCommands.GetCloudInfo, KasaMetadataCapability.Diagnostics),
+        ("cloudFirmware", KasaCommands.GetCloudFirmwareList, KasaMetadataCapability.FirmwareInfo),
+        ("bulbLightState", KasaCommands.GetBulbLightState, KasaMetadataCapability.BulbLightRead),
+        ("bulbLightDetails", KasaCommands.GetBulbLightDetails, KasaMetadataCapability.BulbLightRead),
+        ("bulbCloud", KasaCommands.GetBulbCloudInfo, KasaMetadataCapability.Diagnostics),
+        ("bulbTime", KasaCommands.GetBulbTime, KasaMetadataCapability.Diagnostics),
+        ("bulbTimezone", KasaCommands.GetBulbTimezone, KasaMetadataCapability.Diagnostics),
+        ("bulbSchedule", KasaCommands.GetBulbScheduleRules, KasaMetadataCapability.ScheduleRead),
+        ("bulbScheduleNextAction", KasaCommands.GetBulbNextScheduleAction, KasaMetadataCapability.ScheduleRead),
+        ("bulbEmeter", KasaCommands.GetBulbRealtimeEnergy, KasaMetadataCapability.EnergyRealtime),
+        ("dimmerDefaultBehavior", KasaCommands.GetDimmerDefaultBehavior, KasaMetadataCapability.DimmerRead),
+        ("dimmerParameters", KasaCommands.GetDimmerParameters, KasaMetadataCapability.DimmerRead)
     ];
 
-    public async Task<KasaProbeResult> ProbeAsync(string host, int port, CancellationToken cancellationToken)
+    private static readonly (string Name, string Command, KasaMetadataCapability Capability)[] PrivacySensitiveCommands =
+    [
+        ("wifiScan", KasaCommands.GetCachedWifiScanInfo, KasaMetadataCapability.WifiScanRead)
+    ];
+
+    public Task<KasaProbeResult> ProbeAsync(string host, int port, CancellationToken cancellationToken) =>
+        ProbeAsync(host, port, includePrivacySensitive: false, cancellationToken);
+
+    public async Task<KasaProbeResult> ProbeAsync(string host, int port, bool includePrivacySensitive, CancellationToken cancellationToken)
     {
         try
         {
@@ -44,7 +66,7 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
                 metadata["emeter"] = KasaReadOnlyModuleResult.Failed("emeter", ex.Message);
             }
 
-            foreach (var (name, command, capability) in MetadataCommands)
+            foreach (var (name, command, capability) in MetadataCommands.Concat(includePrivacySensitive ? PrivacySensitiveCommands : []))
             {
                 try
                 {
@@ -78,6 +100,14 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
                     {
                         capabilities.Add(KasaCapability.LedState);
                     }
+                    else if (capability == KasaMetadataCapability.BulbLightRead)
+                    {
+                        capabilities.Add(KasaCapability.LightState);
+                    }
+                    else if (capability == KasaMetadataCapability.DimmerRead)
+                    {
+                        capabilities.Add(KasaCapability.Dimming);
+                    }
                 }
             }
 
@@ -90,7 +120,10 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
         }
     }
 
-    public async Task<IReadOnlyList<KasaProbeResult>> ScanCidrAsync(string cidr, int port, int maxConcurrency, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<KasaProbeResult>> ScanCidrAsync(string cidr, int port, int maxConcurrency, CancellationToken cancellationToken) =>
+        ScanCidrAsync(cidr, port, maxConcurrency, includePrivacySensitive: false, cancellationToken);
+
+    public async Task<IReadOnlyList<KasaProbeResult>> ScanCidrAsync(string cidr, int port, int maxConcurrency, bool includePrivacySensitive, CancellationToken cancellationToken)
     {
         var hosts = EnumerateIpv4Hosts(cidr).ToArray();
         var results = new List<KasaProbeResult>();
@@ -101,7 +134,7 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
             await throttler.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var result = await ProbeAsync(host, port, cancellationToken).ConfigureAwait(false);
+                var result = await ProbeAsync(host, port, includePrivacySensitive, cancellationToken).ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
                     lock (results)

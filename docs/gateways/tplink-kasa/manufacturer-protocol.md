@@ -99,6 +99,24 @@ Read-only response field families confirmed by shape scan:
 | `cnCloud.get_info` | `binded`, `cld_connection`, `server`, `username`, `tcspInfo`, `tcspStatus`, `fwDlPage`, `fwNotifyType`, `illegalType`, `stopConnect`, `err_code` | `err_code`, `err_msg` | Treat as sensitive diagnostics; do not forward raw cloud/account values by default. |
 | `system.get_led_off` | No success shape observed in latest scan | `err_code`, `err_msg` | `led_off` is available in sysinfo for many devices; standalone getter returned errors. |
 
+Additional read-only probes from the expanded privacy-safe live scan:
+
+| Operation | Source/evidence | Safety handling | Live validation status |
+|-----------|-----------------|-----------------|------------------------|
+| `system.get_dev_icon` | `softScheck` command list | Read-only icon metadata; raw icon payload should remain local/diagnostic only. | Supported on HS200 in latest scan; unsupported/error on EP25, HS105, HS210, HS220, HS300, KP200, KL130, and LB230. |
+| `system.get_download_state` | `softScheck` command list | Firmware download-state read only; `download_firmware` and `flash_firmware` remain blocked. | Supported on EP25, HS105, HS210, HS220, HS300, KP200, KL130, and LB230 in latest scan; unsupported/error on HS200. |
+| `emeter.get_vgain_igain` | `softScheck` command list | Calibration gain read only; `set_vgain_igain` and `start_calibration` remain blocked. | Supported on EP25 and HS300 hardware `2.0`; unsupported/error on HS105, HS200, HS210, HS220, KP200, KL130, LB230, and HS300 hardware `1.0`. |
+| `cnCloud.get_intl_fw_list` | `softScheck` command list and `tplink-smarthome-api` `Cloud#getFirmwareList` | Firmware-list read only; cloud bind/unbind/server writes remain blocked. | Supported on plug/switch/strip/outlet models using `cnCloud`; unsupported/error on bulbs using legacy `cnCloud`. Some HS200 devices returned mixed support by responder. |
+| `smartlife.iot.smartbulb.lightingservice.get_light_state` | `tplink-smarthome-api` `Lighting#getLightState` | Bulb state read only; `transition_light_state` remains blocked. | Supported on KL130 and LB230; unsupported/error on plug/switch/strip/outlet models. |
+| `smartlife.iot.smartbulb.lightingservice.get_light_details` | `tplink-smarthome-api` `Lighting#getLightDetails` | Bulb detail read only; no light writes. | Supported on KL130 and LB230; returned wattage/lumen/voltage/beam-angle detail fields. |
+| `smartlife.iot.common.cloud.get_info` | `tplink-smarthome-api` bulb module namespace | Bulb cloud info read only; raw account/cloud values sensitive. | Supported on KL130 and LB230; unsupported/error on plug/switch/strip/outlet models. |
+| `smartlife.iot.common.timesetting.get_time` / `get_timezone` | `tplink-smarthome-api` bulb module namespace | Bulb time diagnostics read only; time writes blocked. | Supported on KL130 and LB230; unsupported/error on plug/switch/strip/outlet models. |
+| `smartlife.iot.common.schedule.get_rules` / `get_next_action` | `tplink-smarthome-api` bulb module namespace | Bulb schedule metadata read only; schedule writes blocked. | Supported on KL130 and LB230; unsupported/error on plug/switch/strip/outlet models. |
+| `smartlife.iot.common.emeter.get_realtime` | `tplink-smarthome-api` bulb module namespace | Bulb energy read only; unsupported responses expected on some bulbs. | Supported on KL130 and LB230 with `power_mw`; treat as bulb namespaced energy/status until units are validated. |
+| `smartlife.iot.dimmer.get_default_behavior` | `tplink-smarthome-api` `Dimmer#getDefaultBehavior` | HS220 dimmer behavior read only; action/brightness writes blocked. | Supported on HS220; returned `double_click`, `hard_on`, `long_press`, and `soft_on` mode fields. |
+| `smartlife.iot.dimmer.get_dimmer_parameters` | `tplink-smarthome-api` `Dimmer#getDimmerParameters` | HS220 dimmer parameter read only; fade/gentle/transition writes blocked. | Supported on HS220; returned `bulb_type`, fade/gentle timing, `minThreshold`, and `rampRate` fields. |
+| `netif.get_scaninfo` with `refresh:0` | `softScheck` WLAN command list adapted to cached-only probe | Privacy-sensitive Wi-Fi list shape only, disabled by default; `refresh:1` is blocked until explicitly approved. | Implemented/tested but not live-scanned in latest pass. |
+
 ## Alternate Protocol / Ecosystem Notes
 
 Observed devices can support multiple ecosystems while still responding to legacy Kasa TCP `9999`. HVO should track these as metadata and only implement a non-legacy protocol when legacy Kasa does not provide required functionality or a future device requires a different protocol.
@@ -215,9 +233,12 @@ Confirmed operation-level field families from community references:
 | Relay state | `system.set_relay_state` and system info response | Command/read-only | Instantaneous state/command | Live read-only capture shows top-level `relay_state`, child `children[].state`, and bulb `light_state.on_off`; commands remain deferred. |
 | Energy realtime | `emeter.get_realtime` | Read-only | Instantaneous telemetry | Live capture confirms EP25 and HS300 fields listed above; HS105 returned unsupported module response. |
 | Energy statistics | `emeter.get_daystat`, `emeter.get_monthstat` | Read-only | Historical counters/interval totals | Requires reset/rollover validation. |
-| Cloud info | `cnCloud.get_info` | Read-only | Metadata/configuration | Could contain account/cloud state; avoid logging raw secrets if any. |
+| Cloud info | `cnCloud.get_info`, `cnCloud.get_intl_fw_list`, bulb `smartlife.iot.common.cloud.get_info` | Read-only | Metadata/configuration | Could contain account/cloud state; avoid logging raw secrets if any. |
 | Time | `time.get_time`, `time.get_timezone` | Read-only/write | Configuration/time | Writes deferred. |
-| Schedule/countdown/away | `schedule`, `count_down`, `anti_theft` modules | Read/write commands | Configuration/actions | Defer all writes; native UI primary. |
+| Schedule/countdown/away | `schedule`, `count_down`, `anti_theft`, and bulb `smartlife.iot.common.schedule` modules | Read/write commands | Configuration/actions | Defer all writes; native UI primary. |
+| Bulb lighting | `smartlife.iot.smartbulb.lightingservice.get_light_state`, `get_light_details`, `transition_light_state` | Read/write commands | Current light state/details and light commands | HVO allowlists only read operations; transition/write operations remain blocked. |
+| Dimmer parameters | `smartlife.iot.dimmer.get_default_behavior`, `get_dimmer_parameters`, and `set_*` commands | Read/write commands | HS220 dimmer behavior and fade/brightness settings | HVO allowlists only read operations; brightness/switch/transition/action writes remain blocked. |
+| Wi-Fi scan/config | `netif.get_scaninfo`, `netif.set_stainfo` | Read/write commands | Nearby AP scan and station config | HVO only permits cached `get_scaninfo refresh:0` as opt-in shape-only evidence; Wi-Fi connect is not supported. |
 
 ## API Calls / Protocol Operations
 
@@ -234,21 +255,28 @@ This table lists operation groups from community command references. It is not a
 
 | Command/API operation | Vendor purpose | Access/safety | HVO support | HVO method/class | Unit test | Simulator test | Live test | Notes |
 |-----------------------|----------------|---------------|-------------|------------------|-----------|----------------|-----------|-------|
-| `system.get_sysinfo` | Read device info/status | Read-only | Planned initial | TBD | Planned | Planned | Read-only scan completed; live tests opt-in | Sanitized field shapes captured for installed legacy devices. |
+| `system.get_sysinfo` | Read device info/status | Read-only | Prototype implemented | `KasaCommands.GetSystemInfo` | Implemented | Fake server | Completed | Sanitized field shapes captured for installed legacy devices. |
 | `system.set_relay_state` | Turn on/off | Command, safety depends on load | Deferred | None | N/A | N/A | N/A | Requires load classification, local-only auth, confirmation/audit. |
 | `system.set_led_off` | LED/night mode | Command, low risk | Deferred | None | N/A | N/A | N/A | Not needed initially. |
 | `system.reboot` | Reboot device | Command, disruptive | Not supported | None | N/A | N/A | N/A | Exclude unless explicit maintenance mode is designed. |
 | `system.reset` | Factory reset | High-risk destructive command | Not supported | None | N/A | N/A | N/A | Do not implement in HVO gateway. |
-| `netif.get_scaninfo` | Scan Wi-Fi networks | Read-only-ish, privacy-sensitive | Deferred | None | N/A | N/A | N/A | Could expose nearby SSIDs; avoid by default. |
+| `netif.get_scaninfo` | Scan Wi-Fi networks | Read-only-ish, privacy-sensitive | Prototype opt-in shape-only | `KasaCommands.GetCachedWifiScanInfo` | Implemented | Fake server | Pending | Only cached `refresh:0` is allowlisted; `refresh:1` is blocked. Could expose nearby SSIDs; avoid raw output. |
 | `netif.set_stainfo` | Join Wi-Fi network | Write/configuration | Not supported | None | N/A | N/A | N/A | Native app primary. |
-| `cnCloud.get_info` | Cloud connection info | Read-only metadata | Candidate later | TBD | Planned later | Planned later | Opt-in | Treat account/cloud fields as sensitive until captured. |
+| `cnCloud.get_info` | Cloud connection info | Read-only metadata | Prototype implemented | `KasaCommands.GetCloudInfo` | Implemented | Fake server | Completed | Treat account/cloud fields as sensitive until captured. |
+| `cnCloud.get_intl_fw_list` | Cloud firmware list | Read-only metadata | Prototype implemented | `KasaCommands.GetCloudFirmwareList` | Implemented | Fake server | Completed | Firmware diagnostics only; support is model/firmware dependent. |
 | `cnCloud.bind` / `unbind` | Account binding | High-risk write | Not supported | None | N/A | N/A | N/A | Native app primary. |
-| `time.get_time` / `get_timezone` | Read time/timezone | Read-only | Candidate later | TBD | Planned later | Planned later | Opt-in | Useful diagnostics. |
+| `time.get_time` / `get_timezone` | Read time/timezone | Read-only | Prototype implemented | `KasaCommands.GetTime` / `GetTimezone` | Implemented | Fake server | Completed | Useful diagnostics. |
 | `time.set_timezone` | Set timezone/time | Write/configuration | Deferred | None | N/A | N/A | N/A | Native app primary. |
-| `emeter.get_realtime` | Realtime voltage/current/power | Read-only | Planned when device supports it | TBD | Planned | Planned | Read-only scan completed for installed devices | Observed milli-unit fields on EP25/HS300; unsupported error on HS105. |
-| `emeter.get_daystat` / `get_monthstat` | Historical energy stats | Read-only | Candidate later | TBD | Planned later | Planned later | Opt-in | Rollover/reset semantics needed. |
+| `emeter.get_realtime` | Realtime voltage/current/power | Read-only | Prototype implemented | `KasaCommands.GetRealtimeEnergy` | Implemented | Fake server | Completed | Observed milli-unit fields on EP25/HS300; unsupported error on HS105. |
+| `emeter.get_daystat` / `get_monthstat` | Historical energy stats | Read-only | Prototype implemented | `KasaCommands.GetEnergyDayStats` / `GetEnergyMonthStats` | Implemented | Fake server | Completed | Rollover/reset semantics needed. |
+| `emeter.get_vgain_igain` | EMeter calibration gain read | Read-only | Prototype implemented | `KasaCommands.GetEnergyGain` | Implemented | Fake server | Completed | Calibration writes are blocked; support is model/firmware dependent. |
 | `emeter.erase_emeter_stat` | Erase energy stats | Destructive command | Not supported | None | N/A | N/A | N/A | Do not implement initially. |
-| `schedule.get_rules` | List schedule rules | Read-only config | Candidate later | TBD | Planned later | Planned later | Opt-in | Native UI primary. |
+| `schedule.get_rules` | List schedule rules | Read-only config | Prototype implemented | `KasaCommands.GetScheduleRules` | Implemented | Fake server | Completed | Native UI primary. |
+| `schedule.get_next_action` | Read next schedule action | Read-only config | Prototype implemented | `KasaCommands.GetNextScheduleAction` | Implemented | Fake server | Completed | Do not enum-lock action values yet. |
+| `count_down.get_rules` | Read countdown rules | Read-only config | Prototype implemented | `KasaCommands.GetCountdownRules` | Implemented | Fake server | Completed | Writes blocked. |
+| `anti_theft.get_rules` | Read away/anti-theft rules | Read-only config | Prototype implemented | `KasaCommands.GetAwayRules` | Implemented | Fake server | Completed | Writes blocked. |
+| `smartlife.iot.smartbulb.lightingservice.get_light_state` / `get_light_details` | Read bulb light state/details | Read-only | Prototype implemented | `KasaCommands.GetBulbLightState` / `GetBulbLightDetails` | Implemented | Fake server | Completed | Bulb transition/write commands blocked. |
+| `smartlife.iot.dimmer.get_default_behavior` / `get_dimmer_parameters` | Read HS220 dimmer configuration | Read-only | Prototype implemented | `KasaCommands.GetDimmerDefaultBehavior` / `GetDimmerParameters` | Implemented | Fake server | Completed | Dimmer brightness/switch/transition writes blocked. |
 | Schedule add/edit/delete | Manage schedule rules | Command/configuration | Not supported initially | None | N/A | N/A | N/A | Needs safety design. |
 | Countdown get/add/edit/delete | Countdown rule management | Command/configuration | Not supported initially | None | N/A | N/A | N/A | Needs safety design. |
 | Away/anti-theft get/add/edit/delete | Randomized on/off rules | Command/configuration | Not supported initially | None | N/A | N/A | N/A | Needs safety design. |

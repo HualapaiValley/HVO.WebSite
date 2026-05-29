@@ -14,6 +14,7 @@ var port = GetIntOption(options, "port", 9999);
 var timeoutSeconds = GetIntOption(options, "timeout", 3);
 var includeIdentifiers = GetBoolOption(options, "include-identifiers", false);
 var includeLocators = GetBoolOption(options, "include-locators", false);
+var includePrivacySensitive = GetBoolOption(options, "include-privacy-sensitive", false);
 var summary = GetBoolOption(options, "summary", false);
 var shapes = GetBoolOption(options, "shapes", false);
 var client = new KasaLegacyClient(TimeSpan.FromSeconds(timeoutSeconds));
@@ -29,7 +30,7 @@ if (command == "probe")
         return 2;
     }
 
-    var result = await probe.ProbeAsync(host, port, cts.Token);
+    var result = await probe.ProbeAsync(host, port, includePrivacySensitive, cts.Token);
     WriteProbeResult(result, includeIdentifiers, includeLocators, shapes);
     return result.IsSuccess ? 0 : 1;
 }
@@ -40,7 +41,7 @@ if (!options.TryGetValue("cidr", out var cidr) || string.IsNullOrWhiteSpace(cidr
     return 2;
 }
 
-var results = await probe.ScanCidrAsync(cidr, port, GetIntOption(options, "concurrency", 32), cts.Token);
+var results = await probe.ScanCidrAsync(cidr, port, GetIntOption(options, "concurrency", 32), includePrivacySensitive, cts.Token);
 if (summary)
 {
     WriteScanSummary(results, shapes);
@@ -60,9 +61,9 @@ static void PrintUsage()
     Console.WriteLine();
     Console.WriteLine("Usage:");
     Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- probe --host <ip-or-host> [--port 9999]");
-    Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr <x.x.x.x/nn> [--port 9999] [--concurrency 32] [--summary true] [--shapes true]");
+    Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr <x.x.x.x/nn> [--port 9999] [--concurrency 32] [--summary true] [--shapes true] [--include-privacy-sensitive true]");
     Console.WriteLine();
-    Console.WriteLine("Only read-only Kasa commands are sent: sysinfo, emeter realtime, schedule/countdown/away rules, and LED status.");
+    Console.WriteLine("Only allowlisted read-only Kasa commands are sent. Wi-Fi scan shapes require --include-privacy-sensitive true and never print raw values unless future code explicitly adds them.");
 }
 
 static Dictionary<string, string> ParseOptions(string[] values)

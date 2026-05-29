@@ -11,6 +11,8 @@
 | `plasticrake/tplink-smarthome-simulator` | External simulator exists for legacy Smart Home devices. | Medium | Could be used for comparison; HVO in-process fake preferred for CI. |
 | HVO read-only live scan, 2026-05-29 | 42 total legacy TCP `9999` responders found across `192.168.1.0/24`, `192.168.2.0/24`, and `192.168.9.0/24` after routing update and added devices. | High for observed devices; incomplete for any non-legacy devices | Sent only `system.get_sysinfo` and `emeter.get_realtime`; no writes/switch/dimmer commands. Committed docs use aggregate/sanitized findings only. |
 | HVO prototype read-only scan, 2026-05-29 | 41 total legacy TCP `9999` responders found with prototype utility after adding read-only metadata probes. | High for observed devices at scan time | Sent only read-only sysinfo, realtime/day/month energy, schedule rules, next schedule action, countdown rules, away rules, cloud info, time, timezone, and LED status requests. No switch/dimmer/write commands. Output was summarized/redacted. |
+| HVO prototype read-only expansion tests, 2026-05-29 | Additional allowlisted read-only probes implemented and fake-server tested. | High for command safety gate | Added icon/download-state, EMeter gain, cloud firmware list, bulb namespaced reads, HS220 dimmer read probes, and opt-in cached Wi-Fi scan shape probe. Mixed read/write payloads and `netif.get_scaninfo refresh:1` are rejected. |
+| HVO expanded privacy-safe live scan, 2026-05-29 | 41 total legacy TCP `9999` responders found with expanded read-only probes. | High for observed devices at scan time | Sent no writes and did not enable Wi-Fi scan. Validated bulb namespaced reads, HS220 dimmer reads, cloud firmware lists, download state, and model-specific icon/gain support. Output was summarized/redacted. |
 
 ## Read-Only Live Discovery Notes
 
@@ -42,6 +44,16 @@ Commands sent:
 - `time.get_time` in prototype validation only
 - `time.get_timezone` in prototype validation only
 - `system.get_led_off` in prototype validation only
+- `system.get_dev_icon` in expanded prototype validation; model-specific support
+- `system.get_download_state` in expanded prototype validation; model-specific support
+- `emeter.get_vgain_igain` in expanded prototype validation; model-specific support
+- `cnCloud.get_intl_fw_list` in expanded prototype validation; model-specific support
+- `smartlife.iot.smartbulb.lightingservice.get_light_state` in expanded prototype validation
+- `smartlife.iot.smartbulb.lightingservice.get_light_details` in expanded prototype validation
+- bulb namespaced `smartlife.iot.common.cloud`, `timesetting`, `schedule`, and `emeter` reads in expanded prototype validation
+- `smartlife.iot.dimmer.get_default_behavior` in expanded prototype validation
+- `smartlife.iot.dimmer.get_dimmer_parameters` in expanded prototype validation
+- `netif.get_scaninfo` with `refresh:0` in prototype tests only; opt-in, privacy-sensitive, live validation pending
 
 Commands not sent:
 
@@ -50,9 +62,10 @@ Commands not sent:
 - schedule/countdown/away writes
 - reset/reboot/factory reset
 - Wi-Fi/cloud/account writes
-- arbitrary command payloads outside the two read-only requests above
+- `netif.get_scaninfo` with `refresh:1`, because it actively refreshes nearby AP scan data and can expose SSIDs
+- arbitrary command payloads outside the read-only allowlist above
 
-Prototype scan commands were allowlisted in code and remained read-only. No `set_*`, `add_rule`, `edit_rule`, `delete_rule`, relay, dimmer, reset, reboot, Wi-Fi, cloud bind/unbind, or arbitrary JSON write command was sent.
+Prototype scan commands were allowlisted in code and remained read-only. No `set_*`, `add_rule`, `edit_rule`, `delete_rule`, relay, dimmer write, reset, reboot, Wi-Fi connect, cloud bind/unbind, or arbitrary JSON write command was sent. The allowlist now requires every module/operation in a payload to be read-only, so mixed read/write payloads fail closed.
 
 Latest prototype read-only summary:
 
@@ -62,6 +75,14 @@ Latest prototype read-only summary:
 | `192.168.2.0/24` | 7 | 7 | 7 | 7 | EP25, HS300 |
 | `192.168.9.0/24` | 20 | 20 | 20 | 0 | HS105, HS200, HS210, HS220, KL130, LB230 |
 
+Expanded privacy-safe scan summary:
+
+| Network | Count | Device IDs present | MACs present | Energy supported | Newly validated read-only metadata |
+|---------|------:|-------------------:|-------------:|-----------------:|------------------------------------|
+| `192.168.1.0/24` | 14 | 14 | 14 | 6 | cloud firmware, download state, EP25/HS300 hw `2.0` EMeter gain, KL130 bulb namespaces. |
+| `192.168.2.0/24` | 7 | 7 | 7 | 7 | cloud firmware, download state, EMeter gain on EP25 and HS300 hw `2.0`; HS300 hw `2.0` firmware list included non-empty `fw_list` shape. |
+| `192.168.9.0/24` | 20 | 20 | 20 | 0 | HS220 dimmer default behavior/parameters, HS200 icon, bulb namespaces for KL130/LB230, cloud firmware for most non-bulb switches/plugs. |
+
 Prototype metadata observations:
 
 - schedule, countdown, away, cloud, time, and timezone read operations returned successful responses for switch/plug/strip/dual-outlet legacy devices in the latest scan.
@@ -69,6 +90,12 @@ Prototype metadata observations:
 - bulb models returned unsupported/error responses for the probed emeter/schedule/countdown/away/cloud/time/timezone/LED module requests in the latest scan.
 - `system.get_led_off` returned unsupported/error responses on all observed latest-scan devices; LED metadata remains modeled but not observed as supported.
 - bulb MAC identity uses `mic_mac`; other observed legacy families use `mac`.
+- `system.get_download_state` returned success on EP25, HS105, HS210, HS220, HS300, KP200, KL130, and LB230; HS200 returned unsupported/error in the latest expanded scan.
+- `system.get_dev_icon` returned success on HS200 and unsupported/error on the other observed model groups.
+- `emeter.get_vgain_igain` returned success on EP25 and HS300 hardware `2.0`; HS300 hardware `1.0` and non-energy model groups returned unsupported/error.
+- `cnCloud.get_intl_fw_list` returned success on observed non-bulb plug/switch/strip/outlet models through the `cnCloud` namespace and unsupported/error on bulbs through that namespace; some HS200 responders differed on support.
+- KL130 and LB230 supported bulb namespaced cloud, time, timezone, schedule, next action, realtime EMeter, light state, and light details reads.
+- HS220 supported dimmer default behavior and dimmer parameter reads.
 
 Sanitized result summary:
 
@@ -103,6 +130,7 @@ Privacy/safety handling:
 - Raw aliases, MAC addresses, device IDs, hardware IDs, coordinates, and per-device IPs were not added to committed docs.
 - The `python-kasa --redact` raw command was not used as committed evidence because it still printed aliases and identifiers in this environment.
 - Two scans differed by one responder because of timeout/discovery timing, so the gateway should not treat a missing device as fatal.
+- Wi-Fi scan evidence is opt-in and shape-only; raw SSIDs/BSSIDs must not be printed or committed.
 
 Known likely gaps:
 
@@ -125,6 +153,8 @@ Research targets:
 - unsupported module/error shapes for non-energy devices.
 - bulb `light_state`, dimming, color, and variable color temperature fields for KL130 and LB230.
 - dimmer-specific read-only fields for HS220.
+- remaining live shape gaps for privacy-sensitive Wi-Fi scan and any model/firmware group not currently reachable.
+- privacy-safe live Wi-Fi scan shape evidence if needed; raw SSIDs must not be committed.
 - schedule/countdown/away metadata read operations, without writes.
 - LED/night-mode read operations.
 - cloud/account read operations only if safe to sanitize.
@@ -180,6 +210,9 @@ Current prototype test coverage:
 - read-only poller success with identity validation and wrong-device-at-IP fail-closed behavior.
 - read-only probe metadata support detection through the fake server.
 - sanitized field/type shape summarization for API-guide evidence without raw values.
+- stricter read-only command allowlist rejection for mixed read/write payloads.
+- opt-in cached Wi-Fi scan shape probe rejection for `refresh:1` and acceptance for `refresh:0` only.
+- fake-server coverage for additional read-only icon, download-state, EMeter gain, cloud firmware, bulb, and dimmer probes.
 
 Current prototype command:
 

@@ -41,8 +41,15 @@ Initial implementation target:
 | `count_down.get_rules` | Prototype read-only probe implemented/live validated | Observed supported on switch/plug/strip/dual-outlet legacy devices; observed unsupported on bulb models in latest scan. |
 | `anti_theft.get_rules` | Prototype read-only probe implemented/live validated | Observed supported on switch/plug/strip/dual-outlet legacy devices; observed unsupported on bulb models in latest scan. |
 | `cnCloud.get_info` | Prototype read-only probe implemented/live validated | Treat as sensitive diagnostics; do not forward raw cloud/account values by default. |
+| `cnCloud.get_intl_fw_list` | Prototype read-only probe implemented/tested/live validated | Firmware-list metadata from community references; supported on observed non-bulb models via `cnCloud`, unsupported on bulbs via that legacy namespace. |
 | `time.get_time` / `time.get_timezone` | Prototype read-only probe implemented/live validated | Useful diagnostics; firmware-specific fields vary. |
 | `system.get_led_off` | Prototype read-only probe implemented/live validated | Observed unsupported/error responses in latest scan; keep modeled but not enabled as supported unless validated per device. |
+| `system.get_dev_icon` / `system.get_download_state` | Prototype read-only probe implemented/tested/live validated | Device icon and firmware download-state diagnostics. Raw icon data should not be forwarded by default. Support is model-specific. |
+| `emeter.get_vgain_igain` | Prototype read-only probe implemented/tested/live validated | Calibration gain read only; calibration writes remain blocked. Supported on EP25 and HS300 hardware `2.0` in latest scan. |
+| `smartlife.iot.smartbulb.lightingservice.get_light_state` / `get_light_details` | Prototype read-only probe implemented/tested/live validated | Bulb-specific read namespace from `tplink-smarthome-api`; writes/transitions remain blocked. Supported on KL130 and LB230. |
+| Bulb namespaced cloud/time/schedule/emeter reads | Prototype read-only probe implemented/tested/live validated | Uses `smartlife.iot.common.*` module names observed in library references for bulbs. Supported on KL130 and LB230. |
+| `smartlife.iot.dimmer.get_default_behavior` / `get_dimmer_parameters` | Prototype read-only probe implemented/tested/live validated | HS220 read-only dimmer detail probes; brightness/switch writes remain blocked. |
+| `netif.get_scaninfo` with `refresh:0` | Prototype opt-in read-only probe implemented/tested; live validation pending | Privacy-sensitive. Disabled by default and shape-only; `refresh:1` is blocked by the allowlist. |
 | Legacy UDP discovery | Candidate after TCP polling | Need UDP framing validation. |
 | Capability research | Prototype model exists | Capability flags mean observed/configured availability, not merely possible protocol support. |
 | Device commands | Deferred | Requires safety/auth/audit design. |
