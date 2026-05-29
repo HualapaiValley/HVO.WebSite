@@ -64,7 +64,7 @@ This table is HVO documentation metadata unless a row explicitly says it comes f
 
 Read-only discovery on 2026-05-29 scanned `192.168.1.0/24`, `192.168.2.0/24`, and later `192.168.9.0/24` for legacy Kasa TCP `9999` responders. The scan sent only `system.get_sysinfo` and `emeter.get_realtime`; it did not send on/off/toggle, dimmer-level changes, schedule, reset, reboot, or configuration commands.
 
-The first whole-estate sanitized scan observed 22 legacy responders on `192.168.1.0/24` and `192.168.2.0/24`. One earlier shorter-timeout scan observed 21 responders, so implementation should tolerate intermittent/offline devices. After hvo.lan router and Tailscale routing were updated for `192.168.9.0/24`, a read-only rescan found 17 additional legacy TCP `9999` responders.
+The first whole-estate sanitized scan observed 22 legacy responders on `192.168.1.0/24` and `192.168.2.0/24`. One earlier shorter-timeout scan observed 21 responders, so implementation should tolerate intermittent/offline devices. After hvo.lan router and Tailscale routing were updated for `192.168.9.0/24`, read-only rescans found 17 and then 20 legacy TCP `9999` responders as more devices were added.
 
 Subnet-level result:
 
@@ -72,7 +72,7 @@ Subnet-level result:
 |---------|------:|-----------------|-------|
 | `192.168.1.0/24` | 14 | EP25, HS105, HS300, KP200, KL130 | Likely observatory devices based on network location. |
 | `192.168.2.0/24` | 8 | EP25, HS300 | Likely undercounted; about 14 home light switches are expected but did not answer the legacy TCP `9999` read-only scan. |
-| `192.168.9.0/24` | 17 | HS200, HS210, HS220 | Home light switch network reachable after hvo.lan/Tailscale route update. |
+| `192.168.9.0/24` | 20 | HS105, HS200, HS210, HS220, KL130, LB230 | Home light switch/bulb network reachable after hvo.lan/Tailscale route update. |
 
 | Model | Count | Hardware version | Software version | Device family | Children/outlets observed | Energy fields observed | Notes |
 |-------|------:|------------------|------------------|---------------|---------------------------|------------------------|-------|
@@ -80,11 +80,12 @@ Subnet-level result:
 | HS300(US) | 4 | `1.0` | `1.0.21 Build 210524 Rel.161309` | `IOT.SMARTPLUGSWITCH` | 6 children | `current_ma`, `power_mw`, `total_wh`, `voltage_mv` | Power strip; per-outlet state observed in `children[].state`. |
 | HS300(US) | 2 | `2.0` | `1.0.12 Build 220121 Rel.175814` | `IOT.SMARTPLUGSWITCH` | 6 children | `current_ma`, `power_mw`, `slot_id`, `total_wh`, `voltage_mv` | Power strip; `slot_id` appears in realtime energy response for this hardware/firmware group. |
 | KP200(US) | 5 | `1.0` | `1.0.9 Build 200618 Rel.140140` | `IOT.SMARTPLUGSWITCH` | 2 children | none | Dual-outlet wall plug; per-outlet state observed in `children[].state`. |
-| HS105(US) | 1 | `1.0` | `1.5.6 Build 191114 Rel.104204` | `IOT.SMARTPLUGSWITCH` via `type` | none | unsupported response with `err_msg` and `err_code` `-1` | Single-outlet plug with top-level `relay_state`. |
-| KL130(US) | 2 | `1.0` | `1.8.11 Build 191113 Rel.105336` | `IOT.SMARTBULB` | none | none | Bulb status includes `light_state`; light commands are deferred. |
+| HS105(US) | 2 | `1.0` | `1.5.6 Build 191114 Rel.104204` | `IOT.SMARTPLUGSWITCH` via `type` | none | unsupported response with `err_msg` and `err_code` `-1` | Single-outlet plug with top-level `relay_state`. |
+| KL130(US) | 3 | `1.0` | `1.8.11 Build 191113 Rel.105336` | `IOT.SMARTBULB` | none | none | Bulb status includes `light_state`; light commands are deferred. |
 | HS200(US) | 11 | `1.0` | `1.2.6 Build 200727 Rel.121953` | `IOT.SMARTPLUGSWITCH` | none | none | Light switch with top-level `relay_state`; commands deferred. |
 | HS210(US) | 3 | `1.0` | `1.5.8 Build 191118 Rel.135937` | `IOT.SMARTPLUGSWITCH` | none | unsupported response with `err_msg` | 3-way light switch with top-level `relay_state`; commands deferred. |
 | HS220(US) | 3 | `1.0` | `1.5.11 Build 200214 Rel.152651` | `IOT.SMARTPLUGSWITCH` | none | unsupported response with `err_msg` | Dimmer switch with top-level `relay_state`; dimmer controls deferred. |
+| LB230(E26) | 1 | `1.0` | `1.8.11 Build 191113 Rel.105336` | `IOT.SMARTBULB` | none | none | Bulb status includes `light_state`; light commands are deferred. |
 
 Known likely gaps from operator inventory:
 

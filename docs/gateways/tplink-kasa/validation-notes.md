@@ -9,7 +9,7 @@
 | `python-kasa` docs | Discovery ports `9999` and `20002`, legacy/new protocol distinction, authentication requirements, protocol/transport overview. | Medium-high | Community library docs with broad device support. |
 | `python-kasa` supported devices | Many model/hardware/firmware combinations and auth markers. | Medium | Useful for future model checks; observed HVO responders are legacy TCP `9999`. |
 | `plasticrake/tplink-smarthome-simulator` | External simulator exists for legacy Smart Home devices. | Medium | Could be used for comparison; HVO in-process fake preferred for CI. |
-| HVO read-only live scan, 2026-05-29 | 39 total legacy TCP `9999` responders found across `192.168.1.0/24`, `192.168.2.0/24`, and `192.168.9.0/24` after routing update. | High for observed devices; incomplete for any non-legacy devices | Sent only `system.get_sysinfo` and `emeter.get_realtime`; no writes/switch/dimmer commands. Committed docs use aggregate/sanitized findings only. |
+| HVO read-only live scan, 2026-05-29 | 42 total legacy TCP `9999` responders found across `192.168.1.0/24`, `192.168.2.0/24`, and `192.168.9.0/24` after routing update and added devices. | High for observed devices; incomplete for any non-legacy devices | Sent only `system.get_sysinfo` and `emeter.get_realtime`; no writes/switch/dimmer commands. Committed docs use aggregate/sanitized findings only. |
 
 ## Read-Only Live Discovery Notes
 
@@ -21,11 +21,11 @@ Subnet-level result:
 |---------|------:|-----------------|----------------|
 | `192.168.1.0/24` | 14 | EP25, HS105, HS300, KP200, KL130 | Likely mostly observatory devices. |
 | `192.168.2.0/24` | 8 | EP25, HS300 | Likely undercounted; about 14 home light switches are expected but did not answer the legacy TCP `9999` read-only scan. |
-| `192.168.9.0/24` | 17 | HS200, HS210, HS220 | Home switch network reachable after hvo.lan/Tailscale route update. |
+| `192.168.9.0/24` | 20 | HS105, HS200, HS210, HS220, KL130, LB230 | Home switch/bulb network reachable after hvo.lan/Tailscale route update. |
 
 Follow-up read-only rescan of `192.168.2.0/24` still found only 8 legacy TCP `9999` responders: 7 EP25 devices and 1 HS300 device. No light switch, 3-way switch, or dimmer models answered that scan.
 
-Initial read-only scan of `192.168.9.0/24` found 0 legacy TCP `9999` responders before hvo.lan/Tailscale routing was updated. After the route update, the same read-only scan found 17 responders: 11 HS200 switches, 3 HS210 3-way switches, and 3 HS220 dimmers.
+Initial read-only scan of `192.168.9.0/24` found 0 legacy TCP `9999` responders before hvo.lan/Tailscale routing was updated. After the route update, the same read-only scan found 17 responders: 11 HS200 switches, 3 HS210 3-way switches, and 3 HS220 dimmers. After adding more devices, a later read-only rescan found 20 responders: the same switch/dimmer counts plus 1 HS105 plug, 1 KL130 bulb, and 1 LB230 bulb.
 
 Commands sent:
 
@@ -51,8 +51,9 @@ Sanitized result summary:
 | HS210(US) | 3 | Legacy TCP `9999` sysinfo succeeded; top-level `relay_state` observed; `emeter.get_realtime` returned unsupported error shape. |
 | HS220(US) | 3 | Legacy TCP `9999` sysinfo succeeded; top-level `relay_state` observed; `emeter.get_realtime` returned unsupported error shape. |
 | KP200(US) | 5 | Legacy TCP `9999` sysinfo succeeded; two child outlets observed; no realtime energy fields observed. |
-| KL130(US) | 2 | Legacy TCP `9999` sysinfo succeeded; bulb `light_state` observed; commands deferred. |
-| HS105(US) | 1 | Legacy TCP `9999` sysinfo succeeded; top-level `relay_state` observed; `emeter.get_realtime` returned unsupported error shape. |
+| KL130(US) | 3 | Legacy TCP `9999` sysinfo succeeded; bulb `light_state` observed; commands deferred. |
+| HS105(US) | 2 | Legacy TCP `9999` sysinfo succeeded; top-level `relay_state` observed; `emeter.get_realtime` returned unsupported error shape. |
+| LB230(E26) | 1 | Legacy TCP `9999` sysinfo succeeded; bulb `light_state` observed; commands deferred. |
 
 Observed energy fields on supported devices:
 
@@ -66,7 +67,7 @@ Observed state field shapes:
 
 - EP25/HS105/HS200/HS210/HS220: top-level `relay_state`, with `on_time` and `next_action` where present.
 - HS300/KP200: child outlet `children[].state`, `children[].on_time`, `children[].next_action`.
-- KL130: bulb `light_state.on_off` plus dimming/color capability flags.
+- KL130/LB230: bulb `light_state.on_off` plus dimming/color capability flags.
 
 Privacy/safety handling:
 
@@ -150,8 +151,8 @@ Command live tests are deferred. If ever added, they must:
 
 | Question | Why it matters | Validation path |
 |----------|----------------|-----------------|
-| Which exact model/firmware is installed? | Determines protocol family and auth. | Sanitized scans captured EP25, HS105, HS200, HS210, HS220, HS300, KP200, and KL130 legacy responders; production subset still needs confirmation. |
-| Does the target device respond on port `9999`? | Confirms legacy scope. | Confirmed for 39 observed responders across scanned subnets after route updates. |
+| Which exact model/firmware is installed? | Determines protocol family and auth. | Sanitized scans captured EP25, HS105, HS200, HS210, HS220, HS300, KP200, KL130, and LB230 legacy responders; production subset still needs confirmation. |
+| Does the target device respond on port `9999`? | Confirms legacy scope. | Confirmed for 42 observed responders across scanned subnets after route updates and added devices. |
 | Does the device require authentication? | Changes protocol implementation. | `python-kasa discover` or HVO discovery. |
 | Which devices exist on `192.168.2.0/24` after Wi-Fi recovery? | Current scan likely undercounts home devices. | Reset/rejoin affected home devices, then rerun read-only discovery. |
 | Which devices exist on `192.168.9.0/24` after routing is configured? | Confirms home switch inventory. | Route update completed; read-only scan observed 17 legacy responders. Keep monitoring per-network counts for routing regressions. |

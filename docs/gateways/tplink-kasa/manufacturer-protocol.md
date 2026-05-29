@@ -33,14 +33,15 @@ The following table is from a sanitized HVO read-only scan. It intentionally omi
 | Model | Count | Hardware version | Software version | `mic_type` / `type` | `feature` | State fields observed | Energy response observed |
 |-------|------:|------------------|------------------|---------------------|-----------|-----------------------|--------------------------|
 | EP25(US) | 8 | `1.0` | `1.0.14 Build 240424 Rel.094105` | `IOT.SMARTPLUGSWITCH` from `mic_type` | `TIM:ENE` | top-level `relay_state`, `on_time`, `next_action` | `current_ma`, `power_mw`, `total_wh`, `voltage_mv` |
-| HS105(US) | 1 | `1.0` | `1.5.6 Build 191114 Rel.104204` | `IOT.SMARTPLUGSWITCH` from `type` | `TIM` | top-level `relay_state`, `on_time`, `next_action` | unsupported module response contained `err_code` `-1` and `err_msg` |
+| HS105(US) | 2 | `1.0` | `1.5.6 Build 191114 Rel.104204` | `IOT.SMARTPLUGSWITCH` from `type` | `TIM` | top-level `relay_state`, `on_time`, `next_action` | unsupported module response contained `err_code` `-1` and `err_msg` |
 | HS300(US) | 4 | `1.0` | `1.0.21 Build 210524 Rel.161309` | `IOT.SMARTPLUGSWITCH` from `mic_type` | `TIM:ENE` | `children[].state`, `children[].on_time`, `children[].next_action`; `child_num` `6` | `current_ma`, `power_mw`, `total_wh`, `voltage_mv` |
 | HS300(US) | 2 | `2.0` | `1.0.12 Build 220121 Rel.175814` | `IOT.SMARTPLUGSWITCH` from `mic_type` | `TIM:ENE` | `children[].state`, `children[].on_time`, `children[].next_action`; `child_num` `6` | `current_ma`, `power_mw`, `slot_id`, `total_wh`, `voltage_mv` |
 | HS200(US) | 11 | `1.0` | `1.2.6 Build 200727 Rel.121953` | `IOT.SMARTPLUGSWITCH` from `type` | `TIM` | top-level `relay_state` | no realtime energy fields observed |
 | HS210(US) | 3 | `1.0` | `1.5.8 Build 191118 Rel.135937` | `IOT.SMARTPLUGSWITCH` from `type` | `TIM` | top-level `relay_state` | unsupported module response contained `err_msg` |
 | HS220(US) | 3 | `1.0` | `1.5.11 Build 200214 Rel.152651` | `IOT.SMARTPLUGSWITCH` from `type` | `TIM` | top-level `relay_state` | unsupported module response contained `err_msg` |
 | KP200(US) | 5 | `1.0` | `1.0.9 Build 200618 Rel.140140` | `IOT.SMARTPLUGSWITCH` from `mic_type` | `TIM` | `children[].state`, `children[].on_time`, `children[].next_action`; `child_num` `2` | no realtime energy fields observed |
-| KL130(US) | 2 | `1.0` | `1.8.11 Build 191113 Rel.105336` | `IOT.SMARTBULB` from `mic_type` | none observed | `light_state.on_off`; `is_dimmable`, `is_color`, and `is_variable_color_temp` flags present | no realtime energy fields observed |
+| KL130(US) | 3 | `1.0` | `1.8.11 Build 191113 Rel.105336` | `IOT.SMARTBULB` from `mic_type` | none observed | `light_state.on_off`; `is_dimmable`, `is_color`, and `is_variable_color_temp` flags present | no realtime energy fields observed |
+| LB230(E26) | 1 | `1.0` | `1.8.11 Build 191113 Rel.105336` | `IOT.SMARTBULB` from `mic_type` | none observed | `light_state.on_off`; light capability flags present | no realtime energy fields observed |
 
 These observations confirm that a single legacy gateway must handle at least three status shapes: single-outlet/switch top-level `relay_state`, multi-outlet `children[]`, and bulb `light_state`. Energy capability is not implied by smart plug/switch family alone; use `feature` and/or actual `emeter.get_realtime` success. Dimmer-level fields/commands for HS220 were not captured because the live scan did not send dimmer-specific operations.
 
@@ -112,11 +113,11 @@ The tables below include only fields observed in sanitized live captures or name
 | `next_action` | EP25, HS105, child outlets | Next scheduled action object | Observed nested `type`; schedule semantics not validated. |
 | `children` | HS300, KP200 | Child outlet list | Child fields observed include `state`, `on_time`, and `next_action`. |
 | `child_num` | HS300, KP200 | Child outlet count | Observed values `6` and `2`. |
-| `light_state` | KL130 | Bulb current/default state object | Observed nested `on_off`, `dft_on_state`, brightness/color fields. Commands deferred. |
-| `is_dimmable` | KL130 | Bulb capability flag | Read-only status only initially. |
-| `is_color` | KL130 | Bulb capability flag | Read-only status only initially. |
-| `is_variable_color_temp` | KL130 | Bulb capability flag | Read-only status only initially. |
-| `preferred_state` | KL130 | Bulb preset list | Local diagnostics only unless UI requirements are explicit. |
+| `light_state` | KL130, LB230 | Bulb current/default state object | Observed nested `on_off`, `dft_on_state`, brightness/color fields. Commands deferred. |
+| `is_dimmable` | KL130, LB230 | Bulb capability flag | Read-only status only initially. |
+| `is_color` | KL130, LB230 | Bulb capability flag | Read-only status only initially. |
+| `is_variable_color_temp` | KL130, LB230 | Bulb capability flag | Read-only status only initially. |
+| `preferred_state` | KL130, LB230 | Bulb preset list | Local diagnostics only unless UI requirements are explicit. |
 | `led_off` | EP25, HS105, HS300, KP200 | LED/night mode state | Writes deferred. |
 | `updating` | EP25, HS105, HS300, KP200 | Firmware/update state | Inventory/status candidate. |
 | `status` | EP25, HS300, KP200 | Device status string | Observed values should not be enum-locked yet. |

@@ -26,7 +26,7 @@ Initial implementation target:
 | Capability | HVO status | Notes |
 |------------|------------|-------|
 | Legacy TCP XOR framing | Planned | Deterministic and testable with fake TCP server. |
-| `system.get_sysinfo` | Planned | First read-only operation; sanitized live shapes captured for EP25, HS105, HS200, HS210, HS220, HS300, KP200, and KL130. |
+| `system.get_sysinfo` | Planned | First read-only operation; sanitized live shapes captured for EP25, HS105, HS200, HS210, HS220, HS300, KP200, KL130, and LB230. |
 | `emeter.get_realtime` | Planned if device supports it | Must handle unsupported module gracefully; EP25/HS300 returned milli-unit fields, HS105 returned unsupported response. |
 | Legacy UDP discovery | Candidate after TCP polling | Need UDP framing validation. |
 | Device commands | Deferred | Requires safety/auth/audit design. |
@@ -155,7 +155,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 |----------|--------|-----------|--------------------------|
 | Start with legacy Kasa LAN read-only | Proposed | Matches observed installed responders and has the best simulator coverage. | Confirm production subset before deploy. |
 | Build device library/configuration before outbox | Proposed | Inventory and control semantics must be stable before cloud payloads are useful. | Outbox work follows local registry, polling, and status UI. |
-| Treat installed legacy devices as a heterogeneous capability set | Proposed | Live scan observed plugs, power strips, dual outlets, light switches, 3-way switches, dimmers, and bulbs with different capability shapes. | Parser tests need fixtures for all observed shapes. |
+| Treat installed legacy devices as a heterogeneous capability set | Proposed | Live scan observed plugs, power strips, dual outlets, light switches, 3-way switches, dimmers, and multiple bulb models with different capability shapes. | Parser tests need fixtures for all observed shapes. |
 | Use shared outbox standards | Proposed | New gateway should not duplicate Davis-specific outbox behavior. | May require `HVO.Edge.Outbox` failure-kind updates first. |
 | Build in-process fake server | Proposed | Keeps tests deterministic without Node/npm simulator dependency. | Compare behavior against `plasticrake` simulator later. |
 | Defer commands | Proposed | Load safety unknown. | Add command design only after device/load inventory. |
