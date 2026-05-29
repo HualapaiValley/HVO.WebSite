@@ -34,7 +34,96 @@ public sealed class KasaDevicePollerTests
         result.Snapshot!.IdentityValidated.Should().BeTrue();
         result.Snapshot.Model.Should().Be("EP25(US)");
         result.Snapshot.Energy.Should().NotBeNull();
+        result.Snapshot.Capabilities.Should().Contain(KasaCapability.EnergyRealtime);
+        result.Snapshot.ReadMetadata.Should().NotBeNull();
+        result.Snapshot.ReadMetadata!.Support.EnergyRealtime.Should().BeTrue();
         result.Snapshot.Outlets.Should().ContainSingle();
+    }
+
+    [TestMethod]
+    public async Task PollReadOnlyAsync_ReadsRealtimeEnergyWhenCapabilityIsNotConfigured()
+    {
+        await using var server = new FakeKasaLegacyServer();
+        server.RespondTo("system", "get_sysinfo", FixtureLoader.Read("ep25-sysinfo.json"));
+        server.RespondTo("emeter", "get_realtime", FixtureLoader.Read("ep25-emeter.json"));
+        var poller = CreatePoller(TimeSpan.FromSeconds(2));
+        var config = new KasaDeviceConfig
+        {
+            DeviceId = "EP25_DEVICE_ID_SANITIZED",
+            SourceId = "tplink-kasa:EP25_DEVICE_ID_SANITIZED",
+            Host = "127.0.0.1",
+            Port = server.Port,
+            MacAddress = "AA:BB:CC:DD:EE:01",
+            ExpectedModel = "EP25(US)"
+        };
+
+        var result = await poller.PollReadOnlyAsync(config, 9999, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.IsDegraded.Should().BeFalse();
+        result.Snapshot.Should().NotBeNull();
+        result.Snapshot!.Energy.Should().NotBeNull();
+        result.Snapshot.Energy!.PowerW.Should().Be(4.2);
+        result.Snapshot.Capabilities.Should().Contain(KasaCapability.EnergyRealtime);
+        result.Snapshot.MetadataCapabilities.Should().Contain(KasaMetadataCapability.EnergyRealtime);
+        result.Snapshot.ReadMetadata.Should().NotBeNull();
+        result.Snapshot.ReadMetadata!.Support.EnergyRealtime.Should().BeTrue();
+    }
+
+    [TestMethod]
+    public async Task PollReadOnlyAsync_UnsupportedUnconfiguredEnergyDoesNotDegradeSnapshot()
+    {
+        await using var server = new FakeKasaLegacyServer();
+        server.RespondTo("system", "get_sysinfo", FixtureLoader.Read("hs220-sysinfo.json"));
+        server.RespondTo("emeter", "get_realtime", FixtureLoader.Read("emeter-unsupported.json"));
+        var poller = CreatePoller(TimeSpan.FromSeconds(2));
+        var config = new KasaDeviceConfig
+        {
+            DeviceId = "HS220_DEVICE_ID_SANITIZED",
+            Host = "127.0.0.1",
+            Port = server.Port,
+            MacAddress = "AA:BB:CC:DD:EE:06",
+            ExpectedModel = "HS220(US)"
+        };
+
+        var result = await poller.PollReadOnlyAsync(config, 9999, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.IsDegraded.Should().BeFalse();
+        result.Snapshot.Should().NotBeNull();
+        result.Snapshot!.Energy.Should().BeNull();
+        result.Snapshot.ReadMetadata.Should().NotBeNull();
+        result.Snapshot.ReadMetadata!.Support.EnergyRealtime.Should().BeFalse();
+    }
+
+    [TestMethod]
+    public async Task PollReadOnlyAsync_ExposesSupportedScheduleMetadata()
+    {
+        await using var server = new FakeKasaLegacyServer();
+        server.RespondTo("system", "get_sysinfo", FixtureLoader.Read("hs220-sysinfo.json"));
+        server.RespondTo("emeter", "get_realtime", FixtureLoader.Read("emeter-unsupported.json"));
+        server.RespondTo("schedule", "get_rules", FixtureLoader.Read("schedule-rules.json"));
+        var poller = CreatePoller(TimeSpan.FromSeconds(2));
+        var config = new KasaDeviceConfig
+        {
+            DeviceId = "HS220_DEVICE_ID_SANITIZED",
+            Host = "127.0.0.1",
+            Port = server.Port,
+            MacAddress = "AA:BB:CC:DD:EE:06",
+            ExpectedModel = "HS220(US)"
+        };
+
+        var result = await poller.PollReadOnlyAsync(config, 9999, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Snapshot.Should().NotBeNull();
+        result.Snapshot!.ReadMetadata.Should().NotBeNull();
+        result.Snapshot.ReadMetadata!.Schedule.Should().NotBeNull();
+        result.Snapshot.ReadMetadata.Schedule!.IsSupported.Should().BeTrue();
+        result.Snapshot.ReadMetadata.Schedule.RuleCount.Should().Be(0);
+        result.Snapshot.ReadMetadata.Support.ScheduleRules.Should().BeTrue();
+        result.Snapshot.Capabilities.Should().Contain(KasaCapability.ScheduleMetadata);
+        result.Snapshot.MetadataCapabilities.Should().Contain(KasaMetadataCapability.ScheduleRead);
     }
 
     [TestMethod]
@@ -127,6 +216,7 @@ public sealed class KasaDevicePollerTests
             new KasaLegacyClient(timeout),
             new KasaSystemInfoParser(),
             new KasaEnergyParser(),
+            new KasaReadMetadataParser(),
             new KasaCapabilityDetector(),
             new KasaIdentityValidator());
 }

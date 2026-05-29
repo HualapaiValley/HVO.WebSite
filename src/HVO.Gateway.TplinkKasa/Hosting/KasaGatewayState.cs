@@ -151,7 +151,8 @@ public sealed record KasaDeviceStatus(
     bool? IsOn,
     IReadOnlyList<KasaOutletStatus> Outlets,
     KasaLightStatus? Light,
-    KasaEnergyStatus? Energy)
+    KasaEnergyStatus? Energy,
+    KasaReadMetadataSnapshot? ReadMetadata)
 {
     public static KasaDeviceStatus Online(KasaDeviceConfig config, KasaDeviceSnapshot snapshot, string? degradedReason) => new(
         !string.IsNullOrWhiteSpace(config.DeviceId),
@@ -172,7 +173,8 @@ public sealed record KasaDeviceStatus(
         snapshot.IsOn,
         snapshot.Outlets.Select(KasaOutletStatus.FromSnapshot).ToArray(),
         KasaLightStatus.FromSnapshot(snapshot.Light),
-        KasaEnergyStatus.FromReading(snapshot.Energy));
+        KasaEnergyStatus.FromReading(snapshot.Energy),
+        snapshot.ReadMetadata);
 
     public static KasaDeviceStatus Offline(KasaDeviceConfig config, string failureReason) => new(
         !string.IsNullOrWhiteSpace(config.DeviceId),
@@ -192,6 +194,7 @@ public sealed record KasaDeviceStatus(
         config.MetadataCapabilities.ToHashSet(),
         null,
         [],
+        null,
         null,
         null);
 }

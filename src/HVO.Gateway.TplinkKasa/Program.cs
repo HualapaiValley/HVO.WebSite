@@ -97,6 +97,7 @@ static async Task RunGatewayAsync(string[] args)
     });
     builder.Services.AddSingleton<KasaSystemInfoParser>();
     builder.Services.AddSingleton<KasaEnergyParser>();
+    builder.Services.AddSingleton<KasaReadMetadataParser>();
     builder.Services.AddSingleton<KasaCapabilityDetector>();
     builder.Services.AddSingleton<KasaIdentityValidator>();
     builder.Services.AddSingleton<KasaDevicePoller>();
