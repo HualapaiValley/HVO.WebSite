@@ -48,6 +48,61 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
+    public void GetDevices_ReturnsAuthenticatedDeviceListShape()
+    {
+        var state = CreateState();
+        var config = CreateConfig().Devices[0];
+        state.ApplyResult(config, new KasaPollResult(CreateSnapshot(config, KasaDeviceKind.Plug, "EP25(US)"), null));
+
+        var devices = state.GetDevices();
+
+        devices.GatewayId.Should().Be("test-gateway");
+        devices.Devices.Should().ContainSingle();
+        devices.Devices[0].SourceId.Should().Be("tplink-kasa:observatory-test");
+    }
+
+    [TestMethod]
+    public void GetDeviceBySourceId_MatchesCaseInsensitively()
+    {
+        var state = CreateState();
+        var config = CreateConfig().Devices[0];
+        state.ApplyResult(config, new KasaPollResult(CreateSnapshot(config, KasaDeviceKind.Plug, "EP25(US)"), null));
+
+        var device = state.GetDeviceBySourceId("TPLINK-KASA:OBSERVATORY-TEST");
+
+        device.Should().NotBeNull();
+        device!.Model.Should().Be("EP25(US)");
+    }
+
+    [TestMethod]
+    public void SearchDevices_FiltersByTextKindCapabilityAndState()
+    {
+        var options = CreateConfig();
+        options.Devices.Add(new KasaDeviceConfig
+        {
+            Enabled = true,
+            DeviceId = "SECOND_DEVICE_ID_SANITIZED",
+            SourceId = "tplink-kasa:kitchen-bulb",
+            Host = "second-host.example",
+            ExpectedModel = "LB230(E26)",
+            Capabilities = [KasaCapability.LightState]
+        });
+        var state = new KasaGatewayState(Options.Create(options));
+        var plugConfig = options.Devices[0];
+        var bulbConfig = options.Devices[1];
+        state.ApplyResult(plugConfig, new KasaPollResult(CreateSnapshot(plugConfig, KasaDeviceKind.Plug, "EP25(US)", capabilities: new HashSet<KasaCapability> { KasaCapability.SwitchState, KasaCapability.EnergyRealtime }), null));
+        state.ApplyResult(bulbConfig, new KasaPollResult(CreateSnapshot(bulbConfig, KasaDeviceKind.Bulb, "LB230(E26)", capabilities: new HashSet<KasaCapability> { KasaCapability.LightState }), null));
+
+        var energyMatches = state.SearchDevices(new KasaDeviceSearchRequest("observatory", null, "plug", "EnergyRealtime", null, true, false));
+        var bulbMatches = state.SearchDevices(new KasaDeviceSearchRequest(null, "LB230", "bulb", null, null, true, false));
+
+        energyMatches.MatchCount.Should().Be(1);
+        energyMatches.Devices[0].SourceId.Should().Be("tplink-kasa:observatory-test");
+        bulbMatches.MatchCount.Should().Be(1);
+        bulbMatches.Devices[0].SourceId.Should().Be("tplink-kasa:kitchen-bulb");
+    }
+
+    [TestMethod]
     public void GetStatus_DoesNotExposeRawDeviceIdHostMacAliasOrRawVendorJson()
     {
         var state = CreateState();
@@ -270,6 +325,33 @@ public sealed class KasaGatewayStateTests
     }
 
     private static KasaGatewayState CreateState() => new(Options.Create(CreateConfig()));
+
+    private static KasaDeviceSnapshot CreateSnapshot(
+        KasaDeviceConfig config,
+        KasaDeviceKind kind,
+        string model,
+        IReadOnlySet<KasaCapability>? capabilities = null) => new(
+            config.DeviceId,
+            config.EffectiveSourceId,
+            config.Host,
+            DateTimeOffset.UtcNow,
+            true,
+            true,
+            null,
+            "Private Alias",
+            model,
+            "2.0",
+            "1.0.0",
+            "AA:BB:CC:DD:EE:01",
+            kind,
+            capabilities ?? new HashSet<KasaCapability> { KasaCapability.SwitchState },
+            new HashSet<KasaMetadataCapability> { KasaMetadataCapability.Diagnostics },
+            true,
+            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5)],
+            null,
+            null,
+            null,
+            System.Text.Json.JsonDocument.Parse("{\"private\":\"raw\"}").RootElement.Clone());
 
     private static KasaGatewayOptions CreateConfig() => new()
     {

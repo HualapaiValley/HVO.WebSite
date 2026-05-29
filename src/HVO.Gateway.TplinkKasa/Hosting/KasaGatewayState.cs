@@ -97,6 +97,61 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options)
             .OrderBy(device => device.SourceId, StringComparer.OrdinalIgnoreCase)
             .Select(KasaInventoryDevice.FromConfig)
             .ToArray());
+
+    public KasaDeviceListResponse GetDevices() => new(
+        options.Value.GatewayId,
+        GetStatus().Devices);
+
+    public KasaDeviceStatus? GetDeviceBySourceId(string sourceId) =>
+        string.IsNullOrWhiteSpace(sourceId)
+            ? null
+            : GetStatus().Devices.FirstOrDefault(device => string.Equals(device.SourceId, sourceId, StringComparison.OrdinalIgnoreCase));
+
+    public KasaDeviceSearchResponse SearchDevices(KasaDeviceSearchRequest request)
+    {
+        var devices = GetStatus().Devices.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(request.Query))
+        {
+            devices = devices.Where(device => Contains(device.SourceId, request.Query) || Contains(device.Model, request.Query));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Model))
+        {
+            devices = devices.Where(device => Contains(device.Model, request.Model));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Kind))
+        {
+            devices = devices.Where(device => string.Equals(device.DeviceKind.ToString(), request.Kind, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Capability))
+        {
+            devices = devices.Where(device => device.Capabilities.Any(capability => string.Equals(capability.ToString(), request.Capability, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.MetadataCapability))
+        {
+            devices = devices.Where(device => device.MetadataCapabilities.Any(capability => string.Equals(capability.ToString(), request.MetadataCapability, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        if (request.Online is not null)
+        {
+            devices = devices.Where(device => device.IsOnline == request.Online.Value);
+        }
+
+        if (request.Degraded is not null)
+        {
+            devices = devices.Where(device => device.IsDegraded == request.Degraded.Value);
+        }
+
+        var matches = devices.OrderBy(device => device.SourceId ?? string.Empty, StringComparer.OrdinalIgnoreCase).ToArray();
+        return new KasaDeviceSearchResponse(options.Value.GatewayId, matches.Length, matches);
+    }
+
+    private static bool Contains(string? value, string expected) =>
+        value?.Contains(expected, StringComparison.OrdinalIgnoreCase) == true;
 }
 
 public sealed record KasaGatewayStatusResponse(
@@ -112,6 +167,24 @@ public sealed record KasaGatewayStatusResponse(
 public sealed record KasaGatewayInventoryResponse(
     string GatewayId,
     IReadOnlyList<KasaInventoryDevice> Devices);
+
+public sealed record KasaDeviceListResponse(
+    string GatewayId,
+    IReadOnlyList<KasaDeviceStatus> Devices);
+
+public sealed record KasaDeviceSearchRequest(
+    string? Query,
+    string? Model,
+    string? Kind,
+    string? Capability,
+    string? MetadataCapability,
+    bool? Online,
+    bool? Degraded);
+
+public sealed record KasaDeviceSearchResponse(
+    string GatewayId,
+    int MatchCount,
+    IReadOnlyList<KasaDeviceStatus> Devices);
 
 public sealed record KasaGatewayHealthResponse(
     string GatewayId,

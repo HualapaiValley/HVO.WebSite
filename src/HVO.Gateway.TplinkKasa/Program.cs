@@ -113,6 +113,35 @@ static async Task RunGatewayAsync(string[] args)
     app.MapGet("/gateway-health", (KasaGatewayState state) => Results.Ok(state.GetHealth()));
     app.MapGet("/status-review", (KasaGatewayState state) => Results.Ok(state.GetReviewStatus()));
     app.MapGet("/status-review/current", (KasaGatewayState state) => Results.Ok(state.GetReviewCurrentStatus()));
+    app.MapGet("/devices", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
+    {
+        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(state.GetDevices());
+    });
+    app.MapGet("/devices/search", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string? q, string? model, string? kind, string? capability, string? metadataCapability, bool? online, bool? degraded) =>
+    {
+        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        var request = new KasaDeviceSearchRequest(q, model, kind, capability, metadataCapability, online, degraded);
+        return Results.Ok(state.SearchDevices(request));
+    });
+    app.MapGet("/devices/{sourceId}", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId) =>
+    {
+        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        var device = state.GetDeviceBySourceId(sourceId);
+        return device is null ? Results.NotFound() : Results.Ok(device);
+    });
     app.MapGet("/status", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
