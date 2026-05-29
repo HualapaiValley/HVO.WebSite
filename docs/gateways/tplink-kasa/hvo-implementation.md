@@ -161,6 +161,15 @@ Side effects: polls configured devices with allowlisted read-only requests only.
 dotnet run --project src/HVO.Gateway.TplinkKasa
 ```
 
+### Pi Deployment Scaffold
+
+The read-only Pi deployment scaffold lives under `deploy/pi-gateways/tplink-kasa/` and follows the existing per-gateway compose pattern:
+
+- `docker-compose.yml` builds `src/HVO.Gateway.TplinkKasa/Dockerfile` and exposes the local API on port `5400`.
+- `.env.example` contains placeholder pilot slots only; copy it to `.env` on the Pi and never commit real device IDs, MACs, hosts, aliases, or API keys.
+- Device slots are disabled by default with `KASA_DEVICE_<n>_ENABLED=false` so an empty scaffold does not create invalid configured devices.
+- Phase 1 remains local read-only status only: no outbox forwarding, no live commands, and no continuous discovery scan.
+
 ## Data Models
 
 | Model | Purpose | Notes |

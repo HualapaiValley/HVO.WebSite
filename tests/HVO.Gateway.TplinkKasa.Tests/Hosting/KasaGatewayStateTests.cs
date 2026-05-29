@@ -27,6 +27,27 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
+    public void GetInventory_IgnoresDisabledPlaceholderDevices()
+    {
+        var options = CreateConfig();
+        options.Devices.Add(new KasaDeviceConfig
+        {
+            Enabled = false,
+            DeviceId = string.Empty,
+            SourceId = "tplink-kasa:disabled-placeholder",
+            Host = string.Empty
+        });
+        var state = new KasaGatewayState(Options.Create(options));
+
+        var inventory = state.GetInventory();
+        var status = state.GetStatus();
+
+        inventory.Devices.Should().ContainSingle();
+        inventory.Devices.Should().NotContain(device => device.SourceId == "tplink-kasa:disabled-placeholder");
+        status.ConfiguredDeviceCount.Should().Be(1);
+    }
+
+    [TestMethod]
     public void GetStatus_DoesNotExposeRawDeviceIdHostMacAliasOrRawVendorJson()
     {
         var state = CreateState();
@@ -76,6 +97,7 @@ public sealed class KasaGatewayStateTests
         [
             new KasaDeviceConfig
             {
+                Enabled = true,
                 DeviceId = "RAW_DEVICE_ID_SANITIZED",
                 SourceId = "tplink-kasa:observatory-test",
                 Host = "configured-device-host.example",

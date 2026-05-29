@@ -44,6 +44,8 @@ public sealed class KasaNetworkConfig
 
 public sealed class KasaDeviceConfig
 {
+    public bool Enabled { get; set; } = true;
+
     public string DeviceId { get; set; } = string.Empty;
 
     public string SourceId { get; set; } = string.Empty;

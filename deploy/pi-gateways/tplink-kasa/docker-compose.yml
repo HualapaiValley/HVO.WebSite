@@ -1,0 +1,66 @@
+services:
+  hvo-tplink-kasa:
+    build:
+      context: ../../..
+      dockerfile: src/HVO.Gateway.TplinkKasa/Dockerfile
+    ports:
+      - "5400:8080"
+    environment:
+      KasaGateway__GatewayId: ${KASA_GATEWAY_ID:-hvo-tplink-kasa}
+      KasaGateway__ApiKey: ${KASA_LOCAL_API_KEY:-}
+      KasaGateway__DefaultPort: ${KASA_DEFAULT_PORT:-9999}
+      KasaGateway__SocketTimeoutSeconds: ${KASA_SOCKET_TIMEOUT_SECONDS:-3}
+      KasaGateway__PollIntervalSeconds: ${KASA_POLL_INTERVAL_SECONDS:-60}
+      KasaGateway__RequireIdentityValidation: "true"
+      KasaGateway__MaxScanHosts: ${KASA_MAX_SCAN_HOSTS:-256}
+      KasaGateway__MaxScanConcurrency: ${KASA_MAX_SCAN_CONCURRENCY:-64}
+      KasaGateway__Networks__0__Name: ${KASA_NETWORK_0_NAME:-}
+      KasaGateway__Networks__0__Cidr: ${KASA_NETWORK_0_CIDR:-}
+      KasaGateway__Networks__0__DiscoveryEnabled: ${KASA_NETWORK_0_DISCOVERY_ENABLED:-false}
+      KasaGateway__Networks__1__Name: ${KASA_NETWORK_1_NAME:-}
+      KasaGateway__Networks__1__Cidr: ${KASA_NETWORK_1_CIDR:-}
+      KasaGateway__Networks__1__DiscoveryEnabled: ${KASA_NETWORK_1_DISCOVERY_ENABLED:-false}
+      KasaGateway__Networks__2__Name: ${KASA_NETWORK_2_NAME:-}
+      KasaGateway__Networks__2__Cidr: ${KASA_NETWORK_2_CIDR:-}
+      KasaGateway__Networks__2__DiscoveryEnabled: ${KASA_NETWORK_2_DISCOVERY_ENABLED:-false}
+      KasaGateway__Devices__0__Enabled: ${KASA_DEVICE_0_ENABLED:-false}
+      KasaGateway__Devices__0__DeviceId: ${KASA_DEVICE_0_DEVICE_ID:-}
+      KasaGateway__Devices__0__SourceId: ${KASA_DEVICE_0_SOURCE_ID:-}
+      KasaGateway__Devices__0__Host: ${KASA_DEVICE_0_HOST:-}
+      KasaGateway__Devices__0__Port: ${KASA_DEVICE_0_PORT:-9999}
+      KasaGateway__Devices__0__MacAddress: ${KASA_DEVICE_0_MAC_ADDRESS:-}
+      KasaGateway__Devices__0__NetworkName: ${KASA_DEVICE_0_NETWORK_NAME:-}
+      KasaGateway__Devices__0__ExpectedModel: ${KASA_DEVICE_0_EXPECTED_MODEL:-}
+      KasaGateway__Devices__0__ExpectedHardwareVersion: ${KASA_DEVICE_0_EXPECTED_HARDWARE_VERSION:-}
+      KasaGateway__Devices__0__ExpectedSoftwareVersion: ${KASA_DEVICE_0_EXPECTED_SOFTWARE_VERSION:-}
+      KasaGateway__Devices__0__ExpectedChildCount: ${KASA_DEVICE_0_EXPECTED_CHILD_COUNT:-}
+      KasaGateway__Devices__0__DeviceKind: ${KASA_DEVICE_0_DEVICE_KIND:-Auto}
+      KasaGateway__Devices__0__SafetyClass: TelemetryOnly
+      KasaGateway__Devices__1__Enabled: ${KASA_DEVICE_1_ENABLED:-false}
+      KasaGateway__Devices__1__DeviceId: ${KASA_DEVICE_1_DEVICE_ID:-}
+      KasaGateway__Devices__1__SourceId: ${KASA_DEVICE_1_SOURCE_ID:-}
+      KasaGateway__Devices__1__Host: ${KASA_DEVICE_1_HOST:-}
+      KasaGateway__Devices__1__Port: ${KASA_DEVICE_1_PORT:-9999}
+      KasaGateway__Devices__1__MacAddress: ${KASA_DEVICE_1_MAC_ADDRESS:-}
+      KasaGateway__Devices__1__NetworkName: ${KASA_DEVICE_1_NETWORK_NAME:-}
+      KasaGateway__Devices__1__ExpectedModel: ${KASA_DEVICE_1_EXPECTED_MODEL:-}
+      KasaGateway__Devices__1__ExpectedHardwareVersion: ${KASA_DEVICE_1_EXPECTED_HARDWARE_VERSION:-}
+      KasaGateway__Devices__1__ExpectedSoftwareVersion: ${KASA_DEVICE_1_EXPECTED_SOFTWARE_VERSION:-}
+      KasaGateway__Devices__1__ExpectedChildCount: ${KASA_DEVICE_1_EXPECTED_CHILD_COUNT:-}
+      KasaGateway__Devices__1__DeviceKind: ${KASA_DEVICE_1_DEVICE_KIND:-Auto}
+      KasaGateway__Devices__1__SafetyClass: TelemetryOnly
+      KasaGateway__Devices__2__Enabled: ${KASA_DEVICE_2_ENABLED:-false}
+      KasaGateway__Devices__2__DeviceId: ${KASA_DEVICE_2_DEVICE_ID:-}
+      KasaGateway__Devices__2__SourceId: ${KASA_DEVICE_2_SOURCE_ID:-}
+      KasaGateway__Devices__2__Host: ${KASA_DEVICE_2_HOST:-}
+      KasaGateway__Devices__2__Port: ${KASA_DEVICE_2_PORT:-9999}
+      KasaGateway__Devices__2__MacAddress: ${KASA_DEVICE_2_MAC_ADDRESS:-}
+      KasaGateway__Devices__2__NetworkName: ${KASA_DEVICE_2_NETWORK_NAME:-}
+      KasaGateway__Devices__2__ExpectedModel: ${KASA_DEVICE_2_EXPECTED_MODEL:-}
+      KasaGateway__Devices__2__ExpectedHardwareVersion: ${KASA_DEVICE_2_EXPECTED_HARDWARE_VERSION:-}
+      KasaGateway__Devices__2__ExpectedSoftwareVersion: ${KASA_DEVICE_2_EXPECTED_SOFTWARE_VERSION:-}
+      KasaGateway__Devices__2__ExpectedChildCount: ${KASA_DEVICE_2_EXPECTED_CHILD_COUNT:-}
+      KasaGateway__Devices__2__DeviceKind: ${KASA_DEVICE_2_DEVICE_KIND:-Auto}
+      KasaGateway__Devices__2__SafetyClass: TelemetryOnly
+      DOTNET_ENVIRONMENT: Production
+    restart: unless-stopped
