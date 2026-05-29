@@ -112,6 +112,7 @@ static async Task RunGatewayAsync(string[] args)
 
     app.MapGet("/gateway-health", (KasaGatewayState state) => Results.Ok(state.GetHealth()));
     app.MapGet("/status-review", (KasaGatewayState state) => Results.Ok(state.GetReviewStatus()));
+    app.MapGet("/status-review/current", (KasaGatewayState state) => Results.Ok(state.GetReviewCurrentStatus()));
     app.MapGet("/status", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))

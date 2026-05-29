@@ -76,6 +76,20 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options)
             status.Devices.Select(KasaReviewDeviceStatus.FromStatus).ToArray());
     }
 
+    public KasaGatewayReviewCurrentStatusResponse GetReviewCurrentStatus()
+    {
+        var status = GetStatus();
+        return new KasaGatewayReviewCurrentStatusResponse(
+            status.GatewayId,
+            status.ConfiguredDeviceCount,
+            status.OnlineDeviceCount,
+            status.DegradedDeviceCount,
+            status.LastPollStartedAtUtc,
+            status.LastPollCompletedAtUtc,
+            status.LastError,
+            status.Devices.Select(KasaReviewCurrentDeviceStatus.FromStatus).ToArray());
+    }
+
     public KasaGatewayInventoryResponse GetInventory() => new(
         options.Value.GatewayId,
         options.Value.Devices
@@ -118,6 +132,16 @@ public sealed record KasaGatewayReviewStatusResponse(
     string? LastError,
     IReadOnlyList<KasaReviewDeviceStatus> Devices);
 
+public sealed record KasaGatewayReviewCurrentStatusResponse(
+    string GatewayId,
+    int ConfiguredDeviceCount,
+    int OnlineDeviceCount,
+    int DegradedDeviceCount,
+    DateTimeOffset? LastPollStartedAtUtc,
+    DateTimeOffset? LastPollCompletedAtUtc,
+    string? LastError,
+    IReadOnlyList<KasaReviewCurrentDeviceStatus> Devices);
+
 public sealed record KasaReviewDeviceStatus(
     string? Model,
     string? HardwareVersion,
@@ -147,6 +171,45 @@ public sealed record KasaReviewDeviceStatus(
         status.Light is not null,
         status.Energy is not null,
         status.ReadMetadata?.Support);
+}
+
+public sealed record KasaReviewCurrentDeviceStatus(
+    string? Model,
+    string? HardwareVersion,
+    string? SoftwareVersion,
+    string DeviceKind,
+    DateTimeOffset? ObservedAtUtc,
+    bool IsOnline,
+    bool IdentityValidated,
+    bool IsDegraded,
+    string? FailureReason,
+    string? DegradedReason,
+    IReadOnlyList<string> Capabilities,
+    IReadOnlyList<string> MetadataCapabilities,
+    bool? IsOn,
+    IReadOnlyList<KasaOutletStatus> Outlets,
+    KasaLightStatus? Light,
+    KasaEnergyStatus? Energy,
+    KasaReadMetadataSnapshot? ReadMetadata)
+{
+    public static KasaReviewCurrentDeviceStatus FromStatus(KasaDeviceStatus status) => new(
+        status.Model,
+        status.HardwareVersion,
+        status.SoftwareVersion,
+        status.DeviceKind.ToString(),
+        status.ObservedAtUtc,
+        status.IsOnline,
+        status.IdentityValidated,
+        status.IsDegraded,
+        status.FailureReason,
+        status.DegradedReason,
+        status.Capabilities.Select(capability => capability.ToString()).Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+        status.MetadataCapabilities.Select(capability => capability.ToString()).Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+        status.IsOn,
+        status.Outlets,
+        status.Light,
+        status.Energy,
+        status.ReadMetadata);
 }
 
 public sealed record KasaInventoryDevice(
