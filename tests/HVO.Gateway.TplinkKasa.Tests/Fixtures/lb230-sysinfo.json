@@ -1,0 +1,25 @@
+{
+  "system": {
+    "get_sysinfo": {
+      "err_code": 0,
+      "sw_ver": "1.6.0 Build 240101 Rel.000000",
+      "hw_ver": "1.0",
+      "model": "LB230(E26)",
+      "deviceId": "LB230_DEVICE_ID_SANITIZED",
+      "alias": "Sanitized LB230",
+      "type": "IOT.SMARTBULB",
+      "mic_mac": "AA:BB:CC:DD:EE:08",
+      "is_dimmable": 1,
+      "is_color": 1,
+      "is_variable_color_temp": 1,
+      "light_state": {
+        "on_off": 0,
+        "hue": 20,
+        "saturation": 70,
+        "color_temp": 2700,
+        "brightness": 10,
+        "mode": "normal"
+      }
+    }
+  }
+}

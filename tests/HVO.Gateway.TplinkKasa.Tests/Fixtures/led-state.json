@@ -1,0 +1,8 @@
+{
+  "system": {
+    "get_led_off": {
+      "err_code": 0,
+      "off": 0
+    }
+  }
+}
