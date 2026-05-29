@@ -80,7 +80,36 @@ Known likely gaps:
 - About 14 home Kasa light switches are expected on `192.168.2.0/24`, but were not observed by the legacy TCP `9999` scan.
 - 3-way switches and dimmer switches were observed on `192.168.9.0/24`; dimmer-specific fields/commands still need separate read-only validation.
 - Additional home devices on `192.168.2.0/24` may be offline or not rejoined after Wi-Fi changes.
+- Additional devices can be added later as they are reset/rejoined to the new Wi-Fi, likely moving from `192.168.2.0/24` to `192.168.9.0/24`.
 - HomeKit-compatible, Tapo, and Matter-capable devices may require a separate discovery/auth path and should not be assumed to use legacy TCP `9999`.
+
+## Capability Research Plan
+
+The observed device types are enough to start the capability/library design, but the full protocol surface still needs research before classes, interfaces, enums, UI models, telemetry models, and outbox contracts are locked.
+
+Research targets:
+
+- system metadata fields for all observed models.
+- switch state and top-level `relay_state` semantics.
+- child outlet shape for HS300 and KP200.
+- realtime energy shape for EP25 and HS300, including per-outlet `slot_id` behavior.
+- unsupported module/error shapes for non-energy devices.
+- bulb `light_state`, dimming, color, and variable color temperature fields for KL130 and LB230.
+- dimmer-specific read-only fields for HS220.
+- schedule/countdown/away metadata read operations, without writes.
+- LED/night-mode read operations.
+- cloud/account read operations only if safe to sanitize.
+- Tapo/Matter/HomeKit discovery boundary, documented separately from legacy Kasa.
+
+Design outputs needed before implementation is considered complete:
+
+- protocol client interfaces and transport implementation.
+- capability enums/records and device profile detection.
+- configuration schema for networks, devices, capabilities, and safety.
+- local snapshot models for switches, outlets, strips, dimmers, bulbs, and energy meters.
+- local UI/status view model.
+- telemetry/outbox candidate models, after local semantics are stable.
+- simulator/fake fixtures for every observed response shape.
 
 ## Initial Non-Live Validation Plan
 
@@ -93,6 +122,7 @@ Known likely gaps:
    - single-outlet top-level `relay_state` fixture
    - multi-outlet `children[]` fixture
    - bulb `light_state` fixture
+   - dimmer-capable switch fixture once HS220 read-only fields are researched
    - unsupported module error fixture
    - malformed JSON response
    - truncated length/payload
@@ -155,9 +185,10 @@ Command live tests are deferred. If ever added, they must:
 | Does the target device respond on port `9999`? | Confirms legacy scope. | Confirmed for 42 observed responders across scanned subnets after route updates and added devices. |
 | Does the device require authentication? | Changes protocol implementation. | `python-kasa discover` or HVO discovery. |
 | Which devices exist on `192.168.2.0/24` after Wi-Fi recovery? | Current scan likely undercounts home devices. | Reset/rejoin affected home devices, then rerun read-only discovery. |
-| Which devices exist on `192.168.9.0/24` after routing is configured? | Confirms home switch inventory. | Route update completed; read-only scan observed 17 legacy responders. Keep monitoring per-network counts for routing regressions. |
+| Which devices exist on `192.168.9.0/24` after routing is configured? | Confirms home switch/bulb inventory. | Route update completed; read-only scan observed 20 legacy responders so far. Keep monitoring per-network counts for routing regressions. |
 | Which 3-way and dimmer switch models are installed? | Switch/dimmer state and command shapes may differ from plugs/strips/bulbs. | Initial read-only scan observed HS210 and HS220; dimmer-specific read-only fields still need validation. |
 | Are HomeKit/Tapo/Matter-capable devices present? | They may use non-legacy protocols and auth. | Model inventory and separate non-write discovery. |
+| What is the complete read-only protocol surface for each observed device category? | Needed for correct classes/interfaces/enums and UI/telemetry models. | Research references plus sanitized live reads before implementation lock. |
 | What are exact `system.get_sysinfo` response fields? | Needed for DTO mapping. | Sanitized field names captured; implementation needs committed fake fixtures. |
 | What are exact `emeter.get_realtime` response fields and units? | Needed for power telemetry. | Sanitized field names captured for EP25/HS300; implementation needs committed fake fixtures. |
 | Does energy total reset on command, power loss, firmware update, or app action? | Historical cloud storage semantics. | Manual/live testing; do not infer. |
@@ -181,7 +212,8 @@ Command live tests are deferred. If ever added, they must:
 | Legacy TCP framing | Live read-only validated | Needs fake server tests. |
 | Legacy UDP discovery | Researched at high level | Needs packet/framing validation. |
 | Per-network discovery reporting | Live scan manually summarized | Needs configuration/registry implementation. |
-| System info parsing | Live shapes captured; not implemented | Needs sanitized fixtures for EP25/HS105, HS300/KP200, and KL130 shapes. |
+| Capability model | Planned | Needs per-device protocol research before classes/enums are locked. |
+| System info parsing | Live shapes captured; not implemented | Needs sanitized fixtures for single relay, multi-outlet, bulb, dimmer, and unsupported-module shapes. |
 | Energy parsing | Live fields captured; not implemented | Needs fixtures for EP25/HS300 success and HS105 unsupported response. |
 | Outbox forwarding | Deferred | Establish device library/configuration and local status first; then use common outbox standard. |
 | Local UI | Not implemented | Status/dashboard only initially. |

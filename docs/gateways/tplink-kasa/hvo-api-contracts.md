@@ -4,6 +4,8 @@ Status: draft. No local APIs, configuration library, outbox payloads, or cloud i
 
 Implementation sequencing: establish local device control/configuration, discovery reporting, and current-state APIs before any outbox/cloud forwarding work.
 
+Next design pass should define the device library and capability model first: classes/interfaces/enums for transport, protocol operations, device identity, capabilities, snapshots, local UI models, telemetry models, and outbox payload candidates. Do not lock outbox payloads before the capability model is stable.
+
 ## HVO Normalization And Aliases
 
 Do not lock central/cloud field names until implementation tests and central ingest contracts are created. The read-only live scan did validate several local parser candidates for the observed legacy devices.
@@ -24,6 +26,19 @@ Candidate mappings for initial legacy read-only scope:
 | `total_wh` | `EnergyKWh` | kWh | divide by `1000` | Reset/rollover semantics need validation before treating as a durable counter. |
 | `slot_id` | `OutletIndex` or raw field | none | none | Observed only on HS300 hardware `2.0` realtime energy response; do not require it globally. |
 
+## Candidate Capability Model
+
+These are HVO local concepts for design and implementation. They are not vendor protocol fields.
+
+| Concept | Candidate values / shape | Purpose |
+|---------|--------------------------|---------|
+| `KasaProtocolFamily` | `LegacyKasaTcp9999`, future `KasaSmartAuthenticated`, `TapoAuthenticated`, `Matter`, `HomeKit` | Keep future protocol support explicit. |
+| `KasaDeviceKind` | `Plug`, `PowerStrip`, `DualOutlet`, `Switch`, `ThreeWaySwitch`, `Dimmer`, `Bulb`, `Unknown` | UI grouping and default capability hints. |
+| `KasaCapability` | `SwitchState`, `ChildOutlets`, `EnergyRealtime`, `LightState`, `Dimming`, `Color`, `VariableColorTemperature`, `ScheduleMetadata`, `LedState`, `Diagnostics` | Composition-based behavior flags. |
+| `KasaCommandCapability` | `SwitchPower`, `DimLevel`, `LightColor`, `LightColorTemperature`, `ScheduleWrite`, `EnergyReset`, `DeviceReset`, `Reboot` | Document command surface separately from read-only capability. Initially disabled. |
+| `KasaSafetyClass` | `TelemetryOnly`, `LowRiskCommand`, `HighRiskCommand`, `SafetyCritical` | Commands require explicit operator classification. |
+| `KasaDeviceProfile` | model, hardware version, software version, protocol family, kind, capabilities | Model/firmware detection result, not an inheritance hierarchy. |
+
 ## Local Configuration
 
 | Setting | Type | Required | Secret | Runtime editable | Default | Notes |
@@ -43,8 +58,10 @@ Candidate mappings for initial legacy read-only scope:
 | `Devices[].ExpectedSoftwareVersion` | string | No | No | App config | empty | Optional inventory/diagnostic guard; firmware may change. |
 | `Devices[].SupportsEnergyMeter` | bool | No | No | App config | false | Avoids repeated `emeter` errors on non-energy devices. |
 | `Devices[].ExpectedChildCount` | int | No | No | App config | null | Useful for HS300/KP200 devices where outlets are represented as children. |
-| `Devices[].DeviceKind` | enum/string | No | No | App config | `Auto` | Candidate values could be `Plug`, `PowerStrip`, `DualOutlet`, `Bulb`, or `Auto`; do not expose commands from this alone. |
+| `Devices[].DeviceKind` | enum/string | No | No | App config | `Auto` | Candidate values could be `Plug`, `PowerStrip`, `DualOutlet`, `Switch`, `ThreeWaySwitch`, `Dimmer`, `Bulb`, `Unknown`, or `Auto`; do not expose commands from this alone. |
 | `Devices[].ProtocolFamily` | enum/string | No | No | App config | `LegacyKasaTcp9999` initially | Future values may be needed for HomeKit, Matter, Tapo, or newer authenticated Kasa devices. |
+| `Devices[].Capabilities` | array | No | No | App config/discovery | observed/configured | Read-only capability flags from profile and discovery. |
+| `Devices[].CommandCapabilities` | array | No | No | App config | empty | Command possibilities only; runtime commands remain disabled unless safety gates are met. |
 | `Devices[].SafetyClass` | enum/string | Yes before commands | No | App config | `TelemetryOnly` | Commands disabled unless explicitly classified later. |
 | `PollIntervalSeconds` | int | Yes | No | App config | TBD | Must avoid flooding devices. |
 | `SocketTimeoutSeconds` | int | Yes | No | App config | TBD | Applies to TCP command round trips. |
@@ -85,6 +102,8 @@ These are HVO local concepts, not vendor response contracts.
 | `networkName` | string? | Configured network label for grouping observatory/home devices. |
 | `protocolFamily` | string? | Observed/configured protocol family. |
 | `supportsEnergyMeter` | bool? | Configured/observed capability. |
+| `capabilities` | array? | HVO capability flags for local UI and diagnostics. |
+| `commandCapabilities` | array? | Potential command capabilities; not enabled by default. |
 | `outletCount` | int? | Child outlet count for strips/dual outlets; `1` for top-level plug if normalized that way. |
 | `isOn` | bool? | Current switch/light state for single-state devices only. Multi-outlet devices use `outlets`. |
 
@@ -102,7 +121,7 @@ These are HVO local concepts, not vendor response contracts.
 | `currentA` | double? | Only for validated energy-meter fields. |
 | `energyKWh` | double? | Only for validated energy-meter fields. |
 | `outlets` | array? | Per-outlet states for HS300/KP200 or normalized single-outlet devices. |
-| `light` | object? | Bulb status for KL130-style devices. |
+| `light` | object? | Bulb status for KL130/LB230-style devices. |
 | `rawSystemInfo` | JsonElement? | Optional local diagnostics; do not forward by default. |
 | `rawRealtimeEnergy` | JsonElement? | Optional local diagnostics; do not forward by default. |
 
@@ -170,4 +189,4 @@ If commands are ever added:
 | Whether raw vendor JSON is exposed locally | Hidden, debug-only, or redacted endpoint | No for MVP | Useful for validation but may expose private network/cloud fields. |
 | Local API auth | Same gateway API key pattern vs internal LAN only | Yes before deploy | Davis current weather endpoint uses API key pattern. |
 | Command contract | None vs local-only command endpoints | No for read-only MVP | Defer. |
-| Production device subset | Static all detected devices vs explicitly configured subset | Yes before deploy | Live discovery saw 22 legacy responders; not all may belong in HVO telemetry. |
+| Production device subset | Static all detected devices vs explicitly configured subset | Yes before deploy | Live discovery saw 42 legacy responders so far; not all may belong in HVO telemetry. |

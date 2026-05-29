@@ -4,6 +4,8 @@
 
 No HVO TP-Link/Kasa gateway exists yet. The recommended first implementation is a device control/configuration library plus a read-only legacy Kasa LAN gateway targeting confirmed port `9999` devices. Sanitized live discovery found legacy TCP `9999` responders across observatory and home networks after hvo.lan/Tailscale routing was updated for `192.168.9.0/24`.
 
+The observed device categories are sufficient to design the first library and local gateway shape: plugs, power strips, dual outlets, switches, 3-way switches, dimmers, and bulbs. The final physical inventory is still incomplete and should be treated as configuration/discovery data, not as a fixed enum of deployed devices.
+
 The gateway should use the common gateway standards from [../common-gateway-standards.md](../common-gateway-standards.md): shared identity, shared outbox lifecycle, shared health/status concepts, and common telemetry naming where possible.
 
 ## Proposed Scope
@@ -16,7 +18,8 @@ Initial implementation target:
 - static configured device list with host/IP, network/subnet, optional friendly name, expected model, expected hardware/software, expected child count, capability flags, and safety classification.
 - optional legacy UDP discovery and/or read-only subnet scan after TCP polling is stable.
 - read-only polling through legacy TCP `9999` Smart Home/XOR protocol for initial devices.
-- support the observed status shapes: single-outlet top-level `relay_state`, multi-outlet `children[]`, and bulb `light_state`.
+- support the observed status shapes: top-level `relay_state`, multi-outlet `children[]`, bulb `light_state`, energy-meter responses, and unsupported-module error responses.
+- explicit capability model for switch, dimmer, bulb, energy meter, multi-outlet, child outlet, schedule metadata, and diagnostics.
 - no command endpoints for switching power.
 - local dashboard/status only at first.
 - shared edge outbox only after local device inventory/configuration and status polling are stable.
@@ -29,6 +32,7 @@ Initial implementation target:
 | `system.get_sysinfo` | Planned | First read-only operation; sanitized live shapes captured for EP25, HS105, HS200, HS210, HS220, HS300, KP200, KL130, and LB230. |
 | `emeter.get_realtime` | Planned if device supports it | Must handle unsupported module gracefully; EP25/HS300 returned milli-unit fields, HS105 returned unsupported response. |
 | Legacy UDP discovery | Candidate after TCP polling | Need UDP framing validation. |
+| Capability research | Planned next | Research full read-only and command protocol coverage per observed model before locking classes/enums. |
 | Device commands | Deferred | Requires safety/auth/audit design. |
 | New Kasa/Tapo auth/KLAP/AES | Deferred | Not needed for observed legacy responders; revisit only if future hardware requires it. |
 | Matter | Out of scope | Treat as separate integration path. |
@@ -42,6 +46,7 @@ Initial implementation target:
 | `src/HVO.Gateway.TplinkKasa/Protocol/KasaCommands.cs` | Minimal read-only command builders. |
 | `src/HVO.Gateway.TplinkKasa/Configuration/KasaGatewayOptions.cs` | Gateway, network, discovery, and device configuration. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceRegistry.cs` | Merge configured devices and discovered read-only inventory. |
+| `src/HVO.Gateway.TplinkKasa/Capabilities/` | Capability records/enums for switch, dimmer, light, energy meter, multi-outlet, and diagnostics. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDevicePoller.cs` | Poll configured devices and normalize current state. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceSnapshot.cs` | Current read-only device status model. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaSystemInfoParser.cs` | Parse observed single-outlet, multi-outlet, and bulb status shapes while preserving raw fields separately. |
@@ -57,6 +62,7 @@ Initial implementation target:
 | `IKasaLegacyClient` | Abstraction for read-only device commands. | Poller and tests. |
 | `KasaLegacyClient` | Sends JSON commands over TCP `9999` with timeout/retry. | Poller. |
 | `KasaDeviceRegistry` | Tracks configured devices, discovered responders, network location, expected shape, and capability flags. | Worker and local UI. |
+| `KasaCapabilitySet` | Describes model/instance capabilities without inheritance-heavy device subclasses. | Registry, poller, UI, outbox mapping. |
 | `KasaSystemInfoParser` | Converts observed vendor response shapes into HVO snapshots without hiding raw/vendor data. | Poller and tests. |
 | `KasaDevicePoller` | Coordinates polling all configured devices. | Background worker and local UI. |
 | `KasaGatewayWorker` | Hosted service for polling, outbox enqueue, and health state. | ASP.NET host. |
@@ -106,6 +112,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 |-------|---------|-------|
 | `KasaDeviceConfig` | Static HVO configuration for one device. | Host, source/device IDs, expected model, polling interval, safety classification. |
 | `KasaNetworkConfig` | Subnet/discovery configuration. | Allows observatory/home networks to be scanned separately and reported separately. |
+| `KasaCapabilitySet` | Observed/configured capabilities for one device. | Avoid hard-coding behavior by model only; model/firmware may still matter. |
 | `KasaDeviceSnapshot` | Current state displayed locally and optionally forwarded. | Keep vendor fields and HVO normalized values separated. |
 | `KasaOutletSnapshot` | Current state for top-level or child outlet. | Needed for HS300/KP200 multi-outlet shapes. |
 | `KasaEnergySnapshot` | Optional realtime power telemetry. | Only present for supported energy-meter devices. |
@@ -123,7 +130,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 7. Parse status based on observed shape:
    - top-level `relay_state` for EP25/HS105 plugs and HS200/HS210/HS220 switches.
    - `children[].state` for HS300/KP200-style multi-outlet devices.
-   - `light_state.on_off` for KL130-style bulbs.
+   - `light_state.on_off` for KL130/LB230-style bulbs.
 8. If configured/observed as energy-capable, read `emeter.get_realtime`.
 9. Convert observed energy milli-units to normalized display units only after preserving raw values.
 10. Update current local snapshots and health state.
@@ -156,6 +163,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 | Start with legacy Kasa LAN read-only | Proposed | Matches observed installed responders and has the best simulator coverage. | Confirm production subset before deploy. |
 | Build device library/configuration before outbox | Proposed | Inventory and control semantics must be stable before cloud payloads are useful. | Outbox work follows local registry, polling, and status UI. |
 | Treat installed legacy devices as a heterogeneous capability set | Proposed | Live scan observed plugs, power strips, dual outlets, light switches, 3-way switches, dimmers, and multiple bulb models with different capability shapes. | Parser tests need fixtures for all observed shapes. |
+| Prefer capability composition over per-model inheritance | Proposed | The same protocol family spans many model-specific capability combinations. | Use model/firmware as detection hints, not the main type system. |
 | Use shared outbox standards | Proposed | New gateway should not duplicate Davis-specific outbox behavior. | May require `HVO.Edge.Outbox` failure-kind updates first. |
 | Build in-process fake server | Proposed | Keeps tests deterministic without Node/npm simulator dependency. | Compare behavior against `plasticrake` simulator later. |
 | Defer commands | Proposed | Load safety unknown. | Add command design only after device/load inventory. |
@@ -165,8 +173,8 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 | Caveat | Impact | Follow-up |
 |--------|--------|-----------|
 | Connected loads and production subset unknown | Cannot safely expose commands or decide final cloud payload scope. | Operator inventory and safety classification. |
-| Home network likely undercounted | Some `192.168.2.0/24` devices may need Wi-Fi reset/rejoin after network changes. | Rescan after Wi-Fi recovery and update configuration. |
-| Home switch network depends on hvo.lan/Tailscale routing | `192.168.9.0/24` returned 17 legacy responders after route updates. | Keep per-network discovery status visible so route regressions are obvious. |
+| Full device inventory incomplete | More devices may be reset/rejoined later, likely moving from `192.168.2.0/24` to `192.168.9.0/24`. | Keep discovery/config update path simple and repeatable. |
+| Home switch/bulb network depends on hvo.lan/Tailscale routing | `192.168.9.0/24` returned 20 legacy responders after route updates and added devices. | Keep per-network discovery status visible so route regressions are obvious. |
 | Community protocol references, not official docs | Vendor could change protocol/behavior. | Capture live fixtures and cite library/source behavior. |
 | Shared outbox lacks failure kind today | New gateway would either extend shared outbox or temporarily duplicate behavior. | Update `HVO.Edge.Outbox` before or during implementation. |
 | Central ingest contract for outlet/power-device telemetry not finalized | Outbox payload may need new contract. | Design after confirmed device capabilities. |
@@ -177,6 +185,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 |------|--------------------|-----------|-------------|
 | Documentation | Baseline in progress | Medium | Keep PR updated with discovery/config decisions. |
 | Legacy XOR protocol | Research complete enough for prototype | Medium-high | Implement cipher/framing tests. |
+| Capability model | Ready for design, not implemented | High | Research full protocol operations for observed models and define capability enums/records. |
 | Device library/configuration | Not implemented | High priority | Implement registry/options and read-only discovery before outbox. |
 | Device model/firmware | Sanitized live scan captured initial legacy models plus home switch models | Medium-high for observed legacy scope | Confirm production subset and connected loads. |
 | Simulator/mock | External simulator exists; in-process fake planned | High | Implement fake TCP server with fixture responses. |

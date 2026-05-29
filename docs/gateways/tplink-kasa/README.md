@@ -2,7 +2,7 @@
 
 ## Status
 
-- Phase 0 status: research baseline plus sanitized read-only live discovery captured; implementation not started.
+- Phase 0 status: research baseline plus sanitized read-only live discovery captured; implementation not started. Observed device types are sufficient to start library/model design, but full physical inventory is incomplete.
 - Last updated: 2026-05-29
 - Confidence: high that the observed HVO devices in the scanned subnets include legacy Kasa LAN responders on TCP `9999`; medium for complete production scope because connected loads and command safety are not confirmed.
 - Primary owner: HVO
@@ -27,7 +27,7 @@
 | Simulator | `plasticrake/tplink-smarthome-simulator` | Found | Node-based simulator for legacy TP-Link Smart Home devices. Useful for comparison; HVO can also build an in-process fake. |
 | Live read-only discovery | HVO scan of `192.168.1.0/24` and `192.168.2.0/24` on 2026-05-29 | Captured | Used only `system.get_sysinfo` and `emeter.get_realtime` over legacy TCP `9999`; no write/switch commands sent. Committed docs keep aggregate/sanitized model and field data only. |
 | Official TP-Link docs | TP-Link/Kasa/Tapo local protocol docs | Needed | No official local API reference found during initial research. |
-| Exact HVO hardware | Installed/planned model and firmware | Partially captured | Legacy responders observed for EP25, HS300, KP200, HS105, and KL130. Final production device list and connected loads still need operator confirmation. |
+| Exact HVO hardware | Installed/planned model and firmware | Device types mostly captured | Legacy responders observed for EP25, HS105, HS200, HS210, HS220, HS300, KP200, KL130, and LB230. Final physical device list and connected loads still need operator confirmation. |
 
 ## Identity
 
@@ -91,8 +91,25 @@ Known likely gaps from operator inventory:
 
 - About 17 home light switch devices are now observed on `192.168.9.0/24` after route updates.
 - `192.168.2.0/24` may still be undercounted for plugs/strips or other devices.
+- Additional devices may already be on `192.168.2.0/24` but should eventually be reset/rejoined to `192.168.9.0/24` for the home Kasa network.
 - HomeKit-compatible Kasa devices were not specifically identified; they may still expose legacy Kasa, newer authenticated Kasa, HomeKit, Matter, or a combination depending on model/firmware.
 - Tapo/Matter devices were not in initial implementation scope and were not confirmed by the legacy TCP `9999` scan.
+
+## Phase 0 Conclusion
+
+The observed legacy Kasa device-type coverage is broad enough to begin implementation design for the local device library, configuration model, parser, local UI, telemetry model, and eventual outbox contracts.
+
+Observed legacy device categories:
+
+- single-outlet plugs: EP25, HS105.
+- power strips: HS300.
+- dual outlets: KP200.
+- light switches: HS200.
+- 3-way switches: HS210.
+- dimmers: HS220.
+- bulbs: KL130, LB230.
+
+Remaining inventory work should not block initial library design, but the gateway must support devices being added later as they are reset onto the home `192.168.9.0/24` network.
 
 ## Recommended Initial Scope
 
@@ -106,6 +123,7 @@ Initial candidate capabilities:
 - read-only `system.get_sysinfo`.
 - read-only `emeter.get_realtime` when supported.
 - read-only outlet state from top-level `relay_state`, child `children[].state`, and bulb `light_state.on_off` only after parser tests cover the observed shapes.
+- model/capability mapping for plugs, strips, dual outlets, switches, 3-way switches, dimmers, and bulbs.
 - local status dashboard and gateway health.
 - shared edge outbox later, after device discovery/configuration and local status are stable.
 
@@ -126,3 +144,4 @@ Explicitly deferred:
 | What loads are connected to each outlet/switch? | Determines command safety and whether any commands can be exposed. | Open |
 | Is power telemetry needed, or only outlet state/inventory? | Determines central storage/outbox model. | Open; EP25 and HS300 energy fields are available if needed |
 | Should HVO ever control these devices, or only monitor them? | Affects local UI, auth, audit, and cloud policy. | Open |
+| Which devices remain on `192.168.2.0/24` and should move to `192.168.9.0/24`? | Determines final home network configuration and production polling list. | Open; update as devices are reset/rejoined |
