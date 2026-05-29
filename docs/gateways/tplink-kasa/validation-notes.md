@@ -131,10 +131,12 @@ Design outputs needed before implementation is considered complete:
    - timeout/no response
 5. Integration-test `KasaLegacyClient` against the fake server.
 6. Add identity tests for configured device ID match, device ID mismatch at reused IP, MAC mismatch, expected model mismatch, and missing identity fields.
-7. Add configuration/registry tests for configured devices, discovery-only devices, expected child count mismatch, ARP/MAC locator hints, and per-network responder counts.
-8. Worker tests should verify one failing or mismatched device does not block other devices.
-9. Command tests should verify dry-run behavior, explicit approval gating, same-session identity validation, and readback handling without live commands in CI.
-10. Outbox tests should wait until local device configuration, identity validation, and status semantics are stable.
+7. Add locator tests for configured host success, configured host identity mismatch, MAC/ARP-assisted host recovery, missing-MAC direct-IP-only behavior, and offline rediscovery unsupported when no locator can be validated.
+8. Add configuration/registry tests for configured devices, discovery-only setup results, expected child count mismatch, ARP/MAC locator hints, per-network responder counts, and config-record shape that can map to database storage.
+9. Add metadata/capability tests for available/unavailable energy, schedules, countdown, away mode, LED state, firmware, and diagnostics without requiring every device to support every category.
+10. Worker tests should verify one failing or mismatched device does not block other devices.
+11. Command tests should verify dry-run behavior, explicit approval gating, same-session identity validation, and readback handling without live commands in CI.
+12. Outbox tests should wait until local device configuration/database mapping, identity validation, metadata, and status semantics are stable.
 
 ## External Simulator Option
 
@@ -155,6 +157,7 @@ Suggested environment variables:
 | Variable | Purpose |
 |----------|---------|
 | `KASA_LIVE_HOST` | Device IP/host. |
+| `KASA_LIVE_MAC_ADDRESS` | Optional MAC guard and locator hint. |
 | `KASA_LIVE_PORT` | Device port, default `9999` for legacy. |
 | `KASA_LIVE_NETWORK` | Optional network label such as `observatory` or `home` for discovery reports. |
 | `KASA_LIVE_EXPECTED_MODEL` | Optional expected model guard. |
@@ -166,6 +169,7 @@ Read-only live tests:
 - connect to configured host.
 - read system info.
 - verify configured device ID before accepting any data.
+- verify configured MAC address when available, or document that direct-IP polling cannot rediscover an offline/moved device without MAC or discovery input.
 - verify expected model when configured.
 - parse top-level relay, child outlet, or bulb light state according to observed response shape.
 - read realtime energy if the device is expected to support `emeter`.
@@ -198,7 +202,9 @@ Command live tests are deferred. If ever added, they must:
 | Are HomeKit/Tapo/Matter-capable devices present? | They may use non-legacy protocols and auth. | Model inventory and separate non-write discovery. |
 | Which observed devices have confirmed alternate ecosystems? | Lets HVO document HomeKit/Matter/Tapo options without implementing them unnecessarily. | EP25 HomeKit confirmed from official product page; other observed models are not confirmed from current evidence. |
 | Which identity fields are always present per observed model? | Determines safe primary/secondary identity validation. | Use sanitized fixtures/live reads to confirm `deviceId`, MAC, model, hardware, and firmware availability. |
+| Can MAC reliably recover current IP on the target networks? | Determines offline rediscovery support. | Test ARP/table-based lookup and explicit setup scans against configured MACs. |
 | What is the complete read-only protocol surface for each observed device category? | Needed for correct classes/interfaces/enums and UI/telemetry models. | Research references plus sanitized live reads before implementation lock. |
+| Which read-only metadata categories are available per model? | Energy, schedules, countdown, away mode, LED, firmware, and diagnostics should be represented when available. | Research protocol references and add sanitized fixtures per category before enabling polling/UI fields. |
 | What are exact `system.get_sysinfo` response fields? | Needed for DTO mapping. | Sanitized field names captured; implementation needs committed fake fixtures. |
 | What are exact `emeter.get_realtime` response fields and units? | Needed for power telemetry. | Sanitized field names captured for EP25/HS300; implementation needs committed fake fixtures. |
 | Does energy total reset on command, power loss, firmware update, or app action? | Historical cloud storage semantics. | Manual/live testing; do not infer. |
@@ -213,6 +219,8 @@ Command live tests are deferred. If ever added, they must:
 - Central per-device outlet/power payload contract is not locked.
 - Shared `HVO.Edge.Outbox` still needs failure-kind standardization before new gateways should rely on it for production dead-letter classification.
 - Command safety classification is not complete.
+- MAC-based rediscovery reliability across target networks is not validated.
+- Schedule/countdown/away/LED/diagnostic read-only metadata fields are not fully validated.
 
 ## Validation Status Register
 
@@ -223,7 +231,9 @@ Command live tests are deferred. If ever added, they must:
 | Legacy UDP discovery | Researched at high level | Needs packet/framing validation. |
 | Per-network discovery reporting | Live scan manually summarized | Needs configuration/registry implementation. |
 | Identity validation | Planned | Device ID must be primary identity; IP and MAC are locator/validation hints only. |
+| Locator recovery | Planned | Configured IP is the first locator; MAC can support rediscovery after IP change if network ARP/discovery data is available. |
 | Capability model | Planned | Needs per-device protocol research before classes/enums are locked. |
+| Metadata model | Planned | Energy, schedule, countdown, away, LED, firmware, and diagnostics availability should be represented where devices support them. |
 | System info parsing | Live shapes captured; not implemented | Needs sanitized fixtures for single relay, multi-outlet, bulb, dimmer, and unsupported-module shapes. |
 | Energy parsing | Live fields captured; not implemented | Needs fixtures for EP25/HS300 success and HS105 unsupported response. |
 | Outbox forwarding | Deferred | Establish device library/configuration and local status first; then use common outbox standard. |

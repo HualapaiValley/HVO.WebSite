@@ -17,12 +17,13 @@ Initial implementation target:
 - device control/configuration library first, before outbox integration.
 - implement reusable library-style classes inside the gateway namespace initially; keep boundaries clean so protocol/config/capability code can move to a hardware/library project later.
 - a simple CLI/console tool is acceptable as an early host for discovery, identity validation, and command dry-run workflows before the full gateway UI is built.
-- static configured device list keyed by stable device ID, with host/IP only as a last-known connection locator.
-- network/subnet, optional friendly name, expected model, expected hardware/software, expected child count, capability flags, MAC validation hints, and safety classification.
-- operator-initiated legacy UDP discovery and/or read-only subnet scan for add-device/configuration workflows; no background scanning for new devices.
+- file-based configured device list first, with a schema that can move into a gateway database before outbox propagation is enabled.
+- configured devices keyed by stable device ID, with host/IP as the current connection locator and MAC as a required setup/validation field when known.
+- network/subnet, optional friendly name, expected model, expected hardware/software, expected child count, capability flags, metadata flags, MAC validation hints, and safety classification.
+- operator-initiated legacy UDP discovery and/or read-only subnet scan for add-device/configuration utility workflows; no background scanning for new devices.
 - read-only polling through legacy TCP `9999` Smart Home/XOR protocol for initial devices.
 - support the observed status shapes: top-level `relay_state`, multi-outlet `children[]`, bulb `light_state`, energy-meter responses, and unsupported-module error responses.
-- explicit capability model for switch, dimmer, bulb, energy meter, multi-outlet, child outlet, schedule metadata, and diagnostics.
+- explicit capability and metadata model for switch, dimmer, bulb, energy meter, multi-outlet, child outlet, schedule/countdown/away metadata, LED state, diagnostics, and any other read-only data a device exposes.
 - implement command modes in the library/gateway surface where protocol support is understood, but require explicit operator approval before sending any live command.
 - local dashboard/status only at first: basic inventory and current status.
 - shared edge outbox only after local device inventory/configuration and status polling are stable.
@@ -49,6 +50,7 @@ Initial implementation target:
 | `src/HVO.Gateway.TplinkKasa/Protocol/KasaCommands.cs` | Minimal read-only command builders. |
 | `src/HVO.Gateway.TplinkKasa/Commands/` | Command mode planning and guarded command executors; live execution requires explicit operator approval. |
 | `src/HVO.Gateway.TplinkKasa/Configuration/KasaGatewayOptions.cs` | Gateway, network, discovery, and device configuration. |
+| `src/HVO.Gateway.TplinkKasa/Configuration/KasaDeviceConfig.cs` | File-backed device configuration shaped for later database storage. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceRegistry.cs` | Merge configured devices and discovered read-only inventory. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaIdentityValidator.cs` | Verify connected device ID/model/MAC before accepting data or commands. |
 | `src/HVO.Gateway.TplinkKasa/Capabilities/` | Capability records/enums for switch, dimmer, light, energy meter, multi-outlet, and diagnostics. |
@@ -68,8 +70,10 @@ Initial implementation target:
 | `KasaLegacyClient` | Sends JSON commands over TCP `9999` with timeout/retry. | Poller. |
 | `KasaCommandService` | Builds and validates supported commands, performs identity validation, and requires explicit approval before live sends. | CLI/UI and tests. |
 | `KasaDeviceRegistry` | Tracks configured device IDs, discovered responders, current locator, network location, expected shape, and capability flags. | Worker and local UI. |
+| `KasaDeviceLocator` | Resolves a configured device's current host from configured IP, MAC/ARP hints, and setup discovery results. | Registry, poller, CLI/setup utility. |
 | `KasaIdentityValidator` | Confirms sysinfo identity matches the configured device before data/commands are trusted. | Poller, command service, tests. |
 | `KasaCapabilitySet` | Describes model/instance capabilities without inheritance-heavy device subclasses. | Registry, poller, UI, outbox mapping. |
+| `KasaMetadataSnapshot` | Captures optional read-only metadata such as schedules, countdown, away mode, LED state, firmware, and diagnostics when supported. | UI/API/outbox candidates. |
 | `KasaSystemInfoParser` | Converts observed vendor response shapes into HVO snapshots without hiding raw/vendor data. | Poller and tests. |
 | `KasaDevicePoller` | Coordinates polling all configured devices. | Background worker and local UI. |
 | `KasaGatewayWorker` | Hosted service for polling, outbox enqueue, and health state. | ASP.NET host. |
@@ -117,9 +121,10 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 
 | Model | Purpose | Notes |
 |-------|---------|-------|
-| `KasaDeviceConfig` | Static HVO configuration for one device. | Device ID, source ID, last-known host, optional MAC, expected model, polling interval, safety classification. |
+| `KasaDeviceConfig` | Static HVO configuration for one device. | Device ID, source ID, configured/current host, MAC address when known, expected model, polling interval, capability metadata, safety classification. Starts in config file and should map cleanly to database columns later. |
 | `KasaNetworkConfig` | Subnet/discovery configuration. | Allows observatory/home networks to be scanned separately and reported separately. |
 | `KasaCapabilitySet` | Observed/configured capabilities for one device. | Avoid hard-coding behavior by model only; model/firmware may still matter. |
+| `KasaDeviceMetadata` | Optional non-state metadata known about a device. | Schedule/countdown/away/LED/diagnostic availability and values should be modeled even when write operations are deferred. |
 | `KasaDeviceSnapshot` | Current state displayed locally and optionally forwarded. | Keep vendor fields and HVO normalized values separated. |
 | `KasaOutletSnapshot` | Current state for top-level or child outlet. | Needed for HS300/KP200 multi-outlet shapes. |
 | `KasaEnergySnapshot` | Optional realtime power telemetry. | Only present for supported energy-meter devices. |
@@ -131,9 +136,9 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 1. Load gateway and device configuration.
 2. Validate network/device configuration and mark missing/placeholder settings as misconfigured.
 3. For normal gateway operation, do not scan for new devices.
-4. For operator-initiated add-device workflows, perform read-only discovery by requested network/target and record responder counts per scan.
+4. For operator-initiated add-device/setup utility workflows, accept a specific IP or MAC when provided, or perform read-only discovery by requested network/target and record responder counts per scan.
 5. Merge discovered devices with the static configured registry by stable device ID, not by IP address.
-6. Use ARP/MAC or discovery results as locator hints only; update the last-known host for a known device after identity validation.
+6. Use configured IP, ARP/MAC, or discovery results as locator hints only; update the current/last-known host for a known device after identity validation.
 7. Poll each configured legacy device on its interval using its current locator.
 8. Read `system.get_sysinfo` first.
 9. Validate the connected device ID and any configured guard fields before accepting the poll result.
@@ -144,7 +149,8 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 11. If configured/observed as energy-capable, read `emeter.get_realtime` only after identity validation succeeds.
 12. Convert observed energy milli-units to normalized display units only after preserving raw values.
 13. Update current local snapshots and health state.
-14. Defer outbox enqueue/forwarding until local discovery, configuration, identity validation, and status semantics are stable.
+14. Capture supported read-only metadata and availability flags without assuming every device supports every field.
+15. Defer outbox enqueue/forwarding until local discovery, configuration/database mapping, identity validation, metadata, and status semantics are stable.
 
 ## Command Flow
 
@@ -188,14 +194,17 @@ No live command may be sent from automated tests, background polling, or cloud p
 | Decision | Status | Rationale | Consequences / follow-up |
 |----------|--------|-----------|--------------------------|
 | Start with legacy Kasa LAN read-only | Proposed | Matches observed installed responders and has the best simulator coverage. | Confirm production subset before deploy. |
-| Build device library/configuration before outbox | Proposed | Inventory and control semantics must be stable before cloud payloads are useful. | Outbox work follows local registry, polling, and status UI. |
+| File config first, database later | Proposed | Faster prototype while preserving the future need for durable inventory and outbox propagation. | Config schema should map cleanly to database tables. |
+| Build device library/configuration before outbox | Proposed | Inventory, metadata, and control semantics must be stable before cloud payloads are useful. | Outbox work follows local registry, database mapping, polling, and status UI. |
 | Discovery is operator initiated | Proposed | Avoid constant network scanning and accidental broad probes. | Discovery belongs in an add-device/configuration workflow. |
 | Same API-key auth pattern as Davis | Proposed | Keeps gateway local API auth consistent. | Apply to local status/config APIs before deployment. |
 | Start with basic inventory/status UI | Proposed | Prioritize library correctness and identity safety. | Expand UI after protocol/capability model stabilizes. |
 | Use device ID as primary identity | Proposed | IP addresses can change and may be reassigned by DHCP. | All polling/commands must validate identity after connect. |
+| Require IP and MAC for configured devices when known | Proposed | IP is the direct connection locator; MAC is more useful for finding a device after IP changes. | If MAC is missing, support direct-IP polling but do not promise offline rediscovery. |
 | Treat MAC/IP as locator hints | Proposed | MAC can support ARP-assisted lookup, but it is still secondary to device ID. | Discovery may update host locators only after identity validation. |
 | Treat installed legacy devices as a heterogeneous capability set | Proposed | Live scan observed plugs, power strips, dual outlets, light switches, 3-way switches, dimmers, and multiple bulb models with different capability shapes. | Parser tests need fixtures for all observed shapes. |
 | Prefer capability composition over per-model inheritance | Proposed | The same protocol family spans many model-specific capability combinations. | Use model/firmware as detection hints, not the main type system. |
+| Model all available read-only metadata | Proposed | Energy, schedules, countdown, away mode, LED, diagnostics, firmware, and similar availability affect UI, config, and cloud contracts. | Poll/control support can be staged, but model shape should not ignore known device data categories. |
 | Use shared outbox standards | Proposed | New gateway should not duplicate Davis-specific outbox behavior. | May require `HVO.Edge.Outbox` failure-kind updates first. |
 | Build in-process fake server | Proposed | Keeps tests deterministic without Node/npm simulator dependency. | Compare behavior against `plasticrake` simulator later. |
 | Defer commands | Proposed | Load safety unknown. | Add command design only after device/load inventory. |
@@ -205,6 +214,7 @@ No live command may be sent from automated tests, background polling, or cloud p
 | Caveat | Impact | Follow-up |
 |--------|--------|-----------|
 | Connected loads and production subset unknown | Cannot safely expose commands or decide final cloud payload scope. | Operator inventory and safety classification. |
+| Initial config file is not durable inventory | Later outbox propagation needs a database-backed inventory/configuration source. | Design config records to map cleanly to database rows. |
 | Full device inventory incomplete | More devices may be reset/rejoined later, likely moving from `192.168.2.0/24` to `192.168.9.0/24`. | Keep discovery/config update path simple and repeatable. |
 | Home switch/bulb network depends on hvo.lan/Tailscale routing | `192.168.9.0/24` returned 20 legacy responders after route updates and added devices. | Keep per-network discovery status visible so route regressions are obvious. |
 | Community protocol references, not official docs | Vendor could change protocol/behavior. | Capture live fixtures and cite library/source behavior. |

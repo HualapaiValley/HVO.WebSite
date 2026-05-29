@@ -2,9 +2,9 @@
 
 Status: draft. No local APIs, configuration library, outbox payloads, or cloud ingest contracts are implemented yet.
 
-Implementation sequencing: establish local device control/configuration, discovery reporting, and current-state APIs before any outbox/cloud forwarding work.
+Implementation sequencing: establish local device control/configuration, setup discovery reporting, metadata modeling, and current-state APIs before any outbox/cloud forwarding work.
 
-Next design pass should define the device library and capability model first: classes/interfaces/enums for transport, protocol operations, device identity, capabilities, snapshots, local UI models, telemetry models, and outbox payload candidates. Do not lock outbox payloads before the capability model is stable.
+Next design pass should define the device library and capability model first: classes/interfaces/enums for transport, protocol operations, device identity, locator recovery, capabilities, metadata, snapshots, local UI models, telemetry models, and outbox payload candidates. Do not lock outbox payloads before the capability and metadata model is stable.
 
 ## HVO Normalization And Aliases
 
@@ -38,10 +38,13 @@ These are HVO local concepts for design and implementation. They are not vendor 
 | `KasaCommandCapability` | `SwitchPower`, `DimLevel`, `LightColor`, `LightColorTemperature`, `ScheduleWrite`, `EnergyReset`, `DeviceReset`, `Reboot` | Document command surface separately from read-only capability. Initially disabled. |
 | `KasaSafetyClass` | `TelemetryOnly`, `LowRiskCommand`, `HighRiskCommand`, `SafetyCritical` | Commands require explicit operator classification. |
 | `KasaDeviceProfile` | model, hardware version, software version, protocol family, kind, capabilities | Model/firmware detection result, not an inheritance hierarchy. |
+| `KasaMetadataCapability` | `EnergyRealtime`, `EnergyTotal`, `ScheduleRead`, `CountdownRead`, `AwayModeRead`, `LedRead`, `FirmwareInfo`, `SignalInfo`, `Diagnostics` | Describes available read-only metadata independently from whether HVO polls it initially. |
 
 ## Local Configuration
 
-Identity rule: `Devices[].DeviceId` is the primary device identity. IP address/host is only a connection locator and may change. MAC address is a secondary locator/validation hint. The gateway must verify the connected device identity before accepting a poll result or executing any future command.
+Identity rule: `Devices[].DeviceId` is the primary device identity. IP address/host is the current connection locator and may change. MAC address is a secondary locator/validation hint and should be configured when known because it can support ARP-assisted rediscovery after an IP change. The gateway must verify the connected device identity before accepting a poll result or executing any future command.
+
+Configuration starts in app/config files for the prototype, but the record shape should be database-ready. Before outbox propagation of inventory/configuration is enabled, configured devices and observed metadata should move to durable storage so changes can be audited and propagated consistently.
 
 | Setting | Type | Required | Secret | Runtime editable | Default | Notes |
 |---------|------|----------|--------|------------------|---------|-------|
@@ -52,8 +55,8 @@ Identity rule: `Devices[].DeviceId` is the primary device identity. IP address/h
 | `Networks[].DiscoveryEnabled` | bool | No | No | App config | false | Enables read-only discovery scans for the network. |
 | `Devices` | array | Yes | No | App config | empty | Static configured device list for initial implementation. |
 | `Devices[].DeviceId` | string | Yes | No | App config | empty | Primary stable device identity from the device/API. Do not use IP address as identity. |
-| `Devices[].Host` | string | No | No | App config/discovery | empty | Last-known IP or DNS locator used for connection. Must be verified against `DeviceId` after connect. |
-| `Devices[].MacAddress` | string | No | No | App config/discovery | empty | Secondary locator/validation hint. Can support ARP-assisted lookup, but must not replace `DeviceId`. |
+| `Devices[].Host` | string | Yes for configured polling | No | App config/discovery | empty | Current/last-known IP or DNS locator used for connection. Must be verified against `DeviceId` after connect. |
+| `Devices[].MacAddress` | string | Yes when known | No | App config/discovery | empty | Secondary locator/validation hint. Supports ARP-assisted lookup after IP changes, but must not replace `DeviceId`. If omitted, direct-IP polling can still work but offline rediscovery is not guaranteed. |
 | `Devices[].NetworkName` | string | No | No | App config | empty | Associates a device with a configured network label. |
 | `Devices[].SourceId` | string | Yes | No | App config | empty | Stable source ID for outbox/cloud. |
 | `Devices[].ExpectedModel` | string | No | No | App config | empty | Used to detect swapped devices. |
@@ -65,6 +68,7 @@ Identity rule: `Devices[].DeviceId` is the primary device identity. IP address/h
 | `Devices[].ProtocolFamily` | enum/string | No | No | App config | `LegacyKasaTcp9999` initially | Future values may be needed for HomeKit, Matter, Tapo, or newer authenticated Kasa devices. |
 | `Devices[].AlternateEcosystems` | array | No | No | App config/discovery | empty | Metadata such as `HomeKit`, `Matter`, `Alexa`, `GoogleAssistant`, `SmartThings`; do not imply HVO protocol support. |
 | `Devices[].Capabilities` | array | No | No | App config/discovery | observed/configured | Read-only capability flags from profile and discovery. |
+| `Devices[].MetadataCapabilities` | array | No | No | App config/discovery | observed/configured | Read-only metadata categories available on the device, such as schedules, countdown, away mode, LED, firmware, energy totals, or diagnostics. |
 | `Devices[].CommandCapabilities` | array | No | No | App config | empty | Command possibilities only; runtime commands remain disabled unless safety gates are met. |
 | `Devices[].SafetyClass` | enum/string | Yes before commands | No | App config | `TelemetryOnly` | Commands disabled unless explicitly classified later. |
 | `PollIntervalSeconds` | int | Yes | No | App config | TBD | Must avoid flooding devices. |
@@ -73,6 +77,8 @@ Identity rule: `Devices[].DeviceId` is the primary device identity. IP address/h
 | `Outbox` settings | object | If cloud forwarding enabled | API key secret | App config | shared | Use `HVO.Edge.Outbox` conventions. |
 
 Credentials for newer Kasa/Tapo devices are not part of initial scope. If later needed, use secret configuration and never log usernames/passwords/tokens.
+
+Setup/discovery is an app or operator utility function, not normal runtime behavior. The setup utility may accept a known IP, a known MAC address, or an explicit subnet scan request. The gateway should not continuously scan for devices in the background.
 
 ## Local APIs
 
@@ -112,6 +118,7 @@ These are HVO local concepts, not vendor response contracts.
 | `alternateEcosystems` | array? | Confirmed ecosystem metadata such as HomeKit or Matter. |
 | `supportsEnergyMeter` | bool? | Configured/observed capability. |
 | `capabilities` | array? | HVO capability flags for local UI and diagnostics. |
+| `metadataCapabilities` | array? | HVO metadata availability flags for local UI and diagnostics. |
 | `commandCapabilities` | array? | Potential command capabilities; not enabled by default. |
 | `outletCount` | int? | Child outlet count for strips/dual outlets; `1` for top-level plug if normalized that way. |
 | `isOn` | bool? | Current switch/light state for single-state devices only. Multi-outlet devices use `outlets`. |
@@ -135,6 +142,7 @@ These are HVO local concepts, not vendor response contracts.
 | `light` | object? | Bulb status for KL130/LB230-style devices. |
 | `rawSystemInfo` | JsonElement? | Optional local diagnostics; do not forward by default. |
 | `rawRealtimeEnergy` | JsonElement? | Optional local diagnostics; do not forward by default. |
+| `metadata` | object? | Optional schedule/countdown/away/LED/firmware/diagnostic metadata when supported and validated. |
 
 ### `KasaOutletSnapshot`
 
@@ -156,6 +164,19 @@ These are HVO local concepts, not vendor response contracts.
 | `isVariableColorTemperature` | bool? | Parsed from `is_variable_color_temp` when present. |
 | `rawLightState` | JsonElement? | Local diagnostics only; commands deferred. |
 
+### `KasaDeviceMetadata`
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `metadataCapabilities` | array | Metadata categories known to be available or unavailable. |
+| `firmware` | object? | Model/software/hardware/firmware diagnostics after identity validation. |
+| `energy` | object? | Realtime and total-energy availability/values when validated. |
+| `schedule` | object? | Read-only schedule metadata when protocol support and fixtures are validated. |
+| `countdown` | object? | Read-only countdown metadata when protocol support and fixtures are validated. |
+| `awayMode` | object? | Read-only away-mode metadata when protocol support and fixtures are validated. |
+| `led` | object? | Read-only LED/status-light metadata when protocol support and fixtures are validated. |
+| `diagnostics` | object? | Signal, uptime, error, or protocol diagnostics when validated. |
+
 ## Outbox / Cloud Candidate Streams
 
 Use the common gateway outbox standards. Do not add a gateway-local outbox unless shared code is missing a required capability.
@@ -163,6 +184,7 @@ Use the common gateway outbox standards. Do not add a gateway-local outbox unles
 | Stream | Payload type | Cadence | Idempotency key | Cloud treatment | Notes |
 |--------|--------------|---------|-----------------|-----------------|-------|
 | Device inventory | `device.inventory` or future typed name | On startup/change | source/device + content hash | Candidate config snapshot | Model/firmware/MAC/etc. only after field validation. |
+| Device metadata | `device.metadata` or future typed name | On startup/change/poll as needed | source/device + metadata hash | Candidate metadata snapshot | Schedules/countdown/away/LED/diagnostics only after protocol fields are validated. |
 | Device switch state | `device.switch-state` or future typed name | Poll cadence/change | source/device/outlet + recordedAt | Candidate event/status | Only after identity validation succeeds; must include outlet identity for HS300/KP200. |
 | Device light state | `device.light-state` or future typed name | Poll cadence/change | source/device + recordedAt | Candidate status | Bulb support is status-only initially. |
 | Device power telemetry | `power.device-reading` or future typed name | Poll cadence | source/device/outlet-if-known + recordedAt | Candidate telemetry | Only after identity validation succeeds; keep distinct from inverter/site aggregate power. |
