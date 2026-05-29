@@ -175,16 +175,12 @@ public static class KasaCommands
 
     private static bool HasOnlyCachedWifiScanParameters(JsonElement value)
     {
-        if (value.ValueKind == JsonValueKind.Null)
-        {
-            return true;
-        }
-
         if (value.ValueKind != JsonValueKind.Object)
         {
             return false;
         }
 
+        var sawRefresh = false;
         foreach (var property in value.EnumerateObject())
         {
             if (property.Name != "refresh")
@@ -192,6 +188,7 @@ public static class KasaCommands
                 return false;
             }
 
+            sawRefresh = true;
             if (property.Value.ValueKind == JsonValueKind.False)
             {
                 continue;
@@ -203,7 +200,7 @@ public static class KasaCommands
             }
         }
 
-        return true;
+        return sawRefresh;
     }
 
     private static bool TryGetIntProperty(JsonElement value, string propertyName, out int result)

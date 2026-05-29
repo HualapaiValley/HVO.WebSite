@@ -207,20 +207,23 @@ Current prototype test coverage:
 - capability/profile detection for observed model categories.
 - identity validation success, wrong device ID fail-closed, and wrong MAC fail-closed.
 - locator validation for configured host success, wrong-device fail-closed, and MAC-assisted host recovery after a failed configured host.
-- read-only poller success with identity validation and wrong-device-at-IP fail-closed behavior.
+- read-only poller success with identity validation, wrong-device-at-IP fail-closed behavior, system-info failure normalization, and degraded energy-read snapshots.
 - read-only probe metadata support detection through the fake server.
 - sanitized field/type shape summarization for API-guide evidence without raw values.
 - stricter read-only command allowlist rejection for mixed read/write payloads.
-- opt-in cached Wi-Fi scan shape probe rejection for `refresh:1` and acceptance for `refresh:0` only.
+- opt-in cached Wi-Fi scan shape probe rejection for null/empty/missing/extra/refreshing parameter variants and acceptance for explicit `refresh:0` or `refresh:false` only.
+- operator-initiated CIDR scan host/concurrency/configured-network guardrails.
+- default CLI output avoids raw identifiers, locators, and stable unsalted hashes.
+- local gateway inventory/status DTO redaction for raw vendor identifiers, MACs, aliases, hosts, and raw vendor JSON.
 - fake-server coverage for additional read-only icon, download-state, EMeter gain, cloud firmware, bulb, and dimmer probes.
 
 Current prototype command:
 
 ```bash
-dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr 192.168.1.0/24 --summary true
+dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr 192.168.1.0/24 --summary true --max-hosts 256
 ```
 
-Default CLI output redacts device IDs, MAC addresses, and hosts. Explicit `--include-identifiers true` or `--include-locators true` is required to print them locally.
+Default CLI output redacts device IDs, MAC addresses, and hosts and does not emit stable hashes for those fields. Explicit `--include-identifiers true` or `--include-locators true` is required to print them locally.
 
 ## External Simulator Option
 

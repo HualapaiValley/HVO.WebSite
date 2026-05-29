@@ -1,4 +1,5 @@
 using HVO.Gateway.TplinkKasa.Devices;
+using System.ComponentModel.DataAnnotations;
 
 namespace HVO.Gateway.TplinkKasa.Configuration;
 
@@ -8,13 +9,24 @@ public sealed class KasaGatewayOptions
 
     public string GatewayId { get; set; } = "hvo-tplink-kasa";
 
+    public string ApiKey { get; set; } = string.Empty;
+
+    [Range(1, 65535)]
     public int DefaultPort { get; set; } = 9999;
 
+    [Range(1, 60)]
     public int SocketTimeoutSeconds { get; set; } = 3;
 
+    [Range(5, 3600)]
     public int PollIntervalSeconds { get; set; } = 60;
 
     public bool RequireIdentityValidation { get; set; } = true;
+
+    [Range(1, 4096)]
+    public int MaxScanHosts { get; set; } = KasaReadOnlyScanOptions.DefaultMaxHosts;
+
+    [Range(1, 256)]
+    public int MaxScanConcurrency { get; set; } = KasaReadOnlyScanOptions.DefaultMaxConcurrency;
 
     public List<KasaNetworkConfig> Networks { get; set; } = [];
 

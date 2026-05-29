@@ -1,5 +1,7 @@
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Protocol;
+using System.Net.Sockets;
+using System.Text.Json;
 
 namespace HVO.Gateway.TplinkKasa.Devices;
 
@@ -17,9 +19,18 @@ public sealed class KasaDevicePoller(
             return new KasaPollResult(null, "Configured Host is required for direct polling.");
         }
 
-        using var sysinfoResponse = await client.SendReadOnlyAsync(config.Host, config.EffectivePort(defaultPort), KasaCommands.GetSystemInfo, cancellationToken)
-            .ConfigureAwait(false);
-        var sysinfo = systemInfoParser.Parse(sysinfoResponse);
+        KasaSystemInfo sysinfo;
+        try
+        {
+            using var sysinfoResponse = await client.SendReadOnlyAsync(config.Host, config.EffectivePort(defaultPort), KasaCommands.GetSystemInfo, cancellationToken)
+                .ConfigureAwait(false);
+            sysinfo = systemInfoParser.Parse(sysinfoResponse);
+        }
+        catch (Exception ex) when (IsExpectedReadFailure(ex))
+        {
+            return new KasaPollResult(null, $"Failed to read system info: {KasaFailureMessages.DescribeReadFailure(ex)}");
+        }
+
         var validation = identityValidator.Validate(config, sysinfo);
         if (!validation.IsValid)
         {
@@ -29,15 +40,32 @@ public sealed class KasaDevicePoller(
         KasaEnergyReading? energy = null;
         if (config.Capabilities.Contains(KasaCapability.EnergyRealtime))
         {
-            using var energyResponse = await client.SendReadOnlyAsync(config.Host, config.EffectivePort(defaultPort), KasaCommands.GetRealtimeEnergy, cancellationToken)
-                .ConfigureAwait(false);
-            energy = energyParser.Parse(energyResponse);
+            try
+            {
+                using var energyResponse = await client.SendReadOnlyAsync(config.Host, config.EffectivePort(defaultPort), KasaCommands.GetRealtimeEnergy, cancellationToken)
+                    .ConfigureAwait(false);
+                energy = energyParser.Parse(energyResponse);
+            }
+            catch (Exception ex) when (IsExpectedReadFailure(ex))
+            {
+                var degradedProfile = capabilityDetector.Detect(sysinfo, config, null);
+                var degradedSnapshot = BuildSnapshot(config, sysinfo, degradedProfile, null);
+                return new KasaPollResult(degradedSnapshot, null, $"Failed to read realtime energy: {KasaFailureMessages.DescribeReadFailure(ex)}");
+            }
         }
 
         var profile = capabilityDetector.Detect(sysinfo, config, energy);
         var snapshot = BuildSnapshot(config, sysinfo, profile, energy);
         return new KasaPollResult(snapshot, null);
     }
+
+    private static bool IsExpectedReadFailure(Exception ex) =>
+        ex is IOException
+            or TimeoutException
+            or OperationCanceledException
+            or InvalidDataException
+            or JsonException
+            or SocketException;
 
     private static KasaDeviceSnapshot BuildSnapshot(
         KasaDeviceConfig config,

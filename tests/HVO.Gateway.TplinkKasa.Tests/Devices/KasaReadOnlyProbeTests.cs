@@ -91,4 +91,95 @@ public sealed class KasaReadOnlyProbeTests
         result.Metadata["wifiScan"].Shape.Should().Contain(new KasaJsonFieldShape("netif.get_scaninfo.ap_list[].ssid", "string"));
         result.Profile!.MetadataCapabilities.Should().Contain(KasaMetadataCapability.WifiScanRead);
     }
+
+    [TestMethod]
+    public async Task ProbeAsync_UnsupportedMetadataDoesNotAddCapability()
+    {
+        await using var server = new FakeKasaLegacyServer();
+        server.RespondTo("system", "get_sysinfo", FixtureLoader.Read("ep25-sysinfo.json"));
+        server.RespondTo("smartlife.iot.dimmer", "get_default_behavior", "{\"smartlife.iot.dimmer\":{\"get_default_behavior\":{\"err_code\":-1}}}");
+        server.RespondTo("smartlife.iot.dimmer", "get_dimmer_parameters", "{\"smartlife.iot.dimmer\":{\"get_dimmer_parameters\":{\"err_code\":-1}}}");
+        var probe = CreateProbe(TimeSpan.FromSeconds(2));
+
+        var result = await probe.ProbeAsync("127.0.0.1", server.Port, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Metadata["dimmerDefaultBehavior"].IsSupported.Should().BeFalse();
+        result.Metadata["dimmerParameters"].IsSupported.Should().BeFalse();
+        result.Profile!.MetadataCapabilities.Should().NotContain(KasaMetadataCapability.DimmerRead);
+        result.Profile.Capabilities.Should().NotContain(KasaCapability.Dimming);
+    }
+
+    [TestMethod]
+    public async Task ScanCidrAsync_RejectsCidrWithTooManyHosts()
+    {
+        var probe = CreateProbe(TimeSpan.FromMilliseconds(10));
+        var options = new KasaReadOnlyScanOptions
+        {
+            MaxHosts = 10,
+            MaxConcurrency = 16,
+            RequireConfiguredNetwork = false
+        };
+
+        var act = async () => await probe.ScanCidrAsync(
+            "192.168.1.0/24",
+            9999,
+            4,
+            options,
+            includePrivacySensitive: false,
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
+    [TestMethod]
+    public async Task ScanCidrAsync_RejectsConcurrencyAboveConfiguredLimit()
+    {
+        var probe = CreateProbe(TimeSpan.FromMilliseconds(10));
+        var options = new KasaReadOnlyScanOptions
+        {
+            MaxHosts = 256,
+            MaxConcurrency = 2,
+            RequireConfiguredNetwork = false
+        };
+
+        var act = async () => await probe.ScanCidrAsync(
+            "192.168.1.0/30",
+            9999,
+            3,
+            options,
+            includePrivacySensitive: false,
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
+    [TestMethod]
+    public async Task ScanCidrAsync_RequiresConfiguredNetworkByDefault()
+    {
+        var probe = CreateProbe(TimeSpan.FromMilliseconds(10));
+        var options = new KasaReadOnlyScanOptions
+        {
+            MaxHosts = 256,
+            MaxConcurrency = 16,
+            RequireConfiguredNetwork = true,
+            AllowedCidrs = ["192.168.2.0/24"]
+        };
+
+        var act = async () => await probe.ScanCidrAsync(
+            "192.168.1.0/30",
+            9999,
+            2,
+            options,
+            includePrivacySensitive: false,
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    private static KasaReadOnlyProbe CreateProbe(TimeSpan timeout) => new(
+        new KasaLegacyClient(timeout),
+        new KasaSystemInfoParser(),
+        new KasaEnergyParser(),
+        new KasaCapabilityDetector());
 }

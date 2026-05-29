@@ -90,7 +90,9 @@ public sealed record KasaLightSnapshot(
     string? Mode,
     JsonElement RawLightState);
 
-public sealed record KasaPollResult(KasaDeviceSnapshot? Snapshot, string? FailureReason)
+public sealed record KasaPollResult(KasaDeviceSnapshot? Snapshot, string? FailureReason, string? DegradedReason = null)
 {
     public bool IsSuccess => Snapshot is not null && FailureReason is null;
+
+    public bool IsDegraded => IsSuccess && DegradedReason is not null;
 }

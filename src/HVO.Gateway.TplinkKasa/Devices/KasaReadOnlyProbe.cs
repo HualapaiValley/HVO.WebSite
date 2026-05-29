@@ -63,7 +63,7 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
             }
             catch (Exception ex) when (ex is IOException or TimeoutException or OperationCanceledException or InvalidDataException or JsonException or System.Net.Sockets.SocketException)
             {
-                metadata["emeter"] = KasaReadOnlyModuleResult.Failed("emeter", ex.Message);
+                metadata["emeter"] = KasaReadOnlyModuleResult.Failed("emeter", KasaFailureMessages.DescribeReadFailure(ex));
             }
 
             foreach (var (name, command, capability) in MetadataCommands.Concat(includePrivacySensitive ? PrivacySensitiveCommands : []))
@@ -75,7 +75,7 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
                 }
                 catch (Exception ex) when (ex is IOException or TimeoutException or OperationCanceledException or InvalidDataException or JsonException or System.Net.Sockets.SocketException)
                 {
-                    metadata[name] = KasaReadOnlyModuleResult.Failed(name, ex.Message);
+                    metadata[name] = KasaReadOnlyModuleResult.Failed(name, KasaFailureMessages.DescribeReadFailure(ex));
                 }
 
                 if (metadata[name].IsSupported)
@@ -116,7 +116,7 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
         }
         catch (Exception ex) when (ex is IOException or TimeoutException or OperationCanceledException or InvalidDataException or JsonException or System.Net.Sockets.SocketException)
         {
-            return KasaProbeResult.Failed(host, port, ex.Message);
+            return KasaProbeResult.Failed(host, port, KasaFailureMessages.DescribeReadFailure(ex));
         }
     }
 
@@ -125,9 +125,22 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
 
     public async Task<IReadOnlyList<KasaProbeResult>> ScanCidrAsync(string cidr, int port, int maxConcurrency, bool includePrivacySensitive, CancellationToken cancellationToken)
     {
+        var scanOptions = new KasaReadOnlyScanOptions();
+        return await ScanCidrAsync(cidr, port, maxConcurrency, scanOptions, includePrivacySensitive, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<KasaProbeResult>> ScanCidrAsync(
+        string cidr,
+        int port,
+        int maxConcurrency,
+        KasaReadOnlyScanOptions scanOptions,
+        bool includePrivacySensitive,
+        CancellationToken cancellationToken)
+    {
+        ValidateScanRequest(cidr, maxConcurrency, scanOptions);
         var hosts = EnumerateIpv4Hosts(cidr).ToArray();
         var results = new List<KasaProbeResult>();
-        using var throttler = new SemaphoreSlim(Math.Max(1, maxConcurrency));
+        using var throttler = new SemaphoreSlim(maxConcurrency);
 
         var tasks = hosts.Select(async host =>
         {
@@ -153,27 +166,61 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
         return results.OrderBy(r => IPAddress.Parse(r.Host).GetAddressBytes(), ByteArrayComparer.Instance).ToArray();
     }
 
+    private static void ValidateScanRequest(string cidr, int maxConcurrency, KasaReadOnlyScanOptions scanOptions)
+    {
+        if (scanOptions.MaxHosts < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scanOptions), "Scan host limit must be at least 1.");
+        }
+
+        if (scanOptions.MaxConcurrency < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scanOptions), "Scan concurrency limit must be at least 1.");
+        }
+
+        if (maxConcurrency is < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxConcurrency), "Scan concurrency must be at least 1.");
+        }
+
+        if (maxConcurrency > scanOptions.MaxConcurrency)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxConcurrency), $"Scan concurrency must not exceed {scanOptions.MaxConcurrency}.");
+        }
+
+        var requested = Ipv4CidrRange.Parse(cidr);
+        if (requested.HostCount > (ulong)scanOptions.MaxHosts)
+        {
+            throw new ArgumentOutOfRangeException(nameof(cidr), $"Scan CIDR contains {requested.HostCount} usable hosts; maximum allowed is {scanOptions.MaxHosts}.");
+        }
+
+        if (!scanOptions.RequireConfiguredNetwork)
+        {
+            return;
+        }
+
+        if (scanOptions.AllowedCidrs.Count == 0)
+        {
+            throw new InvalidOperationException("At least one configured network CIDR is required before scanning.");
+        }
+
+        foreach (var allowedCidr in scanOptions.AllowedCidrs)
+        {
+            var allowed = Ipv4CidrRange.Parse(allowedCidr);
+            if (allowed.Contains(requested))
+            {
+                return;
+            }
+        }
+
+        throw new InvalidOperationException("Scan CIDR must be contained within a configured network CIDR.");
+    }
+
     private static IEnumerable<string> EnumerateIpv4Hosts(string cidr)
     {
-        var parts = cidr.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length != 2 || !IPAddress.TryParse(parts[0], out var networkAddress) || !int.TryParse(parts[1], out var prefix) || prefix is < 0 or > 32)
-        {
-            throw new ArgumentException($"Invalid IPv4 CIDR: {cidr}.", nameof(cidr));
-        }
-
-        var bytes = networkAddress.GetAddressBytes();
-        if (bytes.Length != 4)
-        {
-            throw new ArgumentException($"Only IPv4 CIDR ranges are supported: {cidr}.", nameof(cidr));
-        }
-
-        var network = ((uint)bytes[0] << 24) | ((uint)bytes[1] << 16) | ((uint)bytes[2] << 8) | bytes[3];
-        var mask = prefix == 0 ? 0u : uint.MaxValue << (32 - prefix);
-        var start = network & mask;
-        var end = start | ~mask;
-
-        var first = prefix >= 31 ? start : start + 1;
-        var last = prefix >= 31 ? end : end - 1;
+        var range = Ipv4CidrRange.Parse(cidr);
+        var first = range.FirstHost;
+        var last = range.LastHost;
 
         for (var value = first; value <= last; value++)
         {
@@ -190,6 +237,38 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
                 break;
             }
         }
+    }
+
+    private readonly record struct Ipv4CidrRange(uint Start, uint End, int Prefix)
+    {
+        public uint FirstHost => Prefix >= 31 ? Start : Start + 1;
+
+        public uint LastHost => Prefix >= 31 ? End : End - 1;
+
+        public ulong HostCount => LastHost < FirstHost ? 0 : (ulong)LastHost - FirstHost + 1;
+
+        public static Ipv4CidrRange Parse(string cidr)
+        {
+            var parts = cidr.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2 || !IPAddress.TryParse(parts[0], out var networkAddress) || !int.TryParse(parts[1], out var prefix) || prefix is < 0 or > 32)
+            {
+                throw new ArgumentException($"Invalid IPv4 CIDR: {cidr}.", nameof(cidr));
+            }
+
+            var bytes = networkAddress.GetAddressBytes();
+            if (bytes.Length != 4)
+            {
+                throw new ArgumentException($"Only IPv4 CIDR ranges are supported: {cidr}.", nameof(cidr));
+            }
+
+            var network = ((uint)bytes[0] << 24) | ((uint)bytes[1] << 16) | ((uint)bytes[2] << 8) | bytes[3];
+            var mask = prefix == 0 ? 0u : uint.MaxValue << (32 - prefix);
+            var start = network & mask;
+            var end = start | ~mask;
+            return new Ipv4CidrRange(start, end, prefix);
+        }
+
+        public bool Contains(Ipv4CidrRange other) => other.Start >= Start && other.End <= End;
     }
 
     private sealed class ByteArrayComparer : IComparer<byte[]>
@@ -211,6 +290,21 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
             return x.Length.CompareTo(y.Length);
         }
     }
+}
+
+public sealed class KasaReadOnlyScanOptions
+{
+    public const int DefaultMaxHosts = 256;
+    public const int DefaultMaxConcurrency = 64;
+
+    public int MaxHosts { get; init; } = DefaultMaxHosts;
+
+    public int MaxConcurrency { get; init; } = DefaultMaxConcurrency;
+
+    public bool RequireConfiguredNetwork { get; init; } = true;
+
+    public IReadOnlyList<string> AllowedCidrs { get; init; } = [];
+
 }
 
 public sealed record KasaProbeResult(

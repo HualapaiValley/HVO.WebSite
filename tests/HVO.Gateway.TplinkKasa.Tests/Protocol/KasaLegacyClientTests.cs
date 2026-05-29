@@ -59,6 +59,31 @@ public sealed class KasaLegacyClientTests
     }
 
     [TestMethod]
+    [DataRow("{\"netif\":{\"get_scaninfo\":null}}")]
+    [DataRow("{\"netif\":{\"get_scaninfo\":{}}}")]
+    [DataRow("{\"netif\":{\"get_scaninfo\":{\"refresh\":0,\"ssid\":\"private\"}}}")]
+    [DataRow("{\"netif\":{\"get_scaninfo\":{\"refresh\":true}}}")]
+    [DataRow("{\"netif\":{\"get_scaninfo\":{\"refresh\":\"1\"}}}")]
+    public async Task SendReadOnlyAsync_RejectsUnsafeWifiScanParameterVariants(string commandJson)
+    {
+        var client = new KasaLegacyClient(TimeSpan.FromSeconds(2));
+
+        var act = async () => await client.SendReadOnlyAsync("127.0.0.1", 9999, commandJson, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [TestMethod]
+    [DataRow("{\"netif\":{\"get_scaninfo\":{\"refresh\":0}}}")]
+    [DataRow("{\"netif\":{\"get_scaninfo\":{\"refresh\":false}}}")]
+    public void IsKnownReadOnly_AllowsExplicitCachedWifiScanOnly(string commandJson)
+    {
+        using var command = System.Text.Json.JsonDocument.Parse(commandJson);
+
+        KasaCommands.IsKnownReadOnly(command).Should().BeTrue();
+    }
+
+    [TestMethod]
     public async Task SendReadOnlyAsync_AllowsCachedWifiScanCommand()
     {
         await using var server = new FakeKasaLegacyServer();

@@ -57,6 +57,71 @@ public sealed class KasaDevicePollerTests
         result.FailureReason.Should().Contain("deviceId");
     }
 
+    [TestMethod]
+    public async Task PollReadOnlyAsync_SystemInfoTimeout_ReturnsFailedResult()
+    {
+        var poller = CreatePoller(TimeSpan.FromMilliseconds(25));
+        var config = new KasaDeviceConfig
+        {
+            DeviceId = "EP25_DEVICE_ID_SANITIZED",
+            Host = "127.0.0.1",
+            Port = 9
+        };
+
+        var result = await poller.PollReadOnlyAsync(config, 9999, CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Snapshot.Should().BeNull();
+        result.FailureReason.Should().Contain("Failed to read system info");
+    }
+
+    [TestMethod]
+    public async Task PollReadOnlyAsync_MalformedSystemInfo_ReturnsFailedResult()
+    {
+        await using var server = new FakeKasaLegacyServer();
+        server.RespondTo("system", "get_sysinfo", "{\"system\":{\"get_sysinfo\":[]}}");
+        var poller = CreatePoller(TimeSpan.FromSeconds(2));
+        var config = new KasaDeviceConfig
+        {
+            DeviceId = "EP25_DEVICE_ID_SANITIZED",
+            Host = "127.0.0.1",
+            Port = server.Port
+        };
+
+        var result = await poller.PollReadOnlyAsync(config, 9999, CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Snapshot.Should().BeNull();
+        result.FailureReason.Should().Contain("Failed to read system info");
+    }
+
+    [TestMethod]
+    public async Task PollReadOnlyAsync_EnergyReadFailure_ReturnsDegradedSnapshot()
+    {
+        await using var server = new FakeKasaLegacyServer();
+        server.RespondTo("system", "get_sysinfo", FixtureLoader.Read("ep25-sysinfo.json"));
+        server.RespondTo("emeter", "get_realtime", "{not-json");
+        var poller = CreatePoller(TimeSpan.FromSeconds(2));
+        var config = new KasaDeviceConfig
+        {
+            DeviceId = "EP25_DEVICE_ID_SANITIZED",
+            Host = "127.0.0.1",
+            Port = server.Port,
+            MacAddress = "AA:BB:CC:DD:EE:01",
+            ExpectedModel = "EP25(US)",
+            Capabilities = [KasaCapability.EnergyRealtime]
+        };
+
+        var result = await poller.PollReadOnlyAsync(config, 9999, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.IsDegraded.Should().BeTrue();
+        result.DegradedReason.Should().Contain("Failed to read realtime energy");
+        result.DegradedReason.Should().Contain("Invalid JSON response");
+        result.Snapshot.Should().NotBeNull();
+        result.Snapshot!.Energy.Should().BeNull();
+    }
+
     private static KasaDevicePoller CreatePoller(TimeSpan timeout) =>
         new(
             new KasaLegacyClient(timeout),

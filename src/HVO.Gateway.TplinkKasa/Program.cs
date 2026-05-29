@@ -1,69 +1,161 @@
 using HVO.Gateway.TplinkKasa.Devices;
+using HVO.Gateway.TplinkKasa.Configuration;
+using HVO.Gateway.TplinkKasa.Hosting;
 using HVO.Gateway.TplinkKasa.Protocol;
-using System.Text.Json;
+using Microsoft.Extensions.Options;
 
 var command = args.FirstOrDefault()?.ToLowerInvariant();
-if (command is not "probe" and not "scan")
+if (command is "probe" or "scan")
+{
+    return await RunCliAsync(command, args.Skip(1).ToArray()).ConfigureAwait(false);
+}
+
+if (command is not null && !command.StartsWith("--", StringComparison.Ordinal))
 {
     PrintUsage();
-    return command is null ? 0 : 2;
-}
-
-var options = ParseOptions(args.Skip(1).ToArray());
-var port = GetIntOption(options, "port", 9999);
-var timeoutSeconds = GetIntOption(options, "timeout", 3);
-var includeIdentifiers = GetBoolOption(options, "include-identifiers", false);
-var includeLocators = GetBoolOption(options, "include-locators", false);
-var includePrivacySensitive = GetBoolOption(options, "include-privacy-sensitive", false);
-var summary = GetBoolOption(options, "summary", false);
-var shapes = GetBoolOption(options, "shapes", false);
-var client = new KasaLegacyClient(TimeSpan.FromSeconds(timeoutSeconds));
-var probe = new KasaReadOnlyProbe(client, new KasaSystemInfoParser(), new KasaEnergyParser(), new KasaCapabilityDetector());
-
-using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(GetIntOption(options, "overall-timeout", command == "scan" ? 60 : 15)));
-
-if (command == "probe")
-{
-    if (!options.TryGetValue("host", out var host) || string.IsNullOrWhiteSpace(host))
-    {
-        Console.Error.WriteLine("--host is required for probe.");
-        return 2;
-    }
-
-    var result = await probe.ProbeAsync(host, port, includePrivacySensitive, cts.Token);
-    WriteProbeResult(result, includeIdentifiers, includeLocators, shapes);
-    return result.IsSuccess ? 0 : 1;
-}
-
-if (!options.TryGetValue("cidr", out var cidr) || string.IsNullOrWhiteSpace(cidr))
-{
-    Console.Error.WriteLine("--cidr is required for scan.");
     return 2;
 }
 
-var results = await probe.ScanCidrAsync(cidr, port, GetIntOption(options, "concurrency", 32), includePrivacySensitive, cts.Token);
-if (summary)
+await RunGatewayAsync(args).ConfigureAwait(false);
+return 0;
+
+static async Task<int> RunCliAsync(string command, string[] args)
 {
-    WriteScanSummary(results, shapes);
+    var options = ParseOptions(args);
+    var port = GetIntOption(options, "port", 9999);
+    var timeoutSeconds = GetIntOption(options, "timeout", 3);
+    var includeIdentifiers = GetBoolOption(options, "include-identifiers", false);
+    var includeLocators = GetBoolOption(options, "include-locators", false);
+    var includePrivacySensitive = GetBoolOption(options, "include-privacy-sensitive", false);
+    var summary = GetBoolOption(options, "summary", false);
+    var shapes = GetBoolOption(options, "shapes", false);
+    var client = new KasaLegacyClient(TimeSpan.FromSeconds(timeoutSeconds));
+    var probe = new KasaReadOnlyProbe(client, new KasaSystemInfoParser(), new KasaEnergyParser(), new KasaCapabilityDetector());
+
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(GetIntOption(options, "overall-timeout", command == "scan" ? 60 : 15)));
+
+    if (command == "probe")
+    {
+        if (!options.TryGetValue("host", out var host) || string.IsNullOrWhiteSpace(host))
+        {
+            Console.Error.WriteLine("--host is required for probe.");
+            return 2;
+        }
+
+        var result = await probe.ProbeAsync(host, port, includePrivacySensitive, cts.Token).ConfigureAwait(false);
+        Console.WriteLine(KasaCliOutputFormatter.FormatProbeResult(result, includeIdentifiers, includeLocators, shapes));
+        return result.IsSuccess ? 0 : 1;
+    }
+
+    if (!options.TryGetValue("cidr", out var cidr) || string.IsNullOrWhiteSpace(cidr))
+    {
+        Console.Error.WriteLine("--cidr is required for scan.");
+        return 2;
+    }
+
+    var scanOptions = new KasaReadOnlyScanOptions
+    {
+        MaxHosts = GetIntOption(options, "max-hosts", KasaReadOnlyScanOptions.DefaultMaxHosts),
+        MaxConcurrency = GetIntOption(options, "max-concurrency", KasaReadOnlyScanOptions.DefaultMaxConcurrency),
+        RequireConfiguredNetwork = false,
+        AllowedCidrs = []
+    };
+    var results = await probe.ScanCidrAsync(cidr, port, GetIntOption(options, "concurrency", 32), scanOptions, includePrivacySensitive, cts.Token)
+        .ConfigureAwait(false);
+    if (summary)
+    {
+        Console.WriteLine(KasaCliOutputFormatter.FormatScanSummary(results, shapes));
+        return results.Count > 0 ? 0 : 1;
+    }
+
+    foreach (var result in results)
+    {
+        Console.WriteLine(KasaCliOutputFormatter.FormatProbeResult(result, includeIdentifiers, includeLocators, shapes));
+    }
+
     return results.Count > 0 ? 0 : 1;
 }
 
-foreach (var result in results)
+static async Task RunGatewayAsync(string[] args)
 {
-    WriteProbeResult(result, includeIdentifiers, includeLocators, shapes);
-}
+    if (args.FirstOrDefault()?.Equals("--help", StringComparison.OrdinalIgnoreCase) == true)
+    {
+        PrintUsage();
+        return;
+    }
 
-return results.Count > 0 ? 0 : 1;
+    var builder = WebApplication.CreateBuilder(args);
+    builder.Services
+        .AddOptions<KasaGatewayOptions>()
+        .BindConfiguration(KasaGatewayOptions.SectionName)
+        .ValidateDataAnnotations()
+        .ValidateOnStart();
+    builder.Services.AddSingleton<IKasaLegacyClient>(sp =>
+    {
+        var gatewayOptions = sp.GetRequiredService<IOptions<KasaGatewayOptions>>().Value;
+        return new KasaLegacyClient(TimeSpan.FromSeconds(gatewayOptions.SocketTimeoutSeconds));
+    });
+    builder.Services.AddSingleton<KasaSystemInfoParser>();
+    builder.Services.AddSingleton<KasaEnergyParser>();
+    builder.Services.AddSingleton<KasaCapabilityDetector>();
+    builder.Services.AddSingleton<KasaIdentityValidator>();
+    builder.Services.AddSingleton<KasaDevicePoller>();
+    builder.Services.AddSingleton<KasaGatewayState>();
+    builder.Services.AddSingleton<KasaGatewayWorker>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<KasaGatewayWorker>());
+    builder.Services.AddHealthChecks().AddCheck<KasaGatewayHealthCheck>("tplink-kasa-gateway");
+
+    var app = builder.Build();
+
+    app.MapHealthChecks("/health");
+
+    app.MapGet("/gateway-health", (KasaGatewayState state) => Results.Ok(state.GetHealth()));
+    app.MapGet("/status", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
+    {
+        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(state.GetStatus());
+    });
+    app.MapGet("/inventory", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
+    {
+        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(state.GetInventory());
+    });
+
+    await app.RunAsync().ConfigureAwait(false);
+}
 
 static void PrintUsage()
 {
     Console.WriteLine("TP-Link/Kasa read-only prototype utility");
     Console.WriteLine();
     Console.WriteLine("Usage:");
+    Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa");
     Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- probe --host <ip-or-host> [--port 9999]");
-    Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr <x.x.x.x/nn> [--port 9999] [--concurrency 32] [--summary true] [--shapes true] [--include-privacy-sensitive true]");
+    Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr <x.x.x.x/nn> [--port 9999] [--concurrency 32] [--max-hosts 256] [--summary true] [--shapes true] [--include-privacy-sensitive true]");
     Console.WriteLine();
     Console.WriteLine("Only allowlisted read-only Kasa commands are sent. Wi-Fi scan shapes require --include-privacy-sensitive true and never print raw values unless future code explicitly adds them.");
+}
+
+static bool HasMatchingApiKey(HttpContext httpContext, string configuredApiKey)
+{
+    if (string.IsNullOrWhiteSpace(configuredApiKey) ||
+        string.Equals(configuredApiKey, "REPLACE_ME", StringComparison.OrdinalIgnoreCase) ||
+        configuredApiKey.Contains("__SET_", StringComparison.Ordinal))
+    {
+        return false;
+    }
+
+    return httpContext.Request.Headers.TryGetValue("X-Api-Key", out var providedApiKey)
+        && providedApiKey.Count > 0
+        && string.Equals(providedApiKey[0], configuredApiKey, StringComparison.Ordinal);
 }
 
 static Dictionary<string, string> ParseOptions(string[] values)
@@ -96,148 +188,3 @@ static int GetIntOption(Dictionary<string, string> options, string name, int def
 
 static bool GetBoolOption(Dictionary<string, string> options, string name, bool defaultValue) =>
     options.TryGetValue(name, out var text) && bool.TryParse(text, out var value) ? value : defaultValue;
-
-static void WriteProbeResult(KasaProbeResult result, bool includeIdentifiers, bool includeLocators, bool includeShapes)
-{
-    var deviceId = result.SystemInfo?.DeviceId;
-    var macAddress = KasaJson.NormalizeMacAddress(result.SystemInfo?.MacAddress);
-    var output = new
-    {
-        result.IsSuccess,
-        Host = includeLocators ? result.Host : null,
-        HostPresent = !string.IsNullOrWhiteSpace(result.Host),
-        HostHash = includeLocators ? null : ShortHash(result.Host),
-        result.Port,
-        result.FailureReason,
-        DeviceId = includeIdentifiers ? deviceId : null,
-        DeviceIdPresent = !string.IsNullOrWhiteSpace(deviceId),
-        DeviceIdHash = includeIdentifiers ? null : ShortHash(deviceId),
-        MacAddress = includeIdentifiers ? macAddress : null,
-        MacAddressPresent = !string.IsNullOrWhiteSpace(macAddress),
-        MacAddressHash = includeIdentifiers ? null : ShortHash(macAddress),
-        result.SystemInfo?.Model,
-        result.SystemInfo?.HardwareVersion,
-        result.SystemInfo?.SoftwareVersion,
-        Kind = result.Profile?.DeviceKind.ToString(),
-        Capabilities = result.Profile?.Capabilities.Select(x => x.ToString()).Order().ToArray(),
-        MetadataCapabilities = result.Profile?.MetadataCapabilities.Select(x => x.ToString()).Order().ToArray(),
-        SystemInfoShape = includeShapes ? result.SystemInfoShape : null,
-        Energy = result.Energy is null ? null : new
-        {
-            result.Energy.PowerW,
-            result.Energy.VoltageV,
-            result.Energy.CurrentA,
-            result.Energy.EnergyKWh
-        },
-        Metadata = result.Metadata.ToDictionary(
-            x => x.Key,
-            x => new
-            {
-                x.Value.IsSupported,
-                x.Value.ErrorCode,
-                x.Value.ErrorMessage,
-                Capability = x.Value.Capability?.ToString(),
-                Shape = includeShapes ? x.Value.Shape : null
-            })
-    };
-
-    Console.WriteLine(JsonSerializer.Serialize(output, new JsonSerializerOptions { WriteIndented = true }));
-}
-
-static void WriteScanSummary(IReadOnlyList<KasaProbeResult> results, bool includeShapes)
-{
-    static string CapabilityName(KasaCapability capability) => capability.ToString();
-    static string MetadataName(KasaMetadataCapability capability) => capability.ToString();
-
-    var successful = results.Where(x => x.IsSuccess).ToArray();
-    var output = new
-    {
-        TotalResponders = successful.Length,
-        DeviceIdPresent = successful.Count(x => !string.IsNullOrWhiteSpace(x.SystemInfo?.DeviceId)),
-        MacAddressPresent = successful.Count(x => !string.IsNullOrWhiteSpace(x.SystemInfo?.MacAddress)),
-        EnergySupported = successful.Count(x => x.Energy is not null),
-        Models = successful
-            .GroupBy(x => x.SystemInfo?.Model ?? "Unknown")
-            .OrderBy(x => x.Key)
-            .ToDictionary(x => x.Key, x => x.Count()),
-        Kinds = successful
-            .GroupBy(x => x.Profile?.DeviceKind.ToString() ?? "Unknown")
-            .OrderBy(x => x.Key)
-            .ToDictionary(x => x.Key, x => x.Count()),
-        Capabilities = successful
-            .SelectMany(x => x.Profile?.Capabilities.Select(CapabilityName) ?? [])
-            .GroupBy(x => x)
-            .OrderBy(x => x.Key)
-            .ToDictionary(x => x.Key, x => x.Count()),
-        MetadataCapabilities = successful
-            .SelectMany(x => x.Profile?.MetadataCapabilities.Select(MetadataName) ?? [])
-            .GroupBy(x => x)
-            .OrderBy(x => x.Key)
-            .ToDictionary(x => x.Key, x => x.Count()),
-        MetadataModules = successful
-            .SelectMany(x => x.Metadata.Select(module => new { module.Key, module.Value.IsSupported }))
-            .Where(x => x.IsSupported)
-            .GroupBy(x => x.Key)
-            .OrderBy(x => x.Key)
-            .ToDictionary(x => x.Key, x => x.Count()),
-        Shapes = includeShapes ? BuildShapeSummary(successful) : null
-    };
-
-    Console.WriteLine(JsonSerializer.Serialize(output, new JsonSerializerOptions { WriteIndented = true }));
-}
-
-static object BuildShapeSummary(IReadOnlyList<KasaProbeResult> results)
-{
-    return results
-        .GroupBy(result => new
-        {
-            Model = result.SystemInfo?.Model ?? "Unknown",
-            Hardware = result.SystemInfo?.HardwareVersion ?? "Unknown",
-            Software = result.SystemInfo?.SoftwareVersion ?? "Unknown"
-        })
-        .OrderBy(group => group.Key.Model)
-        .ThenBy(group => group.Key.Hardware)
-        .ThenBy(group => group.Key.Software)
-        .Select(group => new
-        {
-            group.Key.Model,
-            group.Key.Hardware,
-            group.Key.Software,
-            Count = group.Count(),
-            SystemInfoFields = MergeShapes(group.SelectMany(result => result.SystemInfoShape)),
-            Modules = group
-                .SelectMany(result => result.Metadata.Values)
-                .GroupBy(module => module.Name, StringComparer.OrdinalIgnoreCase)
-                .OrderBy(moduleGroup => moduleGroup.Key)
-                .Select(moduleGroup => new
-                {
-                    Name = moduleGroup.Key,
-                    Supported = moduleGroup.Count(module => module.IsSupported),
-                    Unsupported = moduleGroup.Count(module => !module.IsSupported),
-                    ErrorCodes = moduleGroup.Select(module => module.ErrorCode).Where(errorCode => errorCode is not null).Distinct().Order().ToArray(),
-                    Fields = MergeShapes(moduleGroup.SelectMany(module => module.Shape))
-                })
-                .ToArray()
-        })
-        .ToArray();
-}
-
-static IReadOnlyList<KasaJsonFieldShape> MergeShapes(IEnumerable<KasaJsonFieldShape> shapes) =>
-    shapes
-        .GroupBy(shape => shape.Path, StringComparer.Ordinal)
-        .Select(group => new KasaJsonFieldShape(
-            group.Key,
-            string.Join("|", group.Select(shape => shape.Kind).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))))
-        .OrderBy(shape => shape.Path, StringComparer.Ordinal)
-        .ToArray();
-
-static string? ShortHash(string? value)
-{
-    if (string.IsNullOrWhiteSpace(value))
-    {
-        return null;
-    }
-
-    var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value));
-    return Convert.ToHexString(hash.AsSpan(0, 6)).ToLowerInvariant();
-}
