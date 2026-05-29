@@ -2,7 +2,7 @@
 
 ## Design Summary
 
-No HVO TP-Link/Kasa gateway exists yet. The recommended first implementation is a device control/configuration library plus a read-only legacy Kasa LAN gateway targeting confirmed port `9999` devices. Sanitized live discovery found only legacy TCP `9999` responders for the initial observed device set, but the home `192.168.2.0/24` network is likely undercounted until Wi-Fi recovery/rescan is complete.
+No HVO TP-Link/Kasa gateway exists yet. The recommended first implementation is a device control/configuration library plus a read-only legacy Kasa LAN gateway targeting confirmed port `9999` devices. Sanitized live discovery found only legacy TCP `9999` responders for the initial observed device set, but the home `192.168.2.0/24` and `192.168.9.0/24` networks are likely undercounted until Wi-Fi recovery/rescan and hvo.lan/Tailscale subnet routing are complete.
 
 The gateway should use the common gateway standards from [../common-gateway-standards.md](../common-gateway-standards.md): shared identity, shared outbox lifecycle, shared health/status concepts, and common telemetry naming where possible.
 
@@ -166,6 +166,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 |--------|--------|-----------|
 | Connected loads and production subset unknown | Cannot safely expose commands or decide final cloud payload scope. | Operator inventory and safety classification. |
 | Home network likely undercounted | Some `192.168.2.0/24` devices may need Wi-Fi reset/rejoin after network changes. | Rescan after Wi-Fi recovery and update configuration. |
+| New home switch network not routed | `192.168.9.0/24` returned no legacy responders and needs hvo.lan router plus Tailscale subnet routing before discovery is authoritative. | Add `192.168.9.0/24` to hvo.lan routing/Tailscale path, then rerun read-only discovery. |
 | Community protocol references, not official docs | Vendor could change protocol/behavior. | Capture live fixtures and cite library/source behavior. |
 | Shared outbox lacks failure kind today | New gateway would either extend shared outbox or temporarily duplicate behavior. | Update `HVO.Edge.Outbox` before or during implementation. |
 | Central ingest contract for outlet/power-device telemetry not finalized | Outbox payload may need new contract. | Design after confirmed device capabilities. |
@@ -177,7 +178,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 | Documentation | Baseline in progress | Medium | Keep PR updated with discovery/config decisions. |
 | Legacy XOR protocol | Research complete enough for prototype | Medium-high | Implement cipher/framing tests. |
 | Device library/configuration | Not implemented | High priority | Implement registry/options and read-only discovery before outbox. |
-| Device model/firmware | Sanitized live scan captured initial legacy models | Medium for full estate, medium-high for observed legacy scope | Rescan home network after Wi-Fi recovery; confirm production subset and connected loads. |
+| Device model/firmware | Sanitized live scan captured initial legacy models | Medium for full estate, medium-high for observed legacy scope | Configure `192.168.9.0/24` routing, rescan home networks, then confirm production subset and connected loads. |
 | Simulator/mock | External simulator exists; in-process fake planned | High | Implement fake TCP server with fixture responses. |
 | Outbox/cloud | Common standard exists; code needs extension | Medium | Add shared failure kind/requeue support before production. |
 | Commands | Deferred | Low | Require safety design. |

@@ -13,7 +13,7 @@
 
 ## Read-Only Live Discovery Notes
 
-Scan scope: `192.168.1.0/24` and `192.168.2.0/24`.
+Scan scope: `192.168.1.0/24`, `192.168.2.0/24`, and `192.168.9.0/24`.
 
 Subnet-level result:
 
@@ -21,8 +21,11 @@ Subnet-level result:
 |---------|------:|-----------------|----------------|
 | `192.168.1.0/24` | 14 | EP25, HS105, HS300, KP200, KL130 | Likely mostly observatory devices. |
 | `192.168.2.0/24` | 8 | EP25, HS300 | Likely undercounted; about 14 home light switches are expected but did not answer the legacy TCP `9999` read-only scan. |
+| `192.168.9.0/24` | 0 | none | Expected home switch network. Route lookup exists from the workspace, but no legacy TCP `9999` responders answered. Needs hvo.lan router and Tailscale subnet routing before results are authoritative. |
 
 Follow-up read-only rescan of `192.168.2.0/24` still found only 8 legacy TCP `9999` responders: 7 EP25 devices and 1 HS300 device. No light switch, 3-way switch, or dimmer models answered that scan.
+
+Read-only scan of `192.168.9.0/24` found 0 legacy TCP `9999` responders. Local route lookup returned a route via `192.168.1.254`, but this does not prove the hvo.lan/Tailscale path is configured to reach Kasa devices on that network.
 
 Commands sent:
 
@@ -70,6 +73,7 @@ Privacy/safety handling:
 Known likely gaps:
 
 - About 14 home Kasa light switches are expected on `192.168.2.0/24`, but were not observed by the legacy TCP `9999` scan.
+- New home light switches may be on `192.168.9.0/24`; discovery depends on hvo.lan router and Tailscale subnet routing being configured.
 - 3-way light switches were not observed.
 - Dimmer switches were not observed.
 - Additional home devices on `192.168.2.0/24` may be offline or not rejoined after Wi-Fi changes.
@@ -148,6 +152,7 @@ Command live tests are deferred. If ever added, they must:
 | Does the target device respond on port `9999`? | Confirms legacy scope. | Confirmed for 22 observed responders in scanned subnets. |
 | Does the device require authentication? | Changes protocol implementation. | `python-kasa discover` or HVO discovery. |
 | Which devices exist on `192.168.2.0/24` after Wi-Fi recovery? | Current scan likely undercounts home devices. | Reset/rejoin affected home devices, then rerun read-only discovery. |
+| Which devices exist on `192.168.9.0/24` after routing is configured? | Current route/device reachability is not authoritative. | Add `192.168.9.0/24` to hvo.lan routing and Tailscale subnet path, then rerun read-only discovery. |
 | Which 3-way and dimmer switch models are installed? | Switch/dimmer state and command shapes may differ from plugs/strips/bulbs. | Device labels, native app, and read-only discovery after Wi-Fi recovery. |
 | Are HomeKit/Tapo/Matter-capable devices present? | They may use non-legacy protocols and auth. | Model inventory and separate non-write discovery. |
 | What are exact `system.get_sysinfo` response fields? | Needed for DTO mapping. | Sanitized field names captured; implementation needs committed fake fixtures. |
@@ -160,6 +165,7 @@ Command live tests are deferred. If ever added, they must:
 - Production device subset and connected loads are not confirmed.
 - No executable TP-Link/Kasa fixture/test data is captured in repo yet.
 - Home `192.168.2.0/24` inventory is likely incomplete until Wi-Fi recovery/rescan.
+- Home `192.168.9.0/24` inventory is blocked until hvo.lan/Tailscale subnet routing is configured and validated.
 - Central per-device outlet/power payload contract is not locked.
 - Shared `HVO.Edge.Outbox` still needs failure-kind standardization before new gateways should rely on it for production dead-letter classification.
 - Command safety classification is not complete.

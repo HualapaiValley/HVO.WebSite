@@ -62,7 +62,7 @@ This table is HVO documentation metadata unless a row explicitly says it comes f
 
 ## Sanitized Live Discovery Summary
 
-Read-only discovery on 2026-05-29 scanned `192.168.1.0/24` and `192.168.2.0/24` for legacy Kasa TCP `9999` responders. The scan sent only `system.get_sysinfo` and `emeter.get_realtime`; it did not send on/off/toggle, schedule, reset, reboot, or configuration commands.
+Read-only discovery on 2026-05-29 scanned `192.168.1.0/24`, `192.168.2.0/24`, and later `192.168.9.0/24` for legacy Kasa TCP `9999` responders. The scan sent only `system.get_sysinfo` and `emeter.get_realtime`; it did not send on/off/toggle, schedule, reset, reboot, or configuration commands.
 
 The latest whole-estate sanitized scan observed 22 legacy responders. One earlier shorter-timeout scan observed 21 responders, so implementation should tolerate intermittent/offline devices. Most observed responders were on `192.168.1.0/24`; `192.168.2.0/24` returned fewer devices than expected and may need Wi-Fi recovery/rescan after recent network changes. A follow-up `192.168.2.0/24`-only read-only rescan still found only 8 legacy TCP `9999` responders despite an expected home inventory of about 14 connected Kasa light switches.
 
@@ -72,6 +72,7 @@ Subnet-level result:
 |---------|------:|-----------------|-------|
 | `192.168.1.0/24` | 14 | EP25, HS105, HS300, KP200, KL130 | Likely observatory devices based on network location. |
 | `192.168.2.0/24` | 8 | EP25, HS300 | Likely undercounted; about 14 home light switches are expected but did not answer the legacy TCP `9999` read-only scan. |
+| `192.168.9.0/24` | 0 | none | Expected home light switch network. Needs hvo.lan router and Tailscale subnet routing before HVO can validate device reachability. |
 
 | Model | Count | Hardware version | Software version | Device family | Children/outlets observed | Energy fields observed | Notes |
 |-------|------:|------------------|------------------|---------------|---------------------------|------------------------|-------|
@@ -85,6 +86,7 @@ Subnet-level result:
 Known likely gaps from operator inventory:
 
 - About 14 home Kasa light switches are expected on `192.168.2.0/24`, but none were observed by the legacy TCP `9999` scan.
+- Newer home light switches may be on `192.168.9.0/24`; that network must be routed through the hvo.lan router and advertised/reachable through the Tailscale network path before HVO discovery can be trusted.
 - 3-way light switches were not observed in this scan.
 - Dimmer switches were not observed in this scan.
 - HomeKit-compatible Kasa devices were not specifically identified; they may still expose legacy Kasa, newer authenticated Kasa, HomeKit, Matter, or a combination depending on model/firmware.
