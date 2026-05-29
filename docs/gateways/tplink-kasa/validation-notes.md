@@ -133,7 +133,8 @@ Design outputs needed before implementation is considered complete:
 6. Add identity tests for configured device ID match, device ID mismatch at reused IP, MAC mismatch, expected model mismatch, and missing identity fields.
 7. Add configuration/registry tests for configured devices, discovery-only devices, expected child count mismatch, ARP/MAC locator hints, and per-network responder counts.
 8. Worker tests should verify one failing or mismatched device does not block other devices.
-9. Outbox tests should wait until local device configuration, identity validation, and status semantics are stable.
+9. Command tests should verify dry-run behavior, explicit approval gating, same-session identity validation, and readback handling without live commands in CI.
+10. Outbox tests should wait until local device configuration, identity validation, and status semantics are stable.
 
 ## External Simulator Option
 
@@ -158,6 +159,7 @@ Suggested environment variables:
 | `KASA_LIVE_NETWORK` | Optional network label such as `observatory` or `home` for discovery reports. |
 | `KASA_LIVE_EXPECTED_MODEL` | Optional expected model guard. |
 | `KASA_LIVE_ALLOW_COMMANDS` | Must be `true` before any on/off command tests run. Default false. |
+| `KASA_LIVE_APPROVED_DEVICE_ID` | Required before any live command test can target a device. |
 
 Read-only live tests:
 
@@ -174,6 +176,7 @@ Read-only live tests:
 Command live tests are deferred. If ever added, they must:
 
 - require `KASA_LIVE_ALLOW_COMMANDS=true`.
+- require the operator to approve the exact device and command.
 - require device safety classification.
 - require successful same-session identity validation immediately before command execution.
 - read current state before command.

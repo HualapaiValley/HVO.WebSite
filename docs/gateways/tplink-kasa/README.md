@@ -88,6 +88,14 @@ Subnet-level result:
 | `192.168.2.0/24` | 8 | EP25, HS300 | Likely undercounted; about 14 home light switches are expected but did not answer the legacy TCP `9999` read-only scan. |
 | `192.168.9.0/24` | 20 | HS105, HS200, HS210, HS220, KL130, LB230 | Home light switch/bulb network reachable after hvo.lan/Tailscale route update. |
 
+Network labels are topology hints, not a device admission policy. Current HVO labels are:
+
+- `192.168.1.0/24`: observatory.
+- `192.168.2.0/24`: home.
+- `192.168.9.0/24`: home guest/IoT.
+
+Configured devices may have any reachable address, including addresses outside those ranges. The gateway must use configured device identity and validated reachability, not subnet assumptions, to decide what a device is.
+
 | Model | Count | Hardware version | Software version | Device family | Children/outlets observed | Energy fields observed | Notes |
 |-------|------:|------------------|------------------|---------------|---------------------------|------------------------|-------|
 | EP25(US) | 8 | `1.0` | `1.0.14 Build 240424 Rel.094105` | `IOT.SMARTPLUGSWITCH` | none | `current_ma`, `power_mw`, `total_wh`, `voltage_mv` | Single-outlet plug with top-level `relay_state`. |
@@ -148,9 +156,9 @@ Start with a device control/configuration library before outbox work. The first 
 
 Initial candidate capabilities:
 
-- static host polling for configured devices.
+- static host polling for configured devices after identity validation.
 - configuration model for known devices, discovered devices, stable device ID, last-known host, optional MAC, expected model/hardware/software, network/subnet, capability flags, and safety classification.
-- optional UDP discovery for legacy port `9999` devices.
+- operator-initiated discovery/add-device workflow for legacy port `9999` devices; no continuous scanning for new devices.
 - read-only `system.get_sysinfo`.
 - read-only `emeter.get_realtime` when supported.
 - read-only outlet state from top-level `relay_state`, child `children[].state`, and bulb `light_state.on_off` only after parser tests cover the observed shapes.
@@ -160,7 +168,7 @@ Initial candidate capabilities:
 
 Explicitly deferred:
 
-- on/off/toggle commands.
+- live on/off/toggle/dimmer commands until an operator explicitly approves a specific test device and command.
 - schedule/countdown/away-mode changes.
 - factory reset, reboot, firmware, cloud bind/unbind, Wi-Fi provisioning.
 - Tapo/new Kasa authenticated `SMART`/KLAP/AES implementation.

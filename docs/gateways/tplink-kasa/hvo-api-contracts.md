@@ -85,7 +85,9 @@ Proposed local endpoints:
 | `/api/gateway/status` | GET | local API key TBD | Gateway health, sample age, outbox state. | Common gateway health/status object. |
 | `/health` | GET | none/internal | Container health check. | ASP.NET health status. |
 
-No command endpoints are planned for initial implementation.
+Local API auth should follow the same API-key style as the Davis gateway.
+
+Command endpoints can be designed, but live execution must require same-session identity validation and explicit operator approval before sending a command.
 
 ## Candidate Local DTOs
 

@@ -15,14 +15,16 @@ Initial implementation target:
 - `src/HVO.Gateway.TplinkKasa`
 - `tests/HVO.Gateway.TplinkKasa.Tests`
 - device control/configuration library first, before outbox integration.
+- implement reusable library-style classes inside the gateway namespace initially; keep boundaries clean so protocol/config/capability code can move to a hardware/library project later.
+- a simple CLI/console tool is acceptable as an early host for discovery, identity validation, and command dry-run workflows before the full gateway UI is built.
 - static configured device list keyed by stable device ID, with host/IP only as a last-known connection locator.
 - network/subnet, optional friendly name, expected model, expected hardware/software, expected child count, capability flags, MAC validation hints, and safety classification.
-- optional legacy UDP discovery and/or read-only subnet scan after TCP polling is stable.
+- operator-initiated legacy UDP discovery and/or read-only subnet scan for add-device/configuration workflows; no background scanning for new devices.
 - read-only polling through legacy TCP `9999` Smart Home/XOR protocol for initial devices.
 - support the observed status shapes: top-level `relay_state`, multi-outlet `children[]`, bulb `light_state`, energy-meter responses, and unsupported-module error responses.
 - explicit capability model for switch, dimmer, bulb, energy meter, multi-outlet, child outlet, schedule metadata, and diagnostics.
-- no command endpoints for switching power.
-- local dashboard/status only at first.
+- implement command modes in the library/gateway surface where protocol support is understood, but require explicit operator approval before sending any live command.
+- local dashboard/status only at first: basic inventory and current status.
 - shared edge outbox only after local device inventory/configuration and status polling are stable.
 
 ## Implemented Capabilities
@@ -45,6 +47,7 @@ Initial implementation target:
 | `src/HVO.Gateway.TplinkKasa/Protocol/KasaXorCipher.cs` | Legacy XOR autokey encode/decode. |
 | `src/HVO.Gateway.TplinkKasa/Protocol/KasaLegacyClient.cs` | TCP client for legacy port `9999` JSON commands. |
 | `src/HVO.Gateway.TplinkKasa/Protocol/KasaCommands.cs` | Minimal read-only command builders. |
+| `src/HVO.Gateway.TplinkKasa/Commands/` | Command mode planning and guarded command executors; live execution requires explicit operator approval. |
 | `src/HVO.Gateway.TplinkKasa/Configuration/KasaGatewayOptions.cs` | Gateway, network, discovery, and device configuration. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaDeviceRegistry.cs` | Merge configured devices and discovered read-only inventory. |
 | `src/HVO.Gateway.TplinkKasa/Devices/KasaIdentityValidator.cs` | Verify connected device ID/model/MAC before accepting data or commands. |
@@ -63,6 +66,7 @@ Initial implementation target:
 | `KasaXorCipher` | Encode/decode legacy Smart Home TCP frames. | Client and fake server tests. |
 | `IKasaLegacyClient` | Abstraction for read-only device commands. | Poller and tests. |
 | `KasaLegacyClient` | Sends JSON commands over TCP `9999` with timeout/retry. | Poller. |
+| `KasaCommandService` | Builds and validates supported commands, performs identity validation, and requires explicit approval before live sends. | CLI/UI and tests. |
 | `KasaDeviceRegistry` | Tracks configured device IDs, discovered responders, current locator, network location, expected shape, and capability flags. | Worker and local UI. |
 | `KasaIdentityValidator` | Confirms sysinfo identity matches the configured device before data/commands are trusted. | Poller, command service, tests. |
 | `KasaCapabilitySet` | Describes model/instance capabilities without inheritance-heavy device subclasses. | Registry, poller, UI, outbox mapping. |
@@ -126,20 +130,36 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 
 1. Load gateway and device configuration.
 2. Validate network/device configuration and mark missing/placeholder settings as misconfigured.
-3. Optionally perform read-only discovery by configured network and record responder counts per subnet.
-4. Merge discovered devices with the static configured registry by stable device ID, not by IP address.
-5. Use ARP/MAC or discovery results as locator hints only; update the last-known host for a known device after identity validation.
-6. Poll each configured legacy device on its interval using its current locator.
-7. Read `system.get_sysinfo` first.
-8. Validate the connected device ID and any configured guard fields before accepting the poll result.
-9. Parse status based on observed shape:
+3. For normal gateway operation, do not scan for new devices.
+4. For operator-initiated add-device workflows, perform read-only discovery by requested network/target and record responder counts per scan.
+5. Merge discovered devices with the static configured registry by stable device ID, not by IP address.
+6. Use ARP/MAC or discovery results as locator hints only; update the last-known host for a known device after identity validation.
+7. Poll each configured legacy device on its interval using its current locator.
+8. Read `system.get_sysinfo` first.
+9. Validate the connected device ID and any configured guard fields before accepting the poll result.
+10. Parse status based on observed shape:
    - top-level `relay_state` for EP25/HS105 plugs and HS200/HS210/HS220 switches.
    - `children[].state` for HS300/KP200-style multi-outlet devices.
    - `light_state.on_off` for KL130/LB230-style bulbs.
-10. If configured/observed as energy-capable, read `emeter.get_realtime` only after identity validation succeeds.
-11. Convert observed energy milli-units to normalized display units only after preserving raw values.
-12. Update current local snapshots and health state.
-13. Defer outbox enqueue/forwarding until local discovery, configuration, identity validation, and status semantics are stable.
+11. If configured/observed as energy-capable, read `emeter.get_realtime` only after identity validation succeeds.
+12. Convert observed energy milli-units to normalized display units only after preserving raw values.
+13. Update current local snapshots and health state.
+14. Defer outbox enqueue/forwarding until local discovery, configuration, identity validation, and status semantics are stable.
+
+## Command Flow
+
+Commands are part of the eventual gateway/library surface, but live command execution is gated.
+
+1. Operator selects a configured device by device ID, not IP address.
+2. Gateway resolves the current locator from configuration/discovery/ARP hints.
+3. Gateway connects and reads `system.get_sysinfo`.
+4. Gateway validates device ID and configured guard fields.
+5. Gateway validates command capability and safety class.
+6. Gateway displays the intended command, current state, target identity, and connected-load metadata when available.
+7. Operator explicitly approves the specific live command.
+8. Gateway sends the command, reads back state, records audit/status, and marks failures clearly.
+
+No live command may be sent from automated tests, background polling, or cloud paths by default.
 
 ## Error Handling And Retries
 
@@ -158,7 +178,7 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 
 | Decision | Reason | Notes |
 |----------|--------|-------|
-| No power-switching commands initially | Unknown connected loads and weak/no auth on legacy LAN protocol. | Commands require explicit safety design. |
+| Commands require explicit live approval | Avoid accidental control of critical loads. | Ask every time before sending a live command until a later safety policy changes this. |
 | No arbitrary JSON command endpoint | Would bypass command allowlist and safety checks. | Debug-only tooling can be separate if ever needed. |
 | Native app remains primary | Pairing, firmware, account/cloud, schedules, and complex device management are vendor-owned. | HVO local UI focuses on status/diagnostics. |
 | Tapo/new Kasa auth deferred | Observed devices fit legacy TCP `9999`; newer authenticated protocols add credential and transport complexity. | Revisit only if future hardware requires it. |
@@ -169,6 +189,9 @@ var energy = await client.TryGetRealtimeEnergyAsync(host, ct);
 |----------|--------|-----------|--------------------------|
 | Start with legacy Kasa LAN read-only | Proposed | Matches observed installed responders and has the best simulator coverage. | Confirm production subset before deploy. |
 | Build device library/configuration before outbox | Proposed | Inventory and control semantics must be stable before cloud payloads are useful. | Outbox work follows local registry, polling, and status UI. |
+| Discovery is operator initiated | Proposed | Avoid constant network scanning and accidental broad probes. | Discovery belongs in an add-device/configuration workflow. |
+| Same API-key auth pattern as Davis | Proposed | Keeps gateway local API auth consistent. | Apply to local status/config APIs before deployment. |
+| Start with basic inventory/status UI | Proposed | Prioritize library correctness and identity safety. | Expand UI after protocol/capability model stabilizes. |
 | Use device ID as primary identity | Proposed | IP addresses can change and may be reassigned by DHCP. | All polling/commands must validate identity after connect. |
 | Treat MAC/IP as locator hints | Proposed | MAC can support ARP-assisted lookup, but it is still secondary to device ID. | Discovery may update host locators only after identity validation. |
 | Treat installed legacy devices as a heterogeneous capability set | Proposed | Live scan observed plugs, power strips, dual outlets, light switches, 3-way switches, dimmers, and multiple bulb models with different capability shapes. | Parser tests need fixtures for all observed shapes. |
