@@ -38,7 +38,7 @@ Small or placeholder systems can start as one file, but should split before APIs
 | SolarAssistant | [solarassistant.md](solarassistant.md) | Seeded from live discovery docs and gateway code; needs official docs cross-check. |
 | Victron SmartShunt | [victron-smartshunt.md](victron-smartshunt.md) | Seeded from current plan/code; write paths intentionally unvalidated. |
 | Govee | [govee.md](govee.md) | Placeholder; exact hardware and protocol research needed. |
-| TP-Link/Kasa | [tplink-kasa.md](tplink-kasa.md) | Placeholder; exact devices and LAN protocol research needed. |
+| TP-Link/Kasa | [tplink-kasa/](tplink-kasa/) | Split docs baseline plus sanitized live read-only discovery; initial recommendation is legacy Kasa LAN read-only. |
 | Digital Loggers | [digital-loggers.md](digital-loggers.md) | Placeholder; exact model/API docs needed. |
 | Blue Iris | [blueiris.md](blueiris.md) | Placeholder; treat native UI as primary, HVO as event/proxy integration. |
 | AllSky Camera | [allsky-camera.md](allsky-camera.md) | Placeholder; standalone system and possible weather consumer/image provider. |
