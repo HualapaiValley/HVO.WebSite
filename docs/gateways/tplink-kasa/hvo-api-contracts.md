@@ -91,12 +91,15 @@ Current Phase 1 local endpoints:
 | `/gateway-health` | GET | none | Local gateway summary for configured, online, and degraded counts. | `KasaGatewayHealthResponse`. |
 | `/status-review` | GET | none | Redacted review status with model/capability/support booleans only. Does not expose source IDs, hosts, MACs, aliases, raw JSON, on/off state, or energy readings. | `KasaGatewayReviewStatusResponse`. |
 | `/status-review/current` | GET | none, temporary review endpoint | Redacted current runtime status/settings for operator review. Includes state, light, energy, and typed metadata values, but still excludes source IDs, hosts, MACs, aliases, child IDs, and raw vendor JSON. | `KasaGatewayReviewCurrentStatusResponse`. |
+| `/devices` | GET | `X-Api-Key` | Authenticated full current device list. Includes source IDs and normalized current status but still excludes raw vendor IDs, hosts, MACs, aliases, child IDs, and raw vendor JSON. | `KasaDeviceListResponse`. |
+| `/devices/{sourceId}` | GET | `X-Api-Key` | Authenticated current status lookup by configured source ID. Returns `404` if no current configured device matches. | `KasaDeviceStatus`. |
+| `/devices/search` | GET | `X-Api-Key` | Authenticated current status search/filter endpoint. Query parameters: `q`, `model`, `kind`, `capability`, `metadataCapability`, `online`, `degraded`. | `KasaDeviceSearchResponse`. |
 | `/inventory` | GET | `X-Api-Key` | Enabled configured device inventory without raw IDs, hosts, MACs, aliases, or raw vendor JSON. | `KasaGatewayInventoryResponse`. |
 | `/status` | GET | `X-Api-Key` | Current configured-device status including normalized switch/light/energy values and safe typed read metadata. | `KasaGatewayStatusResponse`. |
 
-Local API auth follows the same API-key style as the Davis gateway for `/inventory` and `/status`. The unauthenticated `/status-review` and temporary `/status-review/current` endpoints are intentionally redacted for operator/reviewer validation without sharing the local API key.
+Local API auth follows the same API-key style as the Davis gateway for `/inventory`, `/status`, and `/devices*`. The unauthenticated `/status-review` and temporary `/status-review/current` endpoints are intentionally redacted for operator/reviewer validation without sharing the local API key.
 
-Future authenticated API shape should include a full list endpoint and targeted lookup/search endpoints, such as a list by source ID or model plus a by-ID route. Those should remain authenticated because stable IDs and detailed state/settings are operational data.
+Permanent device APIs use source ID for lookup, not raw vendor `deviceId`, because vendor IDs are treated as private identity material. The current search endpoint is intentionally simple and filters only current in-memory configured-device status; durable inventory and historical search belong in a later database-backed API.
 
 Command endpoints can be designed, but live execution must require same-session identity validation and explicit operator approval before sending a command.
 
