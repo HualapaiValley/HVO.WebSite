@@ -10,6 +10,7 @@
   <ItemGroup>
   <PackageReference Include="Microsoft.EntityFrameworkCore" />
   <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+  <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
   <PackageReference Include="System.Security.Cryptography.Xml" />
   <PackageReference Include="Microsoft.EntityFrameworkCore.Tools">
       <PrivateAssets>all</PrivateAssets>
