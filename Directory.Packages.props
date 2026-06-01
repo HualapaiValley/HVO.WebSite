@@ -51,7 +51,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.7" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.7" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.8" />
 
     <!-- Microsoft.Extensions -->
     <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="10.0.7" />

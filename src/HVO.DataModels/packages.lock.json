@@ -49,9 +49,9 @@
       },
       "Microsoft.EntityFrameworkCore.Tools": {
         "type": "Direct",
-        "requested": "[10.0.7, )",
-        "resolved": "10.0.7",
-        "contentHash": "Ui7+Y+E2KwwQvRlbOclMP8HAGXrQFQcOu3NLpKlYdmd5pbhlueyLhnW3SBv1WuXALKESGHR3lMqeANNnl/02Bw==",
+        "requested": "[10.0.8, )",
+        "resolved": "10.0.8",
+        "contentHash": "bKtoSviiOUX75jM5bzSnBGPUjb2CfbBHdUDsjYv2X3/G3ZMMG18VpJMMAcP0tD8Xepu+wLl2soNJiWH6XxXWdQ==",
         "dependencies": {
           "Microsoft.EntityFrameworkCore.Design": "8.0.0"
         }
