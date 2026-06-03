@@ -5,6 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- NU1903: GHSA-xrw6-gwf8-vvr9 — transitive from Linux.Bluetooth; see HVO.Hardware.VictronSmartShunt.csproj -->
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

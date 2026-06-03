@@ -6,6 +6,8 @@
     <RootNamespace>HVO.Hardware.VictronSmartShunt</RootNamespace>
     <AssemblyName>HVO.Hardware.VictronSmartShunt</AssemblyName>
     <UserSecretsId>hvo-hardware-victron-smartshunt</UserSecretsId>
+    <!-- NU1903: GHSA-xrw6-gwf8-vvr9 — transitive from Linux.Bluetooth; accepted localhost-only D-Bus risk until upstream updates Tmds.DBus. -->
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
