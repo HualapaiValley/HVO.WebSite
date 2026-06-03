@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace HVO.WebSite.UnitTests;
 
 [TestClass]
-public sealed class PowerStatusCardTests : Bunit.TestContext
+public sealed class PowerStatusCardTests : BunitContext
 {
     [TestMethod]
     public void PowerStatusCard_RendersSnapshotValues()
@@ -113,7 +113,7 @@ public sealed class PowerStatusCardTests : Bunit.TestContext
             })
             .Build());
 
-        var component = RenderComponent<PowerStatusCard>();
+        var component = Render<PowerStatusCard>();
 
         component.Markup.Should().Contain("Live Power Snapshot");
         component.Markup.Should().Contain("3098 W");
