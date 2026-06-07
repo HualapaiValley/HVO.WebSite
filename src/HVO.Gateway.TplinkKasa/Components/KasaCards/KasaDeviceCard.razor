@@ -48,21 +48,21 @@
         </div>
     }
 
-    @switch (Device.DeviceKind)
+    @if (Device.DeviceKind == KasaDeviceKind.Bulb)
     {
-        case KasaDeviceKind.Bulb:
-            <KasaLightDeviceCard Device="Device" OnChanged="OnChanged" />
-            break;
-        case KasaDeviceKind.Dimmer:
-            <KasaDimmerDeviceCard Device="Device" OnChanged="OnChanged" />
-            break;
-        case KasaDeviceKind.PowerStrip:
-        case KasaDeviceKind.DualOutlet:
-            <KasaOutletDeviceCard Device="Device" OnChanged="OnChanged" />
-            break;
-        default:
-            <KasaSwitchDeviceCard Device="Device" OnChanged="OnChanged" />
-            break;
+        <KasaLightDeviceCard Device="Device" OnChanged="OnChanged" />
+    }
+    else if (Device.DeviceKind == KasaDeviceKind.Dimmer)
+    {
+        <KasaDimmerDeviceCard Device="Device" OnChanged="OnChanged" />
+    }
+    else if (Device.DeviceKind is KasaDeviceKind.PowerStrip or KasaDeviceKind.DualOutlet)
+    {
+        <KasaOutletDeviceCard Device="Device" OnChanged="OnChanged" />
+    }
+    else
+    {
+        <KasaSwitchDeviceCard Device="Device" OnChanged="OnChanged" />
     }
 
     <MudText Typo="Typo.caption" Class="kasa-muted">Last observed @FormatObserved(Device)</MudText>
