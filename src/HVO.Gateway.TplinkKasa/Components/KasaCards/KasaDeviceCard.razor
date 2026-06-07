@@ -48,22 +48,7 @@
         </div>
     }
 
-    @if (Device.DeviceKind == KasaDeviceKind.Bulb)
-    {
-        <KasaLightDeviceCard Device="Device" OnChanged="OnChanged" />
-    }
-    else if (Device.DeviceKind == KasaDeviceKind.Dimmer)
-    {
-        <KasaDimmerDeviceCard Device="Device" OnChanged="OnChanged" />
-    }
-    else if (Device.DeviceKind is KasaDeviceKind.PowerStrip or KasaDeviceKind.DualOutlet)
-    {
-        <KasaOutletDeviceCard Device="Device" OnChanged="OnChanged" />
-    }
-    else
-    {
-        <KasaSwitchDeviceCard Device="Device" OnChanged="OnChanged" />
-    }
+    <DynamicComponent Type="@CardComponentType" Parameters="@CardComponentParameters" />
 
     <MudText Typo="Typo.caption" Class="kasa-muted">Last observed @FormatObserved(Device)</MudText>
 </MudPaper>
@@ -90,6 +75,20 @@
     private bool HasEnergyReading => Device.Energy?.EnergyKWh is not null;
 
     private bool ShowAggregateEnergy => Device.DeviceKind == KasaDeviceKind.PowerStrip || Device.Outlets.Count > 1;
+
+    private Type CardComponentType => Device.DeviceKind switch
+    {
+        KasaDeviceKind.Bulb => typeof(KasaLightDeviceCard),
+        KasaDeviceKind.Dimmer => typeof(KasaDimmerDeviceCard),
+        KasaDeviceKind.PowerStrip or KasaDeviceKind.DualOutlet => typeof(KasaOutletDeviceCard),
+        _ => typeof(KasaSwitchDeviceCard)
+    };
+
+    private IDictionary<string, object?> CardComponentParameters => new Dictionary<string, object?>
+    {
+        [nameof(KasaLightDeviceCard.Device)] = Device,
+        [nameof(KasaLightDeviceCard.OnChanged)] = OnChanged
+    };
 
     protected override void OnParametersSet()
     {
