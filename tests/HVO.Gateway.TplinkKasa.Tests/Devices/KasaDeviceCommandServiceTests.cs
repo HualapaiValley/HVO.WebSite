@@ -56,6 +56,21 @@ public sealed class KasaDeviceCommandServiceTests
     }
 
     [TestMethod]
+    public async Task SetAliasAsync_CommandError_ReturnsFailedResult()
+    {
+        await using var server = new FakeKasaLegacyServer();
+        server.RespondTo("system", "get_sysinfo", Hs105SystemInfo);
+        server.RespondTo("system", "set_dev_alias", "{\"system\":{\"set_dev_alias\":{\"err_code\":-1}}}");
+        var service = CreateService(server.Port);
+
+        var result = await service.SetAliasAsync("tplink-kasa:test", "Desk Lamp", CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Device command failed");
+        server.RequestKeys.Should().Contain("system.set_dev_alias");
+    }
+
+    [TestMethod]
     public async Task SetDimmerBrightnessAsync_InvalidRange_DoesNotSendCommand()
     {
         await using var server = new FakeKasaLegacyServer();

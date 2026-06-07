@@ -3,6 +3,7 @@
 @using System.Globalization
 @inject KasaDeviceCommandService CommandService
 @inject KasaDeviceInteractionState InteractionState
+@inject KasaDisplayTimeZoneResolver DisplayTimeZoneResolver
 
 <MudPaper Class="kasa-device-card" Elevation="0">
     <div class="kasa-device-card-head">
@@ -163,8 +164,10 @@
     private static string GetStatusText(KasaDeviceStatus device) =>
         device.IsOnline ? device.IsDegraded ? "Degraded" : "Online" : "Offline";
 
-    private static string FormatObserved(KasaDeviceStatus device) =>
-        device.ObservedAtUtc is null ? "never" : $"{device.ObservedAtUtc.Value.ToLocalTime():g}";
+    private string FormatObserved(KasaDeviceStatus device) =>
+        device.ObservedAtUtc is null
+            ? "never"
+            : DisplayTimeZoneResolver.ConvertFromUtc(device.ObservedAtUtc.Value, device.DisplayTimeZoneId).ToString("g", CultureInfo.InvariantCulture);
 
     public void Dispose() => EndInteraction();
 }

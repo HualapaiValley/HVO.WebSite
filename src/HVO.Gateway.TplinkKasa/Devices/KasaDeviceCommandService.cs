@@ -28,9 +28,14 @@ public sealed class KasaDeviceCommandService(
             return device.Result!;
         }
 
-        await SendAsync(device.Config!, BuildAliasCommand(alias.Trim()), cancellationToken).ConfigureAwait(false);
-    StartReadback(sourceId);
-    return KasaAdminOperationResult.Succeeded("Alias updated.", null);
+        var sendFailure = await TrySendAsync(sourceId, device.Config!, BuildAliasCommand(alias.Trim()), cancellationToken).ConfigureAwait(false);
+        if (sendFailure is not null)
+        {
+            return sendFailure;
+        }
+
+        StartReadback(sourceId);
+        return KasaAdminOperationResult.Succeeded("Alias updated.", null);
     }
 
     public async Task<KasaAdminOperationResult> SetPowerAsync(string sourceId, bool isOn, int? outletIndex, CancellationToken cancellationToken)
@@ -44,7 +49,12 @@ public sealed class KasaDeviceCommandService(
         var command = BuildPowerCommand(isOn);
         if (outletIndex is null)
         {
-            await SendAsync(device.Config!, command, cancellationToken).ConfigureAwait(false);
+            var sendFailure = await TrySendAsync(sourceId, device.Config!, command, cancellationToken).ConfigureAwait(false);
+            if (sendFailure is not null)
+            {
+                return sendFailure;
+            }
+
             StartReadback(sourceId);
             return KasaAdminOperationResult.Succeeded("Power updated.", null);
         }
@@ -55,9 +65,14 @@ public sealed class KasaDeviceCommandService(
             return KasaAdminOperationResult.Failed("The requested outlet was not present in the latest system information.");
         }
 
-        await SendAsync(device.Config!, KasaCommands.WithChildContext(childId, command), cancellationToken).ConfigureAwait(false);
-    StartReadback(sourceId);
-    return KasaAdminOperationResult.Succeeded($"Outlet {outletIndex.Value.ToString(CultureInfo.InvariantCulture)} power updated.", null);
+        var childSendFailure = await TrySendAsync(sourceId, device.Config!, KasaCommands.WithChildContext(childId, command), cancellationToken).ConfigureAwait(false);
+        if (childSendFailure is not null)
+        {
+            return childSendFailure;
+        }
+
+        StartReadback(sourceId);
+        return KasaAdminOperationResult.Succeeded($"Outlet {outletIndex.Value.ToString(CultureInfo.InvariantCulture)} power updated.", null);
     }
 
     public async Task<KasaAdminOperationResult> SetDimmerBrightnessAsync(string sourceId, int brightness, CancellationToken cancellationToken)
@@ -73,9 +88,14 @@ public sealed class KasaDeviceCommandService(
             return device.Result!;
         }
 
-        await SendAsync(device.Config!, BuildDimmerBrightnessCommand(brightness), cancellationToken).ConfigureAwait(false);
-    StartReadback(sourceId);
-    return KasaAdminOperationResult.Succeeded("Dimmer brightness updated.", null);
+        var sendFailure = await TrySendAsync(sourceId, device.Config!, BuildDimmerBrightnessCommand(brightness), cancellationToken).ConfigureAwait(false);
+        if (sendFailure is not null)
+        {
+            return sendFailure;
+        }
+
+        StartReadback(sourceId);
+        return KasaAdminOperationResult.Succeeded("Dimmer brightness updated.", null);
     }
 
     public async Task<KasaAdminOperationResult> SetLightAsync(string sourceId, KasaLightCommandRequest request, CancellationToken cancellationToken)
@@ -94,9 +114,14 @@ public sealed class KasaDeviceCommandService(
             return device.Result!;
         }
 
-        await SendAsync(device.Config!, BuildLightTransitionCommand(request), cancellationToken).ConfigureAwait(false);
-    StartReadback(sourceId);
-    return KasaAdminOperationResult.Succeeded("Light state updated.", null);
+        var sendFailure = await TrySendAsync(sourceId, device.Config!, BuildLightTransitionCommand(request), cancellationToken).ConfigureAwait(false);
+        if (sendFailure is not null)
+        {
+            return sendFailure;
+        }
+
+        StartReadback(sourceId);
+        return KasaAdminOperationResult.Succeeded("Light state updated.", null);
     }
 
     private async Task<KasaCommandDeviceRead> ReadValidatedDeviceAsync(string sourceId, CancellationToken cancellationToken)
@@ -137,6 +162,20 @@ public sealed class KasaDeviceCommandService(
         if (TryFindErrorCode(response.RootElement, out var errCode) && errCode != 0)
         {
             throw new InvalidOperationException($"Kasa command returned err_code {errCode.ToString(CultureInfo.InvariantCulture)}.");
+        }
+    }
+
+    private async Task<KasaAdminOperationResult?> TrySendAsync(string sourceId, KasaDeviceConfig config, string command, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SendAsync(config, command, cancellationToken).ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or TimeoutException or InvalidDataException or JsonException or OperationCanceledException or System.Net.Sockets.SocketException or InvalidOperationException)
+        {
+            logger.LogWarning(ex, "TP-Link/Kasa command failed for {SourceId}.", sourceId);
+            return KasaAdminOperationResult.Failed($"Device command failed: {KasaFailureMessages.DescribeReadFailure(ex)}");
         }
     }
 

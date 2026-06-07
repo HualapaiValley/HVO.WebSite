@@ -95,6 +95,7 @@
     private bool _showInfoDialog;
     private KasaGatewayStatusResponse? _footerStatus;
     private string _localTimeText = string.Empty;
+    private DateTimeOffset _nextFooterStatusRefreshAtUtc;
 
     private MudTheme ShellTheme { get; } = new()
     {
@@ -151,19 +152,33 @@
     {
         try
         {
-            _footerStatus = await GatewayState.GetStatusAsync().ConfigureAwait(false);
+            var now = DateTimeOffset.UtcNow;
+            _localTimeText = FormatFooterTime(now);
+            await RefreshFooterStatusAsync(now).ConfigureAwait(false);
             await InvokeAsync(StateHasChanged);
 
             while (await _clockTimer.WaitForNextTickAsync(cancellationToken))
             {
-                _localTimeText = FormatFooterTime(DateTimeOffset.UtcNow);
-                _footerStatus = await GatewayState.GetStatusAsync().ConfigureAwait(false);
+                now = DateTimeOffset.UtcNow;
+                _localTimeText = FormatFooterTime(now);
+                if (now >= _nextFooterStatusRefreshAtUtc)
+                {
+                    await RefreshFooterStatusAsync(now).ConfigureAwait(false);
+                }
+
                 await InvokeAsync(StateHasChanged);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
+    }
+
+    private async Task RefreshFooterStatusAsync(DateTimeOffset now)
+    {
+        _footerStatus = await GatewayState.GetStatusAsync().ConfigureAwait(false);
+        var refreshSeconds = Math.Max(1, GatewayOptions.Value.DashboardRefreshSeconds);
+        _nextFooterStatusRefreshAtUtc = now.AddSeconds(refreshSeconds);
     }
 
     private void OnThemeModeChanged(bool useDarkMode)

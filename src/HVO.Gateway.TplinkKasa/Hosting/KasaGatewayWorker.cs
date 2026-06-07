@@ -75,16 +75,31 @@ public sealed class KasaGatewayWorker(
 
         foreach (var device in devices)
         {
-            deviceLoops.GetOrAdd(device.EffectiveSourceId, _ => StartDeviceLoop(device, cancellationToken));
+            var sourceId = device.EffectiveSourceId;
+            var configSignature = CreateDeviceLoopSignature(device);
+            if (deviceLoops.TryGetValue(sourceId, out var existingLoop))
+            {
+                if (string.Equals(existingLoop.ConfigSignature, configSignature, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (deviceLoops.TryRemove(sourceId, out var staleLoop))
+                {
+                    await StopDeviceLoopAsync(sourceId, staleLoop).ConfigureAwait(false);
+                }
+            }
+
+            deviceLoops.TryAdd(sourceId, StartDeviceLoop(device, configSignature, cancellationToken));
         }
     }
 
-    private DevicePollLoop StartDeviceLoop(KasaDeviceConfig device, CancellationToken workerCancellationToken)
+    private DevicePollLoop StartDeviceLoop(KasaDeviceConfig device, string configSignature, CancellationToken workerCancellationToken)
     {
         var loopCts = CancellationTokenSource.CreateLinkedTokenSource(workerCancellationToken);
         var loopTask = RunDeviceLoopAsync(device, loopCts.Token);
         logger.LogInformation("TP-Link/Kasa device poll loop started for {SourceId}.", device.EffectiveSourceId);
-        return new DevicePollLoop(loopCts, loopTask);
+        return new DevicePollLoop(loopCts, loopTask, configSignature);
     }
 
     private async Task RunDeviceLoopAsync(KasaDeviceConfig device, CancellationToken cancellationToken)
@@ -292,6 +307,23 @@ public sealed class KasaGatewayWorker(
         return tags.ToArray();
     }
 
+    private string CreateDeviceLoopSignature(KasaDeviceConfig device) => string.Join('|',
+        device.Host,
+        device.EffectivePort(options.Value.DefaultPort).ToString(System.Globalization.CultureInfo.InvariantCulture),
+        device.PollIntervalSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+        device.DisplayName,
+        device.DisplayTimeZoneId,
+        device.ExpectedModel,
+        device.ExpectedHardwareVersion,
+        device.ExpectedSoftwareVersion,
+        device.ExpectedChildCount?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+        device.ProtocolFamily.ToString(),
+        device.DeviceKind.ToString(),
+        device.SafetyClass.ToString(),
+        string.Join(',', device.Capabilities.OrderBy(capability => capability.ToString())),
+        string.Join(',', device.MetadataCapabilities.OrderBy(capability => capability.ToString())),
+        string.Join(',', device.CommandCapabilities.OrderBy(capability => capability.ToString())));
+
     private async Task StopAllDeviceLoopsAsync()
     {
         foreach (var (sourceId, loop) in deviceLoops.ToArray())
@@ -320,5 +352,5 @@ public sealed class KasaGatewayWorker(
         }
     }
 
-    private sealed record DevicePollLoop(CancellationTokenSource Cancellation, Task Task);
+    private sealed record DevicePollLoop(CancellationTokenSource Cancellation, Task Task, string ConfigSignature);
 }
