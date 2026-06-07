@@ -9,7 +9,7 @@ Run `opencode web` automatically inside the devcontainer, forward the web UI thr
 ## Starting State Observed
 
 - Current `opencode` exists at `/home/vscode/.opencode/bin/opencode`.
-- Current `opencode` version is `1.15.7`.
+- Current `opencode` version is `1.15.10`.
 - The devcontainer already has a `postCreateCommand` and `postAttachCommand`, so the setup should not replace them.
 - OpenCode web defaults to `0.0.0.0` inside the devcontainer so VS Code/devcontainer port forwarding can see the listener.
 - The startup script fully detaches the server with `setsid` and writes an explicit readiness result to `/tmp/opencode-web.log`.
@@ -19,8 +19,8 @@ Run `opencode web` automatically inside the devcontainer, forward the web UI thr
 - Add port `4096` to VS Code `forwardPorts`.
 - Add a `4096` port label: `OpenCode Web`.
 - Add `postStartCommand` that runs `.devcontainer/start-opencode-web.sh`.
-- Add `.devcontainer/start-opencode-web.sh` to start `opencode web --hostname 0.0.0.0 --port 4096` from `/workspaces/HVO.WebSite` when `OPENCODE_SERVER_PASSWORD` is set.
-- Update `.devcontainer/post-create.sh` to install pinned OpenCode CLI `1.15.7` from the GitHub release tarball after verifying the release asset SHA-256 digest.
+- Add `.devcontainer/start-opencode-web.sh` to start `opencode web --hostname 0.0.0.0 --port 4096` from `/workspaces/HVO.WebSite`, log each startup attempt with a timestamp, and retry if the port binds but the HTTP endpoint never becomes healthy.
+- Update `.devcontainer/post-create.sh` to install pinned OpenCode CLI `1.15.10` from the GitHub release tarball after verifying the release asset SHA-256 digest.
 
 ## How To Test After Rebuild
 
@@ -36,6 +36,7 @@ Run `opencode web` automatically inside the devcontainer, forward the web UI thr
 - If port forwarding causes issues, remove `4096` from `forwardPorts` and remove the `4096` entry from `portsAttributes`.
 - If OpenCode is not installed, `.devcontainer/start-opencode-web.sh` logs a skip message and exits without failing container startup.
 - If `OPENCODE_SERVER_PASSWORD` is not set, `.devcontainer/start-opencode-web.sh` logs that the server is starting without authentication.
+- If an existing `opencode web` process is present but does not answer HTTP requests, `.devcontainer/start-opencode-web.sh` logs that state, stops the stale process, and retries startup.
 - If the server starts but the browser cannot connect, inspect `/tmp/opencode-web.log` and try running manually inside the container:
 
 ```bash

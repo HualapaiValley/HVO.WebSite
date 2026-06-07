@@ -1,0 +1,170 @@
+@namespace HVO.Gateway.TplinkKasa.Components
+@implements IDisposable
+@using System.Globalization
+@inject KasaDeviceCommandService CommandService
+@inject KasaDeviceInteractionState InteractionState
+
+<MudPaper Class="kasa-device-card" Elevation="0">
+    <div class="kasa-device-card-head">
+        <div class="kasa-device-title-block">
+            @if (_editingAlias)
+            {
+                <div class="kasa-alias-editor">
+                    <MudTextField T="string" Value="_alias" ValueChanged="value => _alias = value" Variant="Variant.Outlined" Label="Alias" Disabled="@_aliasBusy" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.Check" Size="Size.Small" Color="Color.Success" Disabled="@_aliasBusy" aria-label="Save alias" OnClick="SaveAliasAsync" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.Close" Size="Size.Small" Color="Color.Inherit" Disabled="@_aliasBusy" aria-label="Cancel alias edit" OnClick="CancelAliasEdit" />
+                </div>
+            }
+            else
+            {
+                <div class="kasa-title-row">
+                    <MudText Typo="Typo.h6">@(Device.DisplayName ?? Device.SourceId ?? "Unnamed device")</MudText>
+                    <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" Color="Color.Inherit" Disabled="@AliasUnavailable" aria-label="Edit alias" OnClick="StartAliasEdit" />
+                </div>
+            }
+            <MudText Typo="Typo.caption" Class="kasa-muted">@Device.Host</MudText>
+            @if (!string.IsNullOrWhiteSpace(_aliasMessage))
+            {
+                <MudText Typo="Typo.caption" Class="@AliasMessageClass">@_aliasMessage</MudText>
+            }
+        </div>
+        <div class="kasa-card-actions">
+            <MudIconButton Icon="@Icons.Material.Outlined.HelpOutline" Size="Size.Small" Color="Color.Inherit" aria-label="Open device details" OnClick="OpenDetailsAsync" />
+            <MudChip T="string" Color="@GetStatusColor(Device)" Variant="Variant.Filled" Size="Size.Small">@GetStatusText(Device)</MudChip>
+        </div>
+    </div>
+    @if (ShowAggregateEnergy && (HasPowerReading || HasEnergyReading))
+    {
+        <div class="kasa-card-stats kasa-card-stats-compact">
+            @if (HasPowerReading)
+            {
+                <div><span>Power</span><strong>@KasaCardText.FormatPower(Device)</strong></div>
+            }
+            @if (HasEnergyReading)
+            {
+                <div><span>Energy</span><strong>@KasaCardText.FormatEnergy(Device.Energy)</strong></div>
+            }
+        </div>
+    }
+
+    @switch (Device.DeviceKind)
+    {
+        case KasaDeviceKind.Bulb:
+            <KasaLightDeviceCard Device="Device" OnChanged="OnChanged" />
+            break;
+        case KasaDeviceKind.Dimmer:
+            <KasaDimmerDeviceCard Device="Device" OnChanged="OnChanged" />
+            break;
+        case KasaDeviceKind.PowerStrip:
+        case KasaDeviceKind.DualOutlet:
+            <KasaOutletDeviceCard Device="Device" OnChanged="OnChanged" />
+            break;
+        default:
+            <KasaSwitchDeviceCard Device="Device" OnChanged="OnChanged" />
+            break;
+    }
+
+    <MudText Typo="Typo.caption" Class="kasa-muted">Last observed @FormatObserved(Device)</MudText>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired]
+    public KasaDeviceStatus Device { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<KasaDeviceStatus> OnDetails { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private string? _alias;
+    private bool _editingAlias;
+    private bool _aliasBusy;
+    private string? _aliasMessage;
+    private bool _aliasSuccess;
+    private IDisposable? _interaction;
+
+    private bool HasPowerReading => Device.Energy?.PowerW is not null;
+
+    private bool HasEnergyReading => Device.Energy?.EnergyKWh is not null;
+
+    private bool ShowAggregateEnergy => Device.DeviceKind == KasaDeviceKind.PowerStrip || Device.Outlets.Count > 1;
+
+    protected override void OnParametersSet()
+    {
+        if (!_editingAlias)
+        {
+            _alias = Device.DisplayName;
+        }
+    }
+
+    private bool AliasUnavailable => _aliasBusy || !Device.IsOnline || string.IsNullOrWhiteSpace(Device.SourceId);
+
+    private string AliasMessageClass => _aliasSuccess ? "kasa-muted" : "kasa-error-text";
+
+    private void StartAliasEdit()
+    {
+        BeginInteraction();
+        _alias = Device.DisplayName;
+        _editingAlias = true;
+        _aliasMessage = null;
+    }
+
+    private void CancelAliasEdit()
+    {
+        _editingAlias = false;
+        _alias = Device.DisplayName;
+        EndInteraction();
+    }
+
+    private async Task SaveAliasAsync()
+    {
+        if (AliasUnavailable || Device.SourceId is not { Length: > 0 } sourceId)
+        {
+            return;
+        }
+
+        _aliasBusy = true;
+        _aliasMessage = null;
+        try
+        {
+            var result = await CommandService.SetAliasAsync(sourceId, _alias ?? string.Empty, CancellationToken.None);
+            _aliasSuccess = result.Success;
+            _aliasMessage = result.Success ? null : result.Message;
+            if (result.Success)
+            {
+                _editingAlias = false;
+                EndInteraction();
+                await OnChanged.InvokeAsync();
+            }
+        }
+        finally
+        {
+            _aliasBusy = false;
+        }
+    }
+
+    private void BeginInteraction()
+    {
+        _interaction ??= InteractionState.TryBegin(Device.SourceId);
+    }
+
+    private void EndInteraction()
+    {
+        _interaction?.Dispose();
+        _interaction = null;
+    }
+
+    private Task OpenDetailsAsync() => OnDetails.InvokeAsync(Device);
+
+    private static Color GetStatusColor(KasaDeviceStatus device) =>
+        device.IsOnline ? device.IsDegraded ? Color.Warning : Color.Success : Color.Error;
+
+    private static string GetStatusText(KasaDeviceStatus device) =>
+        device.IsOnline ? device.IsDegraded ? "Degraded" : "Online" : "Offline";
+
+    private static string FormatObserved(KasaDeviceStatus device) =>
+        device.ObservedAtUtc is null ? "never" : $"{device.ObservedAtUtc.Value.ToLocalTime():g}";
+
+    public void Dispose() => EndInteraction();
+}

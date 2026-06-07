@@ -1,11 +1,14 @@
 using HVO.Gateway.TplinkKasa.Devices;
 using HVO.Gateway.TplinkKasa.Configuration;
+using HVO.Gateway.TplinkKasa.Components;
 using HVO.Gateway.TplinkKasa.Hosting;
 using HVO.Gateway.TplinkKasa.Protocol;
+using HVO.Gateway.TplinkKasa.Telemetry;
 using Microsoft.Extensions.Options;
+using MudBlazor.Services;
 
 var command = args.FirstOrDefault()?.ToLowerInvariant();
-if (command is "probe" or "scan")
+if (command is "probe" or "scan" or "plug-lab")
 {
     return await RunCliAsync(command, args.Skip(1).ToArray()).ConfigureAwait(false);
 }
@@ -29,6 +32,11 @@ static async Task<int> RunCliAsync(string command, string[] args)
     var includePrivacySensitive = GetBoolOption(options, "include-privacy-sensitive", false);
     var summary = GetBoolOption(options, "summary", false);
     var shapes = GetBoolOption(options, "shapes", false);
+    if (command == "plug-lab")
+    {
+        return await RunPlugLabCliAsync(options, port, timeoutSeconds).ConfigureAwait(false);
+    }
+
     var client = new KasaLegacyClient(TimeSpan.FromSeconds(timeoutSeconds));
     var probe = new KasaReadOnlyProbe(client, new KasaSystemInfoParser(), new KasaEnergyParser(), new KasaCapabilityDetector());
 
@@ -76,6 +84,115 @@ static async Task<int> RunCliAsync(string command, string[] args)
     return results.Count > 0 ? 0 : 1;
 }
 
+static async Task<int> RunPlugLabCliAsync(Dictionary<string, string> options, int port, int timeoutSeconds)
+{
+    if (!options.TryGetValue("host", out var host) || string.IsNullOrWhiteSpace(host))
+    {
+        Console.Error.WriteLine("--host is required for plug-lab.");
+        return 2;
+    }
+
+    if (!options.TryGetValue("device-id", out var deviceId) || string.IsNullOrWhiteSpace(deviceId))
+    {
+        Console.Error.WriteLine("--device-id is required for plug-lab.");
+        return 2;
+    }
+
+    var target = options.TryGetValue("target", out var targetText) && !string.IsNullOrWhiteSpace(targetText)
+        ? targetText.ToLowerInvariant()
+        : "cycle";
+    var expectedModel = options.TryGetValue("model", out var model) && !string.IsNullOrWhiteSpace(model)
+        ? model
+        : "HS105(US)";
+    var sourceId = options.TryGetValue("source-id", out var sourceIdText) ? sourceIdText : null;
+    var mac = options.TryGetValue("mac", out var macText) ? macText : null;
+    var readbackTimeoutMs = GetIntOption(options, "readback-timeout-ms", 3000);
+    var readbackPollMs = GetIntOption(options, "readback-poll-ms", 150);
+
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(GetIntOption(options, "overall-timeout", 20)));
+    var lab = new KasaPlugControlLab(
+        new KasaLegacyLabClient(TimeSpan.FromSeconds(timeoutSeconds)),
+        new KasaSystemInfoParser(),
+        new KasaIdentityValidator());
+
+    try
+    {
+        if (target is "exercise" or "schedule" or "schedule-pair" or "schedule-roundtrip" or "schedule-clear" or "schedule-one-time" or "schedule-reboot" or "countdown" or "countdown-on" or "countdown-reboot" or "app-countdown-off" or "app-countdown-on" or "app-countdown-on-from-off" or "away" or "diagnostics" or "inspect" or "led" or "brightness" or "watch-on" or "powercycle")
+        {
+            var labOptions = new KasaPlugLabOptions(
+                host,
+                port,
+                deviceId,
+                sourceId,
+                mac,
+                expectedModel,
+                target,
+                TimeSpan.FromMilliseconds(readbackTimeoutMs),
+                TimeSpan.FromMilliseconds(readbackPollMs));
+            var exercise = target switch
+            {
+                "schedule" => await lab.RunScheduleOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "schedule-pair" => await lab.RunSchedulePairOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "schedule-roundtrip" => await lab.RunScheduleRoundtripOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "schedule-clear" => await lab.RunScheduleClearOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "schedule-one-time" => await lab.RunScheduleOneTimeOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "schedule-reboot" => await lab.RunScheduleRebootOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "countdown" => await lab.RunCountdownOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "countdown-on" => await lab.RunCountdownOnOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "countdown-reboot" => await lab.RunCountdownRebootOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "app-countdown-off" => await lab.RunAppCountdownOffOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "app-countdown-on" => await lab.RunAppCountdownOnOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "app-countdown-on-from-off" => await lab.RunAppCountdownOnFromOffOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "away" => await lab.RunAwayOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "diagnostics" => await lab.RunDiagnosticsOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "inspect" => await lab.RunInspectOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "led" => await lab.RunLedOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "brightness" => await lab.RunBrightnessOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "watch-on" => await lab.RunWatchOnOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                "powercycle" => await lab.RunPowerCycleOnlyAsync(labOptions, cts.Token).ConfigureAwait(false),
+                _ => await lab.RunExerciseAsync(labOptions, cts.Token).ConfigureAwait(false)
+            };
+
+            Console.WriteLine($"Plug {target} completed for model {exercise.Model ?? "unknown"} hw {exercise.HardwareVersion ?? "unknown"} sw {exercise.SoftwareVersion ?? "unknown"}.");
+            Console.WriteLine($"Alias restored: {(string.Equals(exercise.OriginalAlias, exercise.FinalAlias, StringComparison.Ordinal) ? "yes" : "no")}; final state: {(exercise.FinalOn ? "On" : "Off")}");
+            foreach (var step in exercise.Steps)
+            {
+                Console.WriteLine($"{step.Step}: {(step.Success ? "ok" : "note")} ({step.Elapsed.TotalMilliseconds:0} ms) {step.Detail}");
+            }
+
+            return exercise.FinalOn ? 0 : 1;
+        }
+
+        var result = await lab.RunAsync(new KasaPlugLabOptions(
+            host,
+            port,
+            deviceId,
+            sourceId,
+            mac,
+            expectedModel,
+            target,
+            TimeSpan.FromMilliseconds(readbackTimeoutMs),
+            TimeSpan.FromMilliseconds(readbackPollMs)), cts.Token).ConfigureAwait(false);
+
+        Console.WriteLine($"Plug lab completed for model {result.Model ?? "unknown"} hw {result.HardwareVersion ?? "unknown"} sw {result.SoftwareVersion ?? "unknown"}.");
+        Console.WriteLine($"Started state: {(result.StartedOn ? "On" : "Off")}");
+        foreach (var observation in result.Observations)
+        {
+            var write = observation.WriteElapsed is null ? "n/a" : $"{observation.WriteElapsed.Value.TotalMilliseconds:0} ms";
+            var readback = $"{observation.ReadbackElapsed.TotalMilliseconds:0} ms";
+            var state = observation.IsOn is null ? "unknown" : observation.IsOn.Value ? "On" : "Off";
+            Console.WriteLine($"{observation.Step}: write={write}, readback={readback}, state={state}");
+        }
+
+        return 0;
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or IOException or System.Net.Sockets.SocketException or OperationCanceledException)
+    {
+        Console.Error.WriteLine($"Plug lab failed: {ex.Message}");
+        return 1;
+    }
+}
+
 static async Task RunGatewayAsync(string[] args)
 {
     if (args.FirstOrDefault()?.Equals("--help", StringComparison.OrdinalIgnoreCase) == true)
@@ -95,34 +212,55 @@ static async Task RunGatewayAsync(string[] args)
         var gatewayOptions = sp.GetRequiredService<IOptions<KasaGatewayOptions>>().Value;
         return new KasaLegacyClient(TimeSpan.FromSeconds(gatewayOptions.SocketTimeoutSeconds));
     });
+    builder.Services.AddSingleton(sp =>
+    {
+        var gatewayOptions = sp.GetRequiredService<IOptions<KasaGatewayOptions>>().Value;
+        return new KasaLegacyLabClient(TimeSpan.FromSeconds(gatewayOptions.SocketTimeoutSeconds));
+    });
     builder.Services.AddSingleton<KasaSystemInfoParser>();
     builder.Services.AddSingleton<KasaEnergyParser>();
     builder.Services.AddSingleton<KasaReadMetadataParser>();
     builder.Services.AddSingleton<KasaCapabilityDetector>();
     builder.Services.AddSingleton<KasaIdentityValidator>();
+    builder.Services.AddSingleton<KasaDeviceRegistry>();
+    builder.Services.AddSingleton<KasaDisplayTimeZoneResolver>();
+    builder.Services.AddSingleton<KasaReadOnlyProbe>();
+    builder.Services.AddSingleton<KasaAdminService>();
+    builder.Services.AddSingleton<KasaDeviceCommandService>();
+    builder.Services.AddSingleton<KasaDeviceInteractionState>();
     builder.Services.AddSingleton<KasaDevicePoller>();
     builder.Services.AddSingleton<KasaGatewayState>();
+    builder.Services.AddSingleton<KasaGatewayTelemetry>();
     builder.Services.AddSingleton<KasaGatewayWorker>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<KasaGatewayWorker>());
     builder.Services.AddHealthChecks().AddCheck<KasaGatewayHealthCheck>("tplink-kasa-gateway");
+    builder.Services.AddRazorComponents()
+        .AddInteractiveServerComponents();
+    builder.Services.AddMudServices();
 
     var app = builder.Build();
+
+    app.UseStaticFiles();
+    app.UseAntiforgery();
+
+    app.MapRazorComponents<App>()
+        .AddInteractiveServerRenderMode();
 
     app.MapHealthChecks("/health");
 
     app.MapGet("/gateway-health", (KasaGatewayState state) => Results.Ok(state.GetHealth()));
     app.MapGet("/status-review", (KasaGatewayState state) => Results.Ok(state.GetReviewStatus()));
     app.MapGet("/status-review/current", (KasaGatewayState state) => Results.Ok(state.GetReviewCurrentStatus()));
-    app.MapGet("/devices", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
+    app.MapGet("/devices", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        return Results.Ok(state.GetDevices());
+        return Results.Ok(await state.GetDevicesAsync());
     });
-    app.MapGet("/devices/search", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string? q, string? model, string? kind, string? capability, string? metadataCapability, bool? online, bool? degraded) =>
+    app.MapGet("/devices/search", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string? q, string? model, string? kind, string? capability, string? metadataCapability, bool? online, bool? degraded) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
@@ -130,35 +268,85 @@ static async Task RunGatewayAsync(string[] args)
         }
 
         var request = new KasaDeviceSearchRequest(q, model, kind, capability, metadataCapability, online, degraded);
-        return Results.Ok(state.SearchDevices(request));
+        return Results.Ok(await state.SearchDevicesAsync(request));
     });
-    app.MapGet("/devices/{sourceId}", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId) =>
+    app.MapGet("/devices/{sourceId}", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        var device = state.GetDeviceBySourceId(sourceId);
+        var device = await state.GetDeviceBySourceIdAsync(sourceId);
         return device is null ? Results.NotFound() : Results.Ok(device);
     });
-    app.MapGet("/status", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
+    app.MapPost("/devices/{sourceId}/refresh-details", async (HttpContext httpContext, KasaAdminService adminService, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, CancellationToken cancellationToken) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        return Results.Ok(state.GetStatus());
+        var result = await adminService.RefreshDeviceDetailsAsync(sourceId, cancellationToken);
+        return result.Success ? Results.Ok(result) : Results.BadRequest(result);
     });
-    app.MapGet("/inventory", (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
+    app.MapPost("/devices/{sourceId}/commands/alias", async (HttpContext httpContext, KasaDeviceCommandService commandService, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, KasaAliasCommandRequest request, CancellationToken cancellationToken) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        return Results.Ok(state.GetInventory());
+        var result = await commandService.SetAliasAsync(sourceId, request.Alias, cancellationToken);
+        return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+    });
+    app.MapPost("/devices/{sourceId}/commands/power", async (HttpContext httpContext, KasaDeviceCommandService commandService, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, KasaPowerCommandRequest request, CancellationToken cancellationToken) =>
+    {
+        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        var result = await commandService.SetPowerAsync(sourceId, request.IsOn, request.OutletIndex, cancellationToken);
+        return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+    });
+    app.MapPost("/devices/{sourceId}/commands/dimmer", async (HttpContext httpContext, KasaDeviceCommandService commandService, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, KasaDimmerCommandRequest request, CancellationToken cancellationToken) =>
+    {
+        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        var result = await commandService.SetDimmerBrightnessAsync(sourceId, request.Brightness, cancellationToken);
+        return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+    });
+    app.MapPost("/devices/{sourceId}/commands/light", async (HttpContext httpContext, KasaDeviceCommandService commandService, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, KasaLightCommandRequest request, CancellationToken cancellationToken) =>
+    {
+        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        var result = await commandService.SetLightAsync(sourceId, request, cancellationToken);
+        return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+    });
+    app.MapGet("/status", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
+    {
+        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(await state.GetStatusAsync());
+    });
+    app.MapGet("/inventory", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
+    {
+        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(await state.GetInventoryAsync());
     });
 
     await app.RunAsync().ConfigureAwait(false);
@@ -172,8 +360,10 @@ static void PrintUsage()
     Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa");
     Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- probe --host <ip-or-host> [--port 9999]");
     Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- scan --cidr <x.x.x.x/nn> [--port 9999] [--concurrency 32] [--max-hosts 256] [--summary true] [--shapes true] [--include-privacy-sensitive true]");
+    Console.WriteLine("  dotnet run --project src/HVO.Gateway.TplinkKasa -- plug-lab --host <ip-or-host> --device-id <device-id> [--mac <mac>] [--model HS105(US)] [--target cycle|toggle|on|off|exercise|schedule|schedule-pair|schedule-roundtrip|schedule-clear|schedule-one-time|schedule-reboot|countdown|countdown-on|countdown-reboot|app-countdown-off|app-countdown-on|app-countdown-on-from-off|away|diagnostics|inspect|led|brightness|watch-on|powercycle]");
     Console.WriteLine();
     Console.WriteLine("Only allowlisted read-only Kasa commands are sent. Wi-Fi scan shapes require --include-privacy-sensitive true and never print raw values unless future code explicitly adds them.");
+    Console.WriteLine("plug-lab is a terminal-only guarded write lab for a single non-critical plug; it validates identity first and blocks network, MAC, cloud, reset, and factory commands.");
 }
 
 static bool HasMatchingApiKey(HttpContext httpContext, string configuredApiKey)

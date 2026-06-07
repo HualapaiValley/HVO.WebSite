@@ -12,7 +12,11 @@ public sealed class KasaIdentityValidator
         }
 
         var deviceIdMatched = string.Equals(config.DeviceId, info.DeviceId, StringComparison.OrdinalIgnoreCase);
-        if (!deviceIdMatched)
+        var allowLegacyScanIdentity = IsLegacyScanIdentity(config)
+            && !string.IsNullOrWhiteSpace(config.MacAddress)
+            && !string.IsNullOrWhiteSpace(info.MacAddress)
+            && KasaJson.MacAddressesEqual(config.MacAddress, info.MacAddress);
+        if (!deviceIdMatched && !allowLegacyScanIdentity)
         {
             return Invalid("Connected deviceId did not match configured DeviceId.", false, false, false, false);
         }
@@ -47,8 +51,12 @@ public sealed class KasaIdentityValidator
             }
         }
 
-        return new KasaIdentityValidationResult(true, null, true, macMatched, modelMatched, childCountMatched);
+        return new KasaIdentityValidationResult(true, null, deviceIdMatched, macMatched, modelMatched, childCountMatched);
     }
+
+    private static bool IsLegacyScanIdentity(KasaDeviceConfig config) =>
+        config.DeviceId.StartsWith("kasa-", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(config.DeviceId, config.SourceId?.Replace("tplink-kasa:", string.Empty, StringComparison.OrdinalIgnoreCase), StringComparison.OrdinalIgnoreCase);
 
     private static KasaIdentityValidationResult Invalid(string reason, bool deviceIdMatched, bool macMatched, bool modelMatched, bool childCountMatched) =>
         new(false, reason, deviceIdMatched, macMatched, modelMatched, childCountMatched);

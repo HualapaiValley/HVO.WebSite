@@ -12,6 +12,7 @@ internal sealed class FakeKasaLegacyServer : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _acceptLoop;
     private readonly ConcurrentDictionary<string, string> _responses = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentBag<string> _requestKeys = [];
 
     public FakeKasaLegacyServer()
     {
@@ -22,6 +23,8 @@ internal sealed class FakeKasaLegacyServer : IAsyncDisposable
     }
 
     public int Port { get; }
+
+    public IReadOnlyCollection<string> RequestKeys => _requestKeys.ToArray();
 
     public void RespondTo(string module, string command, string responseJson) =>
         _responses[$"{module}.{command}"] = responseJson;
@@ -72,8 +75,11 @@ internal sealed class FakeKasaLegacyServer : IAsyncDisposable
             {
                 if (_responses.TryGetValue($"{module.Name}.{command.Name}", out var response))
                 {
+                    _requestKeys.Add($"{module.Name}.{command.Name}");
                     return response;
                 }
+
+                _requestKeys.Add($"{module.Name}.{command.Name}");
             }
         }
 

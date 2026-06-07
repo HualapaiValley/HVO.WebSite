@@ -12,6 +12,7 @@
 | Document | Purpose | Audience |
 |----------|---------|----------|
 | [manufacturer-protocol.md](manufacturer-protocol.md) | TP-Link/Kasa/Tapo protocol families, transports, commands, auth, and known variants. | Anyone implementing a compatible driver. |
+| [device-api-inventory.md](device-api-inventory.md) | Per-device/model API inventory, live evidence, card implications, and object/profile design guidance. | HVO developers implementing Kasa device support and UI. |
 | [hvo-implementation.md](hvo-implementation.md) | Proposed HVO implementation scope, code layout, safety decisions, and rollout plan. | HVO developers. |
 | [hvo-api-contracts.md](hvo-api-contracts.md) | Planned local APIs, outbox payloads, identity, and cloud treatment. | HVO API/storage/UI developers. |
 | [validation-notes.md](validation-notes.md) | Evidence, simulator strategy, live validation plan, and open questions. | HVO developers validating behavior. |

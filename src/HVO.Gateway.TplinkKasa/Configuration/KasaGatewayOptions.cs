@@ -18,7 +18,20 @@ public sealed class KasaGatewayOptions
     public int SocketTimeoutSeconds { get; set; } = 3;
 
     [Range(5, 3600)]
-    public int PollIntervalSeconds { get; set; } = 60;
+    public int PollIntervalSeconds { get; set; } = 5;
+
+    [Range(60, 86400)]
+    public int? FullDetailsRefreshIntervalSeconds { get; set; } = 3600;
+
+    [Range(1, 64)]
+    public int MaxPollConcurrency { get; set; } = 8;
+
+    [Range(1, 3600)]
+    public int DashboardRefreshSeconds { get; set; } = 5;
+
+    public string DisplayTimeZoneId { get; set; } = "UTC";
+
+    public string DeviceRegistryPath { get; set; } = "kasa-devices.json";
 
     public bool RequireIdentityValidation { get; set; } = true;
 
@@ -50,6 +63,8 @@ public sealed class KasaDeviceConfig
 
     public string SourceId { get; set; } = string.Empty;
 
+    public string? DisplayName { get; set; }
+
     public string Host { get; set; } = string.Empty;
 
     public int? Port { get; set; }
@@ -57,6 +72,8 @@ public sealed class KasaDeviceConfig
     public string? MacAddress { get; set; }
 
     public string? NetworkName { get; set; }
+
+    public string? DisplayTimeZoneId { get; set; }
 
     public string? ExpectedModel { get; set; }
 

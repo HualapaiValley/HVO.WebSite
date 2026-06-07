@@ -1,0 +1,318 @@
+@namespace HVO.Gateway.TplinkKasa.Components
+@implements IDisposable
+@using MudBlazor.Utilities
+@inject KasaDeviceCommandService CommandService
+@inject KasaDeviceInteractionState InteractionState
+
+<div class="kasa-card-body">
+    @if (Device.Light is not null)
+    {
+        <div class="kasa-outlet-list" aria-label="Device outlets">
+            <div class="kasa-outlet-row kasa-outlet-row-stacked">
+                <div class="kasa-outlet-row-main">
+                    <div>
+                        <MudText Typo="Typo.body2">@KasaCardText.FormatOutletName(Outlet)</MudText>
+                        <MudText Typo="Typo.caption" Class="kasa-muted">@KasaCardText.FormatOutletId(Outlet)</MudText>
+                    </div>
+                    <div class="kasa-outlet-meta">
+                        @if (Outlet.Energy is not null)
+                        {
+                            <MudText Typo="Typo.caption" Class="kasa-muted">@KasaCardText.FormatOutletEnergy(Outlet.Energy)</MudText>
+                        }
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="@(_isOn ? Color.Success : Color.Default)" Disabled="@BusyOrUnavailable" StartIcon="@Icons.Material.Outlined.PowerSettingsNew" OnClick="ToggleAsync">@(_isOn ? "On" : "Off")</MudButton>
+                    </div>
+                </div>
+                <div class="kasa-port-slider-row">
+                    <MudSlider T="int" Value="_brightness" ValueChanged="OnBrightnessSliderChanged" Immediate="true" Min="0" Max="100" Disabled="@BusyOrUnavailable" Color="Color.Primary" Class="kasa-port-slider" @onpointerdown="BeginInteraction" @onfocusin="BeginInteraction" @onmouseup="CommitBrightnessAsync" @ontouchend="CommitBrightnessAsync" @onkeyup="CommitBrightnessAsync" />
+                    <MudText Typo="Typo.caption" Class="kasa-port-slider-value">@_brightness%</MudText>
+                </div>
+            </div>
+        </div>
+        <div class="kasa-control-surface kasa-light-controls" aria-label="Light controls">
+            <button type="button" class="kasa-palette-button" style="--kasa-selected-color: @SelectedColorHex" disabled="@BusyOrUnavailable" aria-label="Open color picker" @onclick="OpenColorPicker">
+                <MudIcon Icon="@Icons.Material.Outlined.Palette" Size="Size.Small" />
+            </button>
+            <MudSlider T="int" Value="_colorTemperature" ValueChanged="OnColorTemperatureSliderChanged" Immediate="true" Min="2500" Max="9000" Disabled="@BusyOrUnavailable" Color="Color.Info" Class="kasa-port-slider" @onpointerdown="BeginInteraction" @onfocusin="BeginInteraction" @onmouseup="CommitColorTemperatureAsync" @ontouchend="CommitColorTemperatureAsync" @onkeyup="CommitColorTemperatureAsync" />
+            <MudText Typo="Typo.caption" Class="kasa-port-slider-value">@KasaCardText.FormatKelvin(_colorTemperature)</MudText>
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <MudText Typo="Typo.caption" Class="@MessageClass">@_message</MudText>
+            }
+        </div>
+        @if (_colorPickerOpen)
+        {
+            <div class="kasa-card-dialog-backdrop kasa-color-dialog-backdrop" @onclick="CancelColorPicker">
+                <div class="kasa-card-dialog kasa-color-dialog" role="dialog" aria-modal="true" aria-label="Color picker" @onclick:stopPropagation="true">
+                    <div class="kasa-mud-color-picker-shell" style="--kasa-selected-color: @_pendingColorHex">
+                        <MudColorPicker @key="_colorPickerKey" @bind-Text="_pendingColorHex" @bind-Value="_pendingMudColor" Label="Color" Disabled="@BusyOrUnavailable" PickerVariant="PickerVariant.Static" ColorPickerView="ColorPickerView.Spectrum" ShowAlpha="false" Style="@($"color: {_pendingColorHex};")" />
+                    </div>
+                    <div class="kasa-card-dialog-actions">
+                        <button type="button" class="kasa-dialog-action kasa-dialog-action-secondary" disabled="@BusyOrUnavailable" @onclick="CancelColorPicker">Cancel</button>
+                        <button type="button" class="kasa-dialog-action kasa-dialog-action-primary" disabled="@BusyOrUnavailable" @onclick="ApplyColorPickerAsync">OK</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <MudText Typo="Typo.body2" Class="kasa-muted">Light status is not available from the latest poll.</MudText>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public KasaDeviceStatus Device { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private bool _isOn;
+    private int _brightness = 50;
+    private int _hue;
+    private int _saturation;
+    private int _colorTemperature;
+    private bool _colorPickerOpen;
+    private string _pendingColorHex = "#FFFFFF";
+    private MudColor _pendingMudColor = new("#FFFFFF");
+    private bool _busy;
+    private string? _message;
+    private bool _lastSuccess;
+    private int _lastAppliedBrightness = 50;
+    private int _lastAppliedColorTemperature = 2700;
+    private int _colorPickerKey;
+    private IDisposable? _interaction;
+
+    private KasaOutletStatus Outlet => Device.Outlets.FirstOrDefault() ?? new KasaOutletStatus(1, Device.DisplayName, Device.Light?.IsOn, null, Device.Energy);
+
+    protected override void OnParametersSet()
+    {
+        if (Device.Light is null)
+        {
+            return;
+        }
+
+        if (_busy || IsInteracting)
+        {
+            return;
+        }
+
+        if (!_busy)
+        {
+            _isOn = Device.Light.IsOn == true;
+            var deviceBrightness = Math.Clamp(Device.Light.Brightness ?? _lastAppliedBrightness, 1, 100);
+            _lastAppliedBrightness = deviceBrightness;
+            _brightness = Device.Light.IsOn == false ? _lastAppliedBrightness : deviceBrightness;
+        }
+
+        _hue = Math.Clamp(Device.Light.Hue ?? _hue, 0, 360);
+        _saturation = Math.Clamp(Device.Light.Saturation ?? _saturation, 0, 100);
+        var deviceColorTemperature = Math.Clamp(Device.Light.ColorTemperature ?? _lastAppliedColorTemperature, 0, 9000);
+        if (deviceColorTemperature > 0)
+        {
+            _lastAppliedColorTemperature = deviceColorTemperature;
+        }
+
+        _colorTemperature = deviceColorTemperature > 0 ? deviceColorTemperature : _lastAppliedColorTemperature;
+    }
+
+    private bool BusyOrUnavailable => _busy || !Device.IsOnline || Device.Light is null || string.IsNullOrWhiteSpace(Device.SourceId) || !Device.CommandCapabilities.Contains(KasaCommandCapability.LightColor);
+
+    private string MessageClass => _lastSuccess ? "kasa-muted" : "kasa-error-text";
+
+    private string SelectedColorHex => HsvToRgbHex(_hue, _saturation);
+
+    private bool IsInteracting => _interaction is not null;
+
+    private void BeginInteraction()
+    {
+        _interaction ??= InteractionState.TryBegin(Device.SourceId);
+    }
+
+    private void EndInteraction()
+    {
+        _interaction?.Dispose();
+        _interaction = null;
+    }
+
+    private void OpenColorPicker()
+    {
+        BeginInteraction();
+        _pendingColorHex = HsvToRgbHex(_hue, _saturation);
+        _pendingMudColor = new MudColor(_pendingColorHex);
+        _colorPickerKey++;
+        _colorPickerOpen = true;
+    }
+
+    private void CancelColorPicker()
+    {
+        _colorPickerOpen = false;
+        EndInteraction();
+    }
+
+    private async Task ApplyColorPickerAsync()
+    {
+        if (!TryRgbHexToHueSaturation(_pendingColorHex, out var hue, out var saturation))
+        {
+            _message = "Choose a valid color.";
+            _lastSuccess = false;
+            return;
+        }
+
+        _hue = hue;
+        _saturation = saturation;
+        _colorTemperature = 0;
+        _colorPickerOpen = false;
+        await ApplyAsync();
+    }
+
+    private void OnBrightnessSliderChanged(int value)
+    {
+        BeginInteraction();
+        _brightness = Math.Clamp(value, 0, 100);
+    }
+
+    private void OnColorTemperatureSliderChanged(int value)
+    {
+        BeginInteraction();
+        _colorTemperature = Math.Clamp(value, 2500, 9000);
+    }
+
+    private async Task CommitColorTemperatureAsync()
+    {
+        if (_colorTemperature == _lastAppliedColorTemperature)
+        {
+            EndInteraction();
+            return;
+        }
+
+        _lastAppliedColorTemperature = _colorTemperature;
+        await ApplyAsync();
+    }
+
+    private async Task CommitBrightnessAsync()
+    {
+        if (_brightness == 0)
+        {
+            _brightness = _lastAppliedBrightness;
+            _isOn = false;
+            await ApplyAsync();
+            return;
+        }
+
+        if (_brightness == _lastAppliedBrightness && _isOn)
+        {
+            EndInteraction();
+            return;
+        }
+
+        _lastAppliedBrightness = _brightness;
+        _isOn = true;
+        await ApplyAsync();
+    }
+
+    private Task ToggleAsync()
+    {
+        BeginInteraction();
+        _isOn = !_isOn;
+        return ApplyAsync();
+    }
+
+    private async Task ApplyAsync()
+    {
+        if (BusyOrUnavailable || Device.SourceId is not { Length: > 0 } sourceId)
+        {
+            return;
+        }
+
+        _busy = true;
+        _message = null;
+        KasaAdminOperationResult? result = null;
+        try
+        {
+            var commandBrightness = Math.Clamp(_brightness, 1, 100);
+            result = await CommandService.SetLightAsync(sourceId, new KasaLightCommandRequest(_isOn, commandBrightness, _hue, _saturation, _colorTemperature), CancellationToken.None);
+            _lastSuccess = result.Success;
+            _message = result.Success ? null : result.Message;
+            if (result.Success)
+            {
+                EndInteraction();
+                await OnChanged.InvokeAsync();
+            }
+        }
+        finally
+        {
+            _busy = false;
+            if (result?.Success != true && !_colorPickerOpen)
+            {
+                EndInteraction();
+            }
+        }
+    }
+
+    private static string HsvToRgbHex(int hue, int saturation)
+    {
+        var normalizedHue = ((hue % 360) + 360) % 360 / 60.0;
+        var chroma = Math.Clamp(saturation, 0, 100) / 100.0;
+        var x = chroma * (1 - Math.Abs(normalizedHue % 2 - 1));
+        var valueOffset = 1 - chroma;
+        var (redPrime, greenPrime, bluePrime) = normalizedHue switch
+        {
+            < 1 => (chroma, x, 0.0),
+            < 2 => (x, chroma, 0.0),
+            < 3 => (0.0, chroma, x),
+            < 4 => (0.0, x, chroma),
+            < 5 => (x, 0.0, chroma),
+            _ => (chroma, 0.0, x)
+        };
+
+        var red = redPrime + valueOffset;
+        var green = greenPrime + valueOffset;
+        var blue = bluePrime + valueOffset;
+        return $"#{ToColorByte(red):X2}{ToColorByte(green):X2}{ToColorByte(blue):X2}";
+    }
+
+    private static bool TryRgbHexToHueSaturation(string color, out int hue, out int saturation)
+    {
+        hue = 0;
+        saturation = 0;
+        var hex = NormalizeColorHex(color);
+        if (hex.Length is not 7 and not 9)
+        {
+            return false;
+        }
+
+        var red = Convert.ToInt32(hex[1..3], 16) / 255.0;
+        var green = Convert.ToInt32(hex[3..5], 16) / 255.0;
+        var blue = Convert.ToInt32(hex[5..7], 16) / 255.0;
+        var max = Math.Max(red, Math.Max(green, blue));
+        var min = Math.Min(red, Math.Min(green, blue));
+        var delta = max - min;
+
+        var computedHue = delta == 0 ? 0 : max == red ? 60 * (((green - blue) / delta) % 6) : max == green ? 60 * (((blue - red) / delta) + 2) : 60 * (((red - green) / delta) + 4);
+        if (computedHue < 0)
+        {
+            computedHue += 360;
+        }
+
+        var computedSaturation = max == 0 ? 0 : delta / max;
+        hue = (int)Math.Round(computedHue);
+        saturation = (int)Math.Round(computedSaturation * 100);
+        return true;
+    }
+
+    private static string NormalizeColorHex(string color)
+    {
+        var normalized = color.Trim();
+        if (!normalized.StartsWith('#'))
+        {
+            normalized = $"#{normalized}";
+        }
+
+        return normalized.ToUpperInvariant();
+    }
+
+    private static int ToColorByte(double value) => (int)Math.Round(Math.Clamp(value, 0.0, 1.0) * 255);
+
+    public void Dispose() => EndInteraction();
+}

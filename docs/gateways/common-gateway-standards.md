@@ -52,6 +52,28 @@ The edge outbox is a local, one-way, telemetry-only store-and-forward queue. It 
 
 Gateway-specific data belongs in `PayloadJson` or in gateway-owned extension tables. It should not change common status/retry semantics.
 
+## Time Handling Standard
+
+Gateway storage and API contracts should treat timestamps as instants first and display values second.
+
+- Store observation, enqueue, retry, sent, and health timestamps as UTC. Field names should end in `Utc` where the contract shape allows it. Existing v9 `datetime2` columns without a suffix must continue to be interpreted as UTC until a schema migration explicitly changes them.
+- Use `DateTimeOffset` for API DTOs when the offset is part of the payload contract. Use `DateTime` only for internal/storage models that are explicitly UTC and documented as such.
+- Do not use server/container `ToLocalTime()` for operator display. In a deployed container this reflects the host/container timezone, which may not be the observatory, browser, gateway, or device timezone.
+- Browser UIs may render UTC timestamps in the viewer's local timezone when the view is clearly user-local. Gateway/operator status pages should prefer a configured gateway display timezone so a headless wall display and remote browser see the same site-relative time.
+- Gateways that read a device timezone, such as Davis, should use the device timezone for protocol-local values and convert source-local timestamps to UTC before storage or forwarding.
+- Gateways whose devices do not have a reliable local-time concept, such as JK BMS, SmartShunt, SolarAssistant, and live Kasa polling, should use a configured gateway display timezone for local UI labels while continuing to store and forward UTC.
+- Multi-device gateways may allow a per-device display timezone override. This is presentation metadata only; it must not change `RecordedAtUtc`, `ObservedAtUtc`, idempotency keys, or stale-age calculations.
+
+Recommended configuration shape:
+
+| Scope | Field | Purpose |
+|-------|-------|---------|
+| Gateway | `DisplayTimeZoneId` | IANA/Windows timezone ID used by local gateway UI when a device does not override it. |
+| Device | `DisplayTimeZoneId` | Optional per-device display timezone for multi-subnet or remote-source gateways. |
+| Device-derived | `DeviceTimeZoneId` or gateway-specific equivalent | Timezone reported by the device/protocol, when available and trustworthy. |
+
+APIs may expose both the UTC instant and the display timezone metadata, for example `ObservedAtUtc` plus `DisplayTimeZoneId`. They should not replace UTC instants with preformatted local strings.
+
 ### Status Values
 
 | Status | Meaning |

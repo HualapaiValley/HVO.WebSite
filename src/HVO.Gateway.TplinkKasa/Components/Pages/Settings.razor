@@ -1,0 +1,280 @@
+@page "/settings"
+@rendermode InteractiveServer
+@inject KasaAdminService AdminService
+@inject KasaGatewayState GatewayState
+@inject IOptions<KasaGatewayOptions> GatewayOptions
+
+<MudPaper Class="layout-canvas shell-page" Elevation="0" aria-label="TP-Link/Kasa settings content area">
+<MudStack Spacing="3" Class="shell-page-stack kasa-page">
+    <section class="kasa-page-header">
+        <div>
+            <MudText Typo="Typo.overline" Class="kasa-eyebrow">Admin</MudText>
+            <MudText Typo="Typo.h3" Class="kasa-title">Device Settings</MudText>
+            <MudText Typo="Typo.body2" Class="kasa-muted">Scan configured networks and manage the devices that power dashboard and polling state.</MudText>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <MudAlert Severity="@(_messageIsError ? Severity.Error : Severity.Success)" Dense="true">@_message</MudAlert>
+    }
+
+    <MudTabs Rounded="true" Elevation="0" Class="kasa-tabs">
+        <MudTabPanel Text="Device Setup" Icon="@Icons.Material.Outlined.DevicesOther">
+            <div class="kasa-tab-panel">
+            <div class="kasa-admin-grid">
+                <MudPaper Class="kasa-panel" Elevation="0">
+                    <MudText Typo="Typo.h5">Scan Network</MudText>
+                    <MudStack Spacing="2">
+                        <MudSelect T="string" Label="Configured network" @bind-Value="_selectedNetwork">
+                            @foreach (var network in _networks)
+                            {
+                                <MudSelectItem T="string" Value="@network.Name">@network.Name (@network.Cidr)</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.TravelExplore" Disabled="@_isBusy" OnClick="ScanAsync">Scan</MudButton>
+                    </MudStack>
+                </MudPaper>
+
+                <MudPaper Class="kasa-panel" Elevation="0">
+                    <MudText Typo="Typo.h5">Add Device</MudText>
+                    <MudStack Spacing="2">
+                        <MudTextField Label="IP or host" @bind-Value="_hostToAdd" Variant="Variant.Outlined" />
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Outlined.Add" Disabled="@_isBusy" OnClick="AddByHostAsync">Add by IP</MudButton>
+                        <MudDivider />
+                        <MudTextField Label="MAC address" @bind-Value="_macToAdd" Variant="Variant.Outlined" />
+                        <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Outlined.AddLink" Disabled="@_isBusy" OnClick="AddByMacAsync">Find by MAC</MudButton>
+                    </MudStack>
+                </MudPaper>
+            </div>
+
+            <MudPaper Class="kasa-panel" Elevation="0">
+                <div class="kasa-section-heading">
+                    <MudText Typo="Typo.h5">Scan Results</MudText>
+                    <MudText Typo="Typo.caption" Class="kasa-muted">@_scanResults.Count discovered device(s)</MudText>
+                </div>
+                <MudTable Items="_scanResults" Dense="true" Hover="true">
+                    <HeaderContent>
+                        <MudTh>Name</MudTh>
+                        <MudTh>Host</MudTh>
+                        <MudTh>Model</MudTh>
+                        <MudTh>Type</MudTh>
+                        <MudTh>Features</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@FormatDeviceName(context)</MudTd>
+                        <MudTd>@context.Host</MudTd>
+                        <MudTd>@(context.SystemInfo?.Model ?? "Unknown")</MudTd>
+                        <MudTd>@(context.Profile?.DeviceKind.ToString() ?? "Unknown")</MudTd>
+                        <MudTd>@FormatCapabilities(context.Profile)</MudTd>
+                        <MudTd>
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Disabled="@_isBusy" OnClick="() => AddScanResultAsync(context)">Configure</MudButton>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+
+            <MudPaper Class="kasa-panel" Elevation="0">
+                <div class="kasa-section-heading">
+                    <MudText Typo="Typo.h5">Configured Devices</MudText>
+                    <MudText Typo="Typo.caption" Class="kasa-muted">@_devices.Count device(s)</MudText>
+                </div>
+                <MudTable Items="_devices" Dense="true" Hover="true">
+                    <HeaderContent>
+                        <MudTh>Name</MudTh>
+                        <MudTh>Host</MudTh>
+                        <MudTh>Type</MudTh>
+                        <MudTh>Features</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@(context.DisplayName ?? context.SourceId)</MudTd>
+                        <MudTd>@context.Host</MudTd>
+                        <MudTd>@context.DeviceKind</MudTd>
+                        <MudTd>@string.Join(", ", context.Capabilities.Take(4))</MudTd>
+                        <MudTd>@(context.IsOnline ? "Online" : "Offline")</MudTd>
+                        <MudTd>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" Disabled="@_isBusy" OnClick="() => RemoveAsync(context.SourceId)">Remove</MudButton>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+            </div>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Configuration" Icon="@Icons.Material.Outlined.Tune">
+            <div class="kasa-tab-panel">
+            <MudPaper Class="kasa-panel" Elevation="0">
+                <MudText Typo="Typo.h5">Gateway Options</MudText>
+                <div class="kasa-config-grid">
+                    <div><span>Gateway ID</span><strong>@Options.GatewayId</strong></div>
+                    <div><span>Default Port</span><strong>@Options.DefaultPort</strong></div>
+                    <div><span>Socket Timeout</span><strong>@Options.SocketTimeoutSeconds s</strong></div>
+                    <div><span>Poll Interval</span><strong>@Options.PollIntervalSeconds s</strong></div>
+                    <div><span>Poll Concurrency</span><strong>@Options.MaxPollConcurrency</strong></div>
+                    <div><span>Dashboard Refresh</span><strong>@Options.DashboardRefreshSeconds s</strong></div>
+                    <div><span>Display Time Zone</span><strong>@Options.DisplayTimeZoneId</strong></div>
+                    <div><span>Registry Path</span><strong>@Options.DeviceRegistryPath</strong></div>
+                    <div><span>Identity Validation</span><strong>@(Options.RequireIdentityValidation ? "Required" : "Disabled")</strong></div>
+                    <div><span>Max Scan Hosts</span><strong>@Options.MaxScanHosts</strong></div>
+                    <div><span>Max Scan Concurrency</span><strong>@Options.MaxScanConcurrency</strong></div>
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="kasa-panel" Elevation="0">
+                <div class="kasa-section-heading">
+                    <MudText Typo="Typo.h5">Allowed Networks</MudText>
+                    <MudText Typo="Typo.caption" Class="kasa-muted">@Options.Networks.Count configured subnet(s)</MudText>
+                </div>
+                <MudTable Items="Options.Networks" Dense="true" Hover="true">
+                    <HeaderContent>
+                        <MudTh>Name</MudTh>
+                        <MudTh>CIDR</MudTh>
+                        <MudTh>Discovery</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Name</MudTd>
+                        <MudTd>@context.Cidr</MudTd>
+                        <MudTd>@(context.DiscoveryEnabled ? "Enabled" : "Disabled")</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+
+            <MudPaper Class="kasa-panel" Elevation="0">
+                <div class="kasa-section-heading">
+                    <MudText Typo="Typo.h5">Seed Devices</MudText>
+                    <MudText Typo="Typo.caption" Class="kasa-muted">@Options.Devices.Count appsettings device(s)</MudText>
+                </div>
+                <MudTable Items="Options.Devices" Dense="true" Hover="true">
+                    <HeaderContent>
+                        <MudTh>Name</MudTh>
+                        <MudTh>Source ID</MudTh>
+                        <MudTh>Host</MudTh>
+                        <MudTh>Network</MudTh>
+                        <MudTh>Display TZ</MudTh>
+                        <MudTh>Type</MudTh>
+                        <MudTh>Enabled</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@(context.DisplayName ?? "-")</MudTd>
+                        <MudTd>@context.EffectiveSourceId</MudTd>
+                        <MudTd>@context.Host</MudTd>
+                        <MudTd>@(context.NetworkName ?? "-")</MudTd>
+                        <MudTd>@(context.DisplayTimeZoneId ?? Options.DisplayTimeZoneId)</MudTd>
+                        <MudTd>@context.DeviceKind</MudTd>
+                        <MudTd>@(context.Enabled ? "Yes" : "No")</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+            </div>
+        </MudTabPanel>
+    </MudTabs>
+</MudStack>
+</MudPaper>
+
+@code {
+    private IReadOnlyList<KasaNetworkConfig> _networks = [];
+    private IReadOnlyList<KasaDeviceStatus> _devices = [];
+    private IReadOnlyList<KasaProbeResult> _scanResults = [];
+    private string? _selectedNetwork;
+    private string? _hostToAdd;
+    private string? _macToAdd;
+    private string? _message;
+    private bool _messageIsError;
+    private bool _isBusy;
+
+    private KasaGatewayOptions Options => GatewayOptions.Value;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _networks = AdminService.GetNetworks();
+        _selectedNetwork = _networks.FirstOrDefault()?.Name;
+        await RefreshDevicesAsync();
+    }
+
+    private async Task ScanAsync()
+    {
+        await RunBusyAsync(async token =>
+        {
+            _scanResults = await AdminService.ScanNetworkAsync(_selectedNetwork ?? string.Empty, token);
+            SetMessage($"Scan found {_scanResults.Count} device(s).", isError: false);
+        });
+    }
+
+    private async Task AddByHostAsync()
+    {
+        await RunBusyAsync(async token =>
+        {
+            var result = await AdminService.AddByHostAsync(_hostToAdd ?? string.Empty, _selectedNetwork, token);
+            SetMessage(result.Message, !result.Success);
+            await RefreshDevicesAsync();
+        });
+    }
+
+    private async Task AddByMacAsync()
+    {
+        await RunBusyAsync(async token =>
+        {
+            var result = await AdminService.AddByMacAsync(_macToAdd ?? string.Empty, _selectedNetwork ?? string.Empty, token);
+            SetMessage(result.Message, !result.Success);
+            await RefreshDevicesAsync();
+        });
+    }
+
+    private async Task AddScanResultAsync(KasaProbeResult probeResult)
+    {
+        await RunBusyAsync(async token =>
+        {
+            var result = await AdminService.AddProbeResultAsync(probeResult, _selectedNetwork, token);
+            SetMessage(result.Message, !result.Success);
+            await RefreshDevicesAsync();
+        });
+    }
+
+    private async Task RemoveAsync(string? sourceId)
+    {
+        await RunBusyAsync(async token =>
+        {
+            var result = await AdminService.RemoveAsync(sourceId ?? string.Empty, token);
+            SetMessage(result.Message, !result.Success);
+            await RefreshDevicesAsync();
+        });
+    }
+
+    private async Task RefreshDevicesAsync()
+    {
+        _devices = (await GatewayState.GetStatusAsync()).Devices;
+    }
+
+    private async Task RunBusyAsync(Func<CancellationToken, Task> operation)
+    {
+        _isBusy = true;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            await operation(cts.Token);
+        }
+        catch (Exception ex)
+        {
+            SetMessage(ex.Message, isError: true);
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void SetMessage(string message, bool isError)
+    {
+        _message = message;
+        _messageIsError = isError;
+    }
+
+    private static string FormatCapabilities(KasaDeviceProfile? profile) =>
+        profile is null ? "Unknown" : string.Join(", ", profile.Capabilities.OrderBy(capability => capability.ToString()).Take(4));
+
+    private static string FormatDeviceName(KasaProbeResult probeResult) =>
+        string.IsNullOrWhiteSpace(probeResult.SystemInfo?.Alias) ? "Unnamed device" : probeResult.SystemInfo.Alias;
+}

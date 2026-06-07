@@ -1,0 +1,541 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IDisposable
+@using System.Globalization
+@inject KasaGatewayState GatewayState
+@inject KasaDeviceInteractionState InteractionState
+@inject KasaAdminService AdminService
+@inject IOptions<KasaGatewayOptions> GatewayOptions
+@inject KasaDisplayTimeZoneResolver DisplayTimeZoneResolver
+
+<MudPaper Class="layout-canvas shell-page" Elevation="0" aria-label="TP-Link/Kasa dashboard content area">
+<MudStack Spacing="3" Class="shell-page-stack kasa-page">
+    <section class="kasa-page-header">
+        <div>
+            <MudText Typo="Typo.overline" Class="kasa-eyebrow">Local Status</MudText>
+            <MudText Typo="Typo.h3" Class="kasa-title">Configured Devices</MudText>
+            <MudText Typo="Typo.body2" Class="kasa-muted">Only configured devices are polled and displayed here.</MudText>
+        </div>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="kasa-header-stats">
+            <MudChip T="string" Color="Color.Success" Variant="Variant.Filled">@_status?.OnlineDeviceCount online</MudChip>
+            <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled">@_status?.DegradedDeviceCount degraded</MudChip>
+            <MudChip T="string" Color="Color.Info" Variant="Variant.Outlined">@_status?.ConfiguredDeviceCount configured</MudChip>
+        </MudStack>
+    </section>
+
+    @if (_status is null)
+    {
+        <MudPaper Class="kasa-panel kasa-empty" Elevation="0">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body1">Loading TP-Link/Kasa status</MudText>
+        </MudPaper>
+    }
+    else if (_status.Devices.Count == 0)
+    {
+        <MudPaper Class="kasa-panel kasa-empty" Elevation="0">
+            <MudIcon Icon="@Icons.Material.Outlined.AddHomeWork" Size="Size.Large" Color="Color.Info" />
+            <MudText Typo="Typo.h5">No configured devices</MudText>
+            <MudText Typo="Typo.body2" Class="kasa-muted">Use Settings to scan an allowed network or add a device by IP/MAC.</MudText>
+            <MudButton Href="/settings" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Settings">Open Settings</MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        @foreach (var group in _status.Devices.GroupBy(device => device.DeviceKind).OrderBy(group => group.Key.ToString()))
+        {
+            <section class="kasa-device-group">
+                <div class="kasa-section-heading">
+                    <MudText Typo="Typo.h5">@group.Key</MudText>
+                    <MudText Typo="Typo.caption" Class="kasa-muted">@group.Count() device(s)</MudText>
+                </div>
+                <div class="kasa-device-grid">
+                    @foreach (var device in group.OrderBy(device => device.DisplayName ?? device.SourceId))
+                    {
+                        <KasaDeviceCard Device="device" OnDetails="OpenDeviceInfoAsync" OnChanged="RefreshAsync" />
+                    }
+                </div>
+            </section>
+        }
+    }
+</MudStack>
+
+@if (_selectedDevice is not null)
+{
+    <div class="shell-info-dialog-backdrop" @onclick="CloseDeviceInfo">
+        <div class="shell-info-dialog kasa-device-info-dialog" role="dialog" aria-modal="true" aria-labelledby="kasa-device-info-title" @onclick:stopPropagation="true">
+            <div class="shell-info-dialog-header">
+                <div>
+                    <MudText Typo="Typo.overline" Class="shell-info-dialog-eyebrow">Device Details</MudText>
+                    <MudText Typo="Typo.h5" id="kasa-device-info-title">@(_selectedDevice.DisplayName ?? _selectedDevice.SourceId ?? "TP-Link/Kasa device")</MudText>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Outlined.Close" Color="Color.Inherit" Size="Size.Small" aria-label="Close device details" OnClick="CloseDeviceInfo" />
+            </div>
+
+            <div class="kasa-device-info-actions">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Disabled="@_deviceInfoLoading" StartIcon="@Icons.Material.Outlined.Refresh" OnClick="RefreshSelectedDeviceDetailsAsync">@(_deviceInfoLoading ? "Reading device" : "Refresh details")</MudButton>
+                @if (!string.IsNullOrWhiteSpace(_deviceInfoMessage))
+                {
+                    <MudText Typo="Typo.caption" Class="kasa-muted">@_deviceInfoMessage</MudText>
+                }
+            </div>
+
+            <div class="shell-info-dialog-grid kasa-device-info-grid">
+                <div class="shell-info-dialog-item"><span>Model</span><strong>@(_selectedDevice.DeviceInfo?.Model ?? _selectedDevice.Model ?? "Unknown")</strong></div>
+                <div class="shell-info-dialog-item"><span>Hardware Version</span><strong>@(_selectedDevice.DeviceInfo?.HardwareVersion ?? _selectedDevice.HardwareVersion ?? "Unknown")</strong></div>
+                <div class="shell-info-dialog-item"><span>Firmware Version</span><strong>@(_selectedDevice.DeviceInfo?.SoftwareVersion ?? _selectedDevice.SoftwareVersion ?? "Unknown")</strong></div>
+                <div class="shell-info-dialog-item"><span>MAC</span><strong>@(_selectedDevice.DeviceInfo?.MacAddress ?? _selectedDevice.MacAddress ?? "Unknown")</strong></div>
+                <div class="shell-info-dialog-item"><span>Device Type</span><strong>@(_selectedDevice.DeviceInfo?.DeviceType ?? "Unknown")</strong></div>
+                <div class="shell-info-dialog-item"><span>Network</span><strong>@(_selectedDevice.Host ?? "Unknown")</strong></div>
+                <div class="shell-info-dialog-item"><span>Display Time Zone</span><strong>@FormatDisplayTimeZone(_selectedDevice)</strong></div>
+                <div class="shell-info-dialog-item"><span>Device Time</span><strong>@FormatDeviceTime(_selectedDevice.DeviceInfo?.DeviceTime)</strong></div>
+                <div class="shell-info-dialog-item"><span>Kasa Timezone Index</span><strong>@FormatNullable(_selectedDevice.DeviceInfo?.Timezone?.Index)</strong></div>
+                <div class="shell-info-dialog-item"><span>RSSI</span><strong>@FormatNullable(_selectedDevice.DeviceInfo?.Rssi)</strong></div>
+                <div class="shell-info-dialog-item"><span>Location</span><strong>@FormatLocation(_selectedDevice.DeviceInfo?.Location)</strong></div>
+                <div class="shell-info-dialog-item"><span>Cloud</span><strong>@FormatCloud(_selectedDevice.DeviceInfo?.Cloud)</strong></div>
+                <div class="shell-info-dialog-item"><span>Hardware ID</span><strong>@(_selectedDevice.DeviceInfo?.HardwareId ?? "Unknown")</strong></div>
+                <div class="shell-info-dialog-item"><span>Firmware ID</span><strong>@(_selectedDevice.DeviceInfo?.FirmwareId ?? "Unknown")</strong></div>
+                <div class="shell-info-dialog-item"><span>OEM ID</span><strong>@(_selectedDevice.DeviceInfo?.OemId ?? "Unknown")</strong></div>
+                <div class="shell-info-dialog-item"><span>Feature Flags</span><strong>@(_selectedDevice.DeviceInfo?.Feature ?? "Unknown")</strong></div>
+            </div>
+
+            <div class="kasa-dialog-section">
+                <MudText Typo="Typo.h6">Capabilities</MudText>
+                <div class="kasa-details-chip-groups">
+                    <div>
+                        <span>Device</span>
+                        <div class="kasa-chip-row">
+                            @foreach (var capability in _selectedDevice.Capabilities.OrderBy(capability => capability.ToString()))
+                            {
+                                <span class="kasa-capability-pill">@capability</span>
+                            }
+                        </div>
+                    </div>
+                    <div>
+                        <span>Commands</span>
+                        <div class="kasa-chip-row">
+                            @foreach (var capability in _selectedDevice.CommandCapabilities.OrderBy(capability => capability.ToString()))
+                            {
+                                <span class="kasa-capability-pill">@capability</span>
+                            }
+                        </div>
+                    </div>
+                    <div>
+                        <span>Metadata</span>
+                        <div class="kasa-chip-row">
+                            @foreach (var capability in _selectedDevice.MetadataCapabilities.OrderBy(capability => capability.ToString()))
+                            {
+                                <span class="kasa-capability-pill">@capability</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (_selectedDevice.Outlets.Count > 0)
+            {
+                <div class="kasa-dialog-section">
+                    <MudText Typo="Typo.h6">Outlets</MudText>
+                    <div class="kasa-outlet-list kasa-outlet-list-dialog" aria-label="Selected device outlets">
+                        @foreach (var outlet in _selectedDevice.Outlets.OrderBy(outlet => outlet.Index ?? int.MaxValue).ThenBy(outlet => outlet.DisplayName))
+                        {
+                            <div class="kasa-outlet-row">
+                                <div>
+                                    <MudText Typo="Typo.body2">@FormatOutletName(outlet)</MudText>
+                                    <MudText Typo="Typo.caption" Class="kasa-muted">@FormatOutletId(outlet)</MudText>
+                                </div>
+                                <div class="kasa-outlet-meta">
+                                    <MudText Typo="Typo.caption" Class="kasa-muted">On time @FormatOutletOnTime(outlet)</MudText>
+                                    @if (outlet.Energy is not null)
+                                    {
+                                        <MudText Typo="Typo.caption" Class="kasa-muted">Energy @FormatOutletEnergy(outlet.Energy)</MudText>
+                                    }
+                                    <MudChip T="string" Size="Size.Small" Color="@GetOutletColor(outlet)" Variant="Variant.Outlined">@FormatOutletState(outlet)</MudChip>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (_selectedDevice.Light is not null)
+            {
+                <div class="kasa-dialog-section">
+                    <MudText Typo="Typo.h6">Light</MudText>
+                    <div class="shell-info-dialog-grid kasa-device-info-grid">
+                        <div class="shell-info-dialog-item"><span>Brightness</span><strong>@FormatPercent(_selectedDevice.Light.Brightness)</strong></div>
+                        <div class="shell-info-dialog-item"><span>Color Temp</span><strong>@FormatKelvin(_selectedDevice.Light.ColorTemperature)</strong></div>
+                        <div class="shell-info-dialog-item"><span>Hue / Saturation</span><strong>@FormatHueSaturation(_selectedDevice.Light)</strong></div>
+                        <div class="shell-info-dialog-item"><span>Mode</span><strong>@(_selectedDevice.Light.Mode ?? "Unknown")</strong></div>
+                        <div class="shell-info-dialog-item"><span>Soft On</span><strong>@(_selectedDevice.Light.DefaultBehavior?.SoftOnMode ?? "Unknown")</strong></div>
+                        <div class="shell-info-dialog-item"><span>Hard On</span><strong>@(_selectedDevice.Light.DefaultBehavior?.HardOnMode ?? "Unknown")</strong></div>
+                        <div class="shell-info-dialog-item"><span>Rated Wattage</span><strong>@FormatWatts(_selectedDevice.Light.BulbDetails?.Wattage)</strong></div>
+                        <div class="shell-info-dialog-item"><span>Max Lumens</span><strong>@FormatNullable(_selectedDevice.Light.BulbDetails?.MaxLumens)</strong></div>
+                        <div class="shell-info-dialog-item"><span>Beam Angle</span><strong>@FormatDegrees(_selectedDevice.Light.BulbDetails?.LampBeamAngle)</strong></div>
+                        <div class="shell-info-dialog-item"><span>CRI</span><strong>@FormatNullable(_selectedDevice.Light.BulbDetails?.ColorRenderingIndex)</strong></div>
+                    </div>
+                    @if (_selectedDevice.Light.PreferredStates.Count > 0)
+                    {
+                        <div class="kasa-preferred-state-list" aria-label="Preferred light states">
+                            @foreach (var preferredState in _selectedDevice.Light.PreferredStates.OrderBy(state => state.Index ?? int.MaxValue))
+                            {
+                                <div class="kasa-preferred-state-row">
+                                    <strong>Preset @FormatNullable(preferredState.Index)</strong>
+                                    <span>@FormatPercent(preferredState.Brightness)</span>
+                                    <span>@FormatKelvin(preferredState.ColorTemperature)</span>
+                                    <span>@FormatHueSaturation(preferredState.Hue, preferredState.Saturation)</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (_selectedDevice.ReadMetadata?.Schedule?.IsSupported == true || _selectedDevice.ReadMetadata?.ScheduleNextAction?.IsSupported == true)
+            {
+                <div class="kasa-dialog-section">
+                    <MudText Typo="Typo.h6">Schedule</MudText>
+                    <div class="shell-info-dialog-grid kasa-device-info-grid">
+                        <div class="shell-info-dialog-item"><span>Enabled</span><strong>@FormatBool(_selectedDevice.ReadMetadata.Schedule?.Enabled)</strong></div>
+                        <div class="shell-info-dialog-item"><span>Rules</span><strong>@FormatNullable(_selectedDevice.ReadMetadata.Schedule?.RuleCount)</strong></div>
+                        <div class="shell-info-dialog-item"><span>Version</span><strong>@FormatNullable(_selectedDevice.ReadMetadata.Schedule?.Version)</strong></div>
+                        <div class="shell-info-dialog-item"><span>Next Action Type</span><strong>@FormatNullable(_selectedDevice.ReadMetadata.ScheduleNextAction?.Type)</strong></div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+</MudPaper>
+
+@code {
+    private KasaGatewayStatusResponse? _status;
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _refreshCts;
+    private KasaDeviceStatus? _selectedDevice;
+    private bool _deviceInfoLoading;
+    private string? _deviceInfoMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        _refreshCts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Max(1, GatewayOptions.Value.DashboardRefreshSeconds)));
+        _ = RefreshLoopAsync(_refreshCts.Token);
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        if (_timer is null)
+        {
+            return;
+        }
+
+        while (await _timer.WaitForNextTickAsync(cancellationToken))
+        {
+            await InvokeAsync(RefreshAsync);
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        var nextStatus = await GatewayState.GetStatusAsync();
+        _status = PreserveInteractingDevices(nextStatus);
+        StateHasChanged();
+    }
+
+    private KasaGatewayStatusResponse PreserveInteractingDevices(KasaGatewayStatusResponse nextStatus)
+    {
+        if (_status is null)
+        {
+            return nextStatus;
+        }
+
+        var previousBySourceId = _status.Devices
+            .Where(device => !string.IsNullOrWhiteSpace(device.SourceId))
+            .ToDictionary(device => device.SourceId!, StringComparer.OrdinalIgnoreCase);
+        var devices = nextStatus.Devices
+            .Select(device => device.SourceId is { Length: > 0 } sourceId && InteractionState.IsSuspended(sourceId) && previousBySourceId.TryGetValue(sourceId, out var previous)
+                ? previous
+                : device)
+            .ToArray();
+
+        return nextStatus with
+        {
+            OnlineDeviceCount = devices.Count(device => device.IsOnline),
+            DegradedDeviceCount = devices.Count(device => device.IsDegraded),
+            Devices = devices
+        };
+    }
+
+    private static Color GetStatusColor(KasaDeviceStatus device) =>
+        device.IsOnline ? device.IsDegraded ? Color.Warning : Color.Success : Color.Error;
+
+    private static string GetStatusText(KasaDeviceStatus device) =>
+        device.IsOnline ? device.IsDegraded ? "Degraded" : "Online" : "Offline";
+
+    private static string FormatState(KasaDeviceStatus device) =>
+        device.IsOn is null ? "Unknown" : device.IsOn.Value ? "On" : "Off";
+
+    private static string FormatPower(KasaDeviceStatus device) =>
+        device.Energy?.PowerW is null ? "n/a" : $"{device.Energy.PowerW.Value:0.#} W";
+
+    private static string FormatPower(KasaEnergyStatus? energy) =>
+        energy?.PowerW is null ? "n/a" : $"{energy.PowerW.Value:0.#} W";
+
+    private static string FormatVoltage(KasaEnergyStatus? energy) =>
+        energy?.VoltageV is null ? "n/a" : $"{energy.VoltageV.Value:0.#} V";
+
+    private static string FormatCurrent(KasaEnergyStatus? energy) =>
+        energy?.CurrentA is null ? "n/a" : $"{energy.CurrentA.Value:0.###} A";
+
+    private static string FormatEnergy(KasaEnergyStatus? energy) =>
+        energy?.EnergyKWh is null ? "n/a" : $"{energy.EnergyKWh.Value:0.###} kWh";
+
+    private static string FormatOutletEnergy(KasaEnergyStatus energy) =>
+        energy.EnergyKWh is null
+            ? FormatPower(energy)
+            : $"{FormatPower(energy)} / {FormatEnergy(energy)}";
+
+    private static string FormatPercent(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)}%";
+
+    private static string FormatKelvin(int? value) => value is null || value == 0 ? "n/a" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} K";
+
+    private static string FormatWatts(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} W";
+
+    private static string FormatDegrees(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} deg";
+
+    private static string FormatHueSaturation(KasaLightStatus light) => FormatHueSaturation(light.Hue, light.Saturation);
+
+    private static string FormatHueSaturation(int? hue, int? saturation) =>
+        hue is null && saturation is null
+            ? "n/a"
+            : $"H {hue?.ToString(CultureInfo.InvariantCulture) ?? "?"} / S {saturation?.ToString(CultureInfo.InvariantCulture) ?? "?"}";
+
+    private static string FormatBool(bool? value) => value is null ? "Unknown" : value.Value ? "Yes" : "No";
+
+    private static Color GetOutletColor(KasaOutletStatus outlet) =>
+        outlet.IsOn is null ? Color.Default : outlet.IsOn.Value ? Color.Success : Color.Default;
+
+    private static string FormatOutletState(KasaOutletStatus outlet) =>
+        outlet.IsOn is null ? "Unknown" : outlet.IsOn.Value ? "On" : "Off";
+
+    private static string FormatOutletName(KasaOutletStatus outlet) =>
+        string.IsNullOrWhiteSpace(outlet.DisplayName)
+            ? $"Outlet {outlet.Index?.ToString(CultureInfo.InvariantCulture) ?? "?"}"
+            : outlet.DisplayName;
+
+    private static string FormatOutletId(KasaOutletStatus outlet) =>
+        outlet.Index is null ? "Port unknown" : $"Port {outlet.Index.Value.ToString(CultureInfo.InvariantCulture)}";
+
+    private static string FormatOutletOnTime(KasaOutletStatus outlet) =>
+        outlet.OnTimeSeconds is null ? "Unknown" : TimeSpan.FromSeconds(outlet.OnTimeSeconds.Value).ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
+
+    private static bool IsBulb(KasaDeviceStatus device) => device.DeviceKind == KasaDeviceKind.Bulb;
+
+    private static bool IsDimmer(KasaDeviceStatus device) => device.DeviceKind == KasaDeviceKind.Dimmer;
+
+    private static bool IsMultiOutlet(KasaDeviceStatus device) => device.DeviceKind is KasaDeviceKind.PowerStrip or KasaDeviceKind.DualOutlet;
+
+    private static bool SupportsCommand(KasaDeviceStatus device, KasaCommandCapability capability) =>
+        device.CommandCapabilities.Contains(capability);
+
+    private RenderFragment<KasaDeviceStatus> RenderSwitchCardBody => device => @<div class="kasa-card-body">
+        <div class="kasa-control-surface" aria-label="Switch controls">
+            <MudText Typo="Typo.subtitle2">Switch</MudText>
+            <MudButton Variant="Variant.Outlined" Color="@(device.IsOn == true ? Color.Success : Color.Default)" Disabled="true" StartIcon="@Icons.Material.Outlined.PowerSettingsNew">@FormatState(device)</MudButton>
+            <MudText Typo="Typo.caption" Class="kasa-muted">@FormatControlAvailability(device, KasaCommandCapability.SwitchPower)</MudText>
+        </div>
+        @if (device.Outlets.Count > 0)
+        {
+            <div class="kasa-outlet-list" aria-label="Device outlets">
+                @foreach (var outlet in device.Outlets.OrderBy(outlet => outlet.Index ?? int.MaxValue).ThenBy(outlet => outlet.DisplayName))
+                {
+                    @RenderOutletRow(device, outlet, showEnergy: false)
+                }
+            </div>
+        }
+    </div>;
+
+    private RenderFragment<KasaDeviceStatus> RenderOutletCardBody => device => @<div class="kasa-card-body">
+        <div class="kasa-outlet-summary" aria-label="Outlet summary">
+            <div><span>Outlets</span><strong>@device.Outlets.Count.ToString(CultureInfo.InvariantCulture)</strong></div>
+            <div><span>Active</span><strong>@device.Outlets.Count(outlet => outlet.IsOn == true).ToString(CultureInfo.InvariantCulture)</strong></div>
+            <div><span>Per-Port Power</span><strong>@(device.Outlets.Any(outlet => outlet.Energy?.PowerW is not null) ? "Available" : "n/a")</strong></div>
+            <div><span>Schedule Scope</span><strong>@(device.ReadMetadata?.Support.ScheduleRules == true ? "Port/device" : "Unknown")</strong></div>
+        </div>
+        <div class="kasa-outlet-list" aria-label="Device outlets">
+            @foreach (var outlet in device.Outlets.OrderBy(outlet => outlet.Index ?? int.MaxValue).ThenBy(outlet => outlet.DisplayName))
+            {
+                @RenderOutletRow(device, outlet, showEnergy: true)
+            }
+        </div>
+    </div>;
+
+    private RenderFragment<KasaDeviceStatus> RenderLightCardBody => device => @<div class="kasa-card-body">
+        @if (device.Light is not null)
+        {
+            <div class="kasa-light-summary" aria-label="Light status">
+                <div><span>Brightness</span><strong>@FormatPercent(device.Light.Brightness)</strong></div>
+                <div><span>Color Temp</span><strong>@FormatKelvin(device.Light.ColorTemperature)</strong></div>
+                <div><span>Color</span><strong>@FormatHueSaturation(device.Light)</strong></div>
+                <div><span>Mode</span><strong>@(device.Light.Mode ?? "Unknown")</strong></div>
+            </div>
+            <div class="kasa-control-surface kasa-light-controls" aria-label="Light controls">
+                <MudButton Variant="Variant.Outlined" Color="@(device.Light.IsOn == true ? Color.Success : Color.Default)" Disabled="true" StartIcon="@Icons.Material.Outlined.Lightbulb">@(device.Light.IsOn == true ? "On" : "Off")</MudButton>
+                <div class="kasa-slider-control">
+                    <MudText Typo="Typo.caption" Class="kasa-muted">Brightness</MudText>
+                    <MudSlider T="int" Value="@(device.Light.Brightness ?? 0)" Min="0" Max="100" Disabled="true" Color="Color.Primary" />
+                </div>
+                <div class="kasa-slider-control">
+                    <MudText Typo="Typo.caption" Class="kasa-muted">Color temperature</MudText>
+                    <MudSlider T="int" Value="@(device.Light.ColorTemperature ?? 0)" Min="0" Max="9000" Disabled="true" Color="Color.Info" />
+                </div>
+                <MudText Typo="Typo.caption" Class="kasa-muted">@FormatLightControlAvailability(device)</MudText>
+            </div>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Class="kasa-muted">Light status is not available from the latest poll.</MudText>
+        }
+    </div>;
+
+    private RenderFragment<KasaDeviceStatus> RenderDimmerCardBody => device => @<div class="kasa-card-body">
+        <div class="kasa-control-surface kasa-light-controls" aria-label="Dimmer controls">
+            <MudButton Variant="Variant.Outlined" Color="@(device.IsOn == true ? Color.Success : Color.Default)" Disabled="true" StartIcon="@Icons.Material.Outlined.PowerSettingsNew">@FormatState(device)</MudButton>
+            <div class="kasa-slider-control">
+                <MudText Typo="Typo.caption" Class="kasa-muted">Dim level</MudText>
+                <MudSlider T="int" Value="@(device.Light?.Brightness ?? 0)" Min="0" Max="100" Disabled="true" Color="Color.Primary" />
+            </div>
+            <MudText Typo="Typo.caption" Class="kasa-muted">@FormatControlAvailability(device, KasaCommandCapability.DimLevel)</MudText>
+        </div>
+        <div class="kasa-outlet-summary" aria-label="Dimmer metadata">
+            <div><span>Soft On</span><strong>@(device.DeviceInfo?.Dimmer?.DefaultBehavior?.SoftOnMode ?? "Unknown")</strong></div>
+            <div><span>Long Press</span><strong>@(device.DeviceInfo?.Dimmer?.DefaultBehavior?.LongPressMode ?? "Unknown")</strong></div>
+            <div><span>Fade On</span><strong>@FormatMilliseconds(device.DeviceInfo?.Dimmer?.Parameters?.FadeOnTimeMs)</strong></div>
+            <div><span>Min Level</span><strong>@FormatNullable(device.DeviceInfo?.Dimmer?.Parameters?.MinThreshold)</strong></div>
+        </div>
+    </div>;
+
+    private RenderFragment RenderOutletRow(KasaDeviceStatus device, KasaOutletStatus outlet, bool showEnergy) => @<div class="kasa-outlet-row">
+        <div>
+            <MudText Typo="Typo.body2">@FormatOutletName(outlet)</MudText>
+            <MudText Typo="Typo.caption" Class="kasa-muted">@FormatOutletId(outlet)</MudText>
+        </div>
+        <div class="kasa-outlet-meta">
+            @if (showEnergy && outlet.Energy is not null)
+            {
+                <MudText Typo="Typo.caption" Class="kasa-muted">@FormatOutletEnergy(outlet.Energy)</MudText>
+            }
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="@GetOutletColor(outlet)" Disabled="true" StartIcon="@Icons.Material.Outlined.PowerSettingsNew">@FormatOutletState(outlet)</MudButton>
+            @if (SupportsCommand(device, KasaCommandCapability.SwitchPower))
+            {
+                <MudText Typo="Typo.caption" Class="kasa-muted">Control ready</MudText>
+            }
+        </div>
+    </div>;
+
+    private static string FormatControlAvailability(KasaDeviceStatus device, KasaCommandCapability capability) =>
+        SupportsCommand(device, capability) ? "Control surface available; write endpoint not enabled yet." : "Telemetry only.";
+
+    private static string FormatLightControlAvailability(KasaDeviceStatus device)
+    {
+        var commands = new[]
+        {
+            KasaCommandCapability.SwitchPower,
+            KasaCommandCapability.DimLevel,
+            KasaCommandCapability.LightColor,
+            KasaCommandCapability.LightColorTemperature
+        };
+        var available = commands.Where(command => SupportsCommand(device, command)).Select(command => command.ToString()).ToArray();
+        return available.Length == 0 ? "Telemetry only." : $"Control surface available: {string.Join(", ", available)}.";
+    }
+
+    private static string FormatMilliseconds(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} ms";
+
+    private string FormatObserved(KasaDeviceStatus device)
+    {
+        if (device.ObservedAtUtc is null)
+        {
+            return "never";
+        }
+
+        return ConvertForDisplay(device.ObservedAtUtc.Value, device).ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture);
+    }
+
+    private DateTimeOffset ConvertForDisplay(DateTimeOffset utc, KasaDeviceStatus device) =>
+        device.DeviceInfo?.DeviceUtcOffsetMinutes is { } offsetMinutes
+            ? utc.ToOffset(TimeSpan.FromMinutes(offsetMinutes))
+            : DisplayTimeZoneResolver.ConvertFromUtc(utc, device.DisplayTimeZoneId);
+
+    private async Task OpenDeviceInfoAsync(KasaDeviceStatus device)
+    {
+        _selectedDevice = device;
+        _deviceInfoMessage = device.DeviceInfo?.DeviceTime is null && device.DeviceInfo?.Timezone is null
+            ? "Live status is cached. Refresh details for device time, timezone, and other low-cadence metadata."
+            : null;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshSelectedDeviceDetailsAsync()
+    {
+        if (_selectedDevice?.SourceId is not { Length: > 0 } sourceId)
+        {
+            return;
+        }
+
+        _deviceInfoLoading = true;
+        _deviceInfoMessage = null;
+        try
+        {
+            var result = await AdminService.RefreshDeviceDetailsAsync(sourceId, CancellationToken.None);
+            await RefreshAsync();
+            _selectedDevice = _status?.Devices.FirstOrDefault(device => string.Equals(device.SourceId, sourceId, StringComparison.OrdinalIgnoreCase)) ?? _selectedDevice;
+            _deviceInfoMessage = result.Success ? "Details refreshed." : result.Message;
+        }
+        finally
+        {
+            _deviceInfoLoading = false;
+        }
+    }
+
+    private void CloseDeviceInfo()
+    {
+        _selectedDevice = null;
+        _deviceInfoMessage = null;
+    }
+
+    private static string FormatDeviceTime(KasaDeviceTimeMetadata? deviceTime)
+    {
+        if (deviceTime?.IsSupported != true || deviceTime.Year is null || deviceTime.Month is null || deviceTime.Day is null)
+        {
+            return "Unknown";
+        }
+
+        return $"{deviceTime.Year:0000}-{deviceTime.Month:00}-{deviceTime.Day:00} {deviceTime.Hour.GetValueOrDefault():00}:{deviceTime.Minute.GetValueOrDefault():00}:{deviceTime.Second.GetValueOrDefault():00}";
+    }
+
+    private static string FormatLocation(KasaDeviceLocation? location) =>
+        location?.LatitudeDegrees is null || location.LongitudeDegrees is null
+            ? "Unknown"
+            : $"{location.LatitudeDegrees.Value:0.####}, {location.LongitudeDegrees.Value:0.####}";
+
+    private static string FormatCloud(KasaCloudMetadata? cloud) =>
+        cloud?.IsSupported == true
+            ? $"{(cloud.IsConnected == true ? "Connected" : "Disconnected")}, {(cloud.IsBound == true ? "bound" : "unbound")}" 
+            : "Unknown";
+
+    private static string FormatNullable(int? value) => value?.ToString(CultureInfo.InvariantCulture) ?? "Unknown";
+
+    private string FormatDisplayTimeZone(KasaDeviceStatus device) =>
+        device.DeviceInfo?.DeviceTimeZoneLabel is { Length: > 0 } label
+            ? $"{label} (device)"
+            : DisplayTimeZoneResolver.GetLabel(device.DisplayTimeZoneId);
+
+    public void Dispose()
+    {
+        _refreshCts?.Cancel();
+        _refreshCts?.Dispose();
+        _timer?.Dispose();
+    }
+}

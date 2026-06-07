@@ -81,9 +81,11 @@ public sealed class KasaReadMetadataParser
             GetInt(payload, "reboot_time"));
     }
 
-    public KasaCloudMetadata ParseCloud(JsonDocument response)
+    public KasaCloudMetadata ParseCloud(JsonDocument response) => ParseCloud(response, "cnCloud", "get_info");
+
+    public KasaCloudMetadata ParseCloud(JsonDocument response, params string[] path)
     {
-        if (!TryGetNested(response.RootElement, ["cnCloud", "get_info"], out var payload) || payload.ValueKind != JsonValueKind.Object)
+        if (!TryGetNested(response.RootElement, path, out var payload) || payload.ValueKind != JsonValueKind.Object)
         {
             return new KasaCloudMetadata(false, null, "Read metadata payload was not present.", null, null, null, null, null, null);
         }
@@ -114,6 +116,43 @@ public sealed class KasaReadMetadataParser
             error.ErrorCode,
             error.ErrorMessage,
             payload.TryGetProperty("fw_list", out var firmwareList) && firmwareList.ValueKind == JsonValueKind.Array ? firmwareList.GetArrayLength() : null);
+    }
+
+    public KasaBulbLightDetailsMetadata ParseBulbLightDetails(JsonDocument response)
+    {
+        if (!TryGetNested(response.RootElement, ["smartlife.iot.smartbulb.lightingservice", "get_light_details"], out var payload) || payload.ValueKind != JsonValueKind.Object)
+        {
+            return new KasaBulbLightDetailsMetadata(false, null, "Read metadata payload was not present.", null, null, null, null, null, null, null);
+        }
+
+        var error = GetError(payload);
+        return new KasaBulbLightDetailsMetadata(
+            error.IsSupported,
+            error.ErrorCode,
+            error.ErrorMessage,
+            GetInt(payload, "wattage"),
+            GetInt(payload, "max_lumens"),
+            GetInt(payload, "color_rendering_index"),
+            GetInt(payload, "incandescent_equivalent"),
+            GetInt(payload, "lamp_beam_angle"),
+            GetInt(payload, "min_voltage"),
+            GetInt(payload, "max_voltage"));
+    }
+
+    public KasaBulbDefaultBehaviorMetadata ParseBulbDefaultBehavior(JsonDocument response)
+    {
+        if (!TryGetNested(response.RootElement, ["smartlife.iot.smartbulb.lightingservice", "get_default_behavior"], out var payload) || payload.ValueKind != JsonValueKind.Object)
+        {
+            return new KasaBulbDefaultBehaviorMetadata(false, null, "Read metadata payload was not present.", null, null);
+        }
+
+        var error = GetError(payload);
+        return new KasaBulbDefaultBehaviorMetadata(
+            error.IsSupported,
+            error.ErrorCode,
+            error.ErrorMessage,
+            GetNestedString(payload, "soft_on", "mode"),
+            GetNestedString(payload, "hard_on", "mode"));
     }
 
     public KasaDimmerDefaultBehaviorMetadata ParseDimmerDefaultBehavior(JsonDocument response)
