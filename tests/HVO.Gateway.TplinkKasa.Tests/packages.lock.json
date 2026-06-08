@@ -514,7 +514,7 @@
         "type": "Project",
         "dependencies": {
           "HVO.WebSite.Themes": "[1.0.0, )",
-          "MudBlazor": "[9.4.0, )"
+          "MudBlazor": "[9.5.0, )"
         }
       },
       "hvo.website.themes": {
@@ -556,9 +556,9 @@
       },
       "MudBlazor": {
         "type": "CentralTransitive",
-        "requested": "[9.4.0, )",
-        "resolved": "9.4.0",
-        "contentHash": "p6BF8zmt4c/yi/hD9hP7yPioUK5loOnif19gwIEANq6I46407QnSu0HTW1NuALC5seRKcWb2pBP5LwC8aBE2Mg==",
+        "requested": "[9.5.0, )",
+        "resolved": "9.5.0",
+        "contentHash": "mZiuKdOG42RkA/cZhiwNwbBZAKBExDx387ylvxzokcenRFHi8n4tq8olGuXs/oWNX1Qgo7Tj7J0AhOjjSnTpcw==",
         "dependencies": {
           "Microsoft.AspNetCore.Components": "10.0.1",
           "Microsoft.AspNetCore.Components.Web": "10.0.1",
