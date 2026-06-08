@@ -32,7 +32,7 @@
     <PackageVersion Include="Azure.Security.KeyVault.Secrets" Version="4.11.0" />
 
     <!-- Microsoft Identity -->
-    <PackageVersion Include="Microsoft.Identity.Web" Version="4.8.0" />
+    <PackageVersion Include="Microsoft.Identity.Web" Version="4.10.0" />
     <PackageVersion Include="Microsoft.Identity.Web.UI" Version="4.8.0" />
 
     <!-- ASP.NET Core / Web -->
