@@ -26,9 +26,9 @@
       },
       "Microsoft.Playwright": {
         "type": "Direct",
-        "requested": "[1.59.0, )",
-        "resolved": "1.59.0",
-        "contentHash": "igqHbZMmXI6cYNPg1X1o5/51U3CQp83lvvov/d/zmus2wlG1LjvpEL6i1Jx51pRahPtSyppvwq+ZoBfxeSjiew==",
+        "requested": "[1.60.0, )",
+        "resolved": "1.60.0",
+        "contentHash": "RTwlxpmCsCMD8yCu8a9+/B+ce1axSVuRu3Ew4GI493g84bWxC323u69Tw8najJ/5uZ+cQVU3eDhB4GvubM9yHg==",
         "dependencies": {
           "Microsoft.Bcl.AsyncInterfaces": "6.0.0",
           "System.ComponentModel.Annotations": "5.0.0"
@@ -36,24 +36,24 @@
       },
       "Microsoft.Playwright.MSTest": {
         "type": "Direct",
-        "requested": "[1.59.0, )",
-        "resolved": "1.59.0",
-        "contentHash": "YUxaUOzL5fl/X6PEaZXbbBCdwk6VSZDhGetiJ1ZZA1JkS4GOoPLUQRH4+pb+edRMUwoeMjPHNM13xN8Oimc/XA==",
+        "requested": "[1.60.0, )",
+        "resolved": "1.60.0",
+        "contentHash": "OFPlbBH6EWCFcAncQBFZjfhpBGiQ0EgAPotOG8FT1euIEPltRGYzPDTXaF8p8J5mcmAZejORpwwb2ZZNoAKgiA==",
         "dependencies": {
           "MSTest.TestAdapter": "2.2.7",
           "MSTest.TestFramework": "2.2.7",
           "Microsoft.NET.Test.Sdk": "17.8.0",
-          "Microsoft.Playwright": "1.59.0",
-          "Microsoft.Playwright.TestAdapter": "1.59.0"
+          "Microsoft.Playwright": "1.60.0",
+          "Microsoft.Playwright.TestAdapter": "1.60.0"
         }
       },
       "Microsoft.Playwright.TestAdapter": {
         "type": "Direct",
-        "requested": "[1.59.0, )",
-        "resolved": "1.59.0",
-        "contentHash": "/1BaG9hz5eU5o8AWGgB9IY6vkV/VSTnkXYq9hX7ef6dRV8q+vo+NvmkvFhJasy3g/Ge3/7WGmnxfbHlC1CfN+w==",
+        "requested": "[1.60.0, )",
+        "resolved": "1.60.0",
+        "contentHash": "CvyAsA5GSiYKCtkvXxBJ9TLfJJIRJbptqh8WafHXjN4/ZUUxovBl3D6ctkE9XA9thlHTjO907rdEBaDtwzDwGA==",
         "dependencies": {
-          "Microsoft.Playwright": "1.59.0",
+          "Microsoft.Playwright": "1.60.0",
           "Microsoft.TestPlatform.ObjectModel": "17.3.0"
         }
       },
