@@ -1,0 +1,22 @@
+@namespace HVO.Gateway.TplinkKasa.Components
+
+<div class="kasa-card-body">
+    <div class="kasa-outlet-list" aria-label="Device outlets">
+        @foreach (var outlet in Outlets)
+        {
+            <KasaOutletRow Device="Device" Outlet="outlet" UseOutletIndex="false" OnChanged="OnChanged" />
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public KasaDeviceStatus Device { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private IEnumerable<KasaOutletStatus> Outlets => Device.Outlets.Count > 0
+        ? Device.Outlets.OrderBy(outlet => outlet.Index ?? int.MaxValue).ThenBy(outlet => outlet.DisplayName)
+        : [new KasaOutletStatus(1, Device.DisplayName, Device.IsOn, null, Device.Energy)];
+}

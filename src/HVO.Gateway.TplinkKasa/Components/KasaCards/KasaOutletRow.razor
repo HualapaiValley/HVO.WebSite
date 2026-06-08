@@ -1,0 +1,111 @@
+@namespace HVO.Gateway.TplinkKasa.Components
+@implements IDisposable
+@inject KasaDeviceCommandService CommandService
+@inject KasaDeviceInteractionState InteractionState
+
+<div class="kasa-outlet-row @(BottomControls is null ? null : "kasa-outlet-row-stacked")">
+    <div class="kasa-outlet-row-main">
+        <div>
+            <MudText Typo="Typo.body2">@KasaCardText.FormatOutletName(Outlet)</MudText>
+            <MudText Typo="Typo.caption" Class="kasa-muted">@KasaCardText.FormatOutletId(Outlet)</MudText>
+        </div>
+        <div class="kasa-outlet-meta">
+            @if (ShowEnergy && Outlet.Energy is not null)
+            {
+                <MudText Typo="Typo.caption" Class="kasa-muted">@KasaCardText.FormatOutletEnergy(Outlet.Energy)</MudText>
+            }
+            @if (InlineControls is not null)
+            {
+                <div class="kasa-outlet-inline-control">
+                    @InlineControls
+                </div>
+            }
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="@GetOutletColor()" Disabled="@IsBusyOrUnavailable" StartIcon="@Icons.Material.Outlined.PowerSettingsNew" OnClick="ToggleAsync">@KasaCardText.FormatOutletState(Outlet)</MudButton>
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <MudText Typo="Typo.caption" Class="@MessageClass">@_message</MudText>
+            }
+        </div>
+    </div>
+    @if (BottomControls is not null)
+    {
+        <div class="kasa-port-slider-row">
+            @BottomControls
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public KasaDeviceStatus Device { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public KasaOutletStatus Outlet { get; set; } = null!;
+
+    [Parameter]
+    public bool ShowEnergy { get; set; }
+
+    [Parameter]
+    public bool UseOutletIndex { get; set; } = true;
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    [Parameter]
+    public RenderFragment? InlineControls { get; set; }
+
+    [Parameter]
+    public RenderFragment? BottomControls { get; set; }
+
+    private bool _busy;
+    private string? _message;
+    private bool _lastSuccess;
+    private IDisposable? _interaction;
+
+    private bool IsBusyOrUnavailable => _busy || !Device.IsOnline || Outlet.IsOn is null || string.IsNullOrWhiteSpace(Device.SourceId) || !Device.CommandCapabilities.Contains(KasaCommandCapability.SwitchPower);
+
+    private string MessageClass => _lastSuccess ? "kasa-muted" : "kasa-error-text";
+
+    private Color GetOutletColor() =>
+        Outlet.IsOn is null ? Color.Default : Outlet.IsOn.Value ? Color.Success : Color.Default;
+
+    private async Task ToggleAsync()
+    {
+        if (IsBusyOrUnavailable || Device.SourceId is not { Length: > 0 } sourceId || Outlet.IsOn is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _message = null;
+        _interaction ??= InteractionState.TryBegin(Device.SourceId);
+        KasaAdminOperationResult? result = null;
+        try
+        {
+            result = await CommandService.SetPowerAsync(sourceId, !Outlet.IsOn.Value, UseOutletIndex ? Outlet.Index : null, CancellationToken.None);
+            _lastSuccess = result.Success;
+            _message = result.Success ? null : result.Message;
+            if (result.Success)
+            {
+                EndInteraction();
+                await OnChanged.InvokeAsync();
+            }
+        }
+        finally
+        {
+            _busy = false;
+            if (result?.Success != true)
+            {
+                EndInteraction();
+            }
+        }
+    }
+
+    private void EndInteraction()
+    {
+        _interaction?.Dispose();
+        _interaction = null;
+    }
+
+    public void Dispose() => EndInteraction();
+}

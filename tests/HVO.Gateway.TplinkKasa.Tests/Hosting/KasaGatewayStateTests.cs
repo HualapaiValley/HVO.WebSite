@@ -2,6 +2,8 @@ using FluentAssertions;
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Devices;
 using HVO.Gateway.TplinkKasa.Hosting;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Gateway.TplinkKasa.Tests.Hosting;
@@ -37,7 +39,7 @@ public sealed class KasaGatewayStateTests
             SourceId = "tplink-kasa:disabled-placeholder",
             Host = string.Empty
         });
-        var state = new KasaGatewayState(Options.Create(options));
+        var state = CreateState(options);
 
         var inventory = state.GetInventory();
         var status = state.GetStatus();
@@ -59,6 +61,21 @@ public sealed class KasaGatewayStateTests
         devices.GatewayId.Should().Be("test-gateway");
         devices.Devices.Should().ContainSingle();
         devices.Devices[0].SourceId.Should().Be("tplink-kasa:observatory-test");
+    }
+
+    [TestMethod]
+    public void GetStatus_ExposesGatewayAndDeviceDisplayTimeZones()
+    {
+        var options = CreateConfig();
+        options.DisplayTimeZoneId = "America/Phoenix";
+        options.Devices[0].DisplayTimeZoneId = "America/New_York";
+        var state = CreateState(options);
+
+        var status = state.GetStatus();
+
+        status.DisplayTimeZoneId.Should().Be("America/Phoenix");
+        status.Devices.Should().ContainSingle();
+        status.Devices[0].DisplayTimeZoneId.Should().Be("America/New_York");
     }
 
     [TestMethod]
@@ -87,7 +104,7 @@ public sealed class KasaGatewayStateTests
             ExpectedModel = "LB230(E26)",
             Capabilities = [KasaCapability.LightState]
         });
-        var state = new KasaGatewayState(Options.Create(options));
+        var state = CreateState(options);
         var plugConfig = options.Devices[0];
         var bulbConfig = options.Devices[1];
         state.ApplyResult(plugConfig, new KasaPollResult(CreateSnapshot(plugConfig, KasaDeviceKind.Plug, "EP25(US)", capabilities: new HashSet<KasaCapability> { KasaCapability.SwitchState, KasaCapability.EnergyRealtime }), null));
@@ -95,15 +112,18 @@ public sealed class KasaGatewayStateTests
 
         var energyMatches = state.SearchDevices(new KasaDeviceSearchRequest("observatory", null, "plug", "EnergyRealtime", null, true, false));
         var bulbMatches = state.SearchDevices(new KasaDeviceSearchRequest(null, "LB230", "bulb", null, null, true, false));
+        var vendorDetailMatches = state.SearchDevices(new KasaDeviceSearchRequest("configured-device-host", null, null, null, null, true, false));
 
         energyMatches.MatchCount.Should().Be(1);
         energyMatches.Devices[0].SourceId.Should().Be("tplink-kasa:observatory-test");
         bulbMatches.MatchCount.Should().Be(1);
         bulbMatches.Devices[0].SourceId.Should().Be("tplink-kasa:kitchen-bulb");
+        vendorDetailMatches.MatchCount.Should().Be(1);
+        vendorDetailMatches.Devices[0].DisplayName.Should().Be("Private Alias");
     }
 
     [TestMethod]
-    public void GetStatus_DoesNotExposeRawDeviceIdHostMacAliasOrRawVendorJson()
+    public void GetStatus_ExposesVendorVisibleDeviceDetailsWithoutRawConfiguredIdOrRawVendorJson()
     {
         var state = CreateState();
         var config = CreateConfig().Devices[0];
@@ -123,10 +143,12 @@ public sealed class KasaGatewayStateTests
             KasaDeviceKind.Plug,
             new HashSet<KasaCapability> { KasaCapability.SwitchState },
             new HashSet<KasaMetadataCapability> { KasaMetadataCapability.Diagnostics },
+            new HashSet<KasaCommandCapability> { KasaCommandCapability.SwitchPower },
             true,
-            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5)],
+            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5, new KasaEnergyReading(12.3, 120.1, 0.2, 1.5, default))],
             null,
             null,
+            CreateDeviceInfo("EP25(US)"),
             null,
             System.Text.Json.JsonDocument.Parse("{\"private\":\"raw\"}").RootElement.Clone());
 
@@ -135,13 +157,70 @@ public sealed class KasaGatewayStateTests
         var status = state.GetStatus();
         var text = System.Text.Json.JsonSerializer.Serialize(status);
         text.Should().NotContain("RAW_DEVICE_ID_SANITIZED");
-        text.Should().NotContain("configured-device-host.example");
-        text.Should().NotContain("AA:BB:CC:DD:EE:01");
-        text.Should().NotContain("Private Alias");
+        text.Should().Contain("configured-device-host.example");
+        text.Should().Contain("AA:BB:CC:DD:EE:01");
+        text.Should().Contain("Private Alias");
         text.Should().NotContain("private-child-id");
         text.Should().NotContain("raw");
         status.Devices[0].SourceId.Should().Be("tplink-kasa:observatory-test");
+        status.Devices[0].DisplayName.Should().Be("Private Alias");
+        status.Devices[0].Host.Should().Be("configured-device-host.example");
+        status.Devices[0].MacAddress.Should().Be("AA:BB:CC:DD:EE:01");
+        status.Devices[0].DeviceInfo.Should().NotBeNull();
+        var deviceInfo = status.Devices[0].DeviceInfo!;
+        deviceInfo.Model.Should().Be("EP25(US)");
+        deviceInfo.MacAddress.Should().Be("AA:BB:CC:DD:EE:01");
         status.Devices[0].Outlets.Should().ContainSingle().Which.Index.Should().Be(1);
+        status.Devices[0].Outlets[0].DisplayName.Should().Be("Private Outlet");
+        status.Devices[0].Outlets[0].Energy.Should().NotBeNull();
+        status.Devices[0].Outlets[0].Energy!.PowerW.Should().Be(12.3);
+    }
+
+    [TestMethod]
+    public void ApplyResult_FastStatusPollPreservesCachedFullDeviceMetadata()
+    {
+        var state = CreateState();
+        var config = CreateConfig().Devices[0];
+        var fullMetadata = new KasaReadMetadataSnapshot(
+            null,
+            null,
+            null,
+            null,
+            new KasaDeviceTimeMetadata(true, 0, null, 2026, 6, 6, 11, 30, 0),
+            new KasaTimezoneMetadata(true, 0, null, 7),
+            null,
+            new KasaCloudMetadata(true, 0, null, true, true, null, null, null, null),
+            null,
+            null,
+            null,
+            null,
+            new KasaReadModuleSupport(false, false, false, false, false, true, true, false, true, false, false, false, false, false));
+        var fullSnapshot = CreateSnapshot(config, KasaDeviceKind.Plug, "EP25(US)") with
+        {
+            DeviceInfo = CreateDeviceInfo("EP25(US)") with
+            {
+                DeviceTime = fullMetadata.DeviceTime,
+                Timezone = fullMetadata.Timezone,
+                DeviceUtcOffsetMinutes = -420,
+                DeviceTimeZoneLabel = "UTC-07:00",
+                Cloud = fullMetadata.Cloud
+            },
+            ReadMetadata = fullMetadata
+        };
+        var fastSnapshot = CreateSnapshot(config, KasaDeviceKind.Plug, "EP25(US)") with
+        {
+            DeviceInfo = CreateDeviceInfo("EP25(US)"),
+            ReadMetadata = null
+        };
+
+        state.ApplyResult(config, new KasaPollResult(fullSnapshot, null));
+        state.ApplyResult(config, new KasaPollResult(fastSnapshot, null));
+
+        var status = state.GetStatus();
+        status.Devices[0].DeviceInfo!.Timezone!.Index.Should().Be(7);
+        status.Devices[0].DeviceInfo!.DeviceUtcOffsetMinutes.Should().Be(-420);
+        status.Devices[0].DeviceInfo!.Cloud!.IsConnected.Should().BeTrue();
+        status.Devices[0].ReadMetadata.Should().BeSameAs(fullMetadata);
     }
 
     [TestMethod]
@@ -160,7 +239,9 @@ public sealed class KasaGatewayStateTests
             null,
             null,
             null,
-            new KasaReadModuleSupport(false, true, false, false, false, false, false, false, false, false, false, false));
+            null,
+            null,
+            new KasaReadModuleSupport(false, true, false, false, false, false, false, false, false, false, false, false, false, false));
         var snapshot = new KasaDeviceSnapshot(
             "RAW_DEVICE_ID_SANITIZED",
             config.EffectiveSourceId,
@@ -177,8 +258,10 @@ public sealed class KasaGatewayStateTests
             KasaDeviceKind.Plug,
             new HashSet<KasaCapability> { KasaCapability.SwitchState, KasaCapability.ScheduleMetadata },
             new HashSet<KasaMetadataCapability> { KasaMetadataCapability.ScheduleRead },
+            new HashSet<KasaCommandCapability> { KasaCommandCapability.SwitchPower },
             true,
-            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5)],
+            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5, null)],
+            null,
             null,
             null,
             metadata,
@@ -193,7 +276,7 @@ public sealed class KasaGatewayStateTests
         status.Devices[0].ReadMetadata!.Support.ScheduleRules.Should().BeTrue();
         var text = System.Text.Json.JsonSerializer.Serialize(status);
         text.Should().NotContain("raw");
-        text.Should().NotContain("Private Alias");
+        text.Should().Contain("Private Alias");
     }
 
     [TestMethod]
@@ -212,7 +295,9 @@ public sealed class KasaGatewayStateTests
             null,
             null,
             null,
-            new KasaReadModuleSupport(true, true, false, false, false, false, false, false, false, false, false, false));
+            null,
+            null,
+            new KasaReadModuleSupport(true, true, false, false, false, false, false, false, false, false, false, false, false, false));
         var snapshot = new KasaDeviceSnapshot(
             "RAW_DEVICE_ID_SANITIZED",
             config.EffectiveSourceId,
@@ -229,10 +314,12 @@ public sealed class KasaGatewayStateTests
             KasaDeviceKind.Plug,
             new HashSet<KasaCapability> { KasaCapability.SwitchState, KasaCapability.EnergyRealtime },
             new HashSet<KasaMetadataCapability> { KasaMetadataCapability.EnergyRealtime, KasaMetadataCapability.ScheduleRead },
+            new HashSet<KasaCommandCapability> { KasaCommandCapability.SwitchPower },
             true,
-            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5)],
+            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5, null)],
             null,
             new KasaEnergyReading(42.5, 120.1, 0.35, 12.3, System.Text.Json.JsonDocument.Parse("{\"private\":\"energy\"}").RootElement.Clone()),
+            null,
             metadata,
             System.Text.Json.JsonDocument.Parse("{\"private\":\"raw\"}").RootElement.Clone());
 
@@ -247,6 +334,7 @@ public sealed class KasaGatewayStateTests
         device.DeviceKind.Should().Be("Plug");
         device.Capabilities.Should().Contain("EnergyRealtime");
         device.MetadataCapabilities.Should().Contain("ScheduleRead");
+        device.CommandCapabilities.Should().Contain("SwitchPower");
         device.IdentityValidated.Should().BeTrue();
         device.HasEnergyStatus.Should().BeTrue();
         device.ReadSupport!.EnergyRealtime.Should().BeTrue();
@@ -277,7 +365,9 @@ public sealed class KasaGatewayStateTests
             null,
             null,
             null,
-            new KasaReadModuleSupport(true, true, true, false, false, false, false, false, false, false, false, false));
+            null,
+            null,
+            new KasaReadModuleSupport(true, true, true, false, false, false, false, false, false, false, false, false, false, false));
         var snapshot = new KasaDeviceSnapshot(
             "RAW_DEVICE_ID_SANITIZED",
             config.EffectiveSourceId,
@@ -294,10 +384,12 @@ public sealed class KasaGatewayStateTests
             KasaDeviceKind.Plug,
             new HashSet<KasaCapability> { KasaCapability.SwitchState, KasaCapability.EnergyRealtime },
             new HashSet<KasaMetadataCapability> { KasaMetadataCapability.EnergyRealtime, KasaMetadataCapability.ScheduleRead },
+            new HashSet<KasaCommandCapability> { KasaCommandCapability.SwitchPower },
             true,
-            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5)],
+            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5, null)],
             null,
             new KasaEnergyReading(42.5, 120.1, 0.35, 12.3, System.Text.Json.JsonDocument.Parse("{\"private\":\"energy\"}").RootElement.Clone()),
+            null,
             metadata,
             System.Text.Json.JsonDocument.Parse("{\"private\":\"raw\"}").RootElement.Clone());
 
@@ -311,7 +403,10 @@ public sealed class KasaGatewayStateTests
         device.Model.Should().Be("EP25(US)");
         device.DeviceKind.Should().Be("Plug");
         device.IsOn.Should().BeTrue();
-        device.Outlets.Should().ContainSingle().Which.IsOn.Should().BeTrue();
+        device.CommandCapabilities.Should().Contain("SwitchPower");
+        var outlet = device.Outlets.Should().ContainSingle().Which;
+        outlet.DisplayName.Should().Be("Private Outlet");
+        outlet.IsOn.Should().BeTrue();
         device.Energy!.PowerW.Should().Be(42.5);
         device.ReadMetadata!.Schedule!.RuleCount.Should().Be(3);
         text.Should().NotContain("RAW_DEVICE_ID_SANITIZED");
@@ -324,7 +419,16 @@ public sealed class KasaGatewayStateTests
         text.Should().NotContain("energy\"");
     }
 
-    private static KasaGatewayState CreateState() => new(Options.Create(CreateConfig()));
+    private static KasaGatewayState CreateState() => CreateState(CreateConfig());
+
+    private static KasaGatewayState CreateState(KasaGatewayOptions options)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "hvo-kasa-state-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        options.DeviceRegistryPath = "kasa-devices.json";
+        var registry = new KasaDeviceRegistry(Options.Create(options), new TestWebHostEnvironment(root));
+        return new KasaGatewayState(Options.Create(options), registry);
+    }
 
     private static KasaDeviceSnapshot CreateSnapshot(
         KasaDeviceConfig config,
@@ -346,12 +450,36 @@ public sealed class KasaGatewayStateTests
             kind,
             capabilities ?? new HashSet<KasaCapability> { KasaCapability.SwitchState },
             new HashSet<KasaMetadataCapability> { KasaMetadataCapability.Diagnostics },
+            new HashSet<KasaCommandCapability> { KasaCommandCapability.SwitchPower },
             true,
-            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5)],
+            [new KasaOutletSnapshot("private-child-id", 1, "Private Outlet", true, 5, null)],
             null,
             null,
+            CreateDeviceInfo("EP25(US)"),
             null,
             System.Text.Json.JsonDocument.Parse("{\"private\":\"raw\"}").RootElement.Clone());
+
+    private static KasaDeviceInfo CreateDeviceInfo(string model) => new(
+        null,
+        model,
+        "2.0",
+        "1.0.0",
+        "AA:BB:CC:DD:EE:01",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
 
     private static KasaGatewayOptions CreateConfig() => new()
     {
@@ -369,4 +497,19 @@ public sealed class KasaGatewayStateTests
             }
         ]
     };
+
+    private sealed class TestWebHostEnvironment(string contentRootPath) : IWebHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Development";
+
+        public string ApplicationName { get; set; } = "HVO.Gateway.TplinkKasa.Tests";
+
+        public string WebRootPath { get; set; } = contentRootPath;
+
+        public IFileProvider WebRootFileProvider { get; set; } = new PhysicalFileProvider(contentRootPath);
+
+        public string ContentRootPath { get; set; } = contentRootPath;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = new PhysicalFileProvider(contentRootPath);
+    }
 }

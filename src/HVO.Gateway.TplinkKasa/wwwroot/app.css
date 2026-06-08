@@ -1,0 +1,593 @@
+@font-face {
+    font-family: "Open Sans Custom";
+    src: url("/_content/HVO.WebSite.Themes/fonts/OpenSans-Regular.ttf") format("truetype");
+    font-weight: 400;
+}
+
+@font-face {
+    font-family: "Open Sans Custom";
+    src: url("/_content/HVO.WebSite.Themes/fonts/OpenSans-Semibold.ttf") format("truetype");
+    font-weight: 600;
+}
+
+.kasa-brand-mark {
+    display: grid;
+    place-items: center;
+    color: var(--hvo-accent);
+}
+
+.kasa-page {
+    min-height: 100%;
+    color: var(--dashboard-text, var(--shell-page-text));
+}
+
+.kasa-page-header,
+.kasa-section-heading,
+.kasa-device-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.kasa-eyebrow {
+    color: var(--hvo-accent);
+    letter-spacing: 0;
+}
+
+.kasa-title {
+    color: var(--dashboard-text, var(--shell-page-text));
+}
+
+.kasa-muted {
+    color: var(--hvo-muted, var(--shell-brand-subtitle));
+}
+
+.kasa-error-text {
+    color: var(--mud-palette-error, #ff6b6b);
+}
+
+.kasa-panel,
+.kasa-device-card {
+    position: relative;
+    border: 1px solid rgba(126, 157, 196, 0.14);
+    border-radius: 8px;
+    background: var(--dashboard-surface-panel-strong, var(--shell-card-background));
+    color: var(--dashboard-text, var(--shell-card-foreground));
+    padding: 18px;
+}
+
+.kasa-empty {
+    min-height: 280px;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    gap: 12px;
+}
+
+.kasa-device-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.kasa-card-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin: 16px 0;
+}
+
+.kasa-device-title-block {
+    min-width: 0;
+}
+
+.kasa-title-row,
+.kasa-alias-editor {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.kasa-title-row .mud-typography {
+    overflow-wrap: anywhere;
+}
+
+.kasa-alias-editor {
+    flex-wrap: wrap;
+}
+
+.kasa-alias-editor .mud-input-control {
+    min-width: min(100%, 220px);
+    flex: 1 1 220px;
+}
+
+.kasa-card-body {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.kasa-control-surface {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    border-radius: 6px;
+    background: rgba(126, 157, 196, 0.08);
+    padding: 10px 12px;
+}
+
+.kasa-light-controls {
+    align-items: stretch;
+}
+
+.kasa-slider-control {
+    display: grid;
+    gap: 2px;
+    min-width: min(100%, 180px);
+    flex: 1 1 180px;
+}
+
+.kasa-slider-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.kasa-palette-button {
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid color-mix(in srgb, var(--kasa-selected-color) 70%, white 20%);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--kasa-selected-color) 30%, transparent);
+    color: var(--kasa-selected-color);
+    cursor: pointer;
+}
+
+.kasa-palette-button:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.kasa-card-dialog-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    padding: 14px;
+    border-radius: 8px;
+    background: rgba(9, 17, 28, 0.62);
+}
+
+.kasa-color-dialog-backdrop {
+    position: fixed;
+    z-index: 2100;
+    padding: 16px;
+}
+
+.kasa-card-dialog {
+    display: grid;
+    gap: 14px;
+    width: min(100%, 360px);
+    border: 1px solid rgba(126, 157, 196, 0.24);
+    border-radius: 8px;
+    background: var(--dashboard-surface-panel-strong, var(--shell-card-background));
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+    padding: 16px;
+}
+
+.kasa-color-dialog {
+    width: min(calc(100vw - 32px), 352px);
+    max-height: calc(100vh - 32px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    gap: 10px;
+    padding: 12px;
+}
+
+.kasa-card-dialog-header,
+.kasa-card-dialog-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.kasa-card-dialog-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+}
+
+.kasa-dialog-action {
+    width: 100%;
+    min-width: 84px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.kasa-dialog-action:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.kasa-dialog-action-secondary {
+    border-color: rgba(126, 157, 196, 0.28);
+    background: transparent;
+    color: var(--dashboard-text, var(--shell-card-foreground));
+}
+
+.kasa-dialog-action-primary {
+    border-color: var(--hvo-accent, #7dd3fc);
+    background: var(--hvo-accent, #7dd3fc);
+    color: #06111f;
+}
+
+.kasa-mud-color-picker-shell {
+    width: 326px;
+    max-width: 100%;
+    min-height: 84px;
+}
+
+.kasa-mud-color-picker-shell .mud-input-control {
+    margin: 0;
+}
+
+.kasa-mud-color-picker-shell .mud-input-root {
+    color: var(--kasa-selected-color);
+}
+
+.kasa-color-adjustments {
+    display: grid;
+    gap: 8px;
+}
+
+.kasa-color-adjustments label {
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    color: var(--hvo-muted, var(--shell-brand-subtitle));
+    font-size: 0.76rem;
+}
+
+.kasa-color-adjustments input[type="range"] {
+    width: 100%;
+    accent-color: var(--kasa-selected-color);
+}
+
+.kasa-light-controls .kasa-port-slider {
+    flex: 1 1 220px;
+}
+
+.kasa-light-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0 0 14px;
+}
+
+.kasa-outlet-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.kasa-light-summary div,
+.kasa-outlet-summary div {
+    border-radius: 6px;
+    background: rgba(126, 157, 196, 0.08);
+    padding: 9px;
+}
+
+.kasa-light-summary span,
+.kasa-outlet-summary span,
+.kasa-preferred-state-row span {
+    color: var(--hvo-muted, var(--shell-brand-subtitle));
+    font-size: 0.76rem;
+}
+
+.kasa-light-summary strong,
+.kasa-outlet-summary strong {
+    display: block;
+    margin-top: 3px;
+    color: var(--dashboard-text, var(--shell-card-foreground));
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.kasa-card-stats div {
+    border-radius: 6px;
+    background: rgba(126, 157, 196, 0.08);
+    padding: 10px;
+}
+
+.kasa-card-stats span {
+    display: block;
+    color: var(--hvo-muted, var(--shell-brand-subtitle));
+    font-size: 0.76rem;
+}
+
+.kasa-card-stats strong {
+    display: block;
+    margin-top: 3px;
+    color: var(--dashboard-text, var(--shell-card-foreground));
+    font-weight: 600;
+}
+
+.kasa-chip-row,
+.kasa-header-stats,
+.kasa-card-actions,
+.kasa-device-info-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.kasa-chip-row {
+    gap: 5px;
+}
+
+.kasa-capability-pill {
+    max-width: 100%;
+    border: 1px solid rgba(126, 157, 196, 0.22);
+    border-radius: 999px;
+    color: var(--hvo-muted, var(--shell-brand-subtitle));
+    font-size: 0.62rem;
+    line-height: 1;
+    padding: 3px 7px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.kasa-card-actions {
+    justify-content: flex-end;
+}
+
+.kasa-details-chip-groups {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.kasa-details-chip-groups > div {
+    display: grid;
+    align-content: start;
+    gap: 7px;
+    border-radius: 8px;
+    background: rgba(126, 157, 196, 0.08);
+    padding: 10px;
+}
+
+.kasa-details-chip-groups > div > span {
+    color: var(--hvo-muted, var(--shell-brand-subtitle));
+    font-size: 0.72rem;
+    text-transform: uppercase;
+}
+
+.kasa-outlet-list {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0;
+    width: 100%;
+}
+
+.kasa-outlet-list-dialog {
+    margin-bottom: 0;
+}
+
+.kasa-outlet-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 6px;
+    background: rgba(126, 157, 196, 0.08);
+    padding: 10px 12px;
+}
+
+.kasa-outlet-row-stacked {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    justify-self: stretch;
+}
+
+.kasa-outlet-row-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+
+.kasa-outlet-row > div {
+    min-width: 0;
+}
+
+.kasa-port-slider-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    justify-self: stretch;
+    gap: 10px;
+    width: 100%;
+}
+
+.kasa-port-slider-value {
+    color: var(--hvo-muted, var(--shell-brand-subtitle));
+    min-width: 3.2em;
+    text-align: right;
+}
+
+.kasa-port-slider {
+    width: 100%;
+    min-width: 0;
+}
+
+.kasa-outlet-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+    text-align: right;
+}
+
+.kasa-outlet-inline-control {
+    display: flex;
+    align-items: center;
+    min-width: 86px;
+}
+
+.kasa-inline-number {
+    width: 86px;
+}
+
+.kasa-dialog-section {
+    display: grid;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.kasa-preferred-state-list {
+    display: grid;
+    gap: 8px;
+}
+
+.kasa-preferred-state-row {
+    display: grid;
+    grid-template-columns: 1fr repeat(3, minmax(70px, auto));
+    align-items: center;
+    gap: 8px;
+    border-radius: 6px;
+    background: rgba(126, 157, 196, 0.08);
+    padding: 10px 12px;
+}
+
+.shell-info-dialog.kasa-device-info-dialog {
+    width: min(1120px, calc(100vw - 48px)) !important;
+    max-width: 1120px;
+}
+
+.kasa-device-info-dialog .kasa-device-info-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.kasa-device-info-actions {
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.kasa-device-info-grid strong {
+    overflow-wrap: anywhere;
+}
+
+.kasa-device-group {
+    display: grid;
+    gap: 12px;
+}
+
+.kasa-admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.kasa-tabs {
+    display: grid;
+    gap: 16px;
+}
+
+.kasa-tab-panel {
+    display: grid;
+    gap: 16px;
+    padding-top: 16px;
+}
+
+.kasa-config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.kasa-config-grid div {
+    border-radius: 6px;
+    background: rgba(126, 157, 196, 0.08);
+    padding: 10px;
+    min-width: 0;
+}
+
+.kasa-config-grid span {
+    display: block;
+    color: var(--hvo-muted, var(--shell-brand-subtitle));
+    font-size: 0.76rem;
+}
+
+.kasa-config-grid strong {
+    display: block;
+    margin-top: 3px;
+    color: var(--dashboard-text, var(--shell-card-foreground));
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.kasa-error-card {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 2000;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    border-radius: 8px;
+    background: var(--hvo-danger-bg);
+    color: var(--hvo-danger-fg);
+    padding: 12px 14px;
+}
+
+@media (max-width: 980px) {
+    .kasa-device-info-dialog .kasa-device-info-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .kasa-details-chip-groups {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .kasa-device-info-dialog .kasa-device-info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .kasa-light-summary,
+    .kasa-outlet-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .kasa-outlet-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .kasa-outlet-meta {
+        justify-content: flex-start;
+        text-align: left;
+    }
+}

@@ -21,6 +21,7 @@ public static class KasaCommands
     public const string GetTimezone = "{\"time\":{\"get_timezone\":{}}}";
     public const string GetBulbLightState = "{\"smartlife.iot.smartbulb.lightingservice\":{\"get_light_state\":{}}}";
     public const string GetBulbLightDetails = "{\"smartlife.iot.smartbulb.lightingservice\":{\"get_light_details\":{}}}";
+    public const string GetBulbDefaultBehavior = "{\"smartlife.iot.smartbulb.lightingservice\":{\"get_default_behavior\":{}}}";
     public const string GetBulbCloudInfo = "{\"smartlife.iot.common.cloud\":{\"get_info\":{}}}";
     public const string GetBulbTime = "{\"smartlife.iot.common.timesetting\":{\"get_time\":{}}}";
     public const string GetBulbTimezone = "{\"smartlife.iot.common.timesetting\":{\"get_timezone\":{}}}";
@@ -30,6 +31,33 @@ public static class KasaCommands
     public const string GetDimmerDefaultBehavior = "{\"smartlife.iot.dimmer\":{\"get_default_behavior\":{}}}";
     public const string GetDimmerParameters = "{\"smartlife.iot.dimmer\":{\"get_dimmer_parameters\":{}}}";
     public const string GetCachedWifiScanInfo = "{\"netif\":{\"get_scaninfo\":{\"refresh\":0}}}";
+
+    public static string WithChildContext(string childId, string commandJson)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(childId);
+        using var command = JsonDocument.Parse(commandJson);
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("context");
+            writer.WriteStartObject();
+            writer.WritePropertyName("child_ids");
+            writer.WriteStartArray();
+            writer.WriteStringValue(childId);
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+
+            foreach (var property in command.RootElement.EnumerateObject())
+            {
+                property.WriteTo(writer);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+    }
 
     private static readonly IReadOnlyDictionary<string, HashSet<string>> ReadOnlyCommands = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal)
     {
@@ -67,7 +95,8 @@ public static class KasaCommands
         ["smartlife.iot.smartbulb.lightingservice"] = new HashSet<string>(StringComparer.Ordinal)
         {
             "get_light_state",
-            "get_light_details"
+            "get_light_details",
+            "get_default_behavior"
         },
         ["smartlife.iot.common.cloud"] = new HashSet<string>(StringComparer.Ordinal) { "get_info" },
         ["smartlife.iot.common.timesetting"] = new HashSet<string>(StringComparer.Ordinal)
@@ -104,8 +133,20 @@ public static class KasaCommands
         }
 
         var sawCommand = false;
+        var sawContext = false;
         foreach (var module in root.EnumerateObject())
         {
+            if (module.NameEquals("context"))
+            {
+                if (sawContext || !HasSafeChildContext(module.Value))
+                {
+                    return false;
+                }
+
+                sawContext = true;
+                continue;
+            }
+
             if (module.Value.ValueKind != JsonValueKind.Object
                 || !ReadOnlyCommands.TryGetValue(module.Name, out var allowedCommands))
             {
@@ -124,6 +165,25 @@ public static class KasaCommands
         }
 
         return sawCommand;
+    }
+
+    private static bool HasSafeChildContext(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Object || value.EnumerateObject().Count() != 1)
+        {
+            return false;
+        }
+
+        if (!value.TryGetProperty("child_ids", out var childIds)
+            || childIds.ValueKind != JsonValueKind.Array
+            || childIds.GetArrayLength() != 1)
+        {
+            return false;
+        }
+
+        var childId = childIds.EnumerateArray().Single();
+        return childId.ValueKind == JsonValueKind.String
+            && childId.GetString() is { Length: > 0 and <= 128 };
     }
 
     private static bool HasSafeReadOnlyParameters(string module, string command, JsonElement parameters)

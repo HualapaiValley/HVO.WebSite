@@ -44,6 +44,8 @@ public sealed class KasaGatewayApiTests
 
     private sealed class KasaGatewayApiFactory : WebApplicationFactory<Program>
     {
+        private readonly string registryPath = Path.Combine(Path.GetTempPath(), "hvo-kasa-api-tests", Guid.NewGuid().ToString("N"), "kasa-devices.json");
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Testing");
@@ -53,6 +55,7 @@ public sealed class KasaGatewayApiTests
                 {
                     ["KasaGateway:ApiKey"] = "local-test-key",
                     ["KasaGateway:PollIntervalSeconds"] = "3600",
+                    ["KasaGateway:DeviceRegistryPath"] = registryPath,
                     ["KasaGateway:Devices:0:DeviceId"] = "RAW_DEVICE_ID_SANITIZED",
                     ["KasaGateway:Devices:0:SourceId"] = "tplink-kasa:api-test",
                     ["KasaGateway:Devices:0:Host"] = "configured-device-host.example",

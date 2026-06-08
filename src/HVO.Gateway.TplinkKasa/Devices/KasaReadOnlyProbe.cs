@@ -17,13 +17,13 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
         ("scheduleNextAction", KasaCommands.GetNextScheduleAction, KasaMetadataCapability.ScheduleRead),
         ("countdown", KasaCommands.GetCountdownRules, KasaMetadataCapability.CountdownRead),
         ("away", KasaCommands.GetAwayRules, KasaMetadataCapability.AwayModeRead),
-        ("led", KasaCommands.GetLedState, KasaMetadataCapability.LedRead),
         ("time", KasaCommands.GetTime, KasaMetadataCapability.Diagnostics),
         ("timezone", KasaCommands.GetTimezone, KasaMetadataCapability.Diagnostics),
         ("cloud", KasaCommands.GetCloudInfo, KasaMetadataCapability.Diagnostics),
         ("cloudFirmware", KasaCommands.GetCloudFirmwareList, KasaMetadataCapability.FirmwareInfo),
         ("bulbLightState", KasaCommands.GetBulbLightState, KasaMetadataCapability.BulbLightRead),
         ("bulbLightDetails", KasaCommands.GetBulbLightDetails, KasaMetadataCapability.BulbLightRead),
+        ("bulbDefaultBehavior", KasaCommands.GetBulbDefaultBehavior, KasaMetadataCapability.BulbLightRead),
         ("bulbCloud", KasaCommands.GetBulbCloudInfo, KasaMetadataCapability.Diagnostics),
         ("bulbTime", KasaCommands.GetBulbTime, KasaMetadataCapability.Diagnostics),
         ("bulbTimezone", KasaCommands.GetBulbTimezone, KasaMetadataCapability.Diagnostics),
@@ -84,9 +84,32 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
                 }
             }
 
+            foreach (var childCommand in BuildChildMetadataCommands(sysinfo.Children))
+            {
+                try
+                {
+                    using var response = await client.SendReadOnlyAsync(host, port, childCommand.Command, cancellationToken).ConfigureAwait(false);
+                    metadata[childCommand.Name] = KasaReadOnlyModuleResult.FromResponse(childCommand.Name, response.RootElement);
+                }
+                catch (Exception ex) when (ex is IOException or TimeoutException or OperationCanceledException or InvalidDataException or JsonException or System.Net.Sockets.SocketException)
+                {
+                    metadata[childCommand.Name] = KasaReadOnlyModuleResult.Failed(childCommand.Name, KasaFailureMessages.DescribeReadFailure(ex));
+                }
+
+                if (metadata[childCommand.Name].IsSupported)
+                {
+                    metadata[childCommand.Name] = metadata[childCommand.Name] with { Capability = childCommand.Capability };
+                }
+            }
+
             var profile = capabilityDetector.Detect(sysinfo, null, energy);
             var capabilities = new HashSet<KasaCapability>(profile.Capabilities);
             var metadataCapabilities = new HashSet<KasaMetadataCapability>(profile.MetadataCapabilities);
+            if (HasLedOff(sysinfo.RawSystemInfo))
+            {
+                metadata["led"] = KasaReadOnlyModuleResult.Supported("led", KasaMetadataCapability.LedRead, KasaJsonShapeSummarizer.Summarize(sysinfo.RawSystemInfo));
+            }
+
             foreach (var module in metadata.Values)
             {
                 if (module.IsSupported && module.Capability is { } capability)
@@ -117,6 +140,29 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
         catch (Exception ex) when (ex is IOException or TimeoutException or OperationCanceledException or InvalidDataException or JsonException or System.Net.Sockets.SocketException)
         {
             return KasaProbeResult.Failed(host, port, KasaFailureMessages.DescribeReadFailure(ex));
+        }
+    }
+
+    private static IEnumerable<(string Name, string Command, KasaMetadataCapability Capability)> BuildChildMetadataCommands(IReadOnlyList<KasaChildInfo> children)
+    {
+        var year = DateTime.UtcNow.Year;
+        var month = DateTime.UtcNow.Month;
+        for (var index = 0; index < children.Count; index++)
+        {
+            if (string.IsNullOrWhiteSpace(children[index].Id))
+            {
+                continue;
+            }
+
+            var label = $"child{index + 1}";
+            var childId = children[index].Id!;
+            yield return ($"{label}:emeter", KasaCommands.WithChildContext(childId, KasaCommands.GetRealtimeEnergy), KasaMetadataCapability.EnergyRealtime);
+            yield return ($"{label}:emeterDay", KasaCommands.WithChildContext(childId, KasaCommands.GetEnergyDayStats(year, month)), KasaMetadataCapability.EnergyTotal);
+            yield return ($"{label}:emeterMonth", KasaCommands.WithChildContext(childId, KasaCommands.GetEnergyMonthStats(year)), KasaMetadataCapability.EnergyTotal);
+            yield return ($"{label}:schedule", KasaCommands.WithChildContext(childId, KasaCommands.GetScheduleRules), KasaMetadataCapability.ScheduleRead);
+            yield return ($"{label}:scheduleNextAction", KasaCommands.WithChildContext(childId, KasaCommands.GetNextScheduleAction), KasaMetadataCapability.ScheduleRead);
+            yield return ($"{label}:countdown", KasaCommands.WithChildContext(childId, KasaCommands.GetCountdownRules), KasaMetadataCapability.CountdownRead);
+            yield return ($"{label}:away", KasaCommands.WithChildContext(childId, KasaCommands.GetAwayRules), KasaMetadataCapability.AwayModeRead);
         }
     }
 
@@ -290,6 +336,13 @@ public sealed class KasaReadOnlyProbe(IKasaLegacyClient client, KasaSystemInfoPa
             return x.Length.CompareTo(y.Length);
         }
     }
+
+    private static bool HasLedOff(JsonElement sysinfo) =>
+        sysinfo.ValueKind == JsonValueKind.Object
+        && sysinfo.TryGetProperty("led_off", out var ledOff)
+        && ledOff.ValueKind == JsonValueKind.Number
+        && ledOff.TryGetInt32(out var value)
+        && value is 0 or 1;
 }
 
 public sealed class KasaReadOnlyScanOptions
@@ -304,7 +357,6 @@ public sealed class KasaReadOnlyScanOptions
     public bool RequireConfiguredNetwork { get; init; } = true;
 
     public IReadOnlyList<string> AllowedCidrs { get; init; } = [];
-
 }
 
 public sealed record KasaProbeResult(
@@ -345,6 +397,9 @@ public sealed record KasaReadOnlyModuleResult(
         var errCode = FindFirstErrCode(response);
         return new KasaReadOnlyModuleResult(name, errCode.GetValueOrDefault(0) == 0, errCode, null, null, KasaJsonShapeSummarizer.Summarize(response));
     }
+
+    public static KasaReadOnlyModuleResult Supported(string name, KasaMetadataCapability capability, IReadOnlyList<KasaJsonFieldShape> shape) =>
+        new(name, true, 0, null, capability, shape);
 
     public static KasaReadOnlyModuleResult Failed(string name, string error) => new(name, false, null, error, null, []);
 

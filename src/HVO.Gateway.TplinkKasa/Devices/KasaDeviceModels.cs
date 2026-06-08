@@ -10,11 +10,21 @@ public sealed record KasaSystemInfo(
     string? HardwareVersion,
     string? SoftwareVersion,
     string? MacAddress,
+    string? HardwareId,
+    string? FirmwareId,
+    string? OemId,
+    string? Feature,
+    string? ActiveMode,
+    int? Rssi,
+    KasaDeviceLocation? Location,
     int? RelayState,
     int? OnTimeSeconds,
     IReadOnlyList<KasaChildInfo> Children,
     KasaLightState? LightState,
+    IReadOnlyList<KasaPreferredLightState> PreferredLightStates,
     JsonElement RawSystemInfo);
+
+public sealed record KasaDeviceLocation(int? LatitudeRaw, int? LongitudeRaw, double? LatitudeDegrees, double? LongitudeDegrees);
 
 public sealed record KasaChildInfo(
     string? Id,
@@ -30,6 +40,13 @@ public sealed record KasaLightState(
     int? Brightness,
     string? Mode,
     JsonElement RawLightState);
+
+public sealed record KasaPreferredLightState(
+    int? Index,
+    int? Brightness,
+    int? Hue,
+    int? Saturation,
+    int? ColorTemperature);
 
 public sealed record KasaEnergyReading(
     double? PowerW,
@@ -68,12 +85,36 @@ public sealed record KasaDeviceSnapshot(
     KasaDeviceKind DeviceKind,
     IReadOnlySet<KasaCapability> Capabilities,
     IReadOnlySet<KasaMetadataCapability> MetadataCapabilities,
+    IReadOnlySet<KasaCommandCapability> CommandCapabilities,
     bool? IsOn,
     IReadOnlyList<KasaOutletSnapshot> Outlets,
     KasaLightSnapshot? Light,
     KasaEnergyReading? Energy,
+    KasaDeviceInfo? DeviceInfo,
     KasaReadMetadataSnapshot? ReadMetadata,
     JsonElement RawSystemInfo);
+
+public sealed record KasaDeviceInfo(
+    string? DeviceType,
+    string? Model,
+    string? HardwareVersion,
+    string? SoftwareVersion,
+    string? MacAddress,
+    string? HardwareId,
+    string? FirmwareId,
+    string? OemId,
+    string? Feature,
+    string? ActiveMode,
+    int? Rssi,
+    KasaDeviceLocation? Location,
+    KasaDeviceTimeMetadata? DeviceTime,
+    KasaTimezoneMetadata? Timezone,
+    int? DeviceUtcOffsetMinutes,
+    string? DeviceTimeZoneLabel,
+    KasaCloudMetadata? Cloud,
+    KasaFirmwareDownloadMetadata? FirmwareDownload,
+    KasaFirmwareListMetadata? CloudFirmware,
+    KasaDimmerMetadata? Dimmer);
 
 public sealed record KasaReadMetadataSnapshot(
     KasaRuleMetadata? Schedule,
@@ -85,6 +126,8 @@ public sealed record KasaReadMetadataSnapshot(
     KasaFirmwareDownloadMetadata? FirmwareDownload,
     KasaCloudMetadata? Cloud,
     KasaFirmwareListMetadata? CloudFirmware,
+    KasaBulbLightDetailsMetadata? BulbLightDetails,
+    KasaBulbDefaultBehaviorMetadata? BulbDefaultBehavior,
     KasaDimmerMetadata? Dimmer,
     KasaReadModuleSupport Support);
 
@@ -101,6 +144,20 @@ public sealed record KasaFirmwareDownloadMetadata(bool IsSupported, int? ErrorCo
 public sealed record KasaCloudMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, bool? IsBound, bool? IsConnected, int? FirmwareNotifyType, int? IllegalType, bool? StopConnect, int? TcspStatus);
 
 public sealed record KasaFirmwareListMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, int? FirmwareCount);
+
+public sealed record KasaBulbLightDetailsMetadata(
+    bool IsSupported,
+    int? ErrorCode,
+    string? ErrorMessage,
+    int? Wattage,
+    int? MaxLumens,
+    int? ColorRenderingIndex,
+    int? IncandescentEquivalent,
+    int? LampBeamAngle,
+    int? MinVoltage,
+    int? MaxVoltage);
+
+public sealed record KasaBulbDefaultBehaviorMetadata(bool IsSupported, int? ErrorCode, string? ErrorMessage, string? SoftOnMode, string? HardOnMode);
 
 public sealed record KasaDimmerMetadata(KasaDimmerDefaultBehaviorMetadata? DefaultBehavior, KasaDimmerParameterMetadata? Parameters);
 
@@ -119,6 +176,8 @@ public sealed record KasaReadModuleSupport(
     bool FirmwareDownload,
     bool CloudInfo,
     bool CloudFirmwareList,
+    bool BulbLightDetails,
+    bool BulbDefaultBehavior,
     bool DimmerDefaultBehavior,
     bool DimmerParameters);
 
@@ -127,7 +186,8 @@ public sealed record KasaOutletSnapshot(
     int? Index,
     string? Alias,
     bool? IsOn,
-    int? OnTimeSeconds);
+    int? OnTimeSeconds,
+    KasaEnergyReading? Energy);
 
 public sealed record KasaLightSnapshot(
     bool? IsOn,
@@ -136,6 +196,9 @@ public sealed record KasaLightSnapshot(
     int? Saturation,
     int? ColorTemperature,
     string? Mode,
+    IReadOnlyList<KasaPreferredLightState> PreferredStates,
+    KasaBulbLightDetailsMetadata? BulbDetails,
+    KasaBulbDefaultBehaviorMetadata? DefaultBehavior,
     JsonElement RawLightState);
 
 public sealed record KasaPollResult(KasaDeviceSnapshot? Snapshot, string? FailureReason, string? DegradedReason = null)

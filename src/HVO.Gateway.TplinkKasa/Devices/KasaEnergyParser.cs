@@ -4,9 +4,11 @@ namespace HVO.Gateway.TplinkKasa.Devices;
 
 public sealed class KasaEnergyParser
 {
-    public KasaEnergyReading? Parse(JsonDocument response)
+    public KasaEnergyReading? Parse(JsonDocument response) => Parse(response, "emeter", "get_realtime");
+
+    public KasaEnergyReading? Parse(JsonDocument response, params string[] path)
     {
-        if (!TryGetNested(response.RootElement, ["emeter", "get_realtime"], out var realtime)
+        if (!TryGetNested(response.RootElement, path, out var realtime)
             || realtime.ValueKind != JsonValueKind.Object)
         {
             return null;

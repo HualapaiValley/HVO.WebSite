@@ -40,6 +40,24 @@ public sealed class KasaSystemInfoParser
                 lightElement.Clone());
         }
 
+        var preferredStates = new List<KasaPreferredLightState>();
+        if (sysinfo.TryGetProperty("preferred_state", out var preferredElement)
+            && preferredElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var preferredState in preferredElement.EnumerateArray())
+            {
+                preferredStates.Add(new KasaPreferredLightState(
+                    GetInt(preferredState, "index"),
+                    GetInt(preferredState, "brightness"),
+                    GetInt(preferredState, "hue"),
+                    GetInt(preferredState, "saturation"),
+                    GetInt(preferredState, "color_temp")));
+            }
+        }
+
+        var latitudeRaw = GetInt(sysinfo, "latitude_i");
+        var longitudeRaw = GetInt(sysinfo, "longitude_i");
+
         return new KasaSystemInfo(
             GetString(sysinfo, "deviceId"),
             GetString(sysinfo, "alias"),
@@ -48,10 +66,20 @@ public sealed class KasaSystemInfoParser
             GetString(sysinfo, "hw_ver"),
             GetString(sysinfo, "sw_ver"),
             GetString(sysinfo, "mac") ?? GetString(sysinfo, "mic_mac"),
+            GetString(sysinfo, "hwId"),
+            GetString(sysinfo, "fwId"),
+            GetString(sysinfo, "oemId"),
+            GetString(sysinfo, "feature"),
+            GetString(sysinfo, "active_mode"),
+            GetInt(sysinfo, "rssi"),
+            latitudeRaw is null && longitudeRaw is null
+                ? null
+                : new KasaDeviceLocation(latitudeRaw, longitudeRaw, NormalizeCoordinate(latitudeRaw, 90), NormalizeCoordinate(longitudeRaw, 180)),
             GetInt(sysinfo, "relay_state"),
             GetInt(sysinfo, "on_time"),
             children,
             lightState,
+                preferredStates,
             sysinfo.Clone());
     }
 
@@ -78,4 +106,15 @@ public sealed class KasaSystemInfoParser
         element.TryGetProperty(name, out var property) && KasaJson.TryGetInt(property, out var value)
             ? value
             : null;
+
+    private static double? NormalizeCoordinate(int? value, int limit)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var degrees = value.Value / 10000d;
+        return Math.Abs(degrees) <= limit ? degrees : null;
+    }
 }

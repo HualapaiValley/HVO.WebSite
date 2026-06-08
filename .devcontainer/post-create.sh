@@ -207,9 +207,9 @@ for _rc in /home/vscode/.bashrc /home/vscode/.zshrc; do
 done
 
 # Install a pinned OpenCode CLI release without executing remote install scripts.
-OPENCODE_VERSION="1.15.7"
+OPENCODE_VERSION="1.15.10"
 OPENCODE_ASSET="opencode-linux-x64.tar.gz"
-OPENCODE_SHA256="6f7f95f13917b9aab8421dbb7e121abf2fecfecdccd16fd5b497f522f454f928"
+OPENCODE_SHA256="a4c0c94a7fdbf637e3ae479c046ca49e925370b4cee503dfba7ab677a13cd0c5"
 echo "Checking OpenCode CLI..."
 if [[ "$(opencode --version 2>/dev/null || true)" != "${OPENCODE_VERSION}" ]]; then
 	if [[ "$(uname -s)" == "Linux" && "$(uname -m)" == "x86_64" ]]; then

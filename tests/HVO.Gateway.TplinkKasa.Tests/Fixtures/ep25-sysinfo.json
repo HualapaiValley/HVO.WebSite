@@ -10,6 +10,7 @@
       "type": "IOT.SMARTPLUGSWITCH",
       "mac": "AA:BB:CC:DD:EE:01",
       "relay_state": 1,
+      "led_off": 0,
       "on_time": 123
     }
   }

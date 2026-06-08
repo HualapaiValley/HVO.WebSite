@@ -7,4 +7,12 @@
     <RootNamespace>HVO.Gateway.TplinkKasa</RootNamespace>
     <AssemblyName>HVO.Gateway.TplinkKasa</AssemblyName>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MudBlazor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HVO.WebSite.Themes\HVO.WebSite.Themes.csproj" />
+  </ItemGroup>
 </Project>
