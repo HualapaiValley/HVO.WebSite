@@ -972,7 +972,7 @@
           "Microsoft.Identity.Web": "[4.10.0, )",
           "Microsoft.Identity.Web.UI": "[4.10.0, )",
           "OpenTelemetry.Api": "[1.15.3, )",
-          "Scalar.AspNetCore": "[2.14.5, )",
+          "Scalar.AspNetCore": "[2.14.14, )",
           "Serilog.AspNetCore": "[10.0.0, )",
           "Serilog.Formatting.Compact": "[3.0.0, )",
           "Serilog.Sinks.File": "[7.0.0, )"
@@ -1238,9 +1238,9 @@
       },
       "Scalar.AspNetCore": {
         "type": "CentralTransitive",
-        "requested": "[2.14.5, )",
-        "resolved": "2.14.5",
-        "contentHash": "+wDlTk8GDZMosJ9wHIYHJI6yVvufkm6p2ky1hSjsNaUwnliTOEj6D5zqEUYG9VwAwjbF9yPpbc9zdvtZeW7WiQ=="
+        "requested": "[2.14.14, )",
+        "resolved": "2.14.14",
+        "contentHash": "xNa3MadDudKk7y+0gQPBQihVL+JxGP3KNZHB4Zl2W42ATFIffHHHBjsuyKJ4YPUnnA7NUiHR/diqV/FTZC9dkg=="
       },
       "Serilog.AspNetCore": {
         "type": "CentralTransitive",
