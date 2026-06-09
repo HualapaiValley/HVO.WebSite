@@ -134,9 +134,9 @@
                         <MudTh></MudTh>
                     </HeaderContent>
                     <RowTemplate>
-                        <MudTd>@(context.DisplayName ?? context.SourceId)</MudTd>
-                        <MudTd>@(context.GroupName ?? "-")</MudTd>
-                        <MudTd>@(context.IsFavorite ? "Yes" : "No")</MudTd>
+                        <MudTd>@GetConfiguredDisplayName(context)</MudTd>
+                        <MudTd>@GetConfiguredGroupName(context)</MudTd>
+                        <MudTd>@(GetConfiguredIsFavorite(context) ? "Yes" : "No")</MudTd>
                         <MudTd>@context.Host</MudTd>
                         <MudTd>@context.DeviceKind</MudTd>
                         <MudTd>@string.Join(", ", context.Capabilities.Take(4))</MudTd>
@@ -253,6 +253,7 @@
 @code {
     private IReadOnlyList<KasaNetworkConfig> _networks = [];
     private IReadOnlyList<KasaDeviceStatus> _devices = [];
+    private IReadOnlyDictionary<string, KasaInventoryDevice> _configuredDevices = new Dictionary<string, KasaInventoryDevice>(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<KasaProbeResult> _scanResults = [];
     private string? _selectedNetwork;
     private string? _hostToAdd;
@@ -428,13 +429,21 @@
 
     private async Task RefreshDevicesAsync()
     {
-        _devices = (await GatewayState.GetStatusAsync()).Devices;
+        var statusTask = GatewayState.GetStatusAsync();
+        var inventoryTask = GatewayState.GetInventoryAsync();
+        await Task.WhenAll(statusTask, inventoryTask);
+
+        _devices = statusTask.Result.Devices;
+        _configuredDevices = inventoryTask.Result.Devices
+            .Where(device => !string.IsNullOrWhiteSpace(device.SourceId))
+            .ToDictionary(device => device.SourceId!, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static async Task RunBusyAsync(BusyState busyState, string busyMessage, Func<CancellationToken, Task> operation)
+    private async Task RunBusyCoreAsync(BusyState busyState, string busyMessage, Func<CancellationToken, Task> operation)
     {
         busyState.IsBusy = true;
         busyState.Message = busyMessage;
+        await InvokeAsync(StateHasChanged);
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
@@ -444,6 +453,7 @@
         {
             busyState.IsBusy = false;
             busyState.Message = null;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -451,7 +461,7 @@
     {
         try
         {
-            await RunBusyAsync(busyState, busyMessage, operation);
+            await RunBusyCoreAsync(busyState, busyMessage, operation);
         }
         catch (Exception ex) when (captureErrors)
         {
@@ -480,6 +490,28 @@
 
     private static string FormatDeviceName(KasaProbeResult probeResult) =>
         string.IsNullOrWhiteSpace(probeResult.SystemInfo?.Alias) ? "Unnamed device" : probeResult.SystemInfo.Alias;
+
+    private KasaInventoryDevice? GetConfiguredDevice(string? sourceId)
+    {
+        if (string.IsNullOrWhiteSpace(sourceId))
+        {
+            return null;
+        }
+
+        return _configuredDevices.TryGetValue(sourceId, out var device) ? device : null;
+    }
+
+    private string GetConfiguredDisplayName(KasaDeviceStatus device) =>
+        GetConfiguredDevice(device.SourceId)?.DisplayName
+        ?? device.DisplayName
+        ?? device.SourceId
+        ?? "Unnamed device";
+
+    private string GetConfiguredGroupName(KasaDeviceStatus device) =>
+        GetConfiguredDevice(device.SourceId)?.GroupName ?? "-";
+
+    private bool GetConfiguredIsFavorite(KasaDeviceStatus device) =>
+        GetConfiguredDevice(device.SourceId)?.IsFavorite ?? device.IsFavorite;
 
     private sealed class BusyState
     {

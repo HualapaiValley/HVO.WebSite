@@ -4,7 +4,7 @@
     <div class="kasa-outlet-list" aria-label="Device outlets">
         @foreach (var outlet in Outlets)
         {
-            <KasaOutletRow Device="Device" Outlet="outlet" UseOutletIndex="false" HideIdentity="@ShouldHideOutletIdentity(outlet)" OnChanged="OnChanged" />
+            <KasaOutletRow Device="Device" Outlet="outlet" UseOutletIndex="false" HideIdentity="@ShouldHideOutletIdentity" OnChanged="OnChanged" />
         }
     </div>
 </div>
@@ -20,5 +20,5 @@
         ? Device.Outlets.OrderBy(outlet => outlet.Index ?? int.MaxValue).ThenBy(outlet => outlet.DisplayName)
         : [new KasaOutletStatus(1, Device.DisplayName, Device.IsOn, null, Device.Energy)];
 
-    private bool ShouldHideOutletIdentity(KasaOutletStatus outlet) => Device.Outlets.Count <= 1;
+    private bool ShouldHideOutletIdentity => Device.Outlets.Count <= 1;
 }
