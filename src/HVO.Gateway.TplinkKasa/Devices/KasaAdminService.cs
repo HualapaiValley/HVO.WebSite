@@ -35,7 +35,7 @@ public sealed class KasaAdminService(
             cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<KasaAdminOperationResult> AddByHostAsync(string host, string? networkName, CancellationToken cancellationToken)
+    public async Task<KasaAdminOperationResult> AddByHostAsync(string host, string? networkName, string? displayName, string? groupName, bool isFavorite, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(host))
         {
@@ -48,10 +48,10 @@ public sealed class KasaAdminService(
             return KasaAdminOperationResult.Failed(result.FailureReason ?? "Device probe failed.");
         }
 
-        return await AddProbeResultAsync(result, networkName, cancellationToken).ConfigureAwait(false);
+        return await AddProbeResultAsync(result, networkName, displayName, groupName, isFavorite, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<KasaAdminOperationResult> AddByMacAsync(string macAddress, string networkName, CancellationToken cancellationToken)
+    public async Task<KasaAdminOperationResult> AddByMacAsync(string macAddress, string networkName, string? displayName, string? groupName, bool isFavorite, CancellationToken cancellationToken)
     {
         var normalizedMac = KasaJson.NormalizeMacAddress(macAddress);
         if (string.IsNullOrWhiteSpace(normalizedMac))
@@ -66,20 +66,43 @@ public sealed class KasaAdminService(
             return KasaAdminOperationResult.Failed("No scanned device matched that MAC address.");
         }
 
-        return await AddProbeResultAsync(match, networkName, cancellationToken).ConfigureAwait(false);
+        return await AddProbeResultAsync(match, networkName, displayName, groupName, isFavorite, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<KasaAdminOperationResult> AddProbeResultAsync(KasaProbeResult result, string? networkName, CancellationToken cancellationToken)
+    public async Task<KasaAdminOperationResult> AddProbeResultAsync(KasaProbeResult result, string? networkName, string? displayName, string? groupName, bool isFavorite, CancellationToken cancellationToken)
     {
         if (!result.IsSuccess || result.SystemInfo is null || result.Profile is null)
         {
             return KasaAdminOperationResult.Failed(result.FailureReason ?? "Only successfully probed devices can be configured.");
         }
 
-        var config = BuildDeviceConfig(result, networkName);
+        var config = BuildDeviceConfig(result, networkName, displayName, groupName, isFavorite);
         var saved = await registry.AddOrUpdateAsync(config, cancellationToken).ConfigureAwait(false);
         await RefreshDeviceDetailsAsync(saved.EffectiveSourceId, cancellationToken).ConfigureAwait(false);
         return KasaAdminOperationResult.Succeeded($"Configured {saved.EffectiveSourceId}.", saved);
+    }
+
+    public async Task<KasaAdminOperationResult> UpdateDeviceConfigurationAsync(string sourceId, string? displayName, string? groupName, bool isFavorite, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(sourceId))
+        {
+            return KasaAdminOperationResult.Failed("Source ID is required.");
+        }
+
+        var existing = (await registry.GetDevicesAsync(cancellationToken).ConfigureAwait(false))
+            .FirstOrDefault(device => string.Equals(device.EffectiveSourceId, sourceId, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            return KasaAdminOperationResult.Failed("Configured device was not found.");
+        }
+
+        existing.DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
+        existing.GroupName = string.IsNullOrWhiteSpace(groupName) ? null : groupName.Trim();
+        existing.IsFavorite = isFavorite;
+
+        var saved = await registry.AddOrUpdateAsync(existing, cancellationToken).ConfigureAwait(false);
+        state.ApplyConfiguration(saved);
+        return KasaAdminOperationResult.Succeeded($"Updated {saved.EffectiveSourceId} settings.", saved);
     }
 
     public async Task<KasaAdminOperationResult> RemoveAsync(string sourceId, CancellationToken cancellationToken)
@@ -160,7 +183,7 @@ public sealed class KasaAdminService(
         return network;
     }
 
-    private KasaDeviceConfig BuildDeviceConfig(KasaProbeResult result, string? networkName)
+    private KasaDeviceConfig BuildDeviceConfig(KasaProbeResult result, string? networkName, string? displayName, string? groupName, bool isFavorite)
     {
         var sysinfo = result.SystemInfo!;
         var profile = result.Profile!;
@@ -177,7 +200,11 @@ public sealed class KasaAdminService(
             Enabled = true,
             DeviceId = string.IsNullOrWhiteSpace(sysinfo.DeviceId) ? publicDeviceId : sysinfo.DeviceId.Trim(),
             SourceId = $"tplink-kasa:{publicDeviceId}",
-            DisplayName = string.IsNullOrWhiteSpace(sysinfo.Alias) ? null : sysinfo.Alias.Trim(),
+            DisplayName = string.IsNullOrWhiteSpace(displayName)
+                ? string.IsNullOrWhiteSpace(sysinfo.Alias) ? null : sysinfo.Alias.Trim()
+                : displayName.Trim(),
+            GroupName = string.IsNullOrWhiteSpace(groupName) ? null : groupName.Trim(),
+            IsFavorite = isFavorite,
             Host = result.Host,
             Port = result.Port == options.Value.DefaultPort ? null : result.Port,
             MacAddress = normalizedMac,

@@ -419,6 +419,65 @@ public sealed class KasaGatewayStateTests
         text.Should().NotContain("energy\"");
     }
 
+    [TestMethod]
+    public void ApplyResult_PrefersConfiguredDisplayNameOverRuntimeAlias()
+    {
+        var options = CreateConfig();
+        options.Devices[0].DisplayName = "Observatory Strip";
+        var state = CreateState(options);
+        var config = options.Devices[0];
+
+        state.ApplyResult(config, new KasaPollResult(CreateSnapshot(config, KasaDeviceKind.Plug, "EP25(US)"), null));
+
+        var status = state.GetStatus();
+
+        status.Devices.Should().ContainSingle();
+        status.Devices[0].DisplayName.Should().Be("Observatory Strip");
+        status.Devices[0].Outlets[0].DisplayName.Should().Be("Private Outlet");
+    }
+
+    [TestMethod]
+    public void GetStatus_PropagatesGroupAndFavoriteMetadata()
+    {
+        var options = CreateConfig();
+        options.Devices[0].GroupName = "Observatory";
+        options.Devices[0].IsFavorite = true;
+        var state = CreateState(options);
+        var config = options.Devices[0];
+
+        state.ApplyResult(config, new KasaPollResult(CreateSnapshot(config, KasaDeviceKind.Plug, "EP25(US)"), null));
+
+        var status = state.GetStatus();
+        var inventory = state.GetInventory();
+
+        status.Devices[0].GroupName.Should().Be("Observatory");
+        status.Devices[0].IsFavorite.Should().BeTrue();
+        inventory.Devices[0].GroupName.Should().Be("Observatory");
+        inventory.Devices[0].IsFavorite.Should().BeTrue();
+    }
+
+    [TestMethod]
+    public void ApplyConfiguration_UpdatesCachedMetadataWithoutRepoll()
+    {
+        var options = CreateConfig();
+        var state = CreateState(options);
+        var config = options.Devices[0];
+
+        state.ApplyResult(config, new KasaPollResult(CreateSnapshot(config, KasaDeviceKind.Plug, "EP25(US)"), null));
+
+        config.DisplayName = "Pier Lights";
+        config.GroupName = "Favorites";
+        config.IsFavorite = true;
+        state.ApplyConfiguration(config);
+
+        var status = state.GetStatus();
+
+        status.Devices[0].DisplayName.Should().Be("Pier Lights");
+        status.Devices[0].GroupName.Should().Be("Favorites");
+        status.Devices[0].IsFavorite.Should().BeTrue();
+        status.Devices[0].Outlets[0].DisplayName.Should().Be("Private Outlet");
+    }
+
     private static KasaGatewayState CreateState() => CreateState(CreateConfig());
 
     private static KasaGatewayState CreateState(KasaGatewayOptions options)

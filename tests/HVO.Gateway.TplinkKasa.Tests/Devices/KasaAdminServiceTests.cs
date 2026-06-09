@@ -35,7 +35,7 @@ public sealed class KasaAdminServiceTests
             null!);
         var method = typeof(KasaAdminService).GetMethod("BuildDeviceConfig", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        var config = (KasaDeviceConfig)method!.Invoke(service, [result, "observatory"])!;
+            var config = (KasaDeviceConfig)method!.Invoke(service, [result, "observatory", null, null, false])!;
 
         config.DeviceId.Should().Be("KP200_DEVICE_ID_SANITIZED");
         config.SourceId.Should().Be("tplink-kasa:kasa-aabbccddee03");

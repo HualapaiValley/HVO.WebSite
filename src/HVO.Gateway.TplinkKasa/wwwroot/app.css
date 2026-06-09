@@ -415,6 +415,10 @@
     width: 100%;
 }
 
+.kasa-outlet-row-main-no-identity {
+    justify-content: flex-end;
+}
+
 .kasa-outlet-row > div {
     min-width: 0;
 }
@@ -448,10 +452,16 @@
     text-align: right;
 }
 
+.kasa-outlet-meta-no-identity {
+    width: 100%;
+}
+
 .kasa-outlet-inline-control {
     display: flex;
     align-items: center;
-    min-width: 86px;
+    gap: 10px;
+    min-width: min(220px, 100%);
+    flex: 1 1 220px;
 }
 
 .kasa-inline-number {

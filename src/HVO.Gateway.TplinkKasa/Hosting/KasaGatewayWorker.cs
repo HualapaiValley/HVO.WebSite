@@ -312,6 +312,8 @@ public sealed class KasaGatewayWorker(
         device.EffectivePort(options.Value.DefaultPort).ToString(System.Globalization.CultureInfo.InvariantCulture),
         device.PollIntervalSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
         device.DisplayName,
+        device.GroupName,
+        device.IsFavorite.ToString(System.Globalization.CultureInfo.InvariantCulture),
         device.DisplayTimeZoneId,
         device.ExpectedModel,
         device.ExpectedHardwareVersion,

@@ -8,25 +8,12 @@
     @if (Device.Light is not null)
     {
         <div class="kasa-outlet-list" aria-label="Device outlets">
-            <div class="kasa-outlet-row kasa-outlet-row-stacked">
-                <div class="kasa-outlet-row-main">
-                    <div>
-                        <MudText Typo="Typo.body2">@KasaCardText.FormatOutletName(Outlet)</MudText>
-                        <MudText Typo="Typo.caption" Class="kasa-muted">@KasaCardText.FormatOutletId(Outlet)</MudText>
-                    </div>
-                    <div class="kasa-outlet-meta">
-                        @if (Outlet.Energy is not null)
-                        {
-                            <MudText Typo="Typo.caption" Class="kasa-muted">@KasaCardText.FormatOutletEnergy(Outlet.Energy)</MudText>
-                        }
-                        <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="@(_isOn ? Color.Success : Color.Default)" Disabled="@BusyOrUnavailable" StartIcon="@Icons.Material.Outlined.PowerSettingsNew" OnClick="ToggleAsync">@(_isOn ? "On" : "Off")</MudButton>
-                    </div>
-                </div>
-                <div class="kasa-port-slider-row">
+            <KasaOutletRow Device="Device" Outlet="Outlet" ShowEnergy="true" UseOutletIndex="false" HideIdentity="@HideOutletIdentity" OnChanged="OnChanged">
+                <InlineControls>
                     <MudSlider T="int" Value="_brightness" ValueChanged="OnBrightnessSliderChanged" Immediate="true" Min="0" Max="100" Disabled="@BusyOrUnavailable" Color="Color.Primary" Class="kasa-port-slider" @onpointerdown="BeginInteraction" @onfocusin="BeginInteraction" @onmouseup="CommitBrightnessAsync" @ontouchend="CommitBrightnessAsync" @onkeyup="CommitBrightnessAsync" />
                     <MudText Typo="Typo.caption" Class="kasa-port-slider-value">@_brightness%</MudText>
-                </div>
-            </div>
+                </InlineControls>
+            </KasaOutletRow>
         </div>
         <div class="kasa-control-surface kasa-light-controls" aria-label="Light controls">
             <button type="button" class="kasa-palette-button" style="--kasa-selected-color: @SelectedColorHex" disabled="@BusyOrUnavailable" aria-label="Open color picker" @onclick="OpenColorPicker">
@@ -84,6 +71,8 @@
     private IDisposable? _interaction;
 
     private KasaOutletStatus Outlet => Device.Outlets.FirstOrDefault() ?? new KasaOutletStatus(1, Device.DisplayName, Device.Light?.IsOn, null, Device.Energy);
+
+    private bool HideOutletIdentity => Device.Outlets.Count <= 1;
 
     protected override void OnParametersSet()
     {
@@ -209,13 +198,6 @@
         _lastAppliedBrightness = _brightness;
         _isOn = true;
         await ApplyAsync();
-    }
-
-    private Task ToggleAsync()
-    {
-        BeginInteraction();
-        _isOn = !_isOn;
-        return ApplyAsync();
     }
 
     private async Task ApplyAsync()

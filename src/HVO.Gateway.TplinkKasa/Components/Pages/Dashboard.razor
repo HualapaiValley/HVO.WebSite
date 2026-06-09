@@ -41,21 +41,31 @@
     }
     else
     {
-        @foreach (var group in _status.Devices.GroupBy(device => device.DeviceKind).OrderBy(group => group.Key.ToString()))
-        {
-            <section class="kasa-device-group">
-                <div class="kasa-section-heading">
-                    <MudText Typo="Typo.h5">@group.Key</MudText>
-                    <MudText Typo="Typo.caption" Class="kasa-muted">@group.Count() device(s)</MudText>
+        var allSections = GetDeviceSections(_status.Devices);
+        var favoriteSections = GetDeviceSections(_status.Devices.Where(device => device.IsFavorite));
+
+        <MudTabs Rounded="true" Elevation="0" Class="kasa-tabs">
+            <MudTabPanel Text="All" Icon="@Icons.Material.Outlined.DashboardCustomize">
+                <div class="kasa-tab-panel">
+                    @RenderDeviceSections(allSections)
                 </div>
-                <div class="kasa-device-grid">
-                    @foreach (var device in group.OrderBy(device => device.DisplayName ?? device.SourceId))
-                    {
-                        <KasaDeviceCard Device="device" OnDetails="OpenDeviceInfoAsync" OnChanged="RefreshAsync" />
-                    }
+            </MudTabPanel>
+            <MudTabPanel Text="Favorites" Icon="@Icons.Material.Outlined.StarBorder">
+                <div class="kasa-tab-panel">
+                    @RenderDeviceSections(favoriteSections)
                 </div>
-            </section>
-        }
+            </MudTabPanel>
+            @foreach (var groupName in GetGroupNames(_status.Devices))
+            {
+                var groupedSections = GetDeviceSections(_status.Devices.Where(device => string.Equals(device.GroupName, groupName, StringComparison.OrdinalIgnoreCase)));
+
+                <MudTabPanel Text="@groupName" Icon="@Icons.Material.Outlined.FolderOpen">
+                    <div class="kasa-tab-panel">
+                        @RenderDeviceSections(groupedSections)
+                    </div>
+                </MudTabPanel>
+            }
+        </MudTabs>
     }
 </MudStack>
 
@@ -267,6 +277,49 @@
         };
     }
 
+    private RenderFragment RenderDeviceSections(IReadOnlyList<DeviceSection> sections) => @<text>
+        @if (sections.Count == 0)
+        {
+            <MudPaper Class="kasa-panel kasa-empty" Elevation="0">
+                <MudText Typo="Typo.body2" Class="kasa-muted">No devices in this view.</MudText>
+            </MudPaper>
+        }
+        else
+        {
+            @foreach (var section in sections)
+            {
+                <section class="kasa-device-group">
+                    <div class="kasa-section-heading">
+                        <MudText Typo="Typo.h5">@section.DeviceKind</MudText>
+                        <MudText Typo="Typo.caption" Class="kasa-muted">@section.Devices.Count device(s)</MudText>
+                    </div>
+                    <div class="kasa-device-grid">
+                        @foreach (var device in section.Devices)
+                        {
+                            <KasaDeviceCard Device="device" OnDetails="OpenDeviceInfoAsync" OnChanged="RefreshAsync" />
+                        }
+                    </div>
+                </section>
+            }
+        }
+    </text>;
+
+    private static IReadOnlyList<DeviceSection> GetDeviceSections(IEnumerable<KasaDeviceStatus> devices) =>
+        devices
+            .GroupBy(device => device.DeviceKind)
+            .OrderBy(group => group.Key.ToString(), StringComparer.Ordinal)
+            .Select(group => new DeviceSection(
+                group.Key,
+                group.OrderBy(device => device.DisplayName ?? device.SourceId, StringComparer.OrdinalIgnoreCase).ToArray()))
+            .ToArray();
+
+    private static IEnumerable<string> GetGroupNames(IEnumerable<KasaDeviceStatus> devices) =>
+        devices
+            .Select(device => device.GroupName)
+            .Where(groupName => !string.IsNullOrWhiteSpace(groupName))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(groupName => groupName, StringComparer.OrdinalIgnoreCase)!;
+
     private static Color GetStatusColor(KasaDeviceStatus device) =>
         device.IsOnline ? device.IsDegraded ? Color.Warning : Color.Success : Color.Error;
 
@@ -303,6 +356,8 @@
     private static string FormatWatts(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} W";
 
     private static string FormatDegrees(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} deg";
+
+    private sealed record DeviceSection(KasaDeviceKind DeviceKind, IReadOnlyList<KasaDeviceStatus> Devices);
 
     private static string FormatHueSaturation(KasaLightStatus light) => FormatHueSaturation(light.Hue, light.Saturation);
 

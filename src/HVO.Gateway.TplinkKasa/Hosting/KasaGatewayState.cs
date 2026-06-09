@@ -45,6 +45,22 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options, KasaD
         _devices[config.EffectiveSourceId] = status;
     }
 
+    public void ApplyConfiguration(KasaDeviceConfig config)
+    {
+        if (!_devices.TryGetValue(config.EffectiveSourceId, out var existing))
+        {
+            return;
+        }
+
+        _devices[config.EffectiveSourceId] = existing with
+        {
+            DisplayName = ResolveDisplayName(config.DisplayName, existing.DisplayName),
+            GroupName = config.GroupName,
+            IsFavorite = config.IsFavorite,
+            DisplayTimeZoneId = config.DisplayTimeZoneId
+        };
+    }
+
     private static KasaDeviceInfo? MergeDeviceInfo(KasaDeviceInfo? current, KasaDeviceInfo previous)
     {
         if (current is null)
@@ -193,7 +209,7 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options, KasaD
     {
         if (!string.IsNullOrWhiteSpace(request.Query))
         {
-            devices = devices.Where(device => Contains(device.SourceId, request.Query) || Contains(device.Model, request.Query) || Contains(device.DisplayName, request.Query) || Contains(device.Host, request.Query) || Contains(device.MacAddress, request.Query));
+            devices = devices.Where(device => Contains(device.SourceId, request.Query) || Contains(device.Model, request.Query) || Contains(device.DisplayName, request.Query) || Contains(device.GroupName, request.Query) || Contains(device.Host, request.Query) || Contains(device.MacAddress, request.Query));
         }
 
         if (!string.IsNullOrWhiteSpace(request.Model))
@@ -231,6 +247,11 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options, KasaD
 
     private static bool Contains(string? value, string expected) =>
         value?.Contains(expected, StringComparison.OrdinalIgnoreCase) == true;
+
+    private static string? ResolveDisplayName(string? configuredDisplayName, string? runtimeDisplayName) =>
+        string.IsNullOrWhiteSpace(configuredDisplayName)
+            ? runtimeDisplayName
+            : configuredDisplayName;
 }
 
 public sealed record KasaGatewayStatusResponse(
@@ -376,6 +397,9 @@ public sealed record KasaReviewCurrentDeviceStatus(
 public sealed record KasaInventoryDevice(
     bool DeviceIdConfigured,
     string? SourceId,
+    string? DisplayName,
+    string? GroupName,
+    bool IsFavorite,
     bool HostConfigured,
     int? Port,
     string? NetworkName,
@@ -394,6 +418,9 @@ public sealed record KasaInventoryDevice(
     public static KasaInventoryDevice FromConfig(KasaDeviceConfig config) => new(
         !string.IsNullOrWhiteSpace(config.DeviceId),
         PublicSourceId(config),
+        config.DisplayName,
+        config.GroupName,
+        config.IsFavorite,
         !string.IsNullOrWhiteSpace(config.Host),
         config.Port,
         config.NetworkName,
@@ -417,6 +444,8 @@ public sealed record KasaDeviceStatus(
     bool DeviceIdConfigured,
     string? SourceId,
     string? DisplayName,
+    string? GroupName,
+    bool IsFavorite,
     string? Host,
     string? MacAddress,
     bool HostConfigured,
@@ -444,7 +473,9 @@ public sealed record KasaDeviceStatus(
     public static KasaDeviceStatus Online(KasaDeviceConfig config, KasaDeviceSnapshot snapshot, string? degradedReason) => new(
         !string.IsNullOrWhiteSpace(config.DeviceId),
         KasaInventoryDevice.PublicSourceId(config),
-        snapshot.Alias ?? config.DisplayName,
+        string.IsNullOrWhiteSpace(config.DisplayName) ? snapshot.Alias : config.DisplayName,
+        config.GroupName,
+        config.IsFavorite,
         snapshot.Host,
         snapshot.MacAddress,
         !string.IsNullOrWhiteSpace(config.Host),
@@ -473,6 +504,8 @@ public sealed record KasaDeviceStatus(
         !string.IsNullOrWhiteSpace(config.DeviceId),
         KasaInventoryDevice.PublicSourceId(config),
         config.DisplayName,
+        config.GroupName,
+        config.IsFavorite,
         config.Host,
         config.MacAddress,
         !string.IsNullOrWhiteSpace(config.Host),
