@@ -4,15 +4,21 @@
 @inject KasaDeviceInteractionState InteractionState
 
 <div class="kasa-outlet-row @(BottomControls is null ? null : "kasa-outlet-row-stacked")">
-    <div class="kasa-outlet-row-main">
-        <div>
-            <MudText Typo="Typo.body2">@KasaCardText.FormatOutletName(Outlet)</MudText>
-            <MudText Typo="Typo.caption" Class="kasa-muted">@KasaCardText.FormatOutletId(Outlet)</MudText>
-        </div>
-        <div class="kasa-outlet-meta">
-            @if (ShowEnergy && Outlet.Energy is not null)
+    <div class="kasa-outlet-row-main @(HideIdentity ? "kasa-outlet-row-main-no-identity" : null)">
+        @if (!HideIdentity)
+        {
+            <div>
+                <MudText Typo="Typo.body2">@GetOutletTitle()</MudText>
+                @if (GetOutletSubtitle() is { Length: > 0 } subtitle)
+                {
+                    <MudText Typo="Typo.caption" Class="kasa-muted">@subtitle</MudText>
+                }
+            </div>
+        }
+        <div class="kasa-outlet-meta @(HideIdentity ? "kasa-outlet-meta-no-identity" : null)">
+            @if (ShowEnergy && ShouldShowOutletEnergy())
             {
-                <MudText Typo="Typo.caption" Class="kasa-muted">@KasaCardText.FormatOutletEnergy(Outlet.Energy)</MudText>
+                <MudText Typo="Typo.caption" Class="kasa-muted">@KasaCardText.FormatOutletEnergy(Outlet.Energy!)</MudText>
             }
             @if (InlineControls is not null)
             {
@@ -46,6 +52,9 @@
     public bool ShowEnergy { get; set; }
 
     [Parameter]
+    public bool HideIdentity { get; set; }
+
+    [Parameter]
     public bool UseOutletIndex { get; set; } = true;
 
     [Parameter]
@@ -60,14 +69,65 @@
     private bool _busy;
     private string? _message;
     private bool _lastSuccess;
+    private string? _outletSubtitle;
     private IDisposable? _interaction;
 
     private bool IsBusyOrUnavailable => _busy || !Device.IsOnline || Outlet.IsOn is null || string.IsNullOrWhiteSpace(Device.SourceId) || !Device.CommandCapabilities.Contains(KasaCommandCapability.SwitchPower);
 
     private string MessageClass => _lastSuccess ? "kasa-muted" : "kasa-error-text";
 
+    protected override void OnParametersSet()
+    {
+        _outletSubtitle = GetOutletSubtitleCore();
+    }
+
     private Color GetOutletColor() =>
         Outlet.IsOn is null ? Color.Default : Outlet.IsOn.Value ? Color.Success : Color.Default;
+
+    private string GetOutletTitle()
+    {
+        if (Device.Outlets.Count > 1
+            && Outlet.Index is not null
+            && !string.IsNullOrWhiteSpace(Device.DisplayName)
+            && !string.IsNullOrWhiteSpace(Outlet.DisplayName)
+            && string.Equals(Outlet.DisplayName.Trim(), Device.DisplayName.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return KasaCardText.FormatOutletId(Outlet);
+        }
+
+        return KasaCardText.FormatOutletName(Outlet);
+    }
+
+    private string? GetOutletSubtitle() => _outletSubtitle;
+
+    private bool ShouldShowOutletEnergy()
+    {
+        if (Outlet.Energy is null)
+        {
+            return false;
+        }
+
+        if (Outlet.Energy.EnergyKWh is not null)
+        {
+            return true;
+        }
+
+        return Math.Abs(Outlet.Energy.PowerW ?? 0d) > 0.05d;
+    }
+
+    private string? GetOutletSubtitleCore()
+    {
+        if (Device.Outlets.Count > 1
+            && Outlet.Index is not null
+            && !string.IsNullOrWhiteSpace(Device.DisplayName)
+            && !string.IsNullOrWhiteSpace(Outlet.DisplayName)
+            && string.Equals(Outlet.DisplayName.Trim(), Device.DisplayName.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return KasaCardText.FormatOutletId(Outlet);
+    }
 
     private async Task ToggleAsync()
     {

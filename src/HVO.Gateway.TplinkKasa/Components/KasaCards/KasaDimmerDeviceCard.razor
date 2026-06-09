@@ -7,11 +7,11 @@
     <div class="kasa-outlet-list" aria-label="Device outlets">
         @foreach (var outlet in Outlets)
         {
-            <KasaOutletRow Device="Device" Outlet="outlet" UseOutletIndex="false" OnChanged="OnChanged">
-                <BottomControls>
+            <KasaOutletRow Device="Device" Outlet="outlet" UseOutletIndex="false" HideIdentity="@ShouldHideOutletIdentity" OnChanged="OnChanged">
+                <InlineControls>
                     <MudSlider T="int" Value="_brightness" ValueChanged="OnBrightnessSliderChanged" Immediate="true" Min="0" Max="100" Disabled="@BrightnessBusyOrUnavailable" Color="Color.Primary" Class="kasa-port-slider" @onpointerdown="BeginInteraction" @onfocusin="BeginInteraction" @onmouseup="CommitBrightnessAsync" @ontouchend="CommitBrightnessAsync" @onkeyup="CommitBrightnessAsync" />
                     <MudText Typo="Typo.caption" Class="kasa-port-slider-value">@_brightness%</MudText>
-                </BottomControls>
+                </InlineControls>
             </KasaOutletRow>
         }
     </div>
@@ -38,6 +38,8 @@
     private IEnumerable<KasaOutletStatus> Outlets => Device.Outlets.Count > 0
         ? Device.Outlets.OrderBy(outlet => outlet.Index ?? int.MaxValue).ThenBy(outlet => outlet.DisplayName)
         : [new KasaOutletStatus(1, Device.DisplayName, Device.IsOn, null, Device.Energy)];
+
+    private bool ShouldHideOutletIdentity => Device.Outlets.Count <= 1;
 
     protected override void OnParametersSet()
     {

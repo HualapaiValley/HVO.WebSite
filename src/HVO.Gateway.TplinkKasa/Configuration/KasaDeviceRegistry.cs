@@ -138,6 +138,7 @@ public sealed class KasaDeviceRegistry
         normalized.DeviceId = normalized.DeviceId.Trim();
         normalized.SourceId = normalized.SourceId.Trim();
         normalized.DisplayName = string.IsNullOrWhiteSpace(normalized.DisplayName) ? null : normalized.DisplayName.Trim();
+        normalized.GroupName = string.IsNullOrWhiteSpace(normalized.GroupName) ? null : normalized.GroupName.Trim();
         normalized.Host = normalized.Host.Trim();
         normalized.MacAddress = string.IsNullOrWhiteSpace(normalized.MacAddress) ? null : normalized.MacAddress.Trim();
         normalized.NetworkName = string.IsNullOrWhiteSpace(normalized.NetworkName) ? null : normalized.NetworkName.Trim();
@@ -154,6 +155,8 @@ public sealed class KasaDeviceRegistry
         DeviceId = device.DeviceId,
         SourceId = device.SourceId,
         DisplayName = device.DisplayName,
+        GroupName = device.GroupName,
+        IsFavorite = device.IsFavorite,
         Host = device.Host,
         Port = device.Port,
         MacAddress = device.MacAddress,

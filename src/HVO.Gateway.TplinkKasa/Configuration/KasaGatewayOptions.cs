@@ -65,6 +65,10 @@ public sealed class KasaDeviceConfig
 
     public string? DisplayName { get; set; }
 
+    public string? GroupName { get; set; }
+
+    public bool IsFavorite { get; set; }
+
     public string Host { get; set; } = string.Empty;
 
     public int? Port { get; set; }
