@@ -45,7 +45,7 @@ public sealed class KasaAdminServiceTests
     }
 
     [TestMethod]
-    public void FilterConfiguredScanResults_ExcludesDevicesAlreadyConfiguredByVendorIdentity()
+    public void FilterConfiguredScanResults_ExcludesDevicesAlreadyConfiguredByIdentityOrHost()
     {
         using var document = JsonDocument.Parse(FixtureLoader.Read("kp200-sysinfo.json"));
         var sysinfo = new KasaSystemInfoParser().Parse(document);

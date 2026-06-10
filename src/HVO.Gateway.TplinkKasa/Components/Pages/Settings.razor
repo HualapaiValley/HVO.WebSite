@@ -120,35 +120,32 @@
                                     {
                                         <MudText Typo="Typo.body2" Class="kasa-muted">Choose a device from scan results to assign a
                                             dashboard display name, group, and favorite state before adding it.</MudText>
-                                        }
-                else
-                                        {
-                                            <MudStack Spacing="2">
-                                                <div class="kasa-config-grid">
-                                                    <div><span>Name</span><strong>@FormatDeviceName(_selectedScanResult)</strong></div>
-                                                    <div><span>Host</span><strong>@_selectedScanResult.Host</strong></div>
-                                                    <div><span>Model</span><strong>@(_selectedScanResult.SystemInfo?.Model ??
-                                                                     "Unknown")</strong></div>
-                                                        <div><span>Type</span><strong>@(_selectedScanResult.Profile?.DeviceKind.ToString() ??
-                                                                    "Unknown")</strong></div>
-                                                        </div>
-                                                        <MudTextField Label="Display name override" @bind-Value="_scanDisplayName"
-                                                                      Variant="Variant.Outlined" Disabled="@IsDiscoveredDeviceSectionBusy" />
-                                                        <MudTextField Label="Group" @bind-Value="_scanGroupName" Variant="Variant.Outlined"
-                                                                      Disabled="@IsDiscoveredDeviceSectionBusy" />
-                                                        <MudSwitch T="bool" @bind-Value="_scanIsFavorite" Color="Color.Warning"
-                                                                   Disabled="@IsDiscoveredDeviceSectionBusy">Favorite</MudSwitch>
-                                                        <MudStack Row="true" Spacing="1">
-                                                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                                                       Disabled="@IsDiscoveredDeviceSectionBusy"
-                                                                       OnClick="ConfigureSelectedScanResultAsync">Add discovered device</MudButton>
-                                                            <MudButton Variant="Variant.Text" Color="Color.Inherit"
-                                                                       Disabled="@IsDiscoveredDeviceSectionBusy" OnClick="ClearSelectedScanResult">Clear
-                                                            </MudButton>
-                                                        </MudStack>
-                                                    </MudStack>
-                                                }
-                                            </MudPaper>
+                                    }
+                                    else
+                                    {
+                                        <MudStack Spacing="2">
+                                            <div class="kasa-config-grid">
+                                                <div><span>Name</span><strong>@FormatDeviceName(_selectedScanResult)</strong></div>
+                                                <div><span>Host</span><strong>@_selectedScanResult.Host</strong></div>
+                                                <div><span>Model</span><strong>@(_selectedScanResult.SystemInfo?.Model ?? "Unknown")</strong></div>
+                                                <div><span>Type</span><strong>@(_selectedScanResult.Profile?.DeviceKind.ToString() ?? "Unknown")</strong></div>
+                                            </div>
+                                            <MudTextField Label="Display name override" @bind-Value="_scanDisplayName"
+                                                          Variant="Variant.Outlined" Disabled="@IsDiscoveredDeviceSectionBusy" />
+                                            <MudTextField Label="Group" @bind-Value="_scanGroupName" Variant="Variant.Outlined"
+                                                          Disabled="@IsDiscoveredDeviceSectionBusy" />
+                                            <MudSwitch T="bool" @bind-Value="_scanIsFavorite" Color="Color.Warning"
+                                                       Disabled="@IsDiscoveredDeviceSectionBusy">Favorite</MudSwitch>
+                                            <MudStack Row="true" Spacing="1">
+                                                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                                           Disabled="@IsDiscoveredDeviceSectionBusy"
+                                                           OnClick="ConfigureSelectedScanResultAsync">Add discovered device</MudButton>
+                                                <MudButton Variant="Variant.Text" Color="Color.Inherit"
+                                                           Disabled="@IsDiscoveredDeviceSectionBusy" OnClick="ClearSelectedScanResult">Clear</MudButton>
+                                            </MudStack>
+                                        </MudStack>
+                                    }
+                                </MudPaper>
 
                                             <MudPaper Class="kasa-panel" Elevation="0">
                                                 <div class="kasa-section-heading">
@@ -197,27 +194,26 @@
                                                     {
                                                         <MudText Typo="Typo.body2" Class="kasa-muted">Select a configured device to edit its dashboard
                                                             display name, group, and favorite state.</MudText>
-                                                        }
-                else
-                                                        {
-                                                            <MudStack Spacing="2">
-                                                                <MudText Typo="Typo.caption" Class="kasa-muted">Editing @_selectedDeviceSourceId</MudText>
-                                                                <MudTextField Label="Display name override" @bind-Value="_editDisplayName"
-                                                                              Variant="Variant.Outlined" Disabled="@ConfiguredDeviceBusyState.IsBusy" />
-                                                                <MudTextField Label="Group" @bind-Value="_editGroupName" Variant="Variant.Outlined"
-                                                                              Disabled="@ConfiguredDeviceBusyState.IsBusy" />
-                                                                <MudSwitch T="bool" @bind-Value="_editIsFavorite" Color="Color.Warning"
-                                                                           Disabled="@ConfiguredDeviceBusyState.IsBusy">Favorite</MudSwitch>
-                                                                <MudStack Row="true" Spacing="1">
-                                                                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                                                               Disabled="@ConfiguredDeviceBusyState.IsBusy" OnClick="SaveMetadataAsync">Save
-                                                                    </MudButton>
-                                                                    <MudButton Variant="Variant.Text" Color="Color.Inherit"
-                                                                               Disabled="@ConfiguredDeviceBusyState.IsBusy" OnClick="ClearEdit">Clear</MudButton>
-                                                                </MudStack>
+                                                    }
+                                                    else
+                                                    {
+                                                        <MudStack Spacing="2">
+                                                            <MudText Typo="Typo.caption" Class="kasa-muted">Editing @_selectedDeviceSourceId</MudText>
+                                                            <MudTextField Label="Display name override" @bind-Value="_editDisplayName"
+                                                                          Variant="Variant.Outlined" Disabled="@ConfiguredDeviceBusyState.IsBusy" />
+                                                            <MudTextField Label="Group" @bind-Value="_editGroupName" Variant="Variant.Outlined"
+                                                                          Disabled="@ConfiguredDeviceBusyState.IsBusy" />
+                                                            <MudSwitch T="bool" @bind-Value="_editIsFavorite" Color="Color.Warning"
+                                                                       Disabled="@ConfiguredDeviceBusyState.IsBusy">Favorite</MudSwitch>
+                                                            <MudStack Row="true" Spacing="1">
+                                                                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                                                           Disabled="@ConfiguredDeviceBusyState.IsBusy" OnClick="SaveMetadataAsync">Save</MudButton>
+                                                                <MudButton Variant="Variant.Text" Color="Color.Inherit"
+                                                                           Disabled="@ConfiguredDeviceBusyState.IsBusy" OnClick="ClearEdit">Clear</MudButton>
                                                             </MudStack>
-                                                        }
-                                                    </MudPaper>
+                                                        </MudStack>
+                                                    }
+                                                </MudPaper>
                                                 </div>
                                             </MudTabPanel>
 

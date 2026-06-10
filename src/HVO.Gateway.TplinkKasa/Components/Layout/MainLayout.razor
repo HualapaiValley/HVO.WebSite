@@ -75,33 +75,26 @@
                                    aria-label="Close gateway information" OnClick="CloseInfoDialog" />
                 </div>
                 <div class="shell-info-dialog-grid">
-                    <div class="shell-info-dialog-item"><span>Gateway
-                        ID</span><strong>@GatewayOptions.Value.GatewayId</strong></div>
-                        <div class="shell-info-dialog-item"><span>Poll
-                            Interval</span><strong>@GatewayOptions.Value.PollIntervalSeconds seconds</strong></div>
-                            <div class="shell-info-dialog-item"><span>Poll
-                                Concurrency</span><strong>@GatewayOptions.Value.MaxPollConcurrency devices</strong></div>
-                                <div class="shell-info-dialog-item"><span>Display Time
-                                    Zone</span><strong>@DisplayTimeZoneResolver.GetLabel()</strong></div>
-                                    <div class="shell-info-dialog-item">
-                                        <span>Registry</span><strong>@GatewayOptions.Value.DeviceRegistryPath</strong></div>
-                                        <div class="shell-info-dialog-item"><span>Networks</span><strong>@GatewayOptions.Value.Networks.Count
-                                            configured</strong></div>
-                                            <div class="shell-info-dialog-item"><span>Configured
-                                                Devices</span><strong>@GatewayOptions.Value.Devices.Count seeded</strong></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                }
+                    <div class="shell-info-dialog-item"><span>Gateway ID</span><strong>@GatewayOptions.Value.GatewayId</strong></div>
+                    <div class="shell-info-dialog-item"><span>Poll Interval</span><strong>@GatewayOptions.Value.PollIntervalSeconds seconds</strong></div>
+                    <div class="shell-info-dialog-item"><span>Poll Concurrency</span><strong>@GatewayOptions.Value.MaxPollConcurrency devices</strong></div>
+                    <div class="shell-info-dialog-item"><span>Display Time Zone</span><strong>@DisplayTimeZoneResolver.GetLabel()</strong></div>
+                    <div class="shell-info-dialog-item"><span>Registry</span><strong>@GatewayOptions.Value.DeviceRegistryPath</strong></div>
+                    <div class="shell-info-dialog-item"><span>Networks</span><strong>@GatewayOptions.Value.Networks.Count configured</strong></div>
+                    <div class="shell-info-dialog-item"><span>Configured Devices</span><strong>@GatewayOptions.Value.Devices.Count seeded</strong></div>
+                </div>
+            </div>
+        </div>
+    }
 
-                                <div id="blazor-error-ui" data-nosnippet>
-                                    <div class="kasa-error-card">
-                                        <strong>Blazor circuit interrupted</strong>
-                                        <span>Reload to recover the gateway session.</span>
-                                        <a href="." class="reload">Reload</a>
-                                    </div>
-                                </div>
-                            </MudLayout>
+    <div id="blazor-error-ui" data-nosnippet>
+        <div class="kasa-error-card">
+            <strong>Blazor circuit interrupted</strong>
+            <span>Reload to recover the gateway session.</span>
+            <a href="." class="reload">Reload</a>
+        </div>
+    </div>
+</MudLayout>
 
 @code {
     [Inject]
