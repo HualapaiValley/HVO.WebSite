@@ -19,6 +19,7 @@ artifacts/
 ## Visual Studio
 .vs/
 *.rsuser
+.devcontainer/devcontainer-lock.json
 
 ## Rider
 .idea/

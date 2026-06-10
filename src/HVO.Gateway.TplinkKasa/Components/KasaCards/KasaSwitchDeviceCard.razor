@@ -4,7 +4,8 @@
     <div class="kasa-outlet-list" aria-label="Device outlets">
         @foreach (var outlet in Outlets)
         {
-            <KasaOutletRow Device="Device" Outlet="outlet" UseOutletIndex="false" HideIdentity="@ShouldHideOutletIdentity" OnChanged="OnChanged" />
+            <KasaOutletRow Device="Device" Outlet="outlet" UseOutletIndex="false" HideIdentity="@ShouldHideOutletIdentity"
+                           OnChanged="OnChanged" />
         }
     </div>
 </div>

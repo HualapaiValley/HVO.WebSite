@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject KasaDeviceCommandService CommandService
 @inject KasaDeviceInteractionState InteractionState
+@inject ILogger<KasaOutletRow> Logger
 
 <div class="kasa-outlet-row @(BottomControls is null ? null : "kasa-outlet-row-stacked")">
     <div class="kasa-outlet-row-main @(HideIdentity ? "kasa-outlet-row-main-no-identity" : null)">
@@ -26,7 +27,9 @@
                     @InlineControls
                 </div>
             }
-            <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="@GetOutletColor()" Disabled="@IsBusyOrUnavailable" StartIcon="@Icons.Material.Outlined.PowerSettingsNew" OnClick="ToggleAsync">@KasaCardText.FormatOutletState(Outlet)</MudButton>
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="@GetOutletColor()"
+                       Disabled="@IsBusyOrUnavailable" StartIcon="@Icons.Material.Outlined.PowerSettingsNew"
+                       OnClick="ToggleAsync">@GetOutletStateText()</MudButton>
             @if (!string.IsNullOrWhiteSpace(_message))
             {
                 <MudText Typo="Typo.caption" Class="@MessageClass">@_message</MudText>
@@ -70,19 +73,40 @@
     private string? _message;
     private bool _lastSuccess;
     private string? _outletSubtitle;
+    private bool? _optimisticIsOn;
+    private DateTimeOffset? _optimisticObservedAtUtc;
     private IDisposable? _interaction;
 
-    private bool IsBusyOrUnavailable => _busy || !Device.IsOnline || Outlet.IsOn is null || string.IsNullOrWhiteSpace(Device.SourceId) || !Device.CommandCapabilities.Contains(KasaCommandCapability.SwitchPower);
+    private bool? DisplayedIsOn => _optimisticIsOn ?? Outlet.IsOn;
+
+    private bool IsBusyOrUnavailable => _busy || !Device.IsOnline || DisplayedIsOn is null ||
+string.IsNullOrWhiteSpace(Device.SourceId) || !Device.CommandCapabilities.Contains(KasaCommandCapability.SwitchPower);
 
     private string MessageClass => _lastSuccess ? "kasa-muted" : "kasa-error-text";
 
     protected override void OnParametersSet()
     {
         _outletSubtitle = GetOutletSubtitleCore();
+
+        if (_optimisticIsOn is null)
+        {
+            return;
+        }
+
+        if (Device.ObservedAtUtc == _optimisticObservedAtUtc)
+        {
+            return;
+        }
+
+        _optimisticIsOn = null;
+        _optimisticObservedAtUtc = null;
     }
 
     private Color GetOutletColor() =>
-        Outlet.IsOn is null ? Color.Default : Outlet.IsOn.Value ? Color.Success : Color.Default;
+        DisplayedIsOn is null ? Color.Default : DisplayedIsOn.Value ? Color.Success : Color.Default;
+
+    private string GetOutletStateText() =>
+        DisplayedIsOn is null ? "Unknown" : DisplayedIsOn.Value ? "On" : "Off";
 
     private string GetOutletTitle()
     {
@@ -136,19 +160,28 @@
             return;
         }
 
+        var targetIsOn = !DisplayedIsOn!.Value;
         _busy = true;
         _message = null;
         _interaction ??= InteractionState.TryBegin(Device.SourceId);
         KasaAdminOperationResult? result = null;
         try
         {
-            result = await CommandService.SetPowerAsync(sourceId, !Outlet.IsOn.Value, UseOutletIndex ? Outlet.Index : null, CancellationToken.None);
+            result = await CommandService.SetPowerAsync(sourceId, targetIsOn, UseOutletIndex ? Outlet.Index : null,
+CancellationToken.None);
             _lastSuccess = result.Success;
             _message = result.Success ? null : result.Message;
             if (result.Success)
             {
+                _optimisticIsOn = targetIsOn;
+                _optimisticObservedAtUtc = Device.ObservedAtUtc;
                 EndInteraction();
-                await OnChanged.InvokeAsync();
+                _ = NotifyChangedSafelyAsync();
+            }
+            else
+            {
+                _optimisticIsOn = null;
+                _optimisticObservedAtUtc = null;
             }
         }
         finally
@@ -165,6 +198,18 @@
     {
         _interaction?.Dispose();
         _interaction = null;
+    }
+
+    private async Task NotifyChangedSafelyAsync()
+    {
+        try
+        {
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "TP-Link/Kasa outlet refresh callback failed for {SourceId}.", Device.SourceId);
+        }
     }
 
     public void Dispose() => EndInteraction();

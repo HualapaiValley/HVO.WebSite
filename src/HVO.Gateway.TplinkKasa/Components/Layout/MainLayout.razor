@@ -23,13 +23,17 @@
                 </div>
             </div>
             <nav class="shell-header-nav" aria-label="Primary navigation">
-                <MudButton Href="/" Variant="@GetNavVariant("")" Color="Color.Inherit" Class="@GetNavClass("")">Overview</MudButton>
-                <MudButton Href="/settings" Variant="@GetNavVariant("settings")" Color="Color.Inherit" Class="@GetNavClass("settings")">Configuration</MudButton>
+                <MudButton Href="/" Variant="@GetNavVariant("")" Color="Color.Inherit" Class="@GetNavClass("")">Overview
+                </MudButton>
+                <MudButton Href="/settings" Variant="@GetNavVariant("settings")" Color="Color.Inherit"
+                           Class="@GetNavClass("settings")">Configuration</MudButton>
             </nav>
             <MudSpacer />
             <div class="shell-header-actions" aria-label="Header actions">
-                <MudIconButton Icon="@Icons.Material.Outlined.HelpOutline" Color="Color.Inherit" Size="Size.Medium" aria-label="Open Kasa gateway information" OnClick="OpenInfoDialog" />
-                <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium" aria-label="@ThemeSelectorLabel" OnClick="ToggleTheme" />
+                <MudIconButton Icon="@Icons.Material.Outlined.HelpOutline" Color="Color.Inherit" Size="Size.Medium"
+                               aria-label="Open Kasa gateway information" OnClick="OpenInfoDialog" />
+                <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium"
+                               aria-label="@ThemeSelectorLabel" OnClick="ToggleTheme" />
             </div>
         </div>
     </MudAppBar>
@@ -43,11 +47,16 @@
     <MudAppBar Bottom="true" Fixed="true" Elevation="0" Dense="true" Class="shell-appbar shell-appbar-footer">
         <div class="shell-frame shell-bar-content shell-footer-frame">
             <div class="shell-footer-layout" aria-label="Footer sections">
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-1"><span class="shell-status-dot shell-status-dot-online" aria-hidden="true"></span>Polling active</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-1"><span
+                    class="shell-status-dot shell-status-dot-online" aria-hidden="true"></span>Polling active
+                </MudText>
                 <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-2">TP-Link/Kasa</MudText>
                 <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-3">@_localTimeText</MudText>
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-4">@FooterDeviceSummary</MudText>
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-5"><span class="shell-status-dot shell-status-dot-online" aria-hidden="true"></span>Gateway healthy</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-4">@FooterDeviceSummary
+                </MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-5"><span
+                    class="shell-status-dot shell-status-dot-online" aria-hidden="true"></span>Gateway healthy
+                </MudText>
             </div>
         </div>
     </MudAppBar>
@@ -55,13 +64,15 @@
     @if (_showInfoDialog)
     {
         <div class="shell-info-dialog-backdrop" @onclick="CloseInfoDialog">
-            <div class="shell-info-dialog" role="dialog" aria-modal="true" aria-labelledby="kasa-info-dialog-title" @onclick:stopPropagation="true">
+            <div class="shell-info-dialog" role="dialog" aria-modal="true" aria-labelledby="kasa-info-dialog-title"
+                 @onclick:stopPropagation="true">
                 <div class="shell-info-dialog-header">
                     <div>
                         <MudText Typo="Typo.overline" Class="shell-info-dialog-eyebrow">Gateway Summary</MudText>
                         <MudText Typo="Typo.h5" id="kasa-info-dialog-title">TP-Link/Kasa local gateway</MudText>
                     </div>
-                    <MudIconButton Icon="@Icons.Material.Outlined.Close" Color="Color.Inherit" Size="Size.Small" aria-label="Close gateway information" OnClick="CloseInfoDialog" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.Close" Color="Color.Inherit" Size="Size.Small"
+                                   aria-label="Close gateway information" OnClick="CloseInfoDialog" />
                 </div>
                 <div class="shell-info-dialog-grid">
                     <div class="shell-info-dialog-item"><span>Gateway ID</span><strong>@GatewayOptions.Value.GatewayId</strong></div>
@@ -133,7 +144,8 @@
 
     private string FooterDeviceSummary => _footerStatus is null
         ? "Devices: loading"
-        : $"Devices: {_footerStatus.OnlineDeviceCount} online - {Math.Max(0, _footerStatus.ConfiguredDeviceCount - _footerStatus.OnlineDeviceCount)} offline";
+        : $"Devices: {_footerStatus.OnlineDeviceCount} online - {Math.Max(0, _footerStatus.ConfiguredDeviceCount -
+_footerStatus.OnlineDeviceCount)} offline";
 
     protected override void OnInitialized()
     {
