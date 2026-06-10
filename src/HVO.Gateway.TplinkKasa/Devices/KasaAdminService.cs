@@ -26,13 +26,15 @@ public sealed class KasaAdminService(
             AllowedCidrs = options.Value.Networks.Select(network => network.Cidr).Where(cidr => !string.IsNullOrWhiteSpace(cidr)).ToArray()
         };
 
-        return await probe.ScanCidrAsync(
+        var results = await probe.ScanCidrAsync(
             network.Cidr,
             options.Value.DefaultPort,
             options.Value.MaxScanConcurrency,
             scanOptions,
             includePrivacySensitive: false,
             cancellationToken).ConfigureAwait(false);
+        var configuredDevices = await registry.GetDevicesAsync(cancellationToken).ConfigureAwait(false);
+        return FilterConfiguredScanResults(results, configuredDevices);
     }
 
     public async Task<KasaAdminOperationResult> AddByHostAsync(string host, string? networkName, string? displayName, string? groupName, bool isFavorite, CancellationToken cancellationToken)
@@ -181,6 +183,54 @@ public sealed class KasaAdminService(
         }
 
         return network;
+    }
+
+    private IReadOnlyList<KasaProbeResult> FilterConfiguredScanResults(IReadOnlyList<KasaProbeResult> results, IReadOnlyCollection<KasaDeviceConfig> configuredDevices)
+    {
+        if (configuredDevices.Count == 0)
+        {
+            return results;
+        }
+
+        return results
+            .Where(result => !IsConfiguredScanResult(result, configuredDevices))
+            .ToArray();
+    }
+
+    private static bool IsConfiguredScanResult(KasaProbeResult result, IReadOnlyCollection<KasaDeviceConfig> configuredDevices)
+    {
+        if (!result.IsSuccess || result.SystemInfo is null)
+        {
+            return false;
+        }
+
+        var deviceId = string.IsNullOrWhiteSpace(result.SystemInfo.DeviceId) ? null : result.SystemInfo.DeviceId.Trim();
+        var macAddress = KasaJson.NormalizeMacAddress(result.SystemInfo.MacAddress);
+
+        foreach (var configuredDevice in configuredDevices)
+        {
+            if (!string.IsNullOrWhiteSpace(deviceId)
+                && !string.IsNullOrWhiteSpace(configuredDevice.DeviceId)
+                && string.Equals(configuredDevice.DeviceId.Trim(), deviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(macAddress)
+                && !string.IsNullOrWhiteSpace(configuredDevice.MacAddress)
+                && KasaJson.MacAddressesEqual(configuredDevice.MacAddress, macAddress))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(configuredDevice.Host)
+                && string.Equals(configuredDevice.Host.Trim(), result.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private KasaDeviceConfig BuildDeviceConfig(KasaProbeResult result, string? networkName, string? displayName, string? groupName, bool isFavorite)

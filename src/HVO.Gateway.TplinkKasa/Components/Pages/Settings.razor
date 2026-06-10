@@ -5,255 +5,304 @@
 @inject IOptions<KasaGatewayOptions> GatewayOptions
 
 <MudPaper Class="layout-canvas shell-page" Elevation="0" aria-label="TP-Link/Kasa settings content area">
-<MudStack Spacing="3" Class="shell-page-stack kasa-page">
-    <section class="kasa-page-header">
-        <div>
-            <MudText Typo="Typo.overline" Class="kasa-eyebrow">Admin</MudText>
-            <MudText Typo="Typo.h3" Class="kasa-title">Device Settings</MudText>
-            <MudText Typo="Typo.body2" Class="kasa-muted">Scan configured networks and manage the devices that power dashboard and polling state.</MudText>
-        </div>
-    </section>
-
-    @if (!string.IsNullOrWhiteSpace(_message))
-    {
-        <MudAlert Severity="@(_messageIsError ? Severity.Error : Severity.Success)" Dense="true">@_message</MudAlert>
-    }
-
-    <MudTabs Rounded="true" Elevation="0" Class="kasa-tabs">
-        <MudTabPanel Text="Device Setup" Icon="@Icons.Material.Outlined.DevicesOther">
-            <div class="kasa-tab-panel">
-            <div class="kasa-admin-grid">
-                <MudPaper Class="kasa-panel" Elevation="0">
-                    <MudText Typo="Typo.h5">Scan Network</MudText>
-                    <MudStack Spacing="2">
-                        @if (ScanBusyState.IsBusy && !string.IsNullOrWhiteSpace(ScanBusyState.Message))
-                        {
-                            <MudAlert Severity="Severity.Info" Dense="true">@ScanBusyState.Message</MudAlert>
-                        }
-                        <MudSelect T="string" Label="Configured network" @bind-Value="_selectedNetwork" Disabled="@ScanBusyState.IsBusy">
-                            @foreach (var network in _networks)
-                            {
-                                <MudSelectItem T="string" Value="@network.Name">@network.Name (@network.Cidr)</MudSelectItem>
-                            }
-                        </MudSelect>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.TravelExplore" Disabled="@ScanBusyState.IsBusy" OnClick="ScanAsync">Scan</MudButton>
-                    </MudStack>
-                </MudPaper>
-
-                <MudPaper Class="kasa-panel" Elevation="0">
-                    <MudText Typo="Typo.h5">Add Device</MudText>
-                    <MudStack Spacing="2">
-                        @if (DirectAddBusyState.IsBusy && !string.IsNullOrWhiteSpace(DirectAddBusyState.Message))
-                        {
-                            <MudAlert Severity="Severity.Info" Dense="true">@DirectAddBusyState.Message</MudAlert>
-                        }
-                        <MudText Typo="Typo.body2" Class="kasa-muted">Use direct add when you already know the device host or MAC. Discovered devices are configured separately from scan results below.</MudText>
-                        <MudTextField Label="IP or host" @bind-Value="_hostToAdd" Variant="Variant.Outlined" Disabled="@DirectAddBusyState.IsBusy" />
-                        <MudTextField Label="Display name override" @bind-Value="_displayNameToAdd" Variant="Variant.Outlined" Disabled="@DirectAddBusyState.IsBusy" />
-                        <MudTextField Label="Group" @bind-Value="_groupNameToAdd" Variant="Variant.Outlined" Disabled="@DirectAddBusyState.IsBusy" />
-                        <MudSwitch T="bool" @bind-Value="_isFavoriteToAdd" Color="Color.Warning" Disabled="@DirectAddBusyState.IsBusy">Favorite</MudSwitch>
-                        <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Outlined.Add" Disabled="@DirectAddBusyState.IsBusy" OnClick="AddByHostAsync">Add by IP</MudButton>
-                        <MudDivider />
-                        <MudTextField Label="MAC address" @bind-Value="_macToAdd" Variant="Variant.Outlined" Disabled="@DirectAddBusyState.IsBusy" />
-                        <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Outlined.AddLink" Disabled="@DirectAddBusyState.IsBusy" OnClick="AddByMacAsync">Find by MAC</MudButton>
-                    </MudStack>
-                </MudPaper>
-            </div>
-
-            <MudPaper Class="kasa-panel" Elevation="0">
-                <div class="kasa-section-heading">
-                    <MudText Typo="Typo.h5">Scan Results</MudText>
-                    <MudText Typo="Typo.caption" Class="kasa-muted">@_scanResults.Count discovered device(s)</MudText>
+    <MudStack Spacing="3" Class="shell-page-stack kasa-page">
+        <section class="kasa-page-header">
+            <div>
+                <MudText Typo="Typo.overline" Class="kasa-eyebrow">Admin</MudText>
+                <MudText Typo="Typo.h3" Class="kasa-title">Device Settings</MudText>
+                <MudText Typo="Typo.body2" Class="kasa-muted">Scan configured networks and manage the devices that power
+                    dashboard and polling state.</MudText>
                 </div>
-                <MudTable Items="_scanResults" Dense="true" Hover="true">
-                    <HeaderContent>
-                        <MudTh>Name</MudTh>
-                        <MudTh>Host</MudTh>
-                        <MudTh>Model</MudTh>
-                        <MudTh>Type</MudTh>
-                        <MudTh>Features</MudTh>
-                        <MudTh></MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@FormatDeviceName(context)</MudTd>
-                        <MudTd>@context.Host</MudTd>
-                        <MudTd>@(context.SystemInfo?.Model ?? "Unknown")</MudTd>
-                        <MudTd>@(context.Profile?.DeviceKind.ToString() ?? "Unknown")</MudTd>
-                        <MudTd>@FormatCapabilities(context.Profile)</MudTd>
-                        <MudTd>
-                            <MudButton Size="Size.Small" Variant="@(IsSelectedScanResult(context) ? Variant.Outlined : Variant.Filled)" Color="Color.Primary" Disabled="@IsDiscoveredDeviceSectionBusy" OnClick="() => SelectScanResult(context)">@(IsSelectedScanResult(context) ? "Selected" : "Configure")</MudButton>
-                        </MudTd>
-                    </RowTemplate>
-                </MudTable>
-            </MudPaper>
+            </section>
 
-            <MudPaper Class="kasa-panel" Elevation="0">
-                <MudText Typo="Typo.h5">Discovered Device Metadata</MudText>
-                @if (DiscoveredDeviceBusyState.IsBusy && !string.IsNullOrWhiteSpace(DiscoveredDeviceBusyState.Message))
-                {
-                    <MudAlert Severity="Severity.Info" Dense="true">@DiscoveredDeviceBusyState.Message</MudAlert>
-                }
-                @if (_selectedScanResult is null)
-                {
-                    <MudText Typo="Typo.body2" Class="kasa-muted">Choose a device from scan results to assign a dashboard display name, group, and favorite state before adding it.</MudText>
-                }
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <MudAlert Severity="@(_messageIsError ? Severity.Error : Severity.Success)" Dense="true">@_message</MudAlert>
+            }
+
+            <MudTabs Rounded="true" Elevation="0" Class="kasa-tabs">
+                <MudTabPanel Text="Device Setup" Icon="@Icons.Material.Outlined.DevicesOther">
+                    <div class="kasa-tab-panel">
+                        <div class="kasa-admin-grid">
+                            <MudPaper Class="kasa-panel" Elevation="0">
+                                <MudText Typo="Typo.h5">Scan Network</MudText>
+                                <MudStack Spacing="2">
+                                    @if (ScanBusyState.IsBusy && !string.IsNullOrWhiteSpace(ScanBusyState.Message))
+                                    {
+                                        <MudAlert Severity="Severity.Info" Dense="true">@ScanBusyState.Message</MudAlert>
+                                    }
+                                    <MudSelect T="string" Label="Configured network" @bind-Value="_selectedNetwork"
+                                               Disabled="@ScanBusyState.IsBusy">
+                                        @foreach (var network in _networks)
+                                        {
+                                            <MudSelectItem T="string" Value="@network.Name">@network.Name (@network.Cidr)
+                                            </MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                               StartIcon="@Icons.Material.Outlined.TravelExplore" Disabled="@ScanBusyState.IsBusy"
+                                               OnClick="ScanAsync">Scan</MudButton>
+                                </MudStack>
+                            </MudPaper>
+
+                            <MudPaper Class="kasa-panel" Elevation="0">
+                                <MudText Typo="Typo.h5">Add Device</MudText>
+                                <MudStack Spacing="2">
+                                    @if (DirectAddBusyState.IsBusy &&
+                                            !string.IsNullOrWhiteSpace(DirectAddBusyState.Message))
+                                    {
+                                        <MudAlert Severity="Severity.Info" Dense="true">@DirectAddBusyState.Message</MudAlert>
+                                    }
+                                    <MudText Typo="Typo.body2" Class="kasa-muted">Use direct add when you already know the
+                                        device host or MAC. Discovered devices are configured separately from scan results
+                                        below.</MudText>
+                                        <MudTextField Label="IP or host" @bind-Value="_hostToAdd" Variant="Variant.Outlined"
+                                                      Disabled="@DirectAddBusyState.IsBusy" />
+                                        <MudTextField Label="Display name override" @bind-Value="_displayNameToAdd"
+                                                      Variant="Variant.Outlined" Disabled="@DirectAddBusyState.IsBusy" />
+                                        <MudTextField Label="Group" @bind-Value="_groupNameToAdd" Variant="Variant.Outlined"
+                                                      Disabled="@DirectAddBusyState.IsBusy" />
+                                        <MudSwitch T="bool" @bind-Value="_isFavoriteToAdd" Color="Color.Warning"
+                                                   Disabled="@DirectAddBusyState.IsBusy">Favorite</MudSwitch>
+                                        <MudButton Variant="Variant.Filled" Color="Color.Success"
+                                                   StartIcon="@Icons.Material.Outlined.Add" Disabled="@DirectAddBusyState.IsBusy"
+                                                   OnClick="AddByHostAsync">Add by IP</MudButton>
+                                        <MudDivider />
+                                        <MudTextField Label="MAC address" @bind-Value="_macToAdd" Variant="Variant.Outlined"
+                                                      Disabled="@DirectAddBusyState.IsBusy" />
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Success"
+                                                   StartIcon="@Icons.Material.Outlined.AddLink" Disabled="@DirectAddBusyState.IsBusy"
+                                                   OnClick="AddByMacAsync">Find by MAC</MudButton>
+                                    </MudStack>
+                                </MudPaper>
+                            </div>
+
+                            <MudPaper Class="kasa-panel" Elevation="0">
+                                <div class="kasa-section-heading">
+                                    <MudText Typo="Typo.h5">Scan Results</MudText>
+                                    <MudText Typo="Typo.caption" Class="kasa-muted">@_scanResults.Count discovered device(s)
+                                    </MudText>
+                                </div>
+                                <MudTable Items="_scanResults" Dense="true" Hover="true">
+                                    <HeaderContent>
+                                        <MudTh>Name</MudTh>
+                                        <MudTh>Host</MudTh>
+                                        <MudTh>Model</MudTh>
+                                        <MudTh>Type</MudTh>
+                                        <MudTh>Features</MudTh>
+                                        <MudTh></MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd>@FormatDeviceName(context)</MudTd>
+                                        <MudTd>@context.Host</MudTd>
+                                        <MudTd>@(context.SystemInfo?.Model ?? "Unknown")</MudTd>
+                                        <MudTd>@(context.Profile?.DeviceKind.ToString() ?? "Unknown")</MudTd>
+                                        <MudTd>@FormatCapabilities(context.Profile)</MudTd>
+                                        <MudTd>
+                                            <MudButton Size="Size.Small"
+                                                       Variant="@(IsSelectedScanResult(context) ? Variant.Outlined : Variant.Filled)"
+                                                       Color="Color.Primary" Disabled="@IsDiscoveredDeviceSectionBusy"
+                                                       OnClick="() => SelectScanResult(context)">@(IsSelectedScanResult(context) ?
+                                                               "Selected" : "Configure")</MudButton>
+                                            </MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                </MudPaper>
+
+                                <MudPaper Class="kasa-panel" Elevation="0">
+                                    <MudText Typo="Typo.h5">Discovered Device Metadata</MudText>
+                                    @if (DiscoveredDeviceBusyState.IsBusy &&
+                                            !string.IsNullOrWhiteSpace(DiscoveredDeviceBusyState.Message))
+                                    {
+                                        <MudAlert Severity="Severity.Info" Dense="true">@DiscoveredDeviceBusyState.Message</MudAlert>
+                                    }
+                                    @if (_selectedScanResult is null)
+                                    {
+                                        <MudText Typo="Typo.body2" Class="kasa-muted">Choose a device from scan results to assign a
+                                            dashboard display name, group, and favorite state before adding it.</MudText>
+                                        }
                 else
-                {
-                    <MudStack Spacing="2">
-                        <div class="kasa-config-grid">
-                            <div><span>Name</span><strong>@FormatDeviceName(_selectedScanResult)</strong></div>
-                            <div><span>Host</span><strong>@_selectedScanResult.Host</strong></div>
-                            <div><span>Model</span><strong>@(_selectedScanResult.SystemInfo?.Model ?? "Unknown")</strong></div>
-                            <div><span>Type</span><strong>@(_selectedScanResult.Profile?.DeviceKind.ToString() ?? "Unknown")</strong></div>
-                        </div>
-                        <MudTextField Label="Display name override" @bind-Value="_scanDisplayName" Variant="Variant.Outlined" Disabled="@IsDiscoveredDeviceSectionBusy" />
-                        <MudTextField Label="Group" @bind-Value="_scanGroupName" Variant="Variant.Outlined" Disabled="@IsDiscoveredDeviceSectionBusy" />
-                        <MudSwitch T="bool" @bind-Value="_scanIsFavorite" Color="Color.Warning" Disabled="@IsDiscoveredDeviceSectionBusy">Favorite</MudSwitch>
-                        <MudStack Row="true" Spacing="1">
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@IsDiscoveredDeviceSectionBusy" OnClick="ConfigureSelectedScanResultAsync">Add discovered device</MudButton>
-                            <MudButton Variant="Variant.Text" Color="Color.Inherit" Disabled="@IsDiscoveredDeviceSectionBusy" OnClick="ClearSelectedScanResult">Clear</MudButton>
-                        </MudStack>
-                    </MudStack>
-                }
-            </MudPaper>
+                                        {
+                                            <MudStack Spacing="2">
+                                                <div class="kasa-config-grid">
+                                                    <div><span>Name</span><strong>@FormatDeviceName(_selectedScanResult)</strong></div>
+                                                    <div><span>Host</span><strong>@_selectedScanResult.Host</strong></div>
+                                                    <div><span>Model</span><strong>@(_selectedScanResult.SystemInfo?.Model ??
+                                                                     "Unknown")</strong></div>
+                                                        <div><span>Type</span><strong>@(_selectedScanResult.Profile?.DeviceKind.ToString() ??
+                                                                    "Unknown")</strong></div>
+                                                        </div>
+                                                        <MudTextField Label="Display name override" @bind-Value="_scanDisplayName"
+                                                                      Variant="Variant.Outlined" Disabled="@IsDiscoveredDeviceSectionBusy" />
+                                                        <MudTextField Label="Group" @bind-Value="_scanGroupName" Variant="Variant.Outlined"
+                                                                      Disabled="@IsDiscoveredDeviceSectionBusy" />
+                                                        <MudSwitch T="bool" @bind-Value="_scanIsFavorite" Color="Color.Warning"
+                                                                   Disabled="@IsDiscoveredDeviceSectionBusy">Favorite</MudSwitch>
+                                                        <MudStack Row="true" Spacing="1">
+                                                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                                                       Disabled="@IsDiscoveredDeviceSectionBusy"
+                                                                       OnClick="ConfigureSelectedScanResultAsync">Add discovered device</MudButton>
+                                                            <MudButton Variant="Variant.Text" Color="Color.Inherit"
+                                                                       Disabled="@IsDiscoveredDeviceSectionBusy" OnClick="ClearSelectedScanResult">Clear
+                                                            </MudButton>
+                                                        </MudStack>
+                                                    </MudStack>
+                                                }
+                                            </MudPaper>
 
-            <MudPaper Class="kasa-panel" Elevation="0">
-                <div class="kasa-section-heading">
-                    <MudText Typo="Typo.h5">Configured Devices</MudText>
-                    <MudText Typo="Typo.caption" Class="kasa-muted">@_devices.Count device(s)</MudText>
-                </div>
-                <MudTable Items="_devices" Dense="true" Hover="true">
-                    <HeaderContent>
-                        <MudTh>Name</MudTh>
-                        <MudTh>Group</MudTh>
-                        <MudTh>Favorite</MudTh>
-                        <MudTh>Host</MudTh>
-                        <MudTh>Type</MudTh>
-                        <MudTh>Features</MudTh>
-                        <MudTh>Status</MudTh>
-                        <MudTh></MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@GetConfiguredDisplayName(context)</MudTd>
-                        <MudTd>@GetConfiguredGroupName(context)</MudTd>
-                        <MudTd>@(GetConfiguredIsFavorite(context) ? "Yes" : "No")</MudTd>
-                        <MudTd>@context.Host</MudTd>
-                        <MudTd>@context.DeviceKind</MudTd>
-                        <MudTd>@string.Join(", ", context.Capabilities.Take(4))</MudTd>
-                        <MudTd>@(context.IsOnline ? "Online" : "Offline")</MudTd>
-                        <MudTd>
-                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Disabled="@ConfiguredDeviceBusyState.IsBusy" OnClick="() => StartEdit(context)">Edit</MudButton>
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" Disabled="@ConfiguredDeviceBusyState.IsBusy" OnClick="() => RemoveAsync(context.SourceId)">Remove</MudButton>
-                        </MudTd>
-                    </RowTemplate>
-                </MudTable>
-            </MudPaper>
+                                            <MudPaper Class="kasa-panel" Elevation="0">
+                                                <div class="kasa-section-heading">
+                                                    <MudText Typo="Typo.h5">Configured Devices</MudText>
+                                                    <MudText Typo="Typo.caption" Class="kasa-muted">@_devices.Count device(s)</MudText>
+                                                </div>
+                                                <MudTable Items="_devices" Dense="true" Hover="true">
+                                                    <HeaderContent>
+                                                        <MudTh>Name</MudTh>
+                                                        <MudTh>Group</MudTh>
+                                                        <MudTh>Favorite</MudTh>
+                                                        <MudTh>Host</MudTh>
+                                                        <MudTh>Type</MudTh>
+                                                        <MudTh>Features</MudTh>
+                                                        <MudTh>Status</MudTh>
+                                                        <MudTh></MudTh>
+                                                    </HeaderContent>
+                                                    <RowTemplate>
+                                                        <MudTd>@GetConfiguredDisplayName(context)</MudTd>
+                                                        <MudTd>@GetConfiguredGroupName(context)</MudTd>
+                                                        <MudTd>@(GetConfiguredIsFavorite(context) ? "Yes" : "No")</MudTd>
+                                                        <MudTd>@context.Host</MudTd>
+                                                        <MudTd>@context.DeviceKind</MudTd>
+                                                        <MudTd>@string.Join(", ", context.Capabilities.Take(4))</MudTd>
+                                                        <MudTd>@(context.IsOnline ? "Online" : "Offline")</MudTd>
+                                                        <MudTd>
+                                                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                                                       Disabled="@ConfiguredDeviceBusyState.IsBusy" OnClick="() => StartEdit(context)">
+                                                                Edit</MudButton>
+                                                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                                                           Disabled="@ConfiguredDeviceBusyState.IsBusy"
+                                                                           OnClick="() => RemoveAsync(context.SourceId)">Remove</MudButton>
+                                                            </MudTd>
+                                                        </RowTemplate>
+                                                    </MudTable>
+                                                </MudPaper>
 
-            <MudPaper Class="kasa-panel" Elevation="0">
-                <MudText Typo="Typo.h5">Configured Device Metadata</MudText>
-                @if (ConfiguredDeviceBusyState.IsBusy && !string.IsNullOrWhiteSpace(ConfiguredDeviceBusyState.Message))
-                {
-                    <MudAlert Severity="Severity.Info" Dense="true">@ConfiguredDeviceBusyState.Message</MudAlert>
-                }
-                @if (string.IsNullOrWhiteSpace(_selectedDeviceSourceId))
-                {
-                    <MudText Typo="Typo.body2" Class="kasa-muted">Select a configured device to edit its dashboard display name, group, and favorite state.</MudText>
-                }
+                                                <MudPaper Class="kasa-panel" Elevation="0">
+                                                    <MudText Typo="Typo.h5">Configured Device Metadata</MudText>
+                                                    @if (ConfiguredDeviceBusyState.IsBusy &&
+                                                            !string.IsNullOrWhiteSpace(ConfiguredDeviceBusyState.Message))
+                                                    {
+                                                        <MudAlert Severity="Severity.Info" Dense="true">@ConfiguredDeviceBusyState.Message</MudAlert>
+                                                    }
+                                                    @if (string.IsNullOrWhiteSpace(_selectedDeviceSourceId))
+                                                    {
+                                                        <MudText Typo="Typo.body2" Class="kasa-muted">Select a configured device to edit its dashboard
+                                                            display name, group, and favorite state.</MudText>
+                                                        }
                 else
-                {
-                    <MudStack Spacing="2">
-                        <MudText Typo="Typo.caption" Class="kasa-muted">Editing @_selectedDeviceSourceId</MudText>
-                        <MudTextField Label="Display name override" @bind-Value="_editDisplayName" Variant="Variant.Outlined" Disabled="@ConfiguredDeviceBusyState.IsBusy" />
-                        <MudTextField Label="Group" @bind-Value="_editGroupName" Variant="Variant.Outlined" Disabled="@ConfiguredDeviceBusyState.IsBusy" />
-                        <MudSwitch T="bool" @bind-Value="_editIsFavorite" Color="Color.Warning" Disabled="@ConfiguredDeviceBusyState.IsBusy">Favorite</MudSwitch>
-                        <MudStack Row="true" Spacing="1">
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@ConfiguredDeviceBusyState.IsBusy" OnClick="SaveMetadataAsync">Save</MudButton>
-                            <MudButton Variant="Variant.Text" Color="Color.Inherit" Disabled="@ConfiguredDeviceBusyState.IsBusy" OnClick="ClearEdit">Clear</MudButton>
-                        </MudStack>
-                    </MudStack>
-                }
-            </MudPaper>
-            </div>
-        </MudTabPanel>
+                                                        {
+                                                            <MudStack Spacing="2">
+                                                                <MudText Typo="Typo.caption" Class="kasa-muted">Editing @_selectedDeviceSourceId</MudText>
+                                                                <MudTextField Label="Display name override" @bind-Value="_editDisplayName"
+                                                                              Variant="Variant.Outlined" Disabled="@ConfiguredDeviceBusyState.IsBusy" />
+                                                                <MudTextField Label="Group" @bind-Value="_editGroupName" Variant="Variant.Outlined"
+                                                                              Disabled="@ConfiguredDeviceBusyState.IsBusy" />
+                                                                <MudSwitch T="bool" @bind-Value="_editIsFavorite" Color="Color.Warning"
+                                                                           Disabled="@ConfiguredDeviceBusyState.IsBusy">Favorite</MudSwitch>
+                                                                <MudStack Row="true" Spacing="1">
+                                                                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                                                               Disabled="@ConfiguredDeviceBusyState.IsBusy" OnClick="SaveMetadataAsync">Save
+                                                                    </MudButton>
+                                                                    <MudButton Variant="Variant.Text" Color="Color.Inherit"
+                                                                               Disabled="@ConfiguredDeviceBusyState.IsBusy" OnClick="ClearEdit">Clear</MudButton>
+                                                                </MudStack>
+                                                            </MudStack>
+                                                        }
+                                                    </MudPaper>
+                                                </div>
+                                            </MudTabPanel>
 
-        <MudTabPanel Text="Configuration" Icon="@Icons.Material.Outlined.Tune">
-            <div class="kasa-tab-panel">
-            <MudPaper Class="kasa-panel" Elevation="0">
-                <MudText Typo="Typo.h5">Gateway Options</MudText>
-                <div class="kasa-config-grid">
-                    <div><span>Gateway ID</span><strong>@Options.GatewayId</strong></div>
-                    <div><span>Default Port</span><strong>@Options.DefaultPort</strong></div>
-                    <div><span>Socket Timeout</span><strong>@Options.SocketTimeoutSeconds s</strong></div>
-                    <div><span>Poll Interval</span><strong>@Options.PollIntervalSeconds s</strong></div>
-                    <div><span>Poll Concurrency</span><strong>@Options.MaxPollConcurrency</strong></div>
-                    <div><span>Dashboard Refresh</span><strong>@Options.DashboardRefreshSeconds s</strong></div>
-                    <div><span>Display Time Zone</span><strong>@Options.DisplayTimeZoneId</strong></div>
-                    <div><span>Registry Path</span><strong>@Options.DeviceRegistryPath</strong></div>
-                    <div><span>Identity Validation</span><strong>@(Options.RequireIdentityValidation ? "Required" : "Disabled")</strong></div>
-                    <div><span>Max Scan Hosts</span><strong>@Options.MaxScanHosts</strong></div>
-                    <div><span>Max Scan Concurrency</span><strong>@Options.MaxScanConcurrency</strong></div>
-                </div>
-            </MudPaper>
+                                            <MudTabPanel Text="Configuration" Icon="@Icons.Material.Outlined.Tune">
+                                                <div class="kasa-tab-panel">
+                                                    <MudPaper Class="kasa-panel" Elevation="0">
+                                                        <MudText Typo="Typo.h5">Gateway Options</MudText>
+                                                        <div class="kasa-config-grid">
+                                                            <div><span>Gateway ID</span><strong>@Options.GatewayId</strong></div>
+                                                            <div><span>Default Port</span><strong>@Options.DefaultPort</strong></div>
+                                                            <div><span>Socket Timeout</span><strong>@Options.SocketTimeoutSeconds s</strong></div>
+                                                            <div><span>Poll Interval</span><strong>@Options.PollIntervalSeconds s</strong></div>
+                                                            <div><span>Poll Concurrency</span><strong>@Options.MaxPollConcurrency</strong></div>
+                                                            <div><span>Dashboard Refresh</span><strong>@Options.DashboardRefreshSeconds s</strong></div>
+                                                            <div><span>Display Time Zone</span><strong>@Options.DisplayTimeZoneId</strong></div>
+                                                            <div><span>Registry Path</span><strong>@Options.DeviceRegistryPath</strong></div>
+                                                            <div><span>Identity Validation</span><strong>@(Options.RequireIdentityValidation ?
+                                                                                  "Required" : "Disabled")</strong></div>
+                                                                <div><span>Max Scan Hosts</span><strong>@Options.MaxScanHosts</strong></div>
+                                                                <div><span>Max Scan Concurrency</span><strong>@Options.MaxScanConcurrency</strong></div>
+                                                            </div>
+                                                        </MudPaper>
 
-            <MudPaper Class="kasa-panel" Elevation="0">
-                <div class="kasa-section-heading">
-                    <MudText Typo="Typo.h5">Allowed Networks</MudText>
-                    <MudText Typo="Typo.caption" Class="kasa-muted">@Options.Networks.Count configured subnet(s)</MudText>
-                </div>
-                <MudTable Items="Options.Networks" Dense="true" Hover="true">
-                    <HeaderContent>
-                        <MudTh>Name</MudTh>
-                        <MudTh>CIDR</MudTh>
-                        <MudTh>Discovery</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@context.Name</MudTd>
-                        <MudTd>@context.Cidr</MudTd>
-                        <MudTd>@(context.DiscoveryEnabled ? "Enabled" : "Disabled")</MudTd>
-                    </RowTemplate>
-                </MudTable>
-            </MudPaper>
+                                                        <MudPaper Class="kasa-panel" Elevation="0">
+                                                            <div class="kasa-section-heading">
+                                                                <MudText Typo="Typo.h5">Allowed Networks</MudText>
+                                                                <MudText Typo="Typo.caption" Class="kasa-muted">@Options.Networks.Count configured subnet(s)
+                                                                </MudText>
+                                                            </div>
+                                                            <MudTable Items="Options.Networks" Dense="true" Hover="true">
+                                                                <HeaderContent>
+                                                                    <MudTh>Name</MudTh>
+                                                                    <MudTh>CIDR</MudTh>
+                                                                    <MudTh>Discovery</MudTh>
+                                                                </HeaderContent>
+                                                                <RowTemplate>
+                                                                    <MudTd>@context.Name</MudTd>
+                                                                    <MudTd>@context.Cidr</MudTd>
+                                                                    <MudTd>@(context.DiscoveryEnabled ? "Enabled" : "Disabled")</MudTd>
+                                                                </RowTemplate>
+                                                            </MudTable>
+                                                        </MudPaper>
 
-            <MudPaper Class="kasa-panel" Elevation="0">
-                <div class="kasa-section-heading">
-                    <MudText Typo="Typo.h5">Seed Devices</MudText>
-                    <MudText Typo="Typo.caption" Class="kasa-muted">@Options.Devices.Count appsettings device(s)</MudText>
-                </div>
-                <MudTable Items="Options.Devices" Dense="true" Hover="true">
-                    <HeaderContent>
-                        <MudTh>Name</MudTh>
-                        <MudTh>Group</MudTh>
-                        <MudTh>Favorite</MudTh>
-                        <MudTh>Source ID</MudTh>
-                        <MudTh>Host</MudTh>
-                        <MudTh>Network</MudTh>
-                        <MudTh>Display TZ</MudTh>
-                        <MudTh>Type</MudTh>
-                        <MudTh>Enabled</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@(context.DisplayName ?? "-")</MudTd>
-                        <MudTd>@(context.GroupName ?? "-")</MudTd>
-                        <MudTd>@(context.IsFavorite ? "Yes" : "No")</MudTd>
-                        <MudTd>@context.EffectiveSourceId</MudTd>
-                        <MudTd>@context.Host</MudTd>
-                        <MudTd>@(context.NetworkName ?? "-")</MudTd>
-                        <MudTd>@(context.DisplayTimeZoneId ?? Options.DisplayTimeZoneId)</MudTd>
-                        <MudTd>@context.DeviceKind</MudTd>
-                        <MudTd>@(context.Enabled ? "Yes" : "No")</MudTd>
-                    </RowTemplate>
-                </MudTable>
-            </MudPaper>
-            </div>
-        </MudTabPanel>
-    </MudTabs>
-</MudStack>
-</MudPaper>
+                                                        <MudPaper Class="kasa-panel" Elevation="0">
+                                                            <div class="kasa-section-heading">
+                                                                <MudText Typo="Typo.h5">Seed Devices</MudText>
+                                                                <MudText Typo="Typo.caption" Class="kasa-muted">@Options.Devices.Count appsettings device(s)
+                                                                </MudText>
+                                                            </div>
+                                                            <MudTable Items="Options.Devices" Dense="true" Hover="true">
+                                                                <HeaderContent>
+                                                                    <MudTh>Name</MudTh>
+                                                                    <MudTh>Group</MudTh>
+                                                                    <MudTh>Favorite</MudTh>
+                                                                    <MudTh>Source ID</MudTh>
+                                                                    <MudTh>Host</MudTh>
+                                                                    <MudTh>Network</MudTh>
+                                                                    <MudTh>Display TZ</MudTh>
+                                                                    <MudTh>Type</MudTh>
+                                                                    <MudTh>Enabled</MudTh>
+                                                                </HeaderContent>
+                                                                <RowTemplate>
+                                                                    <MudTd>@(context.DisplayName ?? "-")</MudTd>
+                                                                    <MudTd>@(context.GroupName ?? "-")</MudTd>
+                                                                    <MudTd>@(context.IsFavorite ? "Yes" : "No")</MudTd>
+                                                                    <MudTd>@context.EffectiveSourceId</MudTd>
+                                                                    <MudTd>@context.Host</MudTd>
+                                                                    <MudTd>@(context.NetworkName ?? "-")</MudTd>
+                                                                    <MudTd>@(context.DisplayTimeZoneId ?? Options.DisplayTimeZoneId)</MudTd>
+                                                                    <MudTd>@context.DeviceKind</MudTd>
+                                                                    <MudTd>@(context.Enabled ? "Yes" : "No")</MudTd>
+                                                                </RowTemplate>
+                                                            </MudTable>
+                                                        </MudPaper>
+                                                    </div>
+                                                </MudTabPanel>
+                                            </MudTabs>
+                                        </MudStack>
+                                    </MudPaper>
 
 @code {
     private IReadOnlyList<KasaNetworkConfig> _networks = [];
     private IReadOnlyList<KasaDeviceStatus> _devices = [];
-    private IReadOnlyDictionary<string, KasaInventoryDevice> _configuredDevices = new Dictionary<string, KasaInventoryDevice>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, KasaInventoryDevice> _configuredDevices = new Dictionary<string,
+KasaInventoryDevice>(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<KasaProbeResult> _scanResults = [];
     private string? _selectedNetwork;
     private string? _hostToAdd;
@@ -305,7 +354,8 @@
     {
         await RunBusyAsync(DirectAddBusyState, "Adding device by host...", async token =>
         {
-            var result = await AdminService.AddByHostAsync(_hostToAdd ?? string.Empty, _selectedNetwork, _displayNameToAdd, _groupNameToAdd, _isFavoriteToAdd, token);
+            var result = await AdminService.AddByHostAsync(_hostToAdd ?? string.Empty, _selectedNetwork, _displayNameToAdd,
+_groupNameToAdd, _isFavoriteToAdd, token);
             SetMessage(result.Message, !result.Success);
             if (result.Success)
             {
@@ -320,7 +370,8 @@
     {
         await RunBusyAsync(DirectAddBusyState, "Searching for device by MAC address...", async token =>
         {
-            var result = await AdminService.AddByMacAsync(_macToAdd ?? string.Empty, _selectedNetwork ?? string.Empty, _displayNameToAdd, _groupNameToAdd, _isFavoriteToAdd, token);
+            var result = await AdminService.AddByMacAsync(_macToAdd ?? string.Empty, _selectedNetwork ?? string.Empty,
+_displayNameToAdd, _groupNameToAdd, _isFavoriteToAdd, token);
             SetMessage(result.Message, !result.Success);
             if (result.Success)
             {
@@ -340,7 +391,8 @@
 
         await RunBusyAsync(DiscoveredDeviceBusyState, "Configuring discovered device...", async token =>
         {
-            var result = await AdminService.AddProbeResultAsync(_selectedScanResult, _selectedNetwork, _scanDisplayName, _scanGroupName, _scanIsFavorite, token);
+            var result = await AdminService.AddProbeResultAsync(_selectedScanResult, _selectedNetwork, _scanDisplayName,
+_scanGroupName, _scanIsFavorite, token);
             SetMessage(result.Message, !result.Success);
             if (result.Success)
             {
@@ -401,7 +453,8 @@
     {
         await RunBusyAsync(ConfiguredDeviceBusyState, "Saving device metadata...", async token =>
         {
-            var result = await AdminService.UpdateDeviceConfigurationAsync(_selectedDeviceSourceId ?? string.Empty, _editDisplayName, _editGroupName, _editIsFavorite, token);
+            var result = await AdminService.UpdateDeviceConfigurationAsync(_selectedDeviceSourceId ?? string.Empty,
+_editDisplayName, _editGroupName, _editIsFavorite, token);
             SetMessage(result.Message, !result.Success);
             if (result.Success)
             {
@@ -457,7 +510,8 @@
         }
     }
 
-    private async Task RunBusyAsync(BusyState busyState, string busyMessage, Func<CancellationToken, Task> operation, bool captureErrors = true)
+    private async Task RunBusyAsync(BusyState busyState, string busyMessage, Func<CancellationToken, Task> operation, bool
+captureErrors = true)
     {
         try
         {
@@ -486,7 +540,8 @@
         && left.Port == right.Port;
 
     private static string FormatCapabilities(KasaDeviceProfile? profile) =>
-        profile is null ? "Unknown" : string.Join(", ", profile.Capabilities.OrderBy(capability => capability.ToString()).Take(4));
+        profile is null ? "Unknown" : string.Join(", ", profile.Capabilities.OrderBy(capability =>
+capability.ToString()).Take(4));
 
     private static string FormatDeviceName(KasaProbeResult probeResult) =>
         string.IsNullOrWhiteSpace(probeResult.SystemInfo?.Alias) ? "Unnamed device" : probeResult.SystemInfo.Alias;

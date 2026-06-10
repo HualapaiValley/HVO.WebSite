@@ -8,19 +8,28 @@
     @if (Device.Light is not null)
     {
         <div class="kasa-outlet-list" aria-label="Device outlets">
-            <KasaOutletRow Device="Device" Outlet="Outlet" ShowEnergy="true" UseOutletIndex="false" HideIdentity="@HideOutletIdentity" OnChanged="OnChanged">
+            <KasaOutletRow Device="Device" Outlet="Outlet" ShowEnergy="true" UseOutletIndex="false"
+                           HideIdentity="@HideOutletIdentity" OnChanged="OnChanged">
                 <InlineControls>
-                    <MudSlider T="int" Value="_brightness" ValueChanged="OnBrightnessSliderChanged" Immediate="true" Min="0" Max="100" Disabled="@BusyOrUnavailable" Color="Color.Primary" Class="kasa-port-slider" @onpointerdown="BeginInteraction" @onfocusin="BeginInteraction" @onmouseup="CommitBrightnessAsync" @ontouchend="CommitBrightnessAsync" @onkeyup="CommitBrightnessAsync" />
+                    <MudSlider T="int" Value="_brightness" ValueChanged="OnBrightnessSliderChanged" Immediate="true" Min="0"
+                               Max="100" Disabled="@BusyOrUnavailable" Color="Color.Primary" Class="kasa-port-slider"
+                               @onpointerdown="BeginInteraction" @onfocusin="BeginInteraction" @onmouseup="CommitBrightnessAsync"
+                               @ontouchend="CommitBrightnessAsync" @onkeyup="CommitBrightnessAsync" />
                     <MudText Typo="Typo.caption" Class="kasa-port-slider-value">@_brightness%</MudText>
                 </InlineControls>
             </KasaOutletRow>
         </div>
         <div class="kasa-control-surface kasa-light-controls" aria-label="Light controls">
-            <button type="button" class="kasa-palette-button" style="--kasa-selected-color: @SelectedColorHex" disabled="@BusyOrUnavailable" aria-label="Open color picker" @onclick="OpenColorPicker">
+            <button type="button" class="kasa-palette-button" style="--kasa-selected-color: @SelectedColorHex"
+                    disabled="@BusyOrUnavailable" aria-label="Open color picker" @onclick="OpenColorPicker">
                 <MudIcon Icon="@Icons.Material.Outlined.Palette" Size="Size.Small" />
             </button>
-            <MudSlider T="int" Value="_colorTemperature" ValueChanged="OnColorTemperatureSliderChanged" Immediate="true" Min="2500" Max="9000" Disabled="@BusyOrUnavailable" Color="Color.Info" Class="kasa-port-slider" @onpointerdown="BeginInteraction" @onfocusin="BeginInteraction" @onmouseup="CommitColorTemperatureAsync" @ontouchend="CommitColorTemperatureAsync" @onkeyup="CommitColorTemperatureAsync" />
-            <MudText Typo="Typo.caption" Class="kasa-port-slider-value">@KasaCardText.FormatKelvin(_colorTemperature)</MudText>
+            <MudSlider T="int" Value="_colorTemperature" ValueChanged="OnColorTemperatureSliderChanged" Immediate="true"
+                       Min="2500" Max="9000" Disabled="@BusyOrUnavailable" Color="Color.Info" Class="kasa-port-slider"
+                       @onpointerdown="BeginInteraction" @onfocusin="BeginInteraction" @onmouseup="CommitColorTemperatureAsync"
+                       @ontouchend="CommitColorTemperatureAsync" @onkeyup="CommitColorTemperatureAsync" />
+            <MudText Typo="Typo.caption" Class="kasa-port-slider-value">@KasaCardText.FormatKelvin(_colorTemperature)
+            </MudText>
             @if (!string.IsNullOrWhiteSpace(_message))
             {
                 <MudText Typo="Typo.caption" Class="@MessageClass">@_message</MudText>
@@ -29,13 +38,19 @@
         @if (_colorPickerOpen)
         {
             <div class="kasa-card-dialog-backdrop kasa-color-dialog-backdrop" @onclick="CancelColorPicker">
-                <div class="kasa-card-dialog kasa-color-dialog" role="dialog" aria-modal="true" aria-label="Color picker" @onclick:stopPropagation="true">
+                <div class="kasa-card-dialog kasa-color-dialog" role="dialog" aria-modal="true" aria-label="Color picker"
+                     @onclick:stopPropagation="true">
                     <div class="kasa-mud-color-picker-shell" style="--kasa-selected-color: @_pendingColorHex">
-                        <MudColorPicker @key="_colorPickerKey" @bind-Text="_pendingColorHex" @bind-Value="_pendingMudColor" Label="Color" Disabled="@BusyOrUnavailable" PickerVariant="PickerVariant.Static" ColorPickerView="ColorPickerView.Spectrum" ShowAlpha="false" Style="@($"color: {_pendingColorHex};")" />
+                        <MudColorPicker @key="_colorPickerKey" @bind-Text="_pendingColorHex" @bind-Value="_pendingMudColor"
+                                        Label="Color" Disabled="@BusyOrUnavailable" PickerVariant="PickerVariant.Static"
+                                        ColorPickerView="ColorPickerView.Spectrum" ShowAlpha="false"
+                                        Style="@($"color: {_pendingColorHex};")" />
                     </div>
                     <div class="kasa-card-dialog-actions">
-                        <button type="button" class="kasa-dialog-action kasa-dialog-action-secondary" disabled="@BusyOrUnavailable" @onclick="CancelColorPicker">Cancel</button>
-                        <button type="button" class="kasa-dialog-action kasa-dialog-action-primary" disabled="@BusyOrUnavailable" @onclick="ApplyColorPickerAsync">OK</button>
+                        <button type="button" class="kasa-dialog-action kasa-dialog-action-secondary"
+                                disabled="@BusyOrUnavailable" @onclick="CancelColorPicker">Cancel</button>
+                        <button type="button" class="kasa-dialog-action kasa-dialog-action-primary"
+                                disabled="@BusyOrUnavailable" @onclick="ApplyColorPickerAsync">OK</button>
                     </div>
                 </div>
             </div>
@@ -70,7 +85,8 @@
     private int _colorPickerKey;
     private IDisposable? _interaction;
 
-    private KasaOutletStatus Outlet => Device.Outlets.FirstOrDefault() ?? new KasaOutletStatus(1, Device.DisplayName, Device.Light?.IsOn, null, Device.Energy);
+    private KasaOutletStatus Outlet => Device.Outlets.FirstOrDefault() ?? new KasaOutletStatus(1, Device.DisplayName,
+Device.Light?.IsOn, null, Device.Energy);
 
     private bool HideOutletIdentity => Device.Outlets.Count <= 1;
 
@@ -105,7 +121,8 @@
         _colorTemperature = deviceColorTemperature > 0 ? deviceColorTemperature : _lastAppliedColorTemperature;
     }
 
-    private bool BusyOrUnavailable => _busy || !Device.IsOnline || Device.Light is null || string.IsNullOrWhiteSpace(Device.SourceId) || !Device.CommandCapabilities.Contains(KasaCommandCapability.LightColor);
+    private bool BusyOrUnavailable => _busy || !Device.IsOnline || Device.Light is null ||
+string.IsNullOrWhiteSpace(Device.SourceId) || !Device.CommandCapabilities.Contains(KasaCommandCapability.LightColor);
 
     private string MessageClass => _lastSuccess ? "kasa-muted" : "kasa-error-text";
 
@@ -213,7 +230,8 @@
         try
         {
             var commandBrightness = Math.Clamp(_brightness, 1, 100);
-            result = await CommandService.SetLightAsync(sourceId, new KasaLightCommandRequest(_isOn, commandBrightness, _hue, _saturation, _colorTemperature), CancellationToken.None);
+            result = await CommandService.SetLightAsync(sourceId, new KasaLightCommandRequest(_isOn, commandBrightness, _hue,
+_saturation, _colorTemperature), CancellationToken.None);
             _lastSuccess = result.Success;
             _message = result.Success ? null : result.Message;
             if (result.Success)
@@ -271,7 +289,8 @@
         var min = Math.Min(red, Math.Min(green, blue));
         var delta = max - min;
 
-        var computedHue = delta == 0 ? 0 : max == red ? 60 * (((green - blue) / delta) % 6) : max == green ? 60 * (((blue - red) / delta) + 2) : 60 * (((red - green) / delta) + 4);
+        var computedHue = delta == 0 ? 0 : max == red ? 60 * (((green - blue) / delta) % 6) : max == green ? 60 * (((blue - red)
+/ delta) + 2) : 60 * (((red - green) / delta) + 4);
         if (computedHue < 0)
         {
             computedHue += 360;

@@ -2,7 +2,8 @@
 
 <div class="kasa-card-body">
     <div class="kasa-outlet-list" aria-label="Device outlets">
-        @foreach (var outlet in Device.Outlets.OrderBy(outlet => outlet.Index ?? int.MaxValue).ThenBy(outlet => outlet.DisplayName))
+        @foreach (var outlet in Device.Outlets.OrderBy(outlet => outlet.Index ?? int.MaxValue).ThenBy(outlet =>
+        outlet.DisplayName))
         {
             <KasaOutletRow Device="Device" Outlet="outlet" ShowEnergy="true" OnChanged="OnChanged" />
         }

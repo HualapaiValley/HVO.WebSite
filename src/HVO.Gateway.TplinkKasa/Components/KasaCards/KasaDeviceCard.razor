@@ -19,28 +19,30 @@
             <MudText Typo="Typo.caption" Class="kasa-muted">@Device.Host</MudText>
         </div>
         <div class="kasa-card-actions">
-            <MudIconButton Icon="@Icons.Material.Outlined.HelpOutline" Size="Size.Small" Color="Color.Inherit" aria-label="Open device details" OnClick="OpenDetailsAsync" />
-            <MudChip T="string" Color="@GetStatusColor(Device)" Variant="Variant.Filled" Size="Size.Small">@GetStatusText(Device)</MudChip>
+            <MudIconButton Icon="@Icons.Material.Outlined.HelpOutline" Size="Size.Small" Color="Color.Inherit"
+                           aria-label="Open device details" OnClick="OpenDetailsAsync" />
+            <MudChip T="string" Color="@GetStatusColor(Device)" Variant="Variant.Filled" Size="Size.Small">
+                @GetStatusText(Device)</MudChip>
+            </div>
         </div>
-    </div>
-    @if (ShowAggregateEnergy && (HasPowerReading || HasEnergyReading))
-    {
-        <div class="kasa-card-stats kasa-card-stats-compact">
-            @if (HasPowerReading)
-            {
-                <div><span>Power</span><strong>@KasaCardText.FormatPower(Device)</strong></div>
-            }
-            @if (HasEnergyReading)
-            {
-                <div><span>Energy</span><strong>@KasaCardText.FormatEnergy(Device.Energy)</strong></div>
-            }
-        </div>
-    }
+        @if (ShowAggregateEnergy && (HasPowerReading || HasEnergyReading))
+        {
+            <div class="kasa-card-stats kasa-card-stats-compact">
+                @if (HasPowerReading)
+                {
+                    <div><span>Power</span><strong>@KasaCardText.FormatPower(Device)</strong></div>
+                }
+                @if (HasEnergyReading)
+                {
+                    <div><span>Energy</span><strong>@KasaCardText.FormatEnergy(Device.Energy)</strong></div>
+                }
+            </div>
+        }
 
-    <DynamicComponent Type="@CardComponentType" Parameters="@CardComponentParameters" />
+        <DynamicComponent Type="@CardComponentType" Parameters="@CardComponentParameters" />
 
-    <MudText Typo="Typo.caption" Class="kasa-muted">Last observed @FormatObserved(Device)</MudText>
-</MudPaper>
+        <MudText Typo="Typo.caption" Class="kasa-muted">Last observed @FormatObserved(Device)</MudText>
+    </MudPaper>
 
 @code {
     [Parameter, EditorRequired]
@@ -83,5 +85,6 @@
     private string FormatObserved(KasaDeviceStatus device) =>
         device.ObservedAtUtc is null
             ? "never"
-            : DisplayTimeZoneResolver.ConvertFromUtc(device.ObservedAtUtc.Value, device.DisplayTimeZoneId).ToString("g", CultureInfo.InvariantCulture);
+            : DisplayTimeZoneResolver.ConvertFromUtc(device.ObservedAtUtc.Value, device.DisplayTimeZoneId).ToString("g",
+CultureInfo.InvariantCulture);
 }
