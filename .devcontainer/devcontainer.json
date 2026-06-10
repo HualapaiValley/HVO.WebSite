@@ -10,6 +10,8 @@
   },
   "features": {
     "ghcr.io/devcontainers/features/dotnet:2": {
+      // Stay on the floating 10.0 channel so rebuilds pick up the latest
+      // SDK/runtime patch instead of a fixed patch version.
       "version": "10.0"
     },
     "ghcr.io/devcontainers/features/git:1": {
