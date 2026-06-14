@@ -146,4 +146,16 @@ public sealed class ThemeSandboxPlaywrightTests
         var count = await nullEntries.CountAsync();
         Assert.IsTrue(count >= 3, $"Expected at least 3 null entries (--), found {count}");
     }
+
+    [TestMethod]
+    [TestCategory("Live")]
+    public async Task ThemeSandbox_Showcase_RendersCardPatterns()
+    {
+        using var playwright = await Playwright.CreateAsync();
+        var page = await OpenPageAsync(playwright, "/theme-showcase");
+
+        await Assertions.Expect(page.Locator(".hvo-ring-gauge").First).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".hvo-cell-grid")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".hvo-chip-row")).ToBeVisibleAsync();
+    }
 }

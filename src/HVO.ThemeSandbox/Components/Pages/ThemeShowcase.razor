@@ -1,0 +1,177 @@
+@page "/theme-showcase"
+
+<MudPaper Class="layout-canvas shell-page" Elevation="0">
+    <MudStack Class="shell-page-stack hvo-showcase-page">
+        <MudText Typo="Typo.h4">Theme Showcase — Cross-Gateway Patterns</MudText>
+        <MudText Typo="Typo.body1" Color="Color.Secondary">Demonstrating per-gateway card patterns re-themed with unified hvo-* classes and shell CSS variables</MudText>
+
+        @* ── Kasa-style Device Card ── *@
+        <div class="hvo-card">
+            <div class="hvo-eyebrow">Kasa Device Card → hvo-card</div>
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;">
+                <div class="hvo-device-meta">
+                    <div class="hvo-device-title-row">
+                        <MudText Typo="Typo.h6">Living Room Lamp</MudText>
+                        <MudIcon Icon="@Icons.Material.Outlined.Star" Size="Size.Small" Color="Color.Warning" />
+                    </div>
+                    <span class="hvo-device-meta-caption">Living Room</span>
+                    <span class="hvo-device-meta-caption">192.168.1.42</span>
+                </div>
+                <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Size="Size.Small">Online</MudChip>
+            </div>
+            <div class="hvo-metric" style="margin-top:0.75rem;">
+                <span class="hvo-metric-label">Power</span>
+                <span class="hvo-metric-value hvo-mono">8.4 W</span>
+            </div>
+            <div class="hvo-metric">
+                <span class="hvo-metric-label">Energy today</span>
+                <span class="hvo-metric-value hvo-mono">0.12 kWh</span>
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">Last observed 2026-06-14 12:30</MudText>
+        </div>
+
+        @* ── Solar-style Battery Ring Gauge ── *@
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <div class="hvo-card">
+                    <div class="hvo-eyebrow">Solar Battery Ring → themed CSS gauge</div>
+                    <div class="hvo-card-title">Battery State of Charge</div>
+                    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+                        <div class="hvo-ring-gauge" style="--hvo-ring-level:78%;--hvo-ring-color:#57d38d;">
+                            <span class="hvo-ring-gauge-value">78%</span>
+                        </div>
+                        <div style="display:grid;gap:0.5rem;">
+                            <div class="hvo-metric">
+                                <span class="hvo-metric-label">Voltage</span>
+                                <span class="hvo-metric-value hvo-mono">52.1 V</span>
+                            </div>
+                            <div class="hvo-metric">
+                                <span class="hvo-metric-label">Current</span>
+                                <span class="hvo-metric-value hvo-mono">2.4 A</span>
+                            </div>
+                            <div class="hvo-metric">
+                                <span class="hvo-metric-label">Temperature</span>
+                                <span class="hvo-metric-value hvo-mono">28 °C</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </MudItem>
+
+            @* ── SmartShunt-style Gauge Grid ── *@
+            <MudItem xs="12" md="6">
+                <div class="hvo-card">
+                    <div class="hvo-eyebrow">SmartShunt Gauges → 3-column gauge grid</div>
+                    <div class="hvo-card-title">Battery Monitor</div>
+                    <div class="hvo-gauge-grid">
+                        <div style="display:grid;justify-items:center;gap:0.5rem;">
+                            <div class="hvo-ring-gauge" style="width:100px;height:100px;--hvo-ring-level:92%;--hvo-ring-color:#57d38d;">
+                                <span class="hvo-ring-gauge-value" style="font-size:1.1rem;">92%</span>
+                            </div>
+                            <span class="hvo-metric-label">State of Charge</span>
+                        </div>
+                        <div style="display:grid;justify-items:center;gap:0.5rem;">
+                            <div class="hvo-ring-gauge" style="width:100px;height:100px;--hvo-ring-level:68%;--hvo-ring-color:#6da5ff;">
+                                <span class="hvo-ring-gauge-value" style="font-size:1.1rem;">13.2V</span>
+                            </div>
+                            <span class="hvo-metric-label">Voltage</span>
+                        </div>
+                        <div style="display:grid;justify-items:center;gap:0.5rem;">
+                            <div class="hvo-ring-gauge" style="width:100px;height:100px;--hvo-ring-level:45%;--hvo-ring-color:#ffcf66;">
+                                <span class="hvo-ring-gauge-value" style="font-size:1.1rem;">120W</span>
+                            </div>
+                            <span class="hvo-metric-label">Power</span>
+                        </div>
+                    </div>
+                </div>
+            </MudItem>
+        </MudGrid>
+
+        @* ── JK BMS-style Cell Voltage Map ── *@
+        <div class="hvo-card">
+            <div class="hvo-eyebrow">JK BMS Cell Map → auto-fill voltage grid</div>
+            <div class="hvo-card-title">Cell Voltages — Bank 1A</div>
+            <div class="hvo-cell-grid">
+                @for (int i = 1; i <= 16; i++)
+                {
+                    var v = _cellVoltages[i - 1];
+                    var cellClass = i == _highCell ? "hvo-cell-tile hvo-cell-tile-high"
+                        : i == _lowCell ? "hvo-cell-tile hvo-cell-tile-low"
+                        : "hvo-cell-tile";
+                    <div class="@cellClass">
+                        <span class="hvo-cell-num">Cell @i</span>
+                        <span class="hvo-cell-v">@v.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) V</span>
+                    </div>
+                }
+            </div>
+            <div style="display:flex;gap:2rem;margin-top:0.75rem;font-size:0.75rem;">
+                <span style="color:rgba(255,127,127,0.9);">Highest: Cell @_highCell — @_cellVoltages[_highCell-1].ToString("F3", System.Globalization.CultureInfo.InvariantCulture) V</span>
+                <span style="color:#6da5ff;">Lowest: Cell @_lowCell — @_cellVoltages[_lowCell-1].ToString("F3", System.Globalization.CultureInfo.InvariantCulture) V</span>
+                <span style="color:var(--shell-pill-text);">Delta: @(_delta.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)) V</span>
+            </div>
+        </div>
+
+        @* ── Davis/Solar-style Status Chip Row ── *@
+        <div class="hvo-card">
+            <div class="hvo-eyebrow">Status Chips → hvo-chip-row</div>
+            <div class="hvo-card-title">Gateway Health Status</div>
+            <div class="hvo-chip-row">
+                <span class="hvo-chip hvo-chip-online">Live Loop Active</span>
+                <span class="hvo-chip hvo-chip-online">Station Connected</span>
+                <span class="hvo-chip hvo-chip-warning">Outbox Pending</span>
+                <span class="hvo-chip hvo-chip-online">API Sync Healthy</span>
+                <span class="hvo-chip hvo-chip-error">Disk Space Low</span>
+            </div>
+        </div>
+
+        @* ── Kasa-style Settings Form — MudBlazor controls in themed panel ── *@
+        <div class="hvo-card">
+            <div class="hvo-eyebrow">Kasa Settings → MudBlazor form controls</div>
+            <div class="hvo-card-title">Device Configuration</div>
+            <MudGrid>
+                <MudItem xs="12" md="4">
+                    <MudTextField T="string" Label="Device Name" Variant="Variant.Outlined" @bind-Value="_cfgName" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField T="string" Label="Host / IP" Variant="Variant.Outlined" @bind-Value="_cfgHost" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="string" Label="Network" Variant="Variant.Outlined" @bind-Value="_cfgNetwork">
+                        <MudSelectItem T="string" Value="@("main")">Main (192.168.1.0/24)</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("iot")">IoT (10.0.0.0/24)</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("guest")">Guest (172.16.0.0/24)</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField T="string" Label="MAC Address" Variant="Variant.Outlined" @bind-Value="_cfgMac" HelperText="AA:BB:CC:DD:EE:FF" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField T="string" Label="Group" Variant="Variant.Outlined" @bind-Value="_cfgGroup" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSwitch T="bool" Label="Favorite" Color="Color.Warning" @bind-Value="_cfgFavorite" />
+                </MudItem>
+            </MudGrid>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Save" Class="mt-2">Save Configuration</MudButton>
+        </div>
+    </MudStack>
+</MudPaper>
+
+@code {
+    private string? _cfgName = "Weather Station";
+    private string? _cfgHost = "192.168.1.50";
+    private string? _cfgNetwork = "main";
+    private string? _cfgMac = "AA:BB:CC:DD:EE:01";
+    private string? _cfgGroup = "Observatory";
+    private bool _cfgFavorite = true;
+
+    private static readonly double[] _cellVoltages =
+    {
+        3.452, 3.448, 3.455, 3.450, 3.461, 3.447, 3.453, 3.449,
+        3.451, 3.454, 3.446, 3.458, 3.450, 3.452, 3.445, 3.456
+    };
+
+    private int _highCell = 5;
+    private int _lowCell = 15;
+    private double _delta => _cellVoltages[_highCell - 1] - _cellVoltages[_lowCell - 1];
+}
