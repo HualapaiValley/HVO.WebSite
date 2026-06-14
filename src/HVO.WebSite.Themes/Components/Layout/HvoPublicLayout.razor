@@ -1,0 +1,58 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="@EffectiveTheme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+
+<MudLayout>
+    <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
+        <div class="shell-frame shell-bar-content shell-header-frame">
+            <div class="shell-brand-block">
+                <div class="shell-brand-mark" aria-hidden="true">
+                    <MudImage Src="_content/HVO.WebSite.Themes/images/observatory-background.jpg" Alt="" Class="shell-brand-image" />
+                </div>
+                <div class="shell-brand-copy">
+                    <MudText Typo="Typo.h5" Class="shell-brand-text">@(BrandTitle ?? "Hualapai Valley Observatory")</MudText>
+                    @if (!string.IsNullOrWhiteSpace(BrandSubtitle))
+                    {
+                        <MudText Typo="Typo.caption" Class="shell-brand-subtitle">@BrandSubtitle</MudText>
+                    }
+                </div>
+            </div>
+            @if (NavItems is not null)
+            {
+                <nav class="shell-header-nav" aria-label="Primary navigation">
+                    @NavItems
+                </nav>
+            }
+            <MudSpacer />
+            @if (AuthSection is not null)
+            {
+                <div class="shell-header-actions" aria-label="Header actions">
+                    @AuthSection
+                </div>
+            }
+        </div>
+    </MudAppBar>
+
+    <MudMainContent Class="shell-main">
+        <div class="shell-frame shell-content">
+            @Body
+        </div>
+    </MudMainContent>
+
+    <div id="blazor-error-ui" data-nosnippet>
+        <div class="shell-blazor-error-card">
+            <div class="shell-blazor-error-copy">
+                <strong>Blazor circuit interrupted</strong>
+                <span>An unhandled error has occurred. Reload to recover the dashboard session.</span>
+            </div>
+            <div class="shell-blazor-error-actions">
+                <a href="." class="reload">Reload</a>
+                <button type="button" class="dismiss" aria-label="Dismiss error message">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="components-reconnect-modal" data-nosnippet></div>
+</MudLayout>
