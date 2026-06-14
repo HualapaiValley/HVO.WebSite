@@ -9,6 +9,10 @@
                   IsDarkMode="@_isDarkMode"
                   IsDarkModeChanged="@OnDarkModeChanged">
     <NavItems>
+        <MudButton Variant="@GetNavVariant("/admin-layout")"
+                   Color="Color.Inherit"
+                   Class="@GetNavClass("/admin-layout")"
+                   Href="/admin-layout">Admin</MudButton>
         <MudButton Variant="@GetNavVariant("/dashboard")"
                    Color="Color.Inherit"
                    Class="@GetNavClass("/dashboard")"
