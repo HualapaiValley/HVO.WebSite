@@ -282,3 +282,42 @@ Avoid:
 - Key local status endpoint: `http://localhost:5400/status`
 - Current SmartShunt tests pass `19/19`.
 - If sync/settings work resumes later, get a real VictronConnect Bluetooth capture first.
+
+## 2026-06-13
+
+### Hybrid Multi-Model Code Review Infrastructure
+
+- Built a hybrid review workflow (low-cost prep + GPT validation) with skill files and subagents.
+- Added OpenCode Zen free prep agents: DeepSeek V4 Flash, Nemotron 3 Ultra, MiMo V2.5.
+- Added OpenCode Go prep agents: DeepSeek V4 Pro, Qwen3.7 Plus, MiniMax M3 (need restart to activate).
+- Ran all 3 Zen free agents and 3 explore-type agents across repo groups.
+- Created `MODEL_RANKING.md` for running model comparison.
+
+### Key Decisions
+
+- **Daily driver (free):** DeepSeek V4 Flash Free (Zen) — best signal-to-noise among free models.
+- **Final validation:** GPT 5.5 for critical reviews.
+- **Go models:** DeepSeek V4 Pro, Qwen3.7 Plus, MiniMax M3 tested on 2026-06-13 across all architecture groups.
+- Token telemetry plugin removed (caused OpenCode hangs). No live event plugins active.
+
+### Files Created
+
+- `.opencode/agents/review-prep.md` (parameterized — swap model field for any provider)
+- `.opencode/agents/qwen-review-prep.md`
+- `.opencode/agents/qwen-review-resolution-prep.md`
+- `MODEL_RANKING.md` (running ranking updated with each reviewed model)
+- `code-review-qwen-pre/Zen-{model}-{area}-Review.md` (3 Zen prep outputs)
+- `code-review-gpt55/HVO.WebSite.v9-Final-Review.md` (GPT validated findings)
+- `code-review-comparison/MODEL_COMPARISON.md` (cross-model comparison)
+
+### Deferred / Open
+
+- Token usage tracking — no exact provider telemetry; all estimates.
+
+### Notes For Next Session
+
+- Go subagent type is available: `review-prep` — parameterized, swap model field for any provider.
+- Run prep agent, then GPT validate, then update `MODEL_RANKING.md`.
+- Explore-agent prep outputs saved under tool-output files (Gateways: `tool_ec257b53e001...`, Hardware: `tool_ec257e75b001...`).
+- Current ranking: DeepSeek V4 Pro > DeepSeek V4 Flash Free > Qwen3.7 Plus > MiniMax M3 > Qwen3 Coder Next > Nemotron 3 Ultra > MiMo V2.5 Free.
+
