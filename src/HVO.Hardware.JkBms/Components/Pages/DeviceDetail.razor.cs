@@ -10,6 +10,7 @@ public partial class DeviceDetail : IDisposable
     [Inject] private ILogger<DeviceDetail> Logger { get; set; } = default!;
 
     private Workers.DevicePollState? _state;
+    private HvoChart? _cellChart;
 
     private string[] _cellLabels
         => _state?.LatestReading?.CellVoltagesMv
@@ -22,7 +23,8 @@ public partial class DeviceDetail : IDisposable
         {
             var readings = _state?.LatestReading;
             if (readings is null) return new();
-            var values = readings.CellVoltagesMv.Select(mv => mv / 1000.0).Cast<double>().ToArray();
+            var values = readings.CellVoltagesMv
+                .Select(mv => mv / 1000.0).ToArray();
             return new()
             {
                 new HvoChartDataset("Voltage", values,
@@ -46,7 +48,12 @@ public partial class DeviceDetail : IDisposable
         Poller.DeviceStateChanged += OnStateChanged;
     }
 
-    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+    private async void OnStateChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+        if (_cellChart is not null)
+            await _cellChart.RefreshAsync();
+    }
 
     public void Dispose()
     {

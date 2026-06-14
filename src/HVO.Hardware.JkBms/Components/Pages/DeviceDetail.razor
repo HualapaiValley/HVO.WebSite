@@ -122,7 +122,8 @@
                                     <h2>Cell voltage profile</h2>
                                 </div>
                             </div>
-                            <HvoChart ChartId="jk-cell-chart"
+                            <HvoChart @ref="_cellChart"
+                                      ChartId="jk-cell-chart"
                                       Type="HvoChartType.Bar"
                                       Title="Cell Voltages"
                                       YAxisLabel="Voltage (V)"

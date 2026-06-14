@@ -116,7 +116,8 @@
                     <MudText Typo="Typo.h6">Current Telemetry Snapshot</MudText>
                 </div>
             </div>
-            <HvoChart ChartId="smartshunt-telemetry-chart"
+            <HvoChart @ref="_telemetryChart"
+                      ChartId="smartshunt-telemetry-chart"
                       Type="HvoChartType.Bar"
                       ShowLegend="true"
                       Height="250"

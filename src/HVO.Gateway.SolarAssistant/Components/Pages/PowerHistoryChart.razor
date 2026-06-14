@@ -9,7 +9,8 @@
 
     @if (HasData)
     {
-        <HvoChart ChartId="@($"phc-{Title.GetHashCode():x}")"
+        <HvoChart @ref="_chartRef"
+                  ChartId="@($"phc-{Title.GetHashCode():x}")"
                   Type="HvoChartType.Line"
                   Height="200"
                   ShowLegend="false"
@@ -31,6 +32,8 @@
 </div>
 
 @code {
+    private HvoChart? _chartRef;
+
     [Parameter] public string Eyebrow { get; set; } = "History";
     [Parameter] public string Title { get; set; } = string.Empty;
     [Parameter] public string LineClass { get; set; } = "solar-history-line-cyan";
@@ -52,21 +55,46 @@
         }
     }
 
-    private string[] _labels => Points
-        .Select(p => p.RecordedAtUtc.ToLocalTime().ToString("HH:mm"))
-        .ToArray();
+    private string[] _labels
+    {
+        get
+        {
+            return Points
+                .Where(p => ValueSelector(p).HasValue)
+                .Select(p => p.RecordedAtUtc.ToLocalTime().ToString("HH:mm"))
+                .ToArray();
+        }
+    }
 
     private List<HvoChartDataset> _datasets
     {
         get
         {
-            var values = Points.Select(p => ValueSelector(p)).ToArray();
+            var filtered = Points
+                .Where(p => ValueSelector(p).HasValue)
+                .Select(p => ValueSelector(p)!.Value)
+                .ToArray();
+
+            var borderColor = LineClass switch
+            {
+                "solar-history-line-amber" => "#ffcf66",
+                "solar-history-line-blue" => "#6da5ff",
+                "solar-history-line-green" => "#57d38d",
+                _ => "#83e4ff"
+            };
+
             return new()
             {
-                new HvoChartDataset(Title, values.Cast<double>().ToArray(),
-                    BorderColor: "#83e4ff", BackgroundColor: "rgba(131,228,255,0.08)", Fill: true, BorderWidth: 2)
+                new HvoChartDataset(Title, filtered,
+                    BorderColor: borderColor, BackgroundColor: "rgba(131,228,255,0.08)", Fill: true, BorderWidth: 2)
             };
         }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_chartRef is not null)
+            await _chartRef.RefreshAsync();
     }
 
     private static string FormatWatts(double? value) => HvoFormat.Power(value);
