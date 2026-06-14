@@ -35,8 +35,8 @@ Select the prep model by editing the `model` field in `.opencode/agents/review-p
 | `opencode/nemotron-3-ultra-free` | Nemotron 3 Ultra (Zen free) | Broad scope, free. Better on medium repos. |
 | `opencode/mimo-v2.5-free` | MiMo V2.5 (Zen free) | Broad scope, free. Fast but less thorough. |
 | `opencode-go/deepseek-v4-pro` | DeepSeek V4 Pro (Go) | Best prep quality. Catches patterns GPT-level. |
-| `opencode/qwen3.7-plus` | Qwen3.7 Plus (Go) | Good prep quality. Balanced cost-effectiveness. |
-| `opencode/minimax-m3` | MiniMax M3 (Go) | Good prep quality. Different model bias. |
+| `opencode-go/qwen3.7-plus` | Qwen3.7 Plus (Go) | Good prep quality. Balanced cost-effectiveness. |
+| `opencode-go/minimax-m3` | MiniMax M3 (Go) | Good prep quality. Different model bias. |
 | `ollama/qwen3-coder-next-q8-256k:latest` | Qwen3 Coder Next (local) | Small scope, cheap. Good on targeted area reviews. |
 
 For small/quick scans, use a free Zen model. For critical or deep reviews, use DeepSeek V4 Pro. If the Go provider is unregistered, use Zen or local Qwen.

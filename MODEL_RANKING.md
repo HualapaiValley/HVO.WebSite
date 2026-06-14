@@ -11,7 +11,7 @@ Models are evaluated by running them as code-review prep agents on the same HVO.
 ## Current Ranking
 
 | Rank | Model | Source | Cost | Findings | Accept Rate | Signal/Noise | Strengths | Weaknesses | Tested |
-|---|---|---|---|---|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|---|---|---|
 | 1 | **GPT 5.5** | Zen | Paid | 31 findings, 24 files | Very high | Excellent | Most targeted, fewest false positives, best final recommendations | Costs money | Yes |
 | 2 | **DeepSeek V4 Pro** | Go | $1.74/M (Go sub) | 12 findings, 0 false positives | 100% | Excellent | Precise line numbers, contextual evidence, call flow, 0 false positives | Narrower per-session context (Web/API only) | Yes |
 | 3 | **DeepSeek V4 Flash** | Zen Free / Go | Free / $0.14/M | 10 high-confidence | ~70% | High | Best structured output, clearest file/line refs, good dedup | Some false positives (Docker, dev-mode) | Yes |
@@ -83,8 +83,8 @@ Models are evaluated by running them as code-review prep agents on the same HVO.
 - **Cost:** $0.30/1M input, $1.20/1M output (Go subscription, 3,200 requests/5hr)
 - **Verdict:** Best for hardware/BLE-specific reviews. Not a general-purpose daily driver.
 
-### 6. Qwen3 Coder Next (local Ollama)
-- **Model ID:** `opencode/deepseek-v4-flash-free` (Zen) / `opencode/deepseek-v4-flash` (Go)
+### 6. DeepSeek V4 Flash (Zen Free / Go)
+- **Model ID:** `opencode/deepseek-v4-flash-free` (Zen) / `opencode-go/deepseek-v4-flash` (Go)
 - **Test date:** 2026-06-13
 - **Scope tested:** Web/API architecture group (HVO.WebSite.v9, auth, telemetry, tests)
 - **Output:** 10 candidates, 4 high-confidence

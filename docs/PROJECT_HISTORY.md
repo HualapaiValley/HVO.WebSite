@@ -297,14 +297,14 @@ Avoid:
 
 - **Daily driver (free):** DeepSeek V4 Flash Free (Zen) — best signal-to-noise among free models.
 - **Final validation:** GPT 5.5 for critical reviews.
-- **Go models:** Registered but not yet tested — need session restart for agent auto-discovery.
+- **Go models:** DeepSeek V4 Pro, Qwen3.7 Plus, MiniMax M3 tested on 2026-06-13 across all architecture groups.
 - Token telemetry plugin removed (caused OpenCode hangs). No live event plugins active.
 
 ### Files Created
 
-- `.opencode/agents/go-deepseek-v4-pro-review-prep.md`
-- `.opencode/agents/go-qwen3.7-plus-review-prep.md`
-- `.opencode/agents/go-minimax-m3-review-prep.md`
+- `.opencode/agents/review-prep.md` (parameterized — swap model field for any provider)
+- `.opencode/agents/qwen-review-prep.md`
+- `.opencode/agents/qwen-review-resolution-prep.md`
 - `MODEL_RANKING.md` (running ranking updated with each reviewed model)
 - `code-review-qwen-pre/Zen-{model}-{area}-Review.md` (3 Zen prep outputs)
 - `code-review-gpt55/HVO.WebSite.v9-Final-Review.md` (GPT validated findings)
@@ -312,13 +312,12 @@ Avoid:
 
 ### Deferred / Open
 
-- Go model testing (DeepSeek V4 Pro, Qwen3.7 Plus, MiniMax M3) — blocked on session restart.
 - Token usage tracking — no exact provider telemetry; all estimates.
 
 ### Notes For Next Session
 
-- After restart, Go subagent types are available: `go-deepseek-v4-pro-review-prep`, `go-qwen3.7-plus-review-prep`, `go-minimax-m3-review-prep`.
-- Run all 3 Go prep agents, then GPT validate, then update `MODEL_RANKING.md`.
+- Go subagent type is available: `review-prep` — parameterized, swap model field for any provider.
+- Run prep agent, then GPT validate, then update `MODEL_RANKING.md`.
 - Explore-agent prep outputs saved under tool-output files (Gateways: `tool_ec257b53e001...`, Hardware: `tool_ec257e75b001...`).
-- Current ranking: DeepSeek V4 Flash Free > Qwen3 Coder Next > Nemotron 3 Ultra > MiMo V2.5 Free.
+- Current ranking: DeepSeek V4 Pro > DeepSeek V4 Flash Free > Qwen3.7 Plus > MiniMax M3 > Qwen3 Coder Next > Nemotron 3 Ultra > MiMo V2.5 Free.
 
