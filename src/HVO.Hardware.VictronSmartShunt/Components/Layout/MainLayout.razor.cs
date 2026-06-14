@@ -68,7 +68,13 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private bool IsCurrentSection(string section)
     {
-        return string.Equals(_shellState.CurrentSection, section, StringComparison.Ordinal);
+        var path = new Uri(Navigation.Uri).AbsolutePath;
+        return section switch
+        {
+            "Overview" => path == "/" || path == "",
+            "Telemetry" => path.StartsWith("/telemetry", StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
     }
 
     private void OnThemeModeChanged(bool useDarkMode)
