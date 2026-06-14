@@ -1,69 +1,84 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
 
-@if (_isAdmin)
-{
-    <HvoAdminLayout IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnDarkModeChanged">
-        <SidebarItems>
-            <MudNavLink Href="/admin">Dashboard</MudNavLink>
-            <MudNavLink Href="/admin" Disabled="true">Users</MudNavLink>
-            <MudNavLink Href="/admin" Disabled="true">Settings</MudNavLink>
-            <MudNavLink Href="/admin" Disabled="true">Logs</MudNavLink>
-            <MudDivider Class="my-2" />
-            <MudNavLink Href="/">Back to Site</MudNavLink>
-        </SidebarItems>
-        <AppBarActions>
-            <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
-                           aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
-            <AuthorizeView>
-                <Authorized>
-                    <MudMenu Label="@context.User.Identity?.Name" Variant="Variant.Text" Color="Color.Inherit"
-                             EndIcon="@Icons.Material.Outlined.ExpandMore">
-                        <MudMenuItem Href="MicrosoftIdentity/Account/SignOut">Sign out</MudMenuItem>
-                    </MudMenu>
-                </Authorized>
-            </AuthorizeView>
-        </AppBarActions>
-        <Body>@Body</Body>
-    </HvoAdminLayout>
-}
-else
-{
-    <HvoPublicLayout IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnDarkModeChanged">
-        <NavItems>
-            <MudButton Href="/" Variant="Variant.Text" Color="Color.Inherit" Class="shell-nav-link">Home</MudButton>
-        </NavItems>
-        <AuthSection>
-            <AuthorizeView>
-                <Authorized>
-                    <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
-                                   aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
-                    <MudMenu Label="@context.User.Identity?.Name" Variant="Variant.Text" Color="Color.Inherit"
-                             EndIcon="@Icons.Material.Outlined.ExpandMore">
-                        <MudMenuItem Href="MicrosoftIdentity/Account/SignOut">Sign out</MudMenuItem>
-                    </MudMenu>
-                </Authorized>
-                <NotAuthorized>
-                    <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
-                                   aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-                               Href="MicrosoftIdentity/Account/SignIn">Sign in</MudButton>
-                </NotAuthorized>
-            </AuthorizeView>
-        </AuthSection>
-        <Body>@Body</Body>
-    </HvoPublicLayout>
-}
+@_selectedLayout
 
 @code {
     private bool _isDarkMode = true;
-    private bool _isAdmin;
+    private RenderFragment _selectedLayout = default!;
 
-    protected override void OnParametersSet()
+    protected override void OnInitialized()
+    {
+        UpdateLayout();
+        Navigation.LocationChanged += (_, _) =>
+        {
+            UpdateLayout();
+            InvokeAsync(StateHasChanged);
+        };
+    }
+
+    private void UpdateLayout()
     {
         var path = Navigation.ToBaseRelativePath(Navigation.Uri).TrimStart('/');
-        _isAdmin = path == "admin" || path.StartsWith("admin/", StringComparison.OrdinalIgnoreCase);
+        var isAdmin = path == "admin" || path.StartsWith("admin/", StringComparison.OrdinalIgnoreCase);
+
+        _selectedLayout = isAdmin ? AdminLayout() : PublicLayout();
     }
+
+    private RenderFragment AdminLayout() => __builder =>
+    {
+        <HvoAdminLayout IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnDarkModeChanged">
+            <SidebarItems>
+                <MudNavLink Href="/admin">Dashboard</MudNavLink>
+                <MudNavLink Href="/admin" Disabled="true">Users</MudNavLink>
+                <MudNavLink Href="/admin" Disabled="true">Settings</MudNavLink>
+                <MudNavLink Href="/admin" Disabled="true">Logs</MudNavLink>
+                <MudDivider Class="my-2" />
+                <MudNavLink Href="/">Back to Site</MudNavLink>
+            </SidebarItems>
+            <AppBarActions>
+                <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
+                               aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
+                <AuthorizeView>
+                    <Authorized>
+                        <MudMenu Label="@context.User.Identity?.Name" Variant="Variant.Text" Color="Color.Inherit"
+                                 EndIcon="@Icons.Material.Outlined.ExpandMore">
+                            <MudMenuItem Href="MicrosoftIdentity/Account/SignOut">Sign out</MudMenuItem>
+                        </MudMenu>
+                    </Authorized>
+                </AuthorizeView>
+            </AppBarActions>
+            <Body>@Body</Body>
+        </HvoAdminLayout>
+    };
+
+    private RenderFragment PublicLayout() => __builder =>
+    {
+        <HvoPublicLayout IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnDarkModeChanged">
+            <NavItems>
+                <MudButton Href="/" Variant="Variant.Text" Color="Color.Inherit" Class="shell-nav-link">Home</MudButton>
+            </NavItems>
+            <AuthSection>
+                <AuthorizeView>
+                    <Authorized>
+                        <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
+                                       aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
+                        <MudMenu Label="@context.User.Identity?.Name" Variant="Variant.Text" Color="Color.Inherit"
+                                 EndIcon="@Icons.Material.Outlined.ExpandMore">
+                            <MudMenuItem Href="MicrosoftIdentity/Account/SignOut">Sign out</MudMenuItem>
+                        </MudMenu>
+                    </Authorized>
+                    <NotAuthorized>
+                        <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
+                                       aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                   Href="MicrosoftIdentity/Account/SignIn">Sign in</MudButton>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </AuthSection>
+            <Body>@Body</Body>
+        </HvoPublicLayout>
+    };
 
     private string ThemeIcon => _isDarkMode
         ? Icons.Material.Outlined.DarkMode
