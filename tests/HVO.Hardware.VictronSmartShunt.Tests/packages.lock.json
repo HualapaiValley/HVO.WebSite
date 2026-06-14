@@ -491,7 +491,10 @@
         }
       },
       "hvo.website.themes": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "MudBlazor": "[9.4.0, )"
+        }
       },
       "Linux.Bluetooth": {
         "type": "CentralTransitive",

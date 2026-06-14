@@ -1,9 +1,9 @@
-using HVO.Hardware.VictronSmartShunt.Components.Layout;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
 using HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
 using HVO.Hardware.VictronSmartShunt.Workers;
+using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Options;
 using MudBlazor;
@@ -19,7 +19,6 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
     [Inject] protected PowerApiForwarder Forwarder { get; set; } = default!;
     [Inject] protected SmartShuntGatewayHealthService HealthService { get; set; } = default!;
     [Inject] protected IOptions<SmartShuntOptions> OptionsAccessor { get; set; } = default!;
-    [CascadingParameter] protected ShellLayoutState? ShellLayoutState { get; set; }
 
     protected SmartShuntOptions Options => OptionsAccessor.Value;
     protected SmartShuntDeviceSnapshot? LatestSnapshot => Worker.LastSnapshot;
@@ -41,7 +40,7 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
             ? "smartshunt-badge-neutral"
             : "smartshunt-badge-warning";
     protected string PrivateEnrichmentStateText => Options.EnablePrivateEnrichment
-        ? (PrivateInfo?.RecordedAtUtc.HasValue == true ? $"Active ({FormatTimestamp(PrivateInfo.RecordedAtUtc)})" : "Enabled, waiting for overlay")
+        ? (PrivateInfo?.RecordedAtUtc.HasValue == true ? $"Active ({HvoFormat.Timestamp(PrivateInfo.RecordedAtUtc, "MMM d, HH:mm:ss")})" : "Enabled, waiting for overlay")
         : "Disabled by configuration";
 
     protected override void OnInitialized()
@@ -77,18 +76,20 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
         return Options.EnablePrivateEnrichment ? "Not reported" : "Private disabled";
     }
 
-    protected static string FormatTimestamp(DateTime? value) => value.HasValue ? value.Value.ToLocalTime().ToString("MMM d, HH:mm:ss") : "--";
-    protected static string FormatPercent(double? value) => value.HasValue ? $"{value.Value:0.0}%" : "--";
-    protected static string FormatVolts(double? value) => value.HasValue ? $"{value.Value:0.00} V" : "--";
-    protected static string FormatAmps(double? value) => value.HasValue ? $"{value.Value:0.000} A" : "--";
-    protected static string FormatWatts(double? value) => value.HasValue ? $"{value.Value:0} W" : "--";
-    protected static string FormatAh(double? value) => value.HasValue ? $"{value.Value:0.0} Ah" : "--";
     protected static string FormatCount(uint? value) => value.HasValue ? value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "--";
     protected static string FormatMinutes(double? value) => value.HasValue ? $"{value.Value:0} min" : "--";
-    protected static string FormatTemperature(double? value) => value.HasValue ? $"{value.Value:0} C" : "--";
     protected static string FormatSeconds(int? value) => value.HasValue ? $"{value.Value} s" : "--";
     protected static string FormatKwh(double? value) => value.HasValue ? $"{value.Value:0.00} kWh" : "--";
     protected static string FormatBool(bool? value) => value.HasValue ? (value.Value ? "Yes" : "No") : "--";
+
+    // Thin wrappers around HvoFormat for RenderField delegate compatibility
+    protected static string FormatVolts(double? v) => HvoFormat.Voltage(v);
+    protected static string FormatAmps(double? a) => HvoFormat.Current(a);
+    protected static string FormatWatts(double? w) => HvoFormat.Power(w);
+    protected static string FormatPercent(double? p) => HvoFormat.Percent(p);
+    protected static string FormatAh(double? a) => HvoFormat.EnergyAh(a);
+    protected static string FormatTemperature(double? t) => HvoFormat.Temperature(t);
+    protected static string FormatTimestamp(DateTime? value) => HvoFormat.Timestamp(value, "MMM d, HH:mm:ss");
 
     protected static double ClampPercent(double? value, double min, double max)
     {
@@ -105,10 +106,10 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
     protected static string FormatCurrentWithFallback(SmartShuntDeviceSnapshot? snapshot)
     {
         if (snapshot?.CurrentA is double currentA)
-            return FormatAmps(currentA);
+            return HvoFormat.Current(currentA);
 
         if (snapshot?.CurrentCoarseA is double coarseCurrentA)
-            return $"{FormatAmps(coarseCurrentA)} approx";
+            return $"{HvoFormat.Current(coarseCurrentA)} approx";
 
         return "--";
     }

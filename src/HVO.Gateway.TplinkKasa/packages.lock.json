@@ -15,7 +15,10 @@
         "contentHash": "p6BF8zmt4c/yi/hD9hP7yPioUK5loOnif19gwIEANq6I46407QnSu0HTW1NuALC5seRKcWb2pBP5LwC8aBE2Mg=="
       },
       "hvo.website.themes": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "MudBlazor": "[9.4.0, )"
+        }
       }
     }
   }

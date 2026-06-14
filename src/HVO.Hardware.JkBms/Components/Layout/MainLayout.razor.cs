@@ -17,6 +17,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     [Inject] private BmsPollerWorker Poller { get; set; } = default!;
     [Inject] private ForwarderCoordinator Forwarder { get; set; } = default!;
     [Inject] private IOptions<OutboxOptions> OutboxOptionsAccessor { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
 
     private ShellFooterItem _footer1 = new("JK BMS");
     private ShellFooterItem _footer2 = new("Fleet summary");
@@ -60,7 +61,15 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         => IsCurrentSection(section) ? "shell-nav-link shell-nav-link-current" : "shell-nav-link";
 
     private bool IsCurrentSection(string section)
-        => string.Equals(_shellState.CurrentSection, section, StringComparison.Ordinal);
+    {
+        var path = new Uri(Navigation.Uri).AbsolutePath;
+        return section switch
+        {
+            "Overview" => path == "/" || path == "",
+            "Banks" => path.StartsWith("/device", StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
+    }
 
     private void HandleShellStateChanged()
     {
