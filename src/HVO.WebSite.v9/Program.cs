@@ -21,6 +21,7 @@ using System.Net;
 using Azure.Identity;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
+using MudBlazor.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
@@ -119,6 +120,7 @@ namespace HVO.WebSite.v9
             // so AuthorizeView and AuthorizeRouteView can access it in both SSR and interactive modes
             services.AddRazorComponents()
                 .AddInteractiveServerComponents();
+            services.AddMudServices();
             services.AddCascadingAuthenticationState();
 
             ConfigureDataProtection(services, configuration);
