@@ -1,5 +1,5 @@
 using System.Globalization;
-using HVO.Hardware.DavisVantagePro2.Components.Layout;
+
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
@@ -12,7 +12,6 @@ public partial class Archive : IAsyncDisposable
     private const string PageSummaryText = "Console archive controls and on-demand historical pulls presented inside the shared Davis shell frame.";
 
     [Inject] private ILogger<Archive> Logger { get; set; } = default!;
-    [CascadingParameter] private ShellLayoutState? ShellLayoutState { get; set; }
 
     // ── Archive Interval ─────────────────────────────────────────────────────
 
@@ -224,6 +223,5 @@ public partial class Archive : IAsyncDisposable
 
     private void UpdateShell()
     {
-        ShellLayoutState?.SetPage("Archive", PageHeadingText, PageSummaryText);
     }
 }

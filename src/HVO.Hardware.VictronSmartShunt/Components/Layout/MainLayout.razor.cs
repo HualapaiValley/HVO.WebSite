@@ -68,11 +68,11 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private bool IsCurrentSection(string section)
     {
-        var path = new Uri(Navigation.Uri).AbsolutePath;
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/');
         return section switch
         {
-            "Overview" => path == "/" || path == "",
-            "Telemetry" => path.StartsWith("/telemetry", StringComparison.OrdinalIgnoreCase),
+            "Overview" => path is "" or "monitor",
+            "Telemetry" => path.StartsWith("telemetry", StringComparison.OrdinalIgnoreCase),
             _ => false
         };
     }

@@ -1,6 +1,4 @@
-@using System.Globalization
 @using Microsoft.AspNetCore.Components.Web
-@inject IWebHostEnvironment Environment
 
 <!DOCTYPE html>
 <html lang="en">
@@ -12,8 +10,8 @@
     <base href="/" />
     <link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-dark.css" />
     <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
-    <link rel="stylesheet" href='@($"app.css?v={AppCssVersion}")' />
     <link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-shared-shell.css" />
+    <link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-components.css" />
     <link rel="stylesheet" href="HVO.Hardware.DavisVantagePro2.styles.css" />
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
@@ -25,22 +23,3 @@
 </body>
 
 </html>
-
-@code {
-    private string AppCssVersion
-    {
-        get
-        {
-            var fileInfo = Environment.WebRootFileProvider.GetFileInfo("app.css");
-
-            if (!fileInfo.Exists || fileInfo.LastModified == DateTimeOffset.MinValue)
-            {
-                return "0";
-            }
-
-            return fileInfo.LastModified
-                .ToUnixTimeMilliseconds()
-                .ToString(CultureInfo.InvariantCulture);
-        }
-    }
-}
