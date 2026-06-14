@@ -1,7 +1,7 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
 
-@if (IsAdminRoute)
+@if (_isAdmin)
 {
     <HvoAdminLayout IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnDarkModeChanged">
         <SidebarItems>
@@ -13,11 +13,8 @@
             <MudNavLink Href="/">Back to Site</MudNavLink>
         </SidebarItems>
         <AppBarActions>
-            <MudIconButton Icon="@ThemeIcon"
-                           Color="Color.Inherit"
-                           Size="Size.Medium"
-                           aria-label="@ThemeLabel"
-                           OnClick="@ToggleTheme" />
+            <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
+                           aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
             <AuthorizeView>
                 <Authorized>
                     <MudMenu Label="@context.User.Identity?.Name" Variant="Variant.Text" Color="Color.Inherit"
@@ -39,22 +36,16 @@ else
         <AuthSection>
             <AuthorizeView>
                 <Authorized>
-                    <MudIconButton Icon="@ThemeIcon"
-                                   Color="Color.Inherit"
-                                   Size="Size.Medium"
-                                   aria-label="@ThemeLabel"
-                                   OnClick="@ToggleTheme" />
+                    <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
+                                   aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
                     <MudMenu Label="@context.User.Identity?.Name" Variant="Variant.Text" Color="Color.Inherit"
                              EndIcon="@Icons.Material.Outlined.ExpandMore">
                         <MudMenuItem Href="MicrosoftIdentity/Account/SignOut">Sign out</MudMenuItem>
                     </MudMenu>
                 </Authorized>
                 <NotAuthorized>
-                    <MudIconButton Icon="@ThemeIcon"
-                                   Color="Color.Inherit"
-                                   Size="Size.Medium"
-                                   aria-label="@ThemeLabel"
-                                   OnClick="@ToggleTheme" />
+                    <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
+                                   aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
                     <MudButton Variant="Variant.Outlined" Color="Color.Primary"
                                Href="MicrosoftIdentity/Account/SignIn">Sign in</MudButton>
                 </NotAuthorized>
@@ -66,13 +57,12 @@ else
 
 @code {
     private bool _isDarkMode = true;
-    private bool IsAdminRoute
+    private bool _isAdmin;
+
+    protected override void OnParametersSet()
     {
-        get
-        {
-            var path = Navigation.ToBaseRelativePath(Navigation.Uri).TrimStart('/');
-            return path == "admin" || path.StartsWith("admin/", StringComparison.OrdinalIgnoreCase);
-        }
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).TrimStart('/');
+        _isAdmin = path == "admin" || path.StartsWith("admin/", StringComparison.OrdinalIgnoreCase);
     }
 
     private string ThemeIcon => _isDarkMode
