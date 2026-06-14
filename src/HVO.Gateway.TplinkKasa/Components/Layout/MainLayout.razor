@@ -14,7 +14,7 @@
                   FooterSlot4="@_footer4"
                   FooterSlot5="@_footer5"
                   IsDarkMode="@_shellState.IsDarkMode"
-                  IsDarkModeChanged="OnThemeModeChanged">
+                  IsDarkModeChanged="@OnThemeModeChanged">
     <NavItems>
         <MudButton Href="/" Variant="@GetNavVariant("")" Color="Color.Inherit" Class="@GetNavClass("")">Overview</MudButton>
         <MudButton Href="/settings" Variant="@GetNavVariant("settings")" Color="Color.Inherit" Class="@GetNavClass("settings")">Configuration</MudButton>
@@ -82,9 +82,7 @@
 
     protected override void OnInitialized()
     {
-        _footer3 = new ShellFooterItem(
-            DisplayTimeZoneResolver.ConvertFromUtc(DateTimeOffset.UtcNow)
-                .ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture));
+        UpdateFooterTime(DateTimeOffset.UtcNow);
         _ = RefreshClockAsync(_clockCts.Token);
     }
 
