@@ -1,5 +1,7 @@
 using System.Globalization;
 using HVO.Hardware.DavisVantagePro2.Services;
+using HVO.WebSite.Themes.Components.Format;
+using HVO.WebSite.Themes.Components.Layout;
 using Microsoft.AspNetCore.Components;
 using MudBlazor;
 
@@ -14,38 +16,13 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private bool _showStationInfoDialog;
 
     [Inject] private DavisSiteState SiteState { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
 
-    private MudTheme ShellTheme { get; } = new()
-    {
-        PaletteLight = new PaletteLight
-        {
-            Primary = "#2d5fb7",
-            Secondary = "#2d8b79",
-            Background = "#ecf3fb",
-            Surface = "#fbfdff",
-            AppbarBackground = "rgba(255,255,255,0)",
-            AppbarText = "#13263f",
-            DrawerBackground = "#f5f9fd",
-            DrawerText = "#1c2d43",
-            TextPrimary = "#10233f",
-            TextSecondary = "#4f6887"
-        },
-        PaletteDark = new PaletteDark
-        {
-            Primary = "#6da5ff",
-            Secondary = "#57bca6",
-            Background = "#08111f",
-            Surface = "#1f2937",
-            AppbarBackground = "rgba(0,0,0,0)",
-            AppbarText = "#f8fbff",
-            DrawerBackground = "#101826",
-            DrawerText = "#d9e3f3",
-            TextPrimary = "#f8fbff",
-            TextSecondary = "#9fb4d5"
-        }
-    };
-
-    private string LayoutThemeClass => _shellState.IsDarkMode ? "shell-theme-dark" : "shell-theme-light";
+    private ShellFooterItem _footer1 = new("Davis VP2");
+    private ShellFooterItem _footer2 = new("Weather overview");
+    private ShellFooterItem _footer3 = new("MudBlazor shell");
+    private ShellFooterItem _footer4 = new("Fixed width layout");
+    private ShellFooterItem _footer5 = new("Connection");
 
     private string ThemeSelectorIcon => _shellState.IsDarkMode
         ? Icons.Material.Outlined.DarkMode
@@ -63,10 +40,12 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private string StationFirmwareDateText => SiteState.StationInfo?.FirmwareDate ?? "-";
 
-    private string StationConsoleTimeText => SiteState.StationInfo?.ConsoleTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "Waiting for console time";
+    private string StationConsoleTimeText => SiteState.StationInfo?.ConsoleTime is { } ct
+        ? HvoFormat.Timestamp(ct, "yyyy-MM-dd HH:mm:ss")
+        : "Waiting for console time";
 
     private string StationSnapshotStatusText => SiteState.StationInfoSavedAtUtc.HasValue
-        ? $"Cached {SiteState.StationInfoSavedAtUtc.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
+        ? $"Cached {HvoFormat.Timestamp(SiteState.StationInfoSavedAtUtc, "yyyy-MM-dd HH:mm:ss")}"
         : "No cached station snapshot";
 
     protected override void OnInitialized()
@@ -93,20 +72,11 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         _shellState.ToggleTheme();
     }
 
-    private void OpenStationInfoDialog()
-    {
-        _showStationInfoDialog = true;
-    }
-
-    private void CloseStationInfoDialog()
-    {
-        _showStationInfoDialog = false;
-    }
+    private void OpenStationInfoDialog() => _showStationInfoDialog = true;
+    private void CloseStationInfoDialog() => _showStationInfoDialog = false;
 
     private Variant GetNavLinkVariant(string section)
-    {
-        return IsCurrentSection(section) ? Variant.Filled : Variant.Text;
-    }
+        => IsCurrentSection(section) ? Variant.Filled : Variant.Text;
 
     private string GetNavLinkClass(string section, string? additionalClass = null)
     {
@@ -121,29 +91,20 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private bool IsCurrentSection(string section)
     {
-        return string.Equals(_shellState.CurrentSection, section, StringComparison.Ordinal);
-    }
-
-    private static string? GetFooterIndicatorClass(ShellFooterIndicator indicator)
-    {
-        return indicator switch
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/');
+        return section switch
         {
-            ShellFooterIndicator.Online => "shell-status-dot shell-status-dot-online",
-            ShellFooterIndicator.Offline => "shell-status-dot shell-status-dot-offline",
-            ShellFooterIndicator.Warning => "shell-status-dot shell-status-dot-warning",
-            _ => null
+            "Overview" => path is "" or "monitor",
+            "Alerts" => path.StartsWith("alarm", StringComparison.OrdinalIgnoreCase),
+            "Archive" => path.StartsWith("archive", StringComparison.OrdinalIgnoreCase),
+            "Configuration" => path.StartsWith("console-settings", StringComparison.OrdinalIgnoreCase),
+            _ => false
         };
     }
 
-    private async Task RetryInitializationAsync()
-    {
-        await SiteState.RetryInitializationAsync();
-    }
+    private async Task RetryInitializationAsync() => await SiteState.RetryInitializationAsync();
 
-    private void HandleShellStateChanged()
-    {
-        _ = InvokeAsync(StateHasChanged);
-    }
+    private void HandleShellStateChanged() => _ = InvokeAsync(StateHasChanged);
 
     private void HandleSiteStateChanged()
     {
@@ -156,12 +117,12 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private void UpdateSiteFooter()
     {
-        _shellState.SetFooter(
-            BuildLiveFooterItem(),
-            new ShellFooterItem(SiteState.StationIdentityText),
-            new ShellFooterItem(ToConsoleDateTime(SiteState.ObservedAtUtc) ?? "Waiting for data"),
-            new ShellFooterItem($"Outbox: {SiteState.PendingOutboxCount} pending - {SiteState.FailedOutboxCount} failed"),
-            BuildApiFooterItem());
+        _footer1 = BuildLiveFooterItem();
+        _footer2 = new ShellFooterItem(SiteState.StationIdentityText);
+        _footer3 = new ShellFooterItem(
+            ToConsoleDateTime(SiteState.ObservedAtUtc) ?? "Waiting for data");
+        _footer4 = new ShellFooterItem($"Outbox: {SiteState.PendingOutboxCount} pending - {SiteState.FailedOutboxCount} failed");
+        _footer5 = BuildApiFooterItem();
     }
 
     private ShellFooterItem BuildLiveFooterItem()
@@ -169,26 +130,18 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         DateTime? observedAtUtc = SiteState.ObservedAtUtc;
 
         if (!SiteState.IsInitialized)
-        {
             return new ShellFooterItem("Initializing dashboard", ShellFooterIndicator.Warning);
-        }
 
         if (observedAtUtc.HasValue
             && DateTime.UtcNow - observedAtUtc.Value <= LiveLoopFreshnessThreshold
             && SiteState.IsStationConnected)
-        {
             return new ShellFooterItem("Live loop active", ShellFooterIndicator.Online);
-        }
 
         if (!SiteState.IsStationConnected)
-        {
             return new ShellFooterItem("Station disconnected", ShellFooterIndicator.Offline);
-        }
 
         if (observedAtUtc.HasValue)
-        {
             return new ShellFooterItem("Live loop stale", ShellFooterIndicator.Warning);
-        }
 
         return new ShellFooterItem("Waiting for live packets", ShellFooterIndicator.Warning);
     }
@@ -196,32 +149,23 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private ShellFooterItem BuildApiFooterItem()
     {
         if (SiteState.PendingOutboxCount > 0 && !string.IsNullOrWhiteSpace(SiteState.LastOutboxError))
-        {
             return new ShellFooterItem("API sync failing", ShellFooterIndicator.Offline);
-        }
 
         if (SiteState.PendingOutboxCount > 0)
-        {
             return new ShellFooterItem("API sync pending", ShellFooterIndicator.Warning);
-        }
 
         if (SiteState.FailedOutboxCount > 0)
-        {
             return new ShellFooterItem("API sync degraded", ShellFooterIndicator.Warning);
-        }
 
         if (SiteState.LastOutboxSentAt.HasValue)
-        {
             return new ShellFooterItem("API sync healthy", ShellFooterIndicator.Online);
-        }
 
         return new ShellFooterItem(StationLocationText, ShellFooterIndicator.None);
     }
 
     private string? ToConsoleDateTime(DateTime? utc) =>
         utc.HasValue
-            ? new DateTimeOffset(utc.Value, TimeSpan.Zero)
-                  .ToOffset(SiteState.ConsoleUtcOffset)
-                  .ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture)
+            ? HvoFormat.FooterTimestamp(new DateTimeOffset(utc.Value, TimeSpan.Zero)
+                  .ToOffset(SiteState.ConsoleUtcOffset).UtcDateTime)
             : null;
 }

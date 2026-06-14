@@ -1,4 +1,4 @@
-using HVO.Hardware.DavisVantagePro2.Components.Layout;
+
 using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Protocol;
 using HVO.Hardware.DavisVantagePro2.Station;
@@ -155,7 +155,6 @@ public partial class ConsoleSettings : IDisposable
     [Inject] private ILogger<ConsoleSettings> Logger { get; set; } = default!;
     [Inject] private VantageStation Station { get; set; } = default!;
     [Inject] private StationSettingsSnapshotStore StationSettingsSnapshotStore { get; set; } = default!;
-    [CascadingParameter] private ShellLayoutState? ShellLayoutState { get; set; }
 
     private readonly CancellationTokenSource _clockTickerCancellation = new();
     private DateTime? _consoleTimeSnapshot;
@@ -342,7 +341,6 @@ public partial class ConsoleSettings : IDisposable
 
     private void UpdateShell()
     {
-        ShellLayoutState?.SetPage("Configuration", PageHeadingText, PageSummaryText);
     }
 
     private async Task LoadClockAsync()

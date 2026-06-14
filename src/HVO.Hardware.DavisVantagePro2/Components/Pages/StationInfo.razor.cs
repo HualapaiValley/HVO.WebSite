@@ -1,4 +1,4 @@
-using HVO.Hardware.DavisVantagePro2.Components.Layout;
+
 using HVO.Hardware.DavisVantagePro2.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
@@ -14,7 +14,6 @@ public partial class StationInfo : IDisposable
 
     [Inject] private ILogger<StationInfo> Logger { get; set; } = default!;
     [Inject] private DavisSiteState SiteState { get; set; } = default!;
-    [CascadingParameter] private ShellLayoutState? ShellLayoutState { get; set; }
 
     private StationInfoModel? Info => SiteState.StationInfo;
 
@@ -63,7 +62,6 @@ public partial class StationInfo : IDisposable
 
     private void UpdateShell()
     {
-        ShellLayoutState?.SetPage("Station Info", PageHeadingText, PageSummaryText);
     }
 
     private void HandleSiteStateChanged()

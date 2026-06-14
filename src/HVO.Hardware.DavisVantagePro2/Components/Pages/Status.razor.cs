@@ -1,7 +1,7 @@
 using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using HVO.Hardware.DavisVantagePro2.Station;
-using HVO.Hardware.DavisVantagePro2.Components.Layout;
+using HVO.WebSite.Themes.Components.Layout;
 using HVO.Astronomy;
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +25,6 @@ public partial class Status : IDisposable
 
     [Inject] private ILogger<Status> Logger { get; set; } = default!;
     [Inject] private IServiceScopeFactory ScopeFactory { get; set; } = default!;
-    [CascadingParameter] private HVO.Hardware.DavisVantagePro2.Components.Layout.ShellLayoutState? ShellLayoutState { get; set; }
 
     private Loop2Packet? _reading;
     private bool _disposed;
@@ -56,11 +55,6 @@ public partial class Status : IDisposable
         await LoadStartupReadingAsync();
         await LoadLiveHistoryAsync();
         RefreshVisuals();
-    }
-
-    protected override void OnParametersSet()
-    {
-        ShellLayoutState?.SetPage("Overview", PageHeadingText, PageSummaryText);
     }
 
     private async Task LoadStartupReadingAsync()
@@ -228,67 +222,6 @@ public partial class Status : IDisposable
     private string ArchiveIntervalText => $"{Math.Max(1, Station.ArchiveIntervalSeconds / 60)} min";
 
     private string WindDirectionRotation => (_reading?.WindDirectionDegrees ?? 0d).ToString("F0", CultureInfo.InvariantCulture);
-
-    private void UpdateShellFooter()
-    {
-        ShellLayoutState?.SetFooter(
-            BuildLiveFooterItem(),
-            new ShellFooterItem(StationLocationText),
-            new ShellFooterItem(HeaderTimestamp),
-            new ShellFooterItem($"Outbox: {Forwarder.PendingCount} pending - {Forwarder.FailedCount} failed"),
-            BuildApiFooterItem());
-    }
-
-    private ShellFooterItem BuildLiveFooterItem()
-    {
-        DateTime? observedAtUtc = ObservedAtUtc;
-
-        if (observedAtUtc.HasValue
-            && DateTime.UtcNow - observedAtUtc.Value <= LiveLoopFreshnessThreshold
-            && Worker.ConsecutiveErrors == 0)
-        {
-            return new ShellFooterItem("Live loop active", ShellFooterIndicator.Online);
-        }
-
-        if (Worker.ConsecutiveErrors > 0 || !Station.IsConnected)
-        {
-            return new ShellFooterItem(
-                observedAtUtc.HasValue ? "Live loop stalled" : "Station disconnected",
-                ShellFooterIndicator.Offline);
-        }
-
-        if (observedAtUtc.HasValue)
-        {
-            return new ShellFooterItem("Live loop stale", ShellFooterIndicator.Warning);
-        }
-
-        return new ShellFooterItem("Waiting for live packets", ShellFooterIndicator.Warning);
-    }
-
-    private ShellFooterItem BuildApiFooterItem()
-    {
-        if (Forwarder.PendingCount > 0 && !string.IsNullOrWhiteSpace(Forwarder.LastError))
-        {
-            return new ShellFooterItem("API sync failing", ShellFooterIndicator.Offline);
-        }
-
-        if (Forwarder.PendingCount > 0)
-        {
-            return new ShellFooterItem("API sync pending", ShellFooterIndicator.Warning);
-        }
-
-        if (Forwarder.FailedCount > 0)
-        {
-            return new ShellFooterItem("API sync degraded", ShellFooterIndicator.Warning);
-        }
-
-        if (Forwarder.LastSentAt.HasValue)
-        {
-            return new ShellFooterItem("API sync healthy", ShellFooterIndicator.Online);
-        }
-
-        return new ShellFooterItem("API sync idle", ShellFooterIndicator.Warning);
-    }
 
     private string MoonPhaseText => _moonContext.PhaseName;
 
