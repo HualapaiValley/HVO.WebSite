@@ -1,11 +1,12 @@
-using System.Globalization;
-using Microsoft.AspNetCore.Components;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
 using HVO.Hardware.VictronSmartShunt.Workers;
-using MudBlazor;
 using HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
+using HVO.WebSite.Themes.Components.Format;
+using HVO.WebSite.Themes.Components.Layout;
+using Microsoft.AspNetCore.Components;
+using MudBlazor;
 
 namespace HVO.Hardware.VictronSmartShunt.Components.Layout;
 
@@ -22,27 +23,13 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     [Inject] private PowerApiForwarder Forwarder { get; set; } = default!;
     [Inject] private Microsoft.Extensions.Options.IOptions<SmartShuntOptions> OptionsAccessor { get; set; } = default!;
 
-    private MudTheme ShellTheme { get; } = new()
-    {
-        PaletteLight = new PaletteLight
-        {
-            Primary = "#2d5fb7",
-            Secondary = "#f28c28",
-            Background = "#ecf3fb",
-            Surface = "#fbfdff"
-        },
-        PaletteDark = new PaletteDark
-        {
-            Primary = "#6da5ff",
-            Secondary = "#f9a94b",
-            Background = "#08111f",
-            Surface = "#1f2937"
-        }
-    };
+    private ShellFooterItem _footer1 = new("SmartShunt");
+    private ShellFooterItem _footer2 = new("Victron battery monitor");
+    private ShellFooterItem _footer3 = new("Waiting for sample", ShellFooterIndicator.Warning);
+    private ShellFooterItem _footer4 = new("Public telemetry");
+    private ShellFooterItem _footer5 = new("API sync");
 
     private SmartShuntOptions Options => OptionsAccessor.Value;
-
-    private string LayoutThemeClass => _shellState.IsDarkMode ? "shell-theme-dark" : "shell-theme-light";
 
     private string ThemeSelectorIcon => _shellState.IsDarkMode ? Icons.Material.Outlined.DarkMode : Icons.Material.Outlined.LightMode;
 
@@ -84,17 +71,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         return string.Equals(_shellState.CurrentSection, section, StringComparison.Ordinal);
     }
 
-    private static string? GetFooterIndicatorClass(ShellFooterIndicator indicator)
-    {
-        return indicator switch
-        {
-            ShellFooterIndicator.Online => "shell-status-dot shell-status-dot-online",
-            ShellFooterIndicator.Offline => "shell-status-dot shell-status-dot-offline",
-            ShellFooterIndicator.Warning => "shell-status-dot shell-status-dot-warning",
-            _ => null
-        };
-    }
-
     private void OnThemeModeChanged(bool useDarkMode)
     {
         _shellState.SetTheme(useDarkMode);
@@ -122,12 +98,11 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         var sample = Worker.LastSnapshot;
         var health = HealthService.GetSnapshot();
 
-        _shellState.SetFooter(
-            BuildHealthFooterItem(health),
-            new ShellFooterItem(string.IsNullOrWhiteSpace(Options.DeviceId) ? "SmartShunt device" : Options.DeviceId),
-            BuildSampleTimestampFooterItem(sample),
-            new ShellFooterItem($"Outbox: {Forwarder.PendingCount} pending - {Forwarder.FailedCount} failed"),
-            BuildApiFooterItem());
+        _footer1 = BuildHealthFooterItem(health);
+        _footer2 = new ShellFooterItem(string.IsNullOrWhiteSpace(Options.DeviceId) ? "SmartShunt device" : Options.DeviceId);
+        _footer3 = BuildSampleTimestampFooterItem(sample);
+        _footer4 = new ShellFooterItem($"Outbox: {Forwarder.PendingCount} pending - {Forwarder.FailedCount} failed");
+        _footer5 = BuildApiFooterItem();
     }
 
     private static ShellFooterItem BuildHealthFooterItem(SmartShuntGatewayHealthSnapshot health)
@@ -150,7 +125,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
             ? ShellFooterIndicator.Online
             : ShellFooterIndicator.Warning;
 
-        return new ShellFooterItem(FormatFooterTimestamp(sample.RecordedAtUtc), indicator);
+        return new ShellFooterItem(HvoFormat.FooterTimestamp(sample.RecordedAtUtc), indicator);
     }
 
     private ShellFooterItem BuildApiFooterItem()
@@ -169,11 +144,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
         return new ShellFooterItem("API sync idle");
     }
-
-    private static string FormatFooterTimestamp(DateTime value)
-        => new DateTimeOffset(value, TimeSpan.Zero)
-            .ToLocalTime()
-            .ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture);
 
     private async Task RefreshLoopAsync(CancellationToken ct)
     {

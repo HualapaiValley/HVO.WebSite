@@ -1,5 +1,6 @@
 @page "/"
 @inherits SmartShuntPageBase
+@using HVO.WebSite.Themes.Components.Format
 
 <PageTitle>SmartShunt Overview</PageTitle>
 
@@ -14,7 +15,7 @@
             <div class="smartshunt-hero-meta">
                 <div class="smartshunt-stat-chip">
                     <span>Last sample</span>
-                    <strong>@FormatTimestamp(Worker.LastSnapshotAt)</strong>
+                    <strong>@FormatTimestamp</strong>
                 </div>
                 <div class="smartshunt-stat-chip">
                     <span>Gateway</span>
