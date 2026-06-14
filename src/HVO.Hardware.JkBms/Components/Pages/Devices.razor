@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using HVO.Hardware.JkBms.Configuration
 @using HVO.Hardware.JkBms.Workers
+@using HVO.WebSite.Themes.Components.Format
 @inject BmsPollerWorker Poller
 @inject Microsoft.Extensions.Options.IOptions<JkBmsOptions> Options
 
@@ -64,7 +65,7 @@
                                 <td>@(cfg.Enabled ? "Yes" : "No")</td>
                                 <td>@interval s</td>
                                 <td>@(state?.ConsecutiveErrors ?? 0)</td>
-                                <td>@(state?.LastPollAt?.ToLocalTime().ToString("MMM d, HH:mm:ss") ?? "--")</td>
+                                <td>@HvoFormat.Timestamp(state?.LastPollAt, "MMM d, HH:mm:ss")</td>
                                 <td>@(state?.LastError ?? "--")</td>
                             </tr>
                         }
