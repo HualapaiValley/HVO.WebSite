@@ -165,7 +165,8 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private string? ToConsoleDateTime(DateTime? utc) =>
         utc.HasValue
-            ? HvoFormat.FooterTimestamp(new DateTimeOffset(utc.Value, TimeSpan.Zero)
-                  .ToOffset(SiteState.ConsoleUtcOffset).UtcDateTime)
+            ? new DateTimeOffset(utc.Value, TimeSpan.Zero)
+                  .ToOffset(SiteState.ConsoleUtcOffset)
+                  .ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture)
             : null;
 }

@@ -66,7 +66,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         return section switch
         {
             "Overview" => path is "" or "monitor",
-            "Banks" => path.StartsWith("devices", StringComparison.OrdinalIgnoreCase),
+            "Banks" => path.StartsWith("device", StringComparison.OrdinalIgnoreCase),
             _ => false
         };
     }
