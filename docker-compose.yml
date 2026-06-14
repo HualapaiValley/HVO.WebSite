@@ -6,6 +6,7 @@
 #   hvo-jkbms     — JK BMS battery monitor driver
 #   hvo-solarassistant — SolarAssistant gateway
 #   hvo-smartshunt — Victron SmartShunt gateway
+#   hvo-tplinkkasa — TP-Link/Kasa local gateway read-only monitor
 #
 # Images are built locally from the repo. No registry is required.
 #
@@ -212,11 +213,33 @@ services:
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  hvo-tplinkkasa:
+    build:
+      context: .
+      dockerfile: src/HVO.Gateway.TplinkKasa/Dockerfile
+    ports:
+      - "5500:8080"
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      DOTNET_ENVIRONMENT: Production
+      KasaGateway__PollIntervalSeconds: ${KASA_POLL_INTERVAL_SECONDS:-30}
+      KasaGateway__MaxPollConcurrency: ${KASA_MAX_POLL_CONCURRENCY:-5}
+      KasaGateway__DashboardRefreshSeconds: ${KASA_DASHBOARD_REFRESH_SECONDS:-5}
+      KasaGateway__DeviceRegistryPath: ${KASA_DEVICE_REGISTRY_PATH:-/app/data/devices.json}
+      OTEL_SERVICE_NAME: hvo-tplinkkasa
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+    volumes:
+      - kasa-registry:/app/data
+    restart: unless-stopped
+
 volumes:
   davis-outbox:
   jkbms-outbox:
   solarassistant-outbox:
   smartshunt-outbox:
+  kasa-registry:
   data-protection:
   davis-data-protection:
   jkbms-data-protection:

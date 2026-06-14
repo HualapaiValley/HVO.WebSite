@@ -6,7 +6,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 env_file="${HVO_PUBLISH_ENV_FILE:-${repo_root}/.env}"
 
 usage() {
-	printf 'Usage: %s [--dry-run] [--push-latest] <website|davis|jkbms|solarassistant>\n' "$(basename "$0")"
+	printf 'Usage: %s [--dry-run] [--push-latest] <website|davis|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
 	printf '\n'
 	printf 'Builds, tags, pushes, and verifies a single image in Azure Container Registry.\n'
 	printf 'Version and repository names come from %s.\n' "${env_file}"
@@ -15,7 +15,7 @@ usage() {
 	printf '  %s website\n' "$(basename "$0")"
 	printf '  %s --push-latest website\n' "$(basename "$0")"
 	printf '  %s --dry-run davis\n' "$(basename "$0")"
-	printf '  %s solarassistant\n' "$(basename "$0")"
+	printf '  %s tplinkkasa\n' "$(basename "$0")"
 }
 
 fail() {
@@ -77,8 +77,24 @@ resolve_target() {
 			dockerfile_path="src/HVO.Gateway.SolarAssistant/Dockerfile"
 			build_args=()
 			;;
+		smartshunt|hvo-smartshunt)
+			require_env HVO_SMARTSHUNT_IMAGE_REPOSITORY
+			require_env HVO_SMARTSHUNT_IMAGE_VERSION
+			image_repository="${HVO_SMARTSHUNT_IMAGE_REPOSITORY}"
+			image_version="${HVO_SMARTSHUNT_IMAGE_VERSION}"
+			dockerfile_path="src/HVO.Hardware.VictronSmartShunt/Dockerfile"
+			build_args=()
+			;;
+		tplinkkasa|hvo-tplinkkasa)
+			require_env HVO_TPLINKKASA_IMAGE_REPOSITORY
+			require_env HVO_TPLINKKASA_IMAGE_VERSION
+			image_repository="${HVO_TPLINKKASA_IMAGE_REPOSITORY}"
+			image_version="${HVO_TPLINKKASA_IMAGE_VERSION}"
+			dockerfile_path="src/HVO.Gateway.TplinkKasa/Dockerfile"
+			build_args=()
+			;;
 		*)
-			fail "Unknown target '$1'. Expected website, davis, jkbms, or solarassistant."
+			fail "Unknown target '$1'. Expected website, davis, jkbms, solarassistant, smartshunt, or tplinkkasa."
 			;;
 	esac
 }
@@ -101,7 +117,7 @@ while (($# > 0)); do
 			usage
 			exit 0
 			;;
-		website|hvo-website|davis|hvo-davis|jkbms|hvo-jkbms|solarassistant|hvo-solarassistant)
+		website|hvo-website|davis|hvo-davis|jkbms|hvo-jkbms|solarassistant|hvo-solarassistant|smartshunt|hvo-smartshunt|tplinkkasa|hvo-tplinkkasa)
 			[[ -z "${target}" ]] || fail 'Only one target can be published per invocation.'
 			target="$1"
 			shift

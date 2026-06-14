@@ -66,6 +66,8 @@ jobs:
           docker build -f src/HVO.Hardware.DavisVantagePro2/Dockerfile -t hvo-davis-ci:latest .
           docker build -f src/HVO.Hardware.JkBms/Dockerfile -t hvo-jkbms-ci:latest .
           docker build -f src/HVO.Gateway.SolarAssistant/Dockerfile -t hvo-solarassistant-ci:latest .
+          docker build -f src/HVO.Hardware.VictronSmartShunt/Dockerfile -t hvo-smartshunt-ci:latest .
+          docker build -f src/HVO.Gateway.TplinkKasa/Dockerfile -t hvo-tplinkkasa-ci:latest .
 
       - name: Publish script dry run
         run: bash tools/validate-publish-acr-dry-run.sh
