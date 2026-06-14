@@ -1,31 +1,73 @@
-<div class="solar-history-card">
-    <div class="solar-history-head">
+<div class="hvo-card">
+    <div class="hvo-card-head" style="display:flex;align-items:center;justify-content:space-between;">
         <div>
-            <MudText Typo="Typo.overline" Class="solar-eyebrow">@Eyebrow</MudText>
-            <MudText Typo="Typo.h6" Class="solar-card-title">@Title</MudText>
+            <MudText Typo="Typo.overline" Class="hvo-eyebrow">@Eyebrow</MudText>
+            <MudText Typo="Typo.h6">@Title</MudText>
         </div>
-        <strong>@FormatWatts(LatestValue)</strong>
+        <strong class="hvo-mono">@FormatWatts(LatestValue)</strong>
     </div>
 
-    <svg class="solar-history-chart" viewBox="0 0 360 160" role="img" aria-label="@Title power history">
-        <g class="solar-history-grid" aria-hidden="true">
-            <line x1="28" y1="20" x2="346" y2="20"></line>
-            <line x1="28" y1="68" x2="346" y2="68"></line>
-            <line x1="28" y1="116" x2="346" y2="116"></line>
-        </g>
-        @if (HasSeries)
-        {
-            <path class="@LineClass" d="@PathData" fill="none" stroke-width="var(--shell-chart-line-width)" stroke-linecap="round" stroke-linejoin="round"></path>
-            <circle class="solar-history-marker" cx="@LatestPointX" cy="@LatestPointY" r="4"></circle>
-        }
-        else
-        {
-            <svg:text x="180" y="84" text-anchor="middle" class="solar-history-empty">Waiting for history</svg:text>
-        }
-    </svg>
+    @if (HasData)
+    {
+        <HvoChart ChartId="@($"phc-{Title.GetHashCode():x}")"
+                  Type="HvoChartType.Line"
+                  Height="200"
+                  ShowLegend="false"
+                  EnableAnimations="false"
+                  Labels="@_labels"
+                  Datasets="@_datasets" />
+    }
+    else
+    {
+        <div class="hvo-state-empty" style="min-height:120px;">
+            <MudText Typo="Typo.caption">Waiting for history data</MudText>
+        </div>
+    }
 
-    <div class="solar-history-foot">
+    <div style="display:flex;justify-content:space-between;padding:0.5rem 0;font-size:0.75rem;color:var(--shell-pill-text);">
         <span>@HistorySummary</span>
         <span>@RangeSummary</span>
     </div>
 </div>
+
+@code {
+    [Parameter] public string Eyebrow { get; set; } = "History";
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string LineClass { get; set; } = "solar-history-line-cyan";
+    [Parameter] public IReadOnlyList<PowerSnapshotHistoryPoint> Points { get; set; } = [];
+    [Parameter] public Func<PowerSnapshotHistoryPoint, double?> ValueSelector { get; set; } = _ => null;
+
+    private bool HasData => Points.Any(p => ValueSelector(p).HasValue);
+
+    private double? LatestValue => Points.Select(ValueSelector).LastOrDefault(v => v.HasValue);
+
+    private string HistorySummary => Points.Count == 0 ? "No samples" : $"{Points.Count} samples";
+
+    private string RangeSummary
+    {
+        get
+        {
+            var values = Points.Select(ValueSelector).Where(v => v.HasValue).Select(v => v!.Value).ToArray();
+            return values.Length == 0 ? "--" : $"{FormatWatts(values.Min())} to {FormatWatts(values.Max())}";
+        }
+    }
+
+    private string[] _labels => Points
+        .Select(p => p.RecordedAtUtc.ToLocalTime().ToString("HH:mm"))
+        .ToArray();
+
+    private List<HvoChartDataset> _datasets
+    {
+        get
+        {
+            var values = Points.Select(p => ValueSelector(p)).ToArray();
+            return new()
+            {
+                new HvoChartDataset(Title, values.Cast<double>().ToArray(),
+                    BorderColor: "#83e4ff", BackgroundColor: "rgba(131,228,255,0.08)", Fill: true, BorderWidth: 2)
+            };
+        }
+    }
+
+    private static string FormatWatts(double? value) => HvoFormat.Power(value);
+}
