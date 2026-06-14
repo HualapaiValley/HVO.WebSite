@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @implements IDisposable
 @using System.Globalization
+@using HVO.WebSite.Themes.Components.Format
 @inject KasaGatewayState GatewayState
 @inject KasaDeviceInteractionState InteractionState
 @inject KasaAdminService AdminService
@@ -349,11 +350,11 @@
             ? FormatPower(energy)
             : $"{FormatPower(energy)} / {FormatEnergy(energy)}";
 
-    private static string FormatPercent(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)}%";
+    private static string FormatPercent(int? value) => value is null ? "Unknown" : HvoFormat.Percent(value.Value);
 
     private static string FormatKelvin(int? value) => value is null || value == 0 ? "n/a" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} K";
 
-    private static string FormatWatts(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} W";
+    private static string FormatWatts(int? value) => value is null ? "Unknown" : HvoFormat.Power(value.Value);
 
     private static string FormatDegrees(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} deg";
 
