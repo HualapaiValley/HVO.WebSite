@@ -1,6 +1,8 @@
 @inherits LayoutComponentBase
 
-<HvoPublicLayout BrandSubtitle="THEME SANDBOX — PUBLIC LAYOUT">
+<HvoPublicLayout BrandSubtitle="THEME SANDBOX — PUBLIC LAYOUT"
+                  IsDarkMode="@_isDarkMode"
+                  IsDarkModeChanged="@OnDarkModeChanged">
     <NavItems>
         <MudButton Variant="Variant.Text"
                    Color="Color.Inherit"
@@ -15,5 +17,32 @@
                    Class="shell-nav-link"
                    Href="/admin-layout">Admin</MudButton>
     </NavItems>
+    <AuthSection>
+        <MudIconButton Icon="@ThemeIcon"
+                       Color="Color.Inherit"
+                       Size="Size.Medium"
+                       aria-label="@ThemeLabel"
+                       OnClick="@ToggleTheme" />
+    </AuthSection>
     <Body>@Body</Body>
 </HvoPublicLayout>
+
+@code {
+    private bool _isDarkMode = true;
+
+    private string ThemeIcon => _isDarkMode
+        ? Icons.Material.Outlined.DarkMode
+        : Icons.Material.Outlined.LightMode;
+
+    private string ThemeLabel => _isDarkMode ? "Switch to light theme" : "Switch to dark theme";
+
+    private void ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
+    private void OnDarkModeChanged(bool isDark)
+    {
+        _isDarkMode = isDark;
+    }
+}

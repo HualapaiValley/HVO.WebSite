@@ -3,10 +3,74 @@
 
 <MudPaper Class="layout-canvas shell-page" Elevation="0">
     <MudStack Class="shell-page-stack">
-        <MudText Typo="Typo.h4">Theme Sandbox — Admin Layout</MudText>
-        <MudText Typo="Typo.body1" Color="Color.Secondary">Validating HvoAdminLayout with sidebar navigation</MudText>
+        <MudText Typo="Typo.h4" Class="mb-2">Admin Dashboard</MudText>
+        <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">Validating HvoAdminLayout with sidebar navigation, stats cards, and activity log</MudText>
+
+        <MudGrid>
+            <MudItem xs="12" md="6" lg="3">
+                <div class="hvo-card">
+                    <div class="hvo-eyebrow">Active Users</div>
+                    <div class="hvo-card-title">1,247</div>
+                    <div class="hvo-metric">
+                        <span class="hvo-metric-label">Today</span>
+                        <span class="hvo-metric-value">+12</span>
+                    </div>
+                </div>
+            </MudItem>
+            <MudItem xs="12" md="6" lg="3">
+                <div class="hvo-card hvo-card-primary">
+                    <div class="hvo-eyebrow">System Health</div>
+                    <div class="hvo-card-title">98.5%</div>
+                    <div class="hvo-metric">
+                        <span class="hvo-metric-label">Uptime</span>
+                        <span class="hvo-metric-value hvo-mono">99.9%</span>
+                    </div>
+                </div>
+            </MudItem>
+            <MudItem xs="12" md="6" lg="3">
+                <div class="hvo-card hvo-card-note">
+                    <div class="hvo-eyebrow">Pending Tasks</div>
+                    <div class="hvo-card-title">8</div>
+                    <div class="hvo-metric">
+                        <span class="hvo-metric-label">Overdue</span>
+                        <span class="hvo-metric-value">2</span>
+                    </div>
+                </div>
+            </MudItem>
+            <MudItem xs="12" md="6" lg="3">
+                <div class="hvo-card">
+                    <div class="hvo-eyebrow">Storage</div>
+                    <div class="hvo-card-title">64%</div>
+                    <div class="hvo-metric">
+                        <span class="hvo-metric-label">Used</span>
+                        <span class="hvo-metric-value hvo-mono">128 / 200 GB</span>
+                    </div>
+                </div>
+            </MudItem>
+        </MudGrid>
+
+        <HvoChartSection />
+
+        <MudText Typo="Typo.h6" Class="mt-4">Recent Activity</MudText>
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="hvo-metric">
+                <span class="hvo-metric-label">admin</span>
+                <span class="hvo-metric-value">Updated system configuration</span>
+            </div>
+            <div class="hvo-metric">
+                <span class="hvo-metric-label">operator</span>
+                <span class="hvo-metric-value">Ran diagnostic check</span>
+            </div>
+            <div class="hvo-metric">
+                <span class="hvo-metric-label">system</span>
+                <span class="hvo-metric-value">Scheduled backup completed</span>
+            </div>
+            <div class="hvo-metric">
+                <span class="hvo-metric-label hvo-mono">2026-06-14 10:23</span>
+                <span class="hvo-metric-value hvo-mono">Last activity</span>
+            </div>
+        </MudPaper>
 
         <HvoFormatSection />
-        <HvoChartSection />
     </MudStack>
 </MudPaper>

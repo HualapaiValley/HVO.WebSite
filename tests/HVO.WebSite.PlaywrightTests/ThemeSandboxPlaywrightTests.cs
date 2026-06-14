@@ -106,7 +106,7 @@ public sealed class ThemeSandboxPlaywrightTests
 
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Gateway Demo" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Public Layout" })).ToBeVisibleAsync();
-        await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Admin Layout" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Dashboard" })).ToBeVisibleAsync();
     }
 
     [TestMethod]

@@ -17,5 +17,11 @@ public partial class HvoPublicLayout : LayoutComponentBase
 
     [Parameter] public MudTheme? Theme { get; set; }
 
+    [Parameter] public bool IsDarkMode { get; set; } = true;
+
+    [Parameter] public EventCallback<bool> IsDarkModeChanged { get; set; }
+
+    public string LayoutThemeClass => IsDarkMode ? "shell-theme-dark" : "shell-theme-light";
+
     private MudTheme EffectiveTheme => Theme ?? HvoTheme.Create();
 }

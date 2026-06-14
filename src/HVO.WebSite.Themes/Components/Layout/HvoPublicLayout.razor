@@ -1,10 +1,10 @@
 @inherits LayoutComponentBase
 
-<MudThemeProvider Theme="@EffectiveTheme" />
+<MudThemeProvider Theme="@EffectiveTheme" IsDarkMode="@IsDarkMode" IsDarkModeChanged="@IsDarkModeChanged" />
 <MudPopoverProvider />
 <MudDialogProvider />
 
-<MudLayout>
+<MudLayout Class="@LayoutThemeClass">
     <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
         <div class="shell-frame shell-bar-content shell-header-frame">
             <div class="shell-brand-block">
