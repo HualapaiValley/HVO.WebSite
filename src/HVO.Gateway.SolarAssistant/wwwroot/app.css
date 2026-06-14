@@ -185,7 +185,7 @@ a {
     min-width: 0;
     overflow: hidden;
     color: var(--solar-text);
-    font-family: var(--bs-font-monospace, monospace);
+    font-family: var(--shell-font-mono, monospace);
     font-weight: 800;
     text-align: right;
     text-overflow: ellipsis;
@@ -235,7 +235,7 @@ a {
 
 .solar-battery-ring span {
     color: #f8fbff;
-    font-family: var(--bs-font-monospace, monospace);
+    font-family: var(--shell-font-mono, monospace);
     font-size: 1.45rem;
     font-weight: 800;
 }
@@ -256,7 +256,7 @@ a {
     border-radius: 12px;
     background: rgba(19, 34, 52, 0.42);
     border: 1px solid var(--solar-surface-border);
-    font-family: var(--bs-font-monospace, monospace);
+    font-family: var(--shell-font-mono, monospace);
     font-size: 0.8rem;
 }
 
@@ -316,7 +316,7 @@ a {
 
 .solar-history-head strong {
     color: var(--solar-accent-amber);
-    font-family: var(--bs-font-monospace, monospace);
+    font-family: var(--shell-font-mono, monospace);
     font-size: 1.1rem;
     white-space: nowrap;
 }
@@ -365,7 +365,7 @@ a {
 .solar-history-foot {
     margin-top: 0.55rem;
     color: var(--solar-muted);
-    font-family: var(--bs-font-monospace, monospace);
+    font-family: var(--shell-font-mono, monospace);
     font-size: 0.76rem;
 }
 
