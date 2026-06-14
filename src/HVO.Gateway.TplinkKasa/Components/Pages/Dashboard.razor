@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @implements IDisposable
 @using System.Globalization
+@using HVO.WebSite.Themes.Components.Format
 @inject KasaGatewayState GatewayState
 @inject KasaDeviceInteractionState InteractionState
 @inject KasaAdminService AdminService
@@ -98,8 +99,8 @@
                 <div class="shell-info-dialog-item"><span>Network</span><strong>@(_selectedDevice.Host ?? "Unknown")</strong></div>
                 <div class="shell-info-dialog-item"><span>Display Time Zone</span><strong>@FormatDisplayTimeZone(_selectedDevice)</strong></div>
                 <div class="shell-info-dialog-item"><span>Device Time</span><strong>@FormatDeviceTime(_selectedDevice.DeviceInfo?.DeviceTime)</strong></div>
-                <div class="shell-info-dialog-item"><span>Kasa Timezone Index</span><strong>@FormatNullable(_selectedDevice.DeviceInfo?.Timezone?.Index)</strong></div>
-                <div class="shell-info-dialog-item"><span>RSSI</span><strong>@FormatNullable(_selectedDevice.DeviceInfo?.Rssi)</strong></div>
+                <div class="shell-info-dialog-item"><span>Kasa Timezone Index</span><strong>@(_selectedDevice.DeviceInfo?.Timezone?.Index?.ToString(CultureInfo.InvariantCulture) ?? "Unknown")</strong></div>
+                <div class="shell-info-dialog-item"><span>RSSI</span><strong>@(_selectedDevice.DeviceInfo?.Rssi?.ToString(CultureInfo.InvariantCulture) ?? "Unknown")</strong></div>
                 <div class="shell-info-dialog-item"><span>Location</span><strong>@FormatLocation(_selectedDevice.DeviceInfo?.Location)</strong></div>
                 <div class="shell-info-dialog-item"><span>Cloud</span><strong>@FormatCloud(_selectedDevice.DeviceInfo?.Cloud)</strong></div>
                 <div class="shell-info-dialog-item"><span>Hardware ID</span><strong>@(_selectedDevice.DeviceInfo?.HardwareId ?? "Unknown")</strong></div>
@@ -179,9 +180,9 @@
                         <div class="shell-info-dialog-item"><span>Soft On</span><strong>@(_selectedDevice.Light.DefaultBehavior?.SoftOnMode ?? "Unknown")</strong></div>
                         <div class="shell-info-dialog-item"><span>Hard On</span><strong>@(_selectedDevice.Light.DefaultBehavior?.HardOnMode ?? "Unknown")</strong></div>
                         <div class="shell-info-dialog-item"><span>Rated Wattage</span><strong>@FormatWatts(_selectedDevice.Light.BulbDetails?.Wattage)</strong></div>
-                        <div class="shell-info-dialog-item"><span>Max Lumens</span><strong>@FormatNullable(_selectedDevice.Light.BulbDetails?.MaxLumens)</strong></div>
+                        <div class="shell-info-dialog-item"><span>Max Lumens</span><strong>@(_selectedDevice.Light.BulbDetails?.MaxLumens?.ToString(CultureInfo.InvariantCulture) ?? "Unknown")</strong></div>
                         <div class="shell-info-dialog-item"><span>Beam Angle</span><strong>@FormatDegrees(_selectedDevice.Light.BulbDetails?.LampBeamAngle)</strong></div>
-                        <div class="shell-info-dialog-item"><span>CRI</span><strong>@FormatNullable(_selectedDevice.Light.BulbDetails?.ColorRenderingIndex)</strong></div>
+                        <div class="shell-info-dialog-item"><span>CRI</span><strong>@(_selectedDevice.Light.BulbDetails?.ColorRenderingIndex?.ToString(CultureInfo.InvariantCulture) ?? "Unknown")</strong></div>
                     </div>
                     @if (_selectedDevice.Light.PreferredStates.Count > 0)
                     {
@@ -189,7 +190,7 @@
                             @foreach (var preferredState in _selectedDevice.Light.PreferredStates.OrderBy(state => state.Index ?? int.MaxValue))
                             {
                                 <div class="kasa-preferred-state-row">
-                                    <strong>Preset @FormatNullable(preferredState.Index)</strong>
+                                    <strong>Preset @(preferredState.Index?.ToString(CultureInfo.InvariantCulture) ?? "Unknown")</strong>
                                     <span>@FormatPercent(preferredState.Brightness)</span>
                                     <span>@FormatKelvin(preferredState.ColorTemperature)</span>
                                     <span>@FormatHueSaturation(preferredState.Hue, preferredState.Saturation)</span>
@@ -206,9 +207,9 @@
                     <MudText Typo="Typo.h6">Schedule</MudText>
                     <div class="shell-info-dialog-grid kasa-device-info-grid">
                         <div class="shell-info-dialog-item"><span>Enabled</span><strong>@FormatBool(_selectedDevice.ReadMetadata.Schedule?.Enabled)</strong></div>
-                        <div class="shell-info-dialog-item"><span>Rules</span><strong>@FormatNullable(_selectedDevice.ReadMetadata.Schedule?.RuleCount)</strong></div>
-                        <div class="shell-info-dialog-item"><span>Version</span><strong>@FormatNullable(_selectedDevice.ReadMetadata.Schedule?.Version)</strong></div>
-                        <div class="shell-info-dialog-item"><span>Next Action Type</span><strong>@FormatNullable(_selectedDevice.ReadMetadata.ScheduleNextAction?.Type)</strong></div>
+                        <div class="shell-info-dialog-item"><span>Rules</span><strong>@(_selectedDevice.ReadMetadata.Schedule?.RuleCount?.ToString(CultureInfo.InvariantCulture) ?? "Unknown")</strong></div>
+                        <div class="shell-info-dialog-item"><span>Version</span><strong>@(_selectedDevice.ReadMetadata.Schedule?.Version?.ToString(CultureInfo.InvariantCulture) ?? "Unknown")</strong></div>
+                        <div class="shell-info-dialog-item"><span>Next Action Type</span><strong>@(_selectedDevice.ReadMetadata.ScheduleNextAction?.Type?.ToString(CultureInfo.InvariantCulture) ?? "Unknown")</strong></div>
                     </div>
                 </div>
             }
@@ -349,11 +350,11 @@
             ? FormatPower(energy)
             : $"{FormatPower(energy)} / {FormatEnergy(energy)}";
 
-    private static string FormatPercent(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)}%";
+    private static string FormatPercent(int? value) => value is null ? "Unknown" : HvoFormat.Percent(value.Value);
 
     private static string FormatKelvin(int? value) => value is null || value == 0 ? "n/a" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} K";
 
-    private static string FormatWatts(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} W";
+    private static string FormatWatts(int? value) => value is null ? "Unknown" : HvoFormat.Power(value.Value);
 
     private static string FormatDegrees(int? value) => value is null ? "Unknown" : $"{value.Value.ToString(CultureInfo.InvariantCulture)} deg";
 
@@ -467,7 +468,7 @@
             <div><span>Soft On</span><strong>@(device.DeviceInfo?.Dimmer?.DefaultBehavior?.SoftOnMode ?? "Unknown")</strong></div>
             <div><span>Long Press</span><strong>@(device.DeviceInfo?.Dimmer?.DefaultBehavior?.LongPressMode ?? "Unknown")</strong></div>
             <div><span>Fade On</span><strong>@FormatMilliseconds(device.DeviceInfo?.Dimmer?.Parameters?.FadeOnTimeMs)</strong></div>
-            <div><span>Min Level</span><strong>@FormatNullable(device.DeviceInfo?.Dimmer?.Parameters?.MinThreshold)</strong></div>
+            <div><span>Min Level</span><strong>@(device.DeviceInfo?.Dimmer?.Parameters?.MinThreshold?.ToString(CultureInfo.InvariantCulture) ?? "Unknown")</strong></div>
         </div>
     </div>;
 
@@ -579,8 +580,6 @@
         cloud?.IsSupported == true
             ? $"{(cloud.IsConnected == true ? "Connected" : "Disconnected")}, {(cloud.IsBound == true ? "bound" : "unbound")}" 
             : "Unknown";
-
-    private static string FormatNullable(int? value) => value?.ToString(CultureInfo.InvariantCulture) ?? "Unknown";
 
     private string FormatDisplayTimeZone(KasaDeviceStatus device) =>
         device.DeviceInfo?.DeviceTimeZoneLabel is { Length: > 0 } label

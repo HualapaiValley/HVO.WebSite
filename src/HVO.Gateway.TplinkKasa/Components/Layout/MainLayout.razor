@@ -1,155 +1,88 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @using System.Globalization
+@using HVO.WebSite.Themes.Components.Format
+@using HVO.WebSite.Themes.Components.Layout
 @inject IOptions<KasaGatewayOptions> GatewayOptions
 @inject KasaDisplayTimeZoneResolver DisplayTimeZoneResolver
 @inject KasaGatewayState GatewayState
 
-<MudThemeProvider Theme="@ShellTheme" IsDarkMode="@_isDarkMode" IsDarkModeChanged="OnThemeModeChanged" />
-<MudPopoverProvider />
-<MudDialogProvider />
-<MudSnackbarProvider />
+<HvoGatewayLayout Subtitle="TP-LINK/KASA LOCAL GATEWAY"
+                  FooterSlot1="@_footer1"
+                  FooterSlot2="@_footer2"
+                  FooterSlot3="@_footer3"
+                  FooterSlot4="@_footer4"
+                  FooterSlot5="@_footer5"
+                  IsDarkMode="@_shellState.IsDarkMode"
+                  IsDarkModeChanged="@OnThemeModeChanged">
+    <NavItems>
+        <MudButton Href="/" Variant="@GetNavVariant("")" Color="Color.Inherit" Class="@GetNavClass("")">Overview</MudButton>
+        <MudButton Href="/settings" Variant="@GetNavVariant("settings")" Color="Color.Inherit" Class="@GetNavClass("settings")">Configuration</MudButton>
+    </NavItems>
+    <AppBarActions>
+        <MudIconButton Icon="@Icons.Material.Outlined.HelpOutline" Color="Color.Inherit" Size="Size.Medium"
+                       aria-label="Open Kasa gateway information" OnClick="OpenInfoDialog" />
+        <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium"
+                       aria-label="@ThemeSelectorLabel" OnClick="ToggleTheme" />
+    </AppBarActions>
+    <Body>@Body</Body>
+</HvoGatewayLayout>
 
-<MudLayout Class="@LayoutThemeClass">
-    <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
-        <div class="shell-frame shell-bar-content shell-header-frame">
-            <div class="shell-brand-block">
-                <div class="shell-brand-mark kasa-brand-mark" aria-hidden="true">
-                    <MudIcon Icon="@Icons.Material.Outlined.PowerSettingsNew" Size="Size.Medium" />
+@if (_showInfoDialog)
+{
+    <div class="shell-info-dialog-backdrop" @onclick="CloseInfoDialog">
+        <div class="shell-info-dialog" role="dialog" aria-modal="true" aria-labelledby="kasa-info-dialog-title"
+             @onclick:stopPropagation="true">
+            <div class="shell-info-dialog-header">
+                <div>
+                    <MudText Typo="Typo.overline" Class="shell-info-dialog-eyebrow">Gateway Summary</MudText>
+                    <MudText Typo="Typo.h5" id="kasa-info-dialog-title">TP-Link/Kasa local gateway</MudText>
                 </div>
-                <div class="shell-brand-copy">
-                    <MudText Typo="Typo.h5" Class="shell-brand-text">Hualapai Valley Observatory</MudText>
-                    <MudText Typo="Typo.caption" Class="shell-brand-subtitle">TP-LINK/KASA LOCAL GATEWAY</MudText>
-                </div>
+                <MudIconButton Icon="@Icons.Material.Outlined.Close" Color="Color.Inherit" Size="Size.Small"
+                               aria-label="Close gateway information" OnClick="CloseInfoDialog" />
             </div>
-            <nav class="shell-header-nav" aria-label="Primary navigation">
-                <MudButton Href="/" Variant="@GetNavVariant("")" Color="Color.Inherit" Class="@GetNavClass("")">Overview
-                </MudButton>
-                <MudButton Href="/settings" Variant="@GetNavVariant("settings")" Color="Color.Inherit"
-                           Class="@GetNavClass("settings")">Configuration</MudButton>
-            </nav>
-            <MudSpacer />
-            <div class="shell-header-actions" aria-label="Header actions">
-                <MudIconButton Icon="@Icons.Material.Outlined.HelpOutline" Color="Color.Inherit" Size="Size.Medium"
-                               aria-label="Open Kasa gateway information" OnClick="OpenInfoDialog" />
-                <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium"
-                               aria-label="@ThemeSelectorLabel" OnClick="ToggleTheme" />
+            <div class="shell-info-dialog-grid">
+                <div class="shell-info-dialog-item"><span>Gateway ID</span><strong>@GatewayOptions.Value.GatewayId</strong></div>
+                <div class="shell-info-dialog-item"><span>Poll Interval</span><strong>@GatewayOptions.Value.PollIntervalSeconds seconds</strong></div>
+                <div class="shell-info-dialog-item"><span>Poll Concurrency</span><strong>@GatewayOptions.Value.MaxPollConcurrency devices</strong></div>
+                <div class="shell-info-dialog-item"><span>Display Time Zone</span><strong>@DisplayTimeZoneResolver.GetLabel()</strong></div>
+                <div class="shell-info-dialog-item"><span>Registry</span><strong>@GatewayOptions.Value.DeviceRegistryPath</strong></div>
+                <div class="shell-info-dialog-item"><span>Networks</span><strong>@GatewayOptions.Value.Networks.Count configured</strong></div>
+                <div class="shell-info-dialog-item"><span>Configured Devices</span><strong>@GatewayOptions.Value.Devices.Count seeded</strong></div>
             </div>
-        </div>
-    </MudAppBar>
-
-    <MudMainContent Class="shell-main">
-        <div class="shell-frame shell-content">
-            @Body
-        </div>
-    </MudMainContent>
-
-    <MudAppBar Bottom="true" Fixed="true" Elevation="0" Dense="true" Class="shell-appbar shell-appbar-footer">
-        <div class="shell-frame shell-bar-content shell-footer-frame">
-            <div class="shell-footer-layout" aria-label="Footer sections">
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-1"><span
-                    class="shell-status-dot shell-status-dot-online" aria-hidden="true"></span>Polling active
-                </MudText>
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-2">TP-Link/Kasa</MudText>
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-3">@_localTimeText</MudText>
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-4">@FooterDeviceSummary
-                </MudText>
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-5"><span
-                    class="shell-status-dot shell-status-dot-online" aria-hidden="true"></span>Gateway healthy
-                </MudText>
-            </div>
-        </div>
-    </MudAppBar>
-
-    @if (_showInfoDialog)
-    {
-        <div class="shell-info-dialog-backdrop" @onclick="CloseInfoDialog">
-            <div class="shell-info-dialog" role="dialog" aria-modal="true" aria-labelledby="kasa-info-dialog-title"
-                 @onclick:stopPropagation="true">
-                <div class="shell-info-dialog-header">
-                    <div>
-                        <MudText Typo="Typo.overline" Class="shell-info-dialog-eyebrow">Gateway Summary</MudText>
-                        <MudText Typo="Typo.h5" id="kasa-info-dialog-title">TP-Link/Kasa local gateway</MudText>
-                    </div>
-                    <MudIconButton Icon="@Icons.Material.Outlined.Close" Color="Color.Inherit" Size="Size.Small"
-                                   aria-label="Close gateway information" OnClick="CloseInfoDialog" />
-                </div>
-                <div class="shell-info-dialog-grid">
-                    <div class="shell-info-dialog-item"><span>Gateway ID</span><strong>@GatewayOptions.Value.GatewayId</strong></div>
-                    <div class="shell-info-dialog-item"><span>Poll Interval</span><strong>@GatewayOptions.Value.PollIntervalSeconds seconds</strong></div>
-                    <div class="shell-info-dialog-item"><span>Poll Concurrency</span><strong>@GatewayOptions.Value.MaxPollConcurrency devices</strong></div>
-                    <div class="shell-info-dialog-item"><span>Display Time Zone</span><strong>@DisplayTimeZoneResolver.GetLabel()</strong></div>
-                    <div class="shell-info-dialog-item"><span>Registry</span><strong>@GatewayOptions.Value.DeviceRegistryPath</strong></div>
-                    <div class="shell-info-dialog-item"><span>Networks</span><strong>@GatewayOptions.Value.Networks.Count configured</strong></div>
-                    <div class="shell-info-dialog-item"><span>Configured Devices</span><strong>@GatewayOptions.Value.Devices.Count seeded</strong></div>
-                </div>
-            </div>
-        </div>
-    }
-
-    <div id="blazor-error-ui" data-nosnippet>
-        <div class="kasa-error-card">
-            <strong>Blazor circuit interrupted</strong>
-            <span>Reload to recover the gateway session.</span>
-            <a href="." class="reload">Reload</a>
         </div>
     </div>
-</MudLayout>
+}
 
 @code {
-    [Inject]
-    private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
 
+    private readonly ShellLayoutState _shellState = new();
     private readonly PeriodicTimer _clockTimer = new(TimeSpan.FromSeconds(1));
     private readonly CancellationTokenSource _clockCts = new();
-    private bool _isDarkMode = true;
     private bool _showInfoDialog;
     private KasaGatewayStatusResponse? _footerStatus;
-    private string _localTimeText = string.Empty;
     private DateTimeOffset _nextFooterStatusRefreshAtUtc;
 
-    private MudTheme ShellTheme { get; } = new()
-    {
-        PaletteLight = new PaletteLight
-        {
-            Primary = "#2d5fb7",
-            Secondary = "#2d8b79",
-            Background = "#ecf3fb",
-            Surface = "#fbfdff",
-            AppbarBackground = "rgba(255,255,255,0)",
-            AppbarText = "#13263f",
-            TextPrimary = "#10233f",
-            TextSecondary = "#4f6887"
-        },
-        PaletteDark = new PaletteDark
-        {
-            Primary = "#6da5ff",
-            Secondary = "#57bca6",
-            Background = "#08111f",
-            Surface = "#1f2937",
-            AppbarBackground = "rgba(0,0,0,0)",
-            AppbarText = "#f8fbff",
-            TextPrimary = "#f8fbff",
-            TextSecondary = "#9fb4d5"
-        }
-    };
+    private ShellFooterItem _footer1 = new("Polling active", ShellFooterIndicator.Online);
+    private ShellFooterItem _footer2 = new("TP-Link/Kasa");
+    private ShellFooterItem _footer3 = new("");
+    private ShellFooterItem _footer4 = new("Devices: loading");
+    private ShellFooterItem _footer5 = new("Gateway healthy", ShellFooterIndicator.Online);
 
-    private string LayoutThemeClass => _isDarkMode ? "shell-theme-dark" : "shell-theme-light";
-
-    private string ThemeSelectorIcon => _isDarkMode
+    private string ThemeSelectorIcon => _shellState.IsDarkMode
         ? Icons.Material.Outlined.DarkMode
         : Icons.Material.Outlined.LightMode;
 
-    private string ThemeSelectorLabel => _isDarkMode ? "Switch to light theme" : "Switch to dark theme";
+    private string ThemeSelectorLabel => _shellState.IsDarkMode ? "Switch to light theme" : "Switch to dark theme";
 
     private string FooterDeviceSummary => _footerStatus is null
         ? "Devices: loading"
-        : $"Devices: {_footerStatus.OnlineDeviceCount} online - {Math.Max(0, _footerStatus.ConfiguredDeviceCount -
-_footerStatus.OnlineDeviceCount)} offline";
+        : $"Devices: {_footerStatus.OnlineDeviceCount} online - {Math.Max(0, _footerStatus.ConfiguredDeviceCount - _footerStatus.OnlineDeviceCount)} offline";
 
     protected override void OnInitialized()
     {
-        _localTimeText = FormatFooterTime(DateTimeOffset.UtcNow);
+        UpdateFooterTime(DateTimeOffset.UtcNow);
         _ = RefreshClockAsync(_clockCts.Token);
     }
 
@@ -165,14 +98,14 @@ _footerStatus.OnlineDeviceCount)} offline";
         try
         {
             var now = DateTimeOffset.UtcNow;
-            _localTimeText = FormatFooterTime(now);
+            UpdateFooterTime(now);
             await RefreshFooterStatusAsync(now).ConfigureAwait(false);
             await InvokeAsync(StateHasChanged);
 
             while (await _clockTimer.WaitForNextTickAsync(cancellationToken))
             {
                 now = DateTimeOffset.UtcNow;
-                _localTimeText = FormatFooterTime(now);
+                UpdateFooterTime(now);
                 if (now >= _nextFooterStatusRefreshAtUtc)
                 {
                     await RefreshFooterStatusAsync(now).ConfigureAwait(false);
@@ -186,32 +119,33 @@ _footerStatus.OnlineDeviceCount)} offline";
         }
     }
 
+    private void UpdateFooterTime(DateTimeOffset now)
+    {
+        _footer3 = new ShellFooterItem(
+            DisplayTimeZoneResolver.ConvertFromUtc(now).ToString("dd MMM yyyy - h:mm:ss tt",
+                CultureInfo.InvariantCulture));
+    }
+
     private async Task RefreshFooterStatusAsync(DateTimeOffset now)
     {
         _footerStatus = await GatewayState.GetStatusAsync().ConfigureAwait(false);
+        _footer4 = new ShellFooterItem(FooterDeviceSummary);
         var refreshSeconds = Math.Max(1, GatewayOptions.Value.DashboardRefreshSeconds);
         _nextFooterStatusRefreshAtUtc = now.AddSeconds(refreshSeconds);
     }
 
     private void OnThemeModeChanged(bool useDarkMode)
     {
-        _isDarkMode = useDarkMode;
+        _shellState.SetTheme(useDarkMode);
     }
 
     private void ToggleTheme()
     {
-        _isDarkMode = !_isDarkMode;
+        _shellState.ToggleTheme();
     }
 
-    private void OpenInfoDialog()
-    {
-        _showInfoDialog = true;
-    }
-
-    private void CloseInfoDialog()
-    {
-        _showInfoDialog = false;
-    }
+    private void OpenInfoDialog() => _showInfoDialog = true;
+    private void CloseInfoDialog() => _showInfoDialog = false;
 
     private Variant GetNavVariant(string relativePath)
     {
@@ -228,7 +162,4 @@ _footerStatus.OnlineDeviceCount)} offline";
             ? "shell-nav-link shell-nav-link-current"
             : "shell-nav-link";
     }
-
-    private string FormatFooterTime(DateTimeOffset value) =>
-        DisplayTimeZoneResolver.ConvertFromUtc(value).ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture);
 }
