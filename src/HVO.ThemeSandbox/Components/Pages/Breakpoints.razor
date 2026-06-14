@@ -1,0 +1,61 @@
+@page "/responsive"
+
+<MudPaper Class="layout-canvas shell-page" Elevation="0">
+    <MudStack Class="shell-page-stack" Spacing="4">
+        <div>
+            <MudText Typo="Typo.h3">Responsive Breakpoints</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Grid and layout behavior at shell breakpoints — 1400, 1100, 720px</MudText>
+        </div>
+
+        <div class="hvo-card">
+            <div class="hvo-card-title">Shell Breakpoints</div>
+            <MudStack Row="true" Spacing="3" Wrap="Wrap.Wrap">
+                <div class="hvo-breakpoint-bar">Full frame: &ge; 1400px — 1280px fixed width</div>
+                <div class="hvo-breakpoint-bar">Fluid frame: 1100–1399px — calc(100vw - 24px)</div>
+                <div class="hvo-breakpoint-bar">Stack footer: &le; 1099px — single column</div>
+                <div class="hvo-breakpoint-bar">Compact: &le; 719px — dialogs stack</div>
+            </MudStack>
+        </div>
+
+        <div class="hvo-card">
+            <div class="hvo-card-title hvo-responsive-label">Responsive Grid — 3&rarr;2&rarr;1</div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Resize your browser to see the grid reflow</MudText>
+            <div class="hvo-responsive-grid">
+                <div class="hvo-card">Card A</div>
+                <div class="hvo-card">Card B</div>
+                <div class="hvo-card">Card C</div>
+                <div class="hvo-card hvo-card-primary">Card D</div>
+                <div class="hvo-card hvo-card-note">Card E</div>
+                <div class="hvo-card">Card F</div>
+            </div>
+        </div>
+
+        <div class="hvo-card">
+            <div class="hvo-card-title">MudGrid Breakpoints</div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">MudBlazor&rsquo;s built-in xs/sm/md/lg/xl breakpoints</MudText>
+            <MudGrid>
+                @for (int i = 1; i <= 6; i++)
+                {
+                    <MudItem xs="12" sm="6" md="4" lg="3" xl="2">
+                        <div class="hvo-card" style="min-height:50px;display:flex;align-items:center;justify-content:center;">
+                            <span class="hvo-mono" style="font-size:0.8rem;">Col @i</span>
+                        </div>
+                    </MudItem>
+                }
+            </MudGrid>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">xs=12 sm=6 md=4 lg=3 xl=2 &mdash; resizes from 1 column to 6 columns</MudText>
+        </div>
+
+        <div class="hvo-card">
+            <div class="hvo-card-title">Footer Reflow</div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">5-column &rarr; 1-column when &le; 1099px (matches shell footer)</MudText>
+            <div style="display:grid;grid-template-columns:minmax(0,1.15fr) repeat(3,minmax(0,1fr)) minmax(0,1.15fr);gap:0.5rem;" class="hvo-responsive-footer">
+                <span class="hvo-breakpoint-bar" style="text-align:left;">Slot 1</span>
+                <span class="hvo-breakpoint-bar" style="text-align:center;">Slot 2</span>
+                <span class="hvo-breakpoint-bar" style="text-align:center;">Slot 3</span>
+                <span class="hvo-breakpoint-bar" style="text-align:center;">Slot 4</span>
+                <span class="hvo-breakpoint-bar" style="text-align:right;">Slot 5</span>
+            </div>
+        </div>
+    </MudStack>
+</MudPaper>

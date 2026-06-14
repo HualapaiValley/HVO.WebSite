@@ -1,6 +1,6 @@
 namespace HVO.WebSite.Themes.Components.Charts;
 
-public enum ChartType
+public enum HvoChartType
 {
     Line,
     Bar,

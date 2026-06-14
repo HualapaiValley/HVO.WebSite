@@ -10,7 +10,7 @@
 @code {
     [Parameter, EditorRequired] public string ChartId { get; set; } = default!;
 
-    [Parameter] public ChartType Type { get; set; } = ChartType.Line;
+    [Parameter] public HvoChartType Type { get; set; } = HvoChartType.Line;
 
     [Parameter, EditorRequired] public IReadOnlyList<HvoChartDataset> Datasets { get; set; } = Array.Empty<HvoChartDataset>();
 
@@ -30,11 +30,11 @@
 
     private string TypeJs => Type switch
     {
-        ChartType.Line => "line",
-        ChartType.Bar => "bar",
-        ChartType.Doughnut => "doughnut",
-        ChartType.PolarArea => "polarArea",
-        ChartType.Bubble => "bubble",
+        HvoChartType.Line => "line",
+        HvoChartType.Bar => "bar",
+        HvoChartType.Doughnut => "doughnut",
+        HvoChartType.PolarArea => "polarArea",
+        HvoChartType.Bubble => "bubble",
         _ => "line"
     };
 
@@ -80,7 +80,7 @@
                     legend = new { display = ShowLegend },
                     title = Title is not null ? new { display = true, text = Title } : null
                 },
-                scales = Type is ChartType.Doughnut or ChartType.PolarArea ? null : new
+                scales = Type is HvoChartType.Doughnut or HvoChartType.PolarArea ? null : new
                 {
                     x = new
                     {
