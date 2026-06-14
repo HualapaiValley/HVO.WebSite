@@ -100,11 +100,11 @@
             <MudItem xs="12" lg="4">
                 <div class="hvo-card">
                     <div class="hvo-card-title">Battery State</div>
-                    <div style="display:flex;align-items:center;gap:1.5rem;">
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:1rem;">
                         <div class="hvo-ring-gauge" style="--hvo-ring-level:78%;--hvo-ring-color:#57d38d;">
                             <span class="hvo-ring-gauge-value">78%</span>
                         </div>
-                        <div>
+                        <div style="width:100%;">
                             <div class="hvo-metric">
                                 <span class="hvo-metric-label">Voltage</span>
                                 <span class="hvo-metric-value hvo-mono">52.1 V</span>
@@ -114,8 +114,16 @@
                                 <span class="hvo-metric-value hvo-mono">2.4 A</span>
                             </div>
                             <div class="hvo-metric">
-                                <span class="hvo-metric-label">Temp</span>
+                                <span class="hvo-metric-label">Temperature</span>
                                 <span class="hvo-metric-value hvo-mono">28 &deg;C</span>
+                            </div>
+                            <div class="hvo-metric">
+                                <span class="hvo-metric-label">Cycles</span>
+                                <span class="hvo-metric-value hvo-mono">1,423</span>
+                            </div>
+                            <div class="hvo-metric">
+                                <span class="hvo-metric-label">Health</span>
+                                <span class="hvo-metric-value hvo-mono">Good</span>
                             </div>
                         </div>
                     </div>
