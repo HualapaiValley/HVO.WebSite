@@ -1,5 +1,6 @@
 @page "/"
 @rendermode InteractiveServer
+@using HVO.WebSite.Themes.Components.Format
 
 <div class="layout-canvas shell-page" aria-label="JK BMS overview content area">
     <div class="shell-page-stack">
@@ -17,11 +18,11 @@
                 </div>
                 <div class="jk-stat-chip">
                     <span>Fleet charge</span>
-                    <strong>@DisplayPercent(AverageStateOfChargePercent)</strong>
+                    <strong>@HvoFormat.Percent(AverageStateOfChargePercent)</strong>
                 </div>
                 <div class="jk-stat-chip">
                     <span>Latest poll</span>
-                    <strong>@DisplayClock(LatestPollAtUtc)</strong>
+                    <strong>@HvoFormat.Timestamp(LatestPollAtUtc, "MMM d, HH:mm:ss")</strong>
                 </div>
             </div>
         </section>
@@ -42,19 +43,19 @@
                 <div class="jk-gauge" style="@AverageSocGaugeStyle">
                     <div class="jk-gauge-inner">
                         <span>Avg SoC</span>
-                        <strong>@DisplayPercent(AverageStateOfChargePercent)</strong>
+                        <strong>@HvoFormat.Percent(AverageStateOfChargePercent)</strong>
                     </div>
                 </div>
                 <div class="jk-gauge" style="@AverageVoltageGaugeStyle">
                     <div class="jk-gauge-inner">
                         <span>Avg V</span>
-                        <strong>@DisplayVoltage(AverageVoltageV)</strong>
+                        <strong>@HvoFormat.Voltage(AverageVoltageV)</strong>
                     </div>
                 </div>
                 <div class="jk-gauge" style="@CurrentGaugeStyle">
                     <div class="jk-gauge-inner">
                         <span>Total A</span>
-                        <strong>@DisplayCurrent(TotalCurrentA)</strong>
+                        <strong>@HvoFormat.Current(TotalCurrentA)</strong>
                     </div>
                 </div>
             </div>
@@ -62,19 +63,19 @@
             <div class="jk-metric-grid">
                 <div class="jk-metric">
                     <span>Average state of charge</span>
-                    <strong>@DisplayPercent(AverageStateOfChargePercent)</strong>
+                    <strong>@HvoFormat.Percent(AverageStateOfChargePercent)</strong>
                 </div>
                 <div class="jk-metric">
                     <span>Average pack voltage</span>
-                    <strong>@DisplayVoltage(AverageVoltageV)</strong>
+                    <strong>@HvoFormat.Voltage(AverageVoltageV)</strong>
                 </div>
                 <div class="jk-metric">
                     <span>Total current</span>
-                    <strong>@DisplayCurrent(TotalCurrentA)</strong>
+                    <strong>@HvoFormat.Current(TotalCurrentA)</strong>
                 </div>
                 <div class="jk-metric">
                     <span>Total nominal capacity</span>
-                    <strong>@DisplayAmpHours(TotalNominalCapacityAh)</strong>
+                    <strong>@HvoFormat.EnergyAh(TotalNominalCapacityAh)</strong>
                 </div>
                 <div class="jk-metric">
                     <span>Average delta cell</span>
@@ -82,7 +83,7 @@
                 </div>
                 <div class="jk-metric">
                     <span>Highest battery temp</span>
-                    <strong>@DisplayTemperature(MaxBatteryTemperatureC)</strong>
+                    <strong>@HvoFormat.Temperature(MaxBatteryTemperatureC)</strong>
                 </div>
             </div>
         </section>
@@ -106,7 +107,7 @@
                     else
                     {
                         <strong>@HighestSocBank.Alias</strong>
-                        <div class="jk-highlight-value">@DisplayPercent(HighestSocBank.LatestReading?.StateOfChargePercent)</div>
+                        <div class="jk-highlight-value">@HvoFormat.Percent(HighestSocBank.LatestReading?.StateOfChargePercent)</div>
                     }
                 </article>
 
@@ -120,7 +121,7 @@
                     else
                     {
                         <strong>@LowestSocBank.Alias</strong>
-                        <div class="jk-highlight-value">@DisplayPercent(LowestSocBank.LatestReading?.StateOfChargePercent)</div>
+                        <div class="jk-highlight-value">@HvoFormat.Percent(LowestSocBank.LatestReading?.StateOfChargePercent)</div>
                     }
                 </article>
 
@@ -148,7 +149,7 @@
                     else
                     {
                         <strong>@HottestBank.Alias</strong>
-                        <div class="jk-highlight-value">@DisplayTemperature(HottestBank.LatestReading?.BatteryTemperature1C)</div>
+                        <div class="jk-highlight-value">@HvoFormat.Temperature(HottestBank.LatestReading?.BatteryTemperature1C)</div>
                     }
                 </article>
             </div>
@@ -189,20 +190,20 @@
                                     </div>
                                     <div class="jk-mini-gauge-meta">
                                         <span>Charge</span>
-                                        <strong>@DisplayPercent(reading?.StateOfChargePercent)</strong>
+                                        <strong>@HvoFormat.Percent(reading?.StateOfChargePercent)</strong>
                                     </div>
                                 </div>
 
                                 <div class="jk-ataglance-stats">
-                                    <div class="jk-ataglance-stat"><span>Voltage</span><strong>@DisplayVoltage(reading is null ? null : reading.TotalVoltageMv / 1000.0)</strong></div>
-                                    <div class="jk-ataglance-stat"><span>Current</span><strong>@DisplayCurrent(reading is null ? null : reading.CurrentMa / 1000.0)</strong></div>
+                                    <div class="jk-ataglance-stat"><span>Voltage</span><strong>@HvoFormat.Voltage(reading is null ? null : reading.TotalVoltageMv / 1000.0)</strong></div>
+                                    <div class="jk-ataglance-stat"><span>Current</span><strong>@HvoFormat.Current(reading is null ? null : reading.CurrentMa / 1000.0)</strong></div>
                                     <div class="jk-ataglance-stat"><span>Delta</span><strong>@DisplayMillivolts(reading?.DeltaCellVoltageMv)</strong></div>
-                                    <div class="jk-ataglance-stat"><span>Temp</span><strong>@DisplayTemperature(reading?.BatteryTemperature1C)</strong></div>
+                                    <div class="jk-ataglance-stat"><span>Temp</span><strong>@HvoFormat.Temperature(reading?.BatteryTemperature1C)</strong></div>
                                 </div>
 
                                 <div class="jk-ataglance-footer">
                                     <span class="badge @BankBadgeClass(device, reading)">@BankStatusLabel(device, reading)</span>
-                                    <span class="text-secondary">@DisplayClock(device.LastPollAt)</span>
+                                    <span class="text-secondary">@HvoFormat.Timestamp(device.LastPollAt, "MMM d, HH:mm:ss")</span>
                                 </div>
                             </article>
                         </a>
@@ -230,7 +231,7 @@
                         <div class="jk-balance-row">
                             <div class="jk-balance-labels">
                                 <a href="/device/@device.Address">@device.Alias</a>
-                                <span>@DisplayPercent(device.LatestReading?.StateOfChargePercent)</span>
+                                <span>@HvoFormat.Percent(device.LatestReading?.StateOfChargePercent)</span>
                             </div>
                             <div class="jk-balance-track" aria-hidden="true">
                                 <div class="jk-balance-fill" style="@MiniGaugeStyle(device.LatestReading?.StateOfChargePercent)"></div>

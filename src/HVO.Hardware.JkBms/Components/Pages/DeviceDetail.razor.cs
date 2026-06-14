@@ -1,4 +1,3 @@
-using HVO.Hardware.JkBms.Components.Layout;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
 
@@ -8,13 +7,11 @@ public partial class DeviceDetail : IDisposable
 {
     [Parameter] public string Address { get; set; } = string.Empty;
     [Inject] private ILogger<DeviceDetail> Logger { get; set; } = default!;
-    [CascadingParameter] private ShellLayoutState? ShellLayoutState { get; set; }
 
     private Workers.DevicePollState? _state;
 
     protected override void OnParametersSet()
     {
-        ShellLayoutState?.SetPage("Banks", "JK bank detail", "Individual bank diagnostics, live pack metrics, and device configuration for a single JK BMS bank.");
         _state = Poller.DeviceStates
             .FirstOrDefault(d => string.Equals(d.Address, Address, StringComparison.OrdinalIgnoreCase));
         if (_state is null)

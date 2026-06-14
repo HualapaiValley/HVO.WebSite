@@ -1,6 +1,6 @@
-using HVO.Hardware.JkBms.Components.Layout;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Workers;
+using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
 
@@ -14,7 +14,6 @@ public partial class Status : IDisposable
     [Inject] private ILogger<Status> Logger { get; set; } = default!;
     [Inject] private BmsPollerWorker Poller { get; set; } = default!;
     [Inject] private ForwarderCoordinator Forwarder { get; set; } = default!;
-    [CascadingParameter] private ShellLayoutState? ShellLayoutState { get; set; }
 
     private IReadOnlyList<DevicePollState> Devices => Poller.DeviceStates;
     private IReadOnlyList<DevicePollState> ReportingDevices => Devices.Where(device => device.LatestReading is not null).ToList();
@@ -45,11 +44,6 @@ public partial class Status : IDisposable
             Poller.DeviceStates.Count, Forwarder.PendingCount);
     }
 
-    protected override void OnParametersSet()
-    {
-        ShellLayoutState?.SetPage("Overview", PageHeadingText, PageSummaryText);
-    }
-
     public void Dispose()
     {
         Poller.DeviceStateChanged -= OnStateChanged;
@@ -70,32 +64,11 @@ public partial class Status : IDisposable
     private static string GaugeStyle(double progressPercent, string color)
         => $"--gauge-value:{progressPercent:0.##}; --gauge-color:{color};";
 
-    private static string DisplayClock(DateTime? value)
-        => value?.ToLocalTime().ToString("MMM d, HH:mm:ss") ?? "--";
-
-    private static string DisplayPercent(double? value)
-        => value.HasValue ? $"{value.Value:0.0}%" : "--";
-
-    private static string DisplayPercent(byte? value)
-        => value.HasValue ? $"{value.Value}%" : "--";
-
-    private static string DisplayVoltage(double? value)
-        => value.HasValue ? $"{value.Value:0.00} V" : "--";
-
-    private static string DisplayCurrent(double? value)
-        => value.HasValue ? $"{value.Value:0.0} A" : "--";
-
-    private static string DisplayAmpHours(double? value)
-        => value.HasValue ? $"{value.Value:0.0} Ah" : "--";
-
     private static string DisplayMillivolts(double? value)
         => value.HasValue ? $"{value.Value:0} mV" : "--";
 
     private static string DisplayMillivolts(ushort? value)
         => value.HasValue ? $"{value.Value} mV" : "--";
-
-    private static string DisplayTemperature(double? value)
-        => value.HasValue ? $"{value.Value:0.0} C" : "--";
 
     private static string MiniGaugeStyle(double? percent)
         => $"width:{Math.Clamp(percent ?? 0, 0, 100):0.##}%;";

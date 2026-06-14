@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using HVO.Hardware.JkBms.Protocol.Packets
 @using HVO.Hardware.JkBms.Workers
+@using HVO.WebSite.Themes.Components.Format
 @inject BmsPollerWorker Poller
 
 <MudPaper Class="layout-canvas shell-page" Elevation="0" aria-label="JK bank detail content area">
@@ -33,7 +34,7 @@
                     </div>
                     <div class="jk-stat-chip">
                         <span>Last poll</span>
-                        <strong>@(_state.LastPollAt?.ToLocalTime().ToString("MMM d, HH:mm:ss") ?? "--")</strong>
+                        <strong>@HvoFormat.Timestamp(_state.LastPollAt, "MMM d, HH:mm:ss")</strong>
                     </div>
                 </div>
             </section>
@@ -67,23 +68,23 @@
                         <div class="jk-gauge" style="@BuildGaugeStyle(packVoltageV, 48, 58, "#6ea8ff")">
                             <div class="jk-gauge-inner">
                                 <span>Voltage</span>
-                                <strong>@packVoltageV.ToString("F2") V</strong>
+                                <strong>@HvoFormat.Voltage(packVoltageV)</strong>
                             </div>
                         </div>
                         <div class="jk-gauge" style="@BuildGaugeStyle(Math.Abs(currentA), 0, 300, "#ffb85c")">
                             <div class="jk-gauge-inner">
                                 <span>Current</span>
-                                <strong>@currentA.ToString("F1") A</strong>
+                                <strong>@HvoFormat.Current(currentA)</strong>
                             </div>
                         </div>
                     </div>
 
                     <div class="jk-metric-grid">
                         <div class="jk-metric"><span>State of charge</span><strong>@r.StateOfChargePercent%</strong></div>
-                        <div class="jk-metric"><span>Pack voltage</span><strong>@packVoltageV.ToString("F2") V</strong></div>
-                        <div class="jk-metric"><span>Current</span><strong>@currentA.ToString("F1") A</strong></div>
+                        <div class="jk-metric"><span>Pack voltage</span><strong>@HvoFormat.Voltage(packVoltageV)</strong></div>
+                        <div class="jk-metric"><span>Current</span><strong>@HvoFormat.Current(currentA)</strong></div>
                         <div class="jk-metric"><span>Delta cell</span><strong>@r.DeltaCellVoltageMv mV</strong></div>
-                        <div class="jk-metric"><span>Remaining</span><strong>@((r.RemainingCapacityMah / 1000.0).ToString("F1")) Ah</strong></div>
+                        <div class="jk-metric"><span>Remaining</span><strong>@HvoFormat.EnergyAh(r.RemainingCapacityMah / 1000.0)</strong></div>
                         <div class="jk-metric"><span>State of health</span><strong>@r.StateOfHealthPercent%</strong></div>
                     </div>
                 </section>
@@ -106,7 +107,7 @@
                                 <div class="cell-tile @(isHigh ? "cell-highest" : isLow ? "cell-lowest" : string.Empty)">
                                     <div class="cell-num">C@(cellNum)</div>
                                     <div class="cell-mv">@mv</div>
-                                    <div class="cell-v">@((mv / 1000.0).ToString("F3")) V</div>
+                                    <div class="cell-v">@HvoFormat.Voltage(mv / 1000.0, 3)</div>
                                 </div>
                             }
                         </div>
@@ -120,9 +121,9 @@
                             </div>
                         </div>
                         <dl class="jk-detail-list">
-                            <div><dt>Battery Temp 1</dt><dd>@r.BatteryTemperature1C.ToString("F1") C</dd></div>
-                            <div><dt>Battery Temp 2</dt><dd>@r.BatteryTemperature2C.ToString("F1") C</dd></div>
-                            <div><dt>Power Tube Temp</dt><dd>@r.PowerTubeTemperatureC.ToString("F1") C</dd></div>
+                            <div><dt>Battery Temp 1</dt><dd>@HvoFormat.Temperature(r.BatteryTemperature1C)</dd></div>
+                            <div><dt>Battery Temp 2</dt><dd>@HvoFormat.Temperature(r.BatteryTemperature2C)</dd></div>
+                            <div><dt>Power Tube Temp</dt><dd>@HvoFormat.Temperature(r.PowerTubeTemperatureC)</dd></div>
                             <div><dt>Balancing</dt><dd>@(r.BalancingActive ? $"Active {r.BalancingCurrentMa:F0} mA" : "Inactive")</dd></div>
                         </dl>
                     </article>
@@ -138,7 +139,7 @@
                             <div><dt>Remaining</dt><dd>@r.RemainingCapacityMah mAh</dd></div>
                             <div><dt>Nominal</dt><dd>@r.NominalCapacityMah mAh</dd></div>
                             <div><dt>Cycle Count</dt><dd>@r.CycleCount</dd></div>
-                            <div><dt>Cycle Capacity</dt><dd>@((r.CycleCapacityMah / 1000.0).ToString("F1")) Ah</dd></div>
+                            <div><dt>Cycle Capacity</dt><dd>@HvoFormat.EnergyAh(r.CycleCapacityMah / 1000.0)</dd></div>
                         </dl>
                     </article>
 
@@ -156,8 +157,8 @@
                             <div><dt>Session disconnects</dt><dd>@_state.SessionDisconnectedCount</dd></div>
                             <div><dt>Connect failures</dt><dd>@_state.SessionRequestFailureCount</dd></div>
                             <div><dt>Consecutive errors</dt><dd>@_state.ConsecutiveErrors</dd></div>
-                            <div><dt>Last connected</dt><dd>@(_state.LastConnectedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "--") UTC</dd></div>
-                            <div><dt>Last disconnected</dt><dd>@(_state.LastDisconnectedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "--") UTC</dd></div>
+                            <div><dt>Last connected</dt><dd>@HvoFormat.Timestamp(_state.LastConnectedAt, "yyyy-MM-dd HH:mm:ss") UTC</dd></div>
+                            <div><dt>Last disconnected</dt><dd>@HvoFormat.Timestamp(_state.LastDisconnectedAt, "yyyy-MM-dd HH:mm:ss") UTC</dd></div>
                         </dl>
                     </article>
                 </section>
@@ -220,11 +221,11 @@
                         </div>
                         <div class="jk-config-grid">
                             <div class="jk-detail-block"><span class="jk-detail-label">Cell Count</span><strong class="jk-detail-value">@cfg.CellCount</strong></div>
-                            <div class="jk-detail-block"><span class="jk-detail-label">Nominal Capacity</span><strong class="jk-detail-value">@((cfg.NominalCapacityMah / 1000.0).ToString("F0")) Ah</strong></div>
+                            <div class="jk-detail-block"><span class="jk-detail-label">Nominal Capacity</span><strong class="jk-detail-value">@HvoFormat.EnergyAh(cfg.NominalCapacityMah / 1000.0)</strong></div>
                             <div class="jk-detail-block"><span class="jk-detail-label">Charging</span><strong class="jk-detail-value">@(cfg.ChargingEnabled ? "Enabled" : "Disabled")</strong></div>
                             <div class="jk-detail-block"><span class="jk-detail-label">Discharging</span><strong class="jk-detail-value">@(cfg.DischargingEnabled ? "Enabled" : "Disabled")</strong></div>
                             <div class="jk-detail-block"><span class="jk-detail-label">Balancing</span><strong class="jk-detail-value">@(cfg.BalancingEnabled ? "Enabled" : "Disabled")</strong></div>
-                            <div class="jk-detail-block"><span class="jk-detail-label">Balance Start Voltage</span><strong class="jk-detail-value">@((cfg.BalanceStartingVoltageMv / 1000.0).ToString("F3")) V</strong></div>
+                            <div class="jk-detail-block"><span class="jk-detail-label">Balance Start Voltage</span><strong class="jk-detail-value">@HvoFormat.Voltage(cfg.BalanceStartingVoltageMv / 1000.0, 3)</strong></div>
                         </div>
                     </section>
                 }

@@ -1,7 +1,8 @@
-using System.Globalization;
 using HVO.Edge.Outbox;
 using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.Workers;
+using HVO.WebSite.Themes.Components.Format;
+using HVO.WebSite.Themes.Components.Layout;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Options;
 using MudBlazor;
@@ -17,33 +18,12 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     [Inject] private ForwarderCoordinator Forwarder { get; set; } = default!;
     [Inject] private IOptions<OutboxOptions> OutboxOptionsAccessor { get; set; } = default!;
 
-    private MudTheme ShellTheme { get; } = new()
-    {
-        PaletteLight = new PaletteLight
-        {
-            Primary = "#2d5fb7",
-            Secondary = "#2d8b79",
-            Background = "#ecf3fb",
-            Surface = "#fbfdff",
-            AppbarBackground = "rgba(255,255,255,0)",
-            AppbarText = "#13263f",
-            TextPrimary = "#10233f",
-            TextSecondary = "#4f6887"
-        },
-        PaletteDark = new PaletteDark
-        {
-            Primary = "#6da5ff",
-            Secondary = "#57bca6",
-            Background = "#08111f",
-            Surface = "#1f2937",
-            AppbarBackground = "rgba(0,0,0,0)",
-            AppbarText = "#f8fbff",
-            TextPrimary = "#f8fbff",
-            TextSecondary = "#9fb4d5"
-        }
-    };
+    private ShellFooterItem _footer1 = new("JK BMS");
+    private ShellFooterItem _footer2 = new("Fleet summary");
+    private ShellFooterItem _footer3 = new("Waiting for data", ShellFooterIndicator.Warning);
+    private ShellFooterItem _footer4 = new("Bank telemetry");
+    private ShellFooterItem _footer5 = new("API sync");
 
-    private string LayoutThemeClass => _shellState.IsDarkMode ? "shell-theme-dark" : "shell-theme-light";
     private string ThemeSelectorIcon => _shellState.IsDarkMode ? Icons.Material.Outlined.DarkMode : Icons.Material.Outlined.LightMode;
     private string ThemeSelectorLabel => _shellState.IsDarkMode ? "Switch to light theme" : "Switch to dark theme";
     private OutboxOptions OutboxOptions => OutboxOptionsAccessor.Value;
@@ -82,17 +62,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private bool IsCurrentSection(string section)
         => string.Equals(_shellState.CurrentSection, section, StringComparison.Ordinal);
 
-    private static string? GetFooterIndicatorClass(ShellFooterIndicator indicator)
-    {
-        return indicator switch
-        {
-            ShellFooterIndicator.Online => "shell-status-dot shell-status-dot-online",
-            ShellFooterIndicator.Offline => "shell-status-dot shell-status-dot-offline",
-            ShellFooterIndicator.Warning => "shell-status-dot shell-status-dot-warning",
-            _ => null
-        };
-    }
-
     private void HandleShellStateChanged()
     {
         UpdateFooter();
@@ -115,12 +84,11 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
             .FirstOrDefault()
             ?.LastPollAt;
 
-        _shellState.SetFooter(
-            BuildConnectivityFooterItem(connectedDevices, Poller.DeviceStates.Count),
-            new ShellFooterItem($"JK fleet: {Poller.DeviceStates.Count} bank(s)"),
-            BuildTimestampFooterItem(latestPoll),
-            new ShellFooterItem($"Outbox: {Forwarder.PendingCount} pending - {Forwarder.FailedCount} failed"),
-            BuildApiFooterItem());
+        _footer1 = BuildConnectivityFooterItem(connectedDevices, Poller.DeviceStates.Count);
+        _footer2 = new ShellFooterItem($"JK fleet: {Poller.DeviceStates.Count} bank(s)");
+        _footer3 = BuildTimestampFooterItem(latestPoll);
+        _footer4 = new ShellFooterItem($"Outbox: {Forwarder.PendingCount} pending - {Forwarder.FailedCount} failed");
+        _footer5 = BuildApiFooterItem();
     }
 
     private static ShellFooterItem BuildConnectivityFooterItem(int connectedDevices, int totalDevices)
@@ -146,11 +114,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
             ? ShellFooterIndicator.Online
             : ShellFooterIndicator.Warning;
 
-        return new ShellFooterItem(
-            latestPoll.Value
-                .ToLocalTime()
-                .ToString("dd MMM yyyy - h:mm:ss tt", CultureInfo.InvariantCulture),
-            indicator);
+        return new ShellFooterItem(HvoFormat.FooterTimestamp(latestPoll), indicator);
     }
 
     private ShellFooterItem BuildApiFooterItem()
