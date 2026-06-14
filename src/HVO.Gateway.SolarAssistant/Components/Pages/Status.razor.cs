@@ -4,6 +4,7 @@ using HVO.Gateway.SolarAssistant.SolarAssistant;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Health;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 using HVO.Gateway.SolarAssistant.Workers;
+using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Options;
 using MudBlazor;
@@ -127,11 +128,11 @@ public partial class Status : IDisposable
 
     private int ClassificationCount(string classification) => Inventory?.ClassificationCounts.TryGetValue(classification, out var count) == true ? count : 0;
 
-    private static string FormatTimestamp(DateTime? value) => value.HasValue ? value.Value.ToLocalTime().ToString("MMM d, HH:mm:ss") : "--";
-    private static string FormatWatts(double? value) => value.HasValue ? $"{value.Value:0} W" : "--";
-    private static string FormatPercent(double? value) => value.HasValue ? $"{value.Value:0}%" : "--";
-    private static string FormatVolts(double? value) => value.HasValue ? $"{value.Value:0.0} V" : "--";
-    private static string FormatAmps(double? value) => value.HasValue ? $"{value.Value:0.0} A" : "--";
+    private static string FormatTimestamp(DateTime? value) => HvoFormat.Timestamp(value, "MMM d, HH:mm:ss");
+    private static string FormatWatts(double? value) => HvoFormat.Power(value);
+    private static string FormatPercent(double? value) => HvoFormat.Percent(value);
+    private static string FormatVolts(double? value) => HvoFormat.Voltage(value, 1);
+    private static string FormatAmps(double? value) => HvoFormat.Current(value);
     private static string FormatKwh(double? value) => value.HasValue ? $"{value.Value:0.0} kWh" : "--";
 
     private static string FormatCounts(IReadOnlyDictionary<string, int>? counts) => counts is null || counts.Count == 0

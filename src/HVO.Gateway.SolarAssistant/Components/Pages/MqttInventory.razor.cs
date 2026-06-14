@@ -1,4 +1,5 @@
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
+using HVO.WebSite.Themes.Components.Format;
 
 namespace HVO.Gateway.SolarAssistant.Components.Pages;
 
@@ -41,7 +42,7 @@ public partial class MqttInventory : IDisposable
         }
     }
 
-    private static string FormatTimestamp(DateTime? value) => value.HasValue ? value.Value.ToLocalTime().ToString("MMM d, HH:mm:ss") : "--";
+    private static string FormatTimestamp(DateTime? value) => HvoFormat.Timestamp(value, "MMM d, HH:mm:ss");
 
     private static string FormatCounts(IReadOnlyDictionary<string, int> counts) => counts.Count == 0
         ? "--"

@@ -1,5 +1,6 @@
 using System.Globalization;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
+using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Components;
 
 namespace HVO.Gateway.SolarAssistant.Components.Pages;
@@ -68,7 +69,7 @@ public partial class PowerHistoryChart
         }).ToArray();
     }
 
-    private static string FormatWatts(double? value) => value.HasValue ? $"{value.Value:0} W" : "--";
+    private static string FormatWatts(double? value) => HvoFormat.Power(value);
 
     private readonly record struct ChartPoint(double X, double Y, double? Value);
 }
