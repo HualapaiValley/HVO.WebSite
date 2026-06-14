@@ -1,0 +1,478 @@
+@page "/controls"
+@using System.Globalization
+
+<MudPaper Class="layout-canvas shell-page" Elevation="0">
+    <MudStack Class="shell-page-stack" Spacing="4">
+        <div>
+            <MudText Typo="Typo.h3">UI Controls Catalog</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Canonical reference for every MudBlazor control used in HVO.WebSite</MudText>
+        </div>
+
+        <MudTabs Rounded="true" Elevation="0" ApplyEffectsToContainer="true" Position="Position.Top" Outlined="true">
+            @* ── Inputs ── *@
+            <MudTabPanel Text="Inputs" Icon="@Icons.Material.Outlined.Edit">
+                <MudStack Spacing="3" Class="pa-4">
+                    <MudText Typo="Typo.h5">Text & Numeric</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="string" Label="Text" Variant="Variant.Outlined" @bind-Value="_sText" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="string" Label="Email" Variant="Variant.Outlined" @bind-Value="_sEmail" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="string" Label="Password" Variant="Variant.Outlined" @bind-Value="_sPassword" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="int" Label="Integer" Variant="Variant.Outlined" @bind-Value="_iValue" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="double" Label="Decimal" Variant="Variant.Outlined" @bind-Value="_dValue" HelperText="Numeric" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="string" Label="Multiline" Variant="Variant.Outlined" Lines="3" @bind-Value="_sMulti" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="string" Label="Disabled input" Variant="Variant.Outlined" Disabled="true" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="string" Label="Read-only input" Variant="Variant.Outlined" ReadOnly="true" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="string" Label="With Icon" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Pickers</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" md="4">
+                            <MudDatePicker Label="Date" @bind-Date="_selectedDate" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTimePicker Label="Time" @bind-Time="_selectedTime" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudColorPicker Label="Color" @bind-Text="_selectedColor" Variant="Variant.Outlined" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Selection Controls</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" md="4">
+                            <MudSelect T="string" Label="Select" Variant="Variant.Outlined" @bind-Value="_selVal">
+                                <MudSelectItem T="string" Value="@("alpha")">Alpha</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("beta")">Beta</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("gamma")">Gamma</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudAutocomplete T="string" Label="Autocomplete" Variant="Variant.Outlined"
+                                             SearchFunc="@SearchAsync" @bind-Value="_autoVal" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Toggles & Switches</MudText>
+                    <MudStack Row="true" Spacing="4">
+                        <MudSwitch T="bool" Label="Switch" Color="Color.Success" @bind-Value="_sw1" />
+                        <MudSwitch T="bool" Label="Disabled" Color="Color.Secondary" Disabled="true" Value="true" />
+                        <MudCheckBox T="bool" Label="Checkbox" Color="Color.Primary" @bind-Value="_cb1" />
+                        <MudCheckBox T="bool" Label="Checked" Color="Color.Tertiary" Value="true" />
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Radio & Rating</MudText>
+                    <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Center">
+                        <MudRadioGroup T="string" @bind-Value="_radioVal">
+                            <MudStack Row="true" Spacing="2">
+                                <MudRadio T="string" Value="@("low")" Color="Color.Success">Low</MudRadio>
+                                <MudRadio T="string" Value="@("med")" Color="Color.Warning">Medium</MudRadio>
+                                <MudRadio T="string" Value="@("high")" Color="Color.Error">High</MudRadio>
+                            </MudStack>
+                        </MudRadioGroup>
+                        <MudDivider Vertical="true" />
+                        <MudRating @bind-SelectedValue="_rating" />
+                        <MudText Typo="Typo.caption">@_rating / 5</MudText>
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Slider</MudText>
+                    <MudStack Spacing="2">
+                        <MudSlider T="int" Min="0" Max="100" @bind-Value="_sliderVal" Color="Color.Primary" />
+                        <MudText Typo="Typo.caption" Align="Align.Center">@_sliderVal%</MudText>
+                    </MudStack>
+                </MudStack>
+            </MudTabPanel>
+
+            @* ── Buttons & Actions ── *@
+            <MudTabPanel Text="Actions" Icon="@Icons.Material.Outlined.TouchApp">
+                <MudStack Spacing="3" Class="pa-4">
+                    <MudText Typo="Typo.h5">Filled Buttons</MudText>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary">Primary</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary">Secondary</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Success">Success</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Warning">Warning</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Error">Danger</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Info">Info</MudButton>
+                        <MudButton Variant="Variant.Filled" Disabled="true">Disabled</MudButton>
+                    </MudStack>
+
+                    <MudText Typo="Typo.h5">Outlined</MudText>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary">Primary</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary">Secondary</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Success">Success</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Warning">Warning</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error">Danger</MudButton>
+                    </MudStack>
+
+                    <MudText Typo="Typo.h5">Text Buttons</MudText>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                        <MudButton Variant="Variant.Text" Color="Color.Primary">Primary</MudButton>
+                        <MudButton Variant="Variant.Text" Color="Color.Secondary">Secondary</MudButton>
+                        <MudButton Variant="Variant.Text" Color="Color.Error">Danger</MudButton>
+                    </MudStack>
+
+                    <MudText Typo="Typo.h5">Sizes</MudText>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small">Small</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium">Medium</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large">Large</MudButton>
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">With Icons</MudText>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Add">Add</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete">Delete</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Outlined.Save">Save</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Warning" EndIcon="@Icons.Material.Outlined.Refresh">Refresh</MudButton>
+                        <MudIconButton Icon="@Icons.Material.Outlined.Settings" Color="Color.Primary" aria-label="Settings" />
+                        <MudIconButton Icon="@Icons.Material.Outlined.Favorite" Color="Color.Error" aria-label="Favorite" />
+                        <MudIconButton Icon="@Icons.Material.Outlined.Share" Color="Color.Secondary" aria-label="Share" />
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">FAB (Floating Action Button)</MudText>
+                    <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Center">
+                        <MudFab Color="Color.Primary" Icon="@Icons.Material.Outlined.Add" Size="Size.Small" />
+                        <MudFab Color="Color.Secondary" Icon="@Icons.Material.Outlined.Edit" Size="Size.Medium" />
+                        <MudFab Color="Color.Success" Icon="@Icons.Material.Outlined.Check" Size="Size.Large" />
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Tooltips</MudText>
+                    <MudStack Row="true" Spacing="4">
+                        <MudTooltip Text="This is a tooltip">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary">Hover me</MudButton>
+                        </MudTooltip>
+                        <MudTooltip Text="Right placement" Placement="Placement.Right">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Info" Color="Color.Primary" aria-label="Info" />
+                        </MudTooltip>
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Menu</MudText>
+                    <MudMenu Label="Open Menu" Variant="Variant.Filled" Color="Color.Primary"
+                             StartIcon="@Icons.Material.Outlined.Menu">
+                        <MudMenuItem>Dashboard</MudMenuItem>
+                        <MudMenuItem>Settings</MudMenuItem>
+                        <MudDivider />
+                        <MudMenuItem Disabled="true">Disabled</MudMenuItem>
+                        <MudMenuItem>Logout</MudMenuItem>
+                    </MudMenu>
+                </MudStack>
+            </MudTabPanel>
+
+            @* ── Data Display ── *@
+            <MudTabPanel Text="Display" Icon="@Icons.Material.Outlined.Dashboard">
+                <MudStack Spacing="3" Class="pa-4">
+                    <MudText Typo="Typo.h5">Typography Scale</MudText>
+                    <MudText Typo="Typo.h1">h1 — Heading One</MudText>
+                    <MudText Typo="Typo.h2">h2 — Heading Two</MudText>
+                    <MudText Typo="Typo.h3">h3 — Heading Three</MudText>
+                    <MudText Typo="Typo.h4">h4 — Heading Four</MudText>
+                    <MudText Typo="Typo.h5">h5 — Heading Five</MudText>
+                    <MudText Typo="Typo.h6">h6 — Heading Six</MudText>
+                    <MudText Typo="Typo.subtitle1">subtitle1 — Subtitle One</MudText>
+                    <MudText Typo="Typo.subtitle2">subtitle2 — Subtitle Two</MudText>
+                    <MudText Typo="Typo.body1">body1 — Body text. Lorem ipsum dolor sit amet, consectetur adipiscing elit.</MudText>
+                    <MudText Typo="Typo.body2">body2 — Smaller body text. Sed do eiusmod tempor incididunt ut labore.</MudText>
+                    <MudText Typo="Typo.caption">caption — Caption text for labels and metadata</MudText>
+                    <MudText Typo="Typo.overline">overline — OVERLINE ALL CAPS TEXT</MudText>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Text Colors</MudText>
+                    <MudStack Row="true" Spacing="3" Wrap="Wrap.Wrap">
+                        <MudText Color="Color.Primary">Primary</MudText>
+                        <MudText Color="Color.Secondary">Secondary</MudText>
+                        <MudText Color="Color.Success">Success</MudText>
+                        <MudText Color="Color.Warning">Warning</MudText>
+                        <MudText Color="Color.Error">Error</MudText>
+                        <MudText Color="Color.Info">Info</MudText>
+                        <MudText Color="Color.Tertiary">Tertiary</MudText>
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Chips</MudText>
+                    <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                        <MudChip T="string" Color="Color.Primary" Size="Size.Small">Primary</MudChip>
+                        <MudChip T="string" Color="Color.Secondary" Size="Size.Small">Secondary</MudChip>
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small">Success</MudChip>
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small">Warning</MudChip>
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small">Error</MudChip>
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small">Info</MudChip>
+                        <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small">Outlined</MudChip>
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Badges</MudText>
+                    <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Center">
+                        <MudBadge Content="3" Color="Color.Error">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Notifications" Color="Color.Inherit" aria-label="Notifications" />
+                        </MudBadge>
+                        <MudBadge Content="12" Color="Color.Primary" Overlap="true">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Email" Color="Color.Inherit" aria-label="Email" />
+                        </MudBadge>
+                        <MudBadge Dot="true" Color="Color.Success">
+                            <MudAvatar Color="Color.Primary">RS</MudAvatar>
+                        </MudBadge>
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Avatars</MudText>
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                        <MudAvatar Color="Color.Primary" Size="Size.Small">AB</MudAvatar>
+                        <MudAvatar Color="Color.Secondary" Size="Size.Medium">CD</MudAvatar>
+                        <MudAvatar Color="Color.Success" Size="Size.Large">EF</MudAvatar>
+                        <MudAvatar Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Medium">GH</MudAvatar>
+                        <MudAvatar Color="Color.Warning" Size="Size.Medium">
+                            <MudIcon Icon="@Icons.Material.Outlined.Person" />
+                        </MudAvatar>
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Links & Breadcrumbs</MudText>
+                    <MudStack Spacing="2">
+                        <MudLink Href="/">Homepage Link</MudLink>
+                        <MudLink Href="/controls" Typo="Typo.body2" Color="Color.Secondary">Secondary Link</MudLink>
+                        <MudBreadcrumbs>
+                            <MudLink Href="/">Home</MudLink>
+                            <MudLink Href="/controls">Controls</MudLink>
+                            <MudText>Current Page</MudText>
+                        </MudBreadcrumbs>
+                    </MudStack>
+                </MudStack>
+            </MudTabPanel>
+
+            @* ── Feedback ── *@
+            <MudTabPanel Text="Feedback" Icon="@Icons.Material.Outlined.Feedback">
+                <MudStack Spacing="3" Class="pa-4">
+                    <MudText Typo="Typo.h5">Alerts</MudText>
+                    <MudAlert Severity="Severity.Normal" Dense="true">Normal — informational message</MudAlert>
+                    <MudAlert Severity="Severity.Info" Dense="true">Info — helpful information</MudAlert>
+                    <MudAlert Severity="Severity.Success" Dense="true">Success — operation completed</MudAlert>
+                    <MudAlert Severity="Severity.Warning" Dense="true">Warning — proceed with caution</MudAlert>
+                    <MudAlert Severity="Severity.Error" Dense="true">Error — something went wrong</MudAlert>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Progress Indicators</MudText>
+                    <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Center">
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Color="Color.Primary" />
+                        <MudProgressCircular Indeterminate="true" Size="Size.Medium" Color="Color.Secondary" />
+                        <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Success" />
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Skeleton Loaders</MudText>
+                    <MudStack Spacing="2">
+                        <MudSkeleton SkeletonType="SkeletonType.Text" />
+                        <MudSkeleton SkeletonType="SkeletonType.Circle" Width="40px" Height="40px" />
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="80px" />
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Overlay</MudText>
+                    <MudPaper Elevation="0" Class="pa-4" Style="position:relative;height:120px;">
+                        <MudText>Content behind overlay</MudText>
+                        <MudOverlay Visible="true" DarkBackground="true" Absolute="true">
+                            <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Style="height:100%;">
+                                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                                <MudText Color="Color.Info">Loading...</MudText>
+                            </MudStack>
+                        </MudOverlay>
+                    </MudPaper>
+                </MudStack>
+            </MudTabPanel>
+
+            @* ── Containers ── *@
+            <MudTabPanel Text="Containers" Icon="@Icons.Material.Outlined.Widgets">
+                <MudStack Spacing="3" Class="pa-4">
+                    <MudText Typo="Typo.h5">Cards</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" md="4">
+                            <MudCard Elevation="4">
+                                <MudCardHeader>
+                                    <CardHeaderContent>
+                                        <MudText Typo="Typo.h6">Standard Card</MudText>
+                                    </CardHeaderContent>
+                                    <CardHeaderActions>
+                                        <MudIconButton Icon="@Icons.Material.Outlined.MoreVert" Color="Color.Inherit" aria-label="More" />
+                                    </CardHeaderActions>
+                                </MudCardHeader>
+                                <MudCardContent>
+                                    <MudText>Card content with text and interactive elements.</MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudCard Elevation="2">
+                                <MudImage Src="_content/HVO.WebSite.Themes/images/observatory-background.jpg"
+                                          Alt="Observatory" Style="height:100px;object-fit:cover;" />
+                                <MudCardContent>
+                                    <MudText Typo="Typo.h6">Media Card</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">Card with header image</MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudCard Elevation="2">
+                                <MudCardContent>
+                                    <MudText Typo="Typo.body2">Simple content card without header.</MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Expansion Panels</MudText>
+                    <MudExpansionPanels>
+                        <MudExpansionPanel Text="Panel One — Overview">
+                            <MudText>This is the content of panel one. Expansion panels are great for progressive disclosure of information.</MudText>
+                        </MudExpansionPanel>
+                        <MudExpansionPanel Text="Panel Two — Details">
+                            <MudStack Spacing="2">
+                                <MudText>Additional details visible when expanded. Use for settings, logs, or supplementary info.</MudText>
+                                <MudTextField T="string" Label="Setting" Variant="Variant.Outlined" />
+                            </MudStack>
+                        </MudExpansionPanel>
+                        <MudExpansionPanel Text="Panel Three — Disabled" Disabled="true">
+                            <MudText>This panel is disabled.</MudText>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Timeline</MudText>
+                    <MudTimeline TimelineOrientation="TimelineOrientation.Vertical">
+                        <MudTimelineItem>
+                            <ItemContent>
+                                <MudText Typo="Typo.subtitle2">Deployed v2.4.0</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">2026-06-14 10:00</MudText>
+                            </ItemContent>
+                        </MudTimelineItem>
+                        <MudTimelineItem>
+                            <ItemContent>
+                                <MudText Typo="Typo.subtitle2">Config updated</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">2026-06-13 14:30</MudText>
+                            </ItemContent>
+                        </MudTimelineItem>
+                        <MudTimelineItem>
+                            <ItemContent>
+                                <MudText Typo="Typo.subtitle2">System reboot</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">2026-06-12 03:00</MudText>
+                            </ItemContent>
+                        </MudTimelineItem>
+                    </MudTimeline>
+                </MudStack>
+            </MudTabPanel>
+
+            @* ── Icons ── *@
+            <MudTabPanel Text="Icons" Icon="@Icons.Material.Outlined.EmojiSymbols">
+                <MudStack Spacing="3" Class="pa-4">
+                    <MudText Typo="Typo.h5">Icon Sizes</MudText>
+                    <MudStack Row="true" Spacing="4" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Outlined.Star" Size="Size.Small" />
+                        <MudIcon Icon="@Icons.Material.Outlined.Star" Size="Size.Medium" />
+                        <MudIcon Icon="@Icons.Material.Outlined.Star" Size="Size.Large" />
+                    </MudStack>
+
+                    <MudDivider />
+                    <MudText Typo="Typo.h5">Common Icons (30 items)</MudText>
+                    <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                        @foreach (var (name, icon) in _commonIcons)
+                        {
+                            <MudTooltip Text="@name">
+                                <MudIconButton Icon="@icon" Color="Color.Inherit" Size="Size.Small" aria-label="@name" />
+                            </MudTooltip>
+                        }
+                    </MudStack>
+                </MudStack>
+            </MudTabPanel>
+        </MudTabs>
+    </MudStack>
+</MudPaper>
+
+@code {
+    private string? _sText;
+    private string? _sEmail;
+    private string? _sPassword;
+    private string? _sMulti;
+    private int _iValue = 42;
+    private double _dValue = 3.14;
+    private DateTime? _selectedDate = DateTime.Today;
+    private TimeSpan? _selectedTime = new(14, 30, 0);
+    private string? _selectedColor = "#6da5ff";
+    private string? _selVal;
+    private string? _autoVal;
+    private bool _sw1 = true;
+    private bool _cb1;
+    private string? _radioVal = "med";
+    private int _rating = 4;
+    private int _sliderVal = 65;
+
+    private static readonly List<(string, string)> _commonIcons = new()
+    {
+        ("Dashboard", Icons.Material.Outlined.Dashboard),
+        ("Settings", Icons.Material.Outlined.Settings),
+        ("Person", Icons.Material.Outlined.Person),
+        ("Notifications", Icons.Material.Outlined.Notifications),
+        ("Search", Icons.Material.Outlined.Search),
+        ("Home", Icons.Material.Outlined.Home),
+        ("Info", Icons.Material.Outlined.Info),
+        ("Warning", Icons.Material.Outlined.WarningAmber),
+        ("Error", Icons.Material.Outlined.ErrorOutline),
+        ("Check", Icons.Material.Outlined.CheckCircle),
+        ("Close", Icons.Material.Outlined.Close),
+        ("Menu", Icons.Material.Outlined.Menu),
+        ("More", Icons.Material.Outlined.MoreVert),
+        ("Expand", Icons.Material.Outlined.ExpandMore),
+        ("Refresh", Icons.Material.Outlined.Refresh),
+        ("Download", Icons.Material.Outlined.Download),
+        ("Upload", Icons.Material.Outlined.Upload),
+        ("Print", Icons.Material.Outlined.Print),
+        ("Share", Icons.Material.Outlined.Share),
+        ("Bookmark", Icons.Material.Outlined.BookmarkBorder),
+        ("Visibility", Icons.Material.Outlined.Visibility),
+        ("Lock", Icons.Material.Outlined.Lock),
+        ("Cloud", Icons.Material.Outlined.Cloud),
+        ("Wifi", Icons.Material.Outlined.Wifi),
+        ("Bluetooth", Icons.Material.Outlined.Bluetooth),
+        ("Location", Icons.Material.Outlined.LocationOn),
+        ("Schedule", Icons.Material.Outlined.Schedule),
+        ("Mail", Icons.Material.Outlined.Email),
+        ("Phone", Icons.Material.Outlined.Phone),
+        ("Chat", Icons.Material.Outlined.ChatBubbleOutline),
+    };
+
+    private async Task<IEnumerable<string>> SearchAsync(string value, CancellationToken ct)
+    {
+        await Task.CompletedTask;
+        var items = new[] { "Alpha Centauri", "Betelgeuse", "Capella", "Deneb", "Elnath", "Fomalhaut", "Gemma", "Hadar" };
+        return string.IsNullOrWhiteSpace(value)
+            ? items
+            : items.Where(x => x.Contains(value, StringComparison.OrdinalIgnoreCase));
+    }
+}
