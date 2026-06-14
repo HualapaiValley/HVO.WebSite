@@ -1117,6 +1117,7 @@
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
           "Microsoft.Identity.Web": "[4.10.0, )",
           "Microsoft.Identity.Web.UI": "[4.10.0, )",
+          "MudBlazor": "[9.4.0, )",
           "OpenTelemetry.Api": "[1.15.3, )",
           "Scalar.AspNetCore": "[2.14.14, )",
           "Serilog.AspNetCore": "[10.0.0, )",

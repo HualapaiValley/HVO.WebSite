@@ -1,15 +1,14 @@
 ﻿<!DOCTYPE html>
-<html lang="en" data-theme="hvo-dark">
+<html lang="en">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hualapai Valley Observatory v9</title>
+    <title>Hualapai Valley Observatory</title>
     <base href="/" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-dark.css" />
+    <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
+    <link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-shared-shell.css" />
+    <link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-components.css" />
     <link rel="stylesheet" href="css/overrides/v9-overrides.css" />
     <link rel="stylesheet" href="@Assets["HVO.WebSite.v9.styles.css"]" />
     <ImportMap />
@@ -17,7 +16,7 @@
     <HeadOutlet />
 </head>
 
-<body data-theme="hvo-dark">
+<body>
     <Routes />
 
     <div id="blazor-error-ui">
@@ -26,8 +25,8 @@
         <a class="dismiss">🗙</a>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="_framework/blazor.web.js"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
 </body>
 
 </html>
