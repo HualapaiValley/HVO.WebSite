@@ -104,9 +104,9 @@ public sealed class ThemeSandboxPlaywrightTests
         using var playwright = await Playwright.CreateAsync();
         var page = await OpenPageAsync(playwright, "/admin-layout");
 
-        await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Gateway Demo" })).ToBeVisibleAsync();
-        await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Public Layout" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Admin Panel" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "UI Controls" })).ToBeVisibleAsync();
     }
 
     [TestMethod]
