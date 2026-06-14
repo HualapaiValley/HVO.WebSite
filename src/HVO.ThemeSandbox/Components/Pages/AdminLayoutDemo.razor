@@ -4,7 +4,7 @@
 <MudPaper Class="layout-canvas shell-page" Elevation="0">
     <MudStack Class="shell-page-stack">
         <MudText Typo="Typo.h4" Class="mb-2">Admin Dashboard</MudText>
-        <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">Validating HvoAdminLayout with sidebar navigation, stats cards, and activity log</MudText>
+        <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">Validating HvoAdminLayout with sidebar, form controls, and pageable data grid</MudText>
 
         <MudGrid>
             <MudItem xs="12" md="6" lg="3">
@@ -49,28 +49,116 @@
             </MudItem>
         </MudGrid>
 
+        <MudText Typo="Typo.h6" Class="mt-4">Form Controls Showcase</MudText>
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudTextField T="string" Label="Device Name" Variant="Variant.Outlined" @bind-Value="_deviceName" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField T="string" Label="IP Address" Variant="Variant.Outlined" @bind-Value="_ipAddress" HelperText="e.g. 192.168.1.100" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="string" Label="Device Type" Variant="Variant.Outlined" @bind-Value="_selectedType">
+                        <MudSelectItem T="string" Value="@("sensor")">Sensor</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("actuator")">Actuator</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("gateway")">Gateway</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("storage")">Storage</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="string" Label="Status" Variant="Variant.Outlined" @bind-Value="_selectedStatus">
+                        <MudSelectItem T="string" Value="@("active")">Active</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("inactive")">Inactive</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("maintenance")">Maintenance</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField T="int" Label="Port" Variant="Variant.Outlined" @bind-Value="_port" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField T="string" Label="Installed Date" Variant="Variant.Outlined" @bind-Value="_installedDate" HelperText="yyyy-MM-dd" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField T="string" Label="Color Tag" Variant="Variant.Outlined" @bind-Value="_colorTag" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSwitch T="bool" Label="Enabled" Color="Color.Success" @bind-Value="_isEnabled" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudCheckBox T="bool" Label="Auto-restart" Color="Color.Primary" @bind-Value="_autoRestart" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField T="double" Label="Threshold" Variant="Variant.Outlined" @bind-Value="_threshold" HelperText="0.00 - 100.00" />
+                </MudItem>
+            </MudGrid>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                Device: @(_deviceName ?? "(empty)") | IP: @(_ipAddress ?? "(empty)") | Type: @(_selectedType ?? "none") | Status: @(_selectedStatus ?? "none") | Port: @_port | Threshold: @_threshold.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)
+            </MudText>
+        </MudPaper>
+
         <HvoChartSection />
 
-        <MudText Typo="Typo.h6" Class="mt-4">Recent Activity</MudText>
-        <MudPaper Elevation="1" Class="pa-4">
-            <div class="hvo-metric">
-                <span class="hvo-metric-label">admin</span>
-                <span class="hvo-metric-value">Updated system configuration</span>
-            </div>
-            <div class="hvo-metric">
-                <span class="hvo-metric-label">operator</span>
-                <span class="hvo-metric-value">Ran diagnostic check</span>
-            </div>
-            <div class="hvo-metric">
-                <span class="hvo-metric-label">system</span>
-                <span class="hvo-metric-value">Scheduled backup completed</span>
-            </div>
-            <div class="hvo-metric">
-                <span class="hvo-metric-label hvo-mono">2026-06-14 10:23</span>
-                <span class="hvo-metric-value hvo-mono">Last activity</span>
-            </div>
+        <MudText Typo="Typo.h6" Class="mt-4">Device Inventory</MudText>
+        <MudPaper Elevation="1" Class="pa-2">
+            <MudDataGrid T="DeviceRecord" Items="@_devices" SortMode="SortMode.Single" Filterable="false" Hover="true" Striped="true">
+                <Columns>
+                    <PropertyColumn Property="x => x.Name" Title="Name" Sortable="true" />
+                    <PropertyColumn Property="x => x.Type" Title="Type" Sortable="true" />
+                    <PropertyColumn Property="x => x.IpAddress" Title="IP Address" Sortable="true" />
+                    <PropertyColumn Property="x => x.Port" Title="Port" Sortable="true" />
+                    <PropertyColumn Property="x => x.Status" Title="Status" Sortable="true">
+                        <CellTemplate>
+                            <MudChip T="string" Color="@GetStatusColor(context.Item.Status)" Size="Size.Small">@context.Item.Status</MudChip>
+                        </CellTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.Installed" Title="Installed" Sortable="true" />
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="DeviceRecord" />
+                </PagerContent>
+            </MudDataGrid>
         </MudPaper>
 
         <HvoFormatSection />
     </MudStack>
 </MudPaper>
+
+@code {
+    private string? _deviceName = "Weather Station";
+    private string? _ipAddress = "192.168.1.50";
+    private string? _selectedType = "sensor";
+    private string? _selectedStatus = "active";
+    private int _port = 8080;
+    private string? _installedDate = "2026-01-15";
+    private string? _colorTag = "#6da5ff";
+    private bool _isEnabled = true;
+    private bool _autoRestart;
+    private double _threshold = 85.5;
+
+    private sealed record DeviceRecord(string Name, string Type, string IpAddress, int Port, string Status, string Installed);
+
+    private static readonly List<DeviceRecord> _devices = new()
+    {
+        new("Weather Station Pro", "Sensor", "192.168.1.50", 8080, "Active", "2026-01-15"),
+        new("BMS Controller A", "Gateway", "192.168.1.51", 502, "Active", "2025-11-03"),
+        new("BMS Controller B", "Gateway", "192.168.1.52", 502, "Maintenance", "2025-11-03"),
+        new("Solar Inverter 1", "Actuator", "192.168.1.53", 8080, "Active", "2025-08-22"),
+        new("Solar Inverter 2", "Actuator", "192.168.1.54", 8080, "Active", "2025-08-22"),
+        new("NAS Storage", "Storage", "192.168.1.60", 443, "Active", "2024-06-10"),
+        new("Backup Array", "Storage", "192.168.1.61", 443, "Inactive", "2024-06-10"),
+        new("Network Switch", "Gateway", "192.168.1.1", 80, "Active", "2024-01-20"),
+        new("UPS Monitor", "Sensor", "192.168.1.70", 161, "Active", "2024-03-14"),
+        new("Camera Dome", "Sensor", "192.168.1.80", 554, "Active", "2025-04-01"),
+        new("HVAC Controller", "Actuator", "192.168.1.90", 8080, "Inactive", "2025-05-12"),
+        new("Lighting Hub", "Gateway", "192.168.1.100", 8080, "Active", "2025-09-18"),
+    };
+
+    private static Color GetStatusColor(string status) => status switch
+    {
+        "Active" => Color.Success,
+        "Inactive" => Color.Error,
+        "Maintenance" => Color.Warning,
+        _ => Color.Default
+    };
+}
