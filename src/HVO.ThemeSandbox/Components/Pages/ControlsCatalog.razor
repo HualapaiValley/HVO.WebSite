@@ -1,5 +1,7 @@
 @page "/controls"
 @using System.Globalization
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <MudPaper Class="layout-canvas shell-page" Elevation="0">
     <MudStack Class="shell-page-stack" Spacing="4">
@@ -315,6 +317,31 @@
                             </MudOverlay>
                         </MudPaper>
                     </div>
+
+                    <div class="hvo-card">
+                        <div class="hvo-card-title">Dialog</div>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">Modal dialogs for confirmations, forms, and detailed views.</MudText>
+                        <MudStack Row="true" Spacing="2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.OpenInNew"
+                                       OnClick="@OpenDialog">Open Dialog</MudButton>
+                        </MudStack>
+                        @if (!string.IsNullOrWhiteSpace(_dialogResult))
+                        {
+                            <MudAlert Severity="Severity.Success" Dense="true" Class="mt-2">Dialog result: <strong>@_dialogResult</strong></MudAlert>
+                        }
+                    </div>
+
+                    <div class="hvo-card">
+                        <div class="hvo-card-title">Snackbar Toasts</div>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">Non-blocking notifications that appear at the bottom of the screen.</MudText>
+                        <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => Snackbar.Add("Default notification", Severity.Normal))">Normal</MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Info" OnClick="@(() => Snackbar.Add("Information message", Severity.Info))">Info</MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => Snackbar.Add("Operation completed successfully", Severity.Success))">Success</MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="@(() => Snackbar.Add("Proceed with caution", Severity.Warning))">Warning</MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@(() => Snackbar.Add("Something went wrong", Severity.Error))">Error</MudButton>
+                        </MudStack>
+                    </div>
                 </MudStack>
             </MudTabPanel>
 
@@ -449,6 +476,7 @@
     private string? _radioVal = "med";
     private int _rating = 4;
     private int _sliderVal = 65;
+    private string? _dialogResult;
 
     private static readonly List<(string, string)> _commonIcons = new()
     {
@@ -483,6 +511,14 @@
         ("Phone", Icons.Material.Outlined.Phone),
         ("Chat", Icons.Material.Outlined.ChatBubbleOutline),
     };
+
+    private async Task OpenDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<SampleDialog>("Sample Dialog", options);
+        var result = await dialog.Result;
+        _dialogResult = result?.Data?.ToString();
+    }
 
     private async Task<IEnumerable<string>> SearchAsync(string value, CancellationToken ct)
     {
