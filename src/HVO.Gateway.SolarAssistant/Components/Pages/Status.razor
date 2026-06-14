@@ -10,10 +10,10 @@
 
         <section class="solar-hero-card" aria-label="Gateway summary">
             <div class="solar-hero-copy">
-                <MudText Typo="Typo.overline" Class="solar-eyebrow">Live Gateway Status</MudText>
+                <MudText Typo="Typo.overline" Class="hvo-eyebrow">Live Gateway Status</MudText>
                 <MudText Typo="Typo.h3" Class="solar-hero-title">SolarAssistant Total</MudText>
                 <div class="solar-hero-number">@FormatWatts(LatestSnapshot?.LoadPowerW)</div>
-                <MudText Typo="Typo.body2" Class="solar-muted">Current load from the latest read-only REST snapshot with MQTT discovery metadata tracked locally.</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Current load from the latest read-only REST snapshot with MQTT discovery metadata tracked locally.</MudText>
                 <div class="solar-pill-row" aria-label="Gateway status summary">
                     <MudChip T="string" Color="@HealthChipColor" Variant="Variant.Filled" Size="Size.Small">@HealthStatusText</MudChip>
                     <MudChip T="string" Color="@SnapshotChipColor" Variant="Variant.Filled" Size="Size.Small">@SnapshotStatusText</MudChip>
@@ -34,7 +34,7 @@
 
         <MudGrid Spacing="3">
             <MudItem xs="12">
-                <MudPaper Class="solar-card" Elevation="0">
+                <MudPaper Class="hvo-card" Elevation="0">
                     <CardHead Eyebrow="Local Health" Title="Gateway Alerts" LinkHref="/gateway-health" LinkText="JSON" />
                     @if (Health.Alerts.Count == 0)
                     {
@@ -55,7 +55,7 @@
             </MudItem>
 
             <MudItem xs="12" md="6">
-                <MudPaper Class="solar-card" Elevation="0">
+                <MudPaper Class="hvo-card" Elevation="0">
                     <CardHead Eyebrow="Power" Title="Current Snapshot" />
                     <div class="solar-metric-grid">
                         <MetricTile Label="PV" Value="@FormatWatts(LatestSnapshot?.PvPowerW)" />
@@ -69,7 +69,7 @@
             </MudItem>
 
             <MudItem xs="12" md="6">
-                <MudPaper Class="solar-card" Elevation="0">
+                <MudPaper Class="hvo-card" Elevation="0">
                     <CardHead Eyebrow="Battery" Title="Battery State" />
                     <div class="solar-battery-readout">
                         <div class="solar-battery-ring" style="--battery-level: @BatteryLevelCss;">
@@ -86,7 +86,7 @@
             </MudItem>
 
             <MudItem xs="12" md="6">
-                <MudPaper Class="solar-card" Elevation="0">
+                <MudPaper Class="hvo-card" Elevation="0">
                     <CardHead Eyebrow="Outbox" Title="Website Forwarding" />
                     <div class="solar-detail-list">
                         <DetailRow Label="Pending" Value="@Forwarder.PendingCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
@@ -102,7 +102,7 @@
             </MudItem>
 
             <MudItem xs="12" md="6">
-                <MudPaper Class="solar-card" Elevation="0">
+                <MudPaper Class="hvo-card" Elevation="0">
                     <CardHead Eyebrow="Settings" Title="Read-only Configuration" />
                     <div class="solar-detail-list">
                         <DetailRow Label="Host" Value="@DisplayHost" />
@@ -118,7 +118,7 @@
             </MudItem>
 
             <MudItem xs="12">
-                <MudPaper Class="solar-card" Elevation="0">
+                <MudPaper Class="hvo-card" Elevation="0">
                     <CardHead Eyebrow="Rolling History" Title="Recent Power Trends" />
                     <div class="solar-history-grid-cards">
                         <PowerHistoryChart Title="PV Power" LineClass="solar-history-line-amber" Points="@History" ValueSelector="@(p => p.PvPowerW)" />
@@ -130,7 +130,7 @@
             </MudItem>
 
             <MudItem xs="12">
-                <MudPaper Class="solar-card" Elevation="0">
+                <MudPaper Class="hvo-card" Elevation="0">
                     <CardHead Eyebrow="Discovery" Title="REST Metric Inventory" LinkHref="/inventory" LinkText="JSON" />
                     <div class="solar-detail-list solar-detail-list-wide">
                         <DetailRow Label="DB candidates" Value="@ClassificationCount("db_candidate").ToString(System.Globalization.CultureInfo.InvariantCulture)" />
@@ -152,7 +152,7 @@
             </MudItem>
 
             <MudItem xs="12">
-                <MudPaper Class="solar-card" Elevation="0">
+                <MudPaper Class="hvo-card" Elevation="0">
                     <CardHead Eyebrow="MQTT" Title="Home Assistant Discovery" LinkHref="/mqtt-inventory" LinkText="JSON" />
                     <div class="solar-detail-list solar-detail-list-wide">
                         <DetailRow Label="Connection" Value="@MqttInventory.ConnectionState" />

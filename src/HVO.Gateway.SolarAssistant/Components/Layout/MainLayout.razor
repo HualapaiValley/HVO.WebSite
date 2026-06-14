@@ -1,63 +1,20 @@
 @inherits LayoutComponentBase
 
-<MudThemeProvider Theme="@ShellTheme" IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnThemeModeChanged" />
-<MudPopoverProvider />
-<MudDialogProvider />
-<MudSnackbarProvider />
-
-<MudLayout Class="@LayoutThemeClass">
-    <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
-        <div class="shell-frame shell-bar-content shell-header-frame">
-            <div class="shell-brand-block">
-                <div class="shell-brand-mark shell-brand-mark-solar" aria-hidden="true">SA</div>
-                <div class="shell-brand-copy">
-                    <MudText Typo="Typo.h5" Class="shell-brand-text">Hualapai Valley Observatory</MudText>
-                    <MudText Typo="Typo.caption" Class="shell-brand-subtitle">SOLARASSISTANT GATEWAY</MudText>
-                </div>
-            </div>
-            <nav class="shell-header-nav" aria-label="Primary navigation">
-                <MudButton Href="/" Variant="@GetNavLinkVariant("monitor")" Color="Color.Inherit" Class="@GetNavLinkClass("monitor")">Monitor</MudButton>
-                <MudButton Href="/inventory" Variant="@GetNavLinkVariant("inventory")" Color="Color.Inherit" Class="@GetNavLinkClass("inventory")">REST JSON</MudButton>
-                <MudButton Href="/mqtt-inventory" Variant="@GetNavLinkVariant("mqtt-inventory")" Color="Color.Inherit" Class="@GetNavLinkClass("mqtt-inventory")">MQTT JSON</MudButton>
-            </nav>
-            <MudSpacer />
-            <div class="shell-header-actions" aria-label="Header actions">
-                <MudIconButton Icon="@Icons.Material.Outlined.Bolt" Color="Color.Inherit" Size="Size.Medium" aria-label="SolarAssistant gateway" />
-                <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium" aria-label="@ThemeSelectorLabel" OnClick="@ToggleTheme" />
-            </div>
-        </div>
-    </MudAppBar>
-
-    <MudMainContent Class="shell-main">
-        <div class="shell-frame shell-content">
-            @Body
-        </div>
-    </MudMainContent>
-
-    <MudAppBar Bottom="true" Fixed="true" Elevation="0" Dense="true" Class="shell-appbar shell-appbar-footer">
-        <div class="shell-frame shell-bar-content shell-footer-frame">
-            <div class="shell-footer-layout" aria-label="Footer sections">
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-1"><span class="@FooterHealthDotClass" aria-hidden="true"></span>@FooterHealthText</MudText>
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-2">@FooterSourceText</MudText>
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-3">@FooterSampleTimeText</MudText>
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-4">@FooterOutboxText</MudText>
-                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-5"><span class="@FooterApiDotClass" aria-hidden="true"></span>@FooterApiText</MudText>
-            </div>
-        </div>
-    </MudAppBar>
-
-    <div id="blazor-error-ui" data-nosnippet>
-        <div class="shell-blazor-error-card">
-            <div class="shell-blazor-error-copy">
-                <strong>Blazor circuit interrupted</strong>
-                <span>An unhandled error has occurred. Reload to recover the gateway session.</span>
-            </div>
-            <div class="shell-blazor-error-actions">
-                <a href="." class="reload">Reload</a>
-                <button type="button" class="dismiss" aria-label="Dismiss error message">Dismiss</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="components-reconnect-modal" data-nosnippet></div>
-</MudLayout>
+<HvoGatewayLayout Subtitle="SOLARASSISTANT GATEWAY"
+                  FooterSlot1="@_footer1"
+                  FooterSlot2="@_footer2"
+                  FooterSlot3="@_footer3"
+                  FooterSlot4="@_footer4"
+                  FooterSlot5="@_footer5"
+                  IsDarkMode="@_shellState.IsDarkMode"
+                  IsDarkModeChanged="@OnThemeModeChanged">
+    <NavItems>
+        <MudButton Href="/" Variant="@GetNavLinkVariant("monitor")" Color="Color.Inherit" Class="@GetNavLinkClass("monitor")">Monitor</MudButton>
+        <MudButton Href="/inventory" Variant="@GetNavLinkVariant("inventory")" Color="Color.Inherit" Class="@GetNavLinkClass("inventory")">REST JSON</MudButton>
+        <MudButton Href="/mqtt-inventory" Variant="@GetNavLinkVariant("mqtt-inventory")" Color="Color.Inherit" Class="@GetNavLinkClass("mqtt-inventory")">MQTT JSON</MudButton>
+    </NavItems>
+    <AppBarActions>
+        <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium" aria-label="@ThemeSelectorLabel" OnClick="ToggleTheme" />
+    </AppBarActions>
+    <Body>@Body</Body>
+</HvoGatewayLayout>

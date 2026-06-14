@@ -1,4 +1,5 @@
 using HVO.Gateway.SolarAssistant.SolarAssistant;
+using HVO.WebSite.Themes.Components.Format;
 
 namespace HVO.Gateway.SolarAssistant.Components.Pages;
 
@@ -44,7 +45,7 @@ public partial class RestInventory : IDisposable
 
     private int ClassificationCount(string classification) => Inventory?.ClassificationCounts.TryGetValue(classification, out var count) == true ? count : 0;
 
-    private static string FormatTimestamp(DateTime? value) => value.HasValue ? value.Value.ToLocalTime().ToString("MMM d, HH:mm:ss") : "--";
+    private static string FormatTimestamp(DateTime? value) => HvoFormat.Timestamp(value, "MMM d, HH:mm:ss");
 
     private static string FormatCounts(IReadOnlyDictionary<string, int>? counts) => counts is null || counts.Count == 0
         ? "--"
