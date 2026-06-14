@@ -2,30 +2,23 @@
 
 <PageTitle>Home</PageTitle>
 
-<section class="container py-5">
-    <div class="row justify-content-center g-4">
-        <div class="col-lg-10 text-center">
-            <p class="text-uppercase text-info fw-semibold mb-2">Hualapai Valley Observatory</p>
-            <h1 class="display-3 text-light">Home</h1>
-            <p class="lead text-light opacity-75">Current observatory power telemetry, assembled from the live edge gateways.</p>
-        </div>
-        <div class="col-lg-10">
-            <AuthorizeView Policy="PowerStatusView">
-                <Authorized>
-                    <PowerStatusCard />
-                </Authorized>
-                <NotAuthorized>
-                    <section class="power-status-card power-status-card--locked" aria-labelledby="power-status-heading">
-                        <p class="power-status-card__eyebrow">Power System</p>
-                        <h2 id="power-status-heading">Live Power Snapshot</h2>
-                        <p class="mb-0">Sign in with observatory access to view the live power-system card.</p>
-                    </section>
-                </NotAuthorized>
-            </AuthorizeView>
-        </div>
-    </div>
-</section>
+<MudPaper Class="layout-canvas shell-page" Elevation="0">
+    <MudStack Class="shell-page-stack" AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="4" Style="min-height:60vh;">
+        <MudText Typo="Typo.overline" Color="Color.Info" Class="hvo-eyebrow">Hualapai Valley Observatory</MudText>
+        <MudText Typo="Typo.h2" Color="Color.Primary">Home</MudText>
+        <MudText Typo="Typo.body1" Color="Color.Secondary" Align="Align.Center">Current observatory power telemetry, assembled from the live edge gateways.</MudText>
 
-
-
-
+        <AuthorizeView Policy="PowerStatusView">
+            <Authorized>
+                <PowerStatusCard />
+            </Authorized>
+            <NotAuthorized>
+                <div class="hvo-card" style="max-width:42rem;text-align:center;">
+                    <div class="hvo-eyebrow">Power System</div>
+                    <div class="hvo-card-title">Live Power Snapshot</div>
+                    <MudText Typo="Typo.body2">Sign in with observatory access to view the live power-system card.</MudText>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </MudStack>
+</MudPaper>
