@@ -18,6 +18,14 @@
                            Size="Size.Medium"
                            aria-label="@ThemeLabel"
                            OnClick="@ToggleTheme" />
+            <AuthorizeView>
+                <Authorized>
+                    <MudMenu Label="@context.User.Identity?.Name" Variant="Variant.Text" Color="Color.Inherit"
+                             EndIcon="@Icons.Material.Outlined.ExpandMore">
+                        <MudMenuItem Href="MicrosoftIdentity/Account/SignOut">Sign out</MudMenuItem>
+                    </MudMenu>
+                </Authorized>
+            </AuthorizeView>
         </AppBarActions>
         <Body>@Body</Body>
     </HvoAdminLayout>
@@ -62,9 +70,8 @@ else
     {
         get
         {
-            var path = Navigation.ToBaseRelativePath(Navigation.Uri);
-            return path.StartsWith("admin", StringComparison.OrdinalIgnoreCase)
-                || path.StartsWith("/admin", StringComparison.OrdinalIgnoreCase);
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri).TrimStart('/');
+            return path == "admin" || path.StartsWith("admin/", StringComparison.OrdinalIgnoreCase);
         }
     }
 
