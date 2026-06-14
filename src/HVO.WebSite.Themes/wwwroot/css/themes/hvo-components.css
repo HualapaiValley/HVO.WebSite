@@ -1,0 +1,61 @@
+.hvo-card {
+    background: var(--shell-card-background);
+    color: var(--shell-card-foreground);
+    border: 1px solid var(--shell-card-border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: var(--shell-card-shadow);
+}
+
+.hvo-card-primary {
+    border-left: 4px solid var(--shell-pill-active-background);
+}
+
+.hvo-card-note {
+    background: var(--shell-overlay-panel);
+    border-color: var(--shell-overlay-panel-border);
+    opacity: 0.85;
+}
+
+.hvo-metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--shell-card-inner-border);
+}
+
+.hvo-metric:last-child {
+    border-bottom: none;
+}
+
+.hvo-metric-label {
+    color: var(--shell-pill-text);
+    font-size: 0.8125rem;
+}
+
+.hvo-metric-value {
+    font-family: var(--shell-font-mono);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--shell-card-foreground);
+}
+
+.hvo-card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--shell-card-foreground);
+}
+
+.hvo-eyebrow {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--shell-pill-text);
+    margin-bottom: 0.25rem;
+}
+
+.hvo-mono {
+    font-family: var(--shell-font-mono);
+}
