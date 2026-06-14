@@ -801,7 +801,10 @@
         "type": "Project"
       },
       "hvo.website.themes": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "MudBlazor": "[9.4.0, )"
+        }
       },
       "Microsoft.EntityFrameworkCore": {
         "type": "CentralTransitive",
@@ -831,6 +834,12 @@
           "Microsoft.Data.SqlClient": "6.1.1",
           "Microsoft.EntityFrameworkCore.Relational": "10.0.8"
         }
+      },
+      "MudBlazor": {
+        "type": "CentralTransitive",
+        "requested": "[9.4.0, )",
+        "resolved": "9.4.0",
+        "contentHash": "p6BF8zmt4c/yi/hD9hP7yPioUK5loOnif19gwIEANq6I46407QnSu0HTW1NuALC5seRKcWb2pBP5LwC8aBE2Mg=="
       }
     }
   }
