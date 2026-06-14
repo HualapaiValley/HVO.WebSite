@@ -35,6 +35,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     protected override void OnInitialized()
     {
+        _shellState.Changed += HandleShellStateChanged;
         _refreshCts = new CancellationTokenSource();
         _refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(5));
         UpdateFooter();
@@ -43,6 +44,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     public void Dispose()
     {
+        _shellState.Changed -= HandleShellStateChanged;
         _refreshCts?.Cancel();
         _refreshTimer?.Dispose();
         _refreshCts?.Dispose();
@@ -65,13 +67,17 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private void OnThemeModeChanged(bool useDarkMode)
     {
         _shellState.SetTheme(useDarkMode);
-        UpdateFooter();
     }
 
     private void ToggleTheme()
     {
         _shellState.ToggleTheme();
+    }
+
+    private void HandleShellStateChanged()
+    {
         UpdateFooter();
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private void UpdateFooter()

@@ -82,12 +82,14 @@
 
     protected override void OnInitialized()
     {
+        _shellState.Changed += HandleShellStateChanged;
         UpdateFooterTime(DateTimeOffset.UtcNow);
         _ = RefreshClockAsync(_clockCts.Token);
     }
 
     public void Dispose()
     {
+        _shellState.Changed -= HandleShellStateChanged;
         _clockCts.Cancel();
         _clockCts.Dispose();
         _clockTimer.Dispose();
@@ -142,6 +144,11 @@
     private void ToggleTheme()
     {
         _shellState.ToggleTheme();
+    }
+
+    private void HandleShellStateChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private void OpenInfoDialog() => _showInfoDialog = true;

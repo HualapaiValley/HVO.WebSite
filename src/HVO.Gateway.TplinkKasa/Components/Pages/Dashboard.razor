@@ -384,7 +384,7 @@
         outlet.Index is null ? "Port unknown" : $"Port {outlet.Index.Value.ToString(CultureInfo.InvariantCulture)}";
 
     private static string FormatOutletOnTime(KasaOutletStatus outlet) =>
-        outlet.OnTimeSeconds is null ? "Unknown" : TimeSpan.FromSeconds(outlet.OnTimeSeconds.Value).ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
+        outlet.OnTimeSeconds is null ? "Unknown" : HvoFormat.Duration(TimeSpan.FromSeconds(outlet.OnTimeSeconds.Value));
 
     private static bool IsBulb(KasaDeviceStatus device) => device.DeviceKind == KasaDeviceKind.Bulb;
 
