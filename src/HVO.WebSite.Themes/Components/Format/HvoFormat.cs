@@ -50,4 +50,7 @@ public static class HvoFormat
 
     public static string Duration(TimeSpan? ts)
         => ts is null ? "--" : ts.Value.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
+
+    public static string Integer(int? value)
+        => value?.ToString(CultureInfo.InvariantCulture) ?? "--";
 }

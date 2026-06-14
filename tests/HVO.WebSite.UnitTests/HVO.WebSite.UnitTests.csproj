@@ -28,6 +28,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/HVO.Edge.Contracts/HVO.Edge.Contracts.csproj" />
     <ProjectReference Include="../../src/HVO.WebSite.v9/HVO.WebSite.v9.csproj" />
+    <ProjectReference Include="../../src/HVO.WebSite.Themes/HVO.WebSite.Themes.csproj" />
     <ProjectReference Include="../../src/HVO.Staging/HVO.Staging.csproj" />
   </ItemGroup>
 </Project>
