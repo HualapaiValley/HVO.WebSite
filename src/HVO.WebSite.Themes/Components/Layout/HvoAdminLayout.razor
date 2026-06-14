@@ -33,7 +33,7 @@
 
     <MudMainContent Class="shell-main">
         <div class="shell-frame shell-content">
-            @Body
+            @(Body ?? ChildContent)
         </div>
     </MudMainContent>
 

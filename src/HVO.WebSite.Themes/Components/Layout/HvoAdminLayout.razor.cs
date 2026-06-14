@@ -5,6 +5,8 @@ namespace HVO.WebSite.Themes.Components.Layout;
 
 public partial class HvoAdminLayout : LayoutComponentBase
 {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
     private bool _drawerOpen = true;
 
     private DrawerVariant _drawerVariant = DrawerVariant.Persistent;

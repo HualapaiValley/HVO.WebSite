@@ -5,6 +5,8 @@ namespace HVO.WebSite.Themes.Components.Layout;
 
 public partial class HvoGatewayLayout : LayoutComponentBase
 {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
     [Parameter] public string Subtitle { get; set; } = "GATEWAY DASHBOARD";
 
     [Parameter] public RenderFragment? NavItems { get; set; }

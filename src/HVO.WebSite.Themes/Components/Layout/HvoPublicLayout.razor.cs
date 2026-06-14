@@ -5,6 +5,8 @@ namespace HVO.WebSite.Themes.Components.Layout;
 
 public partial class HvoPublicLayout : LayoutComponentBase
 {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
     [Parameter] public RenderFragment? NavItems { get; set; }
 
     [Parameter] public RenderFragment? AuthSection { get; set; }
