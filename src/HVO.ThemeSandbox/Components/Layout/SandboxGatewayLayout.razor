@@ -1,0 +1,78 @@
+@inherits LayoutComponentBase
+
+<HvoGatewayLayout Subtitle="THEME SANDBOX"
+                  FooterSlot1="@_footerSlot1"
+                  FooterSlot2="@_footerSlot2"
+                  FooterSlot3="@_footerSlot3"
+                  FooterSlot4="@_footerSlot4"
+                  FooterSlot5="@_footerSlot5"
+                  IsDarkMode="@_isDarkMode"
+                  IsDarkModeChanged="@OnDarkModeChanged">
+    <NavItems>
+        <MudButton Variant="@GetNavVariant("/")"
+                   Color="Color.Inherit"
+                   Class="@GetNavClass("/")"
+                   Href="/">Gateway</MudButton>
+        <MudButton Variant="@GetNavVariant("/public-layout")"
+                   Color="Color.Inherit"
+                   Class="@GetNavClass("/public-layout")"
+                   Href="/public-layout">Public</MudButton>
+        <MudButton Variant="@GetNavVariant("/admin-layout")"
+                   Color="Color.Inherit"
+                   Class="@GetNavClass("/admin-layout")"
+                   Href="/admin-layout">Admin</MudButton>
+    </NavItems>
+    <AppBarActions>
+        <MudIconButton Icon="@ThemeIcon"
+                       Color="Color.Inherit"
+                       Size="Size.Medium"
+                       aria-label="@ThemeLabel"
+                       OnClick="@ToggleTheme" />
+    </AppBarActions>
+    <Body>@Body</Body>
+</HvoGatewayLayout>
+
+@code {
+    private bool _isDarkMode = true;
+    private ShellFooterItem _footerSlot1 = new("Theme Sandbox", ShellFooterIndicator.Online);
+    private ShellFooterItem _footerSlot2 = new("Phase 0.5 validation");
+    private ShellFooterItem _footerSlot3 = new("Active");
+    private ShellFooterItem _footerSlot4 = new("MudBlazor shell");
+    private ShellFooterItem _footerSlot5 = new("Running", ShellFooterIndicator.Online);
+
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    private string ThemeIcon => _isDarkMode
+        ? Icons.Material.Outlined.DarkMode
+        : Icons.Material.Outlined.LightMode;
+
+    private string ThemeLabel => _isDarkMode ? "Switch to light theme" : "Switch to dark theme";
+
+    private void ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
+    private void OnDarkModeChanged(bool isDark)
+    {
+        _isDarkMode = isDark;
+    }
+
+    private Variant GetNavVariant(string href)
+    {
+        var uri = new Uri(NavigationManager.Uri);
+        bool isActive = href == "/"
+            ? uri.AbsolutePath == "/" || uri.AbsolutePath == ""
+            : uri.AbsolutePath.StartsWith(href, StringComparison.OrdinalIgnoreCase);
+        return isActive ? Variant.Filled : Variant.Text;
+    }
+
+    private string GetNavClass(string href)
+    {
+        var uri = new Uri(NavigationManager.Uri);
+        bool isActive = href == "/"
+            ? uri.AbsolutePath == "/" || uri.AbsolutePath == ""
+            : uri.AbsolutePath.StartsWith(href, StringComparison.OrdinalIgnoreCase);
+        return isActive ? "shell-nav-link shell-nav-link-current" : "shell-nav-link";
+    }
+}
