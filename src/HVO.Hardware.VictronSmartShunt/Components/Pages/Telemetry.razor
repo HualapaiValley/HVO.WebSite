@@ -108,5 +108,22 @@
                 </dl>
             </MudPaper>
         </div>
+
+        <MudPaper Class="smartshunt-card" Elevation="0">
+            <div class="smartshunt-card-head">
+                <div>
+                    <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">Chart</MudText>
+                    <MudText Typo="Typo.h6">Current Telemetry Snapshot</MudText>
+                </div>
+            </div>
+            <HvoChart @ref="_telemetryChart"
+                      ChartId="smartshunt-telemetry-chart"
+                      Type="HvoChartType.Bar"
+                      ShowLegend="true"
+                      Height="250"
+                      EnableAnimations="false"
+                      Labels="@_telemetryLabels"
+                      Datasets="@_telemetryDatasets" />
+        </MudPaper>
     </MudStack>
 </MudPaper>

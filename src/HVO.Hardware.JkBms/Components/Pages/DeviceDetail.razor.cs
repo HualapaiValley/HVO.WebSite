@@ -1,3 +1,4 @@
+using HVO.WebSite.Themes.Components.Charts;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
 
@@ -9,6 +10,28 @@ public partial class DeviceDetail : IDisposable
     [Inject] private ILogger<DeviceDetail> Logger { get; set; } = default!;
 
     private Workers.DevicePollState? _state;
+    private HvoChart? _cellChart;
+
+    private string[] _cellLabels
+        => _state?.LatestReading?.CellVoltagesMv
+            .Select((_, i) => $"C{i + 1}")
+            .ToArray() ?? [];
+
+    private List<HvoChartDataset> _cellDatasets
+    {
+        get
+        {
+            var readings = _state?.LatestReading;
+            if (readings is null) return new();
+            var values = readings.CellVoltagesMv
+                .Select(mv => mv / 1000.0).ToArray();
+            return new()
+            {
+                new HvoChartDataset("Voltage", values,
+                    BorderColor: "#6da5ff", BackgroundColor: "rgba(109,165,255,0.25)", BorderWidth: 1)
+            };
+        }
+    }
 
     protected override void OnParametersSet()
     {
@@ -25,7 +48,12 @@ public partial class DeviceDetail : IDisposable
         Poller.DeviceStateChanged += OnStateChanged;
     }
 
-    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+    private async void OnStateChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+        if (_cellChart is not null)
+            await _cellChart.RefreshAsync();
+    }
 
     public void Dispose()
     {

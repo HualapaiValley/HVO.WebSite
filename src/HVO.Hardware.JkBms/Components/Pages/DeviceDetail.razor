@@ -113,6 +113,28 @@
                         </div>
                     </article>
 
+                    @if (r.CellVoltagesMv.Count > 0)
+                    {
+                        <article class="jk-card">
+                            <div class="jk-card-head">
+                                <div>
+                                    <div class="jk-card-kicker">Chart</div>
+                                    <h2>Cell voltage profile</h2>
+                                </div>
+                            </div>
+                            <HvoChart @ref="_cellChart"
+                                      ChartId="jk-cell-chart"
+                                      Type="HvoChartType.Bar"
+                                      Title="Cell Voltages"
+                                      YAxisLabel="Voltage (V)"
+                                      ShowLegend="false"
+                                      Height="220"
+                                      EnableAnimations="false"
+                                      Labels="@_cellLabels"
+                                      Datasets="@_cellDatasets" />
+                        </article>
+                    }
+
                     <article class="jk-card">
                         <div class="jk-card-head">
                             <div>
