@@ -1,0 +1,54 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="@EffectiveTheme" IsDarkMode="@IsDarkMode" IsDarkModeChanged="@IsDarkModeChanged" />
+<MudPopoverProvider />
+<MudDialogProvider />
+
+<MudLayout Class="@LayoutThemeClass">
+    <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
+        <div class="shell-frame shell-bar-content shell-header-frame">
+            <MudIconButton Icon="@Icons.Material.Outlined.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+            <div class="shell-brand-block">
+                <MudText Typo="Typo.h5" Class="shell-brand-text">Hualapai Valley Observatory</MudText>
+                <MudText Typo="Typo.caption" Class="shell-brand-subtitle">ADMIN</MudText>
+            </div>
+            <MudSpacer />
+            @if (AppBarActions is not null)
+            {
+                <div class="shell-header-actions" aria-label="Header actions">
+                    @AppBarActions
+                </div>
+            }
+        </div>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Variant="_drawerVariant" Anchor="Anchor.Left">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6">Navigation</MudText>
+        </MudDrawerHeader>
+        <MudNavMenu>
+            @SidebarItems
+        </MudNavMenu>
+    </MudDrawer>
+
+    <MudMainContent Class="shell-main">
+        <div class="shell-frame shell-content">
+            @Body
+        </div>
+    </MudMainContent>
+
+    <div id="blazor-error-ui" data-nosnippet>
+        <div class="shell-blazor-error-card">
+            <div class="shell-blazor-error-copy">
+                <strong>Blazor circuit interrupted</strong>
+                <span>An unhandled error has occurred. Reload to recover the dashboard session.</span>
+            </div>
+            <div class="shell-blazor-error-actions">
+                <a href="." class="reload">Reload</a>
+                <button type="button" class="dismiss" aria-label="Dismiss error message">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="components-reconnect-modal" data-nosnippet></div>
+</MudLayout>

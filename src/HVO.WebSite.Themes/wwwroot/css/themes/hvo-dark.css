@@ -1,6 +1,9 @@
+/* DEPRECATED: This file is retained only for backward compatibility during migration.
+   All theme styles have moved to hvo-shared-shell.css.
+   Remove this file after Phase 2 (main site migration) is complete. */
+
 :root[data-theme="hvo-dark"] {
     --hvo-font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-    --bs-font-monospace: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     --hvo-body-bg: #05070d;
     --hvo-body-color: #f8fafc;
     --hvo-accent: #3b82f6;
@@ -1526,7 +1529,7 @@ body[data-theme="hvo-dark"] .cpu-core-bar-fill {
 body[data-theme="hvo-dark"] .cpu-core-value {
     color: rgba(248, 249, 250, 0.85);
     font-weight: 500;
-    font-family: var(--bs-font-monospace, "SFMono-Regular", ui-monospace, "Source Code Pro", monospace);
+    font-family: var(--shell-font-mono, "SFMono-Regular", ui-monospace, "Source Code Pro", monospace);
 }
 
 @media (max-width: 991.98px) {

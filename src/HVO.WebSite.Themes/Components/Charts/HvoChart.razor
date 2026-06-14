@@ -1,0 +1,99 @@
+@using HVO.WebSite.Themes.Components.Charts
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+
+<div style="height: @($"{Height}px"); position: relative;">
+    <canvas id="@ChartId"></canvas>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string ChartId { get; set; } = default!;
+
+    [Parameter] public ChartType Type { get; set; } = ChartType.Line;
+
+    [Parameter, EditorRequired] public IReadOnlyList<HvoChartDataset> Datasets { get; set; } = Array.Empty<HvoChartDataset>();
+
+    [Parameter] public IReadOnlyList<string>? Labels { get; set; }
+
+    [Parameter] public bool ShowLegend { get; set; } = true;
+
+    [Parameter] public bool EnableAnimations { get; set; }
+
+    [Parameter] public int Height { get; set; } = 300;
+
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public string? XAxisLabel { get; set; }
+
+    [Parameter] public string? YAxisLabel { get; set; }
+
+    private string TypeJs => Type switch
+    {
+        ChartType.Line => "line",
+        ChartType.Bar => "bar",
+        ChartType.Doughnut => "doughnut",
+        ChartType.PolarArea => "polarArea",
+        ChartType.Bubble => "bubble",
+        _ => "line"
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await RenderChartAsync();
+        }
+    }
+
+    public async Task RefreshAsync()
+    {
+        await RenderChartAsync();
+    }
+
+    private async Task RenderChartAsync()
+    {
+        var config = new
+        {
+            type = TypeJs,
+            data = new
+            {
+                labels = Labels ?? Array.Empty<string>(),
+                datasets = Datasets.Select(d => new
+                {
+                    label = d.Label,
+                    data = d.Data.Cast<object>().ToArray(),
+                    borderColor = d.BorderColor ?? "var(--shell-chart-label-color)",
+                    backgroundColor = d.BackgroundColor ?? "var(--shell-chart-marker-fill)",
+                    borderWidth = d.BorderWidth,
+                    pointRadius = d.PointRadius,
+                    fill = d.Fill
+                })
+            },
+            options = new
+            {
+                responsive = true,
+                maintainAspectRatio = false,
+                animation = EnableAnimations ? (object?)null : false,
+                plugins = new
+                {
+                    legend = new { display = ShowLegend },
+                    title = Title is not null ? new { display = true, text = Title } : null
+                },
+                scales = Type is ChartType.Doughnut or ChartType.PolarArea ? null : new
+                {
+                    x = new
+                    {
+                        title = XAxisLabel is not null ? new { display = true, text = XAxisLabel } : null
+                    },
+                    y = new
+                    {
+                        title = YAxisLabel is not null ? new { display = true, text = YAxisLabel } : null
+                    }
+                }
+            }
+        };
+
+        await JSRuntime.InvokeVoidAsync("hvoChart.render", ChartId, config);
+    }
+}

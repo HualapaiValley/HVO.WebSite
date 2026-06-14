@@ -33,18 +33,19 @@ Each publish writes two tags for the selected target:
 - the explicit version tag from `.env`
 - `latest`
 
-## Current Version Variables
+## Version Variables
 
-The independent image version variables live in `.env`:
+The independent image version variables live in `.env`. Each image tracks its own version independently:
 
 ```bash
-HVO_WEBSITE_IMAGE_VERSION=1.0.0
-HVO_DAVIS_IMAGE_VERSION=1.0.0
-HVO_JKBMS_IMAGE_VERSION=1.0.0
-HVO_SOLARASSISTANT_IMAGE_VERSION=1.0.0
+# Current values are in .env -- check the file for live version numbers
+HVO_WEBSITE_IMAGE_VERSION=<current>
+HVO_DAVIS_IMAGE_VERSION=<current>
+HVO_JKBMS_IMAGE_VERSION=<current>
+HVO_SOLARASSISTANT_IMAGE_VERSION=<current>
 ```
 
-Only bump the variable for the image you are publishing.
+Only bump the variable for the image you are publishing. See `CHANGELOG.md` for published version history.
 
 ## Publish Script
 

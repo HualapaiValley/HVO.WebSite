@@ -161,4 +161,4 @@ These Go models are still available but untested:
 - All tests performed on the same HVO.WebSite repository for comparability
 - Accept rate = findings accepted after independent GPT validation
 - Models are tested as read-only prep agents; final quality includes output structure, not just findings count
-- DeepSeek V4 Pro vs GPT 5.5 comparison report: `code-review-gpt55/V4Pro-vs-GPT55-Comparison.md`
+- DeepSeek V4 Pro vs GPT 5.5 comparison report exists as a generated artifact (not tracked in repo)

@@ -1,6 +1,6 @@
 # HVO Architecture Baseline
 
-Last updated: 2026-05-23
+Last updated: 2026-06-14
 
 This document captures the current architecture baseline for HVO.WebSite and the expected direction for near-term hardware integrations. It is a current-state reference, not a full implementation plan. Use `docs/PROJECT_HISTORY.md` for recent session context and decision notes. The validated RabbitMQ/Service Bus ingest POC was removed from the active repo after being deferred and remains available in git history if needed.
 
@@ -312,16 +312,17 @@ Do not extract abstractions before the shape is stable. The first extraction sho
 
 ## Known Gaps
 
-| Gap | Impact |
-|-----|--------|
-| Brokered ingest is archived, not active | The POC is available for future reference, but active collectors should not depend on it |
-| v9 power persistence is not implemented | SolarAssistant, Victron, and TPLink power data have no normalized target yet |
-| Weather and BMS aggregates are incomplete | Some minute/hourly tables exist but are not fully populated by website workers |
-| Collector health is not domain-rich enough | Process health can pass while device polling or forwarding is unhealthy |
-| Shared outbox/API-forwarding infrastructure is not extracted | New gateways will repeat collector delivery code until a common package is added |
-| SolarAssistant source shape is not documented | REST/MQTT/WebSocket topics, cadence, timestamps, and unit conventions need discovery before production gateway work |
-| Command/control is not designed in code yet | Future control operations need security, audit, queueing, and edge execution semantics |
-| ESPHome integration is not implemented | BLE gateway strategy needs a prototype against real devices and topics |
+| Gap | Impact | Status |
+|-----|--------|--------|
+| Brokered ingest is archived, not active | The POC is available for future reference, but active collectors should not depend on it | Will remain archived unless scale justifies revival |
+| v9 power persistence gaps | Aggregated power readings, energy counters, inverter detail, device inventory, and gateway status snapshots are implemented; remaining detail/inventory streams need normalized targets | Partially resolved (power.reading, power.energy, power.inverter-detail, gateway.status are live) |
+| Weather and BMS aggregates are incomplete | Some minute/hourly tables exist but are not fully populated by website workers | Ongoing |
+| Collector health is not domain-rich enough | Process health can pass while device polling or forwarding is unhealthy | Ongoing |
+| Shared outbox/API-forwarding infrastructure is not extracted | New gateways repeat collector delivery code until a common package is added | Planned for SolarAssistant migration |
+| SolarAssistant source shape discovery | REST/MQTT/WebSocket topics, cadence, timestamps documented in SOLARASSISTANT_DISCOVERY.md | Resolved |
+| Victron SmartShunt integration | Public paired GATT telemetry working; private enrichment read-only; writes deferred | Resolved |
+| Command/control is not designed in code yet | Future control operations need security, audit, queueing, and edge execution semantics | Not started |
+| ESPHome integration is not implemented | BLE gateway strategy needs a prototype against real devices and topics | Deferred |
 
 ## Near-Term Recommended Sequence
 

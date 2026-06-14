@@ -155,9 +155,20 @@ Wire Azure Container Apps probes to the built-in endpoints exposed by `HVO.WebSi
 - The application already emits telemetry to Application Insights when `ApplicationInsights:ConnectionString` is configured.
 - The ACA environment should also keep platform logs enabled so ingress, revision, and console diagnostics are available alongside app telemetry.
 
-## Current Deployed Revision
+## Current Runtime Status
 
-The current ACA deployment is running with:
+The earlier deployment blockers have been resolved:
+
+- ASP.NET Core Data Protection now uses Azure Blob Storage for persistence and Azure Key Vault for encryption.
+- The website Entra app client secret is stored in `hvoobs-kv` as `AzureAd--ClientSecret`.
+- The website honors ACA forwarded proxy headers, so OIDC redirects now use the external HTTPS hostname instead of internal HTTP.
+- Recent Container App logs no longer show the previous ephemeral or unencrypted Data Protection warnings.
+
+Interactive browser sign-in is confirmed working for an authorized user.
+
+## Recent Deployed Revision
+
+The following table documents the deployment that validated these infrastructure features. Current deployed image version is in `.env` (`HVO_WEBSITE_IMAGE_VERSION`).
 
 | Item | Value |
 |------|-------|
@@ -172,30 +183,6 @@ The current ACA deployment is running with:
 | Data Protection blob URI | `https://hvoobsdata.blob.core.windows.net/dataprotection/keys.xml` |
 | Data Protection key identifier | `https://hvoobs-kv.vault.azure.net/keys/hvo-website-dp` |
 | Forwarded headers env | `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` |
-
-Verified smoke-test results:
-
-- `/health/live` returns `200`
-- `/health/ready` returns `200`
-- Authenticated `/api/v1/power/system/latest` returns `200` with a composed `PowerSystemSnapshot`
-- `/` returns `200`
-- `/admin` redirects to Microsoft Entra sign-in instead of failing server-side
-- `/admin` now emits an HTTPS `redirect_uri` for `/signin-oidc` that matches the Entra app registration
-- Interactive browser sign-in succeeds and an authorized user can see the live power snapshot card
-- Authenticated `/api/v1/power/system/latest` includes 7 JK BMS battery banks with aggregate `bankCount=7`
-- The live power card displays per-bank freshness using each bank reading timestamp and highlights aging or stale banks while preserving alarm styling
-- The deployment includes NuGet maintenance updates for ASP.NET Core test/OpenAPI packages plus Azure Key Vault and Azure Monitor OpenTelemetry packages
-
-## Current Runtime Status
-
-The earlier deployment blockers have been resolved:
-
-- ASP.NET Core Data Protection now uses Azure Blob Storage for persistence and Azure Key Vault for encryption.
-- The website Entra app client secret is stored in `hvoobs-kv` as `AzureAd--ClientSecret`.
-- The website honors ACA forwarded proxy headers, so OIDC redirects now use the external HTTPS hostname instead of internal HTTP.
-- Recent Container App logs no longer show the previous ephemeral or unencrypted Data Protection warnings.
-
-Interactive browser sign-in is confirmed working for an authorized user.
 
 ## Ready-To-Create Checklist
 

@@ -1,0 +1,77 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="@EffectiveTheme" IsDarkMode="@IsDarkMode" IsDarkModeChanged="@IsDarkModeChanged" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout Class="@LayoutThemeClass">
+    <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
+        <div class="shell-frame shell-bar-content shell-header-frame">
+            <div class="shell-brand-block">
+                <div class="shell-brand-mark" aria-hidden="true">
+                    <MudImage Src="_content/HVO.WebSite.Themes/images/observatory-background.jpg" Alt="" Class="shell-brand-image" />
+                </div>
+                <div class="shell-brand-copy">
+                    <MudText Typo="Typo.h5" Class="shell-brand-text">Hualapai Valley Observatory</MudText>
+                    <MudText Typo="Typo.caption" Class="shell-brand-subtitle">@Subtitle</MudText>
+                </div>
+            </div>
+            @if (NavItems is not null)
+            {
+                <nav class="shell-header-nav" aria-label="Primary navigation">
+                    @NavItems
+                </nav>
+            }
+            <MudSpacer />
+            <div class="shell-header-actions" aria-label="Header actions">
+                @AppBarActions
+            </div>
+        </div>
+    </MudAppBar>
+
+    <MudMainContent Class="shell-main">
+        <div class="shell-frame shell-content">
+            @Body
+        </div>
+    </MudMainContent>
+
+    <MudAppBar Bottom="true" Fixed="true" Elevation="0" Dense="true" Class="shell-appbar shell-appbar-footer">
+        <div class="shell-frame shell-bar-content shell-footer-frame">
+            <div class="shell-footer-layout" aria-label="Footer sections">
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-1">
+                    @if (GetFooterIndicatorClass(FooterSlot1?.Indicator ?? ShellFooterIndicator.None) is { } slot1IndicatorClass)
+                    {
+                        <span class="@slot1IndicatorClass" aria-hidden="true"></span>
+                    }
+                    @(FooterSlot1?.Text ?? "--")
+                </MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-2">@(FooterSlot2?.Text ?? "--")</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-3">@(FooterSlot3?.Text ?? "--")</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-4">@(FooterSlot4?.Text ?? "--")</MudText>
+                <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-5">
+                    @if (GetFooterIndicatorClass(FooterSlot5?.Indicator ?? ShellFooterIndicator.None) is { } slot5IndicatorClass)
+                    {
+                        <span class="@slot5IndicatorClass" aria-hidden="true"></span>
+                    }
+                    @(FooterSlot5?.Text ?? "--")
+                </MudText>
+            </div>
+        </div>
+    </MudAppBar>
+
+    <div id="blazor-error-ui" data-nosnippet>
+        <div class="shell-blazor-error-card">
+            <div class="shell-blazor-error-copy">
+                <strong>Blazor circuit interrupted</strong>
+                <span>An unhandled error has occurred. Reload to recover the dashboard session.</span>
+            </div>
+            <div class="shell-blazor-error-actions">
+                <a href="." class="reload">Reload</a>
+                <button type="button" class="dismiss" aria-label="Dismiss error message">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="components-reconnect-modal" data-nosnippet></div>
+</MudLayout>

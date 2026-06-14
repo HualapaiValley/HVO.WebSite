@@ -12,6 +12,7 @@
 
 :root {
     --shell-font-family: "Open Sans Custom", "Segoe UI", sans-serif;
+    --shell-font-mono: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     --shell-header-height: 80px;
     --shell-footer-height: 56px;
     --shell-card-gap: 12px;

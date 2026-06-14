@@ -2,104 +2,127 @@
 
 Entity Framework Core data access layer providing database contexts, entity models, and repository patterns for the HVOv9 observatory suite.
 
-## 📦 Package Information
+## Package Information
 
 - **Target Framework**: .NET 10.0
 - **Namespace**: `HVO.DataModels`
 - **Type**: Data Access Library
-- **Database**: SQLite (configurable)
+- **Database**: Azure SQL (primary), SQLite (development/test)
 
-## 🎯 Purpose
+## Purpose
 
 Centralized data access layer for:
 - Weather station telemetry storage
+- Battery management system (BMS) telemetry
+- Power system aggregate readings
 - Observatory equipment status history
-- Configuration persistence
-- Time-series data management
-- Sky monitoring data archives
+- API key authentication persistence
+- Site configuration management
 
-## 📁 Structure
+## Structure
 
 ```
 HVO.DataModels/
 ├── Data/
-│   ├── ApplicationDbContext.cs       # Main EF Core DbContext
-│   ├── WeatherDbContext.cs          # Weather-specific context
-│   └── Configurations/              # Entity type configurations
+│   ├── HvoDbContext.cs            # Legacy dbo-schema DbContext (read reference)
+│   ├── HvoV9DbContext.cs          # Main v9-schema DbContext for current development
+│   └── HvoV9DbContextFactory.cs   # Design-time factory for EF migrations
+├── Extensions/
+│   └── ServiceCollectionExtensions.cs  # DI registration helpers
 ├── Models/
-│   ├── WeatherDataPoint.cs         # Weather telemetry entities
-│   ├── Equipment/                  # Equipment status models
-│   └── Configuration/              # App configuration models
+│   ├── AllSkyCameraRecord.cs      # Legacy all-sky camera record
+│   ├── CameraRecord.cs            # Legacy generic camera record
+│   ├── DavisVantagePro*.cs        # Legacy Davis Vantage Pro models
+│   ├── OutbackMate*.cs            # Legacy Outback Mate models
+│   ├── SecurityCameraRecord.cs    # Legacy security camera records
+│   ├── SkyMonitor.cs              # Legacy sky monitor records
+│   ├── V9/                        # Current v9 entity models
+│   │   ├── WeatherRaw.cs          # Raw weather readings
+│   │   ├── WeatherMinute.cs       # Minute-aggregated weather
+│   │   ├── WeatherHourly.cs       # Hourly-aggregated weather
+│   │   ├── BmsReading.cs          # BMS battery readings
+│   │   ├── BmsDevice.cs           # BMS device inventory
+│   │   ├── PowerReading.cs        # Power system readings
+│   │   ├── PowerEnergySnapshot.cs # Energy counter snapshots
+│   │   ├── ApiKey.cs              # API key authentication
+│   │   ├── ImageMetadata.cs       # Image metadata records
+│   │   ├── SiteConfiguration.cs   # Runtime site configuration
+│   │   ├── GatewayStatusSnapshot.cs # Gateway runtime status
+│   │   └── ...                    # Additional v9 entities
+│   ├── WeatherCameraRecord.cs     # Legacy weather camera records
+│   ├── WeatherSatelliteRecord.cs  # Legacy satellite records
+│   └── WebPowerSwitchConfiguration.cs # Legacy PDU config
 ├── RawModels/
-│   ├── RawWeatherData.cs           # Pre-processed sensor data
-│   └── RawSkyData.cs               # Raw sky monitor frames
+│   ├── DavisVantageProAverage.cs  # Davis average calculations
+│   └── WeatherRecordHighLowSummary.cs # High/low summaries
 ├── Repositories/
-│   ├── IWeatherRepository.cs       # Repository interface
-│   ├── WeatherRepository.cs        # Weather data repository
-│   └── BaseRepository.cs           # Generic repository base
-└── Extensions/
-    ├── ServiceCollectionExtensions.cs  # DI setup extensions
-    └── QueryExtensions.cs              # LINQ helpers
+│   ├── IRepository.cs             # Generic repository interface
+│   └── Repository.cs              # Generic repository implementation
+└── Migrations/                    # EF Core migrations
 ```
 
-## 🔑 Key Features
+## Key Features
 
-### Multiple DbContexts
-- **ApplicationDbContext** - General application data
-- **WeatherDbContext** - Weather telemetry and history
-- Separation allows independent scaling and backup strategies
+### Two DbContexts
+
+- **HvoDbContext** - Legacy `dbo` schema. Read-only reference for backward compatibility. New development targets the v9 schema.
+- **HvoV9DbContext** - Current `v9` schema. All new entities, ingest APIs, and read models use this context.
 
 ### Repository Pattern
-Abstraction over EF Core for:
+
+Optional abstraction over EF Core for:
 - Testability (easy mocking)
 - Consistent data access patterns
 - Query encapsulation
-- Transaction management
 
-### Entity Framework Features
-- **Fluent API Configuration** - Type-safe entity configuration
-- **Change Tracking** - Automatic dirty detection
-- **Migrations** - Database schema versioning
-- **Query Optimization** - Compiled queries for performance
+## Database Schema
 
-## 🗄️ Database Schema
+### v9 Schema (Current)
 
-### Weather Tables
+Weather tables:
 ```sql
-CREATE TABLE WeatherDataPoints (
-    Id INTEGER PRIMARY KEY,
-    Timestamp DATETIME NOT NULL,
-    Temperature REAL,
-    Humidity REAL,
-    Pressure REAL,
-    WindSpeed REAL,
-    WindDirection REAL,
-    DewPoint REAL,
-    Created DATETIME NOT NULL
+CREATE TABLE v9.WeatherRaw (
+    Id BIGINT IDENTITY PRIMARY KEY,
+    StationId NVARCHAR(100) NOT NULL,
+    RecordedAtUtc DATETIME2 NOT NULL,
+    OutsideTemperatureF DECIMAL(9,4),
+    OutsideHumidityPercent DECIMAL(9,4),
+    -- Additional weather fields
 );
 ```
 
-### Equipment Tables
+BMS tables:
 ```sql
-CREATE TABLE EquipmentStatus (
-    Id INTEGER PRIMARY KEY,
-    EquipmentId TEXT NOT NULL,
-    Status TEXT NOT NULL,
-    Timestamp DATETIME NOT NULL,
-    Details TEXT
+CREATE TABLE v9.BmsReadings (
+    Id BIGINT IDENTITY PRIMARY KEY,
+    DeviceId NVARCHAR(100) NOT NULL,
+    RecordedAtUtc DATETIME2 NOT NULL,
+    StateOfChargePercent DECIMAL(9,4),
+    VoltageV DECIMAL(9,4),
+    -- Additional BMS fields
 );
 ```
 
-## ⚙️ Configuration
+Power tables:
+```sql
+CREATE TABLE v9.PowerReadings (
+    Id BIGINT IDENTITY PRIMARY KEY,
+    SourceId NVARCHAR(100) NOT NULL,
+    RecordedAtUtc DATETIME2 NOT NULL,
+    PvPowerW DECIMAL(12,4),
+    LoadPowerW DECIMAL(12,4),
+    -- Additional power fields
+);
+```
+
+## Configuration
 
 ### Connection Strings
 
-**appsettings.json:**
 ```json
 {
   "ConnectionStrings": {
-    "ApplicationDb": "Data Source=hvo-app.db",
-    "WeatherDb": "Data Source=weather-history.db"
+    "HualapaiValleyObservatory": "Server=tcp:<server>.database.windows.net;Database=<db>;..."
   }
 }
 ```
@@ -107,226 +130,40 @@ CREATE TABLE EquipmentStatus (
 ### Dependency Injection Setup
 
 ```csharp
-// Startup.cs or Program.cs
-services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlite(
-        configuration.GetConnectionString("ApplicationDb"),
-        b => b.MigrationsAssembly("HVO.DataModels")
-    ));
-
-services.AddDbContext<WeatherDbContext>(options =>
-    options.UseSqlite(configuration.GetConnectionString("WeatherDb")));
-
-// Register repositories
-services.AddScoped<IWeatherRepository, WeatherRepository>();
+services.AddDbContext<HvoV9DbContext>(options =>
+    options.UseSqlServer(
+        configuration.GetConnectionString("HualapaiValleyObservatory")));
 ```
 
-Or use the extension method:
-```csharp
-services.AddHVODataModels(configuration);
-```
-
-## 🎓 Usage Examples
-
-### Repository Pattern Usage
+### Design-Time Factory
 
 ```csharp
-public class WeatherService
+public class HvoV9DbContextFactory : IDesignTimeDbContextFactory<HvoV9DbContext>
 {
-    private readonly IWeatherRepository _repository;
-    
-    public WeatherService(IWeatherRepository repository)
+    public HvoV9DbContext CreateDbContext(string[] args)
     {
-        _repository = repository;
-    }
-    
-    public async Task<Result<WeatherDataPoint>> GetLatestWeatherAsync()
-    {
-        try
-        {
-            var latest = await _repository.GetLatestAsync();
-            return latest != null
-                ? Result<WeatherDataPoint>.Success(latest)
-                : Result<WeatherDataPoint>.Failure(
-                    new InvalidOperationException("No weather data available"));
-        }
-        catch (Exception ex)
-        {
-            return Result<WeatherDataPoint>.Failure(ex);
-        }
-    }
-    
-    public async Task<Result<List<WeatherDataPoint>>> GetHistoryAsync(
-        DateTime start, 
-        DateTime end)
-    {
-        try
-        {
-            var data = await _repository.GetRangeAsync(start, end);
-            return Result<List<WeatherDataPoint>>.Success(data.ToList());
-        }
-        catch (Exception ex)
-        {
-            return Result<List<WeatherDataPoint>>.Failure(ex);
-        }
+        var optionsBuilder = new DbContextOptionsBuilder<HvoV9DbContext>();
+        optionsBuilder.UseSqlServer("...");
+        return new HvoV9DbContext(optionsBuilder.Options);
     }
 }
 ```
 
-### Direct DbContext Usage
+## Database Migrations
 
-```csharp
-public class EquipmentMonitor
-{
-    private readonly ApplicationDbContext _context;
-    
-    public async Task LogStatusAsync(string equipmentId, string status)
-    {
-        var entry = new EquipmentStatus
-        {
-            EquipmentId = equipmentId,
-            Status = status,
-            Timestamp = DateTime.UtcNow
-        };
-        
-        _context.EquipmentStatus.Add(entry);
-        await _context.SaveChangesAsync();
-    }
-    
-    public async Task<List<EquipmentStatus>> GetRecentStatusAsync(
-        string equipmentId, 
-        int count = 100)
-    {
-        return await _context.EquipmentStatus
-            .Where(e => e.EquipmentId == equipmentId)
-            .OrderByDescending(e => e.Timestamp)
-            .Take(count)
-            .ToListAsync();
-    }
-}
-```
-
-## 🗂️ Database Migrations
-
-### Create Migration
 ```bash
 # From src/HVO.DataModels/
-dotnet ef migrations add InitialCreate --context ApplicationDbContext
-
-# For weather DB
-dotnet ef migrations add WeatherSchema --context WeatherDbContext
+dotnet ef migrations add <Name> --context HvoV9DbContext
+dotnet ef database update --context HvoV9DbContext
 ```
 
-### Apply Migration
-```bash
-dotnet ef database update --context ApplicationDbContext
-dotnet ef database update --context WeatherDbContext
-```
+## Dependencies
 
-### Production Migrations
-Applications should apply migrations at startup:
-```csharp
-public static async Task Main(string[] args)
-{
-    var app = builder.Build();
-    
-    using (var scope = app.Services.CreateScope())
-    {
-        var appDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var weatherDb = scope.ServiceProvider.GetRequiredService<WeatherDbContext>();
-        
-        await appDb.Database.MigrateAsync();
-        await weatherDb.Database.MigrateAsync();
-    }
-    
-    await app.RunAsync();
-}
-```
-
-## 📊 Performance Considerations
-
-### Compiled Queries
-For frequently-used queries:
-```csharp
-private static readonly Func<WeatherDbContext, DateTime, Task<WeatherDataPoint?>> 
-    GetLatestQuery = EF.CompileAsyncQuery(
-        (WeatherDbContext ctx, DateTime since) =>
-            ctx.WeatherDataPoints
-                .Where(w => w.Timestamp >= since)
-                .OrderByDescending(w => w.Timestamp)
-                .FirstOrDefault());
-```
-
-### Indexing
-Create indexes in fluent configuration:
-```csharp
-entity.HasIndex(e => e.Timestamp)
-    .HasDatabaseName("IX_WeatherDataPoints_Timestamp");
-    
-entity.HasIndex(e => new { e.EquipmentId, e.Timestamp })
-    .HasDatabaseName("IX_EquipmentStatus_EquipmentId_Timestamp");
-```
-
-### Projection
-Use `Select()` to fetch only needed columns:
-```csharp
-var summary = await _context.WeatherDataPoints
-    .Where(w => w.Timestamp >= startDate)
-    .Select(w => new WeatherSummary 
-    { 
-        Timestamp = w.Timestamp, 
-        Temperature = w.Temperature 
-    })
-    .ToListAsync();
-```
-
-## 🧪 Testing
-
-### In-Memory Database for Tests
-```csharp
-var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-    .UseInMemoryDatabase(databaseName: "TestDb")
-    .Options;
-
-using var context = new ApplicationDbContext(options);
-
-// Seed test data
-context.WeatherDataPoints.Add(new WeatherDataPoint 
-{ 
-    Temperature = 20.5, 
-    Timestamp = DateTime.UtcNow 
-});
-await context.SaveChangesAsync();
-
-// Test repository
-var repository = new WeatherRepository(context);
-var latest = await repository.GetLatestAsync();
-Assert.NotNull(latest);
-```
-
-## 🔗 Dependencies
-
-- **Microsoft.EntityFrameworkCore** - EF Core runtime
-- **Microsoft.EntityFrameworkCore.Sqlite** - SQLite provider
+- **Microsoft.EntityFrameworkCore.SqlServer** - SQL Server / Azure SQL provider
 - **Microsoft.EntityFrameworkCore.Tools** - Migration tools
-- **HVO** - Core library for Result<T> pattern
+- **HVO.Core** - Core shared library (NuGet)
 
-## 📚 Used By
+## Used By
 
-- `HVO.WebSite.v9` - Main website data access
-- `HVO.SkyMonitorV5.RPi` - Sky monitoring data (may migrate to separate context)
-- `HVO.RoofControllerV4.RPi` - Equipment status logging
-
-## 🔄 Future Enhancements
-
-- [ ] Add TimescaleDB support for time-series optimization
-- [ ] Implement read replicas for query scaling
-- [ ] Add audit logging interceptor
-- [ ] Create `DbContext` pooling for high-throughput scenarios
-- [ ] Separate context for sky monitor archives (large binary data)
-
-## 📖 Related Documentation
-
-- [EF Core Documentation](https://learn.microsoft.com/en-us/ef/core/)
-- [Repository Pattern](https://learn.microsoft.com/en-us/previous-versions/msp-n-p/ff649690(v=pandp.10))
-- [HVOv9 Database Schema](../../docs/database-schema.md) *(if exists)*
+- `HVO.WebSite.v9` - Main website data access (Azure SQL)
+- `HVO.Hardware.DavisVantagePro2` - Legacy schema reads
