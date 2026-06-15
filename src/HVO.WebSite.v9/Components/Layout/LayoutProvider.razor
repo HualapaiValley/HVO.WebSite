@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
+@using Microsoft.AspNetCore.Components.Rendering
 
 @_selectedLayout
 
@@ -22,63 +23,126 @@
         var path = Navigation.ToBaseRelativePath(Navigation.Uri).TrimStart('/');
         var isAdmin = path == "admin" || path.StartsWith("admin/", StringComparison.OrdinalIgnoreCase);
 
-        _selectedLayout = isAdmin ? AdminLayout() : PublicLayout();
+        _selectedLayout = isAdmin ? RenderAdminLayout() : RenderPublicLayout();
     }
 
-    private RenderFragment AdminLayout() => __builder =>
+    private RenderFragment RenderAdminLayout() => builder =>
     {
-        <HvoAdminLayout IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnDarkModeChanged">
-            <SidebarItems>
-                <MudNavLink Href="/admin">Dashboard</MudNavLink>
-                <MudNavLink Href="/admin" Disabled="true">Users</MudNavLink>
-                <MudNavLink Href="/admin" Disabled="true">Settings</MudNavLink>
-                <MudNavLink Href="/admin" Disabled="true">Logs</MudNavLink>
-                <MudDivider Class="my-2" />
-                <MudNavLink Href="/">Back to Site</MudNavLink>
-            </SidebarItems>
-            <AppBarActions>
-                <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
-                               aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
-                <AuthorizeView>
-                    <Authorized>
-                        <MudMenu Label="@context.User.Identity?.Name" Variant="Variant.Text" Color="Color.Inherit"
-                                 EndIcon="@Icons.Material.Outlined.ExpandMore">
-                            <MudMenuItem Href="MicrosoftIdentity/Account/SignOut">Sign out</MudMenuItem>
-                        </MudMenu>
-                    </Authorized>
-                </AuthorizeView>
-            </AppBarActions>
-            <Body>@Body</Body>
-        </HvoAdminLayout>
+        builder.OpenComponent<HvoAdminLayout>(0);
+        builder.AddAttribute(1, nameof(HvoAdminLayout.IsDarkMode), _isDarkMode);
+        builder.AddAttribute(2, nameof(HvoAdminLayout.IsDarkModeChanged), EventCallback.Factory.Create<bool>(this, OnDarkModeChanged));
+        builder.AddAttribute(3, nameof(HvoAdminLayout.SidebarItems), RenderAdminSidebar());
+        builder.AddAttribute(4, nameof(HvoAdminLayout.AppBarActions), RenderAdminActions());
+        builder.AddAttribute(5, nameof(HvoAdminLayout.Body), Body);
+        builder.CloseComponent();
     };
 
-    private RenderFragment PublicLayout() => __builder =>
+    private RenderFragment RenderPublicLayout() => builder =>
     {
-        <HvoPublicLayout IsDarkMode="@_isDarkMode" IsDarkModeChanged="@OnDarkModeChanged">
-            <NavItems>
-                <MudButton Href="/" Variant="Variant.Text" Color="Color.Inherit" Class="shell-nav-link">Home</MudButton>
-            </NavItems>
-            <AuthSection>
-                <AuthorizeView>
-                    <Authorized>
-                        <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
-                                       aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
-                        <MudMenu Label="@context.User.Identity?.Name" Variant="Variant.Text" Color="Color.Inherit"
-                                 EndIcon="@Icons.Material.Outlined.ExpandMore">
-                            <MudMenuItem Href="MicrosoftIdentity/Account/SignOut">Sign out</MudMenuItem>
-                        </MudMenu>
-                    </Authorized>
-                    <NotAuthorized>
-                        <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" Size="Size.Medium"
-                                       aria-label="@ThemeLabel" OnClick="@ToggleTheme" />
-                        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-                                   Href="MicrosoftIdentity/Account/SignIn">Sign in</MudButton>
-                    </NotAuthorized>
-                </AuthorizeView>
-            </AuthSection>
-            <Body>@Body</Body>
-        </HvoPublicLayout>
+        builder.OpenComponent<HvoPublicLayout>(0);
+        builder.AddAttribute(1, nameof(HvoPublicLayout.IsDarkMode), _isDarkMode);
+        builder.AddAttribute(2, nameof(HvoPublicLayout.IsDarkModeChanged), EventCallback.Factory.Create<bool>(this, OnDarkModeChanged));
+        builder.AddAttribute(3, nameof(HvoPublicLayout.NavItems), RenderPublicNav());
+        builder.AddAttribute(4, nameof(HvoPublicLayout.AuthSection), RenderPublicAuth());
+        builder.AddAttribute(5, nameof(HvoPublicLayout.Body), Body);
+        builder.CloseComponent();
     };
+
+    private static RenderFragment RenderAdminSidebar() => builder =>
+    {
+        AddNavLink(builder, 0, "/admin", "Dashboard");
+        AddNavLink(builder, 10, "/admin", "Users", disabled: true);
+        AddNavLink(builder, 20, "/admin", "Settings", disabled: true);
+        AddNavLink(builder, 30, "/admin", "Logs", disabled: true);
+        builder.OpenComponent<MudDivider>(40);
+        builder.AddAttribute(41, "Class", "my-2");
+        builder.CloseComponent();
+        AddNavLink(builder, 50, "/", "Back to Site");
+    };
+
+    private RenderFragment RenderAdminActions() => builder =>
+    {
+        AddThemeButton(builder, 0);
+        builder.OpenComponent<AuthorizeView>(10);
+        builder.AddAttribute(11, nameof(AuthorizeView.Authorized), (RenderFragment<AuthenticationState>)(state => menuBuilder =>
+        {
+            AddAccountMenu(menuBuilder, 0, state.User.Identity?.Name);
+        }));
+        builder.CloseComponent();
+    };
+
+    private static RenderFragment RenderPublicNav() => builder =>
+    {
+        builder.OpenComponent<MudButton>(0);
+        builder.AddAttribute(1, "Href", "/");
+        builder.AddAttribute(2, "Variant", Variant.Text);
+        builder.AddAttribute(3, "Color", Color.Inherit);
+        builder.AddAttribute(4, "Class", "shell-nav-link");
+        builder.AddAttribute(5, "ChildContent", (RenderFragment)(childBuilder => childBuilder.AddContent(0, "Home")));
+        builder.CloseComponent();
+    };
+
+    private RenderFragment RenderPublicAuth() => builder =>
+    {
+        builder.OpenComponent<AuthorizeView>(0);
+        builder.AddAttribute(1, nameof(AuthorizeView.Authorized), (RenderFragment<AuthenticationState>)(state => authBuilder =>
+        {
+            AddThemeButton(authBuilder, 0);
+            AddAccountMenu(authBuilder, 10, state.User.Identity?.Name);
+        }));
+        builder.AddAttribute(2, nameof(AuthorizeView.NotAuthorized), (RenderFragment<AuthenticationState>)(_ => authBuilder =>
+        {
+            AddThemeButton(authBuilder, 0);
+            authBuilder.OpenComponent<MudButton>(10);
+            authBuilder.AddAttribute(11, "Variant", Variant.Outlined);
+            authBuilder.AddAttribute(12, "Color", Color.Primary);
+            authBuilder.AddAttribute(13, "Href", "MicrosoftIdentity/Account/SignIn");
+            authBuilder.AddAttribute(14, "ChildContent", (RenderFragment)(childBuilder => childBuilder.AddContent(0, "Sign in")));
+            authBuilder.CloseComponent();
+        }));
+        builder.CloseComponent();
+    };
+
+    private void AddThemeButton(RenderTreeBuilder builder, int sequence)
+    {
+        builder.OpenComponent<MudIconButton>(sequence);
+        builder.AddAttribute(sequence + 1, "Icon", ThemeIcon);
+        builder.AddAttribute(sequence + 2, "Color", Color.Inherit);
+        builder.AddAttribute(sequence + 3, "Size", Size.Medium);
+        builder.AddAttribute(sequence + 4, "aria-label", ThemeLabel);
+        builder.AddAttribute(sequence + 5, "OnClick", EventCallback.Factory.Create<MouseEventArgs>(this, ToggleTheme));
+        builder.CloseComponent();
+    }
+
+    private static void AddAccountMenu(RenderTreeBuilder builder, int sequence, string? userName)
+    {
+        builder.OpenComponent<MudMenu>(sequence);
+        builder.AddAttribute(sequence + 1, "Label", string.IsNullOrWhiteSpace(userName) ? "Account" : userName);
+        builder.AddAttribute(sequence + 2, "Variant", Variant.Text);
+        builder.AddAttribute(sequence + 3, "Color", Color.Inherit);
+        builder.AddAttribute(sequence + 4, "EndIcon", Icons.Material.Outlined.ExpandMore);
+        builder.AddAttribute(sequence + 5, "ChildContent", (RenderFragment)(childBuilder =>
+        {
+            childBuilder.OpenComponent<MudMenuItem>(0);
+            childBuilder.AddAttribute(1, "Href", "MicrosoftIdentity/Account/SignOut");
+            childBuilder.AddAttribute(2, "ChildContent", (RenderFragment)(menuItemBuilder => menuItemBuilder.AddContent(0, "Sign out")));
+            childBuilder.CloseComponent();
+        }));
+        builder.CloseComponent();
+    }
+
+    private static void AddNavLink(RenderTreeBuilder builder, int sequence, string href, string text, bool disabled = false)
+    {
+        builder.OpenComponent<MudNavLink>(sequence);
+        builder.AddAttribute(sequence + 1, "Href", href);
+        if (disabled)
+        {
+            builder.AddAttribute(sequence + 2, "Disabled", true);
+        }
+
+        builder.AddAttribute(sequence + 3, "ChildContent", (RenderFragment)(childBuilder => childBuilder.AddContent(0, text)));
+        builder.CloseComponent();
+    }
 
     private string ThemeIcon => _isDarkMode
         ? Icons.Material.Outlined.DarkMode
@@ -87,5 +151,6 @@
     private string ThemeLabel => _isDarkMode ? "Switch to light theme" : "Switch to dark theme";
 
     private void ToggleTheme() => _isDarkMode = !_isDarkMode;
+
     private void OnDarkModeChanged(bool isDark) => _isDarkMode = isDark;
 }

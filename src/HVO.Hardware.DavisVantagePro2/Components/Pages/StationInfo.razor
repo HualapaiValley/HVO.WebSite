@@ -14,26 +14,26 @@
 
             @if (SiteState.IsInitializing && Info is null)
             {
-                <div class="callout info">Loading station information snapshot…</div>
+                <div class="hvo-callout hvo-callout-info">Loading station information snapshot…</div>
             }
 
             @if (ErrorMessage is not null)
             {
-                <div class="callout error callout-with-action">
+                <div class="hvo-callout hvo-callout-error station-info-callout-with-action">
                     <span>@ErrorMessage</span>
-                    <button class="action-btn" @onclick="LoadAsync" disabled="@SiteState.IsRefreshingStationInfo">Retry</button>
+                    <button class="hvo-button" @onclick="LoadAsync" disabled="@SiteState.IsRefreshingStationInfo">Retry</button>
                 </div>
             }
 
             <div class="info-grid">
-                <section class="card-shell summary-card">
+                <section class="hvo-card-shell summary-card">
                     <div class="section-head">
                         <div>
                             <div class="eyebrow">Console Identity</div>
                             <h2>Hardware Profile</h2>
                         </div>
                         <div class="card-actions">
-                            <button class="action-btn primary" @onclick="LoadAsync" disabled="@SiteState.IsRefreshingStationInfo">@(SiteState.IsRefreshingStationInfo ? "Refreshing…" : "Refresh")</button>
+                            <button class="hvo-button hvo-button-primary" @onclick="LoadAsync" disabled="@SiteState.IsRefreshingStationInfo">@(SiteState.IsRefreshingStationInfo ? "Refreshing…" : "Refresh")</button>
                         </div>
                     </div>
 
@@ -53,7 +53,7 @@
                     </div>
                 </section>
 
-                <section class="card-shell timing-card">
+                <section class="hvo-card-shell timing-card">
                     <div class="section-head">
                         <div>
                             <div class="eyebrow">Clock Health</div>
@@ -62,15 +62,15 @@
                     </div>
 
                     <div class="data-pairs">
-                        <div class="pair"><span>Console time</span><strong class="mono">@ConsoleTimeText</strong></div>
-                        <div class="pair"><span>System time</span><strong class="mono">@now.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
-                        <div class="pair"><span>Drift</span><strong class="mono">@DriftText</strong></div>
+                        <div class="pair"><span>Console time</span><strong class="hvo-mono">@ConsoleTimeText</strong></div>
+                        <div class="pair"><span>System time</span><strong class="hvo-mono">@now.ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
+                        <div class="pair"><span>Drift</span><strong class="hvo-mono">@DriftText</strong></div>
                         <div class="pair"><span>Time zone</span><strong>@Station.ConsoleTimeZoneLabel</strong></div>
                     </div>
                 </section>
             </div>
 
-            <section class="card-shell detail-card">
+            <section class="hvo-card-shell detail-card">
                 <div class="section-head">
                     <div>
                         <div class="eyebrow">Detail</div>

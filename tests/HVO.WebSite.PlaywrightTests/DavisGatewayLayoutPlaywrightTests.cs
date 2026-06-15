@@ -37,43 +37,67 @@ public sealed class DavisGatewayLayoutPlaywrightTests
         }
 
         await page.GotoAsync(new Uri(new Uri(baseUrl.TrimEnd('/') + "/"), "alarms").ToString());
-        await Assertions.Expect(page.Locator(".proto-alarm-grid")).ToBeVisibleAsync();
-        var alarmGridColumns = await page.Locator(".proto-alarm-grid").EvaluateAsync<string>("el => getComputedStyle(el).gridTemplateColumns");
+        await Assertions.Expect(page.Locator(".alarm-grid")).ToBeVisibleAsync();
+        var alarmGridColumns = await page.Locator(".alarm-grid").EvaluateAsync<string>("el => getComputedStyle(el).gridTemplateColumns");
         Assert.AreNotEqual("none", alarmGridColumns);
         Assert.IsTrue(alarmGridColumns.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 2, "Alerts should render as a two-column desktop grid.");
-        await AssertStyledCardAsync(page.Locator(".alarm-definitions-page .proto-card").First, "Alerts rule editor card");
-        await AssertStyledControlAsync(page.Locator(".alarm-definitions-page .proto-select").First, "Alerts select");
-        await AssertStyledControlAsync(page.Locator(".alarm-definitions-page .proto-button").First, "Alerts button");
+        await AssertStyledCardAsync(page.Locator(".alarm-definitions-page .hvo-card-shell").First, "Alerts rule editor card");
+        await AssertStyledControlAsync(page.Locator(".alarm-definitions-page .hvo-control").First, "Alerts control");
+        await AssertStyledControlAsync(page.Locator(".alarm-definitions-page .hvo-button").First, "Alerts button");
+        await AssertNoLegacyLiveClassesAsync(page, "Alerts");
 
         await page.GotoAsync(new Uri(new Uri(baseUrl.TrimEnd('/') + "/"), "archive").ToString());
-        await AssertStyledCardAsync(page.Locator(".archive-page .card-shell").First, "Archive status card");
+        await AssertStyledCardAsync(page.Locator(".archive-page .hvo-card-shell").First, "Archive status card");
         await AssertStyledControlAsync(page.Locator(".archive-page select").First, "Archive select");
-        await AssertStyledControlAsync(page.Locator(".archive-page .action-btn").First, "Archive button");
+        await AssertStyledControlAsync(page.Locator(".archive-page input[type='datetime-local']").First, "Archive datetime input");
+        await AssertStyledControlAsync(page.Locator(".archive-page .hvo-button").First, "Archive button");
+        await AssertNoLegacyLiveClassesAsync(page, "Archive");
 
         await page.GotoAsync(new Uri(new Uri(baseUrl.TrimEnd('/') + "/"), "console-settings").ToString());
-        await AssertStyledCardAsync(page.Locator(".console-settings-page .proto-card").First, "Configuration card");
-        await AssertStyledControlAsync(page.Locator(".console-settings-page .proto-input").First, "Configuration input");
-        await AssertStyledControlAsync(page.Locator(".console-settings-page .proto-select").First, "Configuration select");
+        await AssertStyledCardAsync(page.Locator(".console-settings-page .hvo-card-shell").First, "Configuration card");
+        await AssertStyledControlAsync(page.Locator(".console-settings-page .hvo-control").First, "Configuration input");
+        await AssertStyledControlAsync(page.Locator(".console-settings-page select.hvo-control").First, "Configuration select");
+        await AssertStyledControlAsync(page.Locator(".console-settings-page input[type='datetime-local']").First, "Configuration datetime input");
+        await AssertNoLegacyLiveClassesAsync(page, "Configuration");
     }
 
     private static async Task AssertStyledCardAsync(ILocator locator, string label)
     {
         await Assertions.Expect(locator).ToBeVisibleAsync();
-        var style = await locator.EvaluateAsync<ElementStyle>(
-            "el => ({ backgroundColor: getComputedStyle(el).backgroundColor, borderRadius: getComputedStyle(el).borderRadius, display: getComputedStyle(el).display })");
+        var style = await GetStyleAsync(locator);
 
-        Assert.AreNotEqual("rgba(0, 0, 0, 0)", style.BackgroundColor, $"{label} should have a themed background.");
-        Assert.IsTrue(ParsePixels(style.BorderRadius) >= 12, $"{label} should have a card radius.");
+        Assert.AreNotEqual("rgba(0, 0, 0, 0)", style.BackgroundColor, $"{label} should have a themed background. Style: {style}");
+        Assert.IsTrue(ParsePixels(style.BorderRadius) >= 12, $"{label} should have a card radius. Style: {style}");
     }
 
     private static async Task AssertStyledControlAsync(ILocator locator, string label)
     {
         await Assertions.Expect(locator).ToBeVisibleAsync();
-        var style = await locator.EvaluateAsync<ElementStyle>(
-            "el => ({ backgroundColor: getComputedStyle(el).backgroundColor, borderRadius: getComputedStyle(el).borderRadius, display: getComputedStyle(el).display })");
+        var style = await GetStyleAsync(locator);
 
-        Assert.AreNotEqual("rgb(255, 255, 255)", style.BackgroundColor, $"{label} should not use browser default white styling.");
-        Assert.IsTrue(ParsePixels(style.BorderRadius) >= 10, $"{label} should have themed rounded styling.");
+        Assert.AreNotEqual("rgb(255, 255, 255)", style.BackgroundColor, $"{label} should not use browser default white styling. Style: {style}");
+        Assert.IsTrue(ParsePixels(style.BorderRadius) >= 10, $"{label} should have themed rounded styling. Style: {style}");
+    }
+
+    private static async Task AssertNoLegacyLiveClassesAsync(IPage page, string label)
+    {
+        var legacyCount = await page.Locator("[class*='proto-'], .action-btn, .card-shell, .archive-table").CountAsync();
+        Assert.AreEqual(0, legacyCount, $"{label} should use shared hvo-* theme classes instead of legacy page/prototype classes.");
+    }
+
+    private static async Task<ElementStyle> GetStyleAsync(ILocator locator)
+    {
+        var styleText = await locator.EvaluateAsync<string>(
+            "el => { const s = window.getComputedStyle(el); return [s.getPropertyValue('background-color'), s.getPropertyValue('border-radius'), s.getPropertyValue('display'), el.getAttribute('class') || el.tagName].join('|'); }");
+        var parts = styleText.Split('|');
+
+        return new ElementStyle
+        {
+            BackgroundColor = parts.ElementAtOrDefault(0) ?? string.Empty,
+            BorderRadius = parts.ElementAtOrDefault(1) ?? string.Empty,
+            Display = parts.ElementAtOrDefault(2) ?? string.Empty,
+            ClassName = parts.ElementAtOrDefault(3) ?? string.Empty
+        };
     }
 
     private static double ParsePixels(string value)
@@ -102,5 +126,9 @@ public sealed class DavisGatewayLayoutPlaywrightTests
         public string BorderRadius { get; set; } = string.Empty;
 
         public string Display { get; set; } = string.Empty;
+
+        public string ClassName { get; set; } = string.Empty;
+
+        public override string ToString() => $"background={BackgroundColor}, radius={BorderRadius}, display={Display}, class={ClassName}";
     }
 }

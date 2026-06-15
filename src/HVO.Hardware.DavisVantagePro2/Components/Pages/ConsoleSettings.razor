@@ -5,31 +5,31 @@
         <div class="shell-page-stack console-settings-stack">
             <h1 class="page-heading">Configuration</h1>
 
-            <section class="card-shell console-settings-shell">
+            <section class="hvo-card-shell console-settings-shell">
                 <div class="console-settings-tab-actions">
                     <MudIconButton Icon="@Icons.Material.Outlined.Refresh" Color="Color.Inherit" Size="Size.Small" aria-label="Refresh configuration data from console" OnClick="RefreshConfigurationAsync" Disabled="@IsPageRefreshBusy" />
                 </div>
 
                 <MudTabs Class="console-settings-tabs" Rounded="true" Elevation="0" ApplyEffectsToContainer="true">
                     <MudTabPanel Text="Hardware Configuration" Class="console-settings-tab-panel">
-                        <div class="proto-list-stack console-settings-tab-stack">
-            <section class="proto-card">
+                        <div class="hvo-stack console-settings-tab-stack">
+            <section class="hvo-card-shell">
                 @if (IsClockBusy)
                 {
                     <div class="console-settings-busy-overlay" aria-hidden="true">
                         <div class="console-settings-spinner"></div>
                     </div>
                 }
-                <div class="proto-section-head">
+                <div class="hvo-section-head">
                     <div>
                         <h2>Clock</h2>
                     </div>
                 </div>
                 <fieldset class="console-settings-clock-fieldset" disabled="@IsClockSectionBusy" aria-busy="@IsClockSectionBusy">
-                <div class="proto-form-grid console-settings-time-grid">
-                    <div class="proto-field">
-                        <label class="proto-field-label">Console time</label>
-                        <input class="proto-input proto-mono"
+                <div class="hvo-form-grid console-settings-time-grid">
+                    <div class="hvo-field">
+                        <label class="hvo-field-label">Console time</label>
+                        <input class="hvo-control hvo-mono"
                                type="datetime-local"
                                step="1"
                                @bind-value="EditableConsoleTime"
@@ -37,15 +37,15 @@
                                disabled="@IsClockSectionBusy"
                                aria-label="Console clock time" />
                     </div>
-                    <div class="proto-field"><label class="proto-field-label">@ReferenceTimeLabel</label><input class="proto-input proto-mono" type="text" value="@ReferenceTimeText" readonly /></div>
-                    <div class="proto-field"><label class="proto-field-label">Drift</label><input class="proto-input proto-mono" type="text" value="@DriftText" readonly /></div>
+                    <div class="hvo-field"><label class="hvo-field-label">@ReferenceTimeLabel</label><input class="hvo-control hvo-mono" type="text" value="@ReferenceTimeText" readonly /></div>
+                    <div class="hvo-field"><label class="hvo-field-label">Drift</label><input class="hvo-control hvo-mono" type="text" value="@DriftText" readonly /></div>
                 </div>
-                <div class="proto-action-row console-settings-actions console-settings-clock-actions">
+                <div class="hvo-action-row console-settings-actions console-settings-clock-actions">
                     @if (!string.IsNullOrWhiteSpace(DisplayedClockStatusMessage))
                     {
                         <p class="@ClockStatusClass" role="status">@DisplayedClockStatusMessage</p>
                     }
-                    <button class="proto-button success" type="button" @onclick="SyncClockAsync" disabled="@IsClockSectionBusy">
+                    <button class="hvo-button hvo-button-success" type="button" @onclick="SyncClockAsync" disabled="@IsClockSectionBusy">
                         @if (IsClockBusy)
                         {
                             <span class="console-settings-button-spinner" aria-hidden="true"></span>
@@ -60,26 +60,26 @@
                 </fieldset>
             </section>
 
-            <section class="proto-card">
+            <section class="hvo-card-shell">
                 @if (IsLocationSectionBusy)
                 {
                     <div class="console-settings-busy-overlay" aria-hidden="true">
                         <div class="console-settings-spinner"></div>
                     </div>
                 }
-                <div class="proto-section-head">
+                <div class="hvo-section-head">
                     <div>
-                        <div class="proto-eyebrow">EEPROM Settings</div>
+                        <div class="hvo-eyebrow">EEPROM Settings</div>
                         <h2>Location, Time Zone, And Logging</h2>
                     </div>
                 </div>
                 <fieldset class="console-settings-clock-fieldset" disabled="@IsLocationSectionBusy" aria-busy="@IsLocationSectionBusy">
-                <div class="proto-form-grid console-settings-location-grid">
-                    <div class="proto-field"><label class="proto-field-label">Latitude</label><input class="proto-input proto-mono" type="number" min="-90" max="90" step="0.0001" required @bind="EditableLatitude" /></div>
-                    <div class="proto-field"><label class="proto-field-label">Longitude</label><input class="proto-input proto-mono" type="number" min="-180" max="180" step="0.0001" required @bind="EditableLongitude" /></div>
-                    <div class="proto-field"><label class="proto-field-label">Station location altitude (ft)</label><input class="proto-input proto-mono" type="number" min="0" max="20000" step="1" required @bind="EditableAltitudeFeet" /></div>
-                    <div class="proto-field"><label class="proto-field-label">DST mode</label><select class="proto-select" @bind="EditableDstMode"><option value="Auto">AUTO</option><option value="On">ON</option><option value="Off">OFF</option></select></div>
-                    <div class="proto-field"><label class="proto-field-label">Time zone</label><select class="proto-select" @bind="EditableTimeZoneCode">@if (!EditableTimeZoneCode.HasValue)
+                <div class="hvo-form-grid console-settings-location-grid">
+                    <div class="hvo-field"><label class="hvo-field-label">Latitude</label><input class="hvo-control hvo-mono" type="number" min="-90" max="90" step="0.0001" required @bind="EditableLatitude" /></div>
+                    <div class="hvo-field"><label class="hvo-field-label">Longitude</label><input class="hvo-control hvo-mono" type="number" min="-180" max="180" step="0.0001" required @bind="EditableLongitude" /></div>
+                    <div class="hvo-field"><label class="hvo-field-label">Station location altitude (ft)</label><input class="hvo-control hvo-mono" type="number" min="0" max="20000" step="1" required @bind="EditableAltitudeFeet" /></div>
+                    <div class="hvo-field"><label class="hvo-field-label">DST mode</label><select class="hvo-control" @bind="EditableDstMode"><option value="Auto">AUTO</option><option value="On">ON</option><option value="Off">OFF</option></select></div>
+                    <div class="hvo-field"><label class="hvo-field-label">Time zone</label><select class="hvo-control" @bind="EditableTimeZoneCode">@if (!EditableTimeZoneCode.HasValue)
                         {
                             <option value="">Choose a time zone</option>
                         }
@@ -87,14 +87,14 @@
                         {
                             <option value="@option.Code">@option.Label</option>
                         }</select></div>
-                    <div class="proto-field"><label class="proto-field-label">Temperature logging</label><select class="proto-select" @bind="EditableTemperatureLogging"><option value="Average">AVERAGE</option><option value="Last">LAST</option></select></div>
+                    <div class="hvo-field"><label class="hvo-field-label">Temperature logging</label><select class="hvo-control" @bind="EditableTemperatureLogging"><option value="Average">AVERAGE</option><option value="Last">LAST</option></select></div>
                 </div>
-                <div class="proto-action-row console-settings-actions console-settings-location-actions">
+                <div class="hvo-action-row console-settings-actions console-settings-location-actions">
                     @if (!string.IsNullOrWhiteSpace(DisplayedLocationStatusMessage))
                     {
                         <p class="@LocationStatusClass" role="status">@DisplayedLocationStatusMessage</p>
                     }
-                    <button class="proto-button success" type="button" @onclick="SaveLocationSettingsAsync" disabled="@IsLocationSectionBusy">
+                    <button class="hvo-button hvo-button-success" type="button" @onclick="SaveLocationSettingsAsync" disabled="@IsLocationSectionBusy">
                         @if (IsLocationSettingsBusy)
                         {
                             <span class="console-settings-button-spinner" aria-hidden="true"></span>
@@ -109,63 +109,63 @@
                 </fieldset>
             </section>
 
-            <section class="proto-card">
-                <div class="proto-section-head">
+            <section class="hvo-card-shell">
+                <div class="hvo-section-head">
                     <div>
-                        <div class="proto-eyebrow">Console Unit Settings</div>
+                        <div class="hvo-eyebrow">Console Unit Settings</div>
                         <h2>Detected Console Units</h2>
                     </div>
                 </div>
-                <div class="console-settings-readonly-callout console-settings-units-callout">
-                    <div class="proto-form-grid console-settings-units-grid">
-                        <div class="proto-field"><label class="proto-field-label">Barometer</label><select class="proto-select" @bind="EditableBarometerUnits">@foreach (var option in AvailableBarometerUnits)
+                <div class="console-settings-readonly-panel console-settings-units-panel">
+                    <div class="hvo-form-grid console-settings-units-grid">
+                        <div class="hvo-field"><label class="hvo-field-label">Barometer</label><select class="hvo-control" @bind="EditableBarometerUnits">@foreach (var option in AvailableBarometerUnits)
                             {
                                 <option value="@option.Value">@option.Label</option>
                             }</select></div>
-                        <div class="proto-field"><label class="proto-field-label">Temperature</label><select class="proto-select" @bind="EditableTemperatureUnits">@foreach (var option in AvailableTemperatureUnits)
+                        <div class="hvo-field"><label class="hvo-field-label">Temperature</label><select class="hvo-control" @bind="EditableTemperatureUnits">@foreach (var option in AvailableTemperatureUnits)
                             {
                                 <option value="@option.Value">@option.Label</option>
                             }</select></div>
-                        <div class="proto-field"><label class="proto-field-label">Rain</label><select class="proto-select" @bind="EditableRainUnits">@foreach (var option in AvailableRainUnits)
+                        <div class="hvo-field"><label class="hvo-field-label">Rain</label><select class="hvo-control" @bind="EditableRainUnits">@foreach (var option in AvailableRainUnits)
                             {
                                 <option value="@option.Value">@option.Label</option>
                             }</select></div>
-                        <div class="proto-field"><label class="proto-field-label">Wind</label><select class="proto-select" @bind="EditableWindUnits">@foreach (var option in AvailableWindUnits)
+                        <div class="hvo-field"><label class="hvo-field-label">Wind</label><select class="hvo-control" @bind="EditableWindUnits">@foreach (var option in AvailableWindUnits)
                             {
                                 <option value="@option.Value">@option.Label</option>
                             }</select></div>
                     </div>
-                    <div class="proto-action-row console-settings-actions console-settings-units-actions">
+                    <div class="hvo-action-row console-settings-actions console-settings-units-actions">
                         <p class="@UnitSettingsStatusClass" role="status">@UnitSettingsStatusMessage</p>
-                        <button class="proto-button success" type="button" disabled>Save</button>
+                        <button class="hvo-button hvo-button-success" type="button" disabled>Save</button>
                     </div>
                 </div>
             </section>
 
-            <section class="proto-card">
+            <section class="hvo-card-shell">
                 @if (IsRainArchiveBusy)
                 {
                     <div class="console-settings-busy-overlay" aria-hidden="true">
                         <div class="console-settings-spinner"></div>
                     </div>
                 }
-                <div class="proto-section-head">
+                <div class="hvo-section-head">
                     <div>
-                        <div class="proto-eyebrow">Rain And Archive</div>
+                        <div class="hvo-eyebrow">Rain And Archive</div>
                         <h2>Rain And Archive Settings</h2>
                     </div>
                 </div>
                 <fieldset class="console-settings-clock-fieldset" disabled="@IsRainArchiveBusy" aria-busy="@IsRainArchiveBusy">
-                    <div class="proto-form-grid console-settings-rain-grid">
-                        <div class="proto-field"><label class="proto-field-label">Archive interval</label><select class="proto-select" @bind="EditableArchiveIntervalMinutes">@foreach (var option in AvailableArchiveIntervals)
+                    <div class="hvo-form-grid console-settings-rain-grid">
+                        <div class="hvo-field"><label class="hvo-field-label">Archive interval</label><select class="hvo-control" @bind="EditableArchiveIntervalMinutes">@foreach (var option in AvailableArchiveIntervals)
                             {
                                 <option value="@option.Value">@option.Label</option>
                             }</select></div>
-                        <div class="proto-field"><label class="proto-field-label">Rain bucket type</label><select class="proto-select" @bind="EditableRainBucketType">@foreach (var option in AvailableRainBucketTypes)
+                        <div class="hvo-field"><label class="hvo-field-label">Rain bucket type</label><select class="hvo-control" @bind="EditableRainBucketType">@foreach (var option in AvailableRainBucketTypes)
                             {
                                 <option value="@option.Value">@option.Label</option>
                             }</select></div>
-                        <div class="proto-field"><label class="proto-field-label">Rain year start month</label><select class="proto-select" @bind="EditableRainYearStartMonth">@if (!EditableRainYearStartMonth.HasValue)
+                        <div class="hvo-field"><label class="hvo-field-label">Rain year start month</label><select class="hvo-control" @bind="EditableRainYearStartMonth">@if (!EditableRainYearStartMonth.HasValue)
                             {
                                 <option value="">Choose month</option>
                             }
@@ -174,12 +174,12 @@
                                 <option value="@option.Value">@option.Label</option>
                             }</select></div>
                     </div>
-                    <div class="proto-action-row console-settings-actions console-settings-rain-actions">
+                    <div class="hvo-action-row console-settings-actions console-settings-rain-actions">
                         @if (!string.IsNullOrWhiteSpace(DisplayedRainArchiveStatusMessage))
                         {
                             <p class="@RainArchiveStatusClass" role="status">@DisplayedRainArchiveStatusMessage</p>
                         }
-                        <button class="proto-button success" type="button" @onclick="SaveRainArchiveSettingsAsync" disabled="@IsRainArchiveBusy">
+                        <button class="hvo-button hvo-button-success" type="button" @onclick="SaveRainArchiveSettingsAsync" disabled="@IsRainArchiveBusy">
                             @if (IsRainArchiveBusy)
                             {
                                 <span class="console-settings-button-spinner" aria-hidden="true"></span>
@@ -194,34 +194,34 @@
                 </fieldset>
             </section>
 
-            <section class="proto-card">
-                <div class="proto-section-head">
+            <section class="hvo-card-shell">
+                <div class="hvo-section-head">
                     <div>
-                        <div class="proto-eyebrow">Barometer</div>
+                        <div class="hvo-eyebrow">Barometer</div>
                         <h2>Barometer Calibration</h2>
                     </div>
                 </div>
-                <div class="proto-form-grid console-settings-barometer-grid">
-                    <div class="proto-field"><label class="proto-field-label">Reference pressure (inHg)</label><input class="proto-input proto-mono" type="number" min="20" max="35" step="0.001" required value="29.991" /></div>
-                    <div class="proto-field"><label class="proto-field-label">Barometer altitude (ft)</label><input class="proto-input proto-mono" type="number" min="0" max="20000" step="1" required value="3491" /></div>
+                <div class="hvo-form-grid console-settings-barometer-grid">
+                    <div class="hvo-field"><label class="hvo-field-label">Reference pressure (inHg)</label><input class="hvo-control hvo-mono" type="number" min="20" max="35" step="0.001" required value="29.991" /></div>
+                    <div class="hvo-field"><label class="hvo-field-label">Barometer altitude (ft)</label><input class="hvo-control hvo-mono" type="number" min="0" max="20000" step="1" required value="3491" /></div>
                 </div>
-                <div class="proto-action-row console-settings-actions">
+                <div class="hvo-action-row console-settings-actions">
                     <p class="console-settings-pending-status" role="status">@PendingSectionWriteMessage</p>
-                    <button class="proto-button success" type="button" disabled>Save</button>
+                    <button class="hvo-button hvo-button-success" type="button" disabled>Save</button>
                 </div>
             </section>
 
-            <section class="proto-card">
-                <div class="proto-section-head">
+            <section class="hvo-card-shell">
+                <div class="hvo-section-head">
                     <div>
-                        <div class="proto-eyebrow">Console Actions</div>
+                        <div class="hvo-eyebrow">Console Actions</div>
                         <h2>Direct Actions</h2>
                     </div>
                 </div>
-                <div class="proto-action-row console-settings-actions">
-                    <button class="proto-button" type="button">Lamp On</button>
-                    <button class="proto-button" type="button">Lamp Off</button>
-                    <button class="proto-button danger" type="button">Clear Alarm</button>
+                <div class="hvo-action-row console-settings-actions">
+                    <button class="hvo-button" type="button">Lamp On</button>
+                    <button class="hvo-button" type="button">Lamp Off</button>
+                    <button class="hvo-button hvo-button-danger" type="button">Clear Alarm</button>
                 </div>
             </section>
 
@@ -229,57 +229,57 @@
                     </MudTabPanel>
 
                     <MudTabPanel Text="Sensor Offsets" Class="console-settings-tab-panel">
-                        <div class="proto-list-stack console-settings-tab-stack">
-                            <section class="proto-card">
-                                <div class="proto-section-head">
+                        <div class="hvo-stack console-settings-tab-stack">
+                            <section class="hvo-card-shell">
+                                <div class="hvo-section-head">
                                     <div>
-                                        <div class="proto-eyebrow">Calibration</div>
+                                        <div class="hvo-eyebrow">Calibration</div>
                                         <h2>Sensor Offsets</h2>
                                     </div>
                                 </div>
                                 <div class="console-settings-subsection">
                                     <h3>Temperature Offsets</h3>
-                                    <div class="proto-form-grid console-settings-offset-grid">
+                                    <div class="hvo-form-grid console-settings-offset-grid">
                                         @foreach (var field in TemperatureCalibrationFields)
                                         {
-                                            <div class="proto-field"><label class="proto-field-label">@field.Label</label><input class="proto-input proto-mono" type="number" min="-12.8" max="12.7" step="0.1" placeholder="@field.PlaceholderValue" data-variable="@field.Variable" /></div>
+                                            <div class="hvo-field"><label class="hvo-field-label">@field.Label</label><input class="hvo-control hvo-mono" type="number" min="-12.8" max="12.7" step="0.1" placeholder="@field.PlaceholderValue" data-variable="@field.Variable" /></div>
                                         }
                                     </div>
                                 </div>
                                 <div class="console-settings-subsection">
                                     <h3>Humidity Offsets</h3>
-                                    <div class="proto-form-grid console-settings-offset-grid">
+                                    <div class="hvo-form-grid console-settings-offset-grid">
                                         @foreach (var field in HumidityCalibrationFields)
                                         {
-                                            <div class="proto-field"><label class="proto-field-label">@field.Label</label><input class="proto-input proto-mono" type="number" min="-100" max="100" step="1" placeholder="@field.PlaceholderValue" data-variable="@field.Variable" /></div>
+                                            <div class="hvo-field"><label class="hvo-field-label">@field.Label</label><input class="hvo-control hvo-mono" type="number" min="-100" max="100" step="1" placeholder="@field.PlaceholderValue" data-variable="@field.Variable" /></div>
                                         }
                                     </div>
                                 </div>
                                 <div class="console-settings-subsection">
                                     <h3>Wind Offset</h3>
-                                    <div class="proto-form-grid console-settings-offset-grid">
-                                        <div class="proto-field"><label class="proto-field-label">Wind direction offset (deg)</label><input class="proto-input proto-mono" type="number" min="-359" max="359" step="1" placeholder="0" data-variable="windDir" /></div>
+                                    <div class="hvo-form-grid console-settings-offset-grid">
+                                        <div class="hvo-field"><label class="hvo-field-label">Wind direction offset (deg)</label><input class="hvo-control hvo-mono" type="number" min="-359" max="359" step="1" placeholder="0" data-variable="windDir" /></div>
                                     </div>
                                 </div>
-                                <div class="proto-action-row console-settings-actions">
+                                <div class="hvo-action-row console-settings-actions">
                                     <p class="console-settings-pending-status" role="status">@PendingSectionWriteMessage</p>
-                                    <button class="proto-button success" type="button" disabled>Save</button>
+                                    <button class="hvo-button hvo-button-success" type="button" disabled>Save</button>
                                 </div>
                             </section>
                         </div>
                     </MudTabPanel>
 
                     <MudTabPanel Text="Transmitters" Class="console-settings-tab-panel">
-                        <div class="proto-list-stack console-settings-tab-stack">
-                            <section class="proto-card">
-                                <div class="proto-section-head">
+                        <div class="hvo-stack console-settings-tab-stack">
+                            <section class="hvo-card-shell">
+                                <div class="hvo-section-head">
                                     <div>
-                                        <div class="proto-eyebrow">Transmitters</div>
+                                        <div class="hvo-eyebrow">Transmitters</div>
                                         <h2>Transmitter Configuration</h2>
                                     </div>
                                 </div>
-                                <div class="proto-table-wrap">
-                                    <table class="proto-table console-settings-transmitter-table">
+                                <div class="proto-hvo-table-wrap">
+                                    <table class="hvo-table console-settings-transmitter-table">
                                         <thead>
                                             <tr>
                                                 <th>Channel</th>
@@ -295,7 +295,7 @@
                                                 <tr>
                                                     <td>@row.Channel</td>
                                                     <td>
-                                                        <select class="proto-select">
+                                                        <select class="hvo-control">
                                                             @foreach (var option in AvailableTransmitterTypes)
                                                             {
                                                                 <option value="@option.Value" selected="@(option.Value == row.TypeValue)">@option.Label</option>
@@ -303,7 +303,7 @@
                                                         </select>
                                                     </td>
                                                     <td>
-                                                        <select class="proto-select">
+                                                        <select class="hvo-control">
                                                             @foreach (var option in AvailableRepeaterOptions)
                                                             {
                                                                 <option value="@option.Value" selected="@(option.Value == row.RepeaterValue)">@option.Label</option>
@@ -311,7 +311,7 @@
                                                         </select>
                                                     </td>
                                                     <td>
-                                                        <select class="proto-select">
+                                                        <select class="hvo-control">
                                                             @foreach (var option in AvailableSensorIdOptions)
                                                             {
                                                                 <option value="@option.Value" selected="@(option.Value == row.ExtraTempValue)">@option.Label</option>
@@ -319,7 +319,7 @@
                                                         </select>
                                                     </td>
                                                     <td>
-                                                        <select class="proto-select">
+                                                        <select class="hvo-control">
                                                             @foreach (var option in AvailableSensorIdOptions)
                                                             {
                                                                 <option value="@option.Value" selected="@(option.Value == row.ExtraHumidityValue)">@option.Label</option>
@@ -331,8 +331,8 @@
                                         </tbody>
                                     </table>
                                 </div>
-                                <div class="proto-form-grid console-settings-rain-grid" style="margin-top: 0.85rem;">
-                                    <div class="proto-field"><label class="proto-field-label">Retransmit channel</label><select class="proto-select">@foreach (var option in AvailableRetransmitChannels)
+                                <div class="hvo-form-grid console-settings-rain-grid" style="margin-top: 0.85rem;">
+                                    <div class="hvo-field"><label class="hvo-field-label">Retransmit channel</label><select class="hvo-control">@foreach (var option in AvailableRetransmitChannels)
                                         {
                                             <option value="@option.Value">@option.Label</option>
                                         }</select></div>
@@ -340,93 +340,93 @@
                                 <div class="proto-pill-row" style="margin-top: 18px;">
                                     <div class="proto-pill"><span>Heard transmitters</span><strong>1, 3, 6</strong></div>
                                 </div>
-                                <div class="proto-action-row console-settings-actions">
+                                <div class="hvo-action-row console-settings-actions">
                                     <p class="console-settings-pending-status" role="status">@PendingSectionWriteMessage</p>
-                                    <button class="proto-button success" type="button" disabled>Save</button>
+                                    <button class="hvo-button hvo-button-success" type="button" disabled>Save</button>
                                 </div>
                             </section>
                         </div>
                     </MudTabPanel>
 
                     <MudTabPanel Text="Software Configuration" Class="console-settings-tab-panel">
-                        <div class="proto-list-stack console-settings-tab-stack">
-                    <section class="proto-card">
-                        <div class="proto-section-head">
+                        <div class="hvo-stack console-settings-tab-stack">
+                    <section class="hvo-card-shell">
+                        <div class="hvo-section-head">
                             <div>
-                                <div class="proto-eyebrow">Station Worker</div>
+                                <div class="hvo-eyebrow">Station Worker</div>
                                 <h2>Worker Configuration</h2>
                             </div>
                         </div>
-                        <div class="proto-form-grid console-settings-worker-grid">
-                            <div class="proto-field"><label class="proto-field-label">Host</label><input class="proto-input" value="192.168.10.44" /></div>
-                            <div class="proto-field"><label class="proto-field-label">Port</label><input class="proto-input proto-mono" type="number" min="1" max="65535" step="1" required value="22222" /></div>
-                            <div class="proto-field"><label class="proto-field-label">Socket timeout (s)</label><input class="proto-input proto-mono" type="number" min="1" max="300" step="1" required value="20" /></div>
-                            <div class="proto-field"><label class="proto-field-label">Max consecutive errors</label><input class="proto-input proto-mono" type="number" min="1" max="100" step="1" required value="5" /></div>
-                            <div class="proto-field"><label class="proto-field-label">Station ID</label><input class="proto-input" value="HVO-DAVIS-01" /></div>
+                        <div class="hvo-form-grid console-settings-worker-grid">
+                            <div class="hvo-field"><label class="hvo-field-label">Host</label><input class="hvo-control" value="192.168.10.44" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Port</label><input class="hvo-control hvo-mono" type="number" min="1" max="65535" step="1" required value="22222" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Socket timeout (s)</label><input class="hvo-control hvo-mono" type="number" min="1" max="300" step="1" required value="20" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Max consecutive errors</label><input class="hvo-control hvo-mono" type="number" min="1" max="100" step="1" required value="5" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Station ID</label><input class="hvo-control" value="HVO-DAVIS-01" /></div>
                         </div>
-                        <div class="proto-action-row console-settings-actions">
-                            <button class="proto-button success" type="button">Save</button>
+                        <div class="hvo-action-row console-settings-actions">
+                            <button class="hvo-button hvo-button-success" type="button">Save</button>
                         </div>
                     </section>
 
-                    <section class="proto-card">
-                        <div class="proto-section-head">
+                    <section class="hvo-card-shell">
+                        <div class="hvo-section-head">
                             <div>
-                                <div class="proto-eyebrow">Archive Catch-up</div>
+                                <div class="hvo-eyebrow">Archive Catch-up</div>
                                 <h2>Archive Catch-up</h2>
                             </div>
                         </div>
-                        <div class="proto-detail-grid console-settings-catchup-grid">
-                            <div class="proto-stat"><span>Startup mode</span><strong>Enabled</strong></div>
-                            <div class="proto-stat"><span>Lookback hours</span><strong class="proto-mono">48</strong></div>
-                            <div class="proto-stat"><span>Latest persisted</span><strong class="proto-mono">08 May 2026 - 2:20 PM</strong></div>
-                            <div class="proto-stat"><span>Sync lag</span><strong class="proto-mono">00:15:00</strong></div>
+                        <div class="hvo-grid console-settings-catchup-grid">
+                            <div class="hvo-list-item"><span>Startup mode</span><strong>Enabled</strong></div>
+                            <div class="hvo-list-item"><span>Lookback hours</span><strong class="hvo-mono">48</strong></div>
+                            <div class="hvo-list-item"><span>Latest persisted</span><strong class="hvo-mono">08 May 2026 - 2:20 PM</strong></div>
+                            <div class="hvo-list-item"><span>Sync lag</span><strong class="hvo-mono">00:15:00</strong></div>
                         </div>
-                        <div class="proto-action-row console-settings-actions">
-                            <button class="proto-button primary" type="button">Run Now</button>
+                        <div class="hvo-action-row console-settings-actions">
+                            <button class="hvo-button hvo-button-primary" type="button">Run Now</button>
                         </div>
                     </section>
 
-                    <section class="proto-card">
-                        <div class="proto-section-head">
+                    <section class="hvo-card-shell">
+                        <div class="hvo-section-head">
                             <div>
-                                <div class="proto-eyebrow">Outbox / API Forwarder</div>
+                                <div class="hvo-eyebrow">Outbox / API Forwarder</div>
                                 <h2>Outbox Configuration</h2>
                             </div>
                         </div>
-                        <div class="proto-form-grid console-settings-outbox-grid">
-                            <div class="proto-field"><label class="proto-field-label">API endpoint</label><input class="proto-input" value="https://weather-api.hvo.local/api/weather" /></div>
-                            <div class="proto-field"><label class="proto-field-label">API key</label><input class="proto-input" value="••••••••••••••••••••" /></div>
-                            <div class="proto-field"><label class="proto-field-label">Batch size</label><input class="proto-input proto-mono" type="number" min="1" max="1000" step="1" required value="100" /></div>
-                            <div class="proto-field"><label class="proto-field-label">Sweep interval (s)</label><input class="proto-input proto-mono" type="number" min="1" max="3600" step="1" required value="30" /></div>
-                            <div class="proto-field"><label class="proto-field-label">Max retry attempts</label><input class="proto-input proto-mono" type="number" min="0" max="100" step="1" required value="10" /></div>
-                            <div class="proto-field"><label class="proto-field-label">Max backoff (s)</label><input class="proto-input proto-mono" type="number" min="1" max="3600" step="1" required value="300" /></div>
-                            <div class="proto-field"><label class="proto-field-label">SQLite DB path</label><input class="proto-input" value="/var/lib/hvo/davis/outbox.db" /></div>
+                        <div class="hvo-form-grid console-settings-outbox-grid">
+                            <div class="hvo-field"><label class="hvo-field-label">API endpoint</label><input class="hvo-control" value="https://weather-api.hvo.local/api/weather" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">API key</label><input class="hvo-control" value="••••••••••••••••••••" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Batch size</label><input class="hvo-control hvo-mono" type="number" min="1" max="1000" step="1" required value="100" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Sweep interval (s)</label><input class="hvo-control hvo-mono" type="number" min="1" max="3600" step="1" required value="30" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Max retry attempts</label><input class="hvo-control hvo-mono" type="number" min="0" max="100" step="1" required value="10" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Max backoff (s)</label><input class="hvo-control hvo-mono" type="number" min="1" max="3600" step="1" required value="300" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">SQLite DB path</label><input class="hvo-control" value="/var/lib/hvo/davis/outbox.db" /></div>
                         </div>
-                        <div class="proto-stat-grid console-settings-outbox-stats">
-                            <div class="proto-stat"><span>Pending count</span><strong class="proto-mono">12</strong></div>
-                            <div class="proto-stat"><span>Failed count</span><strong class="proto-mono">0</strong></div>
-                            <div class="proto-stat"><span>Last sweep</span><strong class="proto-mono">08 May 2026 - 2:34 PM</strong></div>
+                        <div class="hvo-list-item-grid console-settings-outbox-stats">
+                            <div class="hvo-list-item"><span>Pending count</span><strong class="hvo-mono">12</strong></div>
+                            <div class="hvo-list-item"><span>Failed count</span><strong class="hvo-mono">0</strong></div>
+                            <div class="hvo-list-item"><span>Last sweep</span><strong class="hvo-mono">08 May 2026 - 2:34 PM</strong></div>
                         </div>
-                        <div class="proto-action-row console-settings-actions">
-                            <button class="proto-button success" type="button">Save</button>
+                        <div class="hvo-action-row console-settings-actions">
+                            <button class="hvo-button hvo-button-success" type="button">Save</button>
                         </div>
                     </section>
 
-                    <section class="proto-card">
-                        <div class="proto-section-head">
+                    <section class="hvo-card-shell">
+                        <div class="hvo-section-head">
                             <div>
-                                <div class="proto-eyebrow">Local Cache / Snapshot</div>
+                                <div class="hvo-eyebrow">Local Cache / Snapshot</div>
                                 <h2>Cached Station Snapshot</h2>
                             </div>
                         </div>
-                        <div class="proto-three-column console-settings-snapshot-grid">
-                            <div class="proto-stat"><span>Saved at</span><strong class="proto-mono">08 May 2026 - 2:33 PM</strong></div>
-                            <div class="proto-stat"><span>Snapshot freshness</span><strong class="proto-mono">1m 49s</strong></div>
-                            <div class="proto-stat"><span>Startup action</span><strong>Would run catch-up</strong></div>
+                        <div class="hvo-grid console-settings-snapshot-grid">
+                            <div class="hvo-list-item"><span>Saved at</span><strong class="hvo-mono">08 May 2026 - 2:33 PM</strong></div>
+                            <div class="hvo-list-item"><span>Snapshot freshness</span><strong class="hvo-mono">1m 49s</strong></div>
+                            <div class="hvo-list-item"><span>Startup action</span><strong>Would run catch-up</strong></div>
                         </div>
-                        <div class="proto-action-row console-settings-actions">
-                            <button class="proto-button primary" type="button">Refresh</button>
+                        <div class="hvo-action-row console-settings-actions">
+                            <button class="hvo-button hvo-button-primary" type="button">Refresh</button>
                         </div>
                     </section>
                         </div>

@@ -1,20 +1,17 @@
 .console-settings-page {
-    padding: 0;
     width: 100%;
-    min-width: 100%;
-    max-width: 100%;
+    min-width: 0;
     height: 100%;
-    min-height: 100%;
+    min-height: 0;
     box-sizing: border-box;
     color: var(--shell-page-text);
 }
 
 .console-settings-page > .shell-page-stack {
     width: 100%;
-    min-width: 100%;
-    max-width: 100%;
+    min-width: 0;
     height: 100%;
-    min-height: 100%;
+    min-height: 0;
 }
 
 .console-settings-stack {
@@ -22,7 +19,7 @@
     flex-direction: column;
     gap: 0;
     height: 100%;
-    min-height: 100%;
+    min-height: 0;
 }
 
 .console-settings-shell {
@@ -56,29 +53,19 @@
     border-radius: 999px;
     background: var(--shell-pill-background);
     color: var(--shell-action-color) !important;
-    box-shadow:
-        inset 0 0 0 1px var(--shell-pill-border),
-        0 0 0 1px rgba(8, 15, 28, 0.18);
+    box-shadow: inset 0 0 0 1px var(--shell-pill-border);
 }
 
 .console-settings-tab-actions ::deep .mud-icon-button:hover {
     background: var(--shell-pill-hover-background);
     color: var(--shell-pill-hover-text) !important;
-    box-shadow:
-        inset 0 0 0 1px var(--shell-pill-hover-border),
-        0 6px 14px rgba(7, 14, 27, 0.22);
-}
-
-.console-settings-tab-actions ::deep .mud-icon-root {
-    width: 1.05rem;
-    height: 1.05rem;
+    box-shadow: inset 0 0 0 1px var(--shell-pill-hover-border);
 }
 
 .console-settings-tabs {
     flex: 1 1 auto;
     min-height: 0;
     border-radius: 20px;
-    padding: 0;
     background: transparent;
 }
 
@@ -86,10 +73,8 @@
     min-height: auto;
     padding: 0.35rem 3.2rem 0.35rem 0.35rem;
     border-radius: 18px;
-    background: color-mix(in srgb, var(--shell-card-background) 80%, transparent);
-    box-shadow:
-        inset 0 0 0 1px var(--shell-pill-border),
-        0 0 0 1px rgba(8, 15, 28, 0.08);
+    background: var(--shell-overlay-panel);
+    box-shadow: inset 0 0 0 1px var(--shell-pill-border);
 }
 
 .console-settings-shell ::deep .mud-tab {
@@ -98,12 +83,11 @@
     border-radius: 14px;
     text-transform: none !important;
     letter-spacing: 0.01em;
-    font-weight: 600 !important;
-    color: var(--dashboard-muted) !important;
+    font-weight: 700 !important;
+    color: var(--shell-pill-text) !important;
     background: transparent !important;
     border: 1px solid transparent !important;
     box-shadow: none !important;
-    transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
 
 .console-settings-shell ::deep .mud-tab .mud-tab-wrapper {
@@ -113,31 +97,20 @@
 }
 
 .console-settings-shell ::deep .mud-tab:hover {
-    background: var(--shell-overlay-panel) !important;
-    color: var(--shell-overlay-text) !important;
-    border-color: var(--shell-overlay-panel-border) !important;
-    box-shadow: inset 0 0 0 1px var(--shell-overlay-panel-border) !important;
+    background: var(--shell-pill-hover-background) !important;
+    color: var(--shell-pill-hover-text) !important;
+    border-color: var(--shell-pill-hover-border) !important;
 }
 
 .console-settings-shell ::deep .mud-tab.mud-tab-active {
-    background: var(--shell-overlay-panel) !important;
-    color: var(--shell-overlay-text) !important;
-    font-weight: 700 !important;
-    border-color: var(--shell-overlay-panel-border) !important;
-    box-shadow:
-        inset 0 0 0 1px var(--shell-overlay-panel-border),
-        0 8px 18px rgba(7, 14, 27, 0.16) !important;
-    text-shadow: none;
-}
-
-.console-settings-shell ::deep .mud-tab.mud-tab-active:hover {
-    color: var(--shell-overlay-text) !important;
+    background: var(--shell-pill-active-background) !important;
+    color: var(--shell-pill-active-text) !important;
+    border-color: var(--shell-pill-active-border) !important;
+    box-shadow: var(--shell-pill-active-shadow) !important;
 }
 
 .console-settings-shell ::deep .mud-tabs-slider {
     display: none !important;
-    opacity: 0 !important;
-    height: 0 !important;
 }
 
 .console-settings-shell ::deep .mud-tabs-panels {
@@ -157,230 +130,15 @@
     padding: 0 0.2rem 0.2rem;
 }
 
-.proto-card {
+.console-settings-tab-stack .hvo-card-shell {
     position: relative;
-    overflow: hidden;
-    border-radius: 24px;
-    border: 1px solid var(--shell-card-border);
-    background: var(--shell-card-background);
-    color: var(--shell-card-foreground);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), var(--shell-card-shadow);
 }
 
-.proto-section-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-}
-
-.proto-section-head h2 {
-    color: var(--shell-card-foreground);
-    font-size: 1.35rem;
-    line-height: 1.18;
-}
-
-.proto-eyebrow {
-    color: var(--shell-pill-text);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-}
-
-.proto-list-stack {
-    display: grid;
-}
-
-.proto-form-grid,
-.proto-detail-grid,
-.proto-stat-grid,
-.proto-three-column {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.85rem;
-}
-
-.proto-field {
-    display: grid;
-    gap: 0.45rem;
-    min-width: 0;
-}
-
-.proto-field-label {
-    color: var(--shell-pill-text);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.proto-input,
-.proto-select {
-    width: 100%;
-    min-width: 0;
-    min-height: 42px;
-    padding: 0.55rem 0.75rem;
-    border-radius: 14px;
-    border: 1px solid var(--shell-overlay-panel-border);
-    background: rgba(8, 17, 30, 0.72);
-    color: var(--shell-card-foreground);
-    font: inherit;
-    outline: none;
-}
-
-.proto-input:focus,
-.proto-select:focus {
-    border-color: var(--shell-pill-active-border);
-    box-shadow: 0 0 0 3px rgba(126, 157, 196, 0.16);
-}
-
-.proto-input[readonly],
-.proto-input:disabled,
-.proto-select:disabled {
-    color: var(--shell-pill-text);
-    background: rgba(8, 17, 30, 0.42);
-}
-
-.proto-action-row,
-.proto-pill-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-}
-
-.proto-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 42px;
-    padding: 0 16px;
-    border-radius: 999px;
-    border: 1px solid var(--shell-pill-border);
-    background: var(--shell-pill-background);
-    color: var(--shell-action-color);
-    font: inherit;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.proto-button.primary,
-.proto-button.success {
-    color: var(--shell-pill-hover-text);
-    background: var(--shell-pill-active-background);
-    border-color: var(--shell-pill-active-border);
-}
-
-.proto-button.danger {
-    color: #ffd0da;
-    background: rgba(243, 139, 168, 0.16);
-    border-color: rgba(243, 139, 168, 0.3);
-}
-
-.proto-button:disabled {
-    cursor: default;
-    opacity: 0.58;
-}
-
-.proto-stat,
-.proto-pill {
-    display: grid;
-    gap: 0.35rem;
-    min-width: 0;
-    padding: 0.9rem 1rem;
-    border-radius: 18px;
-    border: 1px solid var(--shell-overlay-panel-border);
-    background: var(--shell-overlay-panel);
-}
-
-.proto-pill {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.65rem;
-}
-
-.proto-stat span,
-.proto-pill span {
-    color: var(--shell-pill-text);
-    font-size: 0.74rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.proto-stat strong,
-.proto-pill strong {
-    min-width: 0;
-    color: var(--shell-card-foreground);
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.proto-mono {
-    font-family: var(--shell-font-mono);
-    font-variant-numeric: tabular-nums;
-}
-
-.proto-table-wrap {
-    overflow-x: auto;
-}
-
-.proto-table {
-    width: 100%;
-    min-width: 760px;
-    border-collapse: collapse;
-    color: var(--shell-card-foreground);
-    font-size: 0.9rem;
-}
-
-.proto-table th,
-.proto-table td {
-    padding: 0.75rem 0.8rem;
-    border-bottom: 1px solid var(--shell-overlay-panel-border);
-    text-align: left;
-    vertical-align: middle;
-}
-
-.proto-table th {
-    color: var(--shell-pill-text);
-    font-size: 0.74rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.console-settings-tab-stack .proto-card {
-    position: relative;
-    padding: 1.2rem;
-}
-
-.console-settings-tab-stack .proto-section-head > div {
+.console-settings-tab-stack .hvo-section-head > div {
     display: flex;
     flex-direction: column-reverse;
     align-items: flex-start;
     gap: 0.2rem;
-}
-
-.console-settings-tab-stack .proto-section-head {
-    margin-bottom: 0.95rem;
-}
-
-.console-settings-tab-stack .proto-section-head h2 {
-    margin: 0;
-}
-
-.console-settings-tab-stack .proto-section-head .proto-eyebrow {
-    color: var(--dashboard-muted);
-    font-size: 0.7rem;
-    letter-spacing: 0.08em;
-}
-
-.console-settings-tab-stack .proto-form-grid,
-.console-settings-tab-stack .proto-three-column,
-.console-settings-tab-stack .proto-detail-grid,
-.console-settings-tab-stack .proto-stat-grid {
-    gap: 0.85rem;
 }
 
 .console-settings-time-grid,
@@ -393,10 +151,6 @@
 .console-settings-location-grid,
 .console-settings-units-grid,
 .console-settings-catchup-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.console-settings-location-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
@@ -429,12 +183,11 @@
     grid-column: span 4;
 }
 
-.console-settings-outbox-stats {
+.console-settings-outbox-stats,
+.console-settings-barometer-grid,
+.console-settings-readonly-panel,
+.console-settings-subsection {
     margin-top: 0.85rem;
-}
-
-.console-settings-time-grid .proto-input[readonly] {
-    cursor: default;
 }
 
 .console-settings-clock-fieldset {
@@ -454,8 +207,8 @@
     z-index: 2;
     display: grid;
     place-items: center;
-    border-radius: 1.2rem;
-    background: rgba(6, 12, 22, 0.42);
+    border-radius: 24px;
+    background: var(--shell-overlay-backdrop);
     backdrop-filter: blur(2px);
 }
 
@@ -463,8 +216,8 @@
 .console-settings-button-spinner {
     display: inline-block;
     border-radius: 999px;
-    border: 2px solid rgba(235, 245, 255, 0.2);
-    border-top-color: rgba(148, 231, 185, 0.96);
+    border: 2px solid var(--shell-overlay-panel-border);
+    border-top-color: var(--shell-overlay-link);
     animation: console-settings-spin 0.8s linear infinite;
 }
 
@@ -476,39 +229,33 @@
 .console-settings-button-spinner {
     width: 0.95rem;
     height: 0.95rem;
-    border-width: 2px;
 }
 
 .console-settings-clock-status,
 .console-settings-location-status,
 .console-settings-rain-status,
-.console-settings-units-status {
+.console-settings-units-status,
+.console-settings-pending-status,
+.console-settings-readonly-panel p {
     margin: 0;
-    color: var(--dashboard-muted);
+    color: var(--shell-pill-text);
 }
 
 .console-settings-clock-status.success,
 .console-settings-location-status.success,
 .console-settings-rain-status.success {
-    color: rgba(148, 231, 185, 0.92);
-}
-
-.console-settings-clock-status.busy,
-.console-settings-location-status.busy,
-.console-settings-rain-status.busy {
-    color: rgba(196, 216, 240, 0.92);
+    color: var(--shell-overlay-link-hover);
 }
 
 .console-settings-clock-status.error,
 .console-settings-location-status.error,
 .console-settings-rain-status.error,
 .console-settings-units-status.error {
-    color: rgba(243, 139, 168, 0.94);
+    color: var(--shell-card-foreground);
 }
 
 .console-settings-actions {
     justify-content: flex-end;
-    gap: 0.75rem;
     margin-top: 1rem;
 }
 
@@ -519,55 +266,23 @@
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    column-gap: 0.75rem;
 }
 
-.console-settings-clock-actions .console-settings-clock-status,
-.console-settings-location-actions .console-settings-location-status,
-.console-settings-rain-actions .console-settings-rain-status,
-.console-settings-units-actions .console-settings-units-status {
-    margin-right: 0;
-    align-self: center;
-}
-
-.console-settings-clock-actions .proto-button,
-.console-settings-location-actions .proto-button,
-.console-settings-rain-actions .proto-button,
-.console-settings-units-actions .proto-button {
-    justify-self: end;
-}
-
-.console-settings-actions .proto-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.45rem;
+.console-settings-actions .hvo-button {
     inline-size: 9.5rem;
 }
 
-@keyframes console-settings-spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-.console-settings-readonly-callout {
+.console-settings-readonly-panel {
     display: grid;
     gap: 0.6rem;
-    margin-top: 1rem;
-    padding: 1rem 1.05rem;
+    padding: 1rem;
     border-radius: 18px;
-    border: 1px solid var(--shell-card-border);
-    background: rgba(8, 17, 30, 0.28);
+    border: 1px solid var(--shell-overlay-panel-border);
+    background: var(--shell-overlay-panel);
 }
 
-.console-settings-units-callout {
+.console-settings-units-panel {
     margin-top: 0;
-}
-
-.console-settings-readonly-callout p {
-    margin: 0;
-    color: var(--dashboard-muted);
 }
 
 .console-settings-readonly-grid {
@@ -576,25 +291,19 @@
     gap: 0.75rem;
 }
 
-.console-settings-pending-status {
-    margin: 0;
-    color: var(--dashboard-muted);
-}
-
 .console-settings-subsection {
     display: grid;
     gap: 0.85rem;
-    margin-top: 1rem;
 }
 
 .console-settings-subsection h3 {
     margin: 0;
     font-size: 0.95rem;
-    color: var(--shell-page-text);
+    color: var(--shell-card-foreground);
 }
 
-.console-settings-transmitter-table .proto-select,
-.console-settings-transmitter-table .proto-input {
+.console-settings-transmitter-table .hvo-control,
+.console-settings-transmitter-table .hvo-control {
     width: 100%;
     min-width: 7rem;
 }
@@ -611,19 +320,10 @@
     border: 0;
 }
 
-.shell-summary-card {
-    border-radius: 30px;
-    border: 1px solid var(--shell-card-border);
-    background: var(--shell-card-background);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    padding: 24px;
-}
-
-.console-settings-summary {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+@keyframes console-settings-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @media (max-width: 900px) {
@@ -662,7 +362,7 @@
         justify-content: stretch;
     }
 
-    .console-settings-actions .proto-button {
+    .console-settings-actions .hvo-button {
         flex: 1 1 9.5rem;
         inline-size: auto;
     }

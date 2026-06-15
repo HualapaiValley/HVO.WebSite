@@ -6,154 +6,154 @@
         <div class="shell-page-stack alarm-definitions-stack">
             <h1 class="page-heading">Alarm definitions</h1>
 
-            <section class="card-shell shell-summary-card">
-                <div class="proto-section-head">
+            <section class="hvo-card-shell hvo-card-large">
+                <div class="hvo-section-head">
                     <div>
-                        <div class="proto-eyebrow">Alarm Operations</div>
+                        <div class="hvo-eyebrow">Alarm Operations</div>
                         <h2>Definitions Workspace</h2>
                     </div>
                 </div>
-                <div class="proto-action-row">
-                    <button class="proto-button" type="button">Refresh</button>
-                    <button class="proto-button success" type="button">Save definitions</button>
-                    <button class="proto-button primary" type="button">Create rule</button>
+                <div class="hvo-action-row">
+                    <button class="hvo-button" type="button">Refresh</button>
+                    <button class="hvo-button hvo-button-success" type="button">Save definitions</button>
+                    <button class="hvo-button hvo-button-primary" type="button">Create rule</button>
                 </div>
             </section>
 
-            <div class="proto-alarm-grid">
-                <aside class="proto-sidebar-card">
-                    <div class="proto-section-head">
+            <div class="alarm-grid">
+                <aside class="hvo-card-shell">
+                    <div class="hvo-section-head">
                         <div>
-                            <div class="proto-eyebrow">Rule List</div>
+                            <div class="hvo-eyebrow">Rule List</div>
                             <h2>Alarm Sources</h2>
                         </div>
                     </div>
-                    <div class="proto-list-stack">
-                        <div class="proto-list-item"><strong>Console thresholds</strong><span>Wind speed above 32
+                    <div class="hvo-stack">
+                        <div class="hvo-list-item"><strong>Console thresholds</strong><span>Wind speed above 32
                             mph</span><span>Rain 15-minute total above 0.15 in</span><span>Outside temperature below 34
                             F</span></div>
-                        <div class="proto-list-item"><strong>System alarms</strong><span>No packets received for 120
+                        <div class="hvo-list-item"><strong>System alarms</strong><span>No packets received for 120
                             seconds</span><span>Consecutive errors above 5</span></div>
-                        <div class="proto-list-item"><strong>Software-derived alarms</strong><span>Pending outbox count
+                        <div class="hvo-list-item"><strong>Software-derived alarms</strong><span>Pending outbox count
                             above 500</span><span>Archive sync lag above 6 hours</span></div>
                     </div>
                 </aside>
 
-                <div class="proto-list-stack">
-                    <section class="proto-card">
-                        <div class="proto-section-head">
+                <div class="hvo-stack">
+                    <section class="hvo-card-shell">
+                        <div class="hvo-section-head">
                             <div>
-                                <div class="proto-eyebrow">Rule Editor</div>
+                                <div class="hvo-eyebrow">Rule Editor</div>
                                 <h2>High Wind</h2>
                             </div>
-                            <span class="proto-badge critical">Critical</span>
+                            <span class="hvo-chip hvo-chip-danger">Critical</span>
                         </div>
-                        <div class="proto-form-grid">
-                            <div class="proto-field"><label class="proto-field-label">Rule type</label><select
-                                class="proto-select">
+                        <div class="hvo-form-grid">
+                            <div class="hvo-field"><label class="hvo-field-label">Rule type</label><select
+                                class="hvo-control">
                                 <option selected>Console threshold</option>
                                 <option>System alarm</option>
                                 <option>Software-derived</option>
                             </select></div>
-                            <div class="proto-field"><label class="proto-field-label">Source group</label><select
-                                class="proto-select">
+                            <div class="hvo-field"><label class="hvo-field-label">Source group</label><select
+                                class="hvo-control">
                                 <option selected>Wind</option>
                                 <option>Rain</option>
                                 <option>Worker</option>
                                 <option>Outbox</option>
                             </select></div>
-                            <div class="proto-field"><label class="proto-field-label">Source field</label><select
-                                class="proto-select">
+                            <div class="hvo-field"><label class="hvo-field-label">Source field</label><select
+                                class="hvo-control">
                                 <option selected>Wind speed mph</option>
                                 <option>Wind gust mph</option>
                                 <option>Wind speed 10-minute mph</option>
                             </select></div>
-                            <div class="proto-field"><label class="proto-field-label">Trigger mode</label><select
-                                class="proto-select">
+                            <div class="hvo-field"><label class="hvo-field-label">Trigger mode</label><select
+                                class="hvo-control">
                                 <option selected>Above threshold</option>
                                 <option>Below threshold</option>
                                 <option>Duration exceeded</option>
                             </select></div>
-                            <div class="proto-field"><label class="proto-field-label">Threshold</label><input
-                                class="proto-input proto-mono" value="32" /></div>
-                            <div class="proto-field"><label class="proto-field-label">Units</label><input
-                                class="proto-input" value="mph" /></div>
-                            <div class="proto-field"><label class="proto-field-label">Clear behavior</label><select
-                                class="proto-select">
+                            <div class="hvo-field"><label class="hvo-field-label">Threshold</label><input
+                                class="hvo-control hvo-mono" value="32" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Units</label><input
+                                class="hvo-control" value="mph" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Clear behavior</label><select
+                                class="hvo-control">
                                 <option selected>Auto clear when normal</option>
                                 <option>Manual clear</option>
                             </select></div>
-                            <div class="proto-field"><label class="proto-field-label">Severity</label><select
-                                class="proto-select">
+                            <div class="hvo-field"><label class="hvo-field-label">Severity</label><select
+                                class="hvo-control">
                                 <option>Info</option>
                                 <option>Warning</option>
                                 <option selected>Critical</option>
                             </select></div>
-                            <div class="proto-field"><label class="proto-field-label">Destinations</label><input
-                                class="proto-input" value="Email Ops, SMS Night, Discord Hook" /></div>
-                            <div class="proto-field"><label class="proto-field-label">Reminder interval</label><input
-                                class="proto-input proto-mono" value="20 min" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Destinations</label><input
+                                class="hvo-control" value="Email Ops, SMS Night, Discord Hook" /></div>
+                            <div class="hvo-field"><label class="hvo-field-label">Reminder interval</label><input
+                                class="hvo-control hvo-mono" value="20 min" /></div>
                         </div>
-                        <div class="proto-toggle" style="margin-top: 18px;">
-                            <span class="proto-toggle-track"></span>
+                        <div class="hvo-toggle" style="margin-top: 18px;">
+                            <span class="hvo-toggle-track"></span>
                             <span>Enabled</span>
                         </div>
                     </section>
 
-                    <section class="proto-card">
-                        <div class="proto-section-head">
+                    <section class="hvo-card-shell">
+                        <div class="hvo-section-head">
                             <div>
-                                <div class="proto-eyebrow">Console-native Threshold Editor</div>
+                                <div class="hvo-eyebrow">Console-native Threshold Editor</div>
                                 <h2>Current Console Threshold Values</h2>
                             </div>
                         </div>
-                        <div class="proto-tab-row">
-                            <span class="proto-badge success">Barometer</span>
-                            <span class="proto-badge">Temperature</span>
-                            <span class="proto-badge">Humidity</span>
-                            <span class="proto-badge">Wind</span>
-                            <span class="proto-badge">Rain/ET</span>
-                            <span class="proto-badge">Solar/UV</span>
-                            <span class="proto-badge">Soil/Leaf</span>
+                        <div class="hvo-action-row">
+                            <span class="hvo-chip hvo-chip-success">Barometer</span>
+                            <span class="hvo-chip">Temperature</span>
+                            <span class="hvo-chip">Humidity</span>
+                            <span class="hvo-chip">Wind</span>
+                            <span class="hvo-chip">Rain/ET</span>
+                            <span class="hvo-chip">Solar/UV</span>
+                            <span class="hvo-chip">Soil/Leaf</span>
                         </div>
-                        <div class="proto-threshold-grid" style="margin-top: 18px;">
-                            <div class="proto-threshold-chip"><span>Wind speed</span><strong class="proto-mono">32
+                        <div class="alarm-threshold-grid" style="margin-top: 18px;">
+                            <div class="alarm-threshold-chip"><span>Wind speed</span><strong class="hvo-mono">32
                                 mph</strong></div>
-                            <div class="proto-threshold-chip"><span>10-minute wind</span><strong class="proto-mono">28
+                            <div class="alarm-threshold-chip"><span>10-minute wind</span><strong class="hvo-mono">28
                                 mph</strong></div>
-                            <div class="proto-threshold-chip"><span>Rain 15-minute</span><strong class="proto-mono">0.15
+                            <div class="alarm-threshold-chip"><span>Rain 15-minute</span><strong class="hvo-mono">0.15
                                 in</strong></div>
-                            <div class="proto-threshold-chip"><span>Rain 24-hour</span><strong class="proto-mono">1.20
+                            <div class="alarm-threshold-chip"><span>Rain 24-hour</span><strong class="hvo-mono">1.20
                                 in</strong></div>
-                            <div class="proto-threshold-chip"><span>Solar radiation</span><strong class="proto-mono">950
+                            <div class="alarm-threshold-chip"><span>Solar radiation</span><strong class="hvo-mono">950
                                 W/m^2</strong></div>
-                            <div class="proto-threshold-chip"><span>UV index</span><strong class="proto-mono">8.0</strong>
+                            <div class="alarm-threshold-chip"><span>UV index</span><strong class="hvo-mono">8.0</strong>
                             </div>
                         </div>
-                        <div class="proto-action-row" style="margin-top: 18px;">
-                            <button class="proto-button success" type="button">Save threshold block</button>
-                            <button class="proto-button danger" type="button">Clear thresholds</button>
-                            <button class="proto-button danger" type="button">Clear active bits</button>
+                        <div class="hvo-action-row" style="margin-top: 18px;">
+                            <button class="hvo-button hvo-button-success" type="button">Save threshold block</button>
+                            <button class="hvo-button hvo-button-danger" type="button">Clear thresholds</button>
+                            <button class="hvo-button hvo-button-danger" type="button">Clear active bits</button>
                         </div>
                     </section>
 
-                    <section class="proto-note-card">
-                        <div class="proto-section-head">
+                    <section class="hvo-card-shell hvo-card-note">
+                        <div class="hvo-section-head">
                             <div>
-                                <div class="proto-eyebrow">Examples</div>
+                                <div class="hvo-eyebrow">Examples</div>
                                 <h2>Rule Examples</h2>
                             </div>
                         </div>
-                        <div class="proto-list-stack">
-                            <div class="proto-list-item"><strong>Console threshold</strong><span>Wind speed above 32
+                        <div class="hvo-stack">
+                            <div class="hvo-list-item"><strong>Console threshold</strong><span>Wind speed above 32
                                 mph</span></div>
-                            <div class="proto-list-item"><strong>Console threshold</strong><span>Rain 15-minute total above
+                            <div class="hvo-list-item"><strong>Console threshold</strong><span>Rain 15-minute total above
                                 0.15 in</span></div>
-                            <div class="proto-list-item"><strong>System alarm</strong><span>No packets received for 120
+                            <div class="hvo-list-item"><strong>System alarm</strong><span>No packets received for 120
                                 seconds</span></div>
-                            <div class="proto-list-item"><strong>Software-derived</strong><span>Pending outbox count above
+                            <div class="hvo-list-item"><strong>Software-derived</strong><span>Pending outbox count above
                                 500 for 10 minutes</span></div>
-                            <div class="proto-list-item"><strong>Software-derived</strong><span>Archive sync lag above 6
+                            <div class="hvo-list-item"><strong>Software-derived</strong><span>Archive sync lag above 6
                                 hours</span></div>
                         </div>
                     </section>
