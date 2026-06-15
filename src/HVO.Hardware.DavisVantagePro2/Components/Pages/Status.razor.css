@@ -351,7 +351,9 @@
 }
 
 .celestial-grid-primary {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    /* 2×2 layout: Sunrise+Sunset on row 1, Moonrise+Moonset on row 2.
+       Wider tiles, solar and lunar events clearly grouped. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .celestial-grid-secondary {
@@ -835,6 +837,10 @@
     border: 0;
     border-radius: inherit;
     padding: 18px;
+    /* override the 3-row template inherited from .console-face so all 4
+       children (h3, arc, primary-grid, secondary-grid) get natural height */
+    grid-template-rows: auto auto auto auto;
+    overflow: visible;
 }
 
 .inside-card .data-pairs,
