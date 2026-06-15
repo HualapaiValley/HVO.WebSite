@@ -332,10 +332,10 @@
                         </div>
                     </section>
 
-                    <section class="plot-panel astronomy-card">
+                    <section class="plot-panel solar-card astronomy-card">
                         <h3>Astronomical Info</h3>
-                        <p>Sun and moon altitude throughout today. Filled arc = above horizon.</p>
-                        <div class="status-chart status-chart-compact">
+                        <p>Sun and moon altitude today. Filled arc = above horizon.</p>
+                        <div class="status-chart status-chart-compact astro-chart">
                             @if (HasAstronomicalPlot)
                             {
                                 <HvoChart ChartId="status-astro-chart"
@@ -356,19 +356,16 @@
                             }
                         </div>
 
-                        <div class="astro-stats-grid">
-                            <div class="celestial-stat"><span>Sunrise</span><strong class="mono">@FormatDisplayTime(_reading?.SunriseDisplay)</strong></div>
-                            <div class="celestial-stat"><span>Sunset</span><strong  class="mono">@FormatDisplayTime(_reading?.SunsetDisplay)</strong></div>
-                            <div class="celestial-stat"><span>Moonrise</span><strong class="mono">@MoonriseText</strong></div>
-                            <div class="celestial-stat"><span>Moonset</span><strong  class="mono">@MoonsetText</strong></div>
-                            <div class="celestial-stat astro-phase-tile">
+                        <div class="rows">
+                            <div class="row"><span>Sunrise</span><strong class="mono">@FormatDisplayTime(_reading?.SunriseDisplay)</strong></div>
+                            <div class="row"><span>Sunset</span><strong  class="mono">@FormatDisplayTime(_reading?.SunsetDisplay)</strong></div>
+                            <div class="row"><span>Moonrise</span><strong class="mono">@MoonriseText</strong></div>
+                            <div class="row"><span>Moonset</span><strong  class="mono">@MoonsetText</strong></div>
+                            <div class="row">
                                 <span>Moon phase</span>
-                                <strong>
-                                    <span class="astro-moon-emoji" aria-hidden="true">@MoonPhaseIcon</span>
-                                    @MoonPhaseText
-                                </strong>
+                                <strong><span class="astro-moon-emoji" aria-hidden="true">@MoonPhaseIcon</span> @MoonPhaseText</strong>
                             </div>
-                            <div class="celestial-stat"><span>Illumination</span><strong class="mono">@IlluminationText</strong></div>
+                            <div class="row"><span>Illumination</span><strong class="mono">@IlluminationText</strong></div>
                         </div>
                     </section>
                 </div>

@@ -827,27 +827,15 @@
     place-items: center;
 }
 
-.astronomy-card {
-    display: grid;
-    gap: 12px;
-}
-
-.astro-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-}
-
-.astro-phase-tile strong {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
+/* Override min-height so the HvoChart canvas sets the height, not the wrapper */
+.astro-chart {
+    min-height: 0;
 }
 
 .astro-moon-emoji {
-    font-size: 1.15rem;
+    font-size: 1.1rem;
     line-height: 1;
+    vertical-align: middle;
 }
 
 .inside-card .data-pairs,

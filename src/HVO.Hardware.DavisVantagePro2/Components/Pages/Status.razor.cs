@@ -444,20 +444,21 @@ public partial class Status : IDisposable
 
         var datasets = new List<HvoChartDataset>
         {
-            // Full sun arc (filled)
-            new("#sun-arc", sunData, "#ffcf66", "rgba(255,207,102,0.18)",
+            // Full sun arc (filled amber)
+            new("", sunData,   "#ffcf66", "rgba(255,207,102,0.20)",
                 Fill: true, BorderWidth: 2, PointRadius: 0, Tension: 0.4),
-            // Current sun position marker
-            new("#sun-now", sunNow, "#fff0a0", null,
-                Fill: false, BorderWidth: 0, PointRadius: 7, Tension: 0),
+            // Current sun position — solid amber dot
+            new("", sunNow,   "#ffcf66", "#ffcf66",
+                Fill: false, BorderWidth: 2, PointRadius: 8, Tension: 0),
         };
 
         if (hasMoon)
         {
-            datasets.Add(new("#moon-arc", moonData, "#9fb8d4", null,
+            datasets.Add(new("", moonData, "#9fb8d4", "rgba(159,184,212,0.12)",
                 Fill: false, BorderWidth: 1.5, PointRadius: 0, Tension: 0.4));
-            datasets.Add(new("#moon-now", moonNow, "#d8eaf8", null,
-                Fill: false, BorderWidth: 0, PointRadius: 6, Tension: 0));
+            // Current moon position — solid silver dot
+            datasets.Add(new("", moonNow, "#c8d8ee", "#c8d8ee",
+                Fill: false, BorderWidth: 2, PointRadius: 7, Tension: 0));
         }
 
         _astronomicalLabels  = labels;
