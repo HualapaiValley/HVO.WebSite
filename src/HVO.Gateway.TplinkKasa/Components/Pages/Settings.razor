@@ -4,7 +4,6 @@
 @inject KasaGatewayState GatewayState
 @inject IOptions<KasaGatewayOptions> GatewayOptions
 
-<MudPaper Class="layout-canvas shell-page" Elevation="0" aria-label="TP-Link/Kasa settings content area">
     <MudStack Spacing="3" Class="shell-page-stack kasa-page">
         <section class="kasa-page-header">
             <div>
@@ -292,7 +291,6 @@
                                                 </MudTabPanel>
                                             </MudTabs>
                                         </MudStack>
-                                    </MudPaper>
 
 @code {
     private IReadOnlyList<KasaNetworkConfig> _networks = [];
