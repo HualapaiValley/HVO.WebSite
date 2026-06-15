@@ -50,6 +50,8 @@
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 16px;
     align-items: start;
+    /* Cap total width so 6 compasses don't balloon on ultra-wide cards */
+    max-width: 600px;
 }
 
 .id-compass-item { display: grid; gap: 6px; }
@@ -57,7 +59,8 @@
 .id-compass-svg {
     display: block;
     width: 100%;
-    max-width: 160px;
+    /* Realistic dashboard size: ~80 px matches a compact card widget */
+    max-width: 80px;
     margin: 0 auto;
 }
 
@@ -86,33 +89,8 @@
     color: var(--shell-pill-text);
 }
 
-/* ── Celestial grid — 4 items ── */
-.id-celestial-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 18px;
-    align-items: start;
-}
-
-.id-celestial-item { display: grid; gap: 8px; }
-
-.id-celestial-title { margin: 0; }
-
-.id-celestial-icon {
-    display: grid;
-    place-items: center;
-    min-height: 80px;
-    overflow: hidden;
-}
-
-.id-celestial-svg {
-    width: min(100%, 240px);
-    height: auto;
-    display: block;
-    margin: 0 auto;
-}
-
-.id-celestial-stats { gap: 6px; }
+/* ── Astronomical chart stats ── */
+.id-astro-stats { margin-top: 1rem; }
 
 /* ── Half-width chart grid ── */
 .id-half-grid {
@@ -139,7 +117,6 @@
 @media (max-width: 900px) {
     .id-compass-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .id-barometer-grid { grid-template-columns: 1fr; }
-    .id-celestial-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .id-half-grid { grid-template-columns: 1fr; }
     .id-third-grid { grid-template-columns: 1fr; }
 }

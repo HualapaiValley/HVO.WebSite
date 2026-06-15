@@ -203,7 +203,8 @@
                 }
 
                 double luminance = 0.2126 * Lin(r) + 0.7152 * Lin(g) + 0.0722 * Lin(b);
-                return luminance > 0.40 ? "hvo-palette-on-light" : "hvo-palette-on-dark";
+                // WCAG break-even: black and white text give equal contrast ratio at L=0.179
+                return luminance > 0.179 ? "hvo-palette-on-light" : "hvo-palette-on-dark";
             }
             catch { }
         }
