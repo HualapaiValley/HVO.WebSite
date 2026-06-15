@@ -84,11 +84,11 @@ See [src/HVO.Hardware.DavisVantagePro2/README.md](src/HVO.Hardware.DavisVantageP
 |--------|-------|------|-------------|
 | `POST` | `/api/v1/weather/raw` | API key `ingest:weather` | Ingest single raw weather reading |
 | `POST` | `/api/v1/weather/raw/batch` | API key `ingest:weather` | Ingest batch of raw readings |
-| `GET`  | `/api/v1/weather/raw/recent` | API key `read:weather` | Recent raw readings (paginated) |
-| `GET`  | `/api/v1/weather/hourly/recent` | API key `read:weather` | Recent hourly aggregates (paginated) |
-| `GET`  | `/api/v1/weather/latest` | open | Latest weather record |
-| `GET`  | `/api/v1/weather/current` | open | Current conditions with today's extremes |
-| `GET`  | `/api/v1/weather/highs-lows` | open | Highs/lows for a date range |
+| `GET`  | `/api/v1/weather/raw/recent` | API key `read:weather` or `read:api` | Recent raw readings (paginated) |
+| `GET`  | `/api/v1/weather/hourly/recent` | API key `read:weather` or `read:api` | Recent hourly aggregates (paginated) |
+| `GET`  | `/api/v1/weather/latest` | API key `read:weather` or `read:api` | Latest weather record |
+| `GET`  | `/api/v1/weather/current` | API key `read:weather` or `read:api` | Current conditions with today's extremes |
+| `GET`  | `/api/v1/weather/highs-lows` | API key `read:weather` or `read:api` | Highs/lows for a date range |
 
 ### BMS
 | Method | Route | Auth | Description |

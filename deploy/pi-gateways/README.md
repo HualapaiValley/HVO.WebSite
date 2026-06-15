@@ -22,13 +22,14 @@ Recommended website secret names in `hvoobs-kv`:
 - `Seeding--DavisApiKey`
 - `Seeding--BmsApiKey`
 - `Seeding--PowerApiKey`
+- `Seeding--WeatherReadApiKey`
 - `Seeding--PowerReadApiKey`
 
 Reason:
 
 - The website loads Azure Key Vault into configuration at startup.
 - ASP.NET Core configuration maps `--` in Key Vault secret names to `:` in configuration keys.
-- `ApiKeySeedService` reads `Seeding:DavisApiKey`, `Seeding:BmsApiKey`, `Seeding:PowerApiKey`, and `Seeding:PowerReadApiKey`.
+- `ApiKeySeedService` reads `Seeding:DavisApiKey`, `Seeding:BmsApiKey`, `Seeding:PowerApiKey`, `Seeding:WeatherReadApiKey`, and `Seeding:PowerReadApiKey`.
 
 Current local raw keys already present in the dev environment:
 
@@ -39,6 +40,10 @@ New power keys generated for rollout:
 
 - `POWER_API_KEY` for `ingest:power`
 - `POWER_READ_API_KEY` for `read:power`
+
+Weather read clients:
+
+- `WEATHER_READ_API_KEY` for `read:weather`
 
 Important:
 

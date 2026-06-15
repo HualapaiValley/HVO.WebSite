@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -37,6 +38,13 @@ public class ApiKeyAuthMiddleware
     {
         if (!context.Request.Headers.TryGetValue(ApiKeyHeader, out var rawKey) || string.IsNullOrWhiteSpace(rawKey))
         {
+            if (RequiresApiKeyForProtectedApiEndpoint(context))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsync("Missing API key.");
+                return;
+            }
+
             await _next(context);
             return;
         }
@@ -131,5 +139,15 @@ public class ApiKeyAuthMiddleware
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawKey));
         return Convert.ToHexStringLower(bytes);
+    }
+
+    private static bool RequiresApiKeyForProtectedApiEndpoint(HttpContext context)
+    {
+        if (!context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var endpoint = context.GetEndpoint();
+        return endpoint?.Metadata.GetMetadata<IAllowAnonymous>() is null
+            && endpoint?.Metadata.GetOrderedMetadata<IAuthorizeData>().Count > 0;
     }
 }
