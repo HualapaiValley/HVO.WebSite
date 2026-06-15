@@ -5,6 +5,27 @@
     max-width: 100%;
     box-sizing: border-box;
     font-family: "Open Sans Custom", "Segoe UI", sans-serif;
+    --dashboard-text: var(--shell-page-text);
+    --dashboard-hero: var(--shell-brand-title);
+    --dashboard-muted: var(--shell-pill-text);
+    --dashboard-accent-blue: #6da5ff;
+    --dashboard-accent-cyan: #83e4ff;
+    --dashboard-accent-amber: #ffcf66;
+    --dashboard-accent-success: #57d38d;
+    --dashboard-accent-danger: #ff7f7f;
+    --dashboard-surface-card: var(--shell-card-background);
+    --dashboard-surface-panel: var(--shell-overlay-panel);
+    --dashboard-surface-panel-strong: color-mix(in srgb, var(--shell-card-background) 86%, var(--shell-overlay-panel) 14%);
+    --dashboard-surface-border: var(--shell-card-border);
+    --dashboard-surface-border-soft: var(--shell-overlay-panel-border);
+    --dashboard-surface-border-strong: var(--shell-card-border);
+    --dashboard-surface-highlight: var(--shell-card-inner-border);
+    --dashboard-surface-overlay: linear-gradient(135deg, rgba(88, 190, 255, 0.04), rgba(255, 207, 102, 0.03));
+    --dashboard-surface-console: var(--shell-overlay-panel);
+    --dashboard-surface-stat: var(--shell-overlay-panel);
+    --dashboard-chart-empty-background: var(--shell-chart-empty-background);
+    --dashboard-chart-empty-border: var(--shell-chart-empty-border);
+    --dashboard-marker-fill: var(--shell-chart-marker-fill);
     color: var(--dashboard-text);
 }
 
