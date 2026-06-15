@@ -332,39 +332,28 @@
                         </div>
                     </section>
 
-                    <section class="subcard astronomy-card">
-                        <h3 class="astro-heading">Astronomical Info</h3>
-
-                        <div class="astro-arc-wrap">
-                            <svg class="astro-arc-svg" viewBox="36 52 160 70"
-                                 aria-label="Sun position arc from sunrise to sunset">
-                                <!-- sky arc -->
-                                <path d="M48 116C72 90 90 62 116 62C142 62 160 90 184 116"
-                                      fill="none" stroke="var(--dashboard-sun-stroke)"
-                                      stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
-                                <!-- horizon -->
-                                <line x1="42" y1="116" x2="190" y2="116"
-                                      stroke="var(--dashboard-compass-ring)"
-                                      stroke-width="1" opacity="0.5"/>
-                                @if (SunMarker.IsVisible)
-                                {
-                                    <!-- sun glow -->
-                                    <circle cx="@SunMarker.X.ToString("F1", CultureInfo.InvariantCulture)"
-                                            cy="@SunMarker.Y.ToString("F1", CultureInfo.InvariantCulture)"
-                                            r="9" fill="var(--dashboard-sun-glow)"/>
-                                    <!-- sun disc -->
-                                    <circle cx="@SunMarker.X.ToString("F1", CultureInfo.InvariantCulture)"
-                                            cy="@SunMarker.Y.ToString("F1", CultureInfo.InvariantCulture)"
-                                            r="5" fill="var(--dashboard-sun-fill)"/>
-                                }
-                                @if (MoonMarker.IsVisible)
-                                {
-                                    <!-- moon position dot only — phase shown via emoji below -->
-                                    <circle cx="@MoonMarker.X.ToString("F1", CultureInfo.InvariantCulture)"
-                                            cy="@MoonMarker.Y.ToString("F1", CultureInfo.InvariantCulture)"
-                                            r="4" fill="var(--dashboard-moon-fill)" opacity="0.85"/>
-                                }
-                            </svg>
+                    <section class="plot-panel astronomy-card">
+                        <h3>Astronomical Info</h3>
+                        <p>Sun and moon altitude throughout today. Filled arc = above horizon.</p>
+                        <div class="status-chart status-chart-compact">
+                            @if (HasAstronomicalPlot)
+                            {
+                                <HvoChart ChartId="status-astro-chart"
+                                          Type="HvoChartType.Line"
+                                          ShowLegend="false"
+                                          Height="200"
+                                          EnableAnimations="false"
+                                          SpanGaps="false"
+                                          YAxisSuggestedMin="0"
+                                          YAxisSuggestedMax="105"
+                                          Labels="@_astronomicalLabels"
+                                          Datasets="@_astronomicalDatasets"
+                                          DataRevision="@_chartRevision" />
+                            }
+                            else
+                            {
+                                <div class="status-chart-empty">Waiting for astronomical data.</div>
+                            }
                         </div>
 
                         <div class="astro-stats-grid">

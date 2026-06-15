@@ -401,7 +401,7 @@
 
 .summary-grid-standalone {
     margin-top: 0;
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .solar-card {
@@ -830,25 +830,6 @@
 .astronomy-card {
     display: grid;
     gap: 12px;
-    padding: 18px;
-    overflow: hidden;
-}
-
-.astro-heading {
-    margin: 0;
-}
-
-.astro-arc-wrap {
-    display: grid;
-    place-items: center;
-    overflow: hidden;
-}
-
-.astro-arc-svg {
-    width: 100%;
-    max-width: 480px;
-    height: auto;
-    display: block;
 }
 
 .astro-stats-grid {

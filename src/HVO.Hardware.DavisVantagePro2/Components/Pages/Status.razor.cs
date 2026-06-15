@@ -41,8 +41,9 @@ public partial class Status : IDisposable
     private HvoChartDataset[] _temperatureDatasets = [];
     private HvoChartDataset[] _windDatasets = [];
     private HvoChartDataset[] _solarDatasets = [];
+    private string[] _astronomicalLabels = [];
+    private HvoChartDataset[] _astronomicalDatasets = [];
     private int _chartRevision;
-    private CelestialMarker _sunMarker = CelestialMarker.Hidden;
     private MoonSnapshot _moonContext = MoonSnapshot.Empty;
 
     protected override async Task OnInitializedAsync()
@@ -241,34 +242,19 @@ public partial class Status : IDisposable
         _                => "🌙"
     };
 
-    private double MoonPhaseShadowX
-    {
-        get
-        {
-            const double centerX = 60d;
-            const double radius = 42d;
-            double offset = Math.Clamp(_moonContext.IlluminationPercent / 100d, 0d, 1d) * radius * 2d;
-            return centerX + (_moonContext.IsWaxing ? -offset : offset);
-        }
-    }
-
     private string IlluminationText => _moonContext.IlluminationText;
 
     private string MoonriseText => _moonContext.MoonriseText;
 
     private string MoonsetText => _moonContext.MoonsetText;
 
-    private CelestialMarker SunMarker => _sunMarker;
-
-    private CelestialMarker MoonMarker => _moonContext.Marker;
-
-    private string CelestialViewBox => BuildCelestialViewBox(SunMarker, MoonMarker);
-
     private bool HasTemperaturePlot => _temperatureDatasets.Length > 0 && _chartTimeLabels.Length > 0;
 
     private bool HasSolarPlot => _solarDatasets.Length > 0 && _chartTimeLabels.Length > 0;
 
     private bool HasWindPlot => _windDatasets.Length > 0 && _chartTimeLabels.Length > 0;
+
+    private bool HasAstronomicalPlot => _astronomicalDatasets.Length > 0 && _astronomicalLabels.Length > 0;
 
     private void RefreshVisuals()
     {
@@ -361,8 +347,132 @@ public partial class Status : IDisposable
                 SolarColor, "rgba(255,209,102,0.18)", Fill: true, Tension: 0.3),
         ];
 
+        BuildAstronomicalChartData();
         _chartRevision++;
     }
+
+    /// <summary>
+    /// Builds a full-day (midnight-to-midnight) sun and moon altitude chart using a
+    /// sinusoidal approximation from the console's sunrise/sunset and the computed
+    /// moonrise/moonset times. Altitude is expressed as 0-100 % of the peak elevation.
+    /// </summary>
+    private void BuildAstronomicalChartData()
+    {
+        const int slots = 48;
+        const int slotMinutes = 30;
+
+        var labels = new string[slots];
+        var sunData = new double?[slots];
+        var moonData = new double?[slots];
+        var sunNow = new double?[slots];
+        var moonNow = new double?[slots];
+
+        for (int i = 0; i < slots; i++)
+        {
+            labels[i] = new DateTime(2000, 1, 1)
+                .AddMinutes(i * slotMinutes)
+                .ToString("HH:mm", CultureInfo.InvariantCulture);
+        }
+
+        int currentSlot = ObservationWindowEndLocal.HasValue
+            ? Math.Clamp((int)(ObservationWindowEndLocal.Value.TimeOfDay.TotalMinutes / slotMinutes), 0, slots - 1)
+            : -1;
+
+        // ── Sun ──────────────────────────────────────────────────────────────
+        var sunrise = ParseConsoleTime(_reading?.SunriseDisplay);
+        var sunset  = ParseConsoleTime(_reading?.SunsetDisplay);
+
+        if (sunrise.HasValue && sunset.HasValue)
+        {
+            int riseMin = sunrise.Value.Hour * 60 + sunrise.Value.Minute;
+            int setMin  = sunset.Value.Hour  * 60 + sunset.Value.Minute;
+            int dayLen  = setMin - riseMin;
+
+            if (dayLen > 0)
+            {
+                for (int i = 0; i < slots; i++)
+                {
+                    int t = i * slotMinutes;
+                    if (t >= riseMin && t <= setMin)
+                    {
+                        double progress = (double)(t - riseMin) / dayLen;
+                        sunData[i] = Math.Round(Math.Sin(progress * Math.PI) * 100.0, 1);
+                    }
+                }
+
+                if (currentSlot >= 0 && sunData[currentSlot].HasValue)
+                {
+                    sunNow[currentSlot] = sunData[currentSlot];
+                }
+            }
+        }
+
+        // ── Moon ─────────────────────────────────────────────────────────────
+        var moonrise = ParseMoonTime(_moonContext.MoonriseText);
+        var moonset  = ParseMoonTime(_moonContext.MoonsetText);
+
+        if (moonrise.HasValue && moonset.HasValue)
+        {
+            int riseMin  = moonrise.Value.Hour * 60 + moonrise.Value.Minute;
+            int setMin   = moonset.Value.Hour  * 60 + moonset.Value.Minute;
+            bool crosses = setMin < riseMin;
+            int duration = crosses ? (24 * 60 - riseMin) + setMin : setMin - riseMin;
+
+            if (duration > 0)
+            {
+                for (int i = 0; i < slots; i++)
+                {
+                    int t = i * slotMinutes;
+                    bool above = crosses ? (t >= riseMin || t <= setMin) : (t >= riseMin && t <= setMin);
+                    if (above)
+                    {
+                        int elapsed = crosses && t < riseMin ? (24 * 60 - riseMin) + t : t - riseMin;
+                        double progress = (double)elapsed / duration;
+                        // Scale moon slightly lower than sun so both fit (0-85%)
+                        moonData[i] = Math.Round(Math.Sin(progress * Math.PI) * 85.0, 1);
+                    }
+                }
+
+                if (currentSlot >= 0 && moonData[currentSlot].HasValue)
+                {
+                    moonNow[currentSlot] = moonData[currentSlot];
+                }
+            }
+        }
+
+        bool hasMoon = moonData.Any(v => v.HasValue);
+
+        var datasets = new List<HvoChartDataset>
+        {
+            // Full sun arc (filled)
+            new("#sun-arc", sunData, "#ffcf66", "rgba(255,207,102,0.18)",
+                Fill: true, BorderWidth: 2, PointRadius: 0, Tension: 0.4),
+            // Current sun position marker
+            new("#sun-now", sunNow, "#fff0a0", null,
+                Fill: false, BorderWidth: 0, PointRadius: 7, Tension: 0),
+        };
+
+        if (hasMoon)
+        {
+            datasets.Add(new("#moon-arc", moonData, "#9fb8d4", null,
+                Fill: false, BorderWidth: 1.5, PointRadius: 0, Tension: 0.4));
+            datasets.Add(new("#moon-now", moonNow, "#d8eaf8", null,
+                Fill: false, BorderWidth: 0, PointRadius: 6, Tension: 0));
+        }
+
+        _astronomicalLabels  = labels;
+        _astronomicalDatasets = datasets.ToArray();
+    }
+
+    private static TimeOnly? ParseConsoleTime(string? text) =>
+        text is not null &&
+        TimeOnly.TryParseExact(text, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var t)
+            ? t : null;
+
+    private static TimeOnly? ParseMoonTime(string? text) =>
+        text is not null &&
+        TimeOnly.TryParseExact(text, "h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var t)
+            ? t : null;
 
     private void RefreshSummaryMetrics()
     {
@@ -458,77 +568,17 @@ public partial class Status : IDisposable
     {
         if (!ObservationWindowEndLocal.HasValue)
         {
-            _sunMarker = CelestialMarker.Hidden;
             _moonContext = MoonSnapshot.Empty;
             return;
         }
 
         var observedAtLocal = new DateTimeOffset(ObservationWindowEndLocal.Value, Station.ConsoleUtcOffset);
 
-        _sunMarker = CelestialArcCalculations.BuildSunMarker(observedAtLocal, _reading?.SunriseDisplay, _reading?.SunsetDisplay);
         _moonContext = CelestialArcCalculations.BuildMoonSnapshot(
             observedAtLocal,
             Station.ConsoleUtcOffset,
             Station.LatitudeDegrees,
             Station.LongitudeDegrees);
-    }
-
-    private static string BuildCelestialViewBox(CelestialMarker sunMarker, CelestialMarker moonMarker)
-    {
-        const double arcMinX = 44d;
-        const double arcMaxX = 188d;
-        const double arcMinY = 60d;
-        const double arcMaxY = 120d;
-        const double padding = 6d;
-        const double minimumWidth = 182d;
-        const double minimumHeight = 80d;
-
-        double minX = arcMinX;
-        double maxX = arcMaxX;
-        double minY = arcMinY;
-        double maxY = arcMaxY;
-
-        if (sunMarker.IsVisible)
-        {
-            double radius = Math.Max(18d, sunMarker.GlowRadius);
-            ExpandBounds(ref minX, ref maxX, ref minY, ref maxY, sunMarker.X, sunMarker.Y, radius);
-        }
-
-        if (moonMarker.IsVisible)
-        {
-            ExpandBounds(ref minX, ref maxX, ref minY, ref maxY, moonMarker.X, moonMarker.Y, 12d);
-        }
-
-        minX -= padding;
-        maxX += padding;
-        minY -= padding;
-        maxY += padding;
-
-        EnsureMinimumRange(ref minX, ref maxX, minimumWidth);
-        EnsureMinimumRange(ref minY, ref maxY, minimumHeight);
-
-        return string.Create(CultureInfo.InvariantCulture, $"{minX:F1} {minY:F1} {(maxX - minX):F1} {(maxY - minY):F1}");
-    }
-
-    private static void ExpandBounds(ref double minX, ref double maxX, ref double minY, ref double maxY, double centerX, double centerY, double radius)
-    {
-        minX = Math.Min(minX, centerX - radius);
-        maxX = Math.Max(maxX, centerX + radius);
-        minY = Math.Min(minY, centerY - radius);
-        maxY = Math.Max(maxY, centerY + radius);
-    }
-
-    private static void EnsureMinimumRange(ref double min, ref double max, double minimumRange)
-    {
-        double currentRange = max - min;
-        if (currentRange >= minimumRange)
-        {
-            return;
-        }
-
-        double padding = (minimumRange - currentRange) / 2d;
-        min -= padding;
-        max += padding;
     }
 
     private void UpsertLiveHistorySample(Loop2Packet reading)
