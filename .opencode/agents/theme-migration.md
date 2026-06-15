@@ -74,6 +74,12 @@ Phase 0 (#154) → Phase 0.5 (#155) → Phase 1.1 (#156) → Phase 1.2 (#157)
 5. **ShellLayoutState** is shared from Themes RCL. Never copy-paste it into a per-app project.
 6. **Davis app.css** (~800 lines of forked shell CSS) must be deleted, not maintained.
 7. **Chart theming** uses JS interop reading `--shell-chart-*` CSS vars. Chart.js defaults update on theme toggle.
+8. **CSS governance**: Read `docs/CSS_GOVERNANCE.md` before writing any CSS. The full hard rules, permitted patterns, and global change process are defined there. Key points:
+   - No hardcoded `#hex` or `rgba()` in `.razor.css` or `app.css` — use `var(--shell-*)`, `var(--hvo-series-*)`, `var(--hvo-accent-*)`, or `color-mix()`.
+   - No pass-through alias variables.
+   - No local copies of `hvo-components.css` or `hvo-shared-shell.css` classes.
+   - No `--shell-*` overrides at `:root`.
+   - Global CSS changes (`hvo-shared-shell.css`, `hvo-components.css`) require ThemeSandbox demo + cross-project grep + full solution build before merge.
 
 ## Playwright Test Rules
 
