@@ -248,19 +248,19 @@ static async Task RunGatewayAsync(string[] args)
 
     app.MapHealthChecks("/health");
 
-    app.MapGet("/gateway-health", (KasaGatewayState state) => Results.Ok(state.GetHealth()));
-    app.MapGet("/status-review", (KasaGatewayState state) => Results.Ok(state.GetReviewStatus()));
-    app.MapGet("/status-review/current", (KasaGatewayState state) => Results.Ok(state.GetReviewCurrentStatus()));
-    app.MapGet("/devices", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
+    app.MapGet("/gateway-health", async (KasaGatewayState state, CancellationToken cancellationToken) => Results.Ok(await state.GetHealthAsync(cancellationToken)));
+    app.MapGet("/status-review", async (KasaGatewayState state, CancellationToken cancellationToken) => Results.Ok(await state.GetReviewStatusAsync(cancellationToken)));
+    app.MapGet("/status-review/current", async (KasaGatewayState state, CancellationToken cancellationToken) => Results.Ok(await state.GetReviewCurrentStatusAsync(cancellationToken)));
+    app.MapGet("/devices", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        return Results.Ok(await state.GetDevicesAsync());
+        return Results.Ok(await state.GetDevicesAsync(cancellationToken));
     });
-    app.MapGet("/devices/search", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string? q, string? model, string? kind, string? capability, string? metadataCapability, bool? online, bool? degraded) =>
+    app.MapGet("/devices/search", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string? q, string? model, string? kind, string? capability, string? metadataCapability, bool? online, bool? degraded, CancellationToken cancellationToken) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
@@ -268,16 +268,16 @@ static async Task RunGatewayAsync(string[] args)
         }
 
         var request = new KasaDeviceSearchRequest(q, model, kind, capability, metadataCapability, online, degraded);
-        return Results.Ok(await state.SearchDevicesAsync(request));
+        return Results.Ok(await state.SearchDevicesAsync(request, cancellationToken));
     });
-    app.MapGet("/devices/{sourceId}", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId) =>
+    app.MapGet("/devices/{sourceId}", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, CancellationToken cancellationToken) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        var device = await state.GetDeviceBySourceIdAsync(sourceId);
+        var device = await state.GetDeviceBySourceIdAsync(sourceId, cancellationToken);
         return device is null ? Results.NotFound() : Results.Ok(device);
     });
     app.MapPost("/devices/{sourceId}/refresh-details", async (HttpContext httpContext, KasaAdminService adminService, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, CancellationToken cancellationToken) =>
@@ -330,23 +330,23 @@ static async Task RunGatewayAsync(string[] args)
         var result = await commandService.SetLightAsync(sourceId, request, cancellationToken);
         return result.Success ? Results.Ok(result) : Results.BadRequest(result);
     });
-    app.MapGet("/status", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
+    app.MapGet("/status", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        return Results.Ok(await state.GetStatusAsync());
+        return Results.Ok(await state.GetStatusAsync(cancellationToken));
     });
-    app.MapGet("/inventory", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions) =>
+    app.MapGet("/inventory", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
     {
         if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        return Results.Ok(await state.GetInventoryAsync());
+        return Results.Ok(await state.GetInventoryAsync(cancellationToken));
     });
 
     await app.RunAsync().ConfigureAwait(false);

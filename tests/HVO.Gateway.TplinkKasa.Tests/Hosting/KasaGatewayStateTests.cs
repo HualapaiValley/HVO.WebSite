@@ -12,11 +12,11 @@ namespace HVO.Gateway.TplinkKasa.Tests.Hosting;
 public sealed class KasaGatewayStateTests
 {
     [TestMethod]
-    public void GetInventory_DoesNotExposeRawDeviceIdOrHost()
+    public async Task GetInventoryAsync_DoesNotExposeRawDeviceIdOrHost()
     {
         var state = CreateState();
 
-        var inventory = state.GetInventory();
+        var inventory = await state.GetInventoryAsync(CancellationToken.None);
 
         inventory.Devices.Should().ContainSingle();
         var device = inventory.Devices[0];
@@ -29,7 +29,7 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void GetInventory_IgnoresDisabledPlaceholderDevices()
+    public async Task GetInventoryAsync_IgnoresDisabledPlaceholderDevices()
     {
         var options = CreateConfig();
         options.Devices.Add(new KasaDeviceConfig
@@ -41,8 +41,8 @@ public sealed class KasaGatewayStateTests
         });
         var state = CreateState(options);
 
-        var inventory = state.GetInventory();
-        var status = state.GetStatus();
+        var inventory = await state.GetInventoryAsync(CancellationToken.None);
+        var status = await state.GetStatusAsync(CancellationToken.None);
 
         inventory.Devices.Should().ContainSingle();
         inventory.Devices.Should().NotContain(device => device.SourceId == "tplink-kasa:disabled-placeholder");
@@ -50,13 +50,13 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void GetDevices_ReturnsAuthenticatedDeviceListShape()
+    public async Task GetDevicesAsync_ReturnsAuthenticatedDeviceListShape()
     {
         var state = CreateState();
         var config = CreateConfig().Devices[0];
         state.ApplyResult(config, new KasaPollResult(CreateSnapshot(config, KasaDeviceKind.Plug, "EP25(US)"), null));
 
-        var devices = state.GetDevices();
+        var devices = await state.GetDevicesAsync(CancellationToken.None);
 
         devices.GatewayId.Should().Be("test-gateway");
         devices.Devices.Should().ContainSingle();
@@ -64,14 +64,14 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void GetStatus_ExposesGatewayAndDeviceDisplayTimeZones()
+    public async Task GetStatusAsync_ExposesGatewayAndDeviceDisplayTimeZones()
     {
         var options = CreateConfig();
         options.DisplayTimeZoneId = "America/Phoenix";
         options.Devices[0].DisplayTimeZoneId = "America/New_York";
         var state = CreateState(options);
 
-        var status = state.GetStatus();
+        var status = await state.GetStatusAsync(CancellationToken.None);
 
         status.DisplayTimeZoneId.Should().Be("America/Phoenix");
         status.Devices.Should().ContainSingle();
@@ -79,20 +79,20 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void GetDeviceBySourceId_MatchesCaseInsensitively()
+    public async Task GetDeviceBySourceIdAsync_MatchesCaseInsensitively()
     {
         var state = CreateState();
         var config = CreateConfig().Devices[0];
         state.ApplyResult(config, new KasaPollResult(CreateSnapshot(config, KasaDeviceKind.Plug, "EP25(US)"), null));
 
-        var device = state.GetDeviceBySourceId("TPLINK-KASA:OBSERVATORY-TEST");
+        var device = await state.GetDeviceBySourceIdAsync("TPLINK-KASA:OBSERVATORY-TEST", CancellationToken.None);
 
         device.Should().NotBeNull();
         device!.Model.Should().Be("EP25(US)");
     }
 
     [TestMethod]
-    public void SearchDevices_FiltersByTextKindCapabilityAndState()
+    public async Task SearchDevicesAsync_FiltersByTextKindCapabilityAndState()
     {
         var options = CreateConfig();
         options.Devices.Add(new KasaDeviceConfig
@@ -110,9 +110,9 @@ public sealed class KasaGatewayStateTests
         state.ApplyResult(plugConfig, new KasaPollResult(CreateSnapshot(plugConfig, KasaDeviceKind.Plug, "EP25(US)", capabilities: new HashSet<KasaCapability> { KasaCapability.SwitchState, KasaCapability.EnergyRealtime }), null));
         state.ApplyResult(bulbConfig, new KasaPollResult(CreateSnapshot(bulbConfig, KasaDeviceKind.Bulb, "LB230(E26)", capabilities: new HashSet<KasaCapability> { KasaCapability.LightState }), null));
 
-        var energyMatches = state.SearchDevices(new KasaDeviceSearchRequest("observatory", null, "plug", "EnergyRealtime", null, true, false));
-        var bulbMatches = state.SearchDevices(new KasaDeviceSearchRequest(null, "LB230", "bulb", null, null, true, false));
-        var vendorDetailMatches = state.SearchDevices(new KasaDeviceSearchRequest("configured-device-host", null, null, null, null, true, false));
+        var energyMatches = await state.SearchDevicesAsync(new KasaDeviceSearchRequest("observatory", null, "plug", "EnergyRealtime", null, true, false), CancellationToken.None);
+        var bulbMatches = await state.SearchDevicesAsync(new KasaDeviceSearchRequest(null, "LB230", "bulb", null, null, true, false), CancellationToken.None);
+        var vendorDetailMatches = await state.SearchDevicesAsync(new KasaDeviceSearchRequest("configured-device-host", null, null, null, null, true, false), CancellationToken.None);
 
         energyMatches.MatchCount.Should().Be(1);
         energyMatches.Devices[0].SourceId.Should().Be("tplink-kasa:observatory-test");
@@ -123,7 +123,7 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void GetStatus_ExposesVendorVisibleDeviceDetailsWithoutRawConfiguredIdOrRawVendorJson()
+    public async Task GetStatusAsync_ExposesVendorVisibleDeviceDetailsWithoutRawConfiguredIdOrRawVendorJson()
     {
         var state = CreateState();
         var config = CreateConfig().Devices[0];
@@ -154,7 +154,7 @@ public sealed class KasaGatewayStateTests
 
         state.ApplyResult(config, new KasaPollResult(snapshot, null));
 
-        var status = state.GetStatus();
+        var status = await state.GetStatusAsync(CancellationToken.None);
         var text = System.Text.Json.JsonSerializer.Serialize(status);
         text.Should().NotContain("RAW_DEVICE_ID_SANITIZED");
         text.Should().Contain("configured-device-host.example");
@@ -177,7 +177,7 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void ApplyResult_FastStatusPollPreservesCachedFullDeviceMetadata()
+    public async Task ApplyResult_FastStatusPollPreservesCachedFullDeviceMetadata()
     {
         var state = CreateState();
         var config = CreateConfig().Devices[0];
@@ -216,7 +216,7 @@ public sealed class KasaGatewayStateTests
         state.ApplyResult(config, new KasaPollResult(fullSnapshot, null));
         state.ApplyResult(config, new KasaPollResult(fastSnapshot, null));
 
-        var status = state.GetStatus();
+        var status = await state.GetStatusAsync(CancellationToken.None);
         status.Devices[0].DeviceInfo!.Timezone!.Index.Should().Be(7);
         status.Devices[0].DeviceInfo!.DeviceUtcOffsetMinutes.Should().Be(-420);
         status.Devices[0].DeviceInfo!.Cloud!.IsConnected.Should().BeTrue();
@@ -224,7 +224,7 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void GetStatus_ExposesReadMetadataWithoutRawVendorJson()
+    public async Task GetStatusAsync_ExposesReadMetadataWithoutRawVendorJson()
     {
         var state = CreateState();
         var config = CreateConfig().Devices[0];
@@ -269,7 +269,7 @@ public sealed class KasaGatewayStateTests
 
         state.ApplyResult(config, new KasaPollResult(snapshot, null));
 
-        var status = state.GetStatus();
+        var status = await state.GetStatusAsync(CancellationToken.None);
 
         status.Devices[0].ReadMetadata.Should().BeSameAs(metadata);
         status.Devices[0].ReadMetadata!.Schedule!.RuleCount.Should().Be(3);
@@ -280,7 +280,7 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void GetReviewStatus_ExposesSafeStatusWithoutRawIdentifiersOrRuntimeValues()
+    public async Task GetReviewStatusAsync_ExposesSafeStatusWithoutRawIdentifiersOrRuntimeValues()
     {
         var state = CreateState();
         var config = CreateConfig().Devices[0];
@@ -325,7 +325,7 @@ public sealed class KasaGatewayStateTests
 
         state.ApplyResult(config, new KasaPollResult(snapshot, null));
 
-        var reviewStatus = state.GetReviewStatus();
+        var reviewStatus = await state.GetReviewStatusAsync(CancellationToken.None);
         var text = System.Text.Json.JsonSerializer.Serialize(reviewStatus);
 
         reviewStatus.Devices.Should().ContainSingle();
@@ -350,7 +350,7 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void GetReviewCurrentStatus_ExposesRuntimeValuesWithoutRawIdentifiersOrRawVendorJson()
+    public async Task GetReviewCurrentStatusAsync_ExposesRuntimeValuesWithoutRawIdentifiersOrRawVendorJson()
     {
         var state = CreateState();
         var config = CreateConfig().Devices[0];
@@ -395,7 +395,7 @@ public sealed class KasaGatewayStateTests
 
         state.ApplyResult(config, new KasaPollResult(snapshot, null));
 
-        var currentStatus = state.GetReviewCurrentStatus();
+        var currentStatus = await state.GetReviewCurrentStatusAsync(CancellationToken.None);
         var text = System.Text.Json.JsonSerializer.Serialize(currentStatus);
 
         currentStatus.Devices.Should().ContainSingle();
@@ -420,7 +420,7 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void ApplyResult_PrefersConfiguredDisplayNameOverRuntimeAlias()
+    public async Task ApplyResult_PrefersConfiguredDisplayNameOverRuntimeAlias()
     {
         var options = CreateConfig();
         options.Devices[0].DisplayName = "Observatory Strip";
@@ -429,7 +429,7 @@ public sealed class KasaGatewayStateTests
 
         state.ApplyResult(config, new KasaPollResult(CreateSnapshot(config, KasaDeviceKind.Plug, "EP25(US)"), null));
 
-        var status = state.GetStatus();
+        var status = await state.GetStatusAsync(CancellationToken.None);
 
         status.Devices.Should().ContainSingle();
         status.Devices[0].DisplayName.Should().Be("Observatory Strip");
@@ -437,7 +437,7 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void GetStatus_PropagatesGroupAndFavoriteMetadata()
+    public async Task GetStatusAsync_PropagatesGroupAndFavoriteMetadata()
     {
         var options = CreateConfig();
         options.Devices[0].GroupName = "Observatory";
@@ -447,8 +447,8 @@ public sealed class KasaGatewayStateTests
 
         state.ApplyResult(config, new KasaPollResult(CreateSnapshot(config, KasaDeviceKind.Plug, "EP25(US)"), null));
 
-        var status = state.GetStatus();
-        var inventory = state.GetInventory();
+        var status = await state.GetStatusAsync(CancellationToken.None);
+        var inventory = await state.GetInventoryAsync(CancellationToken.None);
 
         status.Devices[0].GroupName.Should().Be("Observatory");
         status.Devices[0].IsFavorite.Should().BeTrue();
@@ -457,7 +457,7 @@ public sealed class KasaGatewayStateTests
     }
 
     [TestMethod]
-    public void ApplyConfiguration_UpdatesCachedMetadataWithoutRepoll()
+    public async Task ApplyConfiguration_UpdatesCachedMetadataWithoutRepoll()
     {
         var options = CreateConfig();
         var state = CreateState(options);
@@ -470,7 +470,7 @@ public sealed class KasaGatewayStateTests
         config.IsFavorite = true;
         state.ApplyConfiguration(config);
 
-        var status = state.GetStatus();
+        var status = await state.GetStatusAsync(CancellationToken.None);
 
         status.Devices[0].DisplayName.Should().Be("Pier Lights");
         status.Devices[0].GroupName.Should().Be("Favorites");
