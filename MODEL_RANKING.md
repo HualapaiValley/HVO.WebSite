@@ -2,6 +2,80 @@
 
 Tracked from code review quality, signal-to-noise ratio, cost, and output structure.
 
+## Confirmed available (verified 2026-06-15)
+
+| Provider | Model ID | Status | Notes |
+|---|---|---|---|
+| `github-copilot` | `claude-sonnet-4.6` | **CONFIRMED** | Active OpenCode session model — always available if Copilot is enabled |
+| `opencode-go` | `deepseek-v4-pro` | **CONFIRMED** | In Go model list; benchmarked 100% accept rate |
+| `opencode-go` | `qwen3.7-plus` | **CONFIRMED** | In Go model list; benchmarked 100% accept rate, best for gateways |
+| `opencode-go` | `qwen3.7-max` | **listed** | In Go model list; untested; highest quality Go tier ($2.50/M) |
+| `opencode-go` | `kimi-k2.7-code` | **listed** | In Go model list; untested; code-focused ($0.95/M) |
+| `opencode-go` | `minimax-m3` | **CONFIRMED** | In Go model list; benchmarked, best for hardware/BLE |
+| `opencode` (Zen) | `gpt-5.5` | **needs credit check** | In Zen catalog; PAID — verify credits before use |
+| `opencode` (Zen) | `claude-opus-4-8` | **needs credit check** | In Zen catalog; check Zen credit tier |
+| `openai` | any | **no key** | `OPENAI_API_KEY` not in environment — would need adding |
+
+## Recommended model per task
+
+| Task | Primary | Fallback |
+|---|---|---|
+| Code reviews (most issues) | `opencode-go/deepseek-v4-pro` | `github-copilot/claude-sonnet-4.6` |
+| Gateway/async/worker reviews | `opencode-go/qwen3.7-plus` | `opencode-go/deepseek-v4-pro` |
+| Hardware/BLE reviews | `opencode-go/minimax-m3` | `opencode-go/deepseek-v4-pro` |
+| Final synthesis / roadmap (#198) | `opencode/gpt-5.5` (if credits) | `github-copilot/claude-sonnet-4.6` |
+| Fallback for everything | `github-copilot/claude-sonnet-4.6` | `opencode-go/deepseek-v4-pro` |
+
+---
+
+## Methodology
+
+Models are evaluated by running them as code-review prep agents on the same HVO.WebSite repo (full-codebase or per-architecture-group split). Each review produces candidate findings that are independently validated. Key metrics: accepted candidate rate, false positive rate, output structure quality, depth of analysis, and cost.
+
+---
+
+## Current Ranking
+
+| Rank | Model | Source | Cost | Findings | Accept Rate | Signal/Noise | Strengths | Weaknesses | Tested |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | **GPT 5.5** | Zen | Paid | 31 findings, 24 files | Very high | Excellent | Most targeted, fewest false positives, best final recommendations | Costs money — need Zen credits | Yes |
+| 2 | **DeepSeek V4 Pro** | Go | $1.74/M (Go sub) | 12 findings, 0 false positives | 100% | Excellent | Precise line numbers, contextual evidence, call flow, 0 false positives | Narrower per-session context (Web/API only) | Yes |
+| 3 | **DeepSeek V4 Flash** | Zen Free / Go | Free / $0.14/M | 10 high-confidence | ~70% | High | Best structured output, clearest file/line refs, good dedup | Some false positives (Docker, dev-mode) | Yes |
+| 4 | **Qwen3.7 Plus** | Go | $0.40/M (Go sub) | 9 findings, 0 false positives | 100% | High | Good gateway/worker lifecycle analysis, correct findings | More verbose than V4 Pro | Yes |
+| 5 | **MiniMax M3** | Go | $0.30/M (Go sub) | 10+ findings, 0 false positives | 100% | High | Good BLE/BT-specific analysis, caught ARM memory concerns | Less broadly useful; focused on hardware | Yes |
+| 6 | **Claude Sonnet 4.6** | GitHub Copilot | Copilot plan | — | — | — | **Confirmed working** — active session model; high quality reasoning | Not yet benchmarked on this repo's review tasks | Partial |
+| 7 | **Qwen3 Coder Next (local)** | Ollama | Free (local) | 62 findings, 9 files | Moderate | Medium | Broadest coverage, 256K context, caught things others missed | Noisiest, highest false-positive rate, slower | Yes |
+| 8 | **Nemotron 3 Ultra Free** | Zen Free | Free | 10 candidates, 3 high-confidence | ~60% | Medium | Deep protocol analysis, good on async/concurrency patterns | More verbose, some low-confidence noise | Yes |
+| 9 | **MiMo V2.5 Free** | Zen Free | Free | 5 candidates, 1 high-confidence | ~80% | High | Excellent at pattern comparison (JkBms vs Victron), concise | Limited breadth, fewer total findings | Yes |
+| — | **Qwen3.7 Max** | Go | $2.50/M (Go sub) | — | — | — | Listed in Go provider; highest quality Go tier | Not yet tested | No |
+| — | **Kimi K2.7 Code** | Go | $0.95/M (Go sub) | — | — | — | Listed in Go provider; code-focused | Not yet tested | No |
+| — | **MiMo V2.5 Pro** | Go | $1.74/M (Go sub) | — | — | — | Not yet tested | Not yet tested | No |
+| — | **GLM-5.1** | Go | $1.40/M (Go sub) | — | — | — | Not yet tested | Not yet tested | No |
+
+---
+
+## Daily Driver Recommendation (Current)
+
+**Tier 1 (Best quality for synthesis): GPT 5.5 (Zen)** — check credits first. If unavailable → `github-copilot/claude-sonnet-4.6`.
+
+**Tier 2 (Best quality for code reviews): DeepSeek V4 Pro** ($1.74/M input, Go) — 100% accept rate, 0 false positives, precise evidence packs.
+
+**Tier 3 (Best confirmed free fallback): GitHub Copilot claude-sonnet-4.6** — always available if Copilot is enabled; confirmed working as the active OpenCode session model.
+
+**Tier 4 (Best value): Qwen3.7 Plus** ($0.40/M, Go) — best for gateway/network-level analysis. Solid value.
+
+---
+
+## Notes
+
+- Last updated: 2026-06-15
+- All tests performed on the same HVO.WebSite repository for comparability
+- Accept rate = findings accepted after independent GPT validation
+- Models are tested as read-only prep agents; final quality includes output structure, not just findings count
+- `github-copilot/claude-sonnet-4.6` confirmed available as of 2026-06-15 (active session model)
+
+Tracked from code review quality, signal-to-noise ratio, cost, and output structure.
+
 ## Methodology
 
 Models are evaluated by running them as code-review prep agents on the same HVO.WebSite repo (full-codebase or per-architecture-group split). Each review produces candidate findings that are independently validated. Key metrics: accepted candidate rate, false positive rate, output structure quality, depth of analysis, and cost.
