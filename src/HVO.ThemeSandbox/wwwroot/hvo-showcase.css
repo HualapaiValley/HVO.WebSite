@@ -133,6 +133,25 @@
     font-size: 0.75rem;
 }
 
+/* ── Computed-contrast swatch text (applied by ContrastClass() in Palette.razor) ── */
+
+/**
+ * Use dark text when the swatch background is light (luminance > 0.40).
+ * Applied to .hvo-palette-label and value spans that sit on a solid-color swatch.
+ */
+.hvo-palette-on-light {
+    color: rgba(0, 0, 0, 0.82) !important;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+/**
+ * Use light text when the swatch background is dark (luminance ≤ 0.40).
+ */
+.hvo-palette-on-dark {
+    color: rgba(255, 255, 255, 0.95) !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.70) !important;
+}
+
 /* ── Palette Swatch ── */
 .hvo-palette-swatch {
     position: relative;
