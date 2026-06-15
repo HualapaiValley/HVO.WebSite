@@ -15,23 +15,23 @@
 
             <div class="archive-grid">
                 <section class="hvo-card-shell summary-card">
-                    <div class="section-head">
+                    <div class="hvo-section-head">
                         <div>
-                            <div class="eyebrow">Archive Console</div>
+                            <div class="hvo-eyebrow">Archive Console</div>
                             <h2>Archive Status</h2>
                         </div>
                     </div>
 
                     <div class="summary-pills">
-                        <div class="pill-card">
+                        <div class="hvo-list-item">
                             <span>Archive interval</span>
                             <strong class="hvo-mono">@_interval min</strong>
                         </div>
-                        <div class="pill-card">
+                        <div class="hvo-list-item">
                             <span>Loaded records</span>
                             <strong class="hvo-mono">@(_historyRecords?.Count ?? 0)</strong>
                         </div>
-                        <div class="pill-card">
+                        <div class="hvo-list-item">
                             <span>Console time zone</span>
                             <strong>@Station.ConsoleTimeZoneLabel</strong>
                         </div>
@@ -39,9 +39,9 @@
                 </section>
 
                 <section class="hvo-card-shell settings-card">
-                    <div class="section-head">
+                    <div class="hvo-section-head">
                         <div>
-                            <div class="eyebrow">Configuration</div>
+                            <div class="hvo-eyebrow">Configuration</div>
                             <h2>Archive Interval</h2>
                         </div>
                     </div>
@@ -49,7 +49,7 @@
                     <div class="hvo-stack">
                         <label class="hvo-field-label" for="archive-interval">Interval (minutes)</label>
                         <div class="hvo-action-row">
-                            <select id="archive-interval" @bind="_interval">
+                            <select class="hvo-control" id="archive-interval" @bind="_interval">
                                 <option value="1">1 min</option>
                                 <option value="5">5 min</option>
                                 <option value="10">10 min</option>
@@ -64,9 +64,9 @@
                 </section>
 
                 <section class="hvo-card-shell danger-card">
-                    <div class="section-head">
+                    <div class="hvo-section-head">
                         <div>
-                            <div class="eyebrow">Danger Zone</div>
+                            <div class="hvo-eyebrow">Danger Zone</div>
                             <h2>Clear Archive Memory</h2>
                         </div>
                     </div>
@@ -91,9 +91,9 @@
             </div>
 
             <section class="hvo-card-shell history-card">
-                <div class="section-head">
+                <div class="hvo-section-head">
                     <div>
-                        <div class="eyebrow">Historical Pull</div>
+                        <div class="hvo-eyebrow">Historical Pull</div>
                         <h2>Archive History</h2>
                     </div>
                 </div>
@@ -101,11 +101,11 @@
                 <div class="history-toolbar">
                     <div class="hvo-stack">
                         <label class="hvo-field-label" for="archive-since">Since</label>
-                        <input id="archive-since" type="datetime-local" value="@_since.ToString("yyyy-MM-ddTHH:mm")"
+                        <input class="hvo-control" id="archive-since" type="datetime-local" value="@_since.ToString("yyyy-MM-ddTHH:mm")"
                                @onchange="OnSinceChanged" />
                     </div>
 
-                    <div class="toolbar-actions">
+                    <div class="hvo-action-row">
                         <button class="hvo-button hvo-button-primary" @onclick="LoadHistoryAsync" disabled="@_historyLoading">
                             @if (_historyLoading)
                             {
@@ -185,10 +185,10 @@
 
                         @if (TotalPages > 1 || _hasMore)
                         {
-                            <div class="pagination-bar">
+                            <div class="hvo-action-row pagination-bar">
                                 @if (TotalPages > 1)
                                 {
-                                    <div class="pager-group">
+                                    <div class="hvo-action-row">
                                         <button class="hvo-button" @onclick='() => _displayPage = 1' disabled="@(_displayPage == 1)">«</button>
                                         <button class="hvo-button" @onclick='() => _displayPage--' disabled="@(_displayPage == 1)">‹</button>
                                         <span class="page-state">
