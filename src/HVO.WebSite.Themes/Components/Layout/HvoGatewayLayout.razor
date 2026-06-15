@@ -32,7 +32,9 @@
 
     <MudMainContent Class="shell-main">
         <div class="shell-frame shell-content">
-            @(Body ?? ChildContent)
+            <MudPaper Class="layout-canvas shell-page" Elevation="0">
+                @(Body ?? ChildContent)
+            </MudPaper>
         </div>
     </MudMainContent>
 

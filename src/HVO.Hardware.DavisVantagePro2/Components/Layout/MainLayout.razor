@@ -26,7 +26,7 @@
         }
         else
         {
-            <MudPaper Class="layout-canvas shell-page shell-loading-screen" Elevation="0" aria-label="Dashboard initialization status">
+            <div class="shell-loading-screen" aria-label="Dashboard initialization status">
                 <div class="shell-loading-card">
                     <MudStack Class="shell-page-stack shell-loading-stack" Justify="Justify.Center" AlignItems="AlignItems.Center" Spacing="2">
                         @if (SiteState.HasBlockingInitializationFailure)
@@ -44,7 +44,7 @@
                         }
                     </MudStack>
                 </div>
-            </MudPaper>
+            </div>
         }
     </Body>
 </HvoGatewayLayout>
