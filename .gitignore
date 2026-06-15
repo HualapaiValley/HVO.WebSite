@@ -28,7 +28,7 @@ artifacts/
 .DS_Store
 
 ## Test Results
-TestResults/
+**/TestResults/
 coverage-report/
 core.*
 dotnet/
