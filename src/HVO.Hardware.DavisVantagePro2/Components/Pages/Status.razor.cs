@@ -388,13 +388,13 @@ public partial class Status : IDisposable
 
     private static string BuildCelestialViewBox(CelestialMarker sunMarker, CelestialMarker moonMarker)
     {
-        const double arcMinX = 22d;
-        const double arcMaxX = 198d;
-        const double arcMinY = 76d;
-        const double arcMaxY = 126d;
-        const double padding = 4d;
+        const double arcMinX = 44d;
+        const double arcMaxX = 188d;
+        const double arcMinY = 60d;
+        const double arcMaxY = 120d;
+        const double padding = 6d;
         const double minimumWidth = 182d;
-        const double minimumHeight = 72d;
+        const double minimumHeight = 80d;
 
         double minX = arcMinX;
         double maxX = arcMaxX;

@@ -26,6 +26,19 @@
     --dashboard-chart-empty-background: var(--shell-chart-empty-background);
     --dashboard-chart-empty-border: var(--shell-chart-empty-border);
     --dashboard-marker-fill: var(--shell-chart-marker-fill);
+    --dashboard-chart-grid: var(--shell-chart-grid-color);
+    /* compass SVG */
+    --dashboard-compass-face: color-mix(in srgb, var(--shell-card-background) 78%, var(--shell-overlay-panel) 22%);
+    --dashboard-compass-ring-strong: var(--shell-card-border);
+    --dashboard-compass-ring: var(--shell-overlay-panel-border);
+    --dashboard-compass-ring-soft: color-mix(in srgb, var(--shell-overlay-panel-border) 55%, transparent 45%);
+    --dashboard-compass-spokes: var(--shell-overlay-panel-border);
+    /* celestial SVG */
+    --dashboard-sun-stroke: #ffcf66;
+    --dashboard-sun-glow: rgba(255, 207, 102, 0.28);
+    --dashboard-sun-fill: #ffcf66;
+    --dashboard-moon-fill: #c8d8ee;
+    --dashboard-moon-shadow: color-mix(in srgb, var(--shell-card-background) 80%, #1a2a42 20%);
     color: var(--dashboard-text);
 }
 
