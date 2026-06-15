@@ -25,7 +25,7 @@ public sealed class KasaDeviceCommandService(
         var device = await ReadValidatedDeviceAsync(sourceId, cancellationToken).ConfigureAwait(false);
         if (!device.IsValid)
         {
-            return device.Result!;
+            return device.Failure!;
         }
 
         var sendFailure = await TrySendAsync(sourceId, device.Config!, BuildAliasCommand(alias.Trim()), cancellationToken).ConfigureAwait(false);
@@ -43,7 +43,7 @@ public sealed class KasaDeviceCommandService(
         var device = await ReadValidatedDeviceAsync(sourceId, cancellationToken).ConfigureAwait(false);
         if (!device.IsValid)
         {
-            return device.Result!;
+            return device.Failure!;
         }
 
         var command = BuildPowerCommand(isOn);
@@ -85,7 +85,7 @@ public sealed class KasaDeviceCommandService(
         var device = await ReadValidatedDeviceAsync(sourceId, cancellationToken).ConfigureAwait(false);
         if (!device.IsValid)
         {
-            return device.Result!;
+            return device.Failure!;
         }
 
         var sendFailure = await TrySendAsync(sourceId, device.Config!, BuildDimmerBrightnessCommand(brightness), cancellationToken).ConfigureAwait(false);
@@ -111,7 +111,7 @@ public sealed class KasaDeviceCommandService(
         var device = await ReadValidatedDeviceAsync(sourceId, cancellationToken).ConfigureAwait(false);
         if (!device.IsValid)
         {
-            return device.Result!;
+            return device.Failure!;
         }
 
         var sendFailure = await TrySendAsync(sourceId, device.Config!, BuildLightTransitionCommand(request), cancellationToken).ConfigureAwait(false);
@@ -253,9 +253,9 @@ public sealed class KasaDeviceCommandService(
             }
         });
 
-    private sealed record KasaCommandDeviceRead(KasaDeviceConfig? Config, KasaSystemInfo? SystemInfo, KasaAdminOperationResult? Result)
+    private sealed record KasaCommandDeviceRead(KasaDeviceConfig? Config, KasaSystemInfo? SystemInfo, KasaAdminOperationResult? Failure)
     {
-        public bool IsValid => Config is not null && SystemInfo is not null && Result is null;
+        public bool IsValid => Config is not null && SystemInfo is not null && Failure is null;
 
         public static KasaCommandDeviceRead Failed(string message) => new(null, null, KasaAdminOperationResult.Failed(message));
     }

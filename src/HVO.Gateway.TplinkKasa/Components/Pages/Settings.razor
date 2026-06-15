@@ -480,8 +480,11 @@ _editDisplayName, _editGroupName, _editIsFavorite, token);
         var inventoryTask = GatewayState.GetInventoryAsync();
         await Task.WhenAll(statusTask, inventoryTask);
 
-        _devices = statusTask.Result.Devices;
-        _configuredDevices = inventoryTask.Result.Devices
+        var status = await statusTask;
+        var inventory = await inventoryTask;
+
+        _devices = status.Devices;
+        _configuredDevices = inventory.Devices
             .Where(device => !string.IsNullOrWhiteSpace(device.SourceId))
             .ToDictionary(device => device.SourceId!, StringComparer.OrdinalIgnoreCase);
     }

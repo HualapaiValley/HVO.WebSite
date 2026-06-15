@@ -97,25 +97,9 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options, KasaD
             devices);
     }
 
-    public KasaGatewayStatusResponse GetStatus()
+    public async Task<KasaGatewayHealthResponse> GetHealthAsync(CancellationToken cancellationToken = default)
     {
-        var configuredDevices = registry.GetEnabledDevicesAsync().GetAwaiter().GetResult();
-        var devices = BuildDeviceList(configuredDevices);
-        return new KasaGatewayStatusResponse(
-            options.Value.GatewayId,
-            options.Value.DisplayTimeZoneId,
-            configuredDevices.Count,
-            devices.Count(device => device.IsOnline),
-            devices.Count(device => device.IsDegraded),
-            LastPollStartedAtUtc,
-            LastPollCompletedAtUtc,
-            LastError,
-            devices);
-    }
-
-    public KasaGatewayHealthResponse GetHealth()
-    {
-        var status = GetStatus();
+        var status = await GetStatusAsync(cancellationToken).ConfigureAwait(false);
         return new KasaGatewayHealthResponse(
             status.GatewayId,
             status.ConfiguredDeviceCount,
@@ -126,9 +110,9 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options, KasaD
             status.LastError);
     }
 
-    public KasaGatewayReviewStatusResponse GetReviewStatus()
+    public async Task<KasaGatewayReviewStatusResponse> GetReviewStatusAsync(CancellationToken cancellationToken = default)
     {
-        var status = GetStatus();
+        var status = await GetStatusAsync(cancellationToken).ConfigureAwait(false);
         return new KasaGatewayReviewStatusResponse(
             status.GatewayId,
             status.ConfiguredDeviceCount,
@@ -140,9 +124,9 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options, KasaD
             status.Devices.Select(KasaReviewDeviceStatus.FromStatus).ToArray());
     }
 
-    public KasaGatewayReviewCurrentStatusResponse GetReviewCurrentStatus()
+    public async Task<KasaGatewayReviewCurrentStatusResponse> GetReviewCurrentStatusAsync(CancellationToken cancellationToken = default)
     {
-        var status = GetStatus();
+        var status = await GetStatusAsync(cancellationToken).ConfigureAwait(false);
         return new KasaGatewayReviewCurrentStatusResponse(
             status.GatewayId,
             status.ConfiguredDeviceCount,
@@ -161,32 +145,14 @@ public sealed class KasaGatewayState(IOptions<KasaGatewayOptions> options, KasaD
             .Select(KasaInventoryDevice.FromConfig)
             .ToArray());
 
-    public KasaGatewayInventoryResponse GetInventory() => GetInventoryAsync().GetAwaiter().GetResult();
-
-    public KasaDeviceListResponse GetDevices() => new(
-        options.Value.GatewayId,
-        GetStatus().Devices);
-
     public async Task<KasaDeviceListResponse> GetDevicesAsync(CancellationToken cancellationToken = default) => new(
         options.Value.GatewayId,
         (await GetStatusAsync(cancellationToken).ConfigureAwait(false)).Devices);
-
-    public KasaDeviceStatus? GetDeviceBySourceId(string sourceId) =>
-        string.IsNullOrWhiteSpace(sourceId)
-            ? null
-            : GetStatus().Devices.FirstOrDefault(device => string.Equals(device.SourceId, sourceId, StringComparison.OrdinalIgnoreCase));
 
     public async Task<KasaDeviceStatus?> GetDeviceBySourceIdAsync(string sourceId, CancellationToken cancellationToken = default) =>
         string.IsNullOrWhiteSpace(sourceId)
             ? null
             : (await GetStatusAsync(cancellationToken).ConfigureAwait(false)).Devices.FirstOrDefault(device => string.Equals(device.SourceId, sourceId, StringComparison.OrdinalIgnoreCase));
-
-    public KasaDeviceSearchResponse SearchDevices(KasaDeviceSearchRequest request)
-    {
-        var devices = ApplySearch(GetStatus().Devices, request);
-        var matches = devices.OrderBy(device => device.SourceId ?? string.Empty, StringComparer.OrdinalIgnoreCase).ToArray();
-        return new KasaDeviceSearchResponse(options.Value.GatewayId, matches.Length, matches);
-    }
 
     public async Task<KasaDeviceSearchResponse> SearchDevicesAsync(KasaDeviceSearchRequest request, CancellationToken cancellationToken = default)
     {

@@ -4,24 +4,24 @@ namespace HVO.Gateway.TplinkKasa.Hosting;
 
 public sealed class KasaGatewayHealthCheck(KasaGatewayState state) : IHealthCheck
 {
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
-        var status = state.GetStatus();
+        var status = await state.GetStatusAsync(cancellationToken).ConfigureAwait(false);
         if (status.LastError is not null)
         {
-            return Task.FromResult(HealthCheckResult.Degraded(status.LastError));
+            return HealthCheckResult.Degraded(status.LastError);
         }
 
         if (status.ConfiguredDeviceCount > 0 && status.OnlineDeviceCount == 0)
         {
-            return Task.FromResult(HealthCheckResult.Degraded("No configured TP-Link/Kasa devices are online."));
+            return HealthCheckResult.Degraded("No configured TP-Link/Kasa devices are online.");
         }
 
         if (status.DegradedDeviceCount > 0)
         {
-            return Task.FromResult(HealthCheckResult.Degraded("One or more TP-Link/Kasa devices are degraded."));
+            return HealthCheckResult.Degraded("One or more TP-Link/Kasa devices are degraded.");
         }
 
-        return Task.FromResult(HealthCheckResult.Healthy());
+        return HealthCheckResult.Healthy();
     }
 }
