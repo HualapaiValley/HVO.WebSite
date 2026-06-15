@@ -228,6 +228,19 @@ public partial class Status : IDisposable
 
     private string MoonPhaseText => _moonContext.PhaseName;
 
+    private string MoonPhaseIcon => _moonContext.PhaseName switch
+    {
+        "New moon"       => "🌑",
+        "Waxing crescent"=> "🌒",
+        "First quarter"  => "🌓",
+        "Waxing gibbous" => "🌔",
+        "Full moon"      => "🌕",
+        "Waning gibbous" => "🌖",
+        "Last quarter"   => "🌗",
+        "Waning crescent"=> "🌘",
+        _                => "🌙"
+    };
+
     private double MoonPhaseShadowX
     {
         get

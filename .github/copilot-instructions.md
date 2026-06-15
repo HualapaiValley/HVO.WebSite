@@ -97,3 +97,53 @@ The dev container includes the baseline CLI and diagnostic tools used by this re
 2. Reference that file in the terminal command (e.g., `gh issue create --body-file /tmp/issue-body.md`).
 
 This applies to **all** cases where you need to pass multi-line text to a CLI command.
+
+## Offline-First Resource Policy
+
+All gateway applications run on **local networks with no internet access**. Every CSS, JS, font, and image resource must be served from within the app or from the shared `HVO.WebSite.Themes` RCL static assets.
+
+- **Never** add CDN URLs (`cdn.jsdelivr.net`, `fonts.googleapis.com`, `unpkg.com`, etc.) to any gateway `App.razor` file.
+- Chart.js is bundled at `src/HVO.WebSite.Themes/wwwroot/js/chart.min.js` — reference it as `_content/HVO.WebSite.Themes/js/chart.min.js`.
+- `HVO.WebSite.v9` (Azure-hosted main site) may use external resources.
+- When adding new JS/CSS libraries, download them and add to `HVO.WebSite.Themes/wwwroot/`.
+
+## HvoChart — Testing Standards
+
+### Known Failure Modes to Prevent with Tests
+
+**1. Blazor circuit crash from Chart.js interop**
+- **Symptom:** "Blazor circuit interrupted" banner — entire page goes non-interactive.
+- **Root cause:** C# anonymous types serialize `null` properties to JSON `null`. Chart.js 4.x requires absent properties (undefined), not `null`, for optional config like `title`, `suggestedMin`, `suggestedMax`, `animation`. JS throws → interop exception → circuit dies.
+- **Fix in place:** `hvo-chart.js` `stripNulls()` removes all `null`/`undefined` keys from the config before passing to `new Chart()`. Data-array `null` values are preserved (they represent gaps). `HvoChart.razor` `OnAfterRenderAsync` wraps `RenderChartAsync` in try-catch so any JS error never propagates to the Blazor circuit.
+- **Test:** Playwright — after page load, assert `#blazor-error-ui` is **not** visible.
+
+**2. Charts blank because scripts are missing (offline gateways)**
+- **Symptom:** Canvas elements present in DOM but no lines drawn.
+- **Root cause:** chart.js loaded from CDN; gateway machine has no internet.
+- **Fix in place:** `chart.min.js` bundled locally in Themes RCL.
+- **Test:** Playwright — assert `chart.min.js` in Network responses contains no CDN URL; OR assert canvas `.clientWidth > 0`.
+
+**3. Null data points not rendering as gaps**
+- **Symptom:** Line connects across missing data instead of breaking.
+- **Root cause:** `HvoChartDataset.Data` uses `IReadOnlyList<double>` (no nulls) or `spanGaps=true`.
+- **Fix in place:** `HvoChartDataset.Data` is `IReadOnlyList<double?>`. Default `SpanGaps=false`.
+- **Test:** Unit test asserts `HvoChartDataset` accepts and stores `null` entries. Playwright — assert that a chart with known null slots shows a visual break (canvas pixel check or element count check).
+
+### Unit Test Checklist (`HvoChartDatasetTests`)
+
+Ensure these are covered:
+- `HvoChartDataset` constructor accepts `double?[]` with `null` entries.
+- `null` entries are preserved (not converted to `0` or stripped).
+- `Tension` per-dataset parameter is stored correctly.
+- `Data_AllowsNullEntries_RepresentingGaps` test passes.
+
+### Playwright Test Checklist (`DavisGatewayLayoutPlaywrightTests`)
+
+Ensure these are covered for the Davis gateway (and extend pattern to other gateways):
+- No `#blazor-error-ui` visible after page settles (circuit alive).
+- All three chart canvases present: `#status-temp-chart`, `#status-wind-chart`, `#status-solar-chart`.
+- Chart canvas `clientWidth > 0` (Chart.js rendered at least the canvas frame).
+- `datetime-local` inputs have themed styling (not browser default white).
+- `hvo-card-shell` cards have non-transparent backgrounds.
+- No legacy class names (`proto-*`, `action-btn`, `card-shell`, `archive-table`) on live pages.
+- `hvo-components.css` served from `_content/HVO.WebSite.Themes/` (not CDN).

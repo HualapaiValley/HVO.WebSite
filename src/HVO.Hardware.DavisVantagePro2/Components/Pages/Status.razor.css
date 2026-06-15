@@ -828,19 +828,45 @@
 }
 
 .astronomy-card {
-    padding: 0;
+    display: grid;
+    gap: 12px;
+    padding: 18px;
     overflow: hidden;
 }
 
-.astronomy-card .console-face {
-    height: 100%;
-    border: 0;
-    border-radius: inherit;
-    padding: 18px;
-    /* override the 3-row template inherited from .console-face so all 4
-       children (h3, arc, primary-grid, secondary-grid) get natural height */
-    grid-template-rows: auto auto auto auto;
-    overflow: visible;
+.astro-heading {
+    margin: 0;
+}
+
+.astro-arc-wrap {
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+}
+
+.astro-arc-svg {
+    width: 100%;
+    max-width: 480px;
+    height: auto;
+    display: block;
+}
+
+.astro-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.astro-phase-tile strong {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.astro-moon-emoji {
+    font-size: 1.15rem;
+    line-height: 1;
 }
 
 .inside-card .data-pairs,

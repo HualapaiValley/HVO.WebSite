@@ -333,50 +333,53 @@
                     </section>
 
                     <section class="subcard astronomy-card">
-                        <div class="console-face">
-                            <h3>Astronomical Info</h3>
-                            <div class="celestial-icon">
-                                <svg class="celestial-graphic" viewBox="@CelestialViewBox" aria-label="Sun and moon timing graphic">
-                                    <path d="M48 116C72 90 90 62 116 62C142 62 160 90 184 116" fill="none"
-                                        stroke="var(--dashboard-sun-stroke)" stroke-width="4" stroke-linecap="round"></path>
-                                    <path d="M44 116H188" stroke="var(--dashboard-compass-ring-strong)" stroke-width="3"
-                                          stroke-linecap="round"></path>
-                                    @if (SunMarker.IsVisible)
-                                    {
-                                        <circle cx="@SunMarker.X.ToString("F1", CultureInfo.InvariantCulture)"
-                                                cy="@SunMarker.Y.ToString("F1", CultureInfo.InvariantCulture)"
-                                                r="@SunMarker.GlowRadius.ToString("F1", CultureInfo.InvariantCulture)"
-                                            fill="var(--dashboard-sun-glow)"></circle>
-                                        <circle cx="@SunMarker.X.ToString("F1", CultureInfo.InvariantCulture)"
-                                                cy="@SunMarker.Y.ToString("F1", CultureInfo.InvariantCulture)" r="18"
-                                            fill="var(--dashboard-sun-fill)"></circle>
-                                    }
-                                    @if (MoonMarker.IsVisible)
-                                    {
-                                        <circle cx="@MoonMarker.X.ToString("F1", CultureInfo.InvariantCulture)"
-                                                cy="@MoonMarker.Y.ToString("F1", CultureInfo.InvariantCulture)" r="12"
-                                            fill="var(--dashboard-moon-fill)" opacity="0.9"></circle>
-                                        <ellipse cx="@((MoonMarker.X - 4).ToString("F1", CultureInfo.InvariantCulture))"
-                                                 cy="@MoonMarker.Y.ToString("F1", CultureInfo.InvariantCulture)" rx="7" ry="12"
-                                             fill="var(--dashboard-moon-shadow)"></ellipse>
-                                    }
-                                </svg>
+                        <h3 class="astro-heading">Astronomical Info</h3>
+
+                        <div class="astro-arc-wrap">
+                            <svg class="astro-arc-svg" viewBox="36 52 160 70"
+                                 aria-label="Sun position arc from sunrise to sunset">
+                                <!-- sky arc -->
+                                <path d="M48 116C72 90 90 62 116 62C142 62 160 90 184 116"
+                                      fill="none" stroke="var(--dashboard-sun-stroke)"
+                                      stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+                                <!-- horizon -->
+                                <line x1="42" y1="116" x2="190" y2="116"
+                                      stroke="var(--dashboard-compass-ring)"
+                                      stroke-width="1" opacity="0.5"/>
+                                @if (SunMarker.IsVisible)
+                                {
+                                    <!-- sun glow -->
+                                    <circle cx="@SunMarker.X.ToString("F1", CultureInfo.InvariantCulture)"
+                                            cy="@SunMarker.Y.ToString("F1", CultureInfo.InvariantCulture)"
+                                            r="9" fill="var(--dashboard-sun-glow)"/>
+                                    <!-- sun disc -->
+                                    <circle cx="@SunMarker.X.ToString("F1", CultureInfo.InvariantCulture)"
+                                            cy="@SunMarker.Y.ToString("F1", CultureInfo.InvariantCulture)"
+                                            r="5" fill="var(--dashboard-sun-fill)"/>
+                                }
+                                @if (MoonMarker.IsVisible)
+                                {
+                                    <!-- moon position dot only — phase shown via emoji below -->
+                                    <circle cx="@MoonMarker.X.ToString("F1", CultureInfo.InvariantCulture)"
+                                            cy="@MoonMarker.Y.ToString("F1", CultureInfo.InvariantCulture)"
+                                            r="4" fill="var(--dashboard-moon-fill)" opacity="0.85"/>
+                                }
+                            </svg>
+                        </div>
+
+                        <div class="astro-stats-grid">
+                            <div class="celestial-stat"><span>Sunrise</span><strong class="mono">@FormatDisplayTime(_reading?.SunriseDisplay)</strong></div>
+                            <div class="celestial-stat"><span>Sunset</span><strong  class="mono">@FormatDisplayTime(_reading?.SunsetDisplay)</strong></div>
+                            <div class="celestial-stat"><span>Moonrise</span><strong class="mono">@MoonriseText</strong></div>
+                            <div class="celestial-stat"><span>Moonset</span><strong  class="mono">@MoonsetText</strong></div>
+                            <div class="celestial-stat astro-phase-tile">
+                                <span>Moon phase</span>
+                                <strong>
+                                    <span class="astro-moon-emoji" aria-hidden="true">@MoonPhaseIcon</span>
+                                    @MoonPhaseText
+                                </strong>
                             </div>
-                            <div class="celestial-grid celestial-grid-primary">
-                                <div class="celestial-stat"><span>Sunrise</span><strong
-                                    class="mono">@FormatDisplayTime(_reading?.SunriseDisplay)</strong></div>
-                                <div class="celestial-stat"><span>Sunset</span><strong
-                                    class="mono">@FormatDisplayTime(_reading?.SunsetDisplay)</strong></div>
-                                <div class="celestial-stat"><span>Moonrise</span><strong
-                                    class="mono">@MoonriseText</strong></div>
-                                <div class="celestial-stat"><span>Moonset</span><strong
-                                    class="mono">@MoonsetText</strong></div>
-                            </div>
-                            <div class="celestial-grid celestial-grid-secondary">
-                                <div class="celestial-stat"><span>Moon phase</span><strong>@MoonPhaseText</strong></div>
-                                <div class="celestial-stat"><span>Illumination</span><strong
-                                    class="mono">@IlluminationText</strong></div>
-                            </div>
+                            <div class="celestial-stat"><span>Illumination</span><strong class="mono">@IlluminationText</strong></div>
                         </div>
                     </section>
                 </div>
