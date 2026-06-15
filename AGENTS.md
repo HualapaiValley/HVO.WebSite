@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repository uses AI coding agents — including OpenAI Codex, GitHub Copilot Coding Agent, and OpenCode — for code review, investigation, refactoring, documentation assistance, and implementation support.
+This repository uses AI coding agents — including GitHub Copilot Coding Agent and OpenCode — for code review, investigation, refactoring, documentation assistance, and implementation support.
 
 The goal is not to produce superficial comments. The goal is to identify meaningful engineering risks, verify that changes meet requirements, improve maintainability, and protect production stability across all six applications in this solution.
 
