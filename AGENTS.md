@@ -83,6 +83,77 @@ tests/
 
 ---
 
+## Review output contract
+
+When performing a review-only task (any issue labelled `review`):
+
+1. **Always post results as a GitHub issue comment.** Use `gh issue comment <number> --body-file <file>` or `gh issue comment <number> --body "..."`. The comment is the permanent record that downstream agents and humans will read.
+2. **Never just print the report to stdout and stop.** If the only output is terminal text, it is lost. It must be on the issue.
+3. **If `gh` is unavailable or the post fails**, write the report to a markdown file at `docs/reviews/<issue#>-<slug>.md`, commit it to a branch named `review/<issue#>-<slug>`, and open a PR so the report is preserved in the repo.
+4. **Structure the comment** exactly as the issue body requests. Every finding must have: severity (P0/P1/P2/P3), file/path, evidence, recommended fix, and estimated effort.
+5. **Do not open a PR for review-only tasks** unless the fallback file approach is needed (point 3).
+
+```bash
+# Preferred: post directly to the issue
+gh issue comment 190 --body-file /tmp/review-report.md
+
+# Fallback if gh unavailable: write to repo and open PR
+git checkout -b review/190-security
+mkdir -p docs/reviews
+# write report to docs/reviews/190-security.md
+git add docs/reviews/190-security.md
+git commit -m "docs: add security review report for issue #190"
+gh pr create --title "Review report: issue #190 security" --body "Closes #190 — adds review report since gh issue comment was unavailable."
+```
+
+---
+
+## Implementation handoff workflow
+
+After all review issues are complete (comments posted on #187–#198), the consolidated roadmap (#198) drives the next phase.
+
+### Converting findings to implementation issues
+
+For every P0 and P1 finding in the review comments, create a focused GitHub issue:
+
+```bash
+gh issue create \
+  --title "<short description of finding>" \
+  --body "<paste the finding block: evidence, why it matters, recommended fix>" \
+  --label "P0,finding"      # or P1,finding / P2,finding
+```
+
+Each finding issue should contain:
+- The exact finding text from the review (severity, file, evidence, recommended fix, estimated effort)
+- A reference back to the source review issue: `Source: #<review-issue>`
+- Acceptance criteria — what "fixed" looks like
+
+### How implementation agents read findings
+
+When assigned a finding issue, an agent should:
+
+1. `gh issue view <number>` — read the full finding, evidence, and recommended fix
+2. `gh issue view <source-review-issue> --comments` — read the full review report for surrounding context
+3. Follow the standard issue → branch → implement → PR workflow
+
+### Severity triage
+
+| Label | Action |
+|-------|--------|
+| `P0` + `finding` | Fix immediately — create issue, assign, implement before any other work |
+| `P1` + `finding` | Fix before next release — create issue and schedule |
+| `P2` + `finding` | Plan to fix — create issue, add to backlog |
+| `P3` + `finding` | Optional cleanup — create issue, low priority |
+
+### Labels on finding issues
+
+Every finding issue must have:
+- One of: `P0`, `P1`, `P2`, `P3`
+- The `finding` label
+- Optionally: a domain label if you create them (e.g. `security`, `css`, `async`, `tests`)
+
+---
+
 ## Issue and PR workflow
 
 When asked to implement a GitHub issue:
