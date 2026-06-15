@@ -31,11 +31,11 @@ Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET C
 |--------|-------|------|-------------|
 | `POST` | `/api/v1/weather/raw` | API key `ingest:weather` | Ingest a single raw weather reading |
 | `POST` | `/api/v1/weather/raw/batch` | API key `ingest:weather` | Ingest a batch of raw readings (idempotent) |
-| `GET`  | `/api/v1/weather/raw/recent` | API key `read:weather` | Recent raw readings (paginated, default 100) |
-| `GET`  | `/api/v1/weather/hourly/recent` | API key `read:weather` | Recent hourly aggregates (paginated, default 24) |
-| `GET`  | `/api/v1/weather/latest` | open | Latest weather record |
-| `GET`  | `/api/v1/weather/current` | open | Current conditions with today's highs/lows |
-| `GET`  | `/api/v1/weather/highs-lows` | open | Highs/lows for a date range |
+| `GET`  | `/api/v1/weather/raw/recent` | API key `read:weather` or `read:api` | Recent raw readings (paginated, default 100) |
+| `GET`  | `/api/v1/weather/hourly/recent` | API key `read:weather` or `read:api` | Recent hourly aggregates (paginated, default 24) |
+| `GET`  | `/api/v1/weather/latest` | API key `read:weather` or `read:api` | Latest weather record |
+| `GET`  | `/api/v1/weather/current` | API key `read:weather` or `read:api` | Current conditions with today's highs/lows |
+| `GET`  | `/api/v1/weather/highs-lows` | API key `read:weather` or `read:api` | Highs/lows for a date range |
 
 ### BMS ingest
 
@@ -68,6 +68,7 @@ Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET C
 | `AzureAd:*` | Microsoft Entra ID OIDC settings |
 | `ConnectionStrings:HualapaiValleyObservatory` | Azure SQL connection string |
 | `Seeding:PowerApiKey` | Optional write-only `ingest:power` key seed for power gateways |
+| `Seeding:WeatherReadApiKey` | Optional `read:weather` key seed for weather API clients |
 | `Seeding:PowerReadApiKey` | Optional `read:power` key seed for operational power API verification |
 | `ASPNETCORE_Kestrel__Certificates__Default__*` | TLS certificate path and password for local container HTTPS |
 

@@ -22,8 +22,24 @@ namespace HVO.WebSite.ApiTests;
 public sealed class WeatherApiEndpointsTests
 {
     private const string ReadPlaintext = "weather-read-endpoints-key";
+    private const string ApiReadPlaintext = "weather-api-read-endpoints-key";
     private const string IngestPlaintext = "weather-ingest-endpoints-key";
     private const string InvalidPlaintext = "weather-invalid-endpoints-key";
+
+    [TestMethod]
+    public async Task ReadEndpoints_Return401_WhenApiKeyIsMissing()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedApiKeysAsync();
+        using var client = CreateClient(factory);
+
+        foreach (var path in WeatherReadPaths())
+        {
+            var response = await client.GetAsync(path);
+
+            response.StatusCode.Should().Be(HttpStatusCode.Unauthorized, path);
+        }
+    }
 
     [TestMethod]
     public async Task ReadEndpoints_Return401_WhenApiKeyIsInvalid()
@@ -58,18 +74,23 @@ public sealed class WeatherApiEndpointsTests
     }
 
     [TestMethod]
-    public async Task ReadEndpoints_Return200_WhenApiKeyHasWeatherReadScope()
+    public async Task ReadEndpoints_Return200_WhenApiKeyHasReadScope()
     {
         using var factory = new TestWebApplicationFactory();
         await factory.SeedApiKeysAsync();
         using var client = CreateClient(factory);
-        client.DefaultRequestHeaders.Add("X-Api-Key", ReadPlaintext);
 
-        foreach (var path in WeatherReadPaths())
+        foreach (var apiKey in new[] { ReadPlaintext, ApiReadPlaintext })
         {
-            var response = await client.GetAsync(path);
+            client.DefaultRequestHeaders.Remove("X-Api-Key");
+            client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
 
-            response.StatusCode.Should().Be(HttpStatusCode.OK, path);
+            foreach (var path in WeatherReadPaths())
+            {
+                var response = await client.GetAsync(path);
+
+                response.StatusCode.Should().Be(HttpStatusCode.OK, $"{path} with key {apiKey}");
+            }
         }
     }
 
@@ -142,6 +163,16 @@ public sealed class WeatherApiEndpointsTests
             await db.Database.EnsureCreatedAsync();
 
             db.ApiKeys.AddRange(
+                new ApiKey
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "API Read Endpoint Test Key",
+                    KeyHash = ApiKeyAuthMiddleware.HashKey(ApiReadPlaintext),
+                    Type = ApiKeyType.System,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    Claims = [new ApiKeyClaim { ClaimType = "scope", ClaimValue = ApiScopes.ApiRead }]
+                },
                 new ApiKey
                 {
                     Id = Guid.NewGuid(),

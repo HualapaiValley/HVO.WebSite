@@ -63,6 +63,14 @@ public sealed class ApiKeySeedService : IHostedService
 
         await SeedSystemKeyAsync(
             db,
+            configurationKeyName: "Seeding:WeatherReadApiKey",
+            rawKey: _configuration["Seeding:WeatherReadApiKey"],
+            name: "Weather API — read",
+            scopes: [ApiScopes.WeatherRead],
+            cancellationToken);
+
+        await SeedSystemKeyAsync(
+            db,
             configurationKeyName: "Seeding:PowerReadApiKey",
             rawKey: _configuration["Seeding:PowerReadApiKey"],
             name: "Power API — read",

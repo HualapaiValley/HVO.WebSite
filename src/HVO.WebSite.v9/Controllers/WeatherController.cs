@@ -40,11 +40,15 @@ namespace HVO.WebSite.v9.Controllers
         /// </summary>
         /// <returns>The most recent weather data</returns>
         /// <response code="200">Returns the latest weather record with timestamp and machine info</response>
+        /// <response code="401">Missing or invalid API key.</response>
+        /// <response code="403">API key does not have the read:weather or read:api scope.</response>
         /// <response code="404">No weather records found in the database</response>
         /// <response code="500">Internal server error occurred while retrieving weather data</response>
         [HttpGet("latest")]
         [Authorize(Policy = "WeatherRead")]
         [ProducesResponseType(typeof(LatestWeatherResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
         [Produces("application/json")]
@@ -84,11 +88,15 @@ namespace HVO.WebSite.v9.Controllers
         /// If no dates are provided, defaults to today's date range.
         /// </remarks>
         /// <response code="200">Returns weather highs and lows for the specified date range</response>
+        /// <response code="401">Missing or invalid API key.</response>
+        /// <response code="403">API key does not have the read:weather or read:api scope.</response>
         /// <response code="404">No weather data found for the specified date range</response>
         /// <response code="500">Internal server error occurred while retrieving weather data</response>
         [HttpGet("highs-lows")]
         [Authorize(Policy = "WeatherRead")]
         [ProducesResponseType(typeof(WeatherHighsLowsResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
         [Produces("application/json")]
@@ -130,11 +138,15 @@ namespace HVO.WebSite.v9.Controllers
         /// This is the recommended endpoint for most weather applications.
         /// </remarks>
         /// <response code="200">Returns current weather conditions with today's highs and lows</response>
+        /// <response code="401">Missing or invalid API key.</response>
+        /// <response code="403">API key does not have the read:weather or read:api scope.</response>
         /// <response code="404">No current weather data available</response>
         /// <response code="500">Internal server error occurred while retrieving weather data</response>
         [HttpGet("current")]
         [Authorize(Policy = "WeatherRead")]
         [ProducesResponseType(typeof(CurrentWeatherResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
         [Produces("application/json")]
