@@ -68,14 +68,26 @@
         if (firstRender || _renderedRevision != DataRevision)
         {
             _renderedRevision = DataRevision;
-            await RenderChartAsync();
+            try
+            {
+                await RenderChartAsync();
+            }
+            catch (Exception)
+            {
+                // JS interop errors must not kill the Blazor circuit.
+                // The chart canvas will stay blank; the rest of the page keeps working.
+            }
         }
     }
 
     public async Task RefreshAsync()
     {
         _renderedRevision = DataRevision;
-        await RenderChartAsync();
+        try
+        {
+            await RenderChartAsync();
+        }
+        catch (Exception) { }
     }
 
     private async Task RenderChartAsync()

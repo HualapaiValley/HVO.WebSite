@@ -12,51 +12,85 @@ window.hvoChart.getThemeColors = function () {
     };
 };
 
+/**
+ * Recursively remove null and undefined properties from a config object.
+ * Chart.js 4.x treats null as an invalid value for many options (e.g. title,
+ * suggestedMin/Max) but treats absent/undefined keys as "use default".
+ * C# anonymous-type serialisation always emits null for nullable properties,
+ * so we strip them here before passing to new Chart().
+ */
+window.hvoChart.stripNulls = function stripNulls(obj) {
+    if (obj === null || obj === undefined) return undefined;
+    if (Array.isArray(obj)) {
+        // Preserve null entries inside data arrays — Chart.js uses them for gaps.
+        return obj.map(function (item) {
+            return (item !== null && typeof item === 'object') ? stripNulls(item) : item;
+        });
+    }
+    if (typeof obj === 'object') {
+        const out = {};
+        for (const key of Object.keys(obj)) {
+            const val = obj[key];
+            if (val === null || val === undefined) continue;
+            out[key] = stripNulls(val);
+        }
+        return out;
+    }
+    return obj;
+};
+
 window.hvoChart.render = function (chartId, config) {
-    const canvas = document.getElementById(chartId);
-    if (!canvas) return;
+    try {
+        const canvas = document.getElementById(chartId);
+        if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-    const existing = window.hvoChart._instances && window.hvoChart._instances[chartId];
-    if (existing) {
-        existing.destroy();
-    }
-
-    const colors = window.hvoChart.getThemeColors();
-
-    const defaultScales = config.options && config.options.scales;
-    if (defaultScales) {
-        if (defaultScales.x) {
-            defaultScales.x.grid = { color: colors.gridColor };
-            // Merge caller-supplied tick options with theme color and auto-skip defaults
-            const callerTicks = defaultScales.x.ticks || {};
-            defaultScales.x.ticks = Object.assign(
-                { maxTicksLimit: 7, autoSkip: true, maxRotation: 0 },
-                callerTicks,
-                { color: colors.labelColor }
-            );
+        const existing = window.hvoChart._instances && window.hvoChart._instances[chartId];
+        if (existing) {
+            existing.destroy();
         }
-        if (defaultScales.y) {
-            defaultScales.y.grid = { color: colors.gridColor };
-            const callerYTicks = defaultScales.y.ticks || {};
-            defaultScales.y.ticks = Object.assign(callerYTicks, { color: colors.labelColor });
+
+        const colors = window.hvoChart.getThemeColors();
+
+        // Strip nulls first so Chart.js only sees valid or absent properties.
+        const cleanConfig = window.hvoChart.stripNulls(config);
+
+        // Inject theme colours into scale axes.
+        const defaultScales = cleanConfig.options && cleanConfig.options.scales;
+        if (defaultScales) {
+            if (defaultScales.x) {
+                defaultScales.x.grid = { color: colors.gridColor };
+                const callerTicks = defaultScales.x.ticks || {};
+                defaultScales.x.ticks = Object.assign(
+                    { maxTicksLimit: 7, autoSkip: true, maxRotation: 0 },
+                    callerTicks,
+                    { color: colors.labelColor }
+                );
+            }
+            if (defaultScales.y) {
+                defaultScales.y.grid = { color: colors.gridColor };
+                const callerYTicks = defaultScales.y.ticks || {};
+                defaultScales.y.ticks = Object.assign(callerYTicks, { color: colors.labelColor });
+            }
         }
+
+        if (cleanConfig.options && cleanConfig.options.plugins) {
+            cleanConfig.options.plugins.legend = cleanConfig.options.plugins.legend || {};
+            cleanConfig.options.plugins.legend.labels = cleanConfig.options.plugins.legend.labels || {};
+            cleanConfig.options.plugins.legend.labels.color = colors.labelColor;
+        }
+
+        const instance = new Chart(ctx, cleanConfig);
+
+        window.hvoChart._instances = window.hvoChart._instances || {};
+        window.hvoChart._instances[chartId] = instance;
+
+        return instance;
+    } catch (e) {
+        console.error('[HvoChart] render failed for "' + chartId + '":', e);
     }
-
-    if (config.options && config.options.plugins) {
-        config.options.plugins.legend = config.options.plugins.legend || {};
-        config.options.plugins.legend.labels = config.options.plugins.legend.labels || {};
-        config.options.plugins.legend.labels.color = colors.labelColor;
-    }
-
-    const instance = new Chart(ctx, config);
-
-    window.hvoChart._instances = window.hvoChart._instances || {};
-    window.hvoChart._instances[chartId] = instance;
-
-    return instance;
 };
 
 window.hvoChart.applyTheme = function (chartId) {
