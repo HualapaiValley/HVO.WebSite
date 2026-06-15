@@ -53,6 +53,32 @@ Search for ALL of these patterns across the scope. Do not skip any category:
 - Missing retry/backoff on external service calls
 - Missing telemetry in failure paths
 
+### HVO-Specific Risks (check these in addition to the above)
+
+**CSS / theme compliance — P0/P1:**
+- Any `#hex`, `rgb()`, or `rgba()` literal in a `.razor.css` file or `app.css` — must use `var(--shell-*)`, `var(--hvo-series-*)`, `var(--hvo-accent-*)`, or `color-mix()`
+- Any `@font-face` outside `src/HVO.WebSite.Themes/wwwroot/css/themes/hvo-shared-shell.css`
+- Any CDN URL (`cdn.jsdelivr.net`, `fonts.googleapis.com`, `unpkg.com`) in any gateway `App.razor`
+- Any `:root { --shell-* }` or `:root { --hvo-* }` override in a per-project file
+- Any local class that duplicates `.hvo-card`, `.hvo-chip`, `.shell-brand-mark`, `.shell-page-stack`, etc.
+- Pass-through alias CSS variables: `--local-name: var(--shell-something)` with no computation
+
+**Blazor circuit safety — P0:**
+- `JSRuntime.InvokeVoidAsync` or `InvokeAsync` in `OnAfterRenderAsync` without a surrounding try-catch
+- Chart.js config objects where optional properties could serialize as JSON `null` instead of being absent
+- `hvo-chart.js` missing `stripNulls()` call before `new Chart()`
+
+**Blazor patterns — P1:**
+- Missing `@rendermode InteractiveServer` on a component that calls JS interop or uses a timer
+- `HvoGatewayLayout` / `HvoPublicLayout` / `HvoAdminLayout` NOT used from `HVO.WebSite.Themes` (local layout copies)
+- `ToString("F1")`, `ToString("F2")`, or raw `CultureInfo.InvariantCulture` in a `.razor` file (use `HvoFormat`)
+- Raw `<canvas>` chart implementation instead of `HvoChart`
+
+**Gateway deployment — P1:**
+- Device IP/hostname hardcoded in `appsettings.json` or C# source (must be in `.env` only)
+- Docker Compose shell env variable vs `--env-file` precedence — stale shell vars override `.env` silently
+- `.env` not synced to gist after IP/credential change (`./scripts/sync-env-gist.sh` not run)
+
 ## Output Contract
 
 Return only markdown with these sections:

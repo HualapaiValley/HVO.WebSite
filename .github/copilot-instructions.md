@@ -1,5 +1,7 @@
 # Copilot Instructions
 
+> **For GitHub Copilot Coding Agent and OpenAI Codex:** Read `AGENTS.md` at the repository root. It is the authoritative instruction file for autonomous coding agents and contains the full review framework, severity levels, workflow rules, CSS governance enforcement, Blazor/gateway-specific checks, and PR format. This file (`copilot-instructions.md`) supplements it for Copilot Chat and inline suggestions.
+
 ## Project Overview
 
 **HVO.WebSite** is a .NET 10 observatory dashboard and monitoring web application built with ASP.NET Core and Blazor Server (SSR). It provides real-time observatory status, weather monitoring, imaging session tracking, and equipment control interfaces.

@@ -260,13 +260,83 @@ Standards and consistency:
 
 Use these severities consistently:
 
-- `BLOCKER`: must fix before merge/release. Very likely broken build, runtime failure, data corruption, security exposure, serious concurrency issue, failed deployment, or unacceptable production risk.
-- `CRITICAL`: very high risk and should almost always be fixed before merge. Serious design flaws, missing auth, broken error handling, transaction issues, dangerous async/threading/data behavior, or missing tests for critical paths.
-- `MAJOR`: important issue that should be fixed soon. Meaningful maintainability, reliability, performance, observability, correctness, or test coverage impact.
-- `MINOR`: small localized issue. Readability, naming, duplication, minor cleanup, or small test improvement.
+- `BLOCKER` (= P0): must fix before merge/release. Very likely broken build, runtime failure, data corruption, security exposure, serious concurrency issue, failed deployment, or unacceptable production risk.
+- `CRITICAL` (= P1): very high risk and should almost always be fixed before merge. Serious design flaws, missing auth, broken error handling, transaction issues, dangerous async/threading/data behavior, or missing tests for critical paths.
+- `MAJOR` (= P2): important issue that should be fixed soon. Meaningful maintainability, reliability, performance, observability, correctness, or test coverage impact.
+- `MINOR` (= P3): small localized issue. Readability, naming, duplication, minor cleanup, or small test improvement.
 - `NIT`: optional polish only. Use sparingly.
 
+> **HVO severity mapping:** `AGENTS.md` uses P0/P1/P2/P3. When filing GitHub PR comments or issue reports for this repo, prefer the P-level vocabulary since that's what `AGENTS.md` and the JIRA-style tracking uses. Both vocabularies are valid — P0=BLOCKER, P1=CRITICAL, P2=MAJOR, P3=MINOR/NIT.
+
 Every finding must include:
+
+- Severity
+- Category
+- Location
+- Confidence: High / Medium / Low
+- Problem
+- Why it matters
+- Recommended fix
+- Example fix when useful
+
+## HVO-Specific Review Areas
+
+These checks are **in addition to** the general Review Areas above. They are specific to the HVO.WebSite repository. Violations in the CSS/theme and gateway sections map to P0 or P1 severity.
+
+### CSS and theme compliance (P0/P1 hard rules)
+
+Full policy: `docs/CSS_GOVERNANCE.md`. Check every `.razor.css`, `app.css`, and `style=""` attribute.
+
+**P0 (BLOCKER) — must fix before merge:**
+- `@font-face` in any file other than `hvo-shared-shell.css`
+- CDN URL in any gateway `App.razor` (all gateways run offline — `cdn.jsdelivr.net`, `fonts.googleapis.com`, `unpkg.com`, etc. are instant P0)
+- Hardcoded color literal (`#hex`, `rgb()`, `rgba()`) in a `.razor.css` file — must be `var(--shell-*)`, `var(--hvo-series-*)`, `var(--hvo-accent-*)`, or `color-mix()` from those vars
+- `:root` redefinition of any `--shell-*` or `--hvo-*` token in a per-project file
+
+**P1 (CRITICAL) — fix before merge:**
+- Local class that duplicates a class in `hvo-components.css` or `hvo-shared-shell.css`
+- Pass-through alias variable: `--local: var(--shell-something)` with no computation
+- `style=""` with hardcoded color on a `.razor` element
+- Redefinition of `.shell-brand-mark`, `.shell-page-stack`, or any other base shell class
+
+**P2 (MAJOR) — plan to fix:**
+- `gap: 12px` instead of `var(--shell-card-gap)`
+- Font-family string literal instead of `var(--shell-font-family)`
+- Chart.js C# hex literal without `// --hvo-series-N` or `// --hvo-accent-X` comment
+- New class in shared theme files without a ThemeSandbox demo
+
+### Blazor and MudBlazor
+- `.razor` / `.razor.cs` / `.razor.css` triad — all three should exist for any page or component with meaningful logic or styles
+- `@rendermode InteractiveServer` on components that use JS interop or real-time updates; SSR-only pages must not declare a render mode
+- Shared layouts (`HvoGatewayLayout`, `HvoPublicLayout`, `HvoAdminLayout`) from `HVO.WebSite.Themes` — never local copies or ad-hoc alternatives
+- `HvoFormat` for all formatted numeric/date output — no raw `ToString("F1")` or `CultureInfo.InvariantCulture` in `.razor` files (SVG coordinate rendering is the only exception)
+- `HvoChart` for all charts — no bespoke `<canvas>` wrappers or direct `JSRuntime.InvokeVoidAsync("Chart", ...)` calls
+- `OnAfterRenderAsync` JS interop in a `try-catch` — an unhandled JS exception will crash the Blazor circuit
+- Scoped services not captured into singleton-lived objects or background services
+- `IAsyncDisposable` implemented for components that start timers or hold JS object references
+- `StateHasChanged()` not called on every timer tick — only when the UI actually needs updating
+
+### HvoChart circuit-safety (P0 risk)
+The most common P0 in this codebase is a Blazor circuit crash caused by a null `title`, `suggestedMin`, `suggestedMax`, or `animation` property passing through JS interop as JSON `null` when Chart.js requires it to be absent (undefined). Check:
+- `hvo-chart.js` `stripNulls()` is present and called before `new Chart()`
+- `HvoChart.razor` `OnAfterRenderAsync` and `RefreshAsync` wrap `RenderChartAsync` in try-catch
+- Any new chart configuration properties are either non-null or handled by `stripNulls`
+
+### Gateway deployment and connectivity
+- Device IP/hostname in `.env` only — never in `appsettings.json` or source code
+- All gateway `App.razor` files load Chart.js from `_content/HVO.WebSite.Themes/js/chart.min.js` (local bundle)
+- Required stylesheet order: `hvo-dark.css` → `MudBlazor.min.css` → `hvo-shared-shell.css` → `hvo-components.css` → project CSS
+- `docker-compose.yml` has `restart: unless-stopped`
+- Health check endpoint reflects actual device connectivity, not just process liveness
+- **Shell env overrides `--env-file`** in Docker Compose — always verify with `docker compose config | grep <var>` before deploying; stale shell vars are a recurring source of wrong IPs
+- After changing any device IP or credential in `.env`, run `./scripts/sync-env-gist.sh` so the next devcontainer restart bootstraps from the correct gist
+
+### EF Core
+- All queries use async methods: `ToListAsync`, `FirstOrDefaultAsync`, `SaveChangesAsync`
+- No `.Result`, `.Wait()`, or `GetAwaiter().GetResult()` on EF tasks
+- No `SaveChangesAsync` inside a loop without explicit transaction
+- No `AsEnumerable()` before a `Where` filter (client-side evaluation)
+- Every schema change has a corresponding EF Core migration
 
 - Severity
 - Category
