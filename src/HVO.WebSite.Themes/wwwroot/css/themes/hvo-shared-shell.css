@@ -42,6 +42,46 @@
     --shell-page-hero-image: url("/_content/HVO.WebSite.Themes/images/observatory-background.jpg");
 }
 
+/**
+ * HVO Data Visualization Palette
+ * ─────────────────────────────────────────────────────────────────────────────
+ * These are the ONLY colors that should be used for new charts, UI accents, and
+ * status indicators. Do not add ad-hoc hex values to individual page CSS files.
+ *
+ * Data Series (chart datasets — assign in numeric order):
+ *   --hvo-series-1  primary blue       temperature outside, wind avg
+ *   --hvo-series-2  warm amber         temperature inside, secondary
+ *   --hvo-series-3  solar yellow       solar radiation, sun arc fill
+ *   --hvo-series-4  success green      positive / healthy values
+ *   --hvo-series-5  alert orange       wind gust, caution
+ *   --hvo-series-6  muted silver       moon arc, secondary muted
+ *   --hvo-series-7  bright cyan        wind avg alt, second blue series
+ *   --hvo-series-8  danger pink        alarm / critical
+ *
+ * Accent (UI elements — hero highlights, barometer, indicators):
+ *   --hvo-accent-blue      active links, hero readouts
+ *   --hvo-accent-cyan      secondary highlights
+ *   --hvo-accent-amber     warm hero readouts, sun
+ *   --hvo-accent-success   positive / online states
+ *   --hvo-accent-danger    negative / offline / alarm
+ */
+:root {
+    --hvo-series-1:  #69d3ff;
+    --hvo-series-2:  #ffb86c;
+    --hvo-series-3:  #ffd166;
+    --hvo-series-4:  #57d38d;
+    --hvo-series-5:  #ff9f5a;
+    --hvo-series-6:  #9fb8d4;
+    --hvo-series-7:  #7ae0ff;
+    --hvo-series-8:  #f38ba8;
+
+    --hvo-accent-blue:    #6da5ff;
+    --hvo-accent-cyan:    #83e4ff;
+    --hvo-accent-amber:   #ffcf66;
+    --hvo-accent-success: #57d38d;
+    --hvo-accent-danger:  #ff7f7f;
+}
+
 html,
 body {
     height: 100%;

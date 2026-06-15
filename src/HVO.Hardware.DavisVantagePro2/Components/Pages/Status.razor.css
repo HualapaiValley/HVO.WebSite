@@ -8,11 +8,11 @@
     --dashboard-text: var(--shell-page-text);
     --dashboard-hero: var(--shell-brand-title);
     --dashboard-muted: var(--shell-pill-text);
-    --dashboard-accent-blue: #6da5ff;
-    --dashboard-accent-cyan: #83e4ff;
-    --dashboard-accent-amber: #ffcf66;
-    --dashboard-accent-success: #57d38d;
-    --dashboard-accent-danger: #ff7f7f;
+    --dashboard-accent-blue: var(--hvo-accent-blue);
+    --dashboard-accent-cyan: var(--hvo-accent-cyan);
+    --dashboard-accent-amber: var(--hvo-accent-amber);
+    --dashboard-accent-success: var(--hvo-accent-success);
+    --dashboard-accent-danger: var(--hvo-accent-danger);
     --dashboard-surface-card: var(--shell-card-background);
     --dashboard-surface-panel: var(--shell-overlay-panel);
     --dashboard-surface-panel-strong: color-mix(in srgb, var(--shell-card-background) 86%, var(--shell-overlay-panel) 14%);

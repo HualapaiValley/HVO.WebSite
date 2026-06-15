@@ -41,13 +41,12 @@
                     </div>
                     <div class="hero-stack">
                         <div>@ConditionSummary</div>
-                        <div>Feels like <span class="hero-value hero-value-amber mono">@DisplayTemperature(FeelsLikeF)@TemperatureUnitSuffix</span>
-                        </div>
+                        <div>Feels like <span class="hero-value hero-value-amber mono">@DisplayTemperature(FeelsLikeF)@TemperatureUnitSuffix</span></div>
                         <div>THSW <span class="hero-value hero-value-amber mono">@DisplayTemperature(_reading?.ThswF)@TemperatureUnitSuffix</span></div>
-                        <div>Dew point <span
-                            class="hero-value hero-value-cyan mono">@DisplayTemperature(_reading?.DewPointF)@TemperatureUnitSuffix</span></div>
-                            <div>Barometric trend <span class="hero-value hero-value-blue">@DisplayTrend(BarometricTrendText)</span></div>
-                        </div>
+                        <div>Dew point <span class="hero-value hero-value-cyan mono">@DisplayTemperature(_reading?.DewPointF)@TemperatureUnitSuffix</span></div>
+                        <div>Barometric trend <span class="hero-value hero-value-blue">@DisplayTrend(BarometricTrendText)</span></div>
+                        <div>Solar radiation <span class="hero-value hero-value-amber mono">@DisplaySolar(_reading?.SolarRadiationWm2)</span></div>
+                    </div>
                         <div class="chip-grid">
                             <div class="chip">
                                 <div class="name">Humidity</div>

@@ -1,0 +1,17 @@
+.css-ref-page { width: 100%; min-width: 0; color: var(--shell-page-text); }
+.css-ref-page > .shell-page-stack { width: 100%; min-width: 0; }
+.css-ref-stack { display: grid; gap: 18px; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+.css-note {
+    margin: 0.5rem 0 0;
+    color: var(--shell-pill-text);
+    font-size: 0.83rem;
+    line-height: 1.5;
+}
+.css-note code {
+    padding: 0.1rem 0.35rem; border-radius: 5px;
+    background: var(--shell-overlay-panel); color: var(--shell-card-foreground);
+    font-family: var(--shell-font-mono); font-size: 0.78rem;
+}

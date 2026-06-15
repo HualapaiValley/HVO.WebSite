@@ -17,11 +17,13 @@ public partial class Status : IDisposable
     private const string PageHeadingText = "Davis weather overview";
     private const string PageSummaryText = "Overview template migrated onto the live Davis monitor, keeping the existing instrument cards while adopting the new MudBlazor shell and page framing.";
     private const string StationLocationText = "Hualapai Valley, AZ";
-    private const string TemperatureOutsideColor = "#69d3ff";
-    private const string TemperatureInsideColor = "#ffb86c";
-    private const string SolarColor = "#ffd166";
-    private const string WindAverageColor = "#7ae0ff";
-    private const string WindGustColor = "#ff9f5a";
+    // Chart series colors — mirrors --hvo-series-* palette in hvo-shared-shell.css.
+    // Canvas 2D cannot resolve CSS variables so hex literals are required here.
+    private const string TemperatureOutsideColor = "#69d3ff";  // --hvo-series-1
+    private const string TemperatureInsideColor  = "#ffb86c";  // --hvo-series-2
+    private const string SolarColor              = "#ffd166";  // --hvo-series-3
+    private const string WindAverageColor        = "#7ae0ff";  // --hvo-series-7
+    private const string WindGustColor           = "#ff9f5a";  // --hvo-series-5
     private static readonly TimeSpan LiveLoopFreshnessThreshold = TimeSpan.FromSeconds(10);
 
     [Inject] private ILogger<Status> Logger { get; set; } = default!;

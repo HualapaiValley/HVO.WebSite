@@ -1,65 +1,250 @@
-<MudCard Elevation="2" Class="pa-4">
-    <MudCardHeader>
-        <CardHeaderContent>
-            <MudText Typo="Typo.h6">Shared CSS — hvo-card / hvo-metric / hvo-eyebrow</MudText>
-            <MudText Typo="Typo.caption" Class="hvo-eyebrow">Themed classes from hvo-components.css</MudText>
-        </CardHeaderContent>
-    </MudCardHeader>
-    <MudCardContent>
-        <MudGrid>
-            <MudItem xs="12" md="6">
-                <div class="hvo-card">
-                    <div class="hvo-card-title">Default Card</div>
-                    <div class="hvo-metric">
-                        <span class="hvo-metric-label">Status</span>
-                        <span class="hvo-metric-value">Active</span>
-                    </div>
-                    <div class="hvo-metric">
-                        <span class="hvo-metric-label">Uptime</span>
-                        <span class="hvo-metric-value hvo-mono">12d 4h 32m</span>
-                    </div>
+@page "/css-reference"
+@rendermode InteractiveServer
+
+<div class="css-ref-page">
+    <div class="shell-page-stack css-ref-stack">
+        <h1 class="sr-only">HVO CSS Components Reference</h1>
+
+        <!-- ── CARDS ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Card Variants</h2></div></div>
+            <div class="hvo-stack">
+                <div class="hvo-grid" style="gap: 14px;">
+                    <div class="hvo-card"><div class="hvo-card-title">hvo-card</div><p class="css-note">12px radius · default panel background</p></div>
+                    <div class="hvo-card-shell"><div class="hvo-card-title">hvo-card-shell</div><p class="css-note">24px radius · inset highlight shadow</p></div>
+                    <div class="hvo-card-shell hvo-card-large"><div class="hvo-card-title">hvo-card-large</div><p class="css-note">30px radius · 1.5rem padding</p></div>
+                    <div class="hvo-card-shell hvo-card-primary"><div class="hvo-card-title">hvo-card-primary</div><p class="css-note">Left-accent stripe in brand primary</p></div>
+                    <div class="hvo-card-shell hvo-card-note"><div class="hvo-card-title">hvo-card-note</div><p class="css-note">Overlay-panel background</p></div>
                 </div>
-            </MudItem>
-            <MudItem xs="12" md="6">
-                <div class="hvo-card hvo-card-primary">
-                    <div class="hvo-card-title">Primary Card</div>
-                    <div class="hvo-metric">
-                        <span class="hvo-metric-label">Priority</span>
-                        <span class="hvo-metric-value">High</span>
+            </div>
+        </section>
+
+        <!-- ── SECTION ANATOMY ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Section Head &amp; Eyebrow</h2></div></div>
+            <div class="hvo-card-shell">
+                <div class="hvo-section-head">
+                    <div>
+                        <div class="hvo-eyebrow">hvo-eyebrow — uppercase, muted, tracked</div>
+                        <h2>hvo-section-head h2</h2>
                     </div>
-                    <div class="hvo-metric">
-                        <span class="hvo-metric-label">Alerts</span>
-                        <span class="hvo-metric-value hvo-mono">3</span>
-                    </div>
+                    <span class="hvo-chip">Side slot</span>
                 </div>
-            </MudItem>
-            <MudItem xs="12" md="6">
-                <div class="hvo-card hvo-card-note">
-                    <div class="hvo-card-title">Note Card</div>
-                    <div class="hvo-metric">
-                        <span class="hvo-metric-label">Message</span>
-                        <span class="hvo-metric-value">No issues detected</span>
-                    </div>
+                <p class="css-note"><code>hvo-section-head</code> flex-spaces title ↔ side content. <code>hvo-eyebrow</code> sits above the h2.</p>
+            </div>
+        </section>
+
+        <!-- ── BUTTONS ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Buttons</h2></div></div>
+            <div class="hvo-stack">
+                <div class="hvo-action-row">
+                    <button class="hvo-button" type="button">hvo-button</button>
+                    <button class="hvo-button hvo-button-primary" type="button">hvo-button-primary</button>
+                    <button class="hvo-button hvo-button-success" type="button">hvo-button-success</button>
+                    <button class="hvo-button hvo-button-danger" type="button">hvo-button-danger</button>
+                    <button class="hvo-button" type="button" disabled>disabled</button>
                 </div>
-            </MudItem>
-            <MudItem xs="12" md="6">
-                <div class="hvo-card">
-                    <div class="hvo-eyebrow">Observatory Status</div>
-                    <div class="hvo-card-title">Weather Conditions</div>
-                    <div class="hvo-metric">
-                        <span class="hvo-metric-label">Sky</span>
-                        <span class="hvo-metric-value">Clear</span>
-                    </div>
-                    <div class="hvo-metric">
-                        <span class="hvo-metric-label">Seeing</span>
-                        <span class="hvo-metric-value">Excellent</span>
-                    </div>
-                    <div class="hvo-metric">
-                        <span class="hvo-metric-label">Wind</span>
-                        <span class="hvo-metric-value hvo-mono">4.2 km/h</span>
-                    </div>
+                <p class="css-note">All buttons: pill shape, 42px min-height, 700 weight. Hover inherits <code>--shell-pill-hover-*</code>.</p>
+            </div>
+        </section>
+
+        <!-- ── FORM CONTROLS ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Form Controls</h2></div></div>
+            <div class="hvo-form-grid">
+                <div class="hvo-field">
+                    <label class="hvo-field-label">Text input</label>
+                    <input class="hvo-control" type="text" placeholder="hvo-control" />
                 </div>
-            </MudItem>
-        </MudGrid>
-    </MudCardContent>
-</MudCard>
+                <div class="hvo-field">
+                    <label class="hvo-field-label">Select</label>
+                    <select class="hvo-control">
+                        <option>hvo-control select</option>
+                        <option>Option B</option>
+                    </select>
+                </div>
+                <div class="hvo-field">
+                    <label class="hvo-field-label">Datetime-local</label>
+                    <input class="hvo-control" type="datetime-local" value="2026-06-15T14:00" />
+                </div>
+                <div class="hvo-field">
+                    <label class="hvo-field-label">Number (mono)</label>
+                    <input class="hvo-control hvo-mono" type="number" value="42.5" />
+                </div>
+                <div class="hvo-field">
+                    <label class="hvo-field-label">Readonly</label>
+                    <input class="hvo-control" type="text" value="Readonly value" readonly />
+                </div>
+                <div class="hvo-field">
+                    <label class="hvo-field-label">Disabled</label>
+                    <input class="hvo-control" type="text" value="Disabled" disabled />
+                </div>
+            </div>
+            <p class="css-note" style="margin-top: .75rem;"><code>hvo-control</code> · 14px border-radius · overlay-panel background · <code>color-scheme: dark/light</code> for native date pickers.</p>
+        </section>
+
+        <!-- ── CHIPS ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Chips</h2></div></div>
+            <div class="hvo-chip-row" style="gap: 10px; flex-wrap: wrap; margin-bottom: 0.75rem;">
+                <span class="hvo-chip">hvo-chip</span>
+                <span class="hvo-chip hvo-chip-success">hvo-chip-success</span>
+                <span class="hvo-chip hvo-chip-online">hvo-chip-online</span>
+                <span class="hvo-chip hvo-chip-warning">hvo-chip-warning</span>
+                <span class="hvo-chip hvo-chip-danger">hvo-chip-danger</span>
+                <span class="hvo-chip hvo-chip-error">hvo-chip-error</span>
+            </div>
+            <p class="css-note">Pill shape · 999px radius · <code>hvo-chip-row</code> wraps chips with 0.5rem gap.</p>
+        </section>
+
+        <!-- ── CALLOUTS ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Callouts</h2></div></div>
+            <div class="hvo-stack">
+                <div class="hvo-callout">hvo-callout — default neutral message</div>
+                <div class="hvo-callout hvo-callout-success">hvo-callout-success — operation completed</div>
+                <div class="hvo-callout hvo-callout-error">hvo-callout-error — something went wrong</div>
+                <div class="hvo-callout hvo-callout-info">hvo-callout-info — informational notice</div>
+            </div>
+        </section>
+
+        <!-- ── LIST ITEMS ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>List Items (Stat Tiles)</h2></div></div>
+            <div class="hvo-grid">
+                <div class="hvo-list-item"><span>Temperature</span><strong class="hvo-mono">72.4 °F</strong></div>
+                <div class="hvo-list-item"><span>Humidity</span><strong class="hvo-mono">34%</strong></div>
+                <div class="hvo-list-item"><span>Wind</span><strong class="hvo-mono">12 mph</strong></div>
+                <div class="hvo-list-item"><span>Pressure</span><strong class="hvo-mono">29.99 inHg</strong></div>
+            </div>
+            <p class="css-note" style="margin-top: .75rem;"><code>hvo-list-item</code> · 18px radius · overlay-panel background · <code>span</code> = muted label, <code>strong</code> = foreground value.</p>
+        </section>
+
+        <!-- ── TABLE ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Table</h2></div></div>
+            <div class="hvo-table-wrap">
+                <table class="hvo-table">
+                    <thead><tr><th>Time</th><th>Temp °F</th><th>Wind mph</th><th>Status</th></tr></thead>
+                    <tbody>
+                        <tr><td class="hvo-mono">14:30</td><td class="hvo-mono">72.4</td><td class="hvo-mono">12</td><td><span class="hvo-chip hvo-chip-success">Normal</span></td></tr>
+                        <tr><td class="hvo-mono">14:00</td><td class="hvo-mono">71.8</td><td class="hvo-mono">18</td><td><span class="hvo-chip hvo-chip-warning">Elevated</span></td></tr>
+                        <tr><td class="hvo-mono">13:30</td><td class="hvo-mono">69.5</td><td class="hvo-mono">8</td><td><span class="hvo-chip hvo-chip-success">Normal</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="css-note" style="margin-top: .75rem;"><code>hvo-table-wrap</code> overflow-x scroll · <code>hvo-table</code> full-width collapse · <code>th</code> = muted uppercase small.</p>
+        </section>
+
+        <!-- ── BAROMETER GAUGE ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Pressure Gauge (Barometer)</h2></div></div>
+            <div class="hvo-grid">
+                @foreach (var b in _baro)
+                {
+                    <div>
+                        <p class="hvo-eyebrow" style="margin: 0 0 .5rem;">@b.Label</p>
+                        <div class="hvo-barometer">
+                            <div class="hvo-barometer-reading">
+                                <span class="hvo-barometer-reading-value">@b.Value</span>
+                                <span class="hvo-barometer-reading-label">inHg</span>
+                            </div>
+                            <div class="hvo-barometer-scale">
+                                <div class="hvo-barometer-band">
+                                    <span class="hvo-barometer-marker" style="left: @b.Pct%;"></span>
+                                </div>
+                                <div class="hvo-barometer-tick-row"><span>26.50</span><span>28.50</span><span>30.50</span></div>
+                            </div>
+                            <div class="hvo-barometer-meta">
+                                <div class="hvo-barometer-row"><span>24h low</span><strong>@b.Low</strong></div>
+                                <div class="hvo-barometer-row"><span>24h high</span><strong>@b.High</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <!-- ── TOGGLE ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Toggle</h2></div></div>
+            <div class="hvo-stack">
+                <div class="hvo-toggle"><span class="hvo-toggle-track"></span><span>Feature enabled (on)</span></div>
+            </div>
+            <p class="css-note" style="margin-top: .75rem;"><code>hvo-toggle-track</code> renders the track; the inset box-shadow simulates the thumb. No JS required for display.</p>
+        </section>
+
+        <!-- ── STATES ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>State Patterns</h2></div></div>
+            <div class="hvo-grid">
+                <div class="hvo-state-empty">hvo-state-empty — No data available</div>
+                <div class="hvo-state-error">hvo-state-error — Failed to load</div>
+            </div>
+        </section>
+
+        <!-- ── METRIC ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Metric Row</h2></div></div>
+            <div class="hvo-card">
+                <div class="hvo-metric"><span class="hvo-metric-label">Voltage</span><span class="hvo-metric-value">13.8 V</span></div>
+                <div class="hvo-metric"><span class="hvo-metric-label">Current</span><span class="hvo-metric-value">2.4 A</span></div>
+                <div class="hvo-metric"><span class="hvo-metric-label">Power</span><span class="hvo-metric-value">33.1 W</span></div>
+            </div>
+            <p class="css-note" style="margin-top: .75rem;"><code>hvo-metric</code> flex-justifies label/value with bottom border. Last child has no border.</p>
+        </section>
+
+        <!-- ── RING GAUGE ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Ring Gauge</h2></div></div>
+            <div class="hvo-gauge-grid">
+                <div class="hvo-ring-gauge" style="--hvo-ring-level: 88%; --hvo-ring-color: #57d38d;"><div class="hvo-ring-gauge-value">88%</div></div>
+                <div class="hvo-ring-gauge" style="--hvo-ring-level: 54%; --hvo-ring-color: #ffcf66;"><div class="hvo-ring-gauge-value">54%</div></div>
+                <div class="hvo-ring-gauge" style="--hvo-ring-level: 18%; --hvo-ring-color: #f38ba8;"><div class="hvo-ring-gauge-value">18%</div></div>
+            </div>
+            <p class="css-note" style="margin-top: .75rem;">Set <code>--hvo-ring-level</code> (percentage) and <code>--hvo-ring-color</code> inline.</p>
+        </section>
+
+        <!-- ── CELL GRID ── -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">hvo-components.css</div><h2>Cell Grid (Battery / Voltage Cells)</h2></div></div>
+            <div class="hvo-cell-grid">
+                @for (int i = 1; i <= 8; i++)
+                {
+                    var cl = i == 3 ? "hvo-cell-tile-high" : i == 7 ? "hvo-cell-tile-low" : "";
+                    <div class="hvo-cell-tile @cl">
+                        <span class="hvo-cell-num">@i</span>
+                        <span class="hvo-cell-v">3.@(i * 7 % 30 + 10)</span>
+                    </div>
+                }
+            </div>
+            <p class="css-note" style="margin-top: .75rem;"><code>hvo-cell-tile-high</code> = red bg · <code>hvo-cell-tile-low</code> = blue bg · <code>hvo-cell-num</code> label · <code>hvo-cell-v</code> value.</p>
+        </section>
+
+        <!-- ── TYPOGRAPHY ── -->
+        <section class="hvo-card-shell hvo-card-note">
+            <div class="hvo-section-head"><div><div class="hvo-eyebrow">Typography tokens</div><h2>Mono &amp; Stack Helpers</h2></div></div>
+            <div class="hvo-grid">
+                <div class="hvo-list-item"><span>hvo-mono</span><strong class="hvo-mono">29.992 inHg — tabular-nums</strong></div>
+                <div class="hvo-list-item"><span>hvo-stack gap</span><strong>0.85rem between children</strong></div>
+                <div class="hvo-list-item"><span>hvo-grid</span><strong>repeat(2, 1fr) · 0.85rem gap</strong></div>
+                <div class="hvo-list-item"><span>hvo-form-grid</span><strong>same as hvo-grid</strong></div>
+                <div class="hvo-list-item"><span>hvo-action-row</span><strong>flex wrap · 0.75rem gap</strong></div>
+                <div class="hvo-list-item"><span>hvo-field</span><strong>grid · 0.45rem label-to-input gap</strong></div>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+@code {
+    private sealed record BaroSample(string Label, string Value, double Pct, string Low, string High);
+
+    private static readonly BaroSample[] _baro =
+    [
+        new("Low",    "29.20", Math.Round((29.20 - 26.5) / (30.5 - 26.5) * 100, 1), "29.05", "29.42"),
+        new("Normal", "29.92", Math.Round((29.92 - 26.5) / (30.5 - 26.5) * 100, 1), "29.78", "30.10"),
+        new("High",   "30.42", Math.Round((30.42 - 26.5) / (30.5 - 26.5) * 100, 1), "30.18", "30.55"),
+    ];
+}
