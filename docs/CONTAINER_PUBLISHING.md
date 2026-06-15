@@ -1,6 +1,6 @@
 # Container Publishing
 
-This repository publishes four application images to Azure Container Registry (ACR), and each image is versioned independently.
+This repository publishes six application images to Azure Container Registry (ACR), and each image is versioned independently.
 
 ## Azure Inventory
 
@@ -27,11 +27,17 @@ The published repositories are:
 | Davis | `hvo-davis` | `src/HVO.Hardware.DavisVantagePro2/Dockerfile` | `HVO_DAVIS_IMAGE_VERSION` |
 | JK BMS | `hvo-jkbms` | `src/HVO.Hardware.JkBms/Dockerfile` | `HVO_JKBMS_IMAGE_VERSION` |
 | SolarAssistant | `hvo-solarassistant` | `src/HVO.Gateway.SolarAssistant/Dockerfile` | `HVO_SOLARASSISTANT_IMAGE_VERSION` |
+| SmartShunt | `hvo-smartshunt` | `src/HVO.Hardware.VictronSmartShunt/Dockerfile` | `HVO_SMARTSHUNT_IMAGE_VERSION` |
+| TP-Link/Kasa | `hvo-tplinkkasa` | `src/HVO.Gateway.TplinkKasa/Dockerfile` | `HVO_TPLINKKASA_IMAGE_VERSION` |
 
-Each publish writes two tags for the selected target:
+Each publish always writes the explicit version tag from `.env`. Add `--push-latest` when you intentionally want to update the mutable `latest` tag as well.
 
-- the explicit version tag from `.env`
-- `latest`
+For example:
+
+```bash
+./scripts/publish-acr-image.sh website
+./scripts/publish-acr-image.sh --push-latest website
+```
 
 ## Version Variables
 
@@ -43,6 +49,8 @@ HVO_WEBSITE_IMAGE_VERSION=<current>
 HVO_DAVIS_IMAGE_VERSION=<current>
 HVO_JKBMS_IMAGE_VERSION=<current>
 HVO_SOLARASSISTANT_IMAGE_VERSION=<current>
+HVO_SMARTSHUNT_IMAGE_VERSION=<current>
+HVO_TPLINKKASA_IMAGE_VERSION=<current>
 ```
 
 Only bump the variable for the image you are publishing. See `CHANGELOG.md` for published version history.
@@ -56,6 +64,8 @@ Use the repo script to build, tag, push, and verify one target at a time:
 ./scripts/publish-acr-image.sh davis
 ./scripts/publish-acr-image.sh jkbms
 ./scripts/publish-acr-image.sh solarassistant
+./scripts/publish-acr-image.sh smartshunt
+./scripts/publish-acr-image.sh tplinkkasa
 ```
 
 To inspect the exact commands without building or pushing:
@@ -70,9 +80,36 @@ The script:
 - logs into ACR with `az acr login`
 - uses a temporary Docker config for ACR login when `DOCKER_CONFIG` is unset, avoiding local credential-helper failures and persistent publish credentials
 - builds the selected Dockerfile
-- tags the image with both the configured version and `latest`
-- pushes both tags
+- tags the image with the configured version, plus `latest` when `--push-latest` is used
+- pushes the selected tag set
 - verifies the repository tags in ACR
+
+## Deployment Scripts
+
+Publishing to ACR does not roll a running service by itself. Use the deployment scripts after publishing or when rebuilding directly to a Docker context.
+
+Deploy the Azure website Container App to a specific image tag:
+
+```bash
+./scripts/deploy-azure-container-app.sh --tag 1.0.22 website
+```
+
+If `--tag` is omitted, the script uses `HVO_WEBSITE_IMAGE_VERSION` from `.env` when present, otherwise it queries the newest `hvo-website` tag in ACR.
+
+Deploy Pi gateway compose stacks to the configured Docker context:
+
+```bash
+./scripts/deploy-pi-gateway.sh --context devpi5 all
+./scripts/deploy-pi-gateway.sh --context devpi5 jkbms
+```
+
+Check Azure and Pi health endpoints:
+
+```bash
+./scripts/check-deployments.sh
+```
+
+All three scripts support dry-run or environment overrides where appropriate; run each script with `--help` for details.
 
 ## Standard Publish Workflow
 
@@ -118,6 +155,8 @@ az acr repository show-tags --name hvoobsacr --repository hvo-website --output t
 az acr repository show-tags --name hvoobsacr --repository hvo-davis --output table
 az acr repository show-tags --name hvoobsacr --repository hvo-jkbms --output table
 az acr repository show-tags --name hvoobsacr --repository hvo-solarassistant --output table
+az acr repository show-tags --name hvoobsacr --repository hvo-smartshunt --output table
+az acr repository show-tags --name hvoobsacr --repository hvo-tplinkkasa --output table
 ```
 
 ## Gist Sync

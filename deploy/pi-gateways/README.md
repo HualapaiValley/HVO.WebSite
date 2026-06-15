@@ -51,6 +51,7 @@ Important:
 - `deploy/pi-gateways/davis`
 - `deploy/pi-gateways/jkbms`
 - `deploy/pi-gateways/solarassistant`
+- `deploy/pi-gateways/smartshunt`
 - `deploy/pi-gateways/tplink-kasa`
 
 Each gateway is deployed independently so Pi rollouts do not depend on the main repo-level compose stack.
@@ -62,10 +63,23 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 3. Deploy with the Pi Docker context:
 
 ```bash
-docker --context devpi5 compose --env-file deploy/pi-gateways/davis/.env -f deploy/pi-gateways/davis/docker-compose.yml up -d --build
-docker --context devpi5 compose --env-file deploy/pi-gateways/jkbms/.env -f deploy/pi-gateways/jkbms/docker-compose.yml up -d --build
-docker --context devpi5 compose --env-file deploy/pi-gateways/solarassistant/.env -f deploy/pi-gateways/solarassistant/docker-compose.yml up -d --build
-docker --context devpi5 compose --env-file deploy/pi-gateways/tplink-kasa/.env -f deploy/pi-gateways/tplink-kasa/docker-compose.yml up -d --build
+./scripts/deploy-pi-gateway.sh --context devpi5 davis
+./scripts/deploy-pi-gateway.sh --context devpi5 jkbms
+./scripts/deploy-pi-gateway.sh --context devpi5 solarassistant
+./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt
+./scripts/deploy-pi-gateway.sh --context devpi5 tplinkkasa
+```
+
+To deploy all gateway stacks from the current checkout:
+
+```bash
+./scripts/deploy-pi-gateway.sh --context devpi5 all
+```
+
+To verify deployed endpoints after rollout:
+
+```bash
+./scripts/check-deployments.sh
 ```
 
 ## Current telemetry status

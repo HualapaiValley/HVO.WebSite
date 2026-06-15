@@ -21,7 +21,7 @@ The goal is to avoid building the main website or more polished local UIs around
 |---------|---------|--------|------------------|-------|
 | Davis | `src/HVO.Hardware.DavisVantagePro2` | Weather | High | Best current UI/shell baseline; mature local state and outbox behavior. |
 | JK BMS | `src/HVO.Hardware.JkBms` | Battery bank fleet | Medium-high | Strong live BLE telemetry and BMS ingest; session model and shared BLE constraints still evolving. |
-| SolarAssistant | `src/HVO.Gateway.SolarAssistant` | Inverter, solar, load, battery aggregate | Medium | REST/MQTT discovery and power forwarding are active; outbox health currently exposed but historical failures need better semantics. |
+| SolarAssistant | `src/HVO.Gateway.SolarAssistant` | Inverter, solar, load, battery aggregate | Medium-low | Shared outbox storage, typed power/inventory/config/detail/status streams, central UI, and historical-failure health semantics are implemented. Remaining risk is fixture/simulator coverage for MQTT value streams and local UI. |
 | SmartShunt | `src/HVO.Hardware.VictronSmartShunt` | Battery monitor | Medium | Read-only public BLE telemetry works; private enrichment/write paths intentionally deferred. |
 
 ## Shared Gateway Shape
@@ -164,6 +164,8 @@ Avoid daemon-first because:
 
 ### Initial Library Scope
 
+Status: implemented for the SolarAssistant migration, with gateway-specific destination routing still owned by each gateway.
+
 Include:
 
 - common outbox entity model
@@ -250,7 +252,11 @@ The main site should link back to local gateway dashboards for deep diagnostics 
 
 ## Proposed Implementation PRs
 
+The first two implementation PRs in this plan are complete for SolarAssistant. The next useful work is no longer another SolarAssistant field-audit/schema PR; it is migrating the next gateway while preserving each gateway's protocol boundaries.
+
 ### PR 1: Foundation Contracts And Outbox Design
+
+Status: complete.
 
 Scope:
 
@@ -268,6 +274,8 @@ Acceptance criteria:
 ### PR 2: Migrate One Gateway To Shared Outbox
 
 Preferred first target: SolarAssistant.
+
+Status: complete for SolarAssistant.
 
 Reason:
 
@@ -297,9 +305,49 @@ Acceptance criteria:
 
 - SmartShunt uses shared outbox status/health semantics.
 - BLE polling behavior is unchanged.
+- Private/write behavior remains unchanged and intentionally deferred.
 - Existing SmartShunt tests continue passing.
 
+### PR 3B: JK BMS Fan-Out Isolation
+
+Scope:
+
+- Address fan-out isolation before or during any JK BMS shared-outbox migration.
+- Ensure one bad device record cannot block unrelated BMS records.
+- Ensure one failed destination cannot block destinations that succeeded.
+
+Current risk:
+
+- `ForwarderCoordinator` marks a batch sent only when all registered `IReadingForwarder` implementations succeed.
+- On partial destination failure, every record in the batch remains pending and retries, even if some destinations accepted the data.
+
+Acceptance criteria:
+
+- Delivery state is tracked independently enough to avoid resending successful destination fan-outs solely because another destination failed.
+- Per-device validation or serialization failures dead-letter only the affected device record.
+- Existing BLE polling/session behavior remains unchanged.
+
+### PR 3C: Davis Outbox Split
+
+Scope:
+
+- Separate telemetry outbox records from local UI/history/settings persistence before any Davis shared-outbox migration.
+- Keep Davis console settings, station info snapshots, archive/history, and local operational database concerns gateway-owned.
+
+Current risk:
+
+- The Davis `OutboxDbContext` currently owns both telemetry outbox records and local `StationSettingsSnapshots`/`StationInfoSnapshots` tables.
+- A direct shared-outbox migration would mix transport durability with gateway-owned console state unless the persistence boundary is split first.
+
+Acceptance criteria:
+
+- Weather telemetry outbox can move to shared outbox primitives without moving station settings/history ownership to shared code.
+- Davis local pages continue to read/write their gateway-owned local state.
+- Existing Davis tests continue passing.
+
 ### PR 4: Cross-Discipline Power Model
+
+Status: partially implemented for the central power card. Keep expanding only after source semantics are documented.
 
 Scope:
 
@@ -335,6 +383,16 @@ Acceptance criteria:
 4. Should shared gateway contracts live in `HVO.Edge.Contracts` separately from `HVO.Edge.Outbox`?
 5. What is the first main-site audience: public observatory status, private operator dashboard, or both?
 
+## Follow-On Roadmap Status
+
+| Item | Status | Notes |
+|------|--------|-------|
+| SolarAssistant field audit PR | Complete for the implemented typed streams | REST inventory, MQTT discovery, mapper coverage, PV strings, inventory/config snapshots, command capabilities, inverter status, and gateway status are centrally represented through typed payloads. Energy counters are supported but only persisted when observed; the live deployment currently reports empty energy counters. No write/control path was added. |
+| SmartShunt migration | Pending | Reuse the shared outbox path. Do not change BLE polling or private/write behavior. This remains the recommended next gateway migration because it is a power telemetry source but lower fan-out risk than JK BMS. |
+| JK BMS migration | Pending, blocked on fan-out isolation | Fix per-destination/per-device isolation before migrating. One bad BMS record or one failed destination must not block unrelated records. |
+| Davis split | Pending | Split telemetry outbox from gateway-owned local UI/history/settings persistence before migration. Davis local operational database concerns stay in the gateway. |
+| Central power model expansion | Partial | Central UI now joins SolarAssistant typed streams and JK BMS bank detail. Add fields/endpoints only after source semantics are documented; prefer source-specific config/identity snapshots and typed normalized telemetry for high-cadence values. |
+
 ## Current Recommendation
 
-Create `HVO.Edge.Contracts` plus `HVO.Edge.Outbox` as small shared libraries. Keep them boring and testable. Migrate SolarAssistant first because it exposes the outbox-health semantics problem without BLE complexity. Then migrate SmartShunt, then JK BMS or Davis depending on risk and timing.
+`HVO.Edge.Contracts` plus `HVO.Edge.Outbox` now exist as small shared libraries and SolarAssistant has been migrated first. Keep them boring and testable. Next, migrate SmartShunt with unchanged BLE behavior. After that, fix JK BMS fan-out isolation before migration, and split Davis telemetry outbox from local operational persistence before migrating Davis.

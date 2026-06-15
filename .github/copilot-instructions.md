@@ -61,6 +61,17 @@ Follow this process for every issue. **Never auto-start the next issue unless ex
 
 - **Do not** start the next issue automatically. Wait for explicit instructions.
 
+## Active Migration: Unified Theme & Layout
+
+The repo is undergoing a cross-cutting migration (epic #153) to unify all apps under a shared theme/layout system in `HVO.WebSite.Themes`. See `docs/UNIFIED_THEME_PLAN.md` for the full plan, and `.opencode/agents/theme-migration.md` for the execution agent prompt.
+
+**Key rules during migration:**
+- **All shared components** go in `HVO.WebSite.Themes`, not per-app projects
+- **HvoFormat** is the single formatting utility — no raw `ToString("F*")` in razor files
+- **ShellLayoutState** is shared from Themes RCL — never copy-pasted
+- **Davis app.css** must be deleted, not maintained
+- **Phase 0.5 (ThemeSandbox)** must pass before any production gateway migration starts
+
 ## Conventions
 
 - **Branch naming**: `feature/<issue#>-<short-desc>`, `fix/<issue#>-<short-desc>`

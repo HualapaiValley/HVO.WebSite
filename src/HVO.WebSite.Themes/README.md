@@ -1,6 +1,6 @@
 # HVO.WebSite.Themes - Shared UI Design System
 
-Razor Class Library providing the HVO Dark design system, shared web assets, and reusable CSS primitives for HVOv9 Blazor applications.
+Razor Class Library providing the shared HVO shell layouts, MudBlazor theme, web assets, and reusable CSS primitives for HVO Blazor applications.
 
 ## Package Information
 
@@ -23,45 +23,41 @@ HVO.WebSite.Themes/
 ├── wwwroot/
 │   ├── css/
 │   │   └── themes/
-│   │       └── hvo-dark.css          # HVO Dark design system
+│   │       ├── hvo-shared-shell.css  # shell layout, palette variables, light/dark themes
+│   │       ├── hvo-components.css    # shared card, metric, chip, gauge, and state primitives
+│   │       └── hvo-dark.css          # deprecated compatibility stylesheet
 │   └── fonts/
 │       └── [custom-fonts]            # Self-hosted web fonts
+├── Components/
+│   ├── Charts/                       # HvoChart wrapper
+│   ├── Format/                       # HvoFormat and UnitSystem
+│   └── Layout/                       # HvoGatewayLayout, HvoPublicLayout, HvoAdminLayout
 └── HVO.WebSite.Themes.csproj
 ```
 
-## HVO Dark Design System
+## Shared Theme Contract
 
-### Color Palette (CSS Custom Properties)
+The RCL is the source of truth for visual standards. Consuming apps should use the shared layouts and `hvo-*` CSS primitives for common UI surfaces, then keep app CSS limited to layout glue or truly device-specific controls.
 
-#### Core Colors
-```css
---hvo-body-bg: #05070d;              /* Deep space background */
---hvo-body-color: #f8fafc;           /* High-contrast text */
---hvo-accent: #3b82f6;               /* Blue accent (buttons, links) */
---hvo-accent-strong: #2563eb;        /* Darker blue (hover states) */
---hvo-accent-soft: rgba(59, 130, 246, 0.2);  /* Subtle highlights */
-```
+### Layouts
 
-#### Semantic Colors
-```css
---hvo-success-bg: rgba(34, 197, 94, 0.25);
---hvo-success-fg: #bbf7d0;
---hvo-danger-bg: rgba(248, 113, 113, 0.25);
---hvo-danger-fg: #fecaca;
---hvo-warning-bg: rgba(250, 204, 21, 0.25);
---hvo-warning-fg: #fef9c3;
---hvo-info-bg: rgba(56, 189, 248, 0.25);
---hvo-info-fg: #e0f2fe;
-```
+- `HvoGatewayLayout` for gateway dashboards with top navigation and five footer status slots.
+- `HvoPublicLayout` for public website routes.
+- `HvoAdminLayout` for admin routes with sidebar navigation.
+- `ShellLayoutState` for shared theme state, page metadata, and footer slots.
+- `HvoTheme.Create()` for the unified MudBlazor palette.
 
-#### Surfaces & Borders
-```css
---hvo-card-bg: linear-gradient(145deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.65));
---hvo-card-glass: rgba(30, 41, 59, 0.6);
---hvo-panel-shadow: 0 12px 35px rgba(15, 23, 42, 0.45);
---hvo-border-muted: rgba(148, 163, 184, 0.18);
---hvo-border-strong: rgba(148, 163, 184, 0.2);
-```
+### CSS Primitives
+
+- `hvo-card`, `hvo-card-primary`, `hvo-card-note`, `hvo-card-title`, `hvo-eyebrow`
+- `hvo-metric`, `hvo-metric-label`, `hvo-metric-value`, `hvo-mono`
+- `hvo-chip-row`, `hvo-chip`, `hvo-chip-online`, `hvo-chip-warning`, `hvo-chip-error`
+- `hvo-ring-gauge`, `hvo-ring-gauge-value`, `hvo-gauge-grid`
+- `hvo-cell-grid`, `hvo-cell-tile`, `hvo-cell-tile-high`, `hvo-cell-tile-low`, `hvo-cell-num`, `hvo-cell-v`
+- `hvo-device-title-row`, `hvo-device-meta`, `hvo-device-meta-caption`
+- `hvo-surface-panel`, `hvo-state-empty`, `hvo-state-error`
+
+These primitives were promoted from the ThemeSandbox showcase so the production apps and the reference catalog share one implementation.
 
 ## Integration
 
@@ -73,24 +69,27 @@ HVO.WebSite.Themes/
 </ItemGroup>
 ```
 
-### 2. Reference Theme Stylesheet
+### 2. Reference Theme Stylesheets
 
 ```html
-<link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-dark.css" />
+<link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
+<link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-shared-shell.css" />
+<link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-components.css" />
 ```
 
-### 3. Enable Theme on Root Elements
+`hvo-dark.css` is retained only for older Bootstrap-era routes during migration.
+
+### 3. Apply Theme Classes
 
 ```html
-<html lang="en" data-theme="hvo-dark">
-<body data-theme="hvo-dark">
+<div class="shell-theme-dark">...</div>
+<div class="shell-theme-light">...</div>
 ```
 
 ## Dependencies
 
-- **None** - Pure CSS, no JavaScript required
-- Bootstrap 5.3 (expected to be loaded by consuming app)
-- Bootstrap Icons (expected to be loaded by consuming app)
+- MudBlazor
+- Chart.js for `HvoChart` consumers
 
 ## Used By
 
@@ -99,6 +98,7 @@ HVO.WebSite.Themes/
 - `HVO.Hardware.JkBms` - JK BMS monitoring UI
 - `HVO.Hardware.VictronSmartShunt` - SmartShunt monitoring UI
 - `HVO.Gateway.SolarAssistant` - SolarAssistant monitoring UI
+- `HVO.Gateway.TplinkKasa` - TP-Link/Kasa gateway UI
 
 ## Design Philosophy
 
@@ -114,11 +114,12 @@ HVO.WebSite.Themes/
 
 ## Site-Specific Overrides
 
-In consuming apps, create a site-specific CSS file loaded after the theme:
+Consuming app CSS may define layout density, grid placement, and device-specific controls. It should not redefine shared surface colors, fonts, card borders, metric rows, or status chips. Use the shared `hvo-*` classes instead.
 
 ```html
-<link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-dark.css" />
-<link rel="stylesheet" href="css/site-overrides.css" />
+<link rel="stylesheet" href="app.css" />
+<link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-shared-shell.css" />
+<link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-components.css" />
 ```
 
-See `src/HVO.WebSite.v9/wwwroot/css/overrides/README.md` for the override convention.
+Loading app CSS before the shared shell and component CSS lets the RCL remain the final authority for common theme surfaces.

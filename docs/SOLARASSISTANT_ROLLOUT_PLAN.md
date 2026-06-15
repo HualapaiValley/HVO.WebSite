@@ -74,14 +74,14 @@ The current SolarAssistant local gateway UI already demonstrates the data catego
 
 | UI area | Current data used | Completion implication |
 |---------|-------------------|------------------------|
-| Gateway summary | Health state, REST status, MQTT status, forwarding status, last snapshot, metric counts, source id | Keep as local gateway runtime status and later expose normalized gateway status centrally. |
+| Gateway summary | Health state, REST status, MQTT status, forwarding status, last snapshot, metric counts, source id | Keep deep diagnostics local and expose normalized `gateway.status.v1` centrally. |
 | Current Snapshot | PV, load, grid, battery, system power, load percentage | Keep as high-cadence `power.reading.v1`. |
 | Battery State | SoC, voltage, current, capacity, inverter mode | Keep aggregate values in `power.reading.v1`; validate duplicated battery source meanings before adding more. |
 | Recent Power Trends | In-memory PV/load/grid/battery power history | Central charts should use persisted `power.reading.v1`; local charts can remain bounded in-memory. |
 | REST Metric Inventory | Topic, group, unit, classification | Promote durable inventory/classification snapshots where useful for central UI and rollout validation. |
 | MQTT Discovery | Entities, devices, state topics, command topics, state payload metadata | Promote device/config/capability snapshots; do not execute command topics yet. |
 | Read-only Configuration | Host, REST/MQTT ports, poll interval | Expand with SolarAssistant/inverter configuration and settings snapshots. |
-| Website Forwarding | Pending, failed, last sent, endpoint, errors | Move to shared outbox snapshot and health semantics. |
+| Website Forwarding | Pending, failed, last sent, endpoint, errors | Use shared outbox status and health semantics; publish central gateway status snapshots. |
 
 ## Target Data Streams
 
@@ -293,22 +293,24 @@ Recommended minimum tests by rollout phase:
 | Phase 5 | Website page/card component tests for live, stale, partial, and missing-stream states, plus end-to-end API/read-model tests with seeded data. |
 | Phase 6 | Gateway status contract/API tests, outbox forwarding tests, health mapping tests, and central UI rendering of runtime status. |
 
-## Current Implementation Limits
+## Current Implementation Status And Remaining Limits
 
-Phase 1 is a plan and field audit. It intentionally documents several gaps that later phases must not treat as already solved:
+SolarAssistant phases 2 through 6 are implemented and deployed. The earlier follow-on field audit items are now mostly closed for SolarAssistant:
 
-- `HVO.Edge.Outbox` currently provides health/status contracts and evaluation only. It does not yet provide shared durable SQLite storage, enqueue, forwarding, retry, compaction, or payload-type routing.
-- SolarAssistant still has a gateway-specific SQLite outbox. Its current rows store `Payload` but do not store `PayloadType` or `PayloadVersion`.
-- `PowerApiForwarder` is currently hard-wired to deserialize all pending records as `PowerReadingPayload` and post them to one configured power readings endpoint.
-- Existing SolarAssistant outbox tests cover the current single-payload behavior, but not shared runtime behavior such as payload-type routing, per-payload-type isolation, compaction, mixed destinations, or dedupe including `PayloadType` and `DeviceId`.
-- MQTT inventory tests currently cover parser/store behavior. There is no fake MQTT broker/server or reconnect/keepalive simulator because MQTT state values are not telemetry inputs yet.
-- The current MQTT store records state-topic payload kind, length, count, retain flag, QoS, and last-seen time, not the actual state values.
-- Existing mapper tests use targeted inline metric sets. There is not yet a sanitized full fixture representing all observed REST metrics or MQTT discovery/state topics.
-- Local SolarAssistant gateway UI does not currently have bUnit coverage for status chips, current snapshot cards, rolling history, REST inventory, MQTT inventory, or outbox panels.
-- Current website UI tests cover generic power snapshot/card behavior, not future SolarAssistant inventory, configuration, energy, or inverter-detail views.
-- Latest snapshot hydration currently reads the latest local outbox `Payload` without payload-type filtering. The shared outbox migration must update this seam before non-`power.reading.v1` records are stored in the same outbox.
+- `HVO.Edge.Outbox` now provides the shared EF Core outbox record/context, durable SQLite storage model, enqueue/dedupe helper, ready-batch selection by payload type, retry/dead-letter scheduling, sent-record compaction, and health evaluation primitives.
+- SolarAssistant derives its local `OutboxDbContext` from `EdgeOutboxDbContext`; outbox rows include `PayloadType`, `PayloadVersion`, `SourceId`, optional `DeviceId`, and `RecordedAtUtc`.
+- `PowerApiForwarder` routes `power.reading.v1`, `power.device-inventory.v1`, `power.configuration.v1`, `power.energy.v1`, `power.inverter-detail.v1`, and `gateway.status.v1` to typed website endpoints.
+- Latest local dashboard hydration filters the local outbox to `power.reading` records before deserializing historical payloads.
+- Shared outbox and SolarAssistant forwarding tests cover payload-type isolation, dedupe, retry/dead-letter behavior, compaction, typed endpoint routing, and invalid payload handling.
+- Website API, provider, and central UI tests cover the typed SolarAssistant streams and missing/stale/present gateway-status states.
 
-These are not Phase 1 blockers because Phase 1 is documentation and audit. They are explicit inputs to Phase 2 and later acceptance criteria.
+Remaining limits that should not be treated as solved:
+
+- MQTT inventory tests cover parser/store behavior, but there is no fake MQTT broker/server or reconnect/keepalive simulator. MQTT state values are still not telemetry inputs.
+- The MQTT store records state-topic payload kind, length, count, retain flag, QoS, and last-seen time, not the raw state value stream.
+- Existing mapper tests use targeted inline metric sets. There is still no sanitized full fixture representing all observed REST metrics or MQTT discovery/state topics.
+- Local SolarAssistant gateway UI still lacks bUnit coverage for status chips, current snapshot cards, rolling history, REST inventory, MQTT inventory, and outbox panels.
+- Energy counters are centrally supported and persisted when observed, but the live SolarAssistant deployment has not exposed populated REST energy counters; empty energy snapshots remain expected in that environment.
 
 ## SolarAssistant Completion Definition
 
@@ -345,6 +347,8 @@ Acceptance criteria:
 
 ### Phase 2: Shared Outbox For `power.reading.v1`
 
+Status: implemented for SolarAssistant aggregate power forwarding.
+
 Scope:
 
 - Add minimal shared outbox primitives needed by SolarAssistant.
@@ -361,7 +365,14 @@ Acceptance criteria:
 - Forwarding tests prove the shared outbox sends only `power.reading.v1` records to `/api/v1/power/readings` and handles per-record validation failures.
 - This phase alone does not make SolarAssistant complete; it only completes the first shared-outbox migration for the existing aggregate reading stream.
 
+Implementation notes:
+
+- SolarAssistant uses `EdgeOutboxStore<OutboxDbContext>` and payload metadata for `power.reading.v1` records.
+- Current forwarding, retry/dead-letter behavior, sent compaction, and latest dashboard hydration are covered by shared outbox and SolarAssistant tests.
+
 ### Phase 3: Inventory And Configuration Streams
+
+Status: implemented in `power.device-inventory.v1` and `power.configuration.v1` streams.
 
 Scope:
 
@@ -376,6 +387,11 @@ Acceptance criteria:
 - Configuration snapshots are read-only evidence of current settings; no endpoint or UI action can publish to SolarAssistant command topics.
 - Fixture-driven tests cover REST and MQTT discovery examples for inventory/config mapping.
 - Website API and UI tests cover present, missing, stale, and partial inventory/config states.
+
+Implementation notes:
+
+- Device inventory and read-only configuration snapshots are low-frequency/change-detected typed payloads.
+- MQTT command topics are represented as command capabilities only; no command/write path was added.
 
 ### Phase 4: Energy And Inverter Detail Streams
 
