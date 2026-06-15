@@ -1,10 +1,10 @@
 <section class="power-status-card" aria-labelledby="power-status-heading">
     <div class="power-status-card__header">
         <div>
-            <p class="power-status-card__eyebrow">Power System</p>
+            <p class="hvo-eyebrow power-status-card__eyebrow">Power System</p>
             <h2 id="power-status-heading">Live Power Snapshot</h2>
         </div>
-        <span class="power-status-card__state">@_viewModel.SnapshotState</span>
+        <span class="hvo-chip @SnapshotStateChipClass">@_viewModel.SnapshotState</span>
     </div>
 
     <div class="power-status-card__grid">

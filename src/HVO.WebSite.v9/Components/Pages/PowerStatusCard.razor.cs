@@ -15,6 +15,13 @@ public partial class PowerStatusCard : ComponentBase
     private PowerGatewayStatusViewModel _gatewayStatus = PowerGatewayStatusViewModel.Empty;
     private PowerSolarAssistantDetailViewModel _solarAssistantDetail = PowerSolarAssistantDetailViewModel.Empty;
 
+    private string SnapshotStateChipClass => _viewModel.SnapshotState switch
+    {
+        "Live"    => "hvo-chip-success",
+        "Waiting" => "hvo-chip-warning",
+        _         => ""
+    };
+
     protected override async Task OnInitializedAsync()
     {
         var snapshot = await SnapshotProvider.GetLatestAsync();

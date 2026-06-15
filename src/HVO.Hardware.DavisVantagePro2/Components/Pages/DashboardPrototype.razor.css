@@ -1,0 +1,34 @@
+.dashboard-prototype-page {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    color: var(--shell-page-text);
+}
+
+.dashboard-prototype-page > .shell-page-stack {
+    width: 100%;
+    min-width: 0;
+}
+
+.dashboard-prototype-stack {
+    display: grid;
+    gap: 18px;
+}
+
+.dashboard-prototype-hero-value {
+    font-size: 3rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: var(--shell-brand-title);
+    margin: 0.5rem 0;
+}
+
+.dashboard-prototype-hero-support {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    color: var(--shell-pill-text);
+    font-size: 0.92rem;
+    margin-bottom: 0.5rem;
+}

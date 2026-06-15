@@ -1,9 +1,9 @@
 :root {
-    --solar-accent-blue: #58beff;
-    --solar-accent-cyan: #83e4ff;
-    --solar-accent-amber: #ffcf66;
-    --solar-accent-success: #57d38d;
-    --solar-accent-danger: #ff7f7f;
+    --solar-accent-blue: var(--hvo-accent-blue);
+    --solar-accent-cyan: var(--hvo-accent-cyan);
+    --solar-accent-amber: var(--hvo-accent-amber);
+    --solar-accent-success: var(--hvo-accent-success);
+    --solar-accent-danger: var(--hvo-accent-danger);
 }
 
 a {
@@ -14,25 +14,18 @@ a {
     --solar-surface-card: linear-gradient(180deg, rgba(10, 20, 34, 0.96), rgba(7, 15, 25, 0.94));
     --solar-surface-panel: rgba(14, 29, 47, 0.86);
     --solar-surface-border: rgba(126, 157, 196, 0.14);
-    --solar-text: #ebf5ff;
-    --solar-muted: #8ba4bf;
+    --solar-text: var(--shell-page-text);
+    --solar-muted: var(--shell-pill-text);
 }
 
 .shell-theme-light {
     --solar-surface-card: linear-gradient(180deg, rgba(249, 252, 255, 0.94), rgba(236, 244, 252, 0.94));
     --solar-surface-panel: rgba(248, 251, 255, 0.82);
     --solar-surface-border: rgba(128, 151, 185, 0.22);
-    --solar-text: #10233f;
-    --solar-muted: #56708f;
+    --solar-text: var(--shell-page-text);
+    --solar-muted: var(--shell-pill-text);
 }
 
-.shell-brand-mark {
-    display: grid;
-    place-items: center;
-    color: var(--solar-accent-cyan);
-    font-weight: 800;
-    letter-spacing: 0.08em;
-}
 
 .shell-brand-mark-solar {
     background:

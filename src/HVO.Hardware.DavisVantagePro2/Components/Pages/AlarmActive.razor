@@ -1,55 +1,56 @@
 @page "/alarms/active"
 @rendermode InteractiveServer
 
-<PrototypeFrame Eyebrow="Alarms / Active Now" Title="Active Alarms">
-    <HeaderAside>
-        <div class="proto-pill"><span>Open alarms</span><strong class="proto-mono">2</strong></div>
-        <div class="proto-pill"><span>Critical</span><strong class="proto-mono">1</strong></div>
-        <button class="proto-button" type="button">Refresh</button>
-    </HeaderAside>
+<div class="alarm-active-page">
+    <div class="shell-page-stack alarm-active-stack">
+        <h1 class="hvo-visually-hidden">Active Alarms</h1>
 
-    <ChildContent>
+        <div class="hvo-action-row">
+            <div class="hvo-chip"><span>Open alarms</span><strong class="hvo-mono">2</strong></div>
+            <div class="hvo-chip"><span>Critical</span><strong class="hvo-mono">1</strong></div>
+            <button class="hvo-button" type="button">Refresh</button>
+        </div>
 
-        <section class="proto-card">
-            <div class="proto-section-head">
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head">
                 <div>
-                    <div class="proto-eyebrow">Open Alarms</div>
+                    <div class="hvo-eyebrow">Open Alarms</div>
                     <h2>Current Alarm State</h2>
                 </div>
             </div>
-            <div class="proto-active-stack">
-                <div class="proto-active-item">
-                    <div class="proto-control-row">
+            <div class="hvo-stack">
+                <div class="hvo-list-item">
+                    <div class="hvo-action-row">
                         <strong>High wind</strong>
-                        <span class="proto-badge critical">Critical</span>
+                        <span class="hvo-chip hvo-chip-danger">Critical</span>
                     </div>
-                    <div class="proto-list-meta">
+                    <div class="hvo-stack">
                         <span>Source</span><span>ISS</span>
-                        <span>Open since</span><span class="proto-mono">08 May 2026 - 8:11 PM UTC</span>
-                        <span>Current value</span><span class="proto-mono">37 mph</span>
+                        <span>Open since</span><span class="hvo-mono">08 May 2026 - 8:11 PM UTC</span>
+                        <span>Current value</span><span class="hvo-mono">37 mph</span>
                     </div>
-                    <div class="proto-list-actions">
-                        <button class="proto-button primary" type="button">Acknowledge</button>
-                        <button class="proto-button" type="button">View history</button>
+                    <div class="hvo-action-row">
+                        <button class="hvo-button hvo-button-primary" type="button">Acknowledge</button>
+                        <button class="hvo-button" type="button">View history</button>
                     </div>
                 </div>
 
-                <div class="proto-active-item">
-                    <div class="proto-control-row">
+                <div class="hvo-list-item">
+                    <div class="hvo-action-row">
                         <strong>No packets</strong>
-                        <span class="proto-badge warning">Warning</span>
+                        <span class="hvo-chip hvo-chip-warning">Warning</span>
                     </div>
-                    <div class="proto-list-meta">
+                    <div class="hvo-stack">
                         <span>Source</span><span>Station worker</span>
-                        <span>Open since</span><span class="proto-mono">08 May 2026 - 8:13 PM UTC</span>
-                        <span>Current value</span><span class="proto-mono">145 sec</span>
+                        <span>Open since</span><span class="hvo-mono">08 May 2026 - 8:13 PM UTC</span>
+                        <span>Current value</span><span class="hvo-mono">145 sec</span>
                     </div>
-                    <div class="proto-list-actions">
-                        <button class="proto-button primary" type="button">Acknowledge</button>
-                        <button class="proto-button" type="button">Retry</button>
+                    <div class="hvo-action-row">
+                        <button class="hvo-button hvo-button-primary" type="button">Acknowledge</button>
+                        <button class="hvo-button" type="button">Retry</button>
                     </div>
                 </div>
             </div>
         </section>
-    </ChildContent>
-</PrototypeFrame>
+    </div>
+</div>

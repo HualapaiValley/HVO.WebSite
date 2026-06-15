@@ -1,54 +1,3 @@
-:root {
-}
-
-.smartshunt-shell.shell-theme-dark {
-    --shell-page-background:
-        linear-gradient(180deg, rgba(4, 9, 18, 0.84) 0%, rgba(3, 7, 14, 0.92) 100%),
-        radial-gradient(circle at 58% 72%, rgba(255, 180, 70, 0.18), transparent 26%),
-        radial-gradient(circle at 22% 14%, rgba(69, 140, 255, 0.24), transparent 34%),
-        var(--shell-page-hero-image, none) var(--shell-page-background-image-position) / var(--shell-page-background-image-size) no-repeat;
-    --shell-page-text: #e8f1ff;
-    --shell-card-background: rgba(12, 20, 34, 0.88);
-    --shell-card-foreground: #f9fafb;
-    --shell-card-border: rgba(117, 152, 205, 0.22);
-    --shell-card-inner-border: rgba(255, 255, 255, 0.04);
-    --shell-card-shadow: 0 18px 42px rgba(2, 5, 10, 0.44);
-    --shell-brand-title: #f8fbff;
-    --shell-brand-subtitle: #8da4c7;
-    --shell-content-background: linear-gradient(180deg, rgba(10, 18, 31, 0.94), rgba(6, 12, 22, 0.98));
-    --shell-content-border: rgba(92, 122, 172, 0.24);
-    --shell-content-shadow: 0 24px 52px rgba(1, 4, 8, 0.44);
-}
-
-.smartshunt-shell.shell-theme-light {
-    --shell-page-background:
-        linear-gradient(180deg, rgba(244, 248, 253, 0.86) 0%, rgba(225, 235, 247, 0.94) 100%),
-        radial-gradient(circle at 58% 72%, rgba(217, 182, 86, 0.12), transparent 24%),
-        radial-gradient(circle at 26% 16%, rgba(101, 151, 229, 0.14), transparent 30%),
-        var(--shell-page-hero-image, none) var(--shell-page-background-image-position) / var(--shell-page-background-image-size) no-repeat;
-    --shell-page-text: #10233f;
-    --shell-card-background: rgba(255, 255, 255, 0.82);
-    --shell-card-foreground: #10233f;
-    --shell-card-border: rgba(128, 151, 185, 0.34);
-    --shell-card-inner-border: rgba(255, 255, 255, 0.88);
-    --shell-card-shadow: 0 24px 44px rgba(65, 89, 125, 0.18);
-    --shell-brand-title: #183250;
-    --shell-brand-subtitle: #56708f;
-    --shell-content-background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(242, 247, 253, 0.94));
-    --shell-content-border: rgba(176, 194, 219, 0.64);
-    --shell-content-shadow: 0 24px 44px rgba(82, 106, 143, 0.16);
-}
-
-.shell-brand-mark {
-    display: grid;
-    place-items: center;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: #f8fbff;
-    background: linear-gradient(180deg, rgba(39, 50, 68, 0.98), rgba(17, 24, 36, 0.96));
-    border: 1px solid rgba(188, 203, 223, 0.22);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 10px 24px rgba(8, 13, 22, 0.28);
-}
 
 .shell-brand-mark-gateway {
     background: linear-gradient(145deg, rgba(88, 190, 255, 0.36), rgba(53, 94, 174, 0.62));
@@ -76,7 +25,7 @@
 
 .smartshunt-eyebrow,
 .smartshunt-card-kicker {
-    color: #7c93b0 !important;
+    color: var(--shell-pill-text);
     letter-spacing: 0.16em !important;
 }
 
@@ -92,7 +41,7 @@
 
 .smartshunt-hero-summary {
     max-width: 52rem;
-    color: #97acc8 !important;
+    color: var(--shell-pill-text);
 }
 
 .smartshunt-shell.shell-theme-light .smartshunt-hero-summary {
@@ -112,7 +61,7 @@
     border-radius: 18px;
     background: linear-gradient(180deg, rgba(16, 29, 48, 0.92), rgba(10, 18, 31, 0.96));
     border: 1px solid rgba(126, 157, 196, 0.16);
-    color: #ebf5ff;
+    color: var(--shell-page-text);
 }
 
 .smartshunt-shell.shell-theme-light .smartshunt-stat-chip,
@@ -158,7 +107,7 @@
 
 .smartshunt-gauge {
     --gauge-value: 0;
-    --gauge-color: #6ea8ff;
+    --gauge-color: var(--hvo-accent-blue);
     width: 10.5rem;
     aspect-ratio: 1;
     border-radius: 50%;
@@ -191,7 +140,7 @@
     gap: 0.16rem;
     background: rgba(10, 18, 31, 0.86);
     border: 1px solid rgba(126, 157, 196, 0.14);
-    color: #ebf5ff;
+    color: var(--shell-page-text);
     text-align: center;
 }
 
@@ -205,7 +154,7 @@
     font-size: 0.68rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #8da4c7;
+    color: var(--shell-chart-label-color);
 }
 
 .smartshunt-shell.shell-theme-light .smartshunt-gauge-inner span {
@@ -267,17 +216,17 @@
 
 .smartshunt-badge-success {
     background: rgba(43, 155, 103, 0.16);
-    color: #2b9b67;
+    color: var(--hvo-accent-success);
 }
 
 .smartshunt-badge-warning {
     background: rgba(199, 134, 27, 0.14);
-    color: #af7318;
+    color: var(--hvo-accent-amber);
 }
 
 .smartshunt-badge-neutral {
     background: rgba(84, 112, 146, 0.14);
-    color: #4a6588;
+    color: var(--shell-action-color);
 }
 
 .smartshunt-metric-grid {
@@ -297,7 +246,7 @@
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
     gap: 0.9rem;
     padding-bottom: 0.7rem;
-    border-bottom: 1px solid rgba(128, 151, 185, 0.16);
+    border-bottom: 1px solid var(--shell-overlay-panel-border);
 }
 
 .smartshunt-detail-list div:last-child {
@@ -306,7 +255,7 @@
 }
 
 .smartshunt-detail-list dt {
-    color: #8da4c7;
+    color: var(--shell-chart-label-color);
     font-size: 0.86rem;
 }
 
@@ -332,7 +281,7 @@
 }
 
 .shell-theme-light .smartshunt-note-grid p {
-    color: #4f6887;
+    color: var(--shell-action-color);
 }
 
 .smartshunt-inline-badge {
@@ -345,17 +294,17 @@
 
 .smartshunt-inline-badge-warning {
     background: rgba(255, 202, 102, 0.2);
-    color: #946211;
+    color: var(--hvo-accent-amber);
 }
 
 .smartshunt-inline-badge-neutral {
     background: rgba(116, 143, 180, 0.14);
-    color: #4f6887;
+    color: var(--shell-action-color);
 }
 
 .smartshunt-inline-badge-success {
     background: rgba(110, 220, 140, 0.18);
-    color: #20724a;
+    color: var(--hvo-accent-success);
 }
 
 @media (max-width: 1100px) {

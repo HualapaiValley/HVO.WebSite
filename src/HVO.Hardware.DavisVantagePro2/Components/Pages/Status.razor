@@ -15,7 +15,7 @@
 
 <div class="dashboard-page">
         <MudStack Class="shell-page-stack status-frame">
-        <h1 class="status-page-heading">@PageHeadingText</h1>
+        <h1 class="hvo-visually-hidden">@PageHeadingText</h1>
         <article class="card card-top-span">
             <div class="card-body station-overview-grid">
                 <div class="station-column station-column-primary">
@@ -115,29 +115,27 @@
                     <div class="side-stack station-column">
                         <section class="instrument station-pressure-panel">
                             <h3>Outside Pressure</h3>
-                            <div class="barometer-card">
-                                <div class="barometer-reading">
+                            <div class="hvo-barometer">
+                                <div class="hvo-barometer-reading">
                                     <strong
-                                        class="mono">@DisplayPressure(_reading?.BarometricPressureInHg)</strong>
-                                    <span>barometer @PressureUnitSuffix</span>
+                                        class="hvo-barometer-reading-value">@DisplayPressure(_reading?.BarometricPressureInHg)</strong>
+                                    <span class="hvo-barometer-reading-label">barometer @PressureUnitSuffix</span>
                                 </div>
-                                <div class="barometer-scale" aria-label="Outside pressure range scale">
-                                    <div class="barometer-band">
-                                        <span class="barometer-marker"
+                                <div class="hvo-barometer-scale" aria-label="Outside pressure range scale">
+                                    <div class="hvo-barometer-band">
+                                        <span class="hvo-barometer-marker"
                                             style="left: @PressureMarkerLeft(_reading?.BarometricPressureInHg);"></span>
                                     </div>
-                                    <div class="barometer-labels mono">
+                                    <div class="hvo-barometer-tick-row">
                                         <span>@DisplayPressure(26.5)</span>
                                         <span>@DisplayPressure(28.5)</span>
                                         <span>@DisplayPressure(30.5)</span>
                                     </div>
                                 </div>
-                                <div class="barometer-meta">
-                                    <div class="barometer-row"><span>24h low</span><strong
-                                        class="mono">@DisplayPressure(_outsidePressure24HourLowInHg)</strong>
+                                <div class="hvo-barometer-meta">
+                                    <div class="hvo-barometer-row"><span>24h low</span><strong>@DisplayPressure(_outsidePressure24HourLowInHg)</strong>
                                     </div>
-                                    <div class="barometer-row"><span>24h high</span><strong
-                                        class="mono">@DisplayPressure(_outsidePressure24HourHighInHg)</strong>
+                                    <div class="hvo-barometer-row"><span>24h high</span><strong>@DisplayPressure(_outsidePressure24HourHighInHg)</strong>
                                     </div>
                                 </div>
                             </div>
@@ -145,28 +143,26 @@
 
                         <section class="instrument station-pressure-panel">
                             <h3>Inside Pressure</h3>
-                            <div class="barometer-card">
-                                <div class="barometer-reading">
-                                    <strong class="mono">@DisplayPressure(_reading?.PressureRawInHg)</strong>
-                                    <span>console @PressureUnitSuffix</span>
+                            <div class="hvo-barometer">
+                                <div class="hvo-barometer-reading">
+                                    <strong class="hvo-barometer-reading-value">@DisplayPressure(_reading?.PressureRawInHg)</strong>
+                                    <span class="hvo-barometer-reading-label">console @PressureUnitSuffix</span>
                                 </div>
-                                <div class="barometer-scale" aria-label="Inside pressure range scale">
-                                    <div class="barometer-band">
-                                        <span class="barometer-marker"
+                                <div class="hvo-barometer-scale" aria-label="Inside pressure range scale">
+                                    <div class="hvo-barometer-band">
+                                        <span class="hvo-barometer-marker"
                                             style="left: @PressureMarkerLeft(_reading?.PressureRawInHg);"></span>
                                     </div>
-                                    <div class="barometer-labels mono">
+                                    <div class="hvo-barometer-tick-row">
                                         <span>@DisplayPressure(26.5)</span>
                                         <span>@DisplayPressure(28.5)</span>
                                         <span>@DisplayPressure(30.5)</span>
                                     </div>
                                 </div>
-                                <div class="barometer-meta">
-                                    <div class="barometer-row"><span>24h low</span><strong
-                                        class="mono">@DisplayPressure(_insidePressure24HourLowInHg)</strong>
+                                <div class="hvo-barometer-meta">
+                                    <div class="hvo-barometer-row"><span>24h low</span><strong>@DisplayPressure(_insidePressure24HourLowInHg)</strong>
                                     </div>
-                                    <div class="barometer-row"><span>24h high</span><strong
-                                        class="mono">@DisplayPressure(_insidePressure24HourHighInHg)</strong>
+                                    <div class="hvo-barometer-row"><span>24h high</span><strong>@DisplayPressure(_insidePressure24HourHighInHg)</strong>
                                     </div>
                                 </div>
                             </div>

@@ -283,6 +283,19 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* ── Visually hidden (accessible screen-reader text, not visible) ── */
+.hvo-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .hvo-toggle {
     display: inline-flex;
     align-items: center;

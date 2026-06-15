@@ -2,7 +2,7 @@
 
 <PageTitle>Home</PageTitle>
 
-    <MudStack Class="shell-page-stack" AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="4" Style="min-height:60vh;">
+    <MudStack Class="shell-page-stack" AlignItems="AlignItems.Center" Justify="Justify.Center" Spacing="4">
         <MudText Typo="Typo.overline" Color="Color.Info" Class="hvo-eyebrow">Hualapai Valley Observatory</MudText>
         <MudText Typo="Typo.h2" Color="Color.Primary">Home</MudText>
         <MudText Typo="Typo.body1" Color="Color.Secondary" Align="Align.Center">Current observatory power telemetry, assembled from the live edge gateways.</MudText>
@@ -12,7 +12,7 @@
                 <PowerStatusCard />
             </Authorized>
             <NotAuthorized>
-                <div class="hvo-card" style="max-width:42rem;text-align:center;">
+                <div class="hvo-card power-unauthenticated-card">
                     <div class="hvo-eyebrow">Power System</div>
                     <h2 class="hvo-card-title">Live Power Snapshot</h2>
                     <MudText Typo="Typo.body2">Sign in with observatory access to view the live power-system card.</MudText>

@@ -1,11 +1,23 @@
-/* Site-specific overrides for HVO.WebSite.v9 live here. Extend the shared theme carefully. */
+/* Site-specific overrides for HVO.WebSite.v9. Extend the shared theme; never redefine --shell-* at :root. */
 
+/* ─── Power card unique design tokens ───────────────────────────────────────
+   These are genuinely v9-specific — no equivalent exists in the shared theme.
+   If the palette changes, update these tokens. ──────────────────────────── */
+:root {
+    /* The power status card has a distinctive teal gradient layer */
+    --power-card-teal: rgba(15, 76, 92, 0.75);
+    /* Cyan-tinted card borders throughout the power section */
+    --power-cyan-border: color-mix(in srgb, var(--shell-card-border) 55%, var(--hvo-accent-cyan) 45%);
+    --power-cyan-border-soft: color-mix(in srgb, var(--shell-overlay-panel-border) 60%, var(--hvo-accent-cyan) 40%);
+}
+
+/* ─── Power Status Card ──────────────────────────────────────────────────── */
 .power-status-card {
-    background: linear-gradient(135deg, rgba(16, 23, 42, 0.95), rgba(15, 76, 92, 0.75));
-    border: 1px solid rgba(125, 211, 252, 0.28);
+    background: linear-gradient(135deg, var(--shell-card-background), var(--power-card-teal));
+    border: 1px solid var(--power-cyan-border);
     border-radius: 1.5rem;
-    box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, 0.35);
-    color: #f8fbff;
+    box-shadow: var(--shell-card-shadow);
+    color: var(--shell-card-foreground);
     padding: clamp(1.25rem, 3vw, 2rem);
 }
 
@@ -21,8 +33,9 @@
     justify-content: space-between;
 }
 
+/* Eyebrow: extend hvo-eyebrow with a cyan accent and wider tracking */
 .power-status-card__eyebrow {
-    color: #7dd3fc;
+    color: var(--hvo-accent-cyan);
     font-size: 0.78rem;
     font-weight: 700;
     letter-spacing: 0.18em;
@@ -30,17 +43,7 @@
     text-transform: uppercase;
 }
 
-.power-status-card__state {
-    align-self: flex-start;
-    background: rgba(34, 197, 94, 0.16);
-    border: 1px solid rgba(74, 222, 128, 0.42);
-    border-radius: 999px;
-    color: #bbf7d0;
-    font-size: 0.85rem;
-    font-weight: 700;
-    padding: 0.35rem 0.8rem;
-}
-
+/* State chip: use hvo-chip base; colour modifier applied dynamically via C# */
 .power-status-card__grid {
     display: grid;
     gap: 1rem;
@@ -49,7 +52,7 @@
 }
 
 .power-metric {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--shell-overlay-panel);
     border-radius: 1.1rem;
     padding: 1rem;
 }
@@ -57,7 +60,7 @@
 .power-metric span,
 .power-metric small,
 .power-status-card__footer span {
-    color: rgba(248, 251, 255, 0.76);
+    color: var(--shell-pill-text);
     display: block;
 }
 
@@ -68,10 +71,11 @@
 }
 
 .power-status-card__footer {
-    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    border-top: 1px solid var(--shell-card-inner-border);
     padding-top: 1rem;
 }
 
+/* ─── Power Bank Grid ────────────────────────────────────────────────────── */
 .power-bank-grid {
     display: grid;
     gap: 0.85rem;
@@ -80,25 +84,25 @@
 }
 
 .power-bank {
-    background: rgba(15, 23, 42, 0.42);
-    border: 1px solid rgba(125, 211, 252, 0.18);
+    background: var(--shell-overlay-panel);
+    border: 1px solid var(--power-cyan-border-soft);
     border-radius: 1rem;
     padding: 0.85rem;
 }
 
 .power-bank--warning {
-    border-color: rgba(250, 204, 21, 0.62);
-    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.14);
+    border-color: color-mix(in srgb, var(--hvo-accent-amber) 62%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--hvo-accent-amber) 14%, transparent);
 }
 
 .power-bank--stale {
-    border-color: rgba(251, 146, 60, 0.75);
-    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.2);
+    border-color: color-mix(in srgb, var(--hvo-series-5) 75%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--hvo-series-5) 20%, transparent);
 }
 
 .power-bank--alarm {
-    border-color: rgba(248, 113, 113, 0.7);
-    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.18);
+    border-color: color-mix(in srgb, var(--hvo-accent-danger) 70%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--hvo-accent-danger) 18%, transparent);
 }
 
 .power-bank__header {
@@ -115,21 +119,21 @@
 }
 
 .power-bank__header span {
-    color: #bbf7d0;
+    color: color-mix(in srgb, var(--shell-card-foreground) 72%, var(--hvo-accent-success) 28%);
     font-size: 0.78rem;
     font-weight: 700;
 }
 
 .power-bank--warning .power-bank__header span {
-    color: #fef08a;
+    color: var(--hvo-accent-amber);
 }
 
 .power-bank--stale .power-bank__header span {
-    color: #fed7aa;
+    color: var(--hvo-series-5);
 }
 
 .power-bank--alarm .power-bank__header span {
-    color: #fecaca;
+    color: var(--hvo-accent-danger);
 }
 
 .power-bank dl {
@@ -140,7 +144,7 @@
 }
 
 .power-bank dt {
-    color: rgba(248, 251, 255, 0.62);
+    color: var(--shell-pill-text);
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -148,14 +152,15 @@
 }
 
 .power-bank dd {
-    color: #f8fbff;
+    color: var(--shell-card-foreground);
     font-weight: 700;
     margin: 0;
 }
 
+/* ─── Power Inventory ────────────────────────────────────────────────────── */
 .power-inventory {
-    background: rgba(15, 23, 42, 0.34);
-    border: 1px solid rgba(125, 211, 252, 0.18);
+    background: var(--shell-overlay-panel);
+    border: 1px solid var(--power-cyan-border-soft);
     border-radius: 1rem;
     margin-top: 1.25rem;
     padding: 0.85rem;
@@ -168,7 +173,7 @@
 }
 
 .power-inventory dt {
-    color: rgba(248, 251, 255, 0.62);
+    color: var(--shell-pill-text);
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -177,20 +182,21 @@
 
 .power-inventory dd,
 .power-inventory p {
-    color: #f8fbff;
+    color: var(--shell-card-foreground);
     margin: 0;
 }
 
 .power-inventory p {
-    color: rgba(248, 251, 255, 0.78);
+    color: var(--shell-pill-text);
     margin-top: 0.65rem;
 }
 
 .power-inventory a {
-    color: #bae6fd;
+    color: var(--shell-overlay-link);
     font-weight: 700;
 }
 
+/* ─── PV String Grid ─────────────────────────────────────────────────────── */
 .power-solarassistant-detail dl,
 .power-gateway-status dl {
     grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
@@ -204,8 +210,8 @@
 }
 
 .power-pv-string-grid article {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(125, 211, 252, 0.14);
+    background: var(--shell-overlay-panel);
+    border: 1px solid var(--power-cyan-border-soft);
     border-radius: 0.85rem;
     padding: 0.65rem;
 }
@@ -216,6 +222,12 @@
 }
 
 .power-pv-string-grid span {
-    color: rgba(248, 251, 255, 0.76);
+    color: var(--shell-pill-text);
     font-size: 0.88rem;
+}
+
+/* ─── Unauthenticated card ───────────────────────────────────────────────── */
+.power-unauthenticated-card {
+    max-width: 42rem;
+    text-align: center;
 }

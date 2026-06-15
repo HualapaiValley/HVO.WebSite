@@ -1,0 +1,16 @@
+.transmitters-page {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    color: var(--shell-page-text);
+}
+
+.transmitters-page > .shell-page-stack {
+    width: 100%;
+    min-width: 0;
+}
+
+.transmitters-stack {
+    display: grid;
+    gap: 18px;
+}

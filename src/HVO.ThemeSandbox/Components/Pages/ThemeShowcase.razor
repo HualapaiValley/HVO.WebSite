@@ -37,7 +37,7 @@
                     <div class="hvo-eyebrow">Solar Battery Ring → themed CSS gauge</div>
                     <div class="hvo-card-title">Battery State of Charge</div>
                     <div style="display:flex;flex-direction:column;align-items:center;gap:1rem;">
-                        <div class="hvo-ring-gauge" style="--hvo-ring-level:78%;--hvo-ring-color:#57d38d;">
+                        <div class="hvo-ring-gauge" style="--hvo-ring-level:78%;--hvo-ring-color:var(--hvo-accent-success);">
                             <span class="hvo-ring-gauge-value">78%</span>
                         </div>
                         <div style="width:100%;">
@@ -73,19 +73,19 @@
                     <div class="hvo-card-title">Battery Monitor</div>
                     <div class="hvo-gauge-grid">
                         <div style="display:grid;justify-items:center;gap:0.5rem;">
-                            <div class="hvo-ring-gauge" style="width:100px;height:100px;--hvo-ring-level:92%;--hvo-ring-color:#57d38d;">
+                            <div class="hvo-ring-gauge" style="width:100px;height:100px;--hvo-ring-level:92%;--hvo-ring-color:var(--hvo-accent-success);">
                                 <span class="hvo-ring-gauge-value" style="font-size:1.1rem;">92%</span>
                             </div>
                             <span class="hvo-metric-label">SoC</span>
                         </div>
                         <div style="display:grid;justify-items:center;gap:0.5rem;">
-                            <div class="hvo-ring-gauge" style="width:100px;height:100px;--hvo-ring-level:68%;--hvo-ring-color:#6da5ff;">
+                            <div class="hvo-ring-gauge" style="width:100px;height:100px;--hvo-ring-level:68%;--hvo-ring-color:var(--hvo-accent-blue);">
                                 <span class="hvo-ring-gauge-value" style="font-size:1.1rem;">13.2V</span>
                             </div>
                             <span class="hvo-metric-label">Voltage</span>
                         </div>
                         <div style="display:grid;justify-items:center;gap:0.5rem;">
-                            <div class="hvo-ring-gauge" style="width:100px;height:100px;--hvo-ring-level:45%;--hvo-ring-color:#ffcf66;">
+                            <div class="hvo-ring-gauge" style="width:100px;height:100px;--hvo-ring-level:45%;--hvo-ring-color:var(--hvo-accent-amber);">
                                 <span class="hvo-ring-gauge-value" style="font-size:1.1rem;">120W</span>
                             </div>
                             <span class="hvo-metric-label">Power</span>
@@ -113,8 +113,8 @@
                 }
             </div>
             <div style="display:flex;gap:2rem;margin-top:0.75rem;font-size:0.75rem;">
-                <span style="color:rgba(255,127,127,0.9);">Highest: Cell @_highCell — @_cellVoltages[_highCell-1].ToString("F3", System.Globalization.CultureInfo.InvariantCulture) V</span>
-                <span style="color:#6da5ff;">Lowest: Cell @_lowCell — @_cellVoltages[_lowCell-1].ToString("F3", System.Globalization.CultureInfo.InvariantCulture) V</span>
+                <span style="color:var(--hvo-accent-danger);">Highest: Cell @_highCell — @_cellVoltages[_highCell-1].ToString("F3", System.Globalization.CultureInfo.InvariantCulture) V</span>
+                <span style="color:var(--hvo-accent-blue);">Lowest: Cell @_lowCell — @_cellVoltages[_lowCell-1].ToString("F3", System.Globalization.CultureInfo.InvariantCulture) V</span>
                 <span style="color:var(--shell-pill-text);">Delta: @(_delta.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)) V</span>
             </div>
         </div>

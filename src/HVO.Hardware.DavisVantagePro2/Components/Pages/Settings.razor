@@ -1,68 +1,70 @@
 @page "/settings"
 @rendermode InteractiveServer
 
-<PrototypeFrame Eyebrow="Settings" Title="Settings">
-    <HeaderAside>
-        <div class="proto-pill"><span>Environment</span><strong>Production</strong></div>
-        <div class="proto-pill"><span>Snapshot</span><strong class="proto-mono">08 May 2026 - 2:35 PM</strong></div>
-        <button class="proto-button primary" type="button" disabled aria-disabled="true" title="Prototype-only action">
-            Refresh preferences (prototype only)
-        </button>
-    </HeaderAside>
+<div class="settings-page">
+    <div class="shell-page-stack settings-stack">
+        <h1 class="hvo-visually-hidden">Settings</h1>
 
-    <ChildContent>
-        <div class="proto-grid">
-            <section class="proto-card">
-                <div class="proto-section-head">
+        <div class="hvo-action-row">
+            <div class="hvo-chip"><span>Environment</span><strong>Production</strong></div>
+            <div class="hvo-chip"><span>Snapshot</span><strong class="hvo-mono">08 May 2026 - 2:35 PM</strong></div>
+            <button class="hvo-button" type="button" disabled aria-disabled="true" title="Prototype-only action">
+                Refresh preferences (prototype only)
+            </button>
+        </div>
+
+        <div class="hvo-grid">
+            <section class="hvo-card-shell">
+                <div class="hvo-section-head">
                     <div>
-                        <div class="proto-eyebrow">Console Behavior</div>
+                        <div class="hvo-eyebrow">Console Behavior</div>
                         <h2>Cached Station Settings</h2>
                     </div>
                 </div>
-                <div class="proto-detail-grid">
-                    <div class="proto-stat"><span>Archive interval</span><strong class="proto-mono">15 min</strong></div>
-                    <div class="proto-stat"><span>Latitude</span><strong class="proto-mono">35.3619</strong></div>
-                    <div class="proto-stat"><span>Longitude</span><strong class="proto-mono">-113.8336</strong></div>
-                    <div class="proto-stat"><span>Altitude</span><strong class="proto-mono">3491 ft</strong></div>
-                    <div class="proto-stat"><span>DST</span><strong>AUTO</strong></div>
-                    <div class="proto-stat"><span>Timezone mode</span><strong>GMT offset</strong></div>
-                    <div class="proto-stat"><span>Temperature logging</span><strong>LAST</strong></div>
-                    <div class="proto-stat"><span>Display units</span><strong>Read-only snapshot</strong></div>
+                <div class="hvo-grid">
+                    <div class="hvo-list-item"><span>Archive interval</span><strong class="hvo-mono">15 min</strong></div>
+                    <div class="hvo-list-item"><span>Latitude</span><strong class="hvo-mono">35.3619</strong></div>
+                    <div class="hvo-list-item"><span>Longitude</span><strong class="hvo-mono">-113.8336</strong></div>
+                    <div class="hvo-list-item"><span>Altitude</span><strong class="hvo-mono">3491 ft</strong></div>
+                    <div class="hvo-list-item"><span>DST</span><strong>AUTO</strong></div>
+                    <div class="hvo-list-item"><span>Timezone mode</span><strong>GMT offset</strong></div>
+                    <div class="hvo-list-item"><span>Temperature logging</span><strong>LAST</strong></div>
+                    <div class="hvo-list-item"><span>Display units</span><strong>Read-only snapshot</strong></div>
                 </div>
             </section>
 
-            <section class="proto-card">
-                <div class="proto-section-head">
+            <section class="hvo-card-shell">
+                <div class="hvo-section-head">
                     <div>
-                        <div class="proto-eyebrow">App Preferences</div>
+                        <div class="hvo-eyebrow">App Preferences</div>
                         <h2>Service Configuration</h2>
                     </div>
                 </div>
-                <div class="proto-detail-grid">
-                    <div class="proto-stat"><span>Config source</span><strong>appsettings.Production.json</strong></div>
-                    <div class="proto-stat"><span>Theme</span><strong>HVO Dark</strong></div>
-                    <div class="proto-stat"><span>Station ID</span><strong>HVO-DAVIS-01</strong></div>
-                    <div class="proto-stat"><span>Outbox mode</span><strong>Enabled</strong></div>
+                <div class="hvo-grid">
+                    <div class="hvo-list-item"><span>Config source</span><strong>appsettings.Production.json</strong></div>
+                    <div class="hvo-list-item"><span>Theme</span><strong>HVO Dark</strong></div>
+                    <div class="hvo-list-item"><span>Station ID</span><strong>HVO-DAVIS-01</strong></div>
+                    <div class="hvo-list-item"><span>Outbox mode</span><strong>Enabled</strong></div>
                 </div>
             </section>
         </div>
 
-        <section class="proto-card">
-            <div class="proto-section-head">
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head">
                 <div>
-                    <div class="proto-eyebrow">Archive Catch-up</div>
+                    <div class="hvo-eyebrow">Archive Catch-up</div>
                     <h2>Startup Behavior</h2>
                 </div>
-                <button class="proto-button success" type="button" disabled aria-disabled="true" title="Prototype-only action">
+                <button class="hvo-button hvo-button-success" type="button" disabled aria-disabled="true" title="Prototype-only action">
                     Run top-off now (prototype only)
                 </button>
             </div>
-            <div class="proto-detail-grid">
-                <div class="proto-stat"><span>Startup mode</span><strong>Enabled</strong></div>
-                <div class="proto-stat"><span>Lookback hours</span><strong class="proto-mono">48</strong></div>
-                <div class="proto-stat"><span>Latest persisted</span><strong class="proto-mono">08 May 2026 - 2:20 PM</strong></div>
-                <div class="proto-stat"><span>Sync lag</span><strong class="proto-mono">00:15:00</strong></div>
+            <div class="hvo-grid">
+                <div class="hvo-list-item"><span>Startup mode</span><strong>Enabled</strong></div>
+                <div class="hvo-list-item"><span>Lookback hours</span><strong class="hvo-mono">48</strong></div>
+                <div class="hvo-list-item"><span>Latest persisted</span><strong class="hvo-mono">08 May 2026 - 2:20 PM</strong></div>
+                <div class="hvo-list-item"><span>Sync lag</span><strong class="hvo-mono">00:15:00</strong></div>
             </div>
         </section>
-    </ChildContent>
-</PrototypeFrame>
+    </div>
+</div>

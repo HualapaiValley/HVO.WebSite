@@ -1,0 +1,16 @@
+.station-diagnostics-page {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    color: var(--shell-page-text);
+}
+
+.station-diagnostics-page > .shell-page-stack {
+    width: 100%;
+    min-width: 0;
+}
+
+.station-diagnostics-stack {
+    display: grid;
+    gap: 18px;
+}

@@ -1,80 +1,81 @@
 @page "/prototype/archive-browser"
 @rendermode InteractiveServer
 
-<PrototypeFrame Eyebrow="Archive" Title="Archive">
-    <HeaderAside>
-        <div class="proto-pill"><span>Station ID</span><strong>HVO-DAVIS-01</strong></div>
-        <button class="proto-button" type="button">Export</button>
-        <button class="proto-button primary" type="button">Refresh</button>
-    </HeaderAside>
+<div class="archive-browser-page">
+    <div class="shell-page-stack archive-browser-stack">
+        <h1 class="hvo-visually-hidden">Archive</h1>
 
-    <ChildContent>
-
-    <section class="proto-card">
-        <div class="proto-toolbar">
-            <div class="proto-field"><label class="proto-field-label">Start date</label><input class="proto-input proto-mono" type="datetime-local" value="2026-05-08T00:00" /></div>
-            <div class="proto-field"><label class="proto-field-label">End date</label><input class="proto-input proto-mono" type="datetime-local" value="2026-05-08T23:59" /></div>
-            <div class="proto-field"><label class="proto-field-label">Page size</label><select class="proto-select"><option>50</option><option selected>100</option><option>250</option></select></div>
-            <div class="proto-field"><label class="proto-field-label">Sort</label><select class="proto-select"><option selected>Newest first</option><option>Oldest first</option></select></div>
-            <div class="proto-field"><label class="proto-field-label">Search / jump to timestamp</label><input class="proto-input proto-mono" type="datetime-local" value="2026-05-08T14:00" /></div>
-            <button class="proto-button primary" type="button">Apply</button>
+        <div class="hvo-action-row">
+            <div class="hvo-chip"><span>Station ID</span><strong>HVO-DAVIS-01</strong></div>
+            <button class="hvo-button" type="button">Export</button>
+            <button class="hvo-button hvo-button-primary" type="button">Refresh</button>
         </div>
-    </section>
 
-    <section class="proto-card">
-        <div class="proto-section-head">
-            <div>
-                <div class="proto-eyebrow">Archive Grid</div>
-                <h2>Historical Records</h2>
+        <section class="hvo-card-shell">
+            <div class="hvo-action-row">
+                <div class="hvo-field"><label class="hvo-field-label">Start date</label><input class="hvo-control hvo-mono" type="datetime-local" value="2026-05-08T00:00" /></div>
+                <div class="hvo-field"><label class="hvo-field-label">End date</label><input class="hvo-control hvo-mono" type="datetime-local" value="2026-05-08T23:59" /></div>
+                <div class="hvo-field"><label class="hvo-field-label">Page size</label><select class="hvo-control"><option>50</option><option selected>100</option><option>250</option></select></div>
+                <div class="hvo-field"><label class="hvo-field-label">Sort</label><select class="hvo-control"><option selected>Newest first</option><option>Oldest first</option></select></div>
+                <div class="hvo-field"><label class="hvo-field-label">Search / jump to timestamp</label><input class="hvo-control hvo-mono" type="datetime-local" value="2026-05-08T14:00" /></div>
+                <button class="hvo-button hvo-button-primary" type="button">Apply</button>
             </div>
-        </div>
-        <div class="proto-table-wrap">
-            <table class="proto-table">
-                <thead>
-                    <tr>
-                        <th>Timestamp local</th>
-                        <th>Outside F</th>
-                        <th>Humidity %</th>
-                        <th>Wind mph</th>
-                        <th>Gust mph</th>
-                        <th>Rain in</th>
-                        <th>Pressure</th>
-                        <th>ET</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td class="proto-mono">08 May 2026 - 2:30 PM</td><td>72.4</td><td>34</td><td>12</td><td>18</td><td>0.00</td><td>29.87</td><td>0.133</td></tr>
-                    <tr><td class="proto-mono">08 May 2026 - 2:15 PM</td><td>72.1</td><td>35</td><td>11</td><td>17</td><td>0.00</td><td>29.87</td><td>0.126</td></tr>
-                    <tr><td class="proto-mono">08 May 2026 - 2:00 PM</td><td>71.8</td><td>35</td><td>10</td><td>16</td><td>0.00</td><td>29.88</td><td>0.118</td></tr>
-                    <tr><td class="proto-mono">08 May 2026 - 1:45 PM</td><td>71.2</td><td>36</td><td>9</td><td>15</td><td>0.00</td><td>29.88</td><td>0.110</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <div class="proto-pagination" style="margin-top: 18px;">
-            <span class="proto-footer-note">Showing 101-200 of 18,452 records</span>
-            <button class="proto-button" type="button">First</button>
-            <button class="proto-button" type="button">Prev</button>
-            <span class="proto-badge">Page 2 of 185</span>
-            <button class="proto-button" type="button">Next</button>
-            <button class="proto-button" type="button">Last</button>
-        </div>
-    </section>
+        </section>
 
-    <section class="proto-card">
-        <div class="proto-section-head">
-            <div>
-                <div class="proto-eyebrow">Expanded Record</div>
-                <h2>08 May 2026 - 2:30 PM</h2>
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head">
+                <div>
+                    <div class="hvo-eyebrow">Archive Grid</div>
+                    <h2>Historical Records</h2>
+                </div>
             </div>
-        </div>
-        <div class="proto-three-column">
-            <div class="proto-stat"><span>Extra temp 1</span><strong class="proto-mono">69.2 F</strong></div>
-            <div class="proto-stat"><span>Solar radiation</span><strong class="proto-mono">642 W/m^2</strong></div>
-            <div class="proto-stat"><span>UV index</span><strong class="proto-mono">4.2</strong></div>
-            <div class="proto-stat"><span>2-minute wind avg</span><strong class="proto-mono">11 mph</strong></div>
-            <div class="proto-stat"><span>Rain 24-hour</span><strong class="proto-mono">0.12 in</strong></div>
-            <div class="proto-stat"><span>Monthly ET</span><strong class="proto-mono">2.41 in</strong></div>
-        </div>
-    </section>
-    </ChildContent>
-</PrototypeFrame>
+            <div class="hvo-table-wrap">
+                <table class="hvo-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp local</th>
+                            <th>Outside F</th>
+                            <th>Humidity %</th>
+                            <th>Wind mph</th>
+                            <th>Gust mph</th>
+                            <th>Rain in</th>
+                            <th>Pressure</th>
+                            <th>ET</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="hvo-mono">08 May 2026 - 2:30 PM</td><td>72.4</td><td>34</td><td>12</td><td>18</td><td>0.00</td><td>29.87</td><td>0.133</td></tr>
+                        <tr><td class="hvo-mono">08 May 2026 - 2:15 PM</td><td>72.1</td><td>35</td><td>11</td><td>17</td><td>0.00</td><td>29.87</td><td>0.126</td></tr>
+                        <tr><td class="hvo-mono">08 May 2026 - 2:00 PM</td><td>71.8</td><td>35</td><td>10</td><td>16</td><td>0.00</td><td>29.88</td><td>0.118</td></tr>
+                        <tr><td class="hvo-mono">08 May 2026 - 1:45 PM</td><td>71.2</td><td>36</td><td>9</td><td>15</td><td>0.00</td><td>29.88</td><td>0.110</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="hvo-action-row" style="margin-top: 18px;">
+                <span style="color: var(--shell-pill-text); font-size: 0.84rem;">Showing 101-200 of 18,452 records</span>
+                <button class="hvo-button" type="button">First</button>
+                <button class="hvo-button" type="button">Prev</button>
+                <span class="hvo-chip">Page 2 of 185</span>
+                <button class="hvo-button" type="button">Next</button>
+                <button class="hvo-button" type="button">Last</button>
+            </div>
+        </section>
+
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head">
+                <div>
+                    <div class="hvo-eyebrow">Expanded Record</div>
+                    <h2>08 May 2026 - 2:30 PM</h2>
+                </div>
+            </div>
+            <div class="hvo-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+                <div class="hvo-list-item"><span>Extra temp 1</span><strong class="hvo-mono">69.2 F</strong></div>
+                <div class="hvo-list-item"><span>Solar radiation</span><strong class="hvo-mono">642 W/m^2</strong></div>
+                <div class="hvo-list-item"><span>UV index</span><strong class="hvo-mono">4.2</strong></div>
+                <div class="hvo-list-item"><span>2-minute wind avg</span><strong class="hvo-mono">11 mph</strong></div>
+                <div class="hvo-list-item"><span>Rain 24-hour</span><strong class="hvo-mono">0.12 in</strong></div>
+                <div class="hvo-list-item"><span>Monthly ET</span><strong class="hvo-mono">2.41 in</strong></div>
+            </div>
+        </section>
+    </div>
+</div>
