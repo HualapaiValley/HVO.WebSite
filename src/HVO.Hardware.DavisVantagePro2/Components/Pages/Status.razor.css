@@ -20,7 +20,7 @@
     border: 0;
 }
 
-.dashboard-page > .layout-canvas {
+.dashboard-page > .shell-page-stack {
     width: 100%;
     min-width: 100%;
     max-width: 100%;

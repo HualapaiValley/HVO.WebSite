@@ -7,7 +7,7 @@
     color: var(--shell-page-text);
 }
 
-.alarm-definitions-page > .layout-canvas {
+.alarm-definitions-page > .shell-page-stack {
     width: 100%;
     min-width: 100%;
     max-width: 100%;

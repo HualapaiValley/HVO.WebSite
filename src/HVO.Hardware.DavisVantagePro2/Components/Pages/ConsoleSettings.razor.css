@@ -9,7 +9,7 @@
     color: var(--shell-page-text);
 }
 
-.console-settings-page > .layout-canvas {
+.console-settings-page > .shell-page-stack {
     width: 100%;
     min-width: 100%;
     max-width: 100%;

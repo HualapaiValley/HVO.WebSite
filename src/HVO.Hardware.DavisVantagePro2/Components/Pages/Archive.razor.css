@@ -7,7 +7,7 @@
     color: var(--shell-page-text);
 }
 
-.archive-page > .layout-canvas {
+.archive-page > .shell-page-stack {
     width: 100%;
     min-width: 100%;
     max-width: 100%;
