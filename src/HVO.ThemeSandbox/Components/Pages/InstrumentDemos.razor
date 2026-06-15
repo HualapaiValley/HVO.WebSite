@@ -1,0 +1,278 @@
+@page "/instruments"
+@rendermode InteractiveServer
+
+<div class="instruments-page">
+    <div class="shell-page-stack instruments-stack">
+        <h1 class="sr-only">Instrument & Chart Standards</h1>
+
+        <!-- ═══════════════════ WIND COMPASS SVG ═══════════════════ -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head">
+                <div>
+                    <div class="hvo-eyebrow">Custom SVG Instrument</div>
+                    <h2>Wind Compass</h2>
+                </div>
+            </div>
+            <p class="instruments-caption">
+                Hand-drawn SVG compass using <code>--dashboard-compass-*</code> CSS tokens.
+                The needle group is rotated with <code>transform="rotate(deg 120 120)"</code>.
+            </p>
+            <div class="compass-demo-grid">
+                @foreach (var (label, deg) in new (string, int)[] { ("North (0°)", 0), ("North-East (45°)", 45), ("South-West (225°)", 225), ("West (270°)", 270) })
+                {
+                    <div class="compass-demo-item">
+                        <svg class="demo-compass-svg" viewBox="0 0 240 240" width="100%" aria-label="@label">
+                            <circle cx="120" cy="120" r="102" fill="var(--demo-compass-face)" stroke="var(--demo-compass-ring-strong)" stroke-width="2"></circle>
+                            <circle cx="120" cy="120" r="84" fill="none" stroke="var(--demo-compass-ring)" stroke-width="1"></circle>
+                            <circle cx="120" cy="120" r="64" fill="none" stroke="var(--demo-compass-ring-soft)" stroke-width="1"></circle>
+                            <g stroke="var(--demo-compass-spokes)" stroke-linecap="round">
+                                <line x1="120" y1="20" x2="120" y2="36" stroke-width="2"></line>
+                                <line x1="120" y1="204" x2="120" y2="220" stroke-width="2"></line>
+                                <line x1="20" y1="120" x2="36" y2="120" stroke-width="2"></line>
+                                <line x1="204" y1="120" x2="220" y2="120" stroke-width="2"></line>
+                                <line x1="49" y1="49" x2="60" y2="60" stroke-width="1.5"></line>
+                                <line x1="180" y1="180" x2="191" y2="191" stroke-width="1.5"></line>
+                                <line x1="49" y1="191" x2="60" y2="180" stroke-width="1.5"></line>
+                                <line x1="180" y1="60" x2="191" y2="49" stroke-width="1.5"></line>
+                            </g>
+                            <g fill="var(--demo-compass-label)" font-size="18" font-weight="600" text-anchor="middle">
+                                <text x="120" y="54">N</text>
+                                <text x="190" y="126">E</text>
+                                <text x="120" y="198">S</text>
+                                <text x="50" y="126">W</text>
+                            </g>
+                            <g transform="rotate(@deg 120 120)">
+                                <path d="M120 34L133 118L120 108L107 118Z" fill="#6da5ff"></path>
+                                <path d="M120 206L132 126L120 132L108 126Z" fill="#ffcf66"></path>
+                            </g>
+                            <circle cx="120" cy="120" r="10" fill="var(--shell-chart-marker-fill)"></circle>
+                            <circle cx="120" cy="120" r="5" fill="#6da5ff"></circle>
+                        </svg>
+                        <div class="compass-demo-label hvo-mono">@label</div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <!-- ═══════════════════ CELESTIAL ARC SVG ═══════════════════ -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head">
+                <div>
+                    <div class="hvo-eyebrow">Custom SVG Instrument</div>
+                    <h2>Celestial Arc — Sun &amp; Moon Tracker</h2>
+                </div>
+            </div>
+            <p class="instruments-caption">
+                Arc from <code>ArcLeft=48</code> to <code>ArcRight=184</code> at <code>ArcBaseline=116</code> height <code>ArcHeight=54</code>.
+                Markers are placed by <code>CelestialArcCalculations</code> based on sunrise/sunset times and moon rise/set.
+                Nulls show as hidden markers.
+            </p>
+            <div class="celestial-demo-grid">
+                @foreach (var scenario in _celestialScenarios)
+                {
+                    <div class="celestial-demo-item">
+                        <div class="celestial-demo-label hvo-eyebrow">@scenario.Label</div>
+                        <div class="demo-celestial-icon">
+                            <svg class="demo-celestial-svg" viewBox="@scenario.ViewBox" aria-label="@scenario.Label">
+                                <path d="M48 116C72 90 90 62 116 62C142 62 160 90 184 116" fill="none"
+                                      stroke="var(--demo-sun-stroke)" stroke-width="4" stroke-linecap="round"></path>
+                                <path d="M44 116H188" stroke="var(--demo-compass-ring-strong)" stroke-width="3"
+                                      stroke-linecap="round"></path>
+                                @if (scenario.SunX.HasValue)
+                                {
+                                    <circle cx="@scenario.SunX.Value.ToString("F0")" cy="@scenario.SunY.ToString("F0")"
+                                            r="28" fill="var(--demo-sun-glow)"></circle>
+                                    <circle cx="@scenario.SunX.Value.ToString("F0")" cy="@scenario.SunY.ToString("F0")"
+                                            r="18" fill="var(--demo-sun-fill)"></circle>
+                                }
+                                @if (scenario.MoonX.HasValue)
+                                {
+                                    <circle cx="@scenario.MoonX.Value.ToString("F0")" cy="@scenario.MoonY.ToString("F0")"
+                                            r="12" fill="var(--demo-moon-fill)" opacity="0.9"></circle>
+                                    <ellipse cx="@((scenario.MoonX.Value - 4).ToString("F0"))" cy="@scenario.MoonY.ToString("F0")"
+                                             rx="7" ry="12" fill="var(--demo-moon-shadow)"></ellipse>
+                                }
+                            </svg>
+                        </div>
+                        <div class="celestial-demo-stats">
+                            <div class="hvo-list-item"><span>Sunrise/set</span><strong>@scenario.SunTimes</strong></div>
+                            <div class="hvo-list-item"><span>Moon</span><strong>@scenario.MoonInfo</strong></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <!-- ═══════════════════ TEMPERATURE CHART (with fill) ═══════════════════ -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head">
+                <div>
+                    <div class="hvo-eyebrow">HvoChart Pattern — Temperature</div>
+                    <h2>Dual-Series Filled Line</h2>
+                </div>
+            </div>
+            <p class="instruments-caption">
+                Multi-series with area fill. Use <code>Fill=true</code> and <code>BackgroundColor</code> with ~15% opacity.
+                Tension ~0.35. <code>SpanGaps=false</code> (default) so null gaps are visible.
+            </p>
+            <HvoChart ChartId="demo-temp"
+                      Type="HvoChartType.Line"
+                      YAxisLabel="°F"
+                      ShowLegend="true"
+                      Height="280"
+                      EnableAnimations="false"
+                      SpanGaps="false"
+                      Labels="@_demoLabels"
+                      Datasets="@_tempDatasets" />
+            <div class="instruments-code-note hvo-mono">
+                new HvoChartDataset("Outside", data, "#69d3ff", "rgba(105,211,255,0.15)", Fill: true, Tension: 0.35)
+            </div>
+        </section>
+
+        <!-- ═══════════════════ WIND CHART (no fill) ═══════════════════ -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head">
+                <div>
+                    <div class="hvo-eyebrow">HvoChart Pattern — Wind</div>
+                    <h2>Dual-Series Line (No Fill)</h2>
+                </div>
+            </div>
+            <p class="instruments-caption">
+                Two wind series without fill. <code>YAxisSuggestedMin=0</code> keeps zero at the bottom.
+                Null entries create gaps showing the station went offline.
+            </p>
+            <HvoChart ChartId="demo-wind"
+                      Type="HvoChartType.Line"
+                      YAxisLabel="mph"
+                      ShowLegend="true"
+                      Height="260"
+                      EnableAnimations="false"
+                      SpanGaps="false"
+                      YAxisSuggestedMin="0"
+                      Labels="@_demoLabels"
+                      Datasets="@_windDatasets" />
+            <div class="instruments-code-note hvo-mono">
+                YAxisSuggestedMin="0" — SpanGaps="false" (default)
+            </div>
+        </section>
+
+        <!-- ═══════════════════ SOLAR CHART (single fill, clamped) ═══════════════════ -->
+        <section class="hvo-card-shell">
+            <div class="hvo-section-head">
+                <div>
+                    <div class="hvo-eyebrow">HvoChart Pattern — Solar / Single-Series</div>
+                    <h2>Single-Series Filled Line</h2>
+                </div>
+            </div>
+            <p class="instruments-caption">
+                Single series with fill and zero-clamped y-axis. The gap in the middle
+                represents a multi-hour cloud cover period where data was collected but
+                the sensor read 0 or the station was offline.
+            </p>
+            <HvoChart ChartId="demo-solar"
+                      Type="HvoChartType.Line"
+                      YAxisLabel="W/m²"
+                      ShowLegend="false"
+                      Height="260"
+                      EnableAnimations="false"
+                      SpanGaps="false"
+                      YAxisSuggestedMin="0"
+                      Labels="@_demoLabels"
+                      Datasets="@_solarDatasets" />
+        </section>
+
+        <!-- ═══════════════════ SPARSE / GAP REFERENCE ═══════════════════ -->
+        <section class="hvo-card-shell hvo-card-note">
+            <div class="hvo-section-head">
+                <div>
+                    <div class="hvo-eyebrow">Standards Reference</div>
+                    <h2>Null Data Point Rules</h2>
+                </div>
+            </div>
+            <div class="hvo-grid">
+                <div>
+                    <p class="instruments-caption" style="margin-bottom: 0.5rem;">Use <code>null</code> in <code>Data</code> when:</p>
+                    <div class="hvo-stack">
+                        <div class="hvo-list-item"><strong>Station offline</strong><span>No packets received from console for an extended period</span></div>
+                        <div class="hvo-list-item"><strong>Sensor fault</strong><span>Sensor returned an out-of-range or error value</span></div>
+                        <div class="hvo-list-item"><strong>Bucket with no sample</strong><span>The time-grid slot has no data from the live history</span></div>
+                    </div>
+                </div>
+                <div>
+                    <p class="instruments-caption" style="margin-bottom: 0.5rem;">Chart rendering rules:</p>
+                    <div class="hvo-stack">
+                        <div class="hvo-list-item"><strong>SpanGaps="false"</strong><span>Default. Null = visible break/gap in line — shows exactly when data was missing</span></div>
+                        <div class="hvo-list-item"><strong>SpanGaps="true"</strong><span>Line connects across nulls — use only when gaps are cosmetic noise</span></div>
+                        <div class="hvo-list-item"><strong>Tension="0.3"</strong><span>Default smoothing. Use 0 for angular/precise lines, 0.4+ for very smooth curves</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+@code {
+    // ── Celestial arc demo scenarios ──────────────────────────────────────────
+    private sealed record CelestialScenario(
+        string Label, string ViewBox,
+        double? SunX, double SunY, double? MoonX, double MoonY,
+        string SunTimes, string MoonInfo);
+
+    // Arc: x 48→184, y: baseline=116, apex=62 (116 - 54)
+    // x = 48 + (184-48)*progress  y = 116 - sin(progress*π)*54
+    private static readonly CelestialScenario[] _celestialScenarios =
+    [
+        // Dawn: sun just rising (progress ~0.08)
+        new("Dawn — Sun Rising", "18 52 176 90",
+            SunX: 59, SunY: 109, MoonX: null, MoonY: 116,
+            "6:05 AM / 7:30 PM", "Waxing crescent, 22%"),
+
+        // Midday: sun near apex (progress ~0.50)
+        new("Midday — Sun at Peak", "18 32 176 96",
+            SunX: 116, SunY: 62, MoonX: null, MoonY: 116,
+            "6:02 AM / 7:33 PM", "First quarter, 50%"),
+
+        // Evening: sun setting (progress ~0.92)
+        new("Evening — Sun Setting", "18 52 176 90",
+            SunX: 173, SunY: 109, MoonX: null, MoonY: 116,
+            "6:02 AM / 7:33 PM", "Waxing gibbous, 78%"),
+
+        // Night: sun below horizon, moon visible (progress ~0.35 through night arc)
+        new("Night — Moon Up", "18 52 176 90",
+            SunX: null, SunY: 116, MoonX: 98, MoonY: 86,
+            "6:00 AM / 7:35 PM", "Full moon, 100%"),
+    ];
+
+    // ── Chart demo data ───────────────────────────────────────────────────────
+    private static readonly string[] _demoLabels =
+        ["00:00", "02:00", "04:00", "06:00", "08:00", "10:00", "12:00",
+         "14:00", "16:00", "18:00", "20:00", "22:00"];
+
+    private static readonly HvoChartDataset[] _tempDatasets =
+    [
+        new("Outside °F",
+            new double?[] { 58.2, 55.1, null, 51.5, 54.8, 62.2, 72.1, 80.0, 79.3, 73.1, 66.5, 62.0 },
+            "#69d3ff", "rgba(105,211,255,0.15)", Fill: true, Tension: 0.35),
+        new("Inside °F",
+            new double?[] { 68.0, 67.8, null, 67.3, 67.5, 68.0, 69.5, 71.0, 71.3, 71.1, 70.5, 69.2 },
+            "#ffb86c", "rgba(255,184,108,0.12)", Fill: true, Tension: 0.35)
+    ];
+
+    private static readonly HvoChartDataset[] _windDatasets =
+    [
+        new("2-min avg mph",
+            new double?[] { 8, 6, null, null, 12, 15, 22, null, 18, 14, 10, 9 },
+            "#7ae0ff", Tension: 0.3),
+        new("10-min gust mph",
+            new double?[] { 14, 11, null, null, 18, 24, 31, null, 26, 22, 16, 13 },
+            "#ff9f5a", Tension: 0.3)
+    ];
+
+    private static readonly HvoChartDataset[] _solarDatasets =
+    [
+        new("Solar W/m²",
+            new double?[] { 0, 0, 0, 42, 280, null, null, 850, 720, 310, 60, 0 },
+            "#ffd166", "rgba(255,209,102,0.18)", Fill: true, Tension: 0.3)
+    ];
+}

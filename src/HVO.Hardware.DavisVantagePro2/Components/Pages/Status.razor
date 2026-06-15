@@ -5,6 +5,7 @@
 @using HVO.Hardware.DavisVantagePro2.Protocol.Packets
 @using HVO.Hardware.DavisVantagePro2.Station
 @using HVO.Hardware.DavisVantagePro2.Workers
+@using HVO.WebSite.Themes.Components.Charts
 @using Microsoft.AspNetCore.Components.Web
 @using MudBlazor
 @using System.Globalization
@@ -236,45 +237,15 @@
                                 <div class="status-chart">
                                     @if (HasTemperaturePlot)
                                     {
-                                        <svg class="status-chart-svg" viewBox="0 0 520 280" width="100%" aria-label="24 hour temperature history">
-                                            <g stroke="var(--dashboard-chart-grid)">
-                                                @foreach (var label in _temperaturePlot.AxisLabels)
-                                                {
-                                                    <line x1="40" y1="@label.Y.ToString("F1", CultureInfo.InvariantCulture)"
-                                                          x2="508" y2="@label.Y.ToString("F1", CultureInfo.InvariantCulture)"></line>
-                                                }
-                                                @foreach (var label in _temperaturePlot.TimeLabels)
-                                                {
-                                                    <line x1="@label.X.ToString("F1", CultureInfo.InvariantCulture)" y1="24"
-                                                          x2="@label.X.ToString("F1", CultureInfo.InvariantCulture)" y2="224"></line>
-                                                }
-                                            </g>
-                                            <g fill="var(--dashboard-muted)" font-size="11">
-                                                @foreach (var label in _temperaturePlot.AxisLabels)
-                                                {
-                                                    @RenderSvgText(2d, label.Y + 4d, label.Text)
-                                                }
-                                                @foreach (var label in _temperaturePlot.TimeLabels)
-                                                {
-                                                    @RenderSvgText(label.X, 254d, label.Text, "middle")
-                                                }
-                                            </g>
-                                            @foreach (var series in _temperaturePlot.Series.Where(series => !string.IsNullOrEmpty(series.AreaPath) && !string.IsNullOrEmpty(series.FillColor)))
-                                            {
-                                                <path d="@series.AreaPath" fill="@series.FillColor"></path>
-                                            }
-                                            @foreach (var series in _temperaturePlot.Series)
-                                            {
-                                                   <path d="@series.LinePath" fill="none" stroke="@series.StrokeColor" stroke-width="var(--shell-chart-line-width)"
-                                                      stroke-linecap="round" stroke-linejoin="round"></path>
-                                                @if (series.CurrentPoint is not null)
-                                                {
-                                                    <circle cx="@series.CurrentPoint.X.ToString("F1", CultureInfo.InvariantCulture)"
-                                                            cy="@series.CurrentPoint.Y.ToString("F1", CultureInfo.InvariantCulture)" r="4.5"
-                                                            fill="var(--dashboard-marker-fill)" stroke="@series.StrokeColor" stroke-width="2"></circle>
-                                                }
-                                            }
-                                        </svg>
+                                        <HvoChart ChartId="status-temp-chart"
+                                                  Type="HvoChartType.Line"
+                                                  ShowLegend="false"
+                                                  Height="240"
+                                                  EnableAnimations="false"
+                                                  SpanGaps="false"
+                                                  Labels="@_chartTimeLabels"
+                                                  Datasets="@_temperatureDatasets"
+                                                  DataRevision="@_chartRevision" />
                                     }
                                     else
                                     {
@@ -301,41 +272,16 @@
                                 <div class="status-chart">
                                     @if (HasWindPlot)
                                     {
-                                        <svg class="status-chart-svg" viewBox="0 0 520 280" width="100%" aria-label="24 hour wind history">
-                                            <g stroke="var(--dashboard-chart-grid)">
-                                                @foreach (var label in _windPlot.AxisLabels)
-                                                {
-                                                    <line x1="40" y1="@label.Y.ToString("F1", CultureInfo.InvariantCulture)"
-                                                          x2="508" y2="@label.Y.ToString("F1", CultureInfo.InvariantCulture)"></line>
-                                                }
-                                                @foreach (var label in _windPlot.TimeLabels)
-                                                {
-                                                    <line x1="@label.X.ToString("F1", CultureInfo.InvariantCulture)" y1="24"
-                                                          x2="@label.X.ToString("F1", CultureInfo.InvariantCulture)" y2="224"></line>
-                                                }
-                                            </g>
-                                            <g fill="var(--dashboard-muted)" font-size="11">
-                                                @foreach (var label in _windPlot.AxisLabels)
-                                                {
-                                                    @RenderSvgText(2d, label.Y + 4d, label.Text)
-                                                }
-                                                @foreach (var label in _windPlot.TimeLabels)
-                                                {
-                                                    @RenderSvgText(label.X, 254d, label.Text, "middle")
-                                                }
-                                            </g>
-                                            @foreach (var series in _windPlot.Series)
-                                            {
-                                                   <path d="@series.LinePath" fill="none" stroke="@series.StrokeColor" stroke-width="var(--shell-chart-line-width)"
-                                                      stroke-linecap="round" stroke-linejoin="round"></path>
-                                                @if (series.CurrentPoint is not null)
-                                                {
-                                                    <circle cx="@series.CurrentPoint.X.ToString("F1", CultureInfo.InvariantCulture)"
-                                                            cy="@series.CurrentPoint.Y.ToString("F1", CultureInfo.InvariantCulture)" r="4.5"
-                                                            fill="var(--dashboard-marker-fill)" stroke="@series.StrokeColor" stroke-width="2"></circle>
-                                                }
-                                            }
-                                        </svg>
+                                        <HvoChart ChartId="status-wind-chart"
+                                                  Type="HvoChartType.Line"
+                                                  ShowLegend="false"
+                                                  Height="240"
+                                                  EnableAnimations="false"
+                                                  SpanGaps="false"
+                                                  YAxisSuggestedMin="0"
+                                                  Labels="@_chartTimeLabels"
+                                                  Datasets="@_windDatasets"
+                                                  DataRevision="@_chartRevision" />
                                     }
                                     else
                                     {
@@ -360,45 +306,16 @@
                         <div class="status-chart status-chart-compact">
                             @if (HasSolarPlot)
                             {
-                                <svg class="status-chart-svg status-chart-svg-compact" viewBox="0 0 520 280" width="100%" aria-label="24 hour solar history">
-                                    <g stroke="var(--dashboard-chart-grid)">
-                                        @foreach (var label in _solarPlot.AxisLabels)
-                                        {
-                                            <line x1="40" y1="@label.Y.ToString("F1", CultureInfo.InvariantCulture)"
-                                                  x2="508" y2="@label.Y.ToString("F1", CultureInfo.InvariantCulture)"></line>
-                                        }
-                                        @foreach (var label in _solarPlot.TimeLabels)
-                                        {
-                                            <line x1="@label.X.ToString("F1", CultureInfo.InvariantCulture)" y1="24"
-                                                  x2="@label.X.ToString("F1", CultureInfo.InvariantCulture)" y2="224"></line>
-                                        }
-                                    </g>
-                                    <g fill="var(--dashboard-muted)" font-size="11">
-                                        @foreach (var label in _solarPlot.AxisLabels)
-                                        {
-                                            @RenderSvgText(2d, label.Y + 4d, label.Text)
-                                        }
-                                        @foreach (var label in _solarPlot.TimeLabels)
-                                        {
-                                            @RenderSvgText(label.X, 254d, label.Text, "middle")
-                                        }
-                                    </g>
-                                    @foreach (var series in _solarPlot.Series.Where(series => !string.IsNullOrEmpty(series.AreaPath) && !string.IsNullOrEmpty(series.FillColor)))
-                                    {
-                                        <path d="@series.AreaPath" fill="@series.FillColor"></path>
-                                    }
-                                    @foreach (var series in _solarPlot.Series)
-                                    {
-                                        <path d="@series.LinePath" fill="none" stroke="@series.StrokeColor" stroke-width="var(--shell-chart-line-width)"
-                                              stroke-linecap="round" stroke-linejoin="round"></path>
-                                        @if (series.CurrentPoint is not null)
-                                        {
-                                            <circle cx="@series.CurrentPoint.X.ToString("F1", CultureInfo.InvariantCulture)"
-                                                    cy="@series.CurrentPoint.Y.ToString("F1", CultureInfo.InvariantCulture)" r="4.5"
-                                                    fill="var(--dashboard-accent-amber)" stroke="@series.StrokeColor" stroke-width="2"></circle>
-                                        }
-                                    }
-                                </svg>
+                                <HvoChart ChartId="status-solar-chart"
+                                          Type="HvoChartType.Line"
+                                          ShowLegend="false"
+                                          Height="220"
+                                          EnableAnimations="false"
+                                          SpanGaps="false"
+                                          YAxisSuggestedMin="0"
+                                          Labels="@_chartTimeLabels"
+                                          Datasets="@_solarDatasets"
+                                          DataRevision="@_chartRevision" />
                             }
                             else
                             {

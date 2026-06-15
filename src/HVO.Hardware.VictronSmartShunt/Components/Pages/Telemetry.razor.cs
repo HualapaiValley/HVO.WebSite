@@ -22,7 +22,7 @@ public partial class Telemetry
             return new()
             {
                 new HvoChartDataset("Value",
-                    new double[] { snap.VoltageV ?? 0, snap.CurrentA ?? 0, snap.PowerW ?? 0 },
+                    new double?[] { snap.VoltageV ?? 0, snap.CurrentA ?? 0, snap.PowerW ?? 0 },
                     BorderColor: "#6da5ff", BackgroundColor: "rgba(109,165,255,0.25)", BorderWidth: 1)
             };
         }

@@ -1,40 +1,61 @@
+@rendermode InteractiveServer
+
 <MudCard Elevation="2" Class="pa-4">
     <MudCardHeader>
         <CardHeaderContent>
-            <MudText Typo="Typo.h6">HvoChart — Time-Series Demo</MudText>
-            <MudText Typo="Typo.caption" Class="hvo-eyebrow">Chart.js with dynamic CSS var theming</MudText>
+            <MudText Typo="Typo.h6">HvoChart — Line, Multi-Series &amp; Sparse Data</MudText>
+            <MudText Typo="Typo.caption" Class="hvo-eyebrow">Chart.js with dynamic CSS var theming and null-gap support</MudText>
         </CardHeaderContent>
     </MudCardHeader>
     <MudCardContent>
-        <HvoChart ChartId="sandbox-chart"
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Dense multi-series (complete data)</MudText>
+        <HvoChart ChartId="sandbox-chart-dense"
                   Type="HvoChartType.Line"
-                  Title="Sample Temperature Data"
+                  Title="Indoor vs Outdoor Temperature"
                   XAxisLabel="Hour"
-                  YAxisLabel="Temperature (°C)"
+                  YAxisLabel="°F"
                   ShowLegend="true"
-                  Height="320"
+                  Height="280"
                   EnableAnimations="false"
                   Labels="@_labels"
-                  Datasets="@_datasets" />
+                  Datasets="@_denseDatasets" />
+
+        <MudDivider Class="my-4" />
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Sparse data — <code>null</code> entries produce visible gaps (<code>SpanGaps="false"</code>)</MudText>
+        <HvoChart ChartId="sandbox-chart-sparse"
+                  Type="HvoChartType.Line"
+                  YAxisLabel="mph"
+                  ShowLegend="true"
+                  Height="260"
+                  EnableAnimations="false"
+                  SpanGaps="false"
+                  YAxisSuggestedMin="0"
+                  Labels="@_labels"
+                  Datasets="@_sparseDatasets" />
     </MudCardContent>
 </MudCard>
 
 @code {
-    private static readonly string[] _labels = { "00:00", "02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00" };
+    private static readonly string[] _labels =
+        ["00:00", "02:00", "04:00", "06:00", "08:00", "10:00", "12:00",
+         "14:00", "16:00", "18:00", "20:00", "22:00"];
 
-    private static readonly List<HvoChartDataset> _datasets = new()
-    {
-        new("Outdoor Temp",
-            new double[] { 15.2, 14.1, 13.0, 12.5, 14.8, 18.2, 22.1, 25.0, 24.3, 20.1, 17.5, 16.0 },
-            BorderColor: "#6da5ff",
-            BackgroundColor: "rgba(109,165,255,0.1)",
-            Fill: true,
-            BorderWidth: 2.5),
-        new("Indoor Temp",
-            new double[] { 21.0, 20.8, 20.5, 20.3, 20.5, 21.0, 21.5, 22.0, 22.3, 22.1, 21.5, 21.2 },
-            BorderColor: "#57bca6",
-            BackgroundColor: "rgba(87,188,166,0.1)",
-            Fill: true,
-            BorderWidth: 2.5)
-    };
+    // Dense: no nulls
+    private static readonly HvoChartDataset[] _denseDatasets =
+    [
+        new("Outdoor", new double?[] { 58.2, 55.1, 53.0, 51.5, 54.8, 62.2, 72.1, 80.0, 79.3, 73.1, 66.5, 62.0 },
+            "#69d3ff", "rgba(105,211,255,0.15)", Fill: true, Tension: 0.35),
+        new("Indoor",  new double?[] { 68.0, 67.8, 67.5, 67.3, 67.5, 68.0, 69.5, 71.0, 71.3, 71.1, 70.5, 69.2 },
+            "#ffb86c", "rgba(255,184,108,0.12)", Fill: true, Tension: 0.35)
+    ];
+
+    // Sparse: nulls represent data-collection gaps → visible breaks in line
+    private static readonly HvoChartDataset[] _sparseDatasets =
+    [
+        new("2-min avg", new double?[] { 8, 6, null, null, 12, 15, 22, null, 18, 14, 10, 9 },
+            "#7ae0ff", Tension: 0.3),
+        new("10-min gust", new double?[] { 14, 11, null, null, 18, 24, 31, null, 26, 22, 16, 13 },
+            "#ff9f5a", Tension: 0.3)
+    ];
 }

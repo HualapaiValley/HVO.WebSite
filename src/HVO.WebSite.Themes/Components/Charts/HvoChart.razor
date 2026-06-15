@@ -28,6 +28,31 @@
 
     [Parameter] public string? YAxisLabel { get; set; }
 
+    /// <summary>
+    /// Increment to trigger a chart refresh when Datasets/Labels change.
+    /// </summary>
+    [Parameter] public int DataRevision { get; set; }
+
+    /// <summary>
+    /// When false (default) null data values render as visible gaps/breaks in the line.
+    /// Set true to draw the line straight across null values.
+    /// </summary>
+    [Parameter] public bool SpanGaps { get; set; } = false;
+
+    /// <summary>
+    /// Bezier tension for line charts (0 = angular, 0.3 = smooth). Applied to all datasets
+    /// unless the dataset provides its own <see cref="HvoChartDataset.Tension"/>.
+    /// </summary>
+    [Parameter] public double Tension { get; set; } = 0.3;
+
+    /// <summary>Optional lower-bound hint for the y-axis (uses Chart.js suggestedMin).</summary>
+    [Parameter] public double? YAxisSuggestedMin { get; set; }
+
+    /// <summary>Optional upper-bound hint for the y-axis (uses Chart.js suggestedMax).</summary>
+    [Parameter] public double? YAxisSuggestedMax { get; set; }
+
+    private int _renderedRevision = -1;
+
     private string TypeJs => Type switch
     {
         HvoChartType.Line => "line",
@@ -40,14 +65,16 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (firstRender || _renderedRevision != DataRevision)
         {
+            _renderedRevision = DataRevision;
             await RenderChartAsync();
         }
     }
 
     public async Task RefreshAsync()
     {
+        _renderedRevision = DataRevision;
         await RenderChartAsync();
     }
 
@@ -62,7 +89,9 @@
                 datasets = Datasets.Select(d => new
                 {
                     label = d.Label,
-                    data = d.Data.Cast<object>().ToArray(),
+                    data = d.Data.Select(v => v.HasValue ? (object?)v.Value : null).ToArray(),
+                    spanGaps = SpanGaps,
+                    tension = d.Tension ?? Tension,
                     borderColor = d.BorderColor ?? "var(--shell-chart-label-color)",
                     backgroundColor = d.BackgroundColor ?? "var(--shell-chart-marker-fill)",
                     borderWidth = d.BorderWidth,
@@ -84,11 +113,14 @@
                 {
                     x = new
                     {
-                        title = XAxisLabel is not null ? new { display = true, text = XAxisLabel } : null
+                        title = XAxisLabel is not null ? new { display = true, text = XAxisLabel } : (object?)null,
+                        ticks = new { maxTicksLimit = 7, autoSkip = true, maxRotation = 0 }
                     },
                     y = new
                     {
-                        title = YAxisLabel is not null ? new { display = true, text = YAxisLabel } : null
+                        title = YAxisLabel is not null ? new { display = true, text = YAxisLabel } : (object?)null,
+                        suggestedMin = YAxisSuggestedMin,
+                        suggestedMax = YAxisSuggestedMax
                     }
                 }
             }

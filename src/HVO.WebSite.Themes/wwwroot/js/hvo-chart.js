@@ -30,11 +30,18 @@ window.hvoChart.render = function (chartId, config) {
     if (defaultScales) {
         if (defaultScales.x) {
             defaultScales.x.grid = { color: colors.gridColor };
-            defaultScales.x.ticks = { color: colors.labelColor };
+            // Merge caller-supplied tick options with theme color and auto-skip defaults
+            const callerTicks = defaultScales.x.ticks || {};
+            defaultScales.x.ticks = Object.assign(
+                { maxTicksLimit: 7, autoSkip: true, maxRotation: 0 },
+                callerTicks,
+                { color: colors.labelColor }
+            );
         }
         if (defaultScales.y) {
             defaultScales.y.grid = { color: colors.gridColor };
-            defaultScales.y.ticks = { color: colors.labelColor };
+            const callerYTicks = defaultScales.y.ticks || {};
+            defaultScales.y.ticks = Object.assign(callerYTicks, { color: colors.labelColor });
         }
     }
 

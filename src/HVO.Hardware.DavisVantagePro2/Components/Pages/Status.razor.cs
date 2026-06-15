@@ -1,6 +1,7 @@
 using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using HVO.Hardware.DavisVantagePro2.Station;
+using HVO.WebSite.Themes.Components.Charts;
 using HVO.WebSite.Themes.Components.Layout;
 using HVO.Astronomy;
 using Microsoft.AspNetCore.Components;
@@ -36,9 +37,11 @@ public partial class Status : IDisposable
     private double? _outsideTemperature24HourHighF;
     private double? _todayPeakSolarWm2;
     private List<LiveHistorySample> _liveHistorySamples = [];
-    private PlotModel _temperaturePlot = PlotModel.Empty;
-    private PlotModel _solarPlot = PlotModel.Empty;
-    private PlotModel _windPlot = PlotModel.Empty;
+    private string[] _chartTimeLabels = [];
+    private HvoChartDataset[] _temperatureDatasets = [];
+    private HvoChartDataset[] _windDatasets = [];
+    private HvoChartDataset[] _solarDatasets = [];
+    private int _chartRevision;
     private CelestialMarker _sunMarker = CelestialMarker.Hidden;
     private MoonSnapshot _moonContext = MoonSnapshot.Empty;
 
@@ -248,33 +251,104 @@ public partial class Status : IDisposable
 
     private string CelestialViewBox => BuildCelestialViewBox(SunMarker, MoonMarker);
 
-    private bool HasTemperaturePlot => _temperaturePlot.HasData;
+    private bool HasTemperaturePlot => _temperatureDatasets.Length > 0 && _chartTimeLabels.Length > 0;
 
-    private bool HasSolarPlot => _solarPlot.HasData;
+    private bool HasSolarPlot => _solarDatasets.Length > 0 && _chartTimeLabels.Length > 0;
 
-    private bool HasWindPlot => _windPlot.HasData;
+    private bool HasWindPlot => _windDatasets.Length > 0 && _chartTimeLabels.Length > 0;
 
     private void RefreshVisuals()
     {
         RefreshSummaryMetrics();
-        _temperaturePlot = BuildPlotModel(
-            clampMinimumToZero: false,
-            minimumRange: 8d,
-            new PlotSeriesSpec(sample => DisplayTemperatureValue(sample.OutsideTemperatureF), DisplayTemperatureValue(_reading?.OutsideTemperatureF), TemperatureOutsideColor),
-            new PlotSeriesSpec(sample => DisplayTemperatureValue(sample.InsideTemperatureF), DisplayTemperatureValue(_reading?.InsideTemperatureF), TemperatureInsideColor));
-
-        _solarPlot = BuildPlotModel(
-            clampMinimumToZero: true,
-            minimumRange: 300d,
-            new PlotSeriesSpec(sample => sample.SolarRadiationWm2, _reading?.SolarRadiationWm2, SolarColor, "rgba(255, 209, 102, 0.18)"));
-
-        _windPlot = BuildPlotModel(
-            clampMinimumToZero: true,
-            minimumRange: 10d,
-            new PlotSeriesSpec(sample => DisplayWindValue(sample.WindSpeed2MinAvgMph), DisplayWindValue(_reading?.WindSpeed2MinAvgMph), WindAverageColor),
-            new PlotSeriesSpec(sample => DisplayWindValue(sample.WindGust10MinMph), DisplayWindValue(_reading?.WindGust10MinMph), WindGustColor));
-
+        BuildChartData();
         RefreshCelestialModels();
+    }
+
+    private void BuildChartData()
+    {
+        if (!ObservationWindowEndLocal.HasValue)
+        {
+            _chartTimeLabels = [];
+            _temperatureDatasets = [];
+            _windDatasets = [];
+            _solarDatasets = [];
+            return;
+        }
+
+        DateTime windowEnd = ObservationWindowEndLocal.Value;
+        DateTime windowStart = windowEnd.AddHours(-24);
+        var bucketSize = TimeSpan.FromMinutes(30);
+
+        // Combine persisted samples with the live reading at the head
+        var allSamples = _liveHistorySamples
+            .Where(s => s.TimeLocal >= windowStart && s.TimeLocal <= windowEnd)
+            .ToList();
+
+        if (_reading is not null)
+        {
+            var currentSample = CreateLiveHistorySample(windowEnd, _reading);
+            if (allSamples.Count > 0 && Math.Abs((allSamples[^1].TimeLocal - windowEnd).TotalMinutes) < 1)
+                allSamples[^1] = currentSample;
+            else
+                allSamples.Add(currentSample);
+        }
+
+        // Build per-series chart point lists then bucket into uniform grid
+        var outsideTempBuckets = StatusChartBuckets.BuildBuckets(
+            allSamples.Where(s => DisplayTemperatureValue(s.OutsideTemperatureF).HasValue)
+                      .Select(s => new StatusChartPoint(s.TimeLocal, DisplayTemperatureValue(s.OutsideTemperatureF)!.Value)),
+            windowStart, windowEnd, bucketSize);
+
+        var insideTempBuckets = StatusChartBuckets.BuildBuckets(
+            allSamples.Where(s => DisplayTemperatureValue(s.InsideTemperatureF).HasValue)
+                      .Select(s => new StatusChartPoint(s.TimeLocal, DisplayTemperatureValue(s.InsideTemperatureF)!.Value)),
+            windowStart, windowEnd, bucketSize);
+
+        var windAvgBuckets = StatusChartBuckets.BuildBuckets(
+            allSamples.Where(s => DisplayWindValue(s.WindSpeed2MinAvgMph).HasValue)
+                      .Select(s => new StatusChartPoint(s.TimeLocal, DisplayWindValue(s.WindSpeed2MinAvgMph)!.Value)),
+            windowStart, windowEnd, bucketSize);
+
+        var windGustBuckets = StatusChartBuckets.BuildBuckets(
+            allSamples.Where(s => DisplayWindValue(s.WindGust10MinMph).HasValue)
+                      .Select(s => new StatusChartPoint(s.TimeLocal, DisplayWindValue(s.WindGust10MinMph)!.Value)),
+            windowStart, windowEnd, bucketSize);
+
+        var solarBuckets = StatusChartBuckets.BuildBuckets(
+            allSamples.Where(s => s.SolarRadiationWm2.HasValue)
+                      .Select(s => new StatusChartPoint(s.TimeLocal, s.SolarRadiationWm2!.Value)),
+            windowStart, windowEnd, bucketSize);
+
+        // Build time-axis labels from the bucket grid
+        int slotCount = outsideTempBuckets.Count;
+        var alignedStart = StatusChartBuckets.FloorToBucket(windowStart, bucketSize);
+        _chartTimeLabels = Enumerable.Range(0, slotCount)
+            .Select(i => alignedStart.Add(bucketSize.Multiply(i)).ToString("HH:mm", CultureInfo.InvariantCulture))
+            .ToArray();
+
+        _temperatureDatasets =
+        [
+            new HvoChartDataset($"Outside {TemperatureUnitSuffix}", outsideTempBuckets.Select(b => b?.Value).ToArray(),
+                TemperatureOutsideColor, "rgba(105,211,255,0.15)", Fill: true, Tension: 0.35),
+            new HvoChartDataset($"Inside {TemperatureUnitSuffix}", insideTempBuckets.Select(b => b?.Value).ToArray(),
+                TemperatureInsideColor, "rgba(255,184,108,0.12)", Fill: true, Tension: 0.35),
+        ];
+
+        _windDatasets =
+        [
+            new HvoChartDataset($"2-min avg {WindUnitSuffix}", windAvgBuckets.Select(b => b?.Value).ToArray(),
+                WindAverageColor, Tension: 0.3),
+            new HvoChartDataset($"10-min gust {WindUnitSuffix}", windGustBuckets.Select(b => b?.Value).ToArray(),
+                WindGustColor, Tension: 0.3),
+        ];
+
+        _solarDatasets =
+        [
+            new HvoChartDataset("Solar W/m²", solarBuckets.Select(b => b?.Value).ToArray(),
+                SolarColor, "rgba(255,209,102,0.18)", Fill: true, Tension: 0.3),
+        ];
+
+        _chartRevision++;
     }
 
     private void RefreshSummaryMetrics()
@@ -442,222 +516,6 @@ public partial class Status : IDisposable
         double padding = (minimumRange - currentRange) / 2d;
         min -= padding;
         max += padding;
-    }
-
-    private List<ChartPoint> BuildChartPoints(
-        Func<LiveHistorySample, double?> selector,
-        double? liveValue,
-        DateTime windowStart,
-        DateTime windowEnd)
-    {
-        var points = _liveHistorySamples
-            .Where(record => record.TimeLocal >= windowStart && record.TimeLocal <= windowEnd)
-            .Select(record => new { record.TimeLocal, Value = selector(record) })
-            .Where(point => point.Value.HasValue)
-            .Select(point => new ChartPoint(point.TimeLocal, point.Value!.Value))
-            .OrderBy(point => point.TimeLocal)
-            .ToList();
-
-        if (!liveValue.HasValue)
-        {
-            return points;
-        }
-
-        var livePoint = new ChartPoint(windowEnd, liveValue.Value);
-        if (points.Count > 0 && Math.Abs((points[^1].TimeLocal - livePoint.TimeLocal).TotalMinutes) < 1)
-        {
-            points[^1] = livePoint;
-        }
-        else
-        {
-            points.Add(livePoint);
-        }
-
-        return points;
-    }
-
-    private PlotModel BuildPlotModel(bool clampMinimumToZero, double minimumRange, params PlotSeriesSpec[] specs)
-    {
-        if (!ObservationWindowEndLocal.HasValue)
-        {
-            return PlotModel.Empty;
-        }
-
-        DateTime windowEnd = ObservationWindowEndLocal.Value;
-        DateTime windowStart = windowEnd.AddHours(-24);
-
-        var seriesWithData = specs
-            .Select(spec => new { Spec = spec, Points = BuildChartPoints(spec.Selector, spec.LiveValue, windowStart, windowEnd) })
-            .Where(series => series.Points.Count > 0)
-            .ToList();
-
-        if (seriesWithData.Count == 0)
-        {
-            return PlotModel.Empty;
-        }
-
-        const double left = 40d;
-        const double right = 508d;
-        const double top = 24d;
-        const double bottom = 224d;
-        double plotWidth = right - left;
-        double plotHeight = bottom - top;
-
-        double minValue = seriesWithData.SelectMany(series => series.Points).Min(point => point.Value);
-        double maxValue = seriesWithData.SelectMany(series => series.Points).Max(point => point.Value);
-
-        if (clampMinimumToZero)
-        {
-            minValue = Math.Min(0d, minValue);
-        }
-
-        if (maxValue - minValue < minimumRange)
-        {
-            double padding = (minimumRange - (maxValue - minValue)) / 2d;
-            minValue -= padding;
-            maxValue += padding;
-        }
-
-        if (clampMinimumToZero)
-        {
-            minValue = Math.Max(0d, minValue);
-        }
-
-        if (Math.Abs(maxValue - minValue) < 0.001d)
-        {
-            maxValue = minValue + minimumRange;
-        }
-
-        var plotSeries = seriesWithData
-            .Select(series => BuildPlotSeries(series.Spec, series.Points, windowStart, minValue, maxValue, left, bottom, plotWidth, plotHeight))
-            .Where(series => !string.IsNullOrEmpty(series.LinePath))
-            .ToArray();
-
-        if (plotSeries.Length == 0)
-        {
-            return PlotModel.Empty;
-        }
-
-        var axisLabels = Enumerable.Range(0, 5)
-            .Select(index =>
-            {
-                double ratio = index / 4d;
-                double value = maxValue - ((maxValue - minValue) * ratio);
-                double y = top + (plotHeight * ratio);
-                return new PlotLabel(y, FormatAxisValue(value));
-            })
-            .ToArray();
-
-        var timeLabels = Enumerable.Range(0, 5)
-            .Select(index =>
-            {
-                double ratio = index / 4d;
-                DateTime time = windowStart.AddHours(24d * ratio);
-                double x = left + (plotWidth * ratio);
-                return new TimeLabel(x, time.ToString("HH:mm", CultureInfo.InvariantCulture));
-            })
-            .ToArray();
-
-        return new PlotModel(axisLabels, timeLabels, plotSeries);
-    }
-
-    private static PlotSeries BuildPlotSeries(
-        PlotSeriesSpec spec,
-        IReadOnlyList<ChartPoint> source,
-        DateTime windowStart,
-        double minValue,
-        double maxValue,
-        double left,
-        double bottom,
-        double plotWidth,
-        double plotHeight)
-    {
-        var pointSegments = SplitContinuousSegments(source);
-        var coordinateSegments = pointSegments
-            .Select(segment => segment
-                .Select(point =>
-                {
-                    double x = left + (Math.Clamp((point.TimeLocal - windowStart).TotalHours / 24d, 0d, 1d) * plotWidth);
-                    double y = bottom - (((point.Value - minValue) / (maxValue - minValue)) * plotHeight);
-                    return new PlotPoint(x, y);
-                })
-                .ToList())
-            .Where(segment => segment.Count > 0)
-            .ToList();
-
-        if (coordinateSegments.Count == 0)
-        {
-            return PlotSeries.Empty;
-        }
-
-        string linePath = string.Join(' ', coordinateSegments.Select(BuildLinePath));
-        string areaPath = string.IsNullOrWhiteSpace(spec.FillColor)
-            ? string.Empty
-            : string.Join(' ', coordinateSegments.Where(segment => segment.Count > 1).Select(segment => BuildAreaPath(segment, bottom)));
-
-        return new PlotSeries(linePath, areaPath, spec.StrokeColor, spec.FillColor, coordinateSegments[^1][^1]);
-    }
-
-    private static IReadOnlyList<List<ChartPoint>> SplitContinuousSegments(IReadOnlyList<ChartPoint> source)
-    {
-        if (source.Count == 0)
-        {
-            return [];
-        }
-
-        double gapThresholdMinutes = DetermineGapThresholdMinutes(source);
-        var segments = new List<List<ChartPoint>>();
-        var currentSegment = new List<ChartPoint> { source[0] };
-
-        for (int index = 1; index < source.Count; index++)
-        {
-            ChartPoint point = source[index];
-            double gapMinutes = (point.TimeLocal - source[index - 1].TimeLocal).TotalMinutes;
-
-            if (gapMinutes > gapThresholdMinutes)
-            {
-                segments.Add(currentSegment);
-                currentSegment = [];
-            }
-
-            currentSegment.Add(point);
-        }
-
-        segments.Add(currentSegment);
-        return segments;
-    }
-
-    private static double DetermineGapThresholdMinutes(IReadOnlyList<ChartPoint> source)
-    {
-        var intervals = source
-            .Zip(source.Skip(1), (previous, current) => (current.TimeLocal - previous.TimeLocal).TotalMinutes)
-            .Where(interval => interval > 0d)
-            .OrderBy(interval => interval)
-            .ToList();
-
-        if (intervals.Count == 0)
-        {
-            return 15d;
-        }
-
-        double median = intervals[intervals.Count / 2];
-        return Math.Clamp(median * 3d, 15d, 45d);
-    }
-
-    private static string BuildLinePath(IReadOnlyList<PlotPoint> segment) =>
-        string.Join(' ', segment.Select((point, index) =>
-            $"{(index == 0 ? 'M' : 'L')}{point.X.ToString("F1", CultureInfo.InvariantCulture)} {point.Y.ToString("F1", CultureInfo.InvariantCulture)}"));
-
-    private static string BuildAreaPath(IReadOnlyList<PlotPoint> segment, double bottom) =>
-        string.Concat(
-            BuildLinePath(segment),
-            $" L{segment[^1].X.ToString("F1", CultureInfo.InvariantCulture)} {bottom.ToString("F1", CultureInfo.InvariantCulture)}",
-            $" L{segment[0].X.ToString("F1", CultureInfo.InvariantCulture)} {bottom.ToString("F1", CultureInfo.InvariantCulture)} Z");
-
-    private static string FormatAxisValue(double value)
-    {
-        double rounded = Math.Abs(value) >= 10d ? Math.Round(value) : Math.Round(value, 1);
-        return rounded.ToString(Math.Abs(rounded % 1d) < 0.001d ? "F0" : "F1", CultureInfo.InvariantCulture);
     }
 
     private void UpsertLiveHistorySample(Loop2Packet reading)
@@ -864,12 +722,6 @@ public partial class Status : IDisposable
         return $"{low:F0}°-{high:F0}°";
     }
 
-    private static MarkupString RenderSvgText(double x, double y, string text, string anchor = "start")
-    {
-        return new MarkupString(
-            $"<text x=\"{x.ToString("F1", CultureInfo.InvariantCulture)}\" y=\"{y.ToString("F1", CultureInfo.InvariantCulture)}\" text-anchor=\"{anchor}\">{System.Net.WebUtility.HtmlEncode(text)}</text>");
-    }
-
     private static int? EncodeDisplayTime(string? value)
     {
         if (string.IsNullOrWhiteSpace(value) ||
@@ -890,39 +742,6 @@ public partial class Status : IDisposable
         double? InsidePressureInHg,
         double? WindSpeed2MinAvgMph,
         double? WindGust10MinMph);
-
-    private sealed record ChartPoint(DateTime TimeLocal, double Value);
-
-    private sealed record PlotSeriesSpec(
-        Func<LiveHistorySample, double?> Selector,
-        double? LiveValue,
-        string StrokeColor,
-        string? FillColor = null);
-
-    private sealed record PlotModel(
-        IReadOnlyList<PlotLabel> AxisLabels,
-        IReadOnlyList<TimeLabel> TimeLabels,
-        IReadOnlyList<PlotSeries> Series)
-    {
-        public static PlotModel Empty { get; } = new([], [], []);
-        public bool HasData => Series.Count > 0;
-    }
-
-    private sealed record PlotSeries(
-        string LinePath,
-        string AreaPath,
-        string StrokeColor,
-        string? FillColor,
-        PlotPoint? CurrentPoint)
-    {
-        public static PlotSeries Empty { get; } = new(string.Empty, string.Empty, string.Empty, null, null);
-    }
-
-    private sealed record PlotLabel(double Y, string Text);
-
-    private sealed record TimeLabel(double X, string Text);
-
-    private sealed record PlotPoint(double X, double Y);
 
     private sealed class PersistedLiveReading
     {

@@ -72,7 +72,7 @@
         {
             var filtered = Points
                 .Where(p => ValueSelector(p).HasValue)
-                .Select(p => ValueSelector(p)!.Value)
+                .Select(p => (double?)ValueSelector(p)!.Value)
                 .ToArray();
 
             var borderColor = LineClass switch

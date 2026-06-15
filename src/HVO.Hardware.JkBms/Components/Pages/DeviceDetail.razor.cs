@@ -24,7 +24,7 @@ public partial class DeviceDetail : IDisposable
             var readings = _state?.LatestReading;
             if (readings is null) return new();
             var values = readings.CellVoltagesMv
-                .Select(mv => mv / 1000.0).ToArray();
+                .Select(mv => (double?)(mv / 1000.0)).ToArray();
             return new()
             {
                 new HvoChartDataset("Voltage", values,
