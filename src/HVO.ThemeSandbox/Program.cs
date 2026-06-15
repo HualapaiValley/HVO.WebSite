@@ -1,12 +1,10 @@
-using MudBlazor;
-using MudBlazor.Services;
 using HVO.ThemeSandbox.Components;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-
 builder.Services.AddMudServices();
 
 var app = builder.Build();
@@ -17,10 +15,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseStaticFiles();
+app.MapStaticAssets();
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+   .AddInteractiveServerRenderMode();
 
-app.Run();
+await app.RunAsync();

@@ -9,7 +9,6 @@
 
   <ItemGroup>
     <PackageReference Include="MudBlazor" />
-    <PackageReference Include="Serilog.AspNetCore" />
   </ItemGroup>
 
   <ItemGroup>
