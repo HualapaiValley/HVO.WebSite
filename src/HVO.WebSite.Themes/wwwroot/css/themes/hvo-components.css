@@ -525,3 +525,93 @@
     border-color: var(--shell-overlay-panel-border) !important;
     color: var(--shell-card-foreground) !important;
 }
+
+/* ── Pressure Gauge (Barometer) ─────────────────────────────────────────── */
+
+.hvo-barometer {
+    display: grid;
+    gap: 14px;
+}
+
+.hvo-barometer-reading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.hvo-barometer-reading-value {
+    color: var(--shell-card-foreground);
+    font-family: var(--shell-font-mono);
+    font-size: 2rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.hvo-barometer-reading-label {
+    color: var(--shell-pill-text);
+    font-size: 0.92rem;
+}
+
+.hvo-barometer-scale {
+    display: grid;
+    gap: 8px;
+}
+
+.hvo-barometer-band {
+    position: relative;
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(
+        90deg,
+        color-mix(in srgb, #6da5ff 18%, transparent),
+        color-mix(in srgb, #ffcf66 28%, transparent),
+        color-mix(in srgb, #57d38d 20%, transparent)
+    );
+}
+
+.hvo-barometer-marker {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--shell-chart-marker-fill);
+    border: 2.5px solid #6da5ff;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 3px rgba(109, 165, 255, 0.25);
+}
+
+.hvo-barometer-tick-row {
+    display: flex;
+    justify-content: space-between;
+    color: var(--shell-pill-text);
+    font-family: var(--shell-font-mono);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.hvo-barometer-meta {
+    display: grid;
+    gap: 6px;
+}
+
+.hvo-barometer-row {
+    display: grid;
+    grid-template-columns: 5rem minmax(0, 1fr);
+    gap: 10px;
+    align-items: baseline;
+    color: var(--shell-pill-text);
+    font-size: 0.84rem;
+}
+
+.hvo-barometer-row strong {
+    color: var(--shell-card-foreground);
+    font-family: var(--shell-font-mono);
+    font-size: 0.84rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    justify-self: end;
+    text-align: right;
+}

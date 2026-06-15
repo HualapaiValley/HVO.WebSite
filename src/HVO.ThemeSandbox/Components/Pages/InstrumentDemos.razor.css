@@ -1,18 +1,16 @@
-.instruments-page {
+.id-page {
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
     color: var(--shell-page-text);
 
-    /* Compass CSS tokens (mirrors Status.razor.css --dashboard-* tokens) */
+    /* Compass & celestial SVG tokens — mirror Davis Status.razor.css */
     --demo-compass-face: color-mix(in srgb, var(--shell-card-background) 78%, var(--shell-overlay-panel) 22%);
     --demo-compass-ring-strong: var(--shell-card-border);
     --demo-compass-ring: var(--shell-overlay-panel-border);
     --demo-compass-ring-soft: color-mix(in srgb, var(--shell-overlay-panel-border) 55%, transparent 45%);
     --demo-compass-spokes: var(--shell-overlay-panel-border);
     --demo-compass-label: var(--shell-pill-text);
-
-    /* Celestial CSS tokens */
     --demo-sun-stroke: #ffcf66;
     --demo-sun-glow: rgba(255, 207, 102, 0.28);
     --demo-sun-fill: #ffcf66;
@@ -20,36 +18,24 @@
     --demo-moon-shadow: color-mix(in srgb, var(--shell-card-background) 80%, #1a2a42 20%);
 }
 
-.instruments-page > .shell-page-stack {
-    width: 100%;
-    min-width: 0;
-}
+.id-page > .shell-page-stack { width: 100%; min-width: 0; }
 
-.instruments-stack {
-    display: grid;
-    gap: 18px;
-}
+.id-stack { display: grid; gap: 18px; }
 
 .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+    position: absolute; width: 1px; height: 1px; padding: 0;
+    margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
+    white-space: nowrap; border: 0;
 }
 
-.instruments-caption {
-    margin: 0 0 1.25rem;
+.id-caption {
+    margin: 0 0 1.2rem;
     color: var(--shell-pill-text);
     font-size: 0.88rem;
-    line-height: 1.5;
+    line-height: 1.55;
 }
 
-.instruments-caption code {
+.id-caption code {
     padding: 0.1rem 0.35rem;
     border-radius: 5px;
     background: var(--shell-overlay-panel);
@@ -58,88 +44,102 @@
     font-size: 0.8rem;
 }
 
-.instruments-code-note {
-    margin-top: 0.75rem;
-    padding: 0.6rem 0.85rem;
-    border-radius: 10px;
-    border: 1px solid var(--shell-overlay-panel-border);
-    background: var(--shell-overlay-panel);
-    color: var(--shell-pill-text);
-    font-size: 0.78rem;
-}
-
-/* ── Compass demo ── */
-.compass-demo-grid {
+/* ── Compass grid — 6 items per row on wide, 3 on medium, 2 narrow ── */
+.id-compass-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
 }
 
-.demo-compass-svg {
+.id-compass-item { display: grid; gap: 6px; }
+
+.id-compass-svg {
     display: block;
     width: 100%;
-    max-width: 220px;
+    max-width: 160px;
     margin: 0 auto;
 }
 
-.compass-demo-label {
-    margin-top: 8px;
+.id-compass-label {
     text-align: center;
     color: var(--shell-pill-text);
-    font-size: 0.8rem;
 }
 
-/* ── Celestial demo ── */
-.celestial-demo-grid {
+.id-compass-speed {
+    text-align: center;
+    color: var(--shell-card-foreground);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+/* ── Barometer grid — 3 up ── */
+.id-barometer-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
+}
+
+.id-gauge-label {
+    margin: 0 0 0.6rem;
+    color: var(--shell-pill-text);
+}
+
+/* ── Celestial grid — 4 items ── */
+.id-celestial-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 18px;
     align-items: start;
 }
 
-.celestial-demo-item {
-    display: grid;
-    gap: 10px;
-}
+.id-celestial-item { display: grid; gap: 8px; }
 
-.celestial-demo-label {
-    color: var(--shell-pill-text);
-    font-size: 0.7rem;
-    letter-spacing: 0.09em;
-}
+.id-celestial-title { margin: 0; }
 
-.demo-celestial-icon {
+.id-celestial-icon {
     display: grid;
     place-items: center;
     min-height: 80px;
     overflow: hidden;
 }
 
-.demo-celestial-svg {
-    width: min(100%, 260px);
+.id-celestial-svg {
+    width: min(100%, 240px);
     height: auto;
     display: block;
     margin: 0 auto;
 }
 
-.celestial-demo-stats {
+.id-celestial-stats { gap: 6px; }
+
+/* ── Half-width chart grid ── */
+.id-half-grid {
     display: grid;
-    gap: 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
 }
 
-@media (max-width: 1100px) {
-    .compass-demo-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .celestial-demo-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+/* ── Third-width chart grid ── */
+.id-third-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
 }
 
-@media (max-width: 700px) {
-    .compass-demo-grid,
-    .celestial-demo-grid {
-        grid-template-columns: 1fr;
-    }
+/* ── Responsive ── */
+@media (max-width: 1200px) {
+    .id-compass-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .id-third-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+    .id-compass-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .id-barometer-grid { grid-template-columns: 1fr; }
+    .id-celestial-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .id-half-grid { grid-template-columns: 1fr; }
+    .id-third-grid { grid-template-columns: 1fr; }
 }
