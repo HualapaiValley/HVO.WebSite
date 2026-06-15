@@ -1,295 +1,271 @@
 @page "/palette"
-@rendermode InteractiveServer
 
-<div class="palette-page">
-    <div class="shell-page-stack palette-stack">
-        <h1 class="sr-only">HVO Color Palette Reference</h1>
+<MudPaper Class="layout-canvas shell-page" Elevation="0">
+    <MudStack Class="shell-page-stack" Spacing="4">
+        <div>
+            <MudText Typo="Typo.h3">Color Palette Reference</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">
+                All HVO palette variables — data series, accent, shell surface and text tokens.
+                Left half of each swatch = dark theme · Right half = light theme.
+            </MudText>
+        </div>
 
-        <!-- ── HVO Data Series ───────────────────────────────────────────── -->
-        <section class="hvo-card-shell">
-            <div class="hvo-section-head">
-                <div>
-                    <div class="hvo-eyebrow">HVO Visualization Palette</div>
-                    <h2>Data Series Colors</h2>
-                </div>
-            </div>
-            <p class="palette-note">
-                Assign these in numeric order for new chart datasets.
-                Hex literals required for <code>HvoChartDataset</code> (canvas 2D cannot resolve CSS variables).
-                Each variable is defined in <code>hvo-shared-shell.css</code>.
-            </p>
-            <div class="palette-series-grid">
-                @foreach (var s in _series)
+        <!-- ── DATA SERIES ── -->
+        <div class="hvo-card">
+            <div class="hvo-card-title">Data Series — <span class="hvo-mono" style="font-size:.8em;">--hvo-series-1…8</span></div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                Fixed palette for chart datasets. Assign in numeric order when adding new series.
+                C# chart colors must use hex literals; the CSS variable provides the canonical value.
+            </MudText>
+            <MudGrid>
+                @foreach (var s in _seriesSwatches)
                 {
-                    <div class="palette-series-item">
-                        <div class="palette-series-swatch" style="background: @s.Hex;"></div>
-                        <div class="palette-series-name hvo-mono">@s.Var</div>
-                        <div class="palette-series-hex hvo-mono">@s.Hex</div>
-                        <div class="palette-series-use">@s.Use</div>
-                    </div>
+                    <MudItem xs="6" sm="3">
+                        <div class="hvo-palette-swatch" style="background:@s.Hex;">
+                            <div class="hvo-palette-label hvo-mono">@s.Var</div>
+                            <div class="hvo-palette-values">
+                                <span class="hvo-palette-dark">@s.Hex</span>
+                                <span class="hvo-palette-dark" style="font-style:italic;">@s.Use</span>
+                            </div>
+                        </div>
+                    </MudItem>
                 }
-            </div>
-        </section>
+            </MudGrid>
+        </div>
 
-        <!-- ── HVO Accent Colors ──────────────────────────────────────────── -->
-        <section class="hvo-card-shell">
-            <div class="hvo-section-head">
-                <div>
-                    <div class="hvo-eyebrow">HVO Visualization Palette</div>
-                    <h2>Accent Colors</h2>
-                </div>
-            </div>
-            <p class="palette-note">Use for UI elements — hero readouts, indicators, barometer. Defined in <code>hvo-shared-shell.css</code>.</p>
-            <div class="palette-accent-grid">
-                @foreach (var a in _accents)
+        <!-- ── ACCENT COLORS ── -->
+        <div class="hvo-card">
+            <div class="hvo-card-title">Accent Colors — <span class="hvo-mono" style="font-size:.8em;">--hvo-accent-*</span></div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                Semantic tokens for UI elements — hero readouts, barometer markers, status indicators.
+                Use <code>var(--hvo-accent-*)</code> in CSS; resolve to hex in C# when canvas interop is needed.
+            </MudText>
+            <MudGrid>
+                @foreach (var a in _accentSwatches)
                 {
-                    <div class="palette-accent-item">
-                        <div class="palette-accent-swatch" style="background: @a.Hex;"></div>
-                        <div class="palette-accent-name hvo-mono">@a.Var</div>
-                        <div class="palette-accent-hex hvo-mono">@a.Hex</div>
-                        <div class="palette-accent-use">@a.Use</div>
-                        <div class="palette-accent-sample" style="color: @a.Hex;">Sample text</div>
-                    </div>
+                    <MudItem xs="6" sm="@(12 / _accentSwatches.Length)">
+                        <div class="hvo-palette-swatch" style="background:@a.Hex;">
+                            <div class="hvo-palette-label hvo-mono">@a.Var</div>
+                            <div class="hvo-palette-values">
+                                <span class="hvo-palette-dark">@a.Hex</span>
+                                <span class="hvo-palette-dark" style="font-style:italic;">@a.Use</span>
+                            </div>
+                        </div>
+                    </MudItem>
                 }
-            </div>
-        </section>
+            </MudGrid>
+        </div>
 
-        <!-- ── Chip / Status Colors ───────────────────────────────────────── -->
-        <section class="hvo-card-shell">
-            <div class="hvo-section-head">
-                <div>
-                    <div class="hvo-eyebrow">hvo-components.css</div>
-                    <h2>Status Chip Colors</h2>
-                </div>
-            </div>
-            <p class="palette-note">Use <code>hvo-chip</code> + modifier for status indicators. Backgrounds are semi-transparent color-mix tokens.</p>
-            <div class="hvo-chip-row" style="gap: 10px; flex-wrap: wrap;">
+        <!-- ── STATUS CHIPS ── -->
+        <div class="hvo-card">
+            <div class="hvo-card-title">Status Chips — <span class="hvo-mono" style="font-size:.8em;">hvo-chip + modifier</span></div>
+            <div class="hvo-pill-demo">
                 <span class="hvo-chip">Default</span>
-                <span class="hvo-chip hvo-chip-success">hvo-chip-success</span>
-                <span class="hvo-chip hvo-chip-online">hvo-chip-online</span>
-                <span class="hvo-chip hvo-chip-warning">hvo-chip-warning</span>
-                <span class="hvo-chip hvo-chip-danger">hvo-chip-danger</span>
-                <span class="hvo-chip hvo-chip-error">hvo-chip-error</span>
+                <span class="hvo-chip hvo-chip-success">success</span>
+                <span class="hvo-chip hvo-chip-online">online</span>
+                <span class="hvo-chip hvo-chip-warning">warning</span>
+                <span class="hvo-chip hvo-chip-danger">danger</span>
+                <span class="hvo-chip hvo-chip-error">error</span>
             </div>
-        </section>
+        </div>
 
-        <!-- ── Shell Surface Colors ───────────────────────────────────────── -->
-        <section class="hvo-card-shell">
-            <div class="hvo-section-head">
-                <div>
-                    <div class="hvo-eyebrow">hvo-shared-shell.css — :root</div>
-                    <h2>Shell Surface Variables</h2>
-                </div>
-            </div>
-            <p class="palette-note">Light/dark values shown side-by-side. Left half = dark theme, right half = light theme.</p>
-            <div class="palette-var-grid">
-                @foreach (var sw in _surfaceSwatches)
+        <!-- ── SURFACE COLORS ── -->
+        <div class="hvo-card">
+            <div class="hvo-card-title">Shell Surface Colors — <span class="hvo-mono" style="font-size:.8em;">--shell-card-*, --shell-overlay-*</span></div>
+            <MudGrid>
+                @foreach (var swatch in _surfaceSwatches)
                 {
-                    <div class="palette-var-item">
-                        <div class="palette-var-swatch-wrap">
-                            <div class="palette-var-swatch-dark"  style="background: @sw.Dark;"></div>
-                            <div class="palette-var-swatch-light" style="background: @sw.Light;"></div>
+                    <MudItem xs="12" md="4">
+                        <div class="hvo-palette-swatch" style="background:@swatch.Dark" title="@swatch.Name">
+                            <div class="hvo-palette-light-half" style="background:@swatch.Light"></div>
+                            <div class="hvo-palette-label hvo-mono">@swatch.Name</div>
+                            <div class="hvo-palette-values">
+                                <span class="hvo-palette-dark">D: @swatch.Dark</span>
+                                <span class="hvo-palette-light">L: @swatch.Light</span>
+                            </div>
                         </div>
-                        <div class="palette-var-name hvo-mono">@sw.Name</div>
-                        <div class="palette-var-value hvo-mono">D: @sw.Dark</div>
-                        <div class="palette-var-value hvo-mono">L: @sw.Light</div>
-                    </div>
+                    </MudItem>
                 }
-            </div>
-        </section>
+            </MudGrid>
+        </div>
 
-        <!-- ── Shell Text & Overlay Colors ───────────────────────────────── -->
-        <section class="hvo-card-shell">
-            <div class="hvo-section-head">
-                <div>
-                    <div class="hvo-eyebrow">hvo-shared-shell.css — :root</div>
-                    <h2>Text &amp; Overlay Variables</h2>
-                </div>
-            </div>
-            <div class="palette-var-grid">
-                @foreach (var sw in _textSwatches)
+        <!-- ── TEXT & OVERLAY ── -->
+        <div class="hvo-card">
+            <div class="hvo-card-title">Text &amp; Overlay Colors — <span class="hvo-mono" style="font-size:.8em;">--shell-pill-*, --shell-overlay-*</span></div>
+            <MudGrid>
+                @foreach (var swatch in _textSwatches)
                 {
-                    <div class="palette-var-item">
-                        <div class="palette-var-swatch-wrap">
-                            <div class="palette-var-swatch-dark"  style="background: @sw.Dark;"></div>
-                            <div class="palette-var-swatch-light" style="background: @sw.Light;"></div>
+                    <MudItem xs="12" md="3">
+                        <div class="hvo-palette-swatch" style="background:@swatch.Dark" title="@swatch.Name">
+                            <div class="hvo-palette-light-half" style="background:@swatch.Light"></div>
+                            <div class="hvo-palette-label hvo-mono">@swatch.Name</div>
+                            <div class="hvo-palette-values">
+                                <span class="hvo-palette-dark">D: @swatch.Dark</span>
+                                <span class="hvo-palette-light">L: @swatch.Light</span>
+                            </div>
                         </div>
-                        <div class="palette-var-name hvo-mono">@sw.Name</div>
-                        <div class="palette-var-value hvo-mono">D: @sw.Dark</div>
-                        <div class="palette-var-value hvo-mono">L: @sw.Light</div>
-                    </div>
+                    </MudItem>
                 }
-            </div>
-        </section>
+            </MudGrid>
+        </div>
 
-        <!-- ── Pill / Nav States ─────────────────────────────────────────── -->
-        <section class="hvo-card-shell">
-            <div class="hvo-section-head">
-                <div>
-                    <div class="hvo-eyebrow">Shell navigation tokens</div>
-                    <h2>Pill / Nav States</h2>
-                </div>
+        <!-- ── PILL STATES ── -->
+        <div class="hvo-card">
+            <div class="hvo-card-title">Pill / Navigation States — <span class="hvo-mono" style="font-size:.8em;">--shell-pill-*</span></div>
+            <div class="hvo-pill-demo">
+                <div class="shell-nav-link" style="background:var(--shell-pill-background);color:var(--shell-pill-text);border-color:var(--shell-pill-border);">Default</div>
+                <div class="shell-nav-link" style="background:var(--shell-pill-hover-background);color:var(--shell-pill-hover-text);border-color:var(--shell-pill-hover-border);">Hover</div>
+                <div class="shell-nav-link shell-nav-link-current">Active</div>
             </div>
-            <div class="palette-pill-demo">
-                <span class="shell-nav-link">Default</span>
-                <span class="shell-nav-link" style="background:var(--shell-pill-hover-background);color:var(--shell-pill-hover-text);border-color:var(--shell-pill-hover-border);">Hover</span>
-                <span class="shell-nav-link shell-nav-link-current">Active</span>
-            </div>
-            <div class="palette-var-grid" style="margin-top: 1rem;">
-                @foreach (var sw in _pillSwatches)
+            <MudGrid Class="mt-3">
+                @foreach (var swatch in _pillSwatches)
                 {
-                    <div class="palette-var-item">
-                        <div class="palette-var-swatch-wrap">
-                            <div class="palette-var-swatch-dark"  style="background: @sw.Dark;"></div>
-                            <div class="palette-var-swatch-light" style="background: @sw.Light;"></div>
+                    <MudItem xs="12" md="4">
+                        <div class="hvo-palette-swatch" style="background:@swatch.Dark" title="@swatch.Name">
+                            <div class="hvo-palette-light-half" style="background:@swatch.Light"></div>
+                            <div class="hvo-palette-label hvo-mono">@swatch.Name</div>
+                            <div class="hvo-palette-values">
+                                <span class="hvo-palette-dark">D: @swatch.Dark</span>
+                                <span class="hvo-palette-light">L: @swatch.Light</span>
+                            </div>
                         </div>
-                        <div class="palette-var-name hvo-mono">@sw.Name</div>
-                        <div class="palette-var-value hvo-mono">D: @sw.Dark</div>
-                        <div class="palette-var-value hvo-mono">L: @sw.Light</div>
-                    </div>
+                    </MudItem>
                 }
-            </div>
-        </section>
+            </MudGrid>
+        </div>
 
-        <!-- ── Chart Infra Colors ─────────────────────────────────────────── -->
-        <section class="hvo-card-shell">
-            <div class="hvo-section-head">
-                <div>
-                    <div class="hvo-eyebrow">hvo-shared-shell.css — chart infrastructure</div>
-                    <h2>Chart Grid &amp; Axis Variables</h2>
-                </div>
-            </div>
-            <p class="palette-note">Applied automatically by <code>hvo-chart.js</code> — do not override per-chart. These are read from CSS at render time.</p>
-            <div class="palette-var-grid">
-                @foreach (var sw in _chartSwatches)
+        <!-- ── CHART INFRA ── -->
+        <div class="hvo-card">
+            <div class="hvo-card-title">Chart Infrastructure — <span class="hvo-mono" style="font-size:.8em;">--shell-chart-*</span></div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                Applied automatically by <code>hvo-chart.js</code>. Do not override per-chart.
+            </MudText>
+            <MudGrid>
+                @foreach (var swatch in _chartSwatches)
                 {
-                    <div class="palette-var-item">
-                        <div class="palette-var-swatch-wrap">
-                            <div class="palette-var-swatch-dark"  style="background: @sw.Dark;"></div>
-                            <div class="palette-var-swatch-light" style="background: @sw.Light;"></div>
+                    <MudItem xs="12" md="4">
+                        <div class="hvo-palette-swatch" style="background:@swatch.Dark" title="@swatch.Name">
+                            <div class="hvo-palette-light-half" style="background:@swatch.Light"></div>
+                            <div class="hvo-palette-label hvo-mono">@swatch.Name</div>
+                            <div class="hvo-palette-values">
+                                <span class="hvo-palette-dark">D: @swatch.Dark</span>
+                                <span class="hvo-palette-light">L: @swatch.Light</span>
+                            </div>
                         </div>
-                        <div class="palette-var-name hvo-mono">@sw.Name</div>
-                        <div class="palette-var-value hvo-mono">D: @sw.Dark</div>
-                        <div class="palette-var-value hvo-mono">L: @sw.Light</div>
-                    </div>
+                    </MudItem>
                 }
-            </div>
-        </section>
+            </MudGrid>
+        </div>
 
-        <!-- ── Dimensional Tokens ─────────────────────────────────────────── -->
-        <section class="hvo-card-shell hvo-card-note">
-            <div class="hvo-section-head">
-                <div>
-                    <div class="hvo-eyebrow">Layout tokens</div>
-                    <h2>Dimensional Variables</h2>
-                </div>
-            </div>
-            <div class="hvo-grid">
-                @foreach (var d in _dimensions)
+        <!-- ── DIMENSIONS ── -->
+        <div class="hvo-card">
+            <div class="hvo-card-title">Dimensional Tokens</div>
+            <MudGrid>
+                @foreach (var dim in _dimensions)
                 {
-                    <div class="hvo-list-item">
-                        <span class="hvo-mono" style="font-size: 0.74rem;">@d.Name</span>
-                        <strong class="hvo-mono">@d.Value</strong>
-                    </div>
+                    <MudItem xs="12" md="4">
+                        <div class="hvo-metric">
+                            <span class="hvo-metric-label hvo-mono">@dim.Name</span>
+                            <span class="hvo-metric-value hvo-mono">@dim.Value</span>
+                        </div>
+                    </MudItem>
                 }
-            </div>
-        </section>
-
-    </div>
-</div>
+            </MudGrid>
+        </div>
+    </MudStack>
+</MudPaper>
 
 @code {
-    private sealed record ColorEntry(string Var, string Hex, string Use);
+    private sealed record SeriesSwatch(string Var, string Hex, string Use);
     private sealed record Swatch(string Name, string Dark, string Light);
 
-    // ── Data series ─────────────────────────────────────────────────────────
-    private static readonly ColorEntry[] _series =
+    // ── Data series ────────────────────────────────────────────────────────────
+    private static readonly SeriesSwatch[] _seriesSwatches =
     [
-        new("--hvo-series-1", "#69d3ff", "Primary blue — temperature outside, wind average"),
-        new("--hvo-series-2", "#ffb86c", "Warm amber — temperature inside, secondary"),
-        new("--hvo-series-3", "#ffd166", "Solar yellow — solar radiation, sun arc fill"),
-        new("--hvo-series-4", "#57d38d", "Success green — positive / healthy values"),
-        new("--hvo-series-5", "#ff9f5a", "Alert orange — wind gust, caution"),
-        new("--hvo-series-6", "#9fb8d4", "Muted silver — moon arc, secondary muted"),
-        new("--hvo-series-7", "#7ae0ff", "Bright cyan — wind avg alt, second blue series"),
-        new("--hvo-series-8", "#f38ba8", "Danger pink — alarm, critical"),
+        new("--hvo-series-1", "#69d3ff", "Temp outside · wind avg"),
+        new("--hvo-series-2", "#ffb86c", "Temp inside · secondary"),
+        new("--hvo-series-3", "#ffd166", "Solar · sun arc fill"),
+        new("--hvo-series-4", "#57d38d", "Success · positive"),
+        new("--hvo-series-5", "#ff9f5a", "Alert · wind gust"),
+        new("--hvo-series-6", "#9fb8d4", "Moon arc · muted"),
+        new("--hvo-series-7", "#7ae0ff", "Bright cyan · alt blue"),
+        new("--hvo-series-8", "#f38ba8", "Danger · alarm"),
     ];
 
-    // ── Accent colors ────────────────────────────────────────────────────────
-    private static readonly ColorEntry[] _accents =
+    // ── Accent colors ──────────────────────────────────────────────────────────
+    private static readonly SeriesSwatch[] _accentSwatches =
     [
-        new("--hvo-accent-blue",    "#6da5ff", "Active links, hero readouts, barometer marker"),
-        new("--hvo-accent-cyan",    "#83e4ff", "Secondary highlights, nav overlays"),
-        new("--hvo-accent-amber",   "#ffcf66", "Warm hero values, feels-like, sun stroke"),
-        new("--hvo-accent-success", "#57d38d", "Online, positive, success state"),
-        new("--hvo-accent-danger",  "#ff7f7f", "Offline, negative, alarm state"),
+        new("--hvo-accent-blue",    "#6da5ff", "Links · hero"),
+        new("--hvo-accent-cyan",    "#83e4ff", "Highlights"),
+        new("--hvo-accent-amber",   "#ffcf66", "Warm · sun"),
+        new("--hvo-accent-success", "#57d38d", "Online · positive"),
+        new("--hvo-accent-danger",  "#ff7f7f", "Offline · alarm"),
     ];
 
-    // ── Shell surface variables ───────────────────────────────────────────────
+    // ── Shell surface ──────────────────────────────────────────────────────────
     private static readonly Swatch[] _surfaceSwatches =
     [
-        new("--shell-card-background",   "rgba(31,41,55,.92)",    "rgba(244,248,252,.56)"),
-        new("--shell-card-foreground",   "#f9fafb",               "#10233f"),
-        new("--shell-card-border",       "rgba(155,180,220,.34)", "rgba(128,151,185,.46)"),
-        new("--shell-card-inner-border", "rgba(255,255,255,.06)", "rgba(255,255,255,.72)"),
-        new("--shell-overlay-panel",     "rgba(8,18,30,.44)",     "rgba(255,255,255,.58)"),
+        new("--shell-card-background",    "rgba(31,41,55,.92)",    "rgba(244,248,252,.56)"),
+        new("--shell-card-foreground",    "#f9fafb",               "#10233f"),
+        new("--shell-card-border",        "rgba(155,180,220,.34)", "rgba(128,151,185,.46)"),
+        new("--shell-card-inner-border",  "rgba(255,255,255,.06)", "rgba(255,255,255,.72)"),
+        new("--shell-overlay-panel",      "rgba(8,18,30,.44)",     "rgba(255,255,255,.58)"),
         new("--shell-overlay-panel-border","rgba(126,157,196,.18)","rgba(128,151,185,.24)"),
-        new("--shell-page-text",         "#ebf5ff",               "#10233f"),
-        new("--shell-brand-title",       "#f8fbff",               "#183250"),
-        new("--shell-brand-subtitle",    "#7387a7",               "#56708f"),
-        new("--shell-action-color",      "#d9e3f3",               "#45617f"),
+        new("--shell-page-text",          "#ebf5ff",               "#10233f"),
+        new("--shell-brand-title",        "#f8fbff",               "#183250"),
+        new("--shell-brand-subtitle",     "#7387a7",               "#56708f"),
+        new("--shell-action-color",       "#d9e3f3",               "#45617f"),
     ];
 
-    // ── Shell text / overlay variables ───────────────────────────────────────
+    // ── Text & overlay ─────────────────────────────────────────────────────────
     private static readonly Swatch[] _textSwatches =
     [
-        new("--shell-pill-text",      "#bfd0e9", "#35506f"),
-        new("--shell-overlay-text",   "#ebf5ff", "#10233f"),
-        new("--shell-overlay-muted",  "#9fb4d5", "#56708f"),
-        new("--shell-overlay-link",   "#83e4ff", "#2f8fd7"),
-        new("--shell-overlay-link-hover","#c8f5ff","#173251"),
+        new("--shell-pill-text",         "#bfd0e9",  "#35506f"),
+        new("--shell-pill-hover-text",   "#f8fbff",  "#173251"),
+        new("--shell-pill-active-text",  "#10233f",  "#f8fbff"),
+        new("--shell-overlay-text",      "#ebf5ff",  "#10233f"),
+        new("--shell-overlay-muted",     "#9fb4d5",  "#56708f"),
+        new("--shell-overlay-link",      "#83e4ff",  "#2f8fd7"),
+        new("--shell-overlay-link-hover","#c8f5ff",  "#173251"),
     ];
 
-    // ── Pill states ──────────────────────────────────────────────────────────
+    // ── Pill states ────────────────────────────────────────────────────────────
     private static readonly Swatch[] _pillSwatches =
     [
-        new("--shell-pill-background",       "linear-gradient(…white 8%,…blue 4%)", "linear-gradient(…)"),
-        new("--shell-pill-border",           "rgba(197,214,239,.32)", "rgba(161,184,211,.62)"),
-        new("--shell-pill-hover-background", "linear-gradient(…blue 40%,…)",        "linear-gradient(…)"),
-        new("--shell-pill-hover-text",       "#f8fbff",               "#173251"),
-        new("--shell-pill-active-background","linear-gradient(…white 98%,…)",        "linear-gradient(…)"),
-        new("--shell-pill-active-text",      "#10233f",               "#f8fbff"),
+        new("--shell-pill-border",        "rgba(197,214,239,.32)", "rgba(161,184,211,.62)"),
+        new("--shell-pill-hover-border",  "rgba(214,230,255,.48)", "rgba(113,145,190,.48)"),
+        new("--shell-pill-active-border", "rgba(255,255,255,.95)", "rgba(214,229,255,.7)"),
     ];
 
-    // ── Chart infra ──────────────────────────────────────────────────────────
+    // ── Chart infra ────────────────────────────────────────────────────────────
     private static readonly Swatch[] _chartSwatches =
     [
-        new("--shell-chart-grid-color",        "rgba(126,157,196,.12)", "rgba(103,132,171,.14)"),
-        new("--shell-chart-axis-color",        "rgba(126,157,196,.18)", "rgba(128,151,185,.24)"),
-        new("--shell-chart-label-color",       "#8da4c7",               "#68809f"),
-        new("--shell-chart-marker-fill",       "#ebf5ff",               "#ffffff"),
-        new("--shell-chart-empty-background",  "rgba(8,18,30,.28)",     "rgba(255,255,255,.42)"),
-        new("--shell-chart-empty-border",      "rgba(126,157,196,.18)", "rgba(128,151,185,.24)"),
+        new("--shell-chart-grid-color",       "rgba(126,157,196,.12)", "rgba(103,132,171,.14)"),
+        new("--shell-chart-axis-color",       "rgba(126,157,196,.18)", "rgba(128,151,185,.24)"),
+        new("--shell-chart-label-color",      "#8da4c7",               "#68809f"),
+        new("--shell-chart-marker-fill",      "#ebf5ff",               "#ffffff"),
+        new("--shell-chart-empty-background", "rgba(8,18,30,.28)",     "rgba(255,255,255,.42)"),
+        new("--shell-chart-empty-border",     "rgba(126,157,196,.18)", "rgba(128,151,185,.24)"),
     ];
 
-    // ── Dimensions ───────────────────────────────────────────────────────────
+    // ── Dimensions ─────────────────────────────────────────────────────────────
     private static readonly (string Name, string Value)[] _dimensions =
     [
-        ("--shell-header-height",        "80px"),
-        ("--shell-footer-height",        "56px"),
-        ("--shell-card-gap",             "12px"),
-        ("--shell-page-padding",         "1rem"),
-        ("--shell-page-section-gap",     "0.9rem"),
-        ("--shell-brand-mark-size",      "40px"),
-        ("--shell-brand-mark-radius",    "14px"),
-        ("--shell-brand-title-size",     "1.34rem"),
-        ("--shell-brand-subtitle-size",  "0.92rem"),
-        ("--shell-pill-min-width",       "7rem"),
-        ("--shell-pill-height",          "2rem"),
-        ("--shell-pill-font-size",       "0.88rem"),
-        ("--shell-icon-button-size",     "2rem"),
-        ("--shell-footer-font-size",     "0.8rem"),
-        ("--shell-chart-line-width",     "3"),
+        ("--shell-header-height",       "80px"),
+        ("--shell-footer-height",       "56px"),
+        ("--shell-card-gap",            "12px"),
+        ("--shell-page-padding",        "1rem"),
+        ("--shell-page-section-gap",    "0.9rem"),
+        ("--shell-brand-mark-size",     "40px"),
+        ("--shell-brand-mark-radius",   "14px"),
+        ("--shell-brand-title-size",    "1.34rem"),
+        ("--shell-brand-subtitle-size", "0.92rem"),
+        ("--shell-pill-min-width",      "7rem"),
+        ("--shell-pill-height",         "2rem"),
+        ("--shell-pill-font-size",      "0.88rem"),
+        ("--shell-icon-button-size",    "2rem"),
+        ("--shell-footer-font-size",    "0.8rem"),
+        ("--shell-chart-line-width",    "3"),
         ("--shell-chart-marker-stroke-width","2"),
     ];
 }
