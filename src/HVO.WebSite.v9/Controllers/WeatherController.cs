@@ -3,6 +3,7 @@ using HVO.Core.Results;
 using Asp.Versioning;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Services;
+using Microsoft.AspNetCore.Authorization;
 
 namespace HVO.WebSite.v9.Controllers
 {
@@ -42,6 +43,7 @@ namespace HVO.WebSite.v9.Controllers
         /// <response code="404">No weather records found in the database</response>
         /// <response code="500">Internal server error occurred while retrieving weather data</response>
         [HttpGet("latest")]
+        [Authorize(Policy = "WeatherRead")]
         [ProducesResponseType(typeof(LatestWeatherResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
@@ -85,6 +87,7 @@ namespace HVO.WebSite.v9.Controllers
         /// <response code="404">No weather data found for the specified date range</response>
         /// <response code="500">Internal server error occurred while retrieving weather data</response>
         [HttpGet("highs-lows")]
+        [Authorize(Policy = "WeatherRead")]
         [ProducesResponseType(typeof(WeatherHighsLowsResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
@@ -130,6 +133,7 @@ namespace HVO.WebSite.v9.Controllers
         /// <response code="404">No current weather data available</response>
         /// <response code="500">Internal server error occurred while retrieving weather data</response>
         [HttpGet("current")]
+        [Authorize(Policy = "WeatherRead")]
         [ProducesResponseType(typeof(CurrentWeatherResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]

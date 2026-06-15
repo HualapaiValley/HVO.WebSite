@@ -1,14 +1,19 @@
 using FluentAssertions;
 using HVO.Core.Results;
+using HVO.DataModels.Data;
 using HVO.DataModels.Models;
+using HVO.DataModels.Models.V9;
 using HVO.WebSite.v9;
+using HVO.WebSite.v9.Middleware;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using System.Net;
 using System.Net.Http.Json;
 
 namespace HVO.WebSite.ApiTests;
@@ -16,15 +21,69 @@ namespace HVO.WebSite.ApiTests;
 [TestClass]
 public sealed class WeatherApiEndpointsTests
 {
+    private const string ReadPlaintext = "weather-read-endpoints-key";
+    private const string IngestPlaintext = "weather-ingest-endpoints-key";
+    private const string InvalidPlaintext = "weather-invalid-endpoints-key";
+
     [TestMethod]
-    public async Task LatestEndpoint_ReturnsExpectedPayload()
+    public async Task ReadEndpoints_Return401_WhenApiKeyIsInvalid()
     {
         using var factory = new TestWebApplicationFactory();
-        using var client = factory.CreateClient();
+        await factory.SeedApiKeysAsync();
+        using var client = CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Api-Key", InvalidPlaintext);
+
+        foreach (var path in WeatherReadPaths())
+        {
+            var response = await client.GetAsync(path);
+
+            response.StatusCode.Should().Be(HttpStatusCode.Unauthorized, path);
+        }
+    }
+
+    [TestMethod]
+    public async Task ReadEndpoints_Return403_WhenApiKeyHasIngestScopeOnly()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedApiKeysAsync();
+        using var client = CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+
+        foreach (var path in WeatherReadPaths())
+        {
+            var response = await client.GetAsync(path);
+
+            response.StatusCode.Should().Be(HttpStatusCode.Forbidden, path);
+        }
+    }
+
+    [TestMethod]
+    public async Task ReadEndpoints_Return200_WhenApiKeyHasWeatherReadScope()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedApiKeysAsync();
+        using var client = CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Api-Key", ReadPlaintext);
+
+        foreach (var path in WeatherReadPaths())
+        {
+            var response = await client.GetAsync(path);
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK, path);
+        }
+    }
+
+    [TestMethod]
+    public async Task LatestEndpoint_ReturnsExpectedPayload_WhenApiKeyHasWeatherReadScope()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedApiKeysAsync();
+        using var client = CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Api-Key", ReadPlaintext);
 
         var response = await client.GetAsync("/api/v1/weather/latest");
 
-        response.IsSuccessStatusCode.Should().BeTrue();
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var payload = await response.Content.ReadFromJsonAsync<LatestWeatherResponse>();
         payload.Should().NotBeNull();
@@ -32,8 +91,23 @@ public sealed class WeatherApiEndpointsTests
         payload.Data.Should().NotBeNull();
     }
 
+    private static HttpClient CreateClient(TestWebApplicationFactory factory) => factory.CreateClient(
+        new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+    private static string[] WeatherReadPaths() =>
+    [
+        "/api/v1/weather/latest",
+        "/api/v1/weather/highs-lows",
+        "/api/v1/weather/current"
+    ];
+
     private sealed class TestWebApplicationFactory : WebApplicationFactory<Program>
     {
+        private readonly string _databaseName = $"weather-read-endpoints-{Guid.NewGuid():N}";
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Testing");
@@ -56,7 +130,57 @@ public sealed class WeatherApiEndpointsTests
 
                 services.RemoveAll<IWeatherService>();
                 services.AddScoped<IWeatherService, FakeWeatherService>();
+
+                ReplaceWithInMemory<HvoV9DbContext>(services, _databaseName);
             });
+        }
+
+        public async Task SeedApiKeysAsync()
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<HvoV9DbContext>();
+            await db.Database.EnsureCreatedAsync();
+
+            db.ApiKeys.AddRange(
+                new ApiKey
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Weather Read Endpoint Test Key",
+                    KeyHash = ApiKeyAuthMiddleware.HashKey(ReadPlaintext),
+                    Type = ApiKeyType.System,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    Claims = [new ApiKeyClaim { ClaimType = "scope", ClaimValue = ApiScopes.WeatherRead }]
+                },
+                new ApiKey
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Weather Ingest Endpoint Test Key",
+                    KeyHash = ApiKeyAuthMiddleware.HashKey(IngestPlaintext),
+                    Type = ApiKeyType.System,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    Claims = [new ApiKeyClaim { ClaimType = "scope", ClaimValue = ApiScopes.WeatherIngest }]
+                });
+
+            await db.SaveChangesAsync();
+        }
+
+        private static void ReplaceWithInMemory<TContext>(IServiceCollection services, string dbName)
+            where TContext : DbContext
+        {
+            services.RemoveAll(typeof(DbContextOptions<TContext>));
+
+            var toRemove = services
+                .Where(d =>
+                    d.ServiceType.IsGenericType &&
+                    d.ServiceType.GetGenericArguments().Length == 1 &&
+                    d.ServiceType.GetGenericArguments()[0] == typeof(TContext) &&
+                    d.ServiceType.Name.StartsWith("IDbContextOptionsConfiguration", StringComparison.Ordinal))
+                .ToList();
+            foreach (var d in toRemove) services.Remove(d);
+
+            services.AddDbContext<TContext>(opt => opt.UseInMemoryDatabase(dbName));
         }
     }
 
@@ -85,9 +209,9 @@ public sealed class WeatherApiEndpointsTests
         }
 
         public Task<Result<WeatherHighsLowsResponse>> GetWeatherHighsLowsAsync(DateTimeOffset? startDate, DateTimeOffset? endDate)
-            => Task.FromResult<Result<WeatherHighsLowsResponse>>(new InvalidOperationException("Not configured in test"));
+            => Task.FromResult(Result<WeatherHighsLowsResponse>.Success(new WeatherHighsLowsResponse()));
 
         public Task<Result<CurrentWeatherResponse>> GetCurrentWeatherConditionsAsync()
-            => Task.FromResult<Result<CurrentWeatherResponse>>(new InvalidOperationException("Not configured in test"));
+            => Task.FromResult(Result<CurrentWeatherResponse>.Success(new CurrentWeatherResponse()));
     }
 }
