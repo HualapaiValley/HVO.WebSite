@@ -5,6 +5,7 @@ using HVO.Hardware.VictronSmartShunt.SmartShunt;
 using HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
 using HVO.Hardware.VictronSmartShunt.Workers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MudBlazor.Services;
 using Serilog;
 using Serilog.Events;
@@ -128,6 +129,14 @@ if (exposeDiagnostics)
     });
 }
 
-app.MapGet("/gateway-health", (SmartShuntGatewayHealthService healthService) => Results.Ok(healthService.GetSnapshot()));
+app.MapGet("/gateway-health", (HttpContext httpContext, SmartShuntGatewayHealthService healthService, IOptions<OutboxOptions> outboxOptions) =>
+{
+    if (!SmartShuntGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+    {
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+    }
+
+    return Results.Ok(healthService.GetSnapshot());
+});
 
 await app.RunAsync();

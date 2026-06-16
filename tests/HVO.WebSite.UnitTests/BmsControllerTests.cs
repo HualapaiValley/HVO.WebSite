@@ -66,6 +66,10 @@ public class BmsControllerTests
         string deviceAddress = DeviceA,
         string recordedAt = "2026-01-01T00:00:00Z",
         long alarmBitmask = 0,
+        int packVoltageMv = 52_000,
+        int currentMa = 1_000,
+        IReadOnlyList<int>? cellVoltagesMv = null,
+        IReadOnlyList<int>? cellResistancesMOhm = null,
         BmsConfigRequest? config = null,
         BmsDeviceInfoRequest? deviceInfo = null) =>
         new()
@@ -75,8 +79,8 @@ public class BmsControllerTests
                 DeviceAddress = deviceAddress,
                 DeviceAlias = "test-battery",
                 RecordedAtUtc = DateTime.Parse(recordedAt, null, System.Globalization.DateTimeStyles.RoundtripKind),
-                PackVoltageMv = 52_000,
-                CurrentMa = 1_000,
+                PackVoltageMv = packVoltageMv,
+                CurrentMa = currentMa,
                 SocPercent = 80,
                 SohPercent = 100,
                 RemainingCapacityMah = 200_000,
@@ -90,8 +94,8 @@ public class BmsControllerTests
                 BalancingCurrentMa = 0,
                 DeltaCellVoltageMv = 5,
                 AlarmBitmask = alarmBitmask,
-                CellVoltagesMv = [3250, 3250, 3250, 3250],
-                CellResistancesMOhm = [100, 101, 102, 103],
+                CellVoltagesMv = cellVoltagesMv ?? [3250, 3250, 3250, 3250],
+                CellResistancesMOhm = cellResistancesMOhm ?? [100, 101, 102, 103],
             },
             Config = config,
             DeviceInfo = deviceInfo,
@@ -232,6 +236,28 @@ public class BmsControllerTests
 
         var reading = _db.BmsReadings.Single();
         reading.PowerWatts.Should().BeApproximately(52.0, 0.001);
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_DbFailure_ReturnsSanitizedError()
+    {
+        await using var conn = new SqliteConnection("DataSource=:memory:");
+        await conn.OpenAsync();
+        await using var db = new ThrowOnSecondSaveHvoV9DbContext(
+            new DbContextOptionsBuilder<HvoV9DbContext>()
+                .UseSqlite(conn)
+                .Options);
+        await db.Database.EnsureCreatedAsync();
+        var controller = CreateController(db);
+        var request = MakeRequest(DeviceA, "2026-01-01T00:05:00Z");
+
+        var result = await controller.IngestReadings([request], CancellationToken.None);
+
+        var body = ((CreatedAtActionResult)result.Result!).Value
+            .Should().BeOfType<BmsIngestBatchResponse>().Subject;
+        body.Inserted.Should().Be(0);
+        body.Failed.Should().ContainSingle()
+            .Which.Error.Should().Be("The BMS reading could not be ingested.");
     }
 
     [TestMethod]
@@ -528,5 +554,21 @@ public class BmsControllerTests
         // Only one open alarm row
         _db.BmsAlarms.Count().Should().Be(1);
         _db.BmsAlarms.Single().ClearedAt.Should().BeNull();
+    }
+
+    private sealed class ThrowOnSecondSaveHvoV9DbContext(DbContextOptions<HvoV9DbContext> options) : HvoV9DbContext(options)
+    {
+        private int _saveCount;
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            _saveCount++;
+            if (_saveCount == 2)
+            {
+                throw new InvalidOperationException("raw database detail");
+            }
+
+            return base.SaveChangesAsync(cancellationToken);
+        }
     }
 }

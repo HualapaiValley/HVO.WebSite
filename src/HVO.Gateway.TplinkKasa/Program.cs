@@ -248,12 +248,36 @@ static async Task RunGatewayAsync(string[] args)
 
     app.MapHealthChecks("/health");
 
-    app.MapGet("/gateway-health", async (KasaGatewayState state, CancellationToken cancellationToken) => Results.Ok(await state.GetHealthAsync(cancellationToken)));
-    app.MapGet("/status-review", async (KasaGatewayState state, CancellationToken cancellationToken) => Results.Ok(await state.GetReviewStatusAsync(cancellationToken)));
-    app.MapGet("/status-review/current", async (KasaGatewayState state, CancellationToken cancellationToken) => Results.Ok(await state.GetReviewCurrentStatusAsync(cancellationToken)));
+    app.MapGet("/gateway-health", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
+    {
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(await state.GetHealthAsync(cancellationToken));
+    });
+    app.MapGet("/status-review", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
+    {
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(await state.GetReviewStatusAsync(cancellationToken));
+    });
+    app.MapGet("/status-review/current", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
+    {
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(await state.GetReviewCurrentStatusAsync(cancellationToken));
+    });
     app.MapGet("/devices", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
     {
-        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
@@ -262,7 +286,7 @@ static async Task RunGatewayAsync(string[] args)
     });
     app.MapGet("/devices/search", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string? q, string? model, string? kind, string? capability, string? metadataCapability, bool? online, bool? degraded, CancellationToken cancellationToken) =>
     {
-        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
@@ -272,7 +296,7 @@ static async Task RunGatewayAsync(string[] args)
     });
     app.MapGet("/devices/{sourceId}", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, CancellationToken cancellationToken) =>
     {
-        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
@@ -282,7 +306,7 @@ static async Task RunGatewayAsync(string[] args)
     });
     app.MapPost("/devices/{sourceId}/refresh-details", async (HttpContext httpContext, KasaAdminService adminService, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, CancellationToken cancellationToken) =>
     {
-        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
@@ -292,7 +316,7 @@ static async Task RunGatewayAsync(string[] args)
     });
     app.MapPost("/devices/{sourceId}/commands/alias", async (HttpContext httpContext, KasaDeviceCommandService commandService, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, KasaAliasCommandRequest request, CancellationToken cancellationToken) =>
     {
-        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
@@ -302,7 +326,7 @@ static async Task RunGatewayAsync(string[] args)
     });
     app.MapPost("/devices/{sourceId}/commands/power", async (HttpContext httpContext, KasaDeviceCommandService commandService, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, KasaPowerCommandRequest request, CancellationToken cancellationToken) =>
     {
-        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
@@ -312,7 +336,7 @@ static async Task RunGatewayAsync(string[] args)
     });
     app.MapPost("/devices/{sourceId}/commands/dimmer", async (HttpContext httpContext, KasaDeviceCommandService commandService, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, KasaDimmerCommandRequest request, CancellationToken cancellationToken) =>
     {
-        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
@@ -322,7 +346,7 @@ static async Task RunGatewayAsync(string[] args)
     });
     app.MapPost("/devices/{sourceId}/commands/light", async (HttpContext httpContext, KasaDeviceCommandService commandService, IOptions<KasaGatewayOptions> gatewayOptions, string sourceId, KasaLightCommandRequest request, CancellationToken cancellationToken) =>
     {
-        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
@@ -332,7 +356,7 @@ static async Task RunGatewayAsync(string[] args)
     });
     app.MapGet("/status", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
     {
-        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
@@ -341,7 +365,7 @@ static async Task RunGatewayAsync(string[] args)
     });
     app.MapGet("/inventory", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
     {
-        if (!HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        if (!KasaGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
         {
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
@@ -364,20 +388,6 @@ static void PrintUsage()
     Console.WriteLine();
     Console.WriteLine("Only allowlisted read-only Kasa commands are sent. Wi-Fi scan shapes require --include-privacy-sensitive true and never print raw values unless future code explicitly adds them.");
     Console.WriteLine("plug-lab is a terminal-only guarded write lab for a single non-critical plug; it validates identity first and blocks network, MAC, cloud, reset, and factory commands.");
-}
-
-static bool HasMatchingApiKey(HttpContext httpContext, string configuredApiKey)
-{
-    if (string.IsNullOrWhiteSpace(configuredApiKey) ||
-        string.Equals(configuredApiKey, "REPLACE_ME", StringComparison.OrdinalIgnoreCase) ||
-        configuredApiKey.Contains("__SET_", StringComparison.Ordinal))
-    {
-        return false;
-    }
-
-    return httpContext.Request.Headers.TryGetValue("X-Api-Key", out var providedApiKey)
-        && providedApiKey.Count > 0
-        && string.Equals(providedApiKey[0], configuredApiKey, StringComparison.Ordinal);
 }
 
 static Dictionary<string, string> ParseOptions(string[] values)
