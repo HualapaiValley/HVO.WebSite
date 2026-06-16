@@ -52,7 +52,7 @@ public class BmsControllerTests
 
     private static BmsController CreateController(HvoV9DbContext db)
     {
-        var ctrl = new BmsController(db, NullLogger<BmsController>.Instance);
+        var ctrl = new BmsController(new BmsIngestService(db, NullLogger<BmsIngestService>.Instance));
         ctrl.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

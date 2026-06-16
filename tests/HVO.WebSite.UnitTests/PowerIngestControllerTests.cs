@@ -581,8 +581,8 @@ public sealed class PowerIngestControllerTests
     {
         var ctrl = new PowerIngestController(
             db,
-            telemetry,
             NullLogger<PowerIngestController>.Instance,
+            new PowerReadingIngestService(db, telemetry, NullLogger<PowerReadingIngestService>.Instance),
             new PowerSystemSnapshotProvider(db),
             new PowerInventoryConfigurationProvider(db));
         ctrl.ControllerContext = new ControllerContext

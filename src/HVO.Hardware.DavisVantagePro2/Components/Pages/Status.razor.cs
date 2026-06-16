@@ -360,122 +360,16 @@ public partial class Status : IDisposable
     /// </summary>
     private void BuildAstronomicalChartData()
     {
-        const int slots = 48;
-        const int slotMinutes = 30;
+        var model = DavisAstronomicalChartBuilder.Build(
+            ObservationWindowEndLocal,
+            _reading?.SunriseDisplay,
+            _reading?.SunsetDisplay,
+            _moonContext.MoonriseText,
+            _moonContext.MoonsetText);
 
-        var labels = new string[slots];
-        var sunData = new double?[slots];
-        var moonData = new double?[slots];
-        var sunNow = new double?[slots];
-        var moonNow = new double?[slots];
-
-        for (int i = 0; i < slots; i++)
-        {
-            labels[i] = new DateTime(2000, 1, 1)
-                .AddMinutes(i * slotMinutes)
-                .ToString("HH:mm", CultureInfo.InvariantCulture);
-        }
-
-        int currentSlot = ObservationWindowEndLocal.HasValue
-            ? Math.Clamp((int)(ObservationWindowEndLocal.Value.TimeOfDay.TotalMinutes / slotMinutes), 0, slots - 1)
-            : -1;
-
-        // ── Sun ──────────────────────────────────────────────────────────────
-        var sunrise = ParseConsoleTime(_reading?.SunriseDisplay);
-        var sunset  = ParseConsoleTime(_reading?.SunsetDisplay);
-
-        if (sunrise.HasValue && sunset.HasValue)
-        {
-            int riseMin = sunrise.Value.Hour * 60 + sunrise.Value.Minute;
-            int setMin  = sunset.Value.Hour  * 60 + sunset.Value.Minute;
-            int dayLen  = setMin - riseMin;
-
-            if (dayLen > 0)
-            {
-                for (int i = 0; i < slots; i++)
-                {
-                    int t = i * slotMinutes;
-                    if (t >= riseMin && t <= setMin)
-                    {
-                        double progress = (double)(t - riseMin) / dayLen;
-                        sunData[i] = Math.Round(Math.Sin(progress * Math.PI) * 100.0, 1);
-                    }
-                }
-
-                if (currentSlot >= 0 && sunData[currentSlot].HasValue)
-                {
-                    sunNow[currentSlot] = sunData[currentSlot];
-                }
-            }
-        }
-
-        // ── Moon ─────────────────────────────────────────────────────────────
-        var moonrise = ParseMoonTime(_moonContext.MoonriseText);
-        var moonset  = ParseMoonTime(_moonContext.MoonsetText);
-
-        if (moonrise.HasValue && moonset.HasValue)
-        {
-            int riseMin  = moonrise.Value.Hour * 60 + moonrise.Value.Minute;
-            int setMin   = moonset.Value.Hour  * 60 + moonset.Value.Minute;
-            bool crosses = setMin < riseMin;
-            int duration = crosses ? (24 * 60 - riseMin) + setMin : setMin - riseMin;
-
-            if (duration > 0)
-            {
-                for (int i = 0; i < slots; i++)
-                {
-                    int t = i * slotMinutes;
-                    bool above = crosses ? (t >= riseMin || t <= setMin) : (t >= riseMin && t <= setMin);
-                    if (above)
-                    {
-                        int elapsed = crosses && t < riseMin ? (24 * 60 - riseMin) + t : t - riseMin;
-                        double progress = (double)elapsed / duration;
-                        // Scale moon slightly lower than sun so both fit (0-85%)
-                        moonData[i] = Math.Round(Math.Sin(progress * Math.PI) * 85.0, 1);
-                    }
-                }
-
-                if (currentSlot >= 0 && moonData[currentSlot].HasValue)
-                {
-                    moonNow[currentSlot] = moonData[currentSlot];
-                }
-            }
-        }
-
-        bool hasMoon = moonData.Any(v => v.HasValue);
-
-        var datasets = new List<HvoChartDataset>
-        {
-            // Full sun arc (filled amber)
-            new("", sunData,   "#ffcf66", "rgba(255,207,102,0.20)",
-                Fill: true, BorderWidth: 2, PointRadius: 0, Tension: 0.4),
-            // Current sun position — solid amber dot
-            new("", sunNow,   "#ffcf66", "#ffcf66",
-                Fill: false, BorderWidth: 2, PointRadius: 8, Tension: 0),
-        };
-
-        if (hasMoon)
-        {
-            datasets.Add(new("", moonData, "#9fb8d4", "rgba(159,184,212,0.12)",
-                Fill: false, BorderWidth: 1.5, PointRadius: 0, Tension: 0.4));
-            // Current moon position — solid silver dot
-            datasets.Add(new("", moonNow, "#c8d8ee", "#c8d8ee",
-                Fill: false, BorderWidth: 2, PointRadius: 7, Tension: 0));
-        }
-
-        _astronomicalLabels  = labels;
-        _astronomicalDatasets = datasets.ToArray();
+        _astronomicalLabels = model.Labels;
+        _astronomicalDatasets = model.Datasets;
     }
-
-    private static TimeOnly? ParseConsoleTime(string? text) =>
-        text is not null &&
-        TimeOnly.TryParseExact(text, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var t)
-            ? t : null;
-
-    private static TimeOnly? ParseMoonTime(string? text) =>
-        text is not null &&
-        TimeOnly.TryParseExact(text, "h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var t)
-            ? t : null;
 
     private void RefreshSummaryMetrics()
     {

@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -47,21 +46,21 @@ public class PowerIngestController : ControllerBase
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly HvoV9DbContext _db;
-    private readonly PowerIngestTelemetry _telemetry;
     private readonly ILogger<PowerIngestController> _logger;
+    private readonly IPowerReadingIngestService _readingIngestService;
     private readonly IPowerSystemSnapshotProvider _snapshotProvider;
     private readonly IPowerInventoryConfigurationProvider _inventoryConfigurationProvider;
 
     public PowerIngestController(
         HvoV9DbContext db,
-        PowerIngestTelemetry telemetry,
         ILogger<PowerIngestController> logger,
+        IPowerReadingIngestService readingIngestService,
         IPowerSystemSnapshotProvider snapshotProvider,
         IPowerInventoryConfigurationProvider inventoryConfigurationProvider)
     {
         _db = db;
-        _telemetry = telemetry;
         _logger = logger;
+        _readingIngestService = readingIngestService;
         _snapshotProvider = snapshotProvider;
         _inventoryConfigurationProvider = inventoryConfigurationProvider;
     }
@@ -85,143 +84,22 @@ public class PowerIngestController : ControllerBase
         [FromBody] IReadOnlyList<PowerReadingIngestRequest> requests,
         CancellationToken ct)
     {
-        var sw = Stopwatch.StartNew();
-
         if (requests.Count == 0)
             return ValidationProblem(detail: "Batch must contain at least one record.");
 
         if (requests.Count > MaxBatchSize)
             return ValidationProblem(detail: $"Batch size {requests.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
 
-        var candidates = new List<(PowerReadingIngestRequest Request, string SourceId, DateTime RecordedAt)>();
-        var failures = new List<PowerReadingBatchFailure>();
-
-        foreach (var request in requests)
+        var result = await _readingIngestService.IngestReadingsAsync(requests, ct);
+        if (result.PersistenceFailed)
         {
-            var recordedAt = NormalizeRecordedAt(request.RecordedAtUtc);
-            var sourceId = NormalizeSourceId(request.SourceId);
-            var validationResults = new List<ValidationResult>();
-
-            if (sourceId.Length == 0)
-                validationResults.Add(new ValidationResult("The SourceId field is required.", [nameof(request.SourceId)]));
-
-            ValidateMaxLength(validationResults, nameof(request.SourceId), sourceId, 64);
-            ValidateMaxLength(validationResults, nameof(request.SourceSystem), request.SourceSystem, 64);
-            ValidateMaxLength(validationResults, nameof(request.DeviceId), request.DeviceId, 64);
-            ValidateMaxLength(validationResults, nameof(request.InverterMode), request.InverterMode, 100);
-            ValidateMaxLength(validationResults, nameof(request.OutputSourcePriority), request.OutputSourcePriority, 100);
-            ValidateMaxLength(validationResults, nameof(request.ChargerSourcePriority), request.ChargerSourcePriority, 100);
-            ValidateRequiredTimestamp(validationResults, nameof(request.RecordedAtUtc), request.RecordedAtUtc);
-            ValidateRange(validationResults, nameof(request.PvPowerW), request.PvPowerW, 0, 1_000_000);
-            ValidateRange(validationResults, nameof(request.LoadPowerW), request.LoadPowerW, 0, 1_000_000);
-            ValidateRange(validationResults, nameof(request.GridPowerW), request.GridPowerW, -1_000_000, 1_000_000);
-            ValidateRange(validationResults, nameof(request.BatteryPowerW), request.BatteryPowerW, -1_000_000, 1_000_000);
-            ValidateRange(validationResults, nameof(request.SystemPowerW), request.SystemPowerW, -1_000_000, 1_000_000);
-            ValidateRange(validationResults, nameof(request.BatteryStateOfChargePercent), request.BatteryStateOfChargePercent, 0, 100);
-            ValidateRange(validationResults, nameof(request.BatteryVoltageV), request.BatteryVoltageV, 0, 1_000);
-            ValidateRange(validationResults, nameof(request.BatteryCurrentA), request.BatteryCurrentA, -10_000, 10_000);
-            ValidateRange(validationResults, nameof(request.BatteryCapacityKwh), request.BatteryCapacityKwh, 0, 100_000);
-            ValidateRange(validationResults, nameof(request.GridVoltageV), request.GridVoltageV, 0, 1_000);
-            ValidateRange(validationResults, nameof(request.GridFrequencyHz), request.GridFrequencyHz, 0, 1_000);
-            ValidateRange(validationResults, nameof(request.OutputVoltageV), request.OutputVoltageV, 0, 1_000);
-            ValidateRange(validationResults, nameof(request.OutputFrequencyHz), request.OutputFrequencyHz, 0, 1_000);
-            ValidateRange(validationResults, nameof(request.LoadPercentage), request.LoadPercentage, 0, 1_000);
-
-            if (validationResults.Count > 0)
-            {
-                failures.Add(new PowerReadingBatchFailure
-                {
-                    SourceId = sourceId,
-                    RecordedAtUtc = recordedAt,
-                    Error = string.Join("; ", validationResults.Select(r => r.ErrorMessage)),
-                });
-                continue;
-            }
-
-            candidates.Add((request, sourceId, recordedAt));
+            return Problem(
+                detail: "An error occurred while persisting the power batch. Retry is safe — duplicate records will be skipped.",
+                statusCode: StatusCodes.Status500InternalServerError,
+                title: "Power Batch Ingest Failed");
         }
 
-        if (candidates.Count == 0)
-        {
-            sw.Stop();
-            _telemetry.RecordBatch(requests.Count, inserted: 0, skipped: 0, failed: failures.Count, sw.Elapsed.TotalMilliseconds);
-            _logger.LogWarning("Power batch ingest rejected {Failed} invalid record(s)", failures.Count);
-            return CreatedAtAction(nameof(GetRecentReadings), new { },
-                new PowerReadingBatchResponse { Inserted = 0, Skipped = 0, Failed = failures });
-        }
-
-        var sourceIds = candidates.Select(x => x.SourceId).Distinct(StringComparer.Ordinal).ToList();
-        var timestamps = candidates.Select(x => x.RecordedAt).Distinct().ToList();
-
-        var existing = await _db.PowerReadings
-            .Where(r => sourceIds.Contains(r.SourceId) && timestamps.Contains(r.RecordedAt))
-            .Select(r => new { r.SourceId, r.RecordedAt })
-            .ToListAsync(ct);
-        var existingKeys = existing.Select(x => (x.SourceId, x.RecordedAt)).ToHashSet();
-
-        var toInsert = new List<PowerReading>();
-        var seenInBatch = new HashSet<(string SourceId, DateTime RecordedAt)>();
-        int skipped = 0;
-
-        foreach (var (request, sourceId, recordedAt) in candidates)
-        {
-            if (existingKeys.Contains((sourceId, recordedAt)))
-            {
-                skipped++;
-                continue;
-            }
-
-            if (!seenInBatch.Add((sourceId, recordedAt)))
-            {
-                skipped++;
-                continue;
-            }
-
-            toInsert.Add(MapToEntity(request, sourceId, recordedAt));
-        }
-
-        if (toInsert.Count > 0)
-        {
-            _db.PowerReadings.AddRange(toInsert);
-            try
-            {
-                await _db.SaveChangesAsync(ct);
-            }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
-            {
-                skipped += toInsert.Count;
-                _logger.LogDebug(ex, "Unique constraint violation in power batch ingest; treating as idempotent duplicate batch");
-                toInsert.Clear();
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Power batch ingest failed during SaveChanges for {SourceCount} sources and {BatchSize} records",
-                    sourceIds.Count,
-                    requests.Count);
-                return Problem(
-                    detail: "An error occurred while persisting the power batch. Retry is safe — duplicate records will be skipped.",
-                    statusCode: StatusCodes.Status500InternalServerError,
-                    title: "Power Batch Ingest Failed");
-            }
-        }
-
-        sw.Stop();
-        _telemetry.RecordBatch(requests.Count, toInsert.Count, skipped, failures.Count, sw.Elapsed.TotalMilliseconds);
-
-        _logger.LogInformation(
-            "Power batch ingest: {Inserted} inserted, {Skipped} skipped, {Failed} failed from {SourceCount} sources",
-            toInsert.Count,
-            skipped,
-            failures.Count,
-            sourceIds.Count);
-
-        if (failures.Count > 0)
-            _logger.LogWarning("Power batch ingest dead-lettered {Failed} validation failure(s)", failures.Count);
-
-        return CreatedAtAction(nameof(GetRecentReadings), new { },
-            new PowerReadingBatchResponse { Inserted = toInsert.Count, Skipped = skipped, Failed = failures });
+        return CreatedAtAction(nameof(GetRecentReadings), new { }, result.Response);
     }
 
     [HttpPost("device-inventory")]
@@ -694,35 +572,6 @@ public class PowerIngestController : ControllerBase
         return Ok(await _snapshotProvider.GetLatestAsync(lookbackMinutes, ct)
             ?? PowerSystemSnapshotComposer.Compose([], DateTime.UtcNow));
     }
-
-    private static PowerReading MapToEntity(
-        PowerReadingIngestRequest request,
-        string sourceId,
-        DateTime recordedAt) => new()
-        {
-            SourceId = sourceId,
-            SourceSystem = NormalizeSourceSystem(request.SourceSystem),
-            DeviceId = NormalizeOptional(request.DeviceId),
-            RecordedAt = recordedAt,
-            PvPowerW = request.PvPowerW,
-            LoadPowerW = request.LoadPowerW,
-            GridPowerW = request.GridPowerW,
-            BatteryPowerW = request.BatteryPowerW,
-            SystemPowerW = request.SystemPowerW,
-            BatteryStateOfChargePercent = request.BatteryStateOfChargePercent,
-            BatteryVoltageV = request.BatteryVoltageV,
-            BatteryCurrentA = request.BatteryCurrentA,
-            BatteryCapacityKwh = request.BatteryCapacityKwh,
-            GridVoltageV = request.GridVoltageV,
-            GridFrequencyHz = request.GridFrequencyHz,
-            OutputVoltageV = request.OutputVoltageV,
-            OutputFrequencyHz = request.OutputFrequencyHz,
-            LoadPercentage = request.LoadPercentage,
-            InverterMode = NormalizeOptional(request.InverterMode),
-            OutputSourcePriority = NormalizeOptional(request.OutputSourcePriority),
-            ChargerSourcePriority = NormalizeOptional(request.ChargerSourcePriority),
-            CreatedAt = DateTime.UtcNow,
-        };
 
     private static string NormalizeSourceId(string? sourceId) => sourceId?.Trim() ?? string.Empty;
 
