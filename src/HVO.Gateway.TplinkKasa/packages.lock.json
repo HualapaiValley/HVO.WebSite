@@ -14,6 +14,9 @@
         "resolved": "9.4.0",
         "contentHash": "p6BF8zmt4c/yi/hD9hP7yPioUK5loOnif19gwIEANq6I46407QnSu0HTW1NuALC5seRKcWb2pBP5LwC8aBE2Mg=="
       },
+      "hvo.edge.contracts": {
+        "type": "Project"
+      },
       "hvo.website.themes": {
         "type": "Project",
         "dependencies": {

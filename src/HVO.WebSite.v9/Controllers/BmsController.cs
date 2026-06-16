@@ -300,7 +300,7 @@ public class BmsController : ControllerBase
                 {
                     DeviceAddress = readingReq.DeviceAddress,
                     RecordedAtUtc = recordedAt,
-                    Error = ex.Message,
+                    Error = "The BMS reading could not be ingested.",
                 });
                 _logger.LogError(ex,
                     "Failed to ingest BMS reading for {Address} at {RecordedAt}",

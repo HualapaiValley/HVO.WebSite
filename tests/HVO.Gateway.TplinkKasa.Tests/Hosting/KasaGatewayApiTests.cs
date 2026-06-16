@@ -24,6 +24,35 @@ public sealed class KasaGatewayApiTests
     }
 
     [TestMethod]
+    [DataRow("/gateway-health")]
+    [DataRow("/status-review")]
+    [DataRow("/status-review/current")]
+    public async Task DiagnosticEndpoints_RequireApiKey(string path)
+    {
+        await using var factory = new KasaGatewayApiFactory();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync(path);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [TestMethod]
+    [DataRow("/gateway-health")]
+    [DataRow("/status-review")]
+    [DataRow("/status-review/current")]
+    public async Task DiagnosticEndpoints_WithApiKey_ReturnOk(string path)
+    {
+        await using var factory = new KasaGatewayApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", "local-test-key");
+
+        using var response = await client.GetAsync(path);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [TestMethod]
     public async Task Inventory_WithApiKey_ReturnsConfiguredInventoryWithoutSecrets()
     {
         await using var factory = new KasaGatewayApiFactory();

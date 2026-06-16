@@ -275,7 +275,8 @@ namespace HVO.WebSite.v9
             {
                 var config = sp.GetRequiredService<IConfiguration>();
                 var env = sp.GetRequiredService<IHostEnvironment>();
-                var trustDevCerts = config.GetValue("TrustDevCertificates", env.IsDevelopment());
+                var trustDevCerts = env.IsDevelopment()
+                    && config.GetValue("TrustDevCertificates", true);
 
                 var handler = new HttpClientHandler();
                 if (trustDevCerts)

@@ -7,6 +7,7 @@ using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 using HVO.Gateway.SolarAssistant.Workers;
 using HVO.Edge.Outbox;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MudBlazor.Services;
 using Serilog;
 using Serilog.Events;
@@ -142,6 +143,14 @@ if (exposeDiagnostics)
         : Results.Ok(snapshotWorker.LastInventory));
     app.MapGet("/mqtt-inventory", (SolarAssistantMqttDiscoveryWorker mqttWorker) => Results.Ok(mqttWorker.Inventory));
 }
-app.MapGet("/gateway-health", (SolarAssistantGatewayHealthService healthService) => Results.Ok(healthService.GetSnapshot()));
+app.MapGet("/gateway-health", (HttpContext httpContext, SolarAssistantGatewayHealthService healthService, IOptions<OutboxOptions> outboxOptions) =>
+{
+    if (!SolarAssistantGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+    {
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+    }
+
+    return Results.Ok(healthService.GetSnapshot());
+});
 
 await app.RunAsync();
