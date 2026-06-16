@@ -65,6 +65,6 @@ public sealed class OutboxOptions
     [Range(1, 500)]
     public int BatchSize { get; set; } = 50;
 
-    /// <summary>Path to the SQLite database file. Defaults to outbox.db in the content root when empty.</summary>
+    /// <summary>Path to the SQLite database file. Defaults to local application data when empty.</summary>
     public string DbPath { get; set; } = string.Empty;
 }

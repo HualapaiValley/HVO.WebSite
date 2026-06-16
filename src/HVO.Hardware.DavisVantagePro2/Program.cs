@@ -128,9 +128,14 @@ builder.Services.AddSingleton<VantageStation>();
 
 // ── SQLite outbox ──────────────────────────────────────────────────────────────
 var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
-string dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
-    ? outboxConfig.DbPath
-    : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
+string dbPath = OutboxDatabasePath.Resolve(outboxConfig?.DbPath);
+string? dir = Path.GetDirectoryName(Path.GetFullPath(dbPath));
+if (dir is null)
+{
+    throw new InvalidOperationException(
+        $"The resolved outbox database path '{dbPath}' is a root directory; a file path is required.");
+}
+Directory.CreateDirectory(dir);
 builder.Services.AddDbContext<OutboxDbContext>(o =>
     o.UseSqlite($"Data Source={dbPath}"),
     ServiceLifetime.Scoped);
