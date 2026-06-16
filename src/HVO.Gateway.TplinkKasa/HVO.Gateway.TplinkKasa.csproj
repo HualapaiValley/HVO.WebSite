@@ -9,11 +9,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="MudBlazor" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\HVO.Edge.Contracts\HVO.Edge.Contracts.csproj" />
+    <ProjectReference Include="..\HVO.Edge.Outbox\HVO.Edge.Outbox.csproj" />
     <ProjectReference Include="..\HVO.WebSite.Themes\HVO.WebSite.Themes.csproj" />
   </ItemGroup>
 </Project>

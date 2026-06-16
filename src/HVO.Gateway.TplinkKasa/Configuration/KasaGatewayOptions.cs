@@ -44,6 +44,40 @@ public sealed class KasaGatewayOptions
     public List<KasaNetworkConfig> Networks { get; set; } = [];
 
     public List<KasaDeviceConfig> Devices { get; set; } = [];
+
+    public sealed class OutboxSection
+    {
+        public const string SectionName = "Outbox";
+
+        public string ApiEndpoint { get; set; } = string.Empty;
+        public string ApiKey { get; set; } = string.Empty;
+
+        [Range(1, 100)]
+        public int MaxRetryAttempts { get; set; } = 10;
+
+        [Range(10, 3600)]
+        public int MaxBackoffSeconds { get; set; } = 300;
+
+        [Range(1, 60)]
+        public int SweepIntervalSeconds { get; set; } = 5;
+
+        [Range(1, 500)]
+        public int BatchSize { get; set; } = 50;
+
+        [Range(0, 3650)]
+        public int SentRetentionDays { get; set; } = 7;
+
+        [Range(0, 3650)]
+        public int FailedRetentionDays { get; set; } = 30;
+
+        [Range(0, 100000)]
+        public int PendingWarningCount { get; set; } = 10;
+
+        [Range(0, 100000)]
+        public int FailedCriticalCount { get; set; } = 1;
+
+        public string DbPath { get; set; } = string.Empty;
+    }
 }
 
 public sealed class KasaNetworkConfig

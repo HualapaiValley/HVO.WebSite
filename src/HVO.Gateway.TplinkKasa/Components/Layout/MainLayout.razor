@@ -6,6 +6,8 @@
 @inject IOptions<KasaGatewayOptions> GatewayOptions
 @inject KasaDisplayTimeZoneResolver DisplayTimeZoneResolver
 @inject KasaGatewayState GatewayState
+@inject IOptions<KasaGatewayOptions.OutboxSection> OutboxOptions
+@inject KasaOutboxForwarder OutboxForwarder
 
 <HvoGatewayLayout Subtitle="TP-LINK/KASA LOCAL GATEWAY"
                   FooterSlot1="@_footer1"
@@ -83,13 +85,16 @@
     protected override void OnInitialized()
     {
         _shellState.Changed += HandleShellStateChanged;
+        OutboxForwarder.SweepCompleted += HandleOutboxSweepCompleted;
         UpdateFooterTime(DateTimeOffset.UtcNow);
+        UpdateOutboxFooter();
         _ = RefreshClockAsync(_clockCts.Token);
     }
 
     public void Dispose()
     {
         _shellState.Changed -= HandleShellStateChanged;
+        OutboxForwarder.SweepCompleted -= HandleOutboxSweepCompleted;
         _clockCts.Cancel();
         _clockCts.Dispose();
         _clockTimer.Dispose();
@@ -132,8 +137,28 @@
     {
         _footerStatus = await GatewayState.GetStatusAsync().ConfigureAwait(false);
         _footer4 = new ShellFooterItem(FooterDeviceSummary);
+        UpdateOutboxFooter();
         var refreshSeconds = Math.Max(1, GatewayOptions.Value.DashboardRefreshSeconds);
         _nextFooterStatusRefreshAtUtc = now.AddSeconds(refreshSeconds);
+    }
+
+    private void UpdateOutboxFooter()
+    {
+        var indicator = OutboxForwarder.FailedCount >= OutboxOptions.Value.FailedCriticalCount && OutboxOptions.Value.FailedCriticalCount > 0
+            ? ShellFooterIndicator.Warning
+            : OutboxForwarder.PendingCount >= OutboxOptions.Value.PendingWarningCount && OutboxOptions.Value.PendingWarningCount > 0
+                ? ShellFooterIndicator.Warning
+                : ShellFooterIndicator.Online;
+        var lastSent = OutboxForwarder.LastSentAt is null
+            ? "never"
+            : DisplayTimeZoneResolver.ConvertFromUtc(new DateTimeOffset(OutboxForwarder.LastSentAt.Value, TimeSpan.Zero)).ToString("h:mm:ss tt", CultureInfo.InvariantCulture);
+        _footer2 = new ShellFooterItem($"Outbox: {OutboxForwarder.PendingCount} pending / {OutboxForwarder.FailedCount} failed / last {lastSent}", indicator);
+    }
+
+    private void HandleOutboxSweepCompleted()
+    {
+        UpdateOutboxFooter();
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private void OnThemeModeChanged(bool useDarkMode)

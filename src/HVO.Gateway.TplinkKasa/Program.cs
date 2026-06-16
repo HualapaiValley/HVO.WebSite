@@ -1,9 +1,13 @@
+using HVO.Edge.Outbox;
 using HVO.Gateway.TplinkKasa.Devices;
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Components;
 using HVO.Gateway.TplinkKasa.Hosting;
+using HVO.Gateway.TplinkKasa.Outbox;
 using HVO.Gateway.TplinkKasa.Protocol;
 using HVO.Gateway.TplinkKasa.Telemetry;
+using HVO.Gateway.TplinkKasa.Workers;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MudBlazor.Services;
 
@@ -207,6 +211,11 @@ static async Task RunGatewayAsync(string[] args)
         .BindConfiguration(KasaGatewayOptions.SectionName)
         .ValidateDataAnnotations()
         .ValidateOnStart();
+    builder.Services
+        .AddOptions<KasaGatewayOptions.OutboxSection>()
+        .BindConfiguration(KasaGatewayOptions.OutboxSection.SectionName)
+        .ValidateDataAnnotations()
+        .ValidateOnStart();
     builder.Services.AddSingleton<IKasaLegacyClient>(sp =>
     {
         var gatewayOptions = sp.GetRequiredService<IOptions<KasaGatewayOptions>>().Value;
@@ -232,13 +241,40 @@ static async Task RunGatewayAsync(string[] args)
     builder.Services.AddSingleton<KasaGatewayState>();
     builder.Services.AddSingleton<KasaGatewayTelemetry>();
     builder.Services.AddSingleton<KasaGatewayWorker>();
-    builder.Services.AddHostedService(sp => sp.GetRequiredService<KasaGatewayWorker>());
+    if (!builder.Environment.IsEnvironment("Testing"))
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<KasaGatewayWorker>());
+    var outboxConfig = builder.Configuration.GetSection(KasaGatewayOptions.OutboxSection.SectionName).Get<KasaGatewayOptions.OutboxSection>();
+    var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
+        ? outboxConfig.DbPath
+        : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
+    builder.Services.AddDbContext<OutboxDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
+    builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
+    builder.Services.AddScoped<KasaOutboxWriter>();
+    builder.Services.AddHttpClient("KasaPowerApi", (sp, client) =>
+    {
+        var options = sp.GetRequiredService<IOptions<KasaGatewayOptions.OutboxSection>>().Value;
+        if (!string.IsNullOrWhiteSpace(options.ApiKey))
+            client.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
+        client.Timeout = TimeSpan.FromSeconds(30);
+    });
+    builder.Services.AddSingleton<KasaOutboxForwarder>();
+    if (!builder.Environment.IsEnvironment("Testing"))
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<KasaOutboxForwarder>());
     builder.Services.AddHealthChecks().AddCheck<KasaGatewayHealthCheck>("tplink-kasa-gateway");
     builder.Services.AddRazorComponents()
         .AddInteractiveServerComponents();
     builder.Services.AddMudServices();
 
     var app = builder.Build();
+
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
+            db,
+            KasaOutboxPayloadTypes.Energy,
+            KasaOutboxPayloadTypes.EnergyVersion).ConfigureAwait(false);
+    }
 
     app.UseStaticFiles();
     app.UseAntiforgery();

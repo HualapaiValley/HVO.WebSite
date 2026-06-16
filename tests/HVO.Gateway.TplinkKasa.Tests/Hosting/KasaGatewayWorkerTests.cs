@@ -21,6 +21,7 @@ public sealed class KasaGatewayWorkerTests
             null!,
             null!,
             null!,
+            null!,
             NullLogger<KasaGatewayWorker>.Instance);
 
         var baseConfig = new KasaDeviceConfig

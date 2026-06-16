@@ -1,5 +1,6 @@
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Devices;
+using HVO.Gateway.TplinkKasa.Outbox;
 using HVO.Gateway.TplinkKasa.Telemetry;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
@@ -14,6 +15,7 @@ public sealed class KasaGatewayWorker(
     KasaDeviceInteractionState interactionState,
     KasaGatewayState state,
     KasaGatewayTelemetry telemetry,
+    IServiceScopeFactory scopeFactory,
     ILogger<KasaGatewayWorker> logger) : BackgroundService
 {
     private readonly ConcurrentDictionary<string, DevicePollLoop> deviceLoops = new(StringComparer.OrdinalIgnoreCase);
@@ -260,6 +262,9 @@ public sealed class KasaGatewayWorker(
 
         state.ApplyResult(device, result);
 
+        if (result is { IsSuccess: true, IsDegraded: false, Snapshot.IsOnline: true })
+            await EnqueueOutboxAsync(device, result.Snapshot, cancellationToken).ConfigureAwait(false);
+
         if (!result.IsSuccess)
         {
             logger.LogWarning(
@@ -276,6 +281,28 @@ public sealed class KasaGatewayWorker(
         }
 
         return result;
+    }
+
+    private async Task EnqueueOutboxAsync(KasaDeviceConfig config, KasaDeviceSnapshot snapshot, CancellationToken ct)
+    {
+        try
+        {
+            await using var outboxScope = scopeFactory.CreateAsyncScope();
+            var outboxWriter = outboxScope.ServiceProvider.GetRequiredService<KasaOutboxWriter>();
+
+            if (snapshot.Energy is not null)
+                await outboxWriter.EnqueueEnergyAsync(snapshot, ct).ConfigureAwait(false);
+
+            await outboxWriter.EnqueueInventoryAsync(snapshot, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Outbox enqueue failed for {SourceId}", config.EffectiveSourceId);
+        }
     }
 
     private TimeSpan? GetFullDetailsRefreshInterval()

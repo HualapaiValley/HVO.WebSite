@@ -227,6 +227,9 @@ services:
       KasaGateway__MaxPollConcurrency: ${KASA_MAX_POLL_CONCURRENCY:-5}
       KasaGateway__DashboardRefreshSeconds: ${KASA_DASHBOARD_REFRESH_SECONDS:-5}
       KasaGateway__DeviceRegistryPath: ${KASA_DEVICE_REGISTRY_PATH:-/app/data/devices.json}
+      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/power/readings"
+      Outbox__ApiKey: ${POWER_API_KEY:-}
+      Outbox__DbPath: /app/data/outbox.db
       OTEL_SERVICE_NAME: hvo-tplinkkasa
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
