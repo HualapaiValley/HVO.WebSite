@@ -1,3 +1,4 @@
+using HVO.Edge.Contracts;
 using Microsoft.AspNetCore.Http;
 
 namespace HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
@@ -6,18 +7,8 @@ public static class SmartShuntGatewayDiagnosticsAuth
 {
     public static bool HasMatchingApiKey(HttpContext httpContext, string configuredApiKey)
     {
-        if (!IsConfiguredApiKeyUsable(configuredApiKey))
-        {
-            return false;
-        }
-
-        return httpContext.Request.Headers.TryGetValue("X-Api-Key", out var providedApiKey)
+        return httpContext.Request.Headers.TryGetValue(GatewayApiKeyMatcher.HeaderName, out var providedApiKey)
             && providedApiKey.Count > 0
-            && string.Equals(providedApiKey[0], configuredApiKey, StringComparison.Ordinal);
+            && GatewayApiKeyMatcher.IsMatch(configuredApiKey, providedApiKey[0]);
     }
-
-    private static bool IsConfiguredApiKeyUsable(string configuredApiKey) =>
-        !string.IsNullOrWhiteSpace(configuredApiKey)
-        && !string.Equals(configuredApiKey, "REPLACE_ME", StringComparison.OrdinalIgnoreCase)
-        && !configuredApiKey.Contains("__SET_", StringComparison.Ordinal);
 }
