@@ -556,6 +556,21 @@ public class BmsControllerTests
         _db.BmsAlarms.Single().ClearedAt.Should().BeNull();
     }
 
+    [TestMethod]
+    public async Task IngestReadings_OversizedBatch_ReturnsBadRequest()
+    {
+        var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var requests = Enumerable.Range(0, BmsController.MaxBatchSize + 1)
+            .Select(i => MakeRequest(
+                DeviceA,
+                start.AddMinutes(i).ToString("yyyy-MM-ddTHH:mm:ssZ")))
+            .ToList();
+
+        var result = await _ctrl.IngestReadings(requests, CancellationToken.None);
+        var objectResult = result.Result.Should().BeAssignableTo<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+    }
+
     private sealed class ThrowOnSecondSaveHvoV9DbContext(DbContextOptions<HvoV9DbContext> options) : HvoV9DbContext(options)
     {
         private int _saveCount;

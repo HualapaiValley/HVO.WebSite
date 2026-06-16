@@ -17,6 +17,7 @@ public sealed class DavisSiteState : IDisposable
     private readonly StationInfoSnapshotStore _stationInfoSnapshotStore;
     private readonly ILogger<DavisSiteState> _logger;
     private Task? _initializationTask;
+    private Task? _backgroundRefreshTask;
 
     public DavisSiteState(
         VantageStation station,
@@ -157,7 +158,7 @@ public sealed class DavisSiteState : IDisposable
                 IsInitialized = true;
                 NotifyChanged();
 
-                _ = RefreshStationInfoAsync();
+                _backgroundRefreshTask = RefreshStationInfoAsync();
                 return;
             }
 

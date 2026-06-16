@@ -22,6 +22,9 @@ services:
       Outbox__ApiKey: ${POWER_API_KEY:-}
       Outbox__DbPath: /app/data/outbox.db
       DOTNET_ENVIRONMENT: Production
+      OTEL_SERVICE_NAME: hvo-solarassistant
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       Diagnostics__ExposeDetailedEndpoints: ${SOLAR_ASSISTANT_EXPOSE_DETAILED_ENDPOINTS:-false}
     volumes:
       - solarassistant-outbox:/app/data

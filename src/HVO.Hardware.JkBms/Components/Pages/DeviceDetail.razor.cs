@@ -50,9 +50,16 @@ public partial class DeviceDetail : IDisposable
 
     private async void OnStateChanged()
     {
-        await InvokeAsync(StateHasChanged);
-        if (_cellChart is not null)
-            await _cellChart.RefreshAsync();
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+            if (_cellChart is not null)
+                await _cellChart.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "DeviceDetail OnStateChanged failed for {Address}", Address);
+        }
     }
 
     public void Dispose()

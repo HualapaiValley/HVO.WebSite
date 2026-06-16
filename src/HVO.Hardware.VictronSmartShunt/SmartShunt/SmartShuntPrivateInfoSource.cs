@@ -53,7 +53,7 @@ public sealed class SmartShuntPrivateInfoSource(
             return null;
 
         var adapter = await BlueZManager.GetAdapterAsync(_options.Adapter);
-        await using var session = new PrivateSession(_options.Address, TimeSpan.FromSeconds(_options.ConnectionTimeoutSeconds));
+        await using var session = new PrivateSession(_options.Address, TimeSpan.FromSeconds(_options.ConnectionTimeoutSeconds), _logger);
         await session.ConnectAsync(adapter, ct);
 
         var info = new SmartShuntPrivateFrameDecoder();
@@ -105,14 +105,15 @@ public sealed class SmartShuntPrivateInfoSource(
         return result;
     }
 
-    private static async Task StartNotifyIfPossibleAsync(IGattCharacteristic1 characteristic)
+    private async Task StartNotifyIfPossibleAsync(IGattCharacteristic1 characteristic)
     {
         try
         {
             await characteristic.StartNotifyAsync();
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogDebug(ex, "StartNotifyAsync failed for SmartShunt private characteristic");
         }
     }
 
@@ -121,11 +122,12 @@ public sealed class SmartShuntPrivateInfoSource(
         await characteristic.WriteValueAsync(Convert.FromHexString(hex), new Dictionary<string, object>());
     }
 
-    private sealed class PrivateSession(string address, TimeSpan connectTimeout) : IAsyncDisposable
+    private sealed class PrivateSession(string address, TimeSpan connectTimeout, ILogger logger) : IAsyncDisposable
     {
         private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(20);
         private static readonly TimeSpan ConnectRetryDelay = TimeSpan.FromSeconds(2);
         private Device? _device;
+        private readonly ILogger _logger = logger;
 
         public Device Device => _device ?? throw new InvalidOperationException("Session is not connected.");
         public string Address { get; } = address;
@@ -151,8 +153,9 @@ public sealed class SmartShuntPrivateInfoSource(
                     {
                         await _device.DisconnectAsync();
                     }
-                    catch
+                    catch (Exception disconnectEx)
                     {
+                        _logger.LogDebug(disconnectEx, "DisconnectAsync failed during SmartShunt private connect retry for {Address}", Address);
                     }
 
                     if (attempt < 3)
@@ -190,14 +193,15 @@ public sealed class SmartShuntPrivateInfoSource(
             {
                 await _device.DisconnectAsync();
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogDebug(ex, "DisconnectAsync failed during SmartShunt PrivateSession disposal for {Address}", Address);
             }
 
             _device = null;
         }
 
-        private static async Task<Device> FindDeviceAsync(Adapter adapter, string address, CancellationToken ct)
+        private async Task<Device> FindDeviceAsync(Adapter adapter, string address, CancellationToken ct)
         {
             var known = await adapter.GetDevicesAsync();
             foreach (var device in known)
@@ -234,8 +238,9 @@ public sealed class SmartShuntPrivateInfoSource(
                 {
                     await adapter.StopDiscoveryAsync();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    _logger.LogDebug(ex, "SmartShunt StopDiscoveryAsync failed during private-session cleanup for {Address}", address);
                 }
             }
         }

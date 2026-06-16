@@ -239,9 +239,16 @@
             return;
         }
 
-        while (await _timer.WaitForNextTickAsync(cancellationToken))
+        try
         {
-            await InvokeAsync(RefreshAsync);
+            while (await _timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(RefreshAsync);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Normal shutdown — loop is being cancelled.
         }
     }
 

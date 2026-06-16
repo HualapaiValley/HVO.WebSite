@@ -27,6 +27,13 @@ namespace HVO.WebSite.v9.Controllers;
 [Tags("Power")]
 public class PowerIngestController : ControllerBase
 {
+    /// <summary>
+    /// Maximum number of records per ingest batch. Values above this threshold
+    /// risk exceeding SQL Server's 2100-parameter limit in IN-list deduplication
+    /// queries and are rejected with HTTP 400.
+    /// </summary>
+    public const int MaxBatchSize = 500;
+
     private const int MaxInventoryDevices = 50;
     private const int MaxConfigurationSettings = 200;
     private const int MaxCommandCapabilities = 100;
@@ -82,6 +89,9 @@ public class PowerIngestController : ControllerBase
 
         if (requests.Count == 0)
             return ValidationProblem(detail: "Batch must contain at least one record.");
+
+        if (requests.Count > MaxBatchSize)
+            return ValidationProblem(detail: $"Batch size {requests.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
 
         var candidates = new List<(PowerReadingIngestRequest Request, string SourceId, DateTime RecordedAt)>();
         var failures = new List<PowerReadingBatchFailure>();

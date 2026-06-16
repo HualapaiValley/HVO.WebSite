@@ -168,6 +168,12 @@ public partial class Archive : IAsyncDisposable
     private async Task LoadMoreAsync()
     {
         if (_continuationTimestamp is null || _historyLoading) return;
+
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var ct = _loadCts.Token;
+
         _historyLoading = true;
         _hasMore = false;
         StateHasChanged();
@@ -176,7 +182,7 @@ public partial class Archive : IAsyncDisposable
         {
             var records = _historyRecords ?? [];
             int batchCount = 0;
-            await foreach (var rec in Station.GetArchiveSinceAsync(_continuationTimestamp.Value, FetchSize, fallbackOnEmpty: true))
+            await foreach (var rec in Station.GetArchiveSinceAsync(_continuationTimestamp.Value, FetchSize, fallbackOnEmpty: true).WithCancellation(ct))
             {
                 records.Add(rec);
                 if (++batchCount % 5 == 0)
@@ -196,6 +202,10 @@ public partial class Archive : IAsyncDisposable
                 _continuationTimestamp = null;
             }
             Logger.LogDebug("{N} more archive records loaded", batchCount);
+        }
+        catch (OperationCanceledException)
+        {
+            Logger.LogDebug("LoadMore archive history cancelled");
         }
         catch (Exception ex)
         {
