@@ -125,6 +125,19 @@ public sealed class EdgeOutboxHealthEvaluatorTests
     }
 
     [TestMethod]
+    public void Evaluate_ReturnsDegraded_WhenFailedRowsAreUnclassified()
+    {
+        var result = EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(
+            PendingCount: 0,
+            FailedCount: 2));
+
+        result.HealthState.Should().Be(GatewayHealthState.Warning);
+        result.CurrentSyncState.Should().Be(EdgeOutboxSyncState.Degraded);
+        result.HistoricalFailureState.Should().Be(EdgeOutboxHistoricalFailureState.OverThreshold);
+        result.Alerts.Should().ContainSingle(alert => alert.Code == "outbox-historical-failures");
+    }
+
+    [TestMethod]
     public void Evaluate_RejectsNegativePendingCount()
     {
         var act = () => EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(-1, 0));

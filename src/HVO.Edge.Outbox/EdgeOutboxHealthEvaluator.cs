@@ -23,9 +23,10 @@ public static class EdgeOutboxHealthEvaluator
         if (observation.RetryExhaustedCount < 0)
             throw new ArgumentOutOfRangeException(nameof(observation.RetryExhaustedCount), observation.RetryExhaustedCount, "Retry-exhausted count cannot be negative.");
 
-        var syncState = GetSyncState(observation);
-        var historicalFailureState = GetHistoricalFailureState(observation, options);
-        var alerts = BuildAlerts(observation, options, syncState);
+        var unclassifiedFailedCount = GetUnclassifiedFailedCount(observation);
+        var syncState = GetSyncState(observation, unclassifiedFailedCount);
+        var historicalFailureState = GetHistoricalFailureState(observation, options, unclassifiedFailedCount);
+        var alerts = BuildAlerts(observation, options, syncState, unclassifiedFailedCount);
 
         return new EdgeOutboxHealthEvaluation(
             GetHealthState(alerts),
@@ -34,7 +35,7 @@ public static class EdgeOutboxHealthEvaluator
             alerts);
     }
 
-    private static EdgeOutboxSyncState GetSyncState(EdgeOutboxObservation observation)
+    private static EdgeOutboxSyncState GetSyncState(EdgeOutboxObservation observation, int unclassifiedFailedCount)
     {
         if (!string.IsNullOrWhiteSpace(observation.LastError))
             return EdgeOutboxSyncState.Failing;
@@ -42,7 +43,9 @@ public static class EdgeOutboxHealthEvaluator
         if (observation.PendingCount > 0)
             return EdgeOutboxSyncState.Pending;
 
-        if (observation.PermanentFailedCount > 0 || observation.RetryExhaustedCount > 0)
+        if (observation.PermanentFailedCount > 0
+            || observation.RetryExhaustedCount > 0
+            || unclassifiedFailedCount > 0)
             return EdgeOutboxSyncState.Degraded;
 
         return observation.LastSentAtUtc.HasValue
@@ -52,12 +55,14 @@ public static class EdgeOutboxHealthEvaluator
 
     private static EdgeOutboxHistoricalFailureState GetHistoricalFailureState(
         EdgeOutboxObservation observation,
-        EdgeOutboxHealthOptions options)
+        EdgeOutboxHealthOptions options,
+        int unclassifiedFailedCount)
     {
-        if (observation.PermanentFailedCount <= 0)
+        var failedCount = observation.PermanentFailedCount + unclassifiedFailedCount;
+        if (failedCount <= 0)
             return EdgeOutboxHistoricalFailureState.None;
 
-        return options.FailedCriticalCount > 0 && observation.PermanentFailedCount >= options.FailedCriticalCount
+        return options.FailedCriticalCount > 0 && failedCount >= options.FailedCriticalCount
             ? EdgeOutboxHistoricalFailureState.OverThreshold
             : EdgeOutboxHistoricalFailureState.Present;
     }
@@ -65,7 +70,8 @@ public static class EdgeOutboxHealthEvaluator
     private static IReadOnlyList<GatewayHealthAlert> BuildAlerts(
         EdgeOutboxObservation observation,
         EdgeOutboxHealthOptions options,
-        EdgeOutboxSyncState syncState)
+        EdgeOutboxSyncState syncState,
+        int unclassifiedFailedCount)
     {
         var alerts = new List<GatewayHealthAlert>();
 
@@ -93,6 +99,14 @@ public static class EdgeOutboxHealthEvaluator
                 $"{observation.PermanentFailedCount} outbox record(s) have permanent failures."));
         }
 
+        if (unclassifiedFailedCount > 0)
+        {
+            alerts.Add(new GatewayHealthAlert(
+                "outbox-historical-failures",
+                GatewayAlertSeverity.Warning,
+                $"{unclassifiedFailedCount} outbox record(s) have unclassified failures."));
+        }
+
         if (observation.RetryExhaustedCount > 0)
         {
             alerts.Add(new GatewayHealthAlert(
@@ -102,6 +116,12 @@ public static class EdgeOutboxHealthEvaluator
         }
 
         return alerts;
+    }
+
+    private static int GetUnclassifiedFailedCount(EdgeOutboxObservation observation)
+    {
+        var classifiedFailedCount = observation.PermanentFailedCount + observation.RetryExhaustedCount;
+        return Math.Max(0, observation.FailedCount - classifiedFailedCount);
     }
 
     private static GatewayHealthState GetHealthState(IReadOnlyList<GatewayHealthAlert> alerts)

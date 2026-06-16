@@ -5,6 +5,8 @@ namespace HVO.Edge.Outbox;
 public sealed class EdgeOutboxStore<TContext>(TContext db)
     where TContext : EdgeOutboxDbContext
 {
+    private const int MaxLastErrorLength = 1024;
+
     private readonly TContext _db = db;
 
     public TContext Db => _db;
@@ -151,7 +153,9 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
 
         var cutoff = DateTime.UtcNow.Subtract(failedRetention);
         return await _db.OutboxRecords
-            .Where(r => r.Status == EdgeOutboxStatus.Failed && r.CreatedAtUtc < cutoff)
+            .Where(r => r.Status == EdgeOutboxStatus.Failed
+                && ((r.LastAttemptedAtUtc.HasValue && r.LastAttemptedAtUtc.Value < cutoff)
+                    || (!r.LastAttemptedAtUtc.HasValue && r.CreatedAtUtc < cutoff)))
             .ExecuteDeleteAsync(ct);
     }
 
@@ -168,7 +172,7 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
             record.FailureKind = EdgeOutboxFailureKind.None;
             record.AttemptCount = 0;
             record.NextRetryAtUtc = DateTime.MinValue;
-            record.LastError = null;
+            record.LastError = AppendRequeueNote(record.LastError, DateTime.UtcNow);
         }
 
         await _db.SaveChangesAsync(ct);
@@ -187,6 +191,18 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string AppendRequeueNote(string? lastError, DateTime requeuedAtUtc)
+    {
+        var note = $"Requeued after retry exhaustion at {requeuedAtUtc:O}.";
+        var updated = string.IsNullOrWhiteSpace(lastError)
+            ? note
+            : $"{lastError.Trim()} {note}";
+
+        return updated.Length <= MaxLastErrorLength
+            ? updated
+            : updated[^MaxLastErrorLength..];
+    }
 
     private static bool IsUniqueConstraintViolation(Exception exception)
     {
