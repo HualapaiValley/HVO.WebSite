@@ -1,3 +1,4 @@
+using FluentAssertions;
 using Microsoft.Playwright;
 
 namespace HVO.WebSite.PlaywrightTests;
@@ -19,8 +20,15 @@ public sealed class SmartShuntGatewayPlaywrightTests
         await page.GotoAsync(baseUrl);
 
         await Assertions.Expect(page.GetByText("Hualapai Valley Observatory", new() { Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
         await Assertions.Expect(page.Locator(".shell-brand-subtitle")).ToContainTextAsync("VICTRON SMARTSHUNT DASHBOARD");
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Overview" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Telemetry" })).ToBeVisibleAsync();
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "Telemetry" }).ClickAsync();
+        await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("#smartshunt-telemetry-chart")).ToBeVisibleAsync();
+        var chartWidth = await page.Locator("#smartshunt-telemetry-chart").EvaluateAsync<int>("canvas => canvas.clientWidth");
+        chartWidth.Should().BeGreaterThan(0);
     }
 }

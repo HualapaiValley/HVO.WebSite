@@ -1,6 +1,8 @@
 using System.Net;
 using System.Reflection;
+using System.Diagnostics;
 using HVO.Enterprise.Telemetry.Abstractions;
+using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Telemetry;
@@ -96,28 +98,8 @@ public class OutboxForwarderTests
         httpFactory: new StubHttpClientFactory(client),
         options: Options.Create(options ?? new OutboxOptions { ApiEndpoint = "https://example.test/api/v1/weather/raw", ApiKey = "test" }),
         telemetry: new DavisTelemetry(),
-        telemetryService: CreateTelemetryServiceProxy(),
+        telemetryService: new NoOpTelemetryService(),
         logger: NullLogger<OutboxForwarder>.Instance);
-
-    private static ITelemetryService CreateTelemetryServiceProxy()
-    {
-        var startOperationMethod = typeof(ITelemetryService).GetMethod("StartOperation")
-            ?? throw new InvalidOperationException("ITelemetryService.StartOperation not found.");
-        var operationType = startOperationMethod.ReturnType;
-
-        var createGeneric = typeof(DispatchProxy)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Single(m => m.Name == nameof(DispatchProxy.Create) && m.IsGenericMethodDefinition && m.GetGenericArguments().Length == 2);
-
-        var createOperationProxy = createGeneric.MakeGenericMethod(operationType, typeof(NoOpDispatchProxy));
-        var operationProxy = createOperationProxy.Invoke(null, null)!;
-        ((NoOpDispatchProxy)operationProxy).ReturnSelf = operationProxy;
-
-        var createServiceProxy = createGeneric.MakeGenericMethod(typeof(ITelemetryService), typeof(NoOpDispatchProxy));
-        var serviceProxy = createServiceProxy.Invoke(null, null)!;
-        ((NoOpDispatchProxy)serviceProxy).StartOperationResult = operationProxy;
-        return (ITelemetryService)serviceProxy;
-    }
 
     private sealed class StubHttpClientFactory(HttpClient client) : IHttpClientFactory
     {
@@ -130,29 +112,65 @@ public class OutboxForwarderTests
             Task.FromResult(responseFactory(request));
     }
 
-    private class NoOpDispatchProxy : DispatchProxy
+    private sealed class NoOpTelemetryService : ITelemetryService
     {
-        public object? ReturnSelf { get; set; }
-        public object? StartOperationResult { get; set; }
+        public bool IsEnabled => false;
+        public ITelemetryStatistics Statistics { get; } = new NoOpTelemetryStatistics();
 
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        public IOperationScope StartOperation(string operationName) => new NoOpOperationScope(operationName);
+        public void TrackException(Exception exception) { }
+        public void TrackEvent(string eventName) { }
+        public void RecordMetric(string metricName, double value) { }
+        public void Start() { }
+        public void Shutdown() { }
+    }
+
+    private sealed class NoOpOperationScope(string name) : IOperationScope
+    {
+        public string Name { get; } = name;
+        public string CorrelationId { get; } = string.Empty;
+        public Activity? Activity => null;
+        public TimeSpan Elapsed => TimeSpan.Zero;
+
+        public IOperationScope WithTag(string key, object? value) => this;
+        public IOperationScope WithTags(IEnumerable<KeyValuePair<string, object?>> tags) => this;
+        public IOperationScope WithProperty(string key, Func<object?> valueFactory) => this;
+        public IOperationScope Fail(Exception exception) => this;
+        public IOperationScope Succeed() => this;
+        public IOperationScope WithResult(object? result) => this;
+        public IOperationScope CreateChild(string name) => new NoOpOperationScope(name);
+        public void RecordException(Exception exception) { }
+        public void Dispose() { }
+    }
+
+    private sealed class NoOpTelemetryStatistics : ITelemetryStatistics
+    {
+        public DateTimeOffset StartTime { get; } = DateTimeOffset.UtcNow;
+        public long ActivitiesCreated => 0;
+        public long ActivitiesCompleted => 0;
+        public long ActiveActivities => 0;
+        public long ExceptionsTracked => 0;
+        public long EventsRecorded => 0;
+        public long MetricsRecorded => 0;
+        public int QueueDepth => 0;
+        public int MaxQueueDepth => 0;
+        public long ItemsEnqueued => 0;
+        public long ItemsProcessed => 0;
+        public long ItemsDropped => 0;
+        public long ProcessingErrors => 0;
+        public double AverageProcessingTimeMs => 0;
+        public long CorrelationIdsGenerated => 0;
+        public double CurrentErrorRate => 0;
+        public double CurrentThroughput => 0;
+        public IReadOnlyDictionary<string, ActivitySourceStatistics> PerSourceStatistics { get; } =
+            new Dictionary<string, ActivitySourceStatistics>();
+
+        public TelemetryStatisticsSnapshot GetSnapshot() => new()
         {
-            if (targetMethod is null)
-                return null;
+            Timestamp = DateTimeOffset.UtcNow,
+            StartTime = StartTime,
+        };
 
-            if (targetMethod.Name == "StartOperation")
-                return StartOperationResult;
-
-            if (targetMethod.ReturnType == typeof(void))
-                return null;
-
-            if (targetMethod.ReturnType.IsValueType)
-                return Activator.CreateInstance(targetMethod.ReturnType);
-
-            if (ReturnSelf is not null && targetMethod.ReturnType.IsInstanceOfType(ReturnSelf))
-                return ReturnSelf;
-
-            return null;
-        }
+        public void Reset() { }
     }
 }
