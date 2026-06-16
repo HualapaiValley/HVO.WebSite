@@ -3,13 +3,37 @@ window.hvoChart = window.hvoChart || {};
 window.hvoChart.getThemeColors = function () {
     const style = getComputedStyle(document.documentElement);
     return {
+        // --shell-chart-grid-color
         gridColor: style.getPropertyValue('--shell-chart-grid-color').trim() || 'rgba(126, 157, 196, 0.12)',
+        // --shell-chart-axis-color
         axisColor: style.getPropertyValue('--shell-chart-axis-color').trim() || 'rgba(126, 157, 196, 0.18)',
+        // --shell-chart-label-color
         labelColor: style.getPropertyValue('--shell-chart-label-color').trim() || '#8da4c7',
+        // --shell-chart-marker-fill
         markerFill: style.getPropertyValue('--shell-chart-marker-fill').trim() || '#ebf5ff',
+        // --shell-chart-empty-background
         emptyBackground: style.getPropertyValue('--shell-chart-empty-background').trim() || 'rgba(8, 18, 30, 0.28)',
+        // --shell-chart-empty-border
         emptyBorder: style.getPropertyValue('--shell-chart-empty-border').trim() || 'rgba(126, 157, 196, 0.18)'
     };
+};
+
+/**
+ * Resolve CSS var() references in a string to their computed values.
+ * Canvas 2D cannot resolve CSS custom properties, so dataset defaults
+ * like "var(--shell-chart-label-color)" must be resolved to hex/rgba
+ * before passing to Chart.js.
+ */
+window.hvoChart.resolveCssVar = function (value) {
+    if (typeof value !== 'string' || !value.startsWith('var(')) return value;
+    const style = getComputedStyle(document.documentElement);
+    // Extract the property name from var(--xxx) or var(--xxx, fallback)
+    var match = value.match(/var\((--[\w-]+)(?:\s*,\s*([^)]+))?\)/);
+    if (!match) return value;
+    var propName = match[1];
+    var fallback = match[2] || '';
+    var resolved = style.getPropertyValue(propName).trim();
+    return resolved || fallback || value;
 };
 
 /**
@@ -56,6 +80,16 @@ window.hvoChart.render = function (chartId, config) {
 
         // Strip nulls first so Chart.js only sees valid or absent properties.
         const cleanConfig = window.hvoChart.stripNulls(config);
+
+        // Resolve CSS var() defaults in dataset colors to computed values.
+        // Canvas 2D cannot resolve CSS custom properties, so dataset fallbacks
+        // like "var(--shell-chart-label-color)" must be resolved here.
+        if (cleanConfig.data && cleanConfig.data.datasets) {
+            cleanConfig.data.datasets.forEach(function (ds) {
+                if (ds.borderColor) ds.borderColor = window.hvoChart.resolveCssVar(ds.borderColor);
+                if (ds.backgroundColor) ds.backgroundColor = window.hvoChart.resolveCssVar(ds.backgroundColor);
+            });
+        }
 
         // Inject theme colours into scale axes.
         const defaultScales = cleanConfig.options && cleanConfig.options.scales;

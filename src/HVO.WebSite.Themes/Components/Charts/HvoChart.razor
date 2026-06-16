@@ -104,7 +104,12 @@
                     data = d.Data.Select(v => v.HasValue ? (object?)v.Value : null).ToArray(),
                     spanGaps = SpanGaps,
                     tension = d.Tension ?? Tension,
+                    // CSS var() references are resolved to computed hex/rgba values by
+                    // hvo-chart.js resolveCssVar() before passing to Chart.js, because
+                    // Canvas 2D cannot resolve CSS custom properties.
+                    // --shell-chart-label-color (e.g. #8da4c7)
                     borderColor = d.BorderColor ?? "var(--shell-chart-label-color)",
+                    // --shell-chart-marker-fill (e.g. #ebf5ff)
                     backgroundColor = d.BackgroundColor ?? "var(--shell-chart-marker-fill)",
                     borderWidth = d.BorderWidth,
                     pointRadius = d.PointRadius,
