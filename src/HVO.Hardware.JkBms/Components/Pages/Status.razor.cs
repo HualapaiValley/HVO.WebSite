@@ -31,9 +31,9 @@ public partial class Status : IDisposable
     private DevicePollState? LowestSocBank => ReportingDevices.MinBy(device => device.LatestReading!.StateOfChargePercent);
     private DevicePollState? HighestDeltaBank => ReportingDevices.MaxBy(device => device.LatestReading!.DeltaCellVoltageMv);
     private DevicePollState? HottestBank => ReportingDevices.MaxBy(device => device.LatestReading!.BatteryTemperature1C);
-    private string AverageSocGaugeStyle => GaugeStyle(ClampPercent(AverageStateOfChargePercent, 0, 100), "#4ecdc4");
-    private string AverageVoltageGaugeStyle => GaugeStyle(ClampPercent(AverageVoltageV, 48, 58), "#6ea8ff");
-    private string CurrentGaugeStyle => GaugeStyle(ClampPercent(TotalCurrentA is double current ? Math.Abs(current) : null, 0, 300), "#ffb85c");
+    private string AverageSocGaugeStyle => GaugeStyle(ClampPercent(AverageStateOfChargePercent, 0, 100), "var(--hvo-accent-success)");
+    private string AverageVoltageGaugeStyle => GaugeStyle(ClampPercent(AverageVoltageV, 48, 58), "var(--hvo-accent-blue)");
+    private string CurrentGaugeStyle => GaugeStyle(ClampPercent(TotalCurrentA is double current ? Math.Abs(current) : null, 0, 300), "var(--hvo-accent-amber)");
 
     protected override void OnInitialized()
     {

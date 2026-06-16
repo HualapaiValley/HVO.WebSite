@@ -23,7 +23,9 @@ public partial class Telemetry
             {
                 new HvoChartDataset("Value",
                     new double?[] { snap.VoltageV ?? 0, snap.CurrentA ?? 0, snap.PowerW ?? 0 },
-                    BorderColor: "#6da5ff", BackgroundColor: "rgba(109,165,255,0.25)", BorderWidth: 1)
+                    BorderColor: "#6da5ff", // --hvo-accent-blue
+                    BackgroundColor: "rgba(109,165,255,0.25)", // --hvo-accent-blue derived alpha
+                    BorderWidth: 1)
             };
         }
     }

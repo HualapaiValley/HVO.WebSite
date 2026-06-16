@@ -58,19 +58,19 @@
                     </div>
 
                     <div class="jk-gauge-grid">
-                        <div class="jk-gauge" style="@BuildGaugeStyle(r.StateOfChargePercent, 0, 100, "#4ecdc4")">
+                        <div class="jk-gauge" style="@BuildGaugeStyle(r.StateOfChargePercent, 0, 100, "var(--hvo-accent-success)")">
                             <div class="jk-gauge-inner">
                                 <span>SoC</span>
                                 <strong>@r.StateOfChargePercent%</strong>
                             </div>
                         </div>
-                        <div class="jk-gauge" style="@BuildGaugeStyle(packVoltageV, 48, 58, "#6ea8ff")">
+                        <div class="jk-gauge" style="@BuildGaugeStyle(packVoltageV, 48, 58, "var(--hvo-accent-blue)")">
                             <div class="jk-gauge-inner">
                                 <span>Voltage</span>
                                 <strong>@HvoFormat.Voltage(packVoltageV)</strong>
                             </div>
                         </div>
-                        <div class="jk-gauge" style="@BuildGaugeStyle(Math.Abs(currentA), 0, 300, "#ffb85c")">
+                        <div class="jk-gauge" style="@BuildGaugeStyle(Math.Abs(currentA), 0, 300, "var(--hvo-accent-amber)")">
                             <div class="jk-gauge-inner">
                                 <span>Current</span>
                                 <strong>@HvoFormat.Current(currentA)</strong>

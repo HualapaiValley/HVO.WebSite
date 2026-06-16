@@ -9,6 +9,7 @@ This directory holds current reference, operational notes, discovery findings, a
 - `CONTAINER_PUBLISHING.md`: ACR publishing workflow and versioning process
 - `WEBSITE_CONTAINER_APP.md`: current Azure Container App notes for the website deployment
 - `PROJECT_HISTORY.md`: session-by-session summary of recent work, decisions, and follow-up context
+- `CSS_GOVERNANCE.md`: active CSS and theme authoring policy for all projects
 
 Project history guidance:
 

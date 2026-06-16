@@ -28,7 +28,9 @@ public partial class DeviceDetail : IDisposable
             return new()
             {
                 new HvoChartDataset("Voltage", values,
-                    BorderColor: "#6da5ff", BackgroundColor: "rgba(109,165,255,0.25)", BorderWidth: 1)
+                    BorderColor: "#6da5ff", // --hvo-accent-blue
+                    BackgroundColor: "rgba(109,165,255,0.25)", // --hvo-accent-blue derived alpha
+                    BorderWidth: 1)
             };
         }
     }
