@@ -559,14 +559,15 @@ public class BmsControllerTests
     [TestMethod]
     public async Task IngestReadings_OversizedBatch_ReturnsBadRequest()
     {
+        var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var requests = Enumerable.Range(0, BmsController.MaxBatchSize + 1)
             .Select(i => MakeRequest(
                 DeviceA,
-                $"2026-01-01T{i:D2}:00:00Z"))
+                start.AddMinutes(i).ToString("yyyy-MM-ddTHH:mm:ssZ")))
             .ToList();
 
         var result = await _ctrl.IngestReadings(requests, CancellationToken.None);
-        var objectResult = result.Result.Should().BeOfType<ObjectResult>().Subject;
+        var objectResult = result.Result.Should().BeAssignableTo<ObjectResult>().Subject;
         objectResult.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
     }
 

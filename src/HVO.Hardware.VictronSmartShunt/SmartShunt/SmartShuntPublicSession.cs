@@ -263,9 +263,9 @@ public sealed class SmartShuntPublicSession : BackgroundService, ISmartShuntSess
                 {
                     await adapter.StopDiscoveryAsync();
                 }
-                catch (Exception ex)
+                catch
                 {
-                    logger.LogDebug(ex, "StopDiscoveryAsync failed during SmartShunt FindDeviceAsync cleanup");
+                    // Best-effort cleanup — StopDiscoveryAsync failure is non-critical.
                 }
             }
         }

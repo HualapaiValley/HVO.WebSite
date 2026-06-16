@@ -53,7 +53,7 @@ public sealed class SmartShuntPrivateInfoSource(
             return null;
 
         var adapter = await BlueZManager.GetAdapterAsync(_options.Adapter);
-        await using var session = new PrivateSession(_options.Address, TimeSpan.FromSeconds(_options.ConnectionTimeoutSeconds));
+        await using var session = new PrivateSession(_options.Address, TimeSpan.FromSeconds(_options.ConnectionTimeoutSeconds), _logger);
         await session.ConnectAsync(adapter, ct);
 
         var info = new SmartShuntPrivateFrameDecoder();
@@ -122,11 +122,12 @@ public sealed class SmartShuntPrivateInfoSource(
         await characteristic.WriteValueAsync(Convert.FromHexString(hex), new Dictionary<string, object>());
     }
 
-    private sealed class PrivateSession(string address, TimeSpan connectTimeout) : IAsyncDisposable
+    private sealed class PrivateSession(string address, TimeSpan connectTimeout, ILogger logger) : IAsyncDisposable
     {
         private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(20);
         private static readonly TimeSpan ConnectRetryDelay = TimeSpan.FromSeconds(2);
         private Device? _device;
+        private readonly ILogger _logger = logger;
 
         public Device Device => _device ?? throw new InvalidOperationException("Session is not connected.");
         public string Address { get; } = address;
@@ -237,9 +238,9 @@ public sealed class SmartShuntPrivateInfoSource(
                 {
                     await adapter.StopDiscoveryAsync();
                 }
-                catch (Exception ex)
+                catch
                 {
-                    _logger.LogDebug(ex, "StopDiscoveryAsync failed during SmartShunt private FindDeviceAsync cleanup");
+                    // Best-effort cleanup — StopDiscoveryAsync failure is non-critical.
                 }
             }
         }
