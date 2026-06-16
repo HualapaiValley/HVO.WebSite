@@ -28,7 +28,9 @@ public sealed class SmartShuntGatewayPlaywrightTests
         await page.GetByRole(AriaRole.Link, new() { Name = "Telemetry" }).ClickAsync();
         await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
         await Assertions.Expect(page.Locator("#smartshunt-telemetry-chart")).ToBeVisibleAsync();
+        await page.WaitForFunctionAsync("() => Boolean(window.hvoChart?._instances?.['smartshunt-telemetry-chart'])");
         var chartWidth = await page.Locator("#smartshunt-telemetry-chart").EvaluateAsync<int>("canvas => canvas.clientWidth");
         chartWidth.Should().BeGreaterThan(0);
+        await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
     }
 }

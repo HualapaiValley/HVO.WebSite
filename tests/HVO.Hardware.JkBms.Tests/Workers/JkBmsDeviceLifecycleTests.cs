@@ -119,10 +119,14 @@ public class JkBmsDeviceLifecycleTests
         var stateChanged = StateChangeProbe.Until(() => state.LastError?.Contains("connect failed") == true);
         await using var device = CreateDevice(config, state, factory, coordinator, onStateChanged: stateChanged.Notify);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var runTask = device.RunAsync(cts.Token);
 
         await stateChanged.WaitAsync();
+        (state.NextPollAt - DateTime.UtcNow).Should().BeGreaterThan(TimeSpan.FromSeconds(5),
+            because: "BackoffLevel 2 should advance to a computed 8 second retry delay after the failure");
+
+        await Task.Delay(TimeSpan.FromMilliseconds(750), CancellationToken.None);
         cts.Cancel();
         await runTask.AwaitCancellationAsync();
 
