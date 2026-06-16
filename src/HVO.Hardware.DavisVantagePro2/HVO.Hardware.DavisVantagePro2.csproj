@@ -12,6 +12,8 @@
     <PackageReference Include="HVO.Enterprise.Telemetry" />
     <PackageReference Include="HVO.Enterprise.Telemetry.OpenTelemetry" />
     <PackageReference Include="HVO.Enterprise.Telemetry.Serilog" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="MudBlazor" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.File" />
