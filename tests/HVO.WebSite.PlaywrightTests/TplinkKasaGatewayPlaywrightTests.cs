@@ -19,6 +19,7 @@ public sealed class TplinkKasaGatewayPlaywrightTests
         await page.GotoAsync(baseUrl);
 
         await Assertions.Expect(page.GetByText("Hualapai Valley Observatory", new() { Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
         await Assertions.Expect(page.Locator(".shell-brand-subtitle")).ToContainTextAsync("TP-LINK/KASA LOCAL GATEWAY");
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Overview" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Configuration" })).ToBeVisibleAsync();

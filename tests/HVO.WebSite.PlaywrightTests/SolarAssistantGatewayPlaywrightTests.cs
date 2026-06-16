@@ -18,11 +18,13 @@ public sealed class SolarAssistantGatewayPlaywrightTests
         var page = await browser.NewPageAsync();
         await page.GotoAsync(baseUrl);
 
+        await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
         await Assertions.Expect(page.GetByText("SOLARASSISTANT GATEWAY", new() { Exact = true })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "REST JSON" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "MQTT JSON" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "SolarAssistant Gateway" })).ToBeAttachedAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Current Snapshot" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Home Assistant Discovery" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
     }
 }

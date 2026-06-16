@@ -1,6 +1,7 @@
-using System.Reflection;
+using System.Diagnostics;
 using FluentAssertions;
 using HVO.Enterprise.Telemetry.Abstractions;
+using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Hardware.JkBms.Bms;
 using HVO.Hardware.JkBms.Configuration;
 using HVO.Hardware.JkBms.Protocol;
@@ -33,12 +34,13 @@ public class JkBmsDeviceLifecycleTests
         var coordinator = new FakeBluetoothAdapterCoordinator();
         coordinator.EnqueueFailure(new TimeoutException("connect failed"));
 
-        await using var device = CreateDevice(config, state, factory, coordinator);
+        var stateChanged = StateChangeProbe.Until(() => state.LastError?.Contains("connect failed") == true);
+        await using var device = CreateDevice(config, state, factory, coordinator, onStateChanged: stateChanged.Notify);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(400));
         var runTask = device.RunAsync(cts.Token);
 
-        await Task.Delay(200, CancellationToken.None);
+        await stateChanged.WaitAsync();
         cts.Cancel();
         await runTask.AwaitCancellationAsync();
 
@@ -76,12 +78,13 @@ public class JkBmsDeviceLifecycleTests
         var coordinator = new FakeBluetoothAdapterCoordinator();
         coordinator.EnqueueSuccess();
 
-        await using var device = CreateDevice(config, state, factory, coordinator, adapterName: "hci1");
+        var stateChanged = StateChangeProbe.Until(() => state.LastPollAt.HasValue);
+        await using var device = CreateDevice(config, state, factory, coordinator, adapterName: "hci1", onStateChanged: stateChanged.Notify);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
         var runTask = device.RunAsync(cts.Token);
 
-        await Task.Delay(300, CancellationToken.None);
+        await stateChanged.WaitAsync();
         cts.Cancel();
         await runTask.AwaitCancellationAsync();
 
@@ -113,12 +116,17 @@ public class JkBmsDeviceLifecycleTests
         coordinator.EnqueueFailure(new TimeoutException("connect failed"));
         coordinator.EnqueueSuccess();
 
-        await using var device = CreateDevice(config, state, factory, coordinator);
+        var stateChanged = StateChangeProbe.Until(() => state.LastError?.Contains("connect failed") == true);
+        await using var device = CreateDevice(config, state, factory, coordinator, onStateChanged: stateChanged.Notify);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(3500));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var runTask = device.RunAsync(cts.Token);
 
-        await Task.Delay(3200, CancellationToken.None);
+        await stateChanged.WaitAsync();
+        (state.NextPollAt - DateTime.UtcNow).Should().BeGreaterThan(TimeSpan.FromSeconds(5),
+            because: "BackoffLevel 2 should advance to a computed 8 second retry delay after the failure");
+
+        await Task.Delay(TimeSpan.FromMilliseconds(750), CancellationToken.None);
         cts.Cancel();
         await runTask.AwaitCancellationAsync();
 
@@ -131,7 +139,8 @@ public class JkBmsDeviceLifecycleTests
         DevicePollState state,
         FakeBmsTransportFactory factory,
         FakeBluetoothAdapterCoordinator coordinator,
-        string adapterName = "hci0")
+        string adapterName = "hci0",
+        Action? onStateChanged = null)
     {
         return new JkBmsDevice(
             config,
@@ -142,65 +151,92 @@ public class JkBmsDeviceLifecycleTests
             coordinator,
             NullLoggerFactory.Instance,
             new BmsTelemetry(),
-            CreateTelemetryServiceProxy(),
+            new NoOpTelemetryService(),
             (_, _, _, _) => Task.CompletedTask,
-            () => { },
+            onStateChanged ?? (() => { }),
             NullLogger<JkBmsDevice>.Instance);
     }
 
-    private static ITelemetryService CreateTelemetryServiceProxy()
+    private sealed class StateChangeProbe
     {
-        var telemetryAssembly = typeof(JkBmsDevice).Assembly
-            .GetReferencedAssemblies()
-            .Select(Assembly.Load)
-            .First(a => a.GetType("HVO.Enterprise.Telemetry.Abstractions.ITelemetryService") is not null);
+        private readonly Func<bool> _isComplete;
+        private readonly TaskCompletionSource _completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var serviceType = telemetryAssembly.GetType("HVO.Enterprise.Telemetry.Abstractions.ITelemetryService")!;
-        var startOperationMethod = serviceType.GetMethod("StartOperation")
-            ?? throw new InvalidOperationException("ITelemetryService.StartOperation not found.");
-        var operationType = startOperationMethod.ReturnType;
+        private StateChangeProbe(Func<bool> isComplete) => _isComplete = isComplete;
 
-        var createGeneric = typeof(DispatchProxy)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Single(m => m.Name == nameof(DispatchProxy.Create) && m.IsGenericMethodDefinition && m.GetGenericArguments().Length == 2);
+        public static StateChangeProbe Until(Func<bool> isComplete) => new(isComplete);
 
-        var createOperationProxy = createGeneric.MakeGenericMethod(operationType, typeof(NoOpDispatchProxy));
-        var operationProxy = createOperationProxy.Invoke(null, null)!;
-        ((NoOpDispatchProxy)operationProxy).ReturnSelf = operationProxy;
+        public void Notify()
+        {
+            if (_isComplete())
+                _completed.TrySetResult();
+        }
 
-        var createServiceProxy = createGeneric.MakeGenericMethod(serviceType, typeof(NoOpDispatchProxy));
-        var serviceProxy = createServiceProxy.Invoke(null, null)!;
-        ((NoOpDispatchProxy)serviceProxy).StartOperationResult = operationProxy;
-        return (ITelemetryService)serviceProxy;
+        public Task WaitAsync() => _isComplete()
+            ? Task.CompletedTask
+            : _completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
-    private class NoOpDispatchProxy : DispatchProxy
+    private sealed class NoOpTelemetryService : ITelemetryService
     {
-        public object? ReturnSelf { get; set; }
-        public object? StartOperationResult { get; set; }
+        public bool IsEnabled => false;
+        public ITelemetryStatistics Statistics { get; } = new NoOpTelemetryStatistics();
 
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        public IOperationScope StartOperation(string operationName) => new NoOpOperationScope(operationName);
+        public void TrackException(Exception exception) { }
+        public void TrackEvent(string eventName) { }
+        public void RecordMetric(string metricName, double value) { }
+        public void Start() { }
+        public void Shutdown() { }
+    }
+
+    private sealed class NoOpOperationScope(string name) : IOperationScope
+    {
+        public string Name { get; } = name;
+        public string CorrelationId { get; } = string.Empty;
+        public Activity? Activity => null;
+        public TimeSpan Elapsed => TimeSpan.Zero;
+
+        public IOperationScope WithTag(string key, object? value) => this;
+        public IOperationScope WithTags(IEnumerable<KeyValuePair<string, object?>> tags) => this;
+        public IOperationScope WithProperty(string key, Func<object?> valueFactory) => this;
+        public IOperationScope Fail(Exception exception) => this;
+        public IOperationScope Succeed() => this;
+        public IOperationScope WithResult(object? result) => this;
+        public IOperationScope CreateChild(string name) => new NoOpOperationScope(name);
+        public void RecordException(Exception exception) { }
+        public void Dispose() { }
+    }
+
+    private sealed class NoOpTelemetryStatistics : ITelemetryStatistics
+    {
+        public DateTimeOffset StartTime { get; } = DateTimeOffset.UtcNow;
+        public long ActivitiesCreated => 0;
+        public long ActivitiesCompleted => 0;
+        public long ActiveActivities => 0;
+        public long ExceptionsTracked => 0;
+        public long EventsRecorded => 0;
+        public long MetricsRecorded => 0;
+        public int QueueDepth => 0;
+        public int MaxQueueDepth => 0;
+        public long ItemsEnqueued => 0;
+        public long ItemsProcessed => 0;
+        public long ItemsDropped => 0;
+        public long ProcessingErrors => 0;
+        public double AverageProcessingTimeMs => 0;
+        public long CorrelationIdsGenerated => 0;
+        public double CurrentErrorRate => 0;
+        public double CurrentThroughput => 0;
+        public IReadOnlyDictionary<string, ActivitySourceStatistics> PerSourceStatistics { get; } =
+            new Dictionary<string, ActivitySourceStatistics>();
+
+        public TelemetryStatisticsSnapshot GetSnapshot() => new()
         {
-            if (targetMethod is null)
-                return null;
+            Timestamp = DateTimeOffset.UtcNow,
+            StartTime = StartTime,
+        };
 
-            if (targetMethod.Name == "StartOperation")
-                return StartOperationResult;
-
-            if (targetMethod.ReturnType == typeof(void))
-                return null;
-
-            if (targetMethod.ReturnType == typeof(string))
-                return string.Empty;
-
-            if (targetMethod.ReturnType.IsValueType)
-                return Activator.CreateInstance(targetMethod.ReturnType);
-
-            if (ReturnSelf is not null && targetMethod.ReturnType.IsInstanceOfType(ReturnSelf))
-                return ReturnSelf;
-
-            return null;
-        }
+        public void Reset() { }
     }
 }
 
