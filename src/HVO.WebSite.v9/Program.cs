@@ -150,6 +150,8 @@ namespace HVO.WebSite.v9
 
             // API key cache — short-lived to avoid DB hit on every request
             services.AddMemoryCache();
+            services.AddScoped<IPowerReadingIngestService, PowerReadingIngestService>();
+            services.AddScoped<IBmsIngestService, BmsIngestService>();
             services.AddScoped<IPowerSystemSnapshotProvider, PowerSystemSnapshotProvider>();
             services.AddScoped<IPowerInventoryConfigurationProvider, PowerInventoryConfigurationProvider>();
 
