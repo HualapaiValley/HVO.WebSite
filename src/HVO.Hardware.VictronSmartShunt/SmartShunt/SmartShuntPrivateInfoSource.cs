@@ -201,7 +201,7 @@ public sealed class SmartShuntPrivateInfoSource(
             _device = null;
         }
 
-        private static async Task<Device> FindDeviceAsync(Adapter adapter, string address, CancellationToken ct)
+        private async Task<Device> FindDeviceAsync(Adapter adapter, string address, CancellationToken ct)
         {
             var known = await adapter.GetDevicesAsync();
             foreach (var device in known)
@@ -238,9 +238,9 @@ public sealed class SmartShuntPrivateInfoSource(
                 {
                     await adapter.StopDiscoveryAsync();
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Best-effort cleanup — StopDiscoveryAsync failure is non-critical.
+                    _logger.LogDebug(ex, "SmartShunt StopDiscoveryAsync failed during private-session cleanup for {Address}", address);
                 }
             }
         }

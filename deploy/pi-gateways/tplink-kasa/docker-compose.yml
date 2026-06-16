@@ -88,9 +88,6 @@ services:
       KasaGateway__Devices__3__DeviceKind: ${KASA_DEVICE_3_DEVICE_KIND:-Auto}
       KasaGateway__Devices__3__SafetyClass: TelemetryOnly
       DOTNET_ENVIRONMENT: Production
-      OTEL_SERVICE_NAME: hvo-tplinkkasa
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
-      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
       - kasa-data:/app/data
       - kasa-data-protection:/root/.aspnet/DataProtection-Keys

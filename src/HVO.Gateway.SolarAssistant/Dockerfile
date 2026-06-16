@@ -20,6 +20,7 @@ FROM build AS publish
 RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
+RUN tdnf install -y curl && tdnf clean all
 WORKDIR /app
 COPY --from=publish /app/publish .
 VOLUME /app/data
