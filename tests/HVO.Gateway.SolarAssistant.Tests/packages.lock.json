@@ -561,7 +561,7 @@
           "HVO.Enterprise.Telemetry.Serilog": "[2.0.1, )",
           "HVO.WebSite.Themes": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.8, )",
-          "MudBlazor": "[9.4.0, )",
+          "MudBlazor": "[9.5.0, )",
           "OpenTelemetry.Api": "[1.15.3, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.15.3, )",
           "Serilog.AspNetCore": "[10.0.0, )",
@@ -573,7 +573,7 @@
       "hvo.website.themes": {
         "type": "Project",
         "dependencies": {
-          "MudBlazor": "[9.4.0, )"
+          "MudBlazor": "[9.5.0, )"
         }
       },
       "HVO.Enterprise.Telemetry": {
@@ -656,7 +656,7 @@
       },
       "Microsoft.Extensions.Configuration.Abstractions": {
         "type": "CentralTransitive",
-        "requested": "[10.0.7, )",
+        "requested": "[10.0.8, )",
         "resolved": "10.0.8",
         "contentHash": "I63esIFbL3h5pSt7gXpXOlmcwDmYBUoYNEglKfDPFUqtYvSV84f2l28hO2lfVXsV0wdlplgAM7IVz16matapSg==",
         "dependencies": {
@@ -665,13 +665,13 @@
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
         "type": "CentralTransitive",
-        "requested": "[10.0.7, )",
+        "requested": "[10.0.8, )",
         "resolved": "10.0.8",
         "contentHash": "21nbDV60SRPWGIivsyl6lqBeEJNG1sginhhfWgRrr3Ais7aQ12To25OAHQxgoiJkjqy1aQ6RxpZBGYuTi7Ge6A=="
       },
       "Microsoft.Extensions.Logging.Abstractions": {
         "type": "CentralTransitive",
-        "requested": "[10.0.7, )",
+        "requested": "[10.0.8, )",
         "resolved": "10.0.8",
         "contentHash": "fdVadZmsC8jRP0KvKy8mO8f6GV/HyBvElfcSxEhd+5FM5boAw/01iSaCto5G3G37ApJira4A3pNaVvBv8cUiLQ==",
         "dependencies": {
@@ -690,9 +690,9 @@
       },
       "MudBlazor": {
         "type": "CentralTransitive",
-        "requested": "[9.4.0, )",
-        "resolved": "9.4.0",
-        "contentHash": "p6BF8zmt4c/yi/hD9hP7yPioUK5loOnif19gwIEANq6I46407QnSu0HTW1NuALC5seRKcWb2pBP5LwC8aBE2Mg==",
+        "requested": "[9.5.0, )",
+        "resolved": "9.5.0",
+        "contentHash": "mZiuKdOG42RkA/cZhiwNwbBZAKBExDx387ylvxzokcenRFHi8n4tq8olGuXs/oWNX1Qgo7Tj7J0AhOjjSnTpcw==",
         "dependencies": {
           "Microsoft.AspNetCore.Components": "10.0.1",
           "Microsoft.AspNetCore.Components.Web": "10.0.1",

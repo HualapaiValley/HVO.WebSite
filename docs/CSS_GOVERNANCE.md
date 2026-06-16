@@ -294,6 +294,8 @@ Full definitions: `src/HVO.WebSite.Themes/wwwroot/css/themes/hvo-shared-shell.cs
 
 Do not introduce new uses of these. Migrate existing uses when touching a file.
 
+Completed cleanup: the Davis `PrototypeFrame.razor` component was removed in issue #212 after all `proto-*` page usages were migrated.
+
 | Item | Replacement | Notes |
 |------|-------------|-------|
 | `hvo-dark.css` | `hvo-shared-shell.css` | Entire file deprecated; still present for backward compat |
@@ -301,5 +303,4 @@ Do not introduce new uses of these. Migrate existing uses when touching a file.
 | `.smartshunt-*` classes in `hvo-components.css` | `hvo-*` classes | Legacy shim |
 | `.solar-*` classes in `hvo-components.css` | `hvo-*` classes | Legacy shim |
 | `.kasa-*` classes in `hvo-components.css` | `hvo-*` classes | Legacy shim |
-| `PrototypeFrame.razor` in Davis | Remove entirely | All 14 proto-* pages migrated; component can be deleted |
-| `.proto-*` class names | `hvo-*` equivalents | Fully migrated; class names must not reappear |
+| `.proto-*` class names | `hvo-*` equivalents | Fully migrated; class names must not reappear. Legacy `PrototypeFrame.razor` was removed in issue #212. |
