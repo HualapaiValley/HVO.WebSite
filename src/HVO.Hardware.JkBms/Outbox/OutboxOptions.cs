@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using HVO.Edge.Outbox;
 
 namespace HVO.Hardware.JkBms.Outbox;
 
@@ -52,10 +53,18 @@ public sealed class OutboxOptions
     public string DbPath { get; set; } = string.Empty;
 
     /// <summary>
-    /// Number of days to retain <see cref="OutboxStatus.Sent"/> records before they are
+    /// Number of days to retain <see cref="EdgeOutboxStatus.Sent"/> records before they are
     /// purged by the compaction task. Set to 0 to disable compaction.
     /// Defaults to 7 days.
     /// </summary>
     [Range(0, 3650)]
     public int SentRetentionDays { get; set; } = 7;
+
+    /// <summary>
+    /// Number of days to retain <see cref="EdgeOutboxStatus.Failed"/> records before they are
+    /// purged by the compaction task. Set to 0 to disable failed-record compaction.
+    /// Defaults to 30 days.
+    /// </summary>
+    [Range(0, 3650)]
+    public int FailedRetentionDays { get; set; } = 30;
 }

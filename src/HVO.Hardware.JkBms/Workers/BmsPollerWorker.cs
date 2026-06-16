@@ -9,7 +9,6 @@ using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Protocol.Transport;
 using HVO.Hardware.JkBms.Telemetry;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -352,11 +351,11 @@ public sealed class BmsPollerWorker : BackgroundService
         CellInfoPacket packet,
         CancellationToken ct)
     {
-        var reading = await WriteToOutboxAsync(device, packet, ct);
+        var reading = await EnqueueOutboxAsync(device, packet, ct);
 
         if (packet.HasAlarms)
         {
-            // Reuse the BmsDeviceReading already built inside WriteToOutboxAsync
+            // Reuse the BmsDeviceReading already built inside EnqueueOutboxAsync
             // rather than calling MapToReading a second time.
             await _alarmHandler.HandleAsync(reading, ct);
         }
@@ -368,7 +367,7 @@ public sealed class BmsPollerWorker : BackgroundService
         handler?.Invoke();
     }
 
-    private async Task<BmsDeviceReading> WriteToOutboxAsync(DevicePollState device, CellInfoPacket packet, CancellationToken ct)
+    private async Task<BmsDeviceReading> EnqueueOutboxAsync(DevicePollState device, CellInfoPacket packet, CancellationToken ct)
     {
         var reading = MapToReading(device, packet);
 
@@ -408,45 +407,31 @@ public sealed class BmsPollerWorker : BackgroundService
             DeviceInfo = infoPayload,
         };
 
-        var payload = JsonSerializer.Serialize(record);
-
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        var writer = scope.ServiceProvider.GetRequiredService<BmsOutboxWriter>();
 
-        // Upsert logic: ignore duplicate readings for the same device+timestamp
-        var exists = await db.OutboxRecords.AnyAsync(
-            r => r.DeviceAddress == device.Address && r.RecordedAtUtc == packet.RecordedAtUtc,
+        var readingEnqueued = await writer.EnqueueReadingAsync(
+            device.Address,
+            device.Alias,
+            packet.RecordedAtUtc,
+            record,
             ct);
 
-        if (!exists)
+        if (readingEnqueued)
         {
-            db.OutboxRecords.Add(new OutboxRecord
+            if (configPayload is not null)
             {
-                DeviceAddress = device.Address,
-                DeviceAlias = device.Alias,
-                RecordedAtUtc = packet.RecordedAtUtc,
-                Payload = payload,
-                CreatedAtUtc = DateTime.UtcNow,
-            });
-            await db.SaveChangesAsync(ct);
+                var configEnqueued = await writer.EnqueueConfigAsync(device.Address, device.Alias, configPayload, ct);
+                if (configEnqueued && pendingConfigHash is not null)
+                    device.LastSentConfigHash = pendingConfigHash;
+            }
 
-            // Update hashes only after the outbox record is durably persisted.
-            // If SaveChangesAsync threw, the hashes stay unchanged so the next poll
-            // will re-include the config/deviceInfo snapshot.
-            if (pendingConfigHash is not null)
-                device.LastSentConfigHash = pendingConfigHash;
-            if (pendingInfoHash is not null)
-                device.LastSentDeviceInfoHash = pendingInfoHash;
-        }
-        else
-        {
-            // Duplicate: a record with the same (DeviceAddress, RecordedAtUtc) already exists.
-            // This should be rare (two polls within the same millisecond), but log it so that
-            // unexpected data gaps can be diagnosed.
-            _logger.LogWarning(
-                "Outbox duplicate skipped for {Alias} ({Address}) at {Timestamp:O}. " +
-                "Two polls produced the same RecordedAtUtc — check poll interval vs. BMS timestamp resolution.",
-                device.Alias, device.Address, packet.RecordedAtUtc);
+            if (infoPayload is not null)
+            {
+                var infoEnqueued = await writer.EnqueueDeviceInfoAsync(device.Address, device.Alias, infoPayload, ct);
+                if (infoEnqueued && pendingInfoHash is not null)
+                    device.LastSentDeviceInfoHash = pendingInfoHash;
+            }
         }
 
         // Return the reading so callers (e.g. the alarm path) can reuse it without

@@ -1,3 +1,5 @@
+using HVO.Edge.Outbox;
+
 namespace HVO.Hardware.JkBms.Outbox.Forwarders;
 
 /// <summary>
@@ -16,5 +18,5 @@ public interface IReadingForwarder
     /// Deliver <paramref name="batch"/> to the external destination.
     /// </summary>
     /// <exception cref="Exception">Any exception indicates delivery failure.</exception>
-    Task ForwardAsync(IReadOnlyList<OutboxRecord> batch, CancellationToken ct);
+    Task ForwardAsync(IReadOnlyList<EdgeOutboxRecord> batch, CancellationToken ct);
 }

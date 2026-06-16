@@ -1,8 +1,8 @@
+using HVO.Edge.Outbox;
 using HVO.Enterprise.Telemetry.Abstractions;
 using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.Outbox.Forwarders;
 using HVO.Hardware.JkBms.Telemetry;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -15,10 +15,10 @@ namespace HVO.Hardware.JkBms.Workers;
 /// all registered <see cref="IReadingForwarder"/> implementations.
 ///
 /// Delivery is fan-out: every forwarder receives the same batch.
-/// Each record is marked <see cref="OutboxStatus.Sent"/> only when ALL forwarders succeed.
-/// On partial failure the record stays <see cref="OutboxStatus.Pending"/> with exponential backoff.
+/// Each record is marked <see cref="EdgeOutboxStatus.Sent"/> only when ALL forwarders succeed.
+/// On partial failure the record stays <see cref="EdgeOutboxStatus.Pending"/> with exponential backoff.
 /// After <see cref="OutboxOptions.MaxRetryAttempts"/> failures the record is marked
-/// <see cref="OutboxStatus.Failed"/> to prevent endless retries.
+/// <see cref="EdgeOutboxStatus.Failed"/> to prevent endless retries.
 /// </summary>
 public sealed class ForwarderCoordinator : BackgroundService
 {
@@ -119,8 +119,8 @@ public sealed class ForwarderCoordinator : BackgroundService
                 _logger.LogError(ex, "ForwarderCoordinator sweep error");
             }
 
-            // Compact Sent records once per day (or at startup).
-            if (_options.SentRetentionDays > 0 &&
+            // Compact terminal records once per day (or at startup).
+            if ((_options.SentRetentionDays > 0 || _options.FailedRetentionDays > 0) &&
                 (DateTime.UtcNow - lastCompactionAt).TotalHours >= 24)
             {
                 try
@@ -149,40 +149,44 @@ public sealed class ForwarderCoordinator : BackgroundService
     }
 
     /// <summary>
-    /// Deletes <see cref="OutboxStatus.Sent"/> records older than
+    /// Deletes terminal outbox records older than
     /// <see cref="OutboxOptions.SentRetentionDays"/> days to prevent unbounded DB growth.
     /// </summary>
     private async Task CompactAsync(CancellationToken ct)
     {
-        var cutoff = DateTime.UtcNow.AddDays(-_options.SentRetentionDays);
         await using var serviceScope = _scopeFactory.CreateAsyncScope();
-        var db = serviceScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
 
-        var deleted = await db.OutboxRecords
-            .Where(r => r.Status == OutboxStatus.Sent && r.SentAtUtc.HasValue && r.SentAtUtc.Value < cutoff)
-            .ExecuteDeleteAsync(ct);
+        if (_options.SentRetentionDays > 0)
+        {
+            var deleted = await store.CompactSentAsync(TimeSpan.FromDays(_options.SentRetentionDays), ct);
+            if (deleted > 0)
+                _logger.LogInformation(
+                    "Outbox compaction: deleted {Count} Sent record(s) older than {Days} day(s).",
+                    deleted, _options.SentRetentionDays);
+        }
 
-        if (deleted > 0)
-            _logger.LogInformation(
-                "Outbox compaction: deleted {Count} Sent record(s) older than {Days} day(s).",
-                deleted, _options.SentRetentionDays);
+        if (_options.FailedRetentionDays > 0)
+        {
+            var deleted = await store.CompactFailedAsync(TimeSpan.FromDays(_options.FailedRetentionDays), ct);
+            if (deleted > 0)
+                _logger.LogInformation(
+                    "Outbox compaction: deleted {Count} Failed record(s) older than {Days} day(s).",
+                    deleted, _options.FailedRetentionDays);
+        }
     }
 
     private async Task SweepAsync(CancellationToken ct)
     {
         using var sweepScope = _telemetryService.StartOperation("JkBms.Outbox.Sweep");
         await using var serviceScope = _scopeFactory.CreateAsyncScope();
-        var db = serviceScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
 
         var now = DateTime.UtcNow;
-        var pending = await db.OutboxRecords
-            .Where(r => r.Status == OutboxStatus.Pending && r.NextRetryAtUtc <= now)
-            .OrderBy(r => r.RecordedAtUtc)
-            .Take(_options.BatchSize)
-            .ToListAsync(ct);
+        var pending = await store.GetReadyBatchAsync(BmsOutboxPayloadTypes.Reading, now, _options.BatchSize, ct);
 
-        PendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
-        FailedCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
+        PendingCount = await store.CountPendingAsync(BmsOutboxPayloadTypes.Reading, ct);
+        FailedCount = await store.CountFailedAsync(ct);
         _telemetry.SetOutboxQueueDepth(PendingCount);
 
         if (pending.Count == 0)
@@ -198,87 +202,138 @@ public sealed class ForwarderCoordinator : BackgroundService
             pending.Count, PendingCount, FailedCount);
         LastBatchCount = pending.Count;
 
-        bool allSucceeded = true;
         string? firstError = null;
         Exception? firstException = null;
+        var permanentlyFailedIds = new HashSet<long>();
+        var transientFailureIds = new HashSet<long>();
 
         foreach (var forwarder in _forwarders)
         {
+            var recordsForForwarder = pending
+                .Where(r => !permanentlyFailedIds.Contains(r.Id))
+                .ToList();
+            if (recordsForForwarder.Count == 0)
+                break;
+
             var sw = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                await forwarder.ForwardAsync(pending, ct);
+                await forwarder.ForwardAsync(recordsForForwarder, ct);
                 sw.Stop();
                 _telemetry.OutboxForwardLatencyMs.Record(sw.Elapsed.TotalMilliseconds);
             }
             catch (OperationCanceledException ex) { sweepScope.Fail(ex); throw; }
+            catch (PermanentForwarderException ex)
+            {
+                sw.Stop();
+                firstError ??= $"[{forwarder.Name}] {ex.Message}";
+                firstException ??= ex;
+                var recordsById = recordsForForwarder.ToDictionary(r => r.Id);
+                foreach (var failure in ex.FailedRecords)
+                {
+                    if (!recordsById.TryGetValue(failure.RecordId, out var record))
+                        continue;
+
+                    permanentlyFailedIds.Add(record.Id);
+                    transientFailureIds.Remove(record.Id);
+                    store.MarkFailed(record, $"[{forwarder.Name}] {failure.Error}", EdgeOutboxFailureKind.Permanent);
+                    _logger.LogError(
+                        "Outbox record {Id} (device {Alias}) permanently failed in forwarder '{Name}'. Error: {Error}",
+                        record.Id,
+                        record.DeviceId,
+                        forwarder.Name,
+                        failure.Error);
+                }
+
+                _logger.LogWarning(
+                    ex,
+                    "Forwarder '{Name}' permanently failed {FailedCount} record(s) from batch of {Count} after {Ms:F0}ms.",
+                    forwarder.Name,
+                    ex.FailedRecords.Count,
+                    recordsForForwarder.Count,
+                    sw.Elapsed.TotalMilliseconds);
+            }
             catch (Exception ex)
             {
                 sw.Stop();
-                allSucceeded = false;
                 firstError ??= $"[{forwarder.Name}] {ex.Message}";
                 firstException ??= ex;
-                _logger.LogWarning(ex, "Forwarder '{Name}' failed for batch of {Count} after {Ms:F0}ms.", forwarder.Name, pending.Count, sw.Elapsed.TotalMilliseconds);
+                foreach (var record in recordsForForwarder)
+                    transientFailureIds.Add(record.Id);
+                _logger.LogWarning(ex, "Forwarder '{Name}' transiently failed for batch of {Count} after {Ms:F0}ms.", forwarder.Name, recordsForForwarder.Count, sw.Elapsed.TotalMilliseconds);
             }
         }
 
         var sentAt = DateTime.UtcNow;
+        var sentCount = 0;
+        var transientCount = 0;
+        store.MarkAttempt(pending, sentAt);
         foreach (var record in pending)
         {
-            record.AttemptCount++;
-            record.LastAttemptedAtUtc = sentAt;
+            if (permanentlyFailedIds.Contains(record.Id))
+                continue;
 
-            if (allSucceeded)
+            if (transientFailureIds.Contains(record.Id))
             {
-                record.Status = OutboxStatus.Sent;
-                record.SentAtUtc = sentAt;
-                record.LastError = null;
+                store.ScheduleRetry(record, firstError ?? "Forwarder failed.", sentAt, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+                transientCount++;
+                if (record.Status == EdgeOutboxStatus.Failed)
+                    _logger.LogError(
+                        "Outbox record {Id} (device {Alias}) marked Failed after {N} attempts. Last error: {Error}",
+                        record.Id,
+                        record.DeviceId,
+                        record.AttemptCount,
+                        record.LastError);
             }
             else
             {
-                record.LastError = firstError;
-                if (record.AttemptCount >= _options.MaxRetryAttempts)
-                {
-                    record.Status = OutboxStatus.Failed;
-                    _logger.LogError(
-                        "Outbox record {Id} (device {Alias}) marked Failed after {N} attempts. Last error: {Error}",
-                        record.Id, record.DeviceAlias, record.AttemptCount, record.LastError);
-                }
-                else
-                {
-                    // Exponential backoff: 2^attempts seconds, capped at MaxBackoffSeconds
-                    int backoff = Math.Min((int)Math.Pow(2, record.AttemptCount), _options.MaxBackoffSeconds);
-                    record.NextRetryAtUtc = sentAt.AddSeconds(backoff);
-                }
+                store.MarkSent(record, sentAt);
+                sentCount++;
             }
         }
 
-        await db.SaveChangesAsync(ct);
+        await store.SaveChangesAsync(ct);
 
-        if (allSucceeded)
+        if (transientFailureIds.Count == 0 && permanentlyFailedIds.Count == 0)
         {
             LastSentAt = sentAt;
             LastError = null;
-            _telemetry.OutboxRecordsForwarded.Add(pending.Count);
+            _telemetry.OutboxRecordsForwarded.Add(sentCount);
             sweepScope
-                .WithTag("records_forwarded", pending.Count)
+                .WithTag("records_forwarded", sentCount)
                 .WithTag("pending", PendingCount)
                 .WithTag("failed", FailedCount)
                 .Succeed();
-            _logger.LogInformation("Forwarded {Count} record(s) successfully.", pending.Count);
+            _logger.LogInformation("Forwarded {Count} record(s) successfully.", sentCount);
         }
         else
         {
             LastError = firstError;
+            if (sentCount > 0)
+            {
+                LastSentAt = sentAt;
+                _telemetry.OutboxRecordsForwarded.Add(sentCount);
+            }
+
             sweepScope
                 .WithTag("records_attempted", pending.Count)
+                .WithTag("records_forwarded", sentCount)
+                .WithTag("records_transient_failed", transientCount)
+                .WithTag("records_permanent_failed", permanentlyFailedIds.Count)
                 .WithTag("pending", PendingCount)
                 .Fail(firstException!);
         }
 
+        if (sentCount > 0)
+        {
+            var requeued = await store.RequeueRetryExhaustedAsync(ct);
+            if (requeued > 0)
+                _logger.LogInformation("Outbox auto-requeued {Count} retry-exhausted record(s) after successful forward.", requeued);
+        }
+
         // Refresh counts after the save
-        PendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
-        FailedCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
+        PendingCount = await store.CountPendingAsync(BmsOutboxPayloadTypes.Reading, ct);
+        FailedCount = await store.CountFailedAsync(ct);
 
         // Snapshot before invoking to avoid a race on concurrent subscribe/unsubscribe.
         var sweepDoneHandler = SweepCompleted;
