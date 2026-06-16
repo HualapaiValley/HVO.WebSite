@@ -1,3 +1,7 @@
+using HVO.Enterprise.Telemetry;
+using HVO.Enterprise.Telemetry.HealthChecks;
+using HVO.Enterprise.Telemetry.OpenTelemetry;
+using HVO.Enterprise.Telemetry.Serilog;
 using HVO.Hardware.VictronSmartShunt.Components;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
@@ -7,9 +11,13 @@ using HVO.Hardware.VictronSmartShunt.Workers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MudBlazor.Services;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
+using Serilog.Sinks.OpenTelemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +32,7 @@ builder.Host.UseSerilog((ctx, _, loggerConfig) =>
         .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
         .MinimumLevel.Override("HVO.Hardware.VictronSmartShunt", LogEventLevel.Information)
         .Enrich.FromLogContext()
+        .Enrich.WithTelemetry()
         .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
         .WriteTo.File(
             new CompactJsonFormatter(),
@@ -32,6 +41,22 @@ builder.Host.UseSerilog((ctx, _, loggerConfig) =>
             retainedFileCountLimit: 30,
             fileSizeLimitBytes: 100_000_000,
             rollOnFileSizeLimit: true);
+
+    // Forward logs to the OTel collector sidecar when the endpoint is configured.
+    var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+    if (!string.IsNullOrEmpty(otlpEndpoint))
+    {
+        var serviceName = Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? "hvo-smartshunt";
+        loggerConfig.WriteTo.OpenTelemetry(options =>
+        {
+            options.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
+            options.Protocol = OtlpProtocol.HttpProtobuf;
+            options.ResourceAttributes = new Dictionary<string, object>
+            {
+                ["service.name"] = serviceName
+            };
+        });
+    }
 });
 
 builder.Services
@@ -46,12 +71,32 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
-var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
-    ? outboxConfig.DbPath
-    : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
+    // ── Telemetry ──────────────────────────────────────────────────────────────────────────────
+    builder.Services.AddTelemetry(builder.Configuration.GetSection("Telemetry"));
+    builder.Services.AddOpenTelemetryExport(options =>
+    {
+        options.EnableTraceExport = false;
+        options.EnableMetricsExport = false;
+        options.EnableLogExport = false;
+        options.EnableStandardMeters = true;
+        options.AdditionalMeterNames.Add("hvo.smartshunt");
+        options.AdditionalActivitySources.Add("hvo.smartshunt");
+    });
+    if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
+    {
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(tb => tb.AddOtlpExporter())
+            .WithMetrics(mb => mb.AddOtlpExporter());
+    }
+    builder.Services.AddTelemetryStatistics();
+    builder.Services.AddTelemetryHealthCheck();
 
-builder.Services.AddDbContext<OutboxDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
+    var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
+    var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
+        ? outboxConfig.DbPath
+        : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
+
+    builder.Services.AddDbContext<OutboxDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
 builder.Services.AddScoped<PowerOutboxWriter>();
 
 builder.Services.AddHttpClient("PowerApi", (sp, client) =>
@@ -73,8 +118,9 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<PowerApiForwarder>
 builder.Services.AddSingleton<SmartShuntGatewayHealthService>();
 builder.Services.AddSingleton<ISmartShuntGatewayHealthSnapshotProvider>(sp => sp.GetRequiredService<SmartShuntGatewayHealthService>());
 
-builder.Services.AddHealthChecks()
-    .AddCheck<SmartShuntGatewayHealthCheck>("smartshunt-gateway");
+    builder.Services.AddHealthChecks()
+        .AddCheck<TelemetryHealthCheck>("telemetry")
+        .AddCheck<SmartShuntGatewayHealthCheck>("smartshunt-gateway");
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

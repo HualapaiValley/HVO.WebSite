@@ -27,4 +27,6 @@ COPY --from=publish /app/publish .
 VOLUME /app/data
 ENV ASPNETCORE_URLS=http://+:8080 \
     OUTBOX__DBPATH=/app/data/outbox.db
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl --fail http://localhost:8080/health || exit 1
 ENTRYPOINT ["dotnet", "HVO.Hardware.DavisVantagePro2.dll"]

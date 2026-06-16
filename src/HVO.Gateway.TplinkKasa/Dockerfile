@@ -21,4 +21,6 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENV ASPNETCORE_HTTP_PORTS=8080
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl --fail http://localhost:8080/health || exit 1
 ENTRYPOINT ["dotnet", "HVO.Gateway.TplinkKasa.dll"]

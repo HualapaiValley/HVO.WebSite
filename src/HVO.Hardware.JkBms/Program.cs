@@ -15,6 +15,7 @@ using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Transport;
 using HVO.Hardware.JkBms.Telemetry;
 using HVO.Hardware.JkBms.Workers;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using Serilog;
@@ -113,7 +114,8 @@ builder.Services.AddSingleton<BmsTelemetry>();
 builder.Services.AddTelemetryStatistics();
 builder.Services.AddTelemetryHealthCheck();
 builder.Services.AddHealthChecks()
-    .AddCheck<TelemetryHealthCheck>("telemetry");
+    .AddCheck<TelemetryHealthCheck>("telemetry")
+    .AddCheck<BmsDeviceHealthCheck>("bms-device");
 
 // ── BLE transport ─────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IBluetoothAdapterCoordinator, BluetoothAdapterCoordinator>();

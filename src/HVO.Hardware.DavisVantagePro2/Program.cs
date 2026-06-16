@@ -101,7 +101,8 @@ builder.Services.AddSingleton<DavisTelemetry>();
 builder.Services.AddTelemetryStatistics();
 builder.Services.AddTelemetryHealthCheck();
 builder.Services.AddHealthChecks()
-    .AddCheck<TelemetryHealthCheck>("telemetry");
+    .AddCheck<TelemetryHealthCheck>("telemetry")
+    .AddCheck<VantageStationHealthCheck>("station");
 
 // ── Options ────────────────────────────────────────────────────────────────────
 builder.Services
