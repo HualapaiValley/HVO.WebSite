@@ -19,6 +19,7 @@ using HVO.Hardware.DavisVantagePro2.Station;
 using HVO.Hardware.DavisVantagePro2.Api;
 using HVO.Hardware.DavisVantagePro2.Telemetry;
 using HVO.Hardware.DavisVantagePro2.Workers;
+using HVO.Edge.Outbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MudBlazor.Services;
@@ -127,7 +128,7 @@ builder.Services.AddSingleton(sp =>
 });
 builder.Services.AddSingleton<VantageStation>();
 
-// ── SQLite outbox ──────────────────────────────────────────────────────────────
+// ── SQLite local persistence and outbox ────────────────────────────────────────
 var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
 string dbPath = OutboxDatabasePath.Resolve(outboxConfig?.DbPath);
 string? dir = Path.GetDirectoryName(Path.GetFullPath(dbPath));
@@ -137,9 +138,22 @@ if (dir is null)
         $"The resolved outbox database path '{dbPath}' is a root directory; a file path is required.");
 }
 Directory.CreateDirectory(dir);
+var localDbPath = OutboxDatabasePath.Resolve("davis-local.db");
+string? localDir = Path.GetDirectoryName(Path.GetFullPath(localDbPath));
+if (localDir is null)
+{
+    throw new InvalidOperationException(
+        $"The resolved Davis local database path '{localDbPath}' is a root directory; a file path is required.");
+}
+Directory.CreateDirectory(localDir);
+builder.Services.AddDbContext<DavisLocalDbContext>(o =>
+    o.UseSqlite($"Data Source={localDbPath}"),
+    ServiceLifetime.Scoped);
 builder.Services.AddDbContext<OutboxDbContext>(o =>
     o.UseSqlite($"Data Source={dbPath}"),
     ServiceLifetime.Scoped);
+builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
+builder.Services.AddScoped<DavisOutboxWriter>();
 builder.Services.AddSingleton<StationSettingsSnapshotStore>();
 builder.Services.AddSingleton<StationInfoSnapshotStore>();
 
@@ -167,49 +181,17 @@ builder.Services.AddMudServices();
 
 var app = builder.Build();
 
-// Ensure the SQLite schema is created on startup
+// Ensure the SQLite schemas are created on startup
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-    await db.Database.EnsureCreatedAsync();
-    await OutboxDatabaseMaintenance.EnsureFailureKindAndRequeueRetryableFailuresAsync(db);
+    var localDb = scope.ServiceProvider.GetRequiredService<DavisLocalDbContext>();
+    await localDb.Database.EnsureCreatedAsync();
 
-    // Raw SQLite table creation for tables not mapped by EF Core's OutboxDbContext.
-    // These tables are managed manually because they are read/written from
-    // StationSettingsSnapshotStore and StationInfoSnapshotStore, which use raw
-    // ADO.NET rather than EF Core model binding. Any schema changes here must be
-    // coordinated with the snapshot store implementations.
-    await db.Database.ExecuteSqlRawAsync(
-        @"CREATE TABLE IF NOT EXISTS StationSettingsSnapshots (
-            Id INTEGER NOT NULL CONSTRAINT PK_StationSettingsSnapshots PRIMARY KEY,
-            SavedAtUtc TEXT NOT NULL,
-            ArchiveIntervalSeconds INTEGER NOT NULL,
-            LatitudeDegrees REAL NULL,
-            LongitudeDegrees REAL NULL,
-            AltitudeFeet REAL NULL,
-            RainYearStartMonth INTEGER NOT NULL,
-            RainBucketType INTEGER NOT NULL,
-            DstSetting TEXT NOT NULL,
-            UseTimezoneCode INTEGER NOT NULL,
-            TimezoneCode INTEGER NOT NULL,
-            GmtOffsetHours REAL NOT NULL,
-            TemperatureLogging TEXT NOT NULL,
-            BarometerUnits TEXT NOT NULL,
-            TemperatureUnits TEXT NOT NULL,
-            RainUnits TEXT NOT NULL,
-            WindUnits TEXT NOT NULL
-        );");
-    await db.Database.ExecuteSqlRawAsync(
-        @"CREATE TABLE IF NOT EXISTS StationInfoSnapshots (
-            Id INTEGER NOT NULL CONSTRAINT PK_StationInfoSnapshots PRIMARY KEY,
-            SavedAtUtc TEXT NOT NULL,
-            HardwareName TEXT NOT NULL,
-            HardwareType INTEGER NOT NULL,
-            ModelType INTEGER NOT NULL,
-            FirmwareVersion TEXT NOT NULL,
-            FirmwareDate TEXT NOT NULL,
-            ConsoleTime TEXT NOT NULL
-        );");
+    var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+    await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
+        db,
+        DavisOutboxPayloadTypes.Raw,
+        DavisOutboxPayloadTypes.RawVersion);
 
     var snapshotStore = scope.ServiceProvider.GetRequiredService<StationSettingsSnapshotStore>();
     var station = scope.ServiceProvider.GetRequiredService<VantageStation>();

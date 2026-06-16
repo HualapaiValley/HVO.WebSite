@@ -77,9 +77,9 @@ public partial class Status : IDisposable
 
             var latestPersisted = await db.OutboxRecords
                 .AsNoTracking()
-                .Where(record => !record.IsArchiveRecord)
+                .Where(record => record.PayloadType == DavisOutboxPayloadTypes.Raw)
                 .OrderByDescending(record => record.RecordedAtUtc)
-                .Select(record => new { record.RecordedAtUtc, record.Payload, record.IsArchiveRecord })
+                .Select(record => new { record.RecordedAtUtc, record.PayloadJson })
                 .FirstOrDefaultAsync();
 
             if (latestPersisted is null)
@@ -87,7 +87,7 @@ public partial class Status : IDisposable
                 return;
             }
 
-            var latestSnapshot = JsonSerializer.Deserialize<PersistedLiveReading>(latestPersisted.Payload);
+            var latestSnapshot = JsonSerializer.Deserialize<PersistedLiveReading>(latestPersisted.PayloadJson);
             if (latestSnapshot is null)
             {
                 Logger.LogWarning("Latest persisted Davis reading could not be deserialized for startup fallback");
@@ -97,9 +97,8 @@ public partial class Status : IDisposable
             _reading = latestSnapshot.ToLoop2Packet(latestPersisted.RecordedAtUtc);
 
             Logger.LogInformation(
-                "Loaded persisted Davis reading from outbox for startup fallback at {RecordedAtUtc} (archive: {IsArchiveRecord})",
-                latestPersisted.RecordedAtUtc,
-                latestPersisted.IsArchiveRecord);
+                "Loaded persisted Davis reading from outbox for startup fallback at {RecordedAtUtc}",
+                latestPersisted.RecordedAtUtc);
         }
         catch (Exception ex)
         {
@@ -117,15 +116,15 @@ public partial class Status : IDisposable
 
             var persisted = await db.OutboxRecords
                 .AsNoTracking()
-                .Where(record => !record.IsArchiveRecord && record.RecordedAtUtc >= sinceUtc)
+                .Where(record => record.PayloadType == DavisOutboxPayloadTypes.Raw && record.RecordedAtUtc >= sinceUtc)
                 .OrderBy(record => record.RecordedAtUtc)
-                .Select(record => new { record.RecordedAtUtc, record.Payload })
+                .Select(record => new { record.RecordedAtUtc, record.PayloadJson })
                 .ToListAsync();
 
             _liveHistorySamples = persisted
                 .Select(record =>
                 {
-                    var snapshot = JsonSerializer.Deserialize<PersistedLiveReading>(record.Payload);
+                    var snapshot = JsonSerializer.Deserialize<PersistedLiveReading>(record.PayloadJson);
                     if (snapshot is null)
                     {
                         return null;

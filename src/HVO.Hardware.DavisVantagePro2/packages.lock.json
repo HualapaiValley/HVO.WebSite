@@ -431,6 +431,17 @@
           "System.Composition.Runtime": "9.0.0"
         }
       },
+      "hvo.edge.contracts": {
+        "type": "Project"
+      },
+      "hvo.edge.outbox": {
+        "type": "Project",
+        "dependencies": {
+          "HVO.Edge.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.9, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.9, )"
+        }
+      },
       "hvo.staging": {
         "type": "Project",
         "dependencies": {

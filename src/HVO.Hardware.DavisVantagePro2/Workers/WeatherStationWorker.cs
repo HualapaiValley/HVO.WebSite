@@ -275,7 +275,7 @@ public sealed class WeatherStationWorker(
         var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
 
         return await db.OutboxRecords
-            .Where(r => r.IsArchiveRecord)
+            .Where(r => r.PayloadType == DavisOutboxPayloadTypes.Archive)
             .OrderByDescending(r => r.RecordedAtUtc)
             .Select(r => (DateTime?)r.RecordedAtUtc)
             .FirstOrDefaultAsync(ct);
@@ -378,7 +378,9 @@ public sealed class WeatherStationWorker(
             SunriseTime = reading.SunriseDisplay,
             SunsetTime = reading.SunsetDisplay,
         };
-        await EnqueueAsync(reading.RecordedAtUtc, JsonSerializer.Serialize(payload), isArchiveRecord: false, ct);
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var writer = scope.ServiceProvider.GetRequiredService<DavisOutboxWriter>();
+        await writer.EnqueueRawAsync(_options.StationId, reading.RecordedAtUtc, JsonSerializer.Serialize(payload), ct);
     }
 
     private async Task WriteArchiveToOutboxAsync(ArchiveRecord rec, CancellationToken ct)
@@ -433,27 +435,9 @@ public sealed class WeatherStationWorker(
             ExtraTemperaturesF = rec.ExtraTemperaturesF,
             SoilMoisturesCb = rec.SoilMoisturesCb,
         };
-        await EnqueueAsync(recordedAtUtc, JsonSerializer.Serialize(payload), isArchiveRecord: true, ct);
-    }
-
-    private async Task EnqueueAsync(DateTime recordedAtUtc, string json, bool isArchiveRecord, CancellationToken ct)
-    {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-
-        // Idempotent: skip duplicates (DMPAFT re-runs produce same timestamp)
-        bool exists = await db.OutboxRecords.AnyAsync(r => r.RecordedAtUtc == recordedAtUtc, ct);
-        if (exists) return;
-
-        db.OutboxRecords.Add(new OutboxRecord
-        {
-            RecordedAtUtc = recordedAtUtc,
-            Payload = json,
-            IsArchiveRecord = isArchiveRecord,
-            Status = OutboxStatus.Pending,
-            CreatedAtUtc = DateTime.UtcNow,
-        });
-        await db.SaveChangesAsync(ct);
+        var writer = scope.ServiceProvider.GetRequiredService<DavisOutboxWriter>();
+        await writer.EnqueueArchiveAsync(_options.StationId, recordedAtUtc, JsonSerializer.Serialize(payload), ct);
     }
 }
 

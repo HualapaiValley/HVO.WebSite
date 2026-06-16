@@ -65,6 +65,15 @@ public sealed class OutboxOptions
     [Range(1, 500)]
     public int BatchSize { get; set; } = 50;
 
+    [Range(0, 3650)]
+    public int FailedRetentionDays { get; set; } = 30;
+
+    [Range(0, 100000)]
+    public int PendingWarningCount { get; set; } = 10;
+
+    [Range(0, 100000)]
+    public int FailedCriticalCount { get; set; } = 1;
+
     /// <summary>Path to the SQLite database file. Defaults to local application data when empty.</summary>
     public string DbPath { get; set; } = string.Empty;
 }
