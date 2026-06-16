@@ -9,6 +9,7 @@ obj/
 ## Secrets — never commit
 .env
 *.env
+deploy/pi-gateways/*/.env
 
 ## NuGet
 *.nupkg
