@@ -63,7 +63,8 @@ public sealed class EdgeOutboxHealthEvaluatorTests
         var result = EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(
             PendingCount: 0,
             FailedCount: 1,
-            LastError: "website validation rejected payload"));
+            LastError: "website validation rejected payload",
+            PermanentFailedCount: 1));
 
         result.HealthState.Should().Be(GatewayHealthState.Critical);
         result.CurrentSyncState.Should().Be(EdgeOutboxSyncState.Failing);
@@ -77,7 +78,8 @@ public sealed class EdgeOutboxHealthEvaluatorTests
             PendingCount: 0,
             FailedCount: 71,
             LastSentAtUtc: DateTime.UtcNow,
-            LastBatchCount: 1));
+            LastBatchCount: 1,
+            PermanentFailedCount: 71));
 
         result.HealthState.Should().Be(GatewayHealthState.Warning);
         result.CurrentSyncState.Should().Be(EdgeOutboxSyncState.Degraded);
@@ -89,11 +91,50 @@ public sealed class EdgeOutboxHealthEvaluatorTests
     public void Evaluate_AllowsFailedThreshold_ToDisableOverThresholdClassification()
     {
         var result = EdgeOutboxHealthEvaluator.Evaluate(
-            new EdgeOutboxObservation(PendingCount: 0, FailedCount: 3),
+            new EdgeOutboxObservation(PendingCount: 0, FailedCount: 3, PermanentFailedCount: 3),
             new EdgeOutboxHealthOptions(PendingWarningCount: 10, FailedCriticalCount: 0));
 
         result.HealthState.Should().Be(GatewayHealthState.Warning);
         result.HistoricalFailureState.Should().Be(EdgeOutboxHistoricalFailureState.Present);
+    }
+
+    [TestMethod]
+    public void Evaluate_ReturnsDegraded_WhenPermanentFailuresPresent()
+    {
+        var result = EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(
+            PendingCount: 0,
+            FailedCount: 3,
+            PermanentFailedCount: 3));
+
+        result.HealthState.Should().Be(GatewayHealthState.Warning);
+        result.CurrentSyncState.Should().Be(EdgeOutboxSyncState.Degraded);
+        result.Alerts.Should().ContainSingle(alert => alert.Code == "outbox-permanent-failures");
+    }
+
+    [TestMethod]
+    public void Evaluate_ReturnsDegraded_WhenRetryExhausted_NoLastError()
+    {
+        var result = EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(
+            PendingCount: 0,
+            FailedCount: 5,
+            RetryExhaustedCount: 5));
+
+        result.HealthState.Should().Be(GatewayHealthState.Warning);
+        result.CurrentSyncState.Should().Be(EdgeOutboxSyncState.Degraded);
+        result.Alerts.Should().ContainSingle(alert => alert.Code == "outbox-retry-exhausted");
+    }
+
+    [TestMethod]
+    public void Evaluate_ReturnsDegraded_WhenFailedRowsAreUnclassified()
+    {
+        var result = EdgeOutboxHealthEvaluator.Evaluate(new EdgeOutboxObservation(
+            PendingCount: 0,
+            FailedCount: 2));
+
+        result.HealthState.Should().Be(GatewayHealthState.Warning);
+        result.CurrentSyncState.Should().Be(EdgeOutboxSyncState.Degraded);
+        result.HistoricalFailureState.Should().Be(EdgeOutboxHistoricalFailureState.OverThreshold);
+        result.Alerts.Should().ContainSingle(alert => alert.Code == "outbox-historical-failures");
     }
 
     [TestMethod]

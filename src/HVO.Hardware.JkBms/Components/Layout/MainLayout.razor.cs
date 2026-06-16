@@ -135,7 +135,8 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
                 FailedCount: Forwarder.FailedCount,
                 LastSentAtUtc: Forwarder.LastSentAt,
                 LastBatchCount: Forwarder.LastBatchCount,
-                LastError: pendingCount > 0 ? Forwarder.LastError : null),
+                LastError: pendingCount > 0 ? Forwarder.LastError : null,
+                PermanentFailedCount: Forwarder.FailedCount),
             new EdgeOutboxHealthOptions(
                 PendingWarningCount: OutboxOptions.PendingWarningCount,
                 FailedCriticalCount: OutboxOptions.FailedCriticalCount));

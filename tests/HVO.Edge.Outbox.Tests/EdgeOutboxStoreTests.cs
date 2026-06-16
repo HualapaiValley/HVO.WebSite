@@ -98,6 +98,47 @@ public sealed class EdgeOutboxStoreTests
     }
 
     [TestMethod]
+    public async Task MarkFailed_SetsFailureKind_ToPermanentByDefault()
+    {
+        await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
+        var record = _db.OutboxRecords.Single();
+
+        _store.MarkFailed(record, "bad data");
+
+        record.Status.Should().Be(EdgeOutboxStatus.Failed);
+        record.FailureKind.Should().Be(EdgeOutboxFailureKind.Permanent);
+        record.LastError.Should().Be("bad data");
+    }
+
+    [TestMethod]
+    public async Task ScheduleRetry_SetsFailureKind_ToRetryExhausted_AtLimit()
+    {
+        await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
+        var record = _db.OutboxRecords.Single();
+        _store.MarkAttempt([record], DateTime.UtcNow);
+
+        _store.ScheduleRetry(record, "temporary", DateTime.UtcNow, maxRetryAttempts: 1, maxBackoffSeconds: 30);
+
+        record.Status.Should().Be(EdgeOutboxStatus.Failed);
+        record.FailureKind.Should().Be(EdgeOutboxFailureKind.RetryExhausted);
+    }
+
+    [TestMethod]
+    public async Task ScheduleRetry_ResetsFailureKind_ToNone_WhenRetrying()
+    {
+        await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
+        var record = _db.OutboxRecords.Single();
+        record.FailureKind = EdgeOutboxFailureKind.Permanent;
+        _store.MarkAttempt([record], DateTime.UtcNow);
+
+        _store.ScheduleRetry(record, "temporary", DateTime.UtcNow, maxRetryAttempts: 5, maxBackoffSeconds: 30);
+
+        record.Status.Should().Be(EdgeOutboxStatus.Pending);
+        record.FailureKind.Should().Be(EdgeOutboxFailureKind.None);
+        record.NextRetryAtUtc.Should().BeAfter(DateTime.MinValue);
+    }
+
+    [TestMethod]
     public async Task CompactSentAsync_DeletesExpiredSentRecords()
     {
         await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
@@ -109,6 +150,76 @@ public sealed class EdgeOutboxStoreTests
 
         deleted.Should().Be(1);
         _db.OutboxRecords.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public async Task CompactFailedAsync_DeletesExpiredFailedRecords()
+    {
+        await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
+        var record = _db.OutboxRecords.Single();
+        _store.MarkFailed(record, "bad data", EdgeOutboxFailureKind.Permanent);
+        record.CreatedAtUtc = DateTime.UtcNow.AddDays(-31);
+        await _store.SaveChangesAsync(CancellationToken.None);
+
+        var deleted = await _store.CompactFailedAsync(TimeSpan.FromDays(30), CancellationToken.None);
+
+        deleted.Should().Be(1);
+        _db.OutboxRecords.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public async Task CompactFailedAsync_UsesLastAttemptedAtUtc_WhenPresent()
+    {
+        await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
+        var record = _db.OutboxRecords.Single();
+        record.Status = EdgeOutboxStatus.Failed;
+        record.FailureKind = EdgeOutboxFailureKind.RetryExhausted;
+        record.CreatedAtUtc = DateTime.UtcNow.AddDays(-31);
+        record.LastAttemptedAtUtc = DateTime.UtcNow.AddMinutes(-5);
+        await _store.SaveChangesAsync(CancellationToken.None);
+
+        var deleted = await _store.CompactFailedAsync(TimeSpan.FromDays(30), CancellationToken.None);
+
+        deleted.Should().Be(0);
+        _db.OutboxRecords.Should().ContainSingle();
+    }
+
+    [TestMethod]
+    public async Task RequeueRetryExhaustedAsync_MovesRecords_BackToPending()
+    {
+        await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
+        var record = _db.OutboxRecords.Single();
+        _store.MarkAttempt([record], DateTime.UtcNow);
+        _store.ScheduleRetry(record, "temporary", DateTime.UtcNow, maxRetryAttempts: 1, maxBackoffSeconds: 30);
+        await _store.SaveChangesAsync(CancellationToken.None);
+
+        var requeued = await _store.RequeueRetryExhaustedAsync(CancellationToken.None);
+
+        requeued.Should().Be(1);
+        record.Status.Should().Be(EdgeOutboxStatus.Pending);
+        record.FailureKind.Should().Be(EdgeOutboxFailureKind.None);
+        record.AttemptCount.Should().Be(0);
+        record.NextRetryAtUtc.Should().Be(DateTime.MinValue);
+        record.LastError.Should().Contain("temporary");
+        record.LastError.Should().Contain("Requeued after retry exhaustion");
+    }
+
+    [TestMethod]
+    public async Task CountFailedAsync_FiltersByFailureKind()
+    {
+        await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
+        await _store.EnqueueAsync(Message("power.energy", "2026-05-23T10:00:00Z"), CancellationToken.None);
+        var permanent = _db.OutboxRecords.Single(r => r.PayloadType == "power.reading");
+        var retryExhausted = _db.OutboxRecords.Single(r => r.PayloadType == "power.energy");
+        _store.MarkFailed(permanent, "bad data", EdgeOutboxFailureKind.Permanent);
+        _store.MarkFailed(retryExhausted, "offline", EdgeOutboxFailureKind.RetryExhausted);
+        await _store.SaveChangesAsync(CancellationToken.None);
+
+        var permanentCount = await _store.CountFailedAsync(EdgeOutboxFailureKind.Permanent, CancellationToken.None);
+        var retryExhaustedCount = await _store.CountFailedAsync(EdgeOutboxFailureKind.RetryExhausted, CancellationToken.None);
+
+        permanentCount.Should().Be(1);
+        retryExhaustedCount.Should().Be(1);
     }
 
     private static EdgeOutboxMessage Message(string payloadType, string recordedAt) => new(

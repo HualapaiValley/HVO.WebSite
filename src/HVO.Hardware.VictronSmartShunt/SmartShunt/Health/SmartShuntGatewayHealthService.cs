@@ -100,7 +100,8 @@ public sealed class SmartShuntGatewayHealthService(
             new EdgeOutboxObservation(
                 PendingCount: pendingOutboxCount,
                 FailedCount: failedOutboxCount,
-                LastError: outboxError),
+                LastError: outboxError,
+                PermanentFailedCount: failedOutboxCount),
             new EdgeOutboxHealthOptions(
                 PendingWarningCount: options.OutboxPendingWarningCount,
                 FailedCriticalCount: options.OutboxFailedCriticalCount));
@@ -127,7 +128,8 @@ public sealed class SmartShuntGatewayHealthService(
     {
         "outbox-current-sync-failing" => "outbox-error",
         "outbox-pending-backlog" => "outbox-backlog",
-        "outbox-historical-failures" or "outbox-historical-failures-over-threshold" => "outbox-failed",
+        "outbox-historical-failures" or "outbox-historical-failures-over-threshold"
+            or "outbox-permanent-failures" or "outbox-retry-exhausted" => "outbox-failed",
         _ => code,
     };
 }

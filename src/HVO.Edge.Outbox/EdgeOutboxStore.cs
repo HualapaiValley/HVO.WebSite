@@ -5,6 +5,8 @@ namespace HVO.Edge.Outbox;
 public sealed class EdgeOutboxStore<TContext>(TContext db)
     where TContext : EdgeOutboxDbContext
 {
+    private const int MaxLastErrorLength = 1024;
+
     private readonly TContext _db = db;
 
     public TContext Db => _db;
@@ -77,6 +79,11 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
     public Task<int> CountFailedAsync(CancellationToken ct) =>
         _db.OutboxRecords.CountAsync(r => r.Status == EdgeOutboxStatus.Failed, ct);
 
+    public Task<int> CountFailedAsync(EdgeOutboxFailureKind kind, CancellationToken ct) =>
+        _db.OutboxRecords.CountAsync(
+            r => r.Status == EdgeOutboxStatus.Failed && r.FailureKind == kind,
+            ct);
+
     public Task<int> CountFailedAsync(string payloadType, CancellationToken ct)
     {
         var normalizedPayloadType = NormalizeRequired(payloadType, nameof(payloadType));
@@ -99,11 +106,16 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
         record.Status = EdgeOutboxStatus.Sent;
         record.SentAtUtc = sentAtUtc;
         record.LastError = null;
+        record.FailureKind = EdgeOutboxFailureKind.None;
     }
 
-    public void MarkFailed(EdgeOutboxRecord record, string error)
+    public void MarkFailed(
+        EdgeOutboxRecord record,
+        string error,
+        EdgeOutboxFailureKind kind = EdgeOutboxFailureKind.Permanent)
     {
         record.Status = EdgeOutboxStatus.Failed;
+        record.FailureKind = kind;
         record.LastError = error;
     }
 
@@ -113,11 +125,14 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
         if (record.AttemptCount >= maxRetryAttempts)
         {
             record.Status = EdgeOutboxStatus.Failed;
+            record.FailureKind = EdgeOutboxFailureKind.RetryExhausted;
             return;
         }
 
         var backoff = Math.Min((int)Math.Pow(2, record.AttemptCount), maxBackoffSeconds);
         record.NextRetryAtUtc = nowUtc.AddSeconds(backoff);
+        record.Status = EdgeOutboxStatus.Pending;
+        record.FailureKind = EdgeOutboxFailureKind.None;
     }
 
     public async Task<int> CompactSentAsync(TimeSpan sentRetention, CancellationToken ct)
@@ -129,6 +144,39 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
         return await _db.OutboxRecords
             .Where(r => r.Status == EdgeOutboxStatus.Sent && r.SentAtUtc.HasValue && r.SentAtUtc.Value < cutoff)
             .ExecuteDeleteAsync(ct);
+    }
+
+    public async Task<int> CompactFailedAsync(TimeSpan failedRetention, CancellationToken ct)
+    {
+        if (failedRetention < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(failedRetention), failedRetention, "Retention cannot be negative.");
+
+        var cutoff = DateTime.UtcNow.Subtract(failedRetention);
+        return await _db.OutboxRecords
+            .Where(r => r.Status == EdgeOutboxStatus.Failed
+                && ((r.LastAttemptedAtUtc.HasValue && r.LastAttemptedAtUtc.Value < cutoff)
+                    || (!r.LastAttemptedAtUtc.HasValue && r.CreatedAtUtc < cutoff)))
+            .ExecuteDeleteAsync(ct);
+    }
+
+    public async Task<int> RequeueRetryExhaustedAsync(CancellationToken ct)
+    {
+        var records = await _db.OutboxRecords
+            .Where(r => r.Status == EdgeOutboxStatus.Failed
+                && r.FailureKind == EdgeOutboxFailureKind.RetryExhausted)
+            .ToListAsync(ct);
+
+        foreach (var record in records)
+        {
+            record.Status = EdgeOutboxStatus.Pending;
+            record.FailureKind = EdgeOutboxFailureKind.None;
+            record.AttemptCount = 0;
+            record.NextRetryAtUtc = DateTime.MinValue;
+            record.LastError = AppendRequeueNote(record.LastError, DateTime.UtcNow);
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return records.Count;
     }
 
     public Task SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
@@ -143,6 +191,18 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string AppendRequeueNote(string? lastError, DateTime requeuedAtUtc)
+    {
+        var note = $"Requeued after retry exhaustion at {requeuedAtUtc:O}.";
+        var updated = string.IsNullOrWhiteSpace(lastError)
+            ? note
+            : $"{lastError.Trim()} {note}";
+
+        return updated.Length <= MaxLastErrorLength
+            ? updated
+            : updated[^MaxLastErrorLength..];
+    }
 
     private static bool IsUniqueConstraintViolation(Exception exception)
     {
