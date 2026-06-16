@@ -15,5 +15,6 @@ public class EdgeOutboxRecord
     public DateTime? SentAtUtc { get; set; }
     public DateTime NextRetryAtUtc { get; set; } = DateTime.MinValue;
     public string? LastError { get; set; }
+    public EdgeOutboxFailureKind FailureKind { get; set; } = EdgeOutboxFailureKind.None;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }

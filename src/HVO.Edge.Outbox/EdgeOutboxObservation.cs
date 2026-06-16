@@ -5,4 +5,6 @@ public sealed record EdgeOutboxObservation(
     int FailedCount,
     DateTime? LastSentAtUtc = null,
     int LastBatchCount = 0,
-    string? LastError = null);
+    string? LastError = null,
+    int PermanentFailedCount = 0,
+    int RetryExhaustedCount = 0);

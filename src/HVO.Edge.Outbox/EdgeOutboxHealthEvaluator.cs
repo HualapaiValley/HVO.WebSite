@@ -17,9 +17,15 @@ public static class EdgeOutboxHealthEvaluator
         if (observation.FailedCount < 0)
             throw new ArgumentOutOfRangeException(nameof(observation.FailedCount), observation.FailedCount, "Failed count cannot be negative.");
 
+        if (observation.PermanentFailedCount < 0)
+            throw new ArgumentOutOfRangeException(nameof(observation.PermanentFailedCount), observation.PermanentFailedCount, "Permanent failed count cannot be negative.");
+
+        if (observation.RetryExhaustedCount < 0)
+            throw new ArgumentOutOfRangeException(nameof(observation.RetryExhaustedCount), observation.RetryExhaustedCount, "Retry-exhausted count cannot be negative.");
+
         var syncState = GetSyncState(observation);
         var historicalFailureState = GetHistoricalFailureState(observation, options);
-        var alerts = BuildAlerts(observation, options, syncState, historicalFailureState);
+        var alerts = BuildAlerts(observation, options, syncState);
 
         return new EdgeOutboxHealthEvaluation(
             GetHealthState(alerts),
@@ -36,7 +42,7 @@ public static class EdgeOutboxHealthEvaluator
         if (observation.PendingCount > 0)
             return EdgeOutboxSyncState.Pending;
 
-        if (observation.FailedCount > 0)
+        if (observation.PermanentFailedCount > 0 || observation.RetryExhaustedCount > 0)
             return EdgeOutboxSyncState.Degraded;
 
         return observation.LastSentAtUtc.HasValue
@@ -48,10 +54,10 @@ public static class EdgeOutboxHealthEvaluator
         EdgeOutboxObservation observation,
         EdgeOutboxHealthOptions options)
     {
-        if (observation.FailedCount <= 0)
+        if (observation.PermanentFailedCount <= 0)
             return EdgeOutboxHistoricalFailureState.None;
 
-        return options.FailedCriticalCount > 0 && observation.FailedCount >= options.FailedCriticalCount
+        return options.FailedCriticalCount > 0 && observation.PermanentFailedCount >= options.FailedCriticalCount
             ? EdgeOutboxHistoricalFailureState.OverThreshold
             : EdgeOutboxHistoricalFailureState.Present;
     }
@@ -59,8 +65,7 @@ public static class EdgeOutboxHealthEvaluator
     private static IReadOnlyList<GatewayHealthAlert> BuildAlerts(
         EdgeOutboxObservation observation,
         EdgeOutboxHealthOptions options,
-        EdgeOutboxSyncState syncState,
-        EdgeOutboxHistoricalFailureState historicalFailureState)
+        EdgeOutboxSyncState syncState)
     {
         var alerts = new List<GatewayHealthAlert>();
 
@@ -80,14 +85,20 @@ public static class EdgeOutboxHealthEvaluator
                 $"{observation.PendingCount} outbox record(s) are pending."));
         }
 
-        if (historicalFailureState != EdgeOutboxHistoricalFailureState.None)
+        if (observation.PermanentFailedCount > 0)
         {
             alerts.Add(new GatewayHealthAlert(
-                historicalFailureState == EdgeOutboxHistoricalFailureState.OverThreshold
-                    ? "outbox-historical-failures-over-threshold"
-                    : "outbox-historical-failures",
+                "outbox-permanent-failures",
                 GatewayAlertSeverity.Warning,
-                $"{observation.FailedCount} historical outbox record(s) failed."));
+                $"{observation.PermanentFailedCount} outbox record(s) have permanent failures."));
+        }
+
+        if (observation.RetryExhaustedCount > 0)
+        {
+            alerts.Add(new GatewayHealthAlert(
+                "outbox-retry-exhausted",
+                GatewayAlertSeverity.Warning,
+                $"{observation.RetryExhaustedCount} outbox record(s) exhausted retries and are queued for requeue."));
         }
 
         return alerts;

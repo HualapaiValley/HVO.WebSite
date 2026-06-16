@@ -44,6 +44,7 @@ public sealed class EdgeOutboxSqliteDatabaseInitializerTests
         var row = db.OutboxRecords.Single();
         row.PayloadType.Should().Be("power.reading");
         row.PayloadVersion.Should().Be("1");
+        row.FailureKind.Should().Be(EdgeOutboxFailureKind.None);
         row.PayloadJson.Should().Contain("pvPowerW");
 
         var store = new EdgeOutboxStore<TestOutboxDbContext>(db);
