@@ -21,6 +21,13 @@ namespace HVO.WebSite.v9.Controllers;
 [Tags("Weather")]
 public class WeatherIngestController : ControllerBase
 {
+    /// <summary>
+    /// Maximum number of records per ingest batch. Values above this threshold
+    /// risk exceeding SQL Server's 2100-parameter limit in IN-list deduplication
+    /// queries and are rejected with HTTP 400.
+    /// </summary>
+    public const int MaxBatchSize = 500;
+
     private readonly HvoV9DbContext _db;
     private readonly ILogger<WeatherIngestController> _logger;
 
@@ -133,6 +140,9 @@ public class WeatherIngestController : ControllerBase
     {
         if (requests.Count == 0)
             return ValidationProblem(detail: "Batch must contain at least one record.");
+
+        if (requests.Count > MaxBatchSize)
+            return ValidationProblem(detail: $"Batch size {requests.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
 
         // Resolve timestamps up-front (null RecordedAt → server time)
         var resolved = requests.Select(r => (Request: r, RecordedAt: r.RecordedAt?.ToUniversalTime() ?? DateTime.UtcNow)).ToList();

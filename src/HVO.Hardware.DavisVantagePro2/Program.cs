@@ -173,6 +173,12 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
     await db.Database.EnsureCreatedAsync();
     await OutboxDatabaseMaintenance.EnsureFailureKindAndRequeueRetryableFailuresAsync(db);
+
+    // Raw SQLite table creation for tables not mapped by EF Core's OutboxDbContext.
+    // These tables are managed manually because they are read/written from
+    // StationSettingsSnapshotStore and StationInfoSnapshotStore, which use raw
+    // ADO.NET rather than EF Core model binding. Any schema changes here must be
+    // coordinated with the snapshot store implementations.
     await db.Database.ExecuteSqlRawAsync(
         @"CREATE TABLE IF NOT EXISTS StationSettingsSnapshots (
             Id INTEGER NOT NULL CONSTRAINT PK_StationSettingsSnapshots PRIMARY KEY,

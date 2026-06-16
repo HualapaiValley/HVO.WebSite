@@ -20,6 +20,13 @@ namespace HVO.WebSite.v9.Controllers;
 [Tags("BMS")]
 public class BmsController : ControllerBase
 {
+    /// <summary>
+    /// Maximum number of records per ingest batch. Values above this threshold
+    /// risk exceeding SQL Server's 2100-parameter limit in IN-list deduplication
+    /// queries and are rejected with HTTP 400.
+    /// </summary>
+    public const int MaxBatchSize = 500;
+
     private readonly HvoV9DbContext _db;
     private readonly ILogger<BmsController> _logger;
 
@@ -65,6 +72,9 @@ public class BmsController : ControllerBase
     {
         if (requests.Count == 0)
             return ValidationProblem(detail: "Batch must contain at least one record.");
+
+        if (requests.Count > MaxBatchSize)
+            return ValidationProblem(detail: $"Batch size {requests.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
 
         var requestValidationErrors = ValidateRequests(requests);
         if (requestValidationErrors.Count > 0)
