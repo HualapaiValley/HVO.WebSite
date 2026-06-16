@@ -1,7 +1,7 @@
 # Unified Theme & Layout Plan
 
-**Status**: Draft plan
-**Last updated**: 2026-06-14
+**Status**: Active migration reference
+**Last updated**: 2026-06-16
 **Issues**: #153 (epic), #154–#163 (sub-tasks)
 
 ## Overview

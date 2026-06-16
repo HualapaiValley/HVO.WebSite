@@ -108,14 +108,14 @@
                         : "hvo-cell-tile";
                     <div class="@cellClass">
                         <span class="hvo-cell-num">Cell @i</span>
-                        <span class="hvo-cell-v">@v.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) V</span>
+                        <span class="hvo-cell-v">@HvoFormat.Voltage(v, 3)</span>
                     </div>
                 }
             </div>
             <div style="display:flex;gap:2rem;margin-top:0.75rem;font-size:0.75rem;">
-                <span style="color:var(--hvo-accent-danger);">Highest: Cell @_highCell — @_cellVoltages[_highCell-1].ToString("F3", System.Globalization.CultureInfo.InvariantCulture) V</span>
-                <span style="color:var(--hvo-accent-blue);">Lowest: Cell @_lowCell — @_cellVoltages[_lowCell-1].ToString("F3", System.Globalization.CultureInfo.InvariantCulture) V</span>
-                <span style="color:var(--shell-pill-text);">Delta: @(_delta.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)) V</span>
+                <span style="color:var(--hvo-accent-danger);">Highest: Cell @_highCell — @HvoFormat.Voltage(_cellVoltages[_highCell - 1], 3)</span>
+                <span style="color:var(--hvo-accent-blue);">Lowest: Cell @_lowCell — @HvoFormat.Voltage(_cellVoltages[_lowCell - 1], 3)</span>
+                <span style="color:var(--shell-pill-text);">Delta: @HvoFormat.Voltage(_delta, 3)</span>
             </div>
         </div>
 
