@@ -23,6 +23,8 @@ public sealed class SmartShuntGatewayHealthService(
         _worker.LastSnapshot,
         _forwarder.PendingCount,
         _forwarder.FailedCount,
+        _forwarder.PermanentFailedCount,
+        _forwarder.RetryExhaustedCount,
         _forwarder.LastError,
         nowUtc ?? DateTime.UtcNow);
 
@@ -33,6 +35,8 @@ public sealed class SmartShuntGatewayHealthService(
         SmartShuntDeviceSnapshot? snapshot,
         int pendingOutboxCount,
         int failedOutboxCount,
+        int permanentFailedOutboxCount,
+        int retryExhaustedOutboxCount,
         string? outboxError,
         DateTime now)
     {
@@ -55,7 +59,13 @@ public sealed class SmartShuntGatewayHealthService(
             alerts.Add(Alert("stale", SmartShuntGatewayHealthSeverity.Critical, "Latest SmartShunt sample is stale."));
         }
 
-        alerts.AddRange(BuildOutboxAlerts(options, pendingOutboxCount, failedOutboxCount, outboxError));
+        alerts.AddRange(BuildOutboxAlerts(
+            options,
+            pendingOutboxCount,
+            failedOutboxCount,
+            permanentFailedOutboxCount,
+            retryExhaustedOutboxCount,
+            outboxError));
 
         var batterySocLooksInvalid = snapshot is not null
             && snapshot.StateOfChargePercent.HasValue
@@ -94,6 +104,8 @@ public sealed class SmartShuntGatewayHealthService(
         SmartShuntOptions options,
         int pendingOutboxCount,
         int failedOutboxCount,
+        int permanentFailedOutboxCount,
+        int retryExhaustedOutboxCount,
         string? outboxError)
     {
         var evaluation = EdgeOutboxHealthEvaluator.Evaluate(
@@ -101,7 +113,8 @@ public sealed class SmartShuntGatewayHealthService(
                 PendingCount: pendingOutboxCount,
                 FailedCount: failedOutboxCount,
                 LastError: outboxError,
-                PermanentFailedCount: failedOutboxCount),
+                PermanentFailedCount: permanentFailedOutboxCount,
+                RetryExhaustedCount: retryExhaustedOutboxCount),
             new EdgeOutboxHealthOptions(
                 PendingWarningCount: options.OutboxPendingWarningCount,
                 FailedCriticalCount: options.OutboxFailedCriticalCount));

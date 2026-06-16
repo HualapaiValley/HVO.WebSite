@@ -21,6 +21,8 @@ public sealed class SmartShuntGatewayHealthServiceTests
             Snapshot(72),
             pendingOutboxCount: 0,
             failedOutboxCount: 0,
+            permanentFailedOutboxCount: 0,
+            retryExhaustedOutboxCount: 0,
             outboxError: null,
             now);
 
@@ -40,6 +42,8 @@ public sealed class SmartShuntGatewayHealthServiceTests
             Snapshot(72),
             pendingOutboxCount: 0,
             failedOutboxCount: 0,
+            permanentFailedOutboxCount: 0,
+            retryExhaustedOutboxCount: 0,
             outboxError: null,
             now);
 
@@ -60,6 +64,8 @@ public sealed class SmartShuntGatewayHealthServiceTests
             snapshot: null,
             pendingOutboxCount: 0,
             failedOutboxCount: 0,
+            permanentFailedOutboxCount: 0,
+            retryExhaustedOutboxCount: 0,
             outboxError: null,
             now: DateTime.UtcNow);
 
@@ -77,6 +83,8 @@ public sealed class SmartShuntGatewayHealthServiceTests
             Snapshot(72),
             pendingOutboxCount: 0,
             failedOutboxCount: 71,
+            permanentFailedOutboxCount: 71,
+            retryExhaustedOutboxCount: 0,
             outboxError: null,
             now: DateTime.UtcNow);
 
@@ -96,6 +104,8 @@ public sealed class SmartShuntGatewayHealthServiceTests
             Snapshot(10),
             pendingOutboxCount: 0,
             failedOutboxCount: 1,
+            permanentFailedOutboxCount: 1,
+            retryExhaustedOutboxCount: 0,
             outboxError: "website validation rejected payload",
             now: DateTime.UtcNow);
 
@@ -123,6 +133,8 @@ public sealed class SmartShuntGatewayHealthServiceTests
             },
             pendingOutboxCount: 0,
             failedOutboxCount: 0,
+            permanentFailedOutboxCount: 0,
+            retryExhaustedOutboxCount: 0,
             outboxError: null,
             now: DateTime.UtcNow);
 
