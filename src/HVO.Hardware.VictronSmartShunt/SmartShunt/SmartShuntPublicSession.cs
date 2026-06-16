@@ -123,8 +123,9 @@ public sealed class SmartShuntPublicSession : BackgroundService, ISmartShuntSess
                 {
                     await characteristic.StopNotifyAsync();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    _logger.LogDebug(ex, "StopNotifyAsync failed during SmartShunt session cleanup");
                 }
             }
         }
@@ -177,8 +178,9 @@ public sealed class SmartShuntPublicSession : BackgroundService, ISmartShuntSess
                     {
                         await _device.DisconnectAsync();
                     }
-                    catch
+                    catch (Exception disconnectEx)
                     {
+                        logger.LogDebug(disconnectEx, "DisconnectAsync failed during SmartShunt connect retry for {Address}", Address);
                     }
 
                     if (attempt < 3)
@@ -216,8 +218,9 @@ public sealed class SmartShuntPublicSession : BackgroundService, ISmartShuntSess
             {
                 await _device.DisconnectAsync();
             }
-            catch
+            catch (Exception ex)
             {
+                logger.LogDebug(ex, "DisconnectAsync failed during SmartShunt DeviceSession disposal for {Address}", Address);
             }
 
             _device = null;
@@ -260,8 +263,9 @@ public sealed class SmartShuntPublicSession : BackgroundService, ISmartShuntSess
                 {
                     await adapter.StopDiscoveryAsync();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    logger.LogDebug(ex, "StopDiscoveryAsync failed during SmartShunt FindDeviceAsync cleanup");
                 }
             }
         }

@@ -1162,8 +1162,9 @@ public sealed class VantageStation : IAsyncDisposable
         {
             await EnsureCommandModeLockedAsync(ct);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogDebug(ex, "EnsureCommandMode failed; releasing lock and rethrowing");
             _lock.Release();
             throw;
         }
@@ -1232,9 +1233,10 @@ public sealed class VantageStation : IAsyncDisposable
         {
             _client.CancelLoop();
         }
-        catch
+        catch (Exception ex)
         {
             // Best-effort cancellation so queued commands do not wait for a full loop batch.
+            _logger.LogDebug(ex, "Best-effort CancelLoop ignored an exception");
         }
 
         interruptionCts.Cancel();
@@ -1275,9 +1277,10 @@ public sealed class VantageStation : IAsyncDisposable
         {
             interruptionCts.Cancel();
         }
-        catch
+        catch (Exception ex)
         {
             // Ignore cancellation races during shutdown/reconnect.
+            _logger.LogDebug(ex, "Ignored exception during CancellationTokenSource.Cancel during reset");
         }
 
         interruptionCts.Dispose();

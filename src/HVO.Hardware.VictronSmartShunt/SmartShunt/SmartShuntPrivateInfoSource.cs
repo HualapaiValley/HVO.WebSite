@@ -105,14 +105,15 @@ public sealed class SmartShuntPrivateInfoSource(
         return result;
     }
 
-    private static async Task StartNotifyIfPossibleAsync(IGattCharacteristic1 characteristic)
+    private async Task StartNotifyIfPossibleAsync(IGattCharacteristic1 characteristic)
     {
         try
         {
             await characteristic.StartNotifyAsync();
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogDebug(ex, "StartNotifyAsync failed for SmartShunt private characteristic");
         }
     }
 
@@ -151,8 +152,9 @@ public sealed class SmartShuntPrivateInfoSource(
                     {
                         await _device.DisconnectAsync();
                     }
-                    catch
+                    catch (Exception disconnectEx)
                     {
+                        _logger.LogDebug(disconnectEx, "DisconnectAsync failed during SmartShunt private connect retry for {Address}", Address);
                     }
 
                     if (attempt < 3)
@@ -190,8 +192,9 @@ public sealed class SmartShuntPrivateInfoSource(
             {
                 await _device.DisconnectAsync();
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogDebug(ex, "DisconnectAsync failed during SmartShunt PrivateSession disposal for {Address}", Address);
             }
 
             _device = null;
@@ -234,8 +237,9 @@ public sealed class SmartShuntPrivateInfoSource(
                 {
                     await adapter.StopDiscoveryAsync();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    _logger.LogDebug(ex, "StopDiscoveryAsync failed during SmartShunt private FindDeviceAsync cleanup");
                 }
             }
         }

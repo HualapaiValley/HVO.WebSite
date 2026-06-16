@@ -146,12 +146,27 @@ public sealed class PowerApiForwarder : BackgroundService
                 }
             }
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        catch (HttpRequestException ex)
         {
             foreach (var record in ready.Select(x => x.Record))
                 ScheduleRetry(record, ex.Message, now);
             _lastError = ex.Message;
-            _logger.LogWarning(ex, "SmartShunt forward error for {Count} record(s)", ready.Count);
+            _logger.LogWarning(ex, "SmartShunt forward HTTP error for {Count} record(s)", ready.Count);
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            const string error = "Request timed out";
+            foreach (var record in ready.Select(x => x.Record))
+                ScheduleRetry(record, error, now);
+            _lastError = error;
+            _logger.LogWarning("SmartShunt forward timed out for {Count} record(s)", ready.Count);
+        }
+        catch (JsonException ex)
+        {
+            foreach (var record in ready.Select(x => x.Record))
+                ScheduleRetry(record, ex.Message, now);
+            _lastError = ex.Message;
+            _logger.LogWarning(ex, "SmartShunt forward JSON error for {Count} record(s)", ready.Count);
         }
 
         await db.SaveChangesAsync(ct);
