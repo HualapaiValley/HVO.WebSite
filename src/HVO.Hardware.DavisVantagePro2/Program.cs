@@ -128,9 +128,8 @@ builder.Services.AddSingleton<VantageStation>();
 
 // ── SQLite outbox ──────────────────────────────────────────────────────────────
 var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
-string dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
-    ? outboxConfig.DbPath
-    : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
+string dbPath = OutboxDatabasePath.Resolve(outboxConfig?.DbPath);
+Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(dbPath))!);
 builder.Services.AddDbContext<OutboxDbContext>(o =>
     o.UseSqlite($"Data Source={dbPath}"),
     ServiceLifetime.Scoped);
