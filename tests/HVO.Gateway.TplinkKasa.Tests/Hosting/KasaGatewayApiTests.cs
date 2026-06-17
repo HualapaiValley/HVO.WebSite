@@ -150,6 +150,8 @@ public sealed class KasaGatewayApiTests
 
         protected override IHost CreateHost(IHostBuilder builder)
         {
+            Directory.CreateDirectory(Path.GetDirectoryName(outboxPath)!);
+
             builder.ConfigureServices(services =>
             {
                 var hostedService = services.SingleOrDefault(service => service.ImplementationFactory is not null

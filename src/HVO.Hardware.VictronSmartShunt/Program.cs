@@ -238,17 +238,15 @@ static async Task<GatewayDiagnosticStatusResponse> CreateSmartShuntDiagnosticSta
 {
     var now = DateTime.UtcNow;
     var snapshot = healthService.GetSnapshot(now);
+    var fresh = worker.LastSnapshotAt is { } lastSnapshotAt && now - lastSnapshotAt <= TimeSpan.FromSeconds(options.SampleStaleAfterSeconds);
     var health = new GatewayHealthSnapshot(
         MapHealthState(snapshot.State),
         snapshot.EvaluatedAtUtc,
         snapshot.Alerts.Select(alert => new GatewayHealthAlert(alert.Code, MapSeverity(alert.Severity), alert.Message)).ToArray(),
-        string.IsNullOrWhiteSpace(worker.LastError)
-            ? worker.LastSnapshotAt is null ? GatewaySampleState.Waiting : GatewaySampleState.Live
-            : GatewaySampleState.Error,
+        ResolveSmartShuntFreshness(worker.LastSnapshotAt, worker.LastError, fresh),
         null,
         null);
 
-    var fresh = worker.LastSnapshotAt is { } lastSnapshotAt && now - lastSnapshotAt <= TimeSpan.FromSeconds(options.SampleStaleAfterSeconds);
     return new GatewayDiagnosticStatusResponse(
         "1.0",
         new GatewayIdentity("smartshunt", "Victron SmartShunt Gateway", GatewayDomain.Power, options.SourceId, options.DeviceId, Environment.MachineName),
@@ -265,6 +263,15 @@ static async Task<GatewayDiagnosticStatusResponse> CreateSmartShuntDiagnosticSta
             ["legacyGatewayHealth"] = "/gateway-health",
             ["legacyStatus"] = "/status",
         });
+}
+
+static GatewaySampleState ResolveSmartShuntFreshness(DateTime? lastSnapshotAtUtc, string? lastError, bool fresh)
+{
+    if (!string.IsNullOrWhiteSpace(lastError))
+        return GatewaySampleState.Error;
+    if (lastSnapshotAtUtc is null)
+        return GatewaySampleState.Waiting;
+    return fresh ? GatewaySampleState.Live : GatewaySampleState.Stale;
 }
 
 static GatewayHealthState MapHealthState(string state) => state switch

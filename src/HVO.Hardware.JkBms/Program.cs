@@ -261,7 +261,7 @@ static async Task<GatewayDiagnosticStatusResponse> CreateJkBmsDiagnosticStatusAs
 {
     var now = DateTime.UtcNow;
     var deviceCounts = new GatewayDeviceCounts(
-        options.Devices.Count,
+        poller.DeviceStates.Count,
         poller.DeviceStates.Count(device => device.LatestReading is not null && string.IsNullOrWhiteSpace(device.LastError)),
         poller.DeviceStates.Count(device => device.LatestReading is not null && !string.IsNullOrWhiteSpace(device.LastError)),
         poller.DeviceStates.Count(device => device.LatestReading is null));

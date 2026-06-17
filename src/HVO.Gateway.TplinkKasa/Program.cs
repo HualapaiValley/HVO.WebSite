@@ -472,9 +472,11 @@ static async Task<GatewayDiagnosticStatusResponse> CreateKasaDiagnosticStatusAsy
     var status = await state.GetStatusAsync(cancellationToken).ConfigureAwait(false);
     var offline = Math.Max(0, status.ConfiguredDeviceCount - status.OnlineDeviceCount);
     var counts = new GatewayDeviceCounts(status.ConfiguredDeviceCount, status.OnlineDeviceCount, status.DegradedDeviceCount, offline);
-    var healthState = !string.IsNullOrWhiteSpace(status.LastError) || offline > 0
+    var outboxState = forwarder.FailedCount > 0 ? "failed-records-present" : forwarder.PendingCount > 0 ? "pending-forward" : "current";
+    var apiSyncState = string.IsNullOrWhiteSpace(forwarder.LastError) ? "healthy" : "error";
+    var healthState = !string.IsNullOrWhiteSpace(status.LastError) || offline > 0 || apiSyncState == "error"
         ? GatewayHealthState.Critical
-        : status.DegradedDeviceCount > 0 ? GatewayHealthState.Warning : GatewayHealthState.Healthy;
+        : status.DegradedDeviceCount > 0 || forwarder.FailedCount > 0 ? GatewayHealthState.Warning : GatewayHealthState.Healthy;
 
     return new GatewayDiagnosticStatusResponse(
         "1.0",
@@ -485,8 +487,8 @@ static async Task<GatewayDiagnosticStatusResponse> CreateKasaDiagnosticStatusAsy
             now,
             BuildKasaAlerts(status, offline),
             healthState == GatewayHealthState.Healthy ? GatewaySampleState.Live : GatewaySampleState.Error,
-            forwarder.FailedCount > 0 ? "failed-records-present" : forwarder.PendingCount > 0 ? "pending-forward" : "current",
-            string.IsNullOrWhiteSpace(forwarder.LastError) ? "healthy" : "error"),
+            outboxState,
+            apiSyncState),
         counts,
         await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken).ConfigureAwait(false),
         CreateTelemetryDiagnostics("hvo-tplink-kasa", "hvo.tplinkkasa"),
