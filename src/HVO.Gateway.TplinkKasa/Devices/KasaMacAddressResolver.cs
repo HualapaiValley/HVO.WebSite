@@ -11,9 +11,9 @@ public sealed class KasaMacAddressResolver(
 {
     private static readonly TimeSpan CacheExpiry = TimeSpan.FromMinutes(5);
 
-    private readonly ConcurrentDictionary<string, MacLookupResult> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<MacLookupKey, MacLookupResult> _cache = [];
 
-    public async Task<string?> TryFindHostByMacAsync(string macAddress, CancellationToken cancellationToken)
+    public async Task<string?> TryFindHostByMacAsync(string macAddress, int port, CancellationToken cancellationToken)
     {
         var normalized = KasaJson.NormalizeMacAddress(macAddress);
         if (string.IsNullOrWhiteSpace(normalized))
@@ -21,13 +21,16 @@ public sealed class KasaMacAddressResolver(
             return null;
         }
 
-        if (_cache.TryGetValue(normalized, out var cached) && cached.ExpiresAt > DateTimeOffset.UtcNow)
+        var cacheKey = new MacLookupKey(normalized, port);
+
+        if (_cache.TryGetValue(cacheKey, out var cached) && cached.ExpiresAt > DateTimeOffset.UtcNow)
         {
-            logger.LogDebug("MAC lookup cache hit for {MacAddress}: {Host}", normalized, cached.Host ?? "(not found)");
+            logger.LogDebug("MAC lookup cache hit for {MacAddress} on port {Port}: {Host}", normalized, port, cached.Host ?? "(not found)");
             return cached.Host;
         }
 
         var completedAnyScan = false;
+        var failedAnyScan = false;
 
         foreach (var network in options.Value.Networks)
         {
@@ -51,7 +54,7 @@ public sealed class KasaMacAddressResolver(
 
                 var results = await probe.ScanCidrAsync(
                     network.Cidr,
-                    options.Value.DefaultPort,
+                    port,
                     options.Value.MaxScanConcurrency,
                     scanOptions,
                     includePrivacySensitive: false,
@@ -71,7 +74,7 @@ public sealed class KasaMacAddressResolver(
                         && KasaJson.MacAddressesEqual(scannedMac, normalized))
                     {
                         logger.LogInformation("Found MAC {MacAddress} at {Host} on network {NetworkName}", normalized, result.Host, network.Name);
-                        _cache[normalized] = new MacLookupResult(result.Host, DateTimeOffset.UtcNow.Add(CacheExpiry));
+                        _cache[cacheKey] = new MacLookupResult(result.Host, DateTimeOffset.UtcNow.Add(CacheExpiry));
                         return result.Host;
                     }
                 }
@@ -82,18 +85,21 @@ public sealed class KasaMacAddressResolver(
             }
             catch (Exception ex)
             {
+                failedAnyScan = true;
                 logger.LogWarning(ex, "MAC scan on network {NetworkName} ({Cidr}) failed", network.Name, network.Cidr);
             }
         }
 
         logger.LogInformation("MAC {MacAddress} was not found on any configured network", normalized);
-        if (completedAnyScan)
+        if (completedAnyScan && !failedAnyScan)
         {
-            _cache[normalized] = new MacLookupResult(null, DateTimeOffset.UtcNow.Add(CacheExpiry));
+            _cache[cacheKey] = new MacLookupResult(null, DateTimeOffset.UtcNow.Add(CacheExpiry));
         }
 
         return null;
     }
+
+    private sealed record MacLookupKey(string MacAddress, int Port);
 
     private sealed record MacLookupResult(string? Host, DateTimeOffset ExpiresAt);
 }
