@@ -53,7 +53,6 @@
     --hvo-tab-border-hover: rgba(148, 163, 184, 0.5);
     --hvo-tab-color: rgba(248, 250, 252, 0.92);
     --hvo-tab-color-muted: rgba(148, 163, 184, 0.78);
-    --hvo-tab-indicator: var(--hvo-accent);
     --hvo-danger-strong: #f87171;
     --hvo-success-strong: #34d399;
     --hvo-warning-strong: #facc15;
@@ -397,7 +396,7 @@ body[data-theme="hvo-dark"] .hvo-tab-row__tab[data-active="true"] {
 body[data-theme="hvo-dark"] .hvo-tab-row__tab--active::after,
 body[data-theme="hvo-dark"] .hvo-tab-row__tab[aria-current="page"]::after,
 body[data-theme="hvo-dark"] .hvo-tab-row__tab[data-active="true"]::after {
-    background: var(--hvo-tab-indicator);
+    background: var(--hvo-accent);
     transform: translateY(1px);
 }
 

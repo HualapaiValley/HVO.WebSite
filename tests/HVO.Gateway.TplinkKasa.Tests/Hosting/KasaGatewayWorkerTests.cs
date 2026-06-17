@@ -23,6 +23,7 @@ public sealed class KasaGatewayWorkerTests
             null!,
             null!,
             null!,
+            null!,
             NullLogger<KasaGatewayWorker>.Instance);
 
         var baseConfig = new KasaDeviceConfig
@@ -81,6 +82,7 @@ public sealed class KasaGatewayWorkerTests
     private static KasaGatewayWorker CreateWorker(KasaGatewayOptions.OutboxSection outboxOptions) => new(
         Options.Create(new KasaGatewayOptions { DefaultPort = 9999, PollIntervalSeconds = 5 }),
         Options.Create(outboxOptions),
+        null!,
         null!,
         null!,
         null!,

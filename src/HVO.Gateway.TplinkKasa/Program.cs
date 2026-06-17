@@ -241,6 +241,8 @@ static async Task RunGatewayAsync(string[] args)
     builder.Services.AddSingleton<KasaDevicePoller>();
     builder.Services.AddSingleton<KasaGatewayState>();
     builder.Services.AddSingleton<KasaGatewayTelemetry>();
+    builder.Services.AddSingleton<IKasaMacAddressLookup, KasaMacAddressResolver>();
+    builder.Services.AddSingleton<KasaDeviceLocator>();
     builder.Services.AddSingleton<KasaGatewayWorker>();
     if (!builder.Environment.IsEnvironment("Testing"))
         builder.Services.AddHostedService(sp => sp.GetRequiredService<KasaGatewayWorker>());

@@ -13,6 +13,7 @@ public sealed class KasaGatewayWorker(
     IOptions<KasaGatewayOptions.OutboxSection> outboxOptions,
     KasaDeviceRegistry registry,
     KasaDevicePoller poller,
+    KasaDeviceLocator locator,
     KasaDeviceInteractionState interactionState,
     KasaGatewayState state,
     KasaGatewayTelemetry telemetry,
@@ -20,6 +21,8 @@ public sealed class KasaGatewayWorker(
     ILogger<KasaGatewayWorker> logger) : BackgroundService
 {
     private readonly ConcurrentDictionary<string, DevicePollLoop> deviceLoops = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, int> _consecutiveFailures = new(StringComparer.OrdinalIgnoreCase);
+    private const int MacRecoveryThreshold = 3;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -197,6 +200,15 @@ public sealed class KasaGatewayWorker(
                 : "failed";
             RecordPoll(device, resultName, stopwatch.Elapsed);
 
+            if (!result.IsSuccess)
+            {
+                await TryRecoverDeviceAsync(device, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                _consecutiveFailures.TryRemove(device.EffectiveSourceId, out _);
+            }
+
             if (stopwatch.Elapsed > interval)
             {
                 logger.LogWarning(
@@ -233,6 +245,8 @@ public sealed class KasaGatewayWorker(
                 device.EffectiveSourceId,
                 stopwatch.Elapsed.TotalMilliseconds,
                 interval.TotalMilliseconds);
+
+            _ = TryRecoverDeviceAsync(device, CancellationToken.None);
         }
     }
 
@@ -282,6 +296,91 @@ public sealed class KasaGatewayWorker(
         }
 
         return result;
+    }
+
+    private async Task TryRecoverDeviceAsync(KasaDeviceConfig device, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(device.MacAddress))
+        {
+            _consecutiveFailures.TryRemove(device.EffectiveSourceId, out _);
+            return;
+        }
+
+        var failures = _consecutiveFailures.AddOrUpdate(
+            device.EffectiveSourceId, 1, (_, count) => count + 1);
+
+        if (failures < MacRecoveryThreshold)
+        {
+            return;
+        }
+
+        _consecutiveFailures.TryRemove(device.EffectiveSourceId, out _);
+
+        logger.LogInformation(
+            "Attempting MAC-based rediscovery for offline device {SourceId} ({MacAddress}) after {FailureCount} consecutive failures",
+            device.EffectiveSourceId, device.MacAddress, MacRecoveryThreshold);
+
+        try
+        {
+            var location = await locator.LocateAsync(device, options.Value.DefaultPort, cancellationToken).ConfigureAwait(false);
+
+            if (location.IsSuccess
+                && location.Host is not null
+                && !string.Equals(location.Host, device.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                logger.LogInformation(
+                    "Rediscovered device {SourceId} at new IP {NewHost} (was {OldHost})",
+                    device.EffectiveSourceId, location.Host, device.Host);
+
+                var updated = new KasaDeviceConfig
+                {
+                    Enabled = device.Enabled,
+                    DeviceId = device.DeviceId,
+                    SourceId = device.SourceId,
+                    DisplayName = device.DisplayName,
+                    GroupName = device.GroupName,
+                    IsFavorite = device.IsFavorite,
+                    Host = location.Host,
+                    Port = null,
+                    MacAddress = device.MacAddress,
+                    NetworkName = device.NetworkName,
+                    DisplayTimeZoneId = device.DisplayTimeZoneId,
+                    ExpectedModel = device.ExpectedModel,
+                    ExpectedHardwareVersion = device.ExpectedHardwareVersion,
+                    ExpectedSoftwareVersion = device.ExpectedSoftwareVersion,
+                    ExpectedChildCount = device.ExpectedChildCount,
+                    ProtocolFamily = device.ProtocolFamily,
+                    DeviceKind = device.DeviceKind,
+                    Capabilities = device.Capabilities.ToList(),
+                    MetadataCapabilities = device.MetadataCapabilities.ToList(),
+                    CommandCapabilities = device.CommandCapabilities.ToList(),
+                    SafetyClass = device.SafetyClass,
+                    PollIntervalSeconds = device.PollIntervalSeconds
+                };
+
+                await registry.AddOrUpdateAsync(updated, cancellationToken).ConfigureAwait(false);
+            }
+            else if (location.IsSuccess)
+            {
+                logger.LogDebug(
+                    "Device {SourceId} still reachable at configured host {Host} — MAC lookup confirmed",
+                    device.EffectiveSourceId, device.Host);
+                _consecutiveFailures.TryRemove(device.EffectiveSourceId, out _);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "MAC-based rediscovery failed for device {SourceId}: {Reason}",
+                    device.EffectiveSourceId, location.FailureReason);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "MAC-based rediscovery attempt failed for device {SourceId}", device.EffectiveSourceId);
+        }
     }
 
     private async Task EnqueueOutboxAsync(KasaDeviceConfig config, KasaDeviceSnapshot snapshot, CancellationToken ct)
