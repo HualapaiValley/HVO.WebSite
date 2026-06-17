@@ -13,7 +13,7 @@ namespace HVO.Hardware.JkBms.Tests.Outbox;
 public sealed class HttpApiForwarderTests
 {
     [TestMethod]
-    public async Task ForwardAsync_OnPermanentHttpStatus_ThrowsPermanentForwarderExceptionForAllRecords()
+    public async Task ForwardAsync_OnBadRequest_ThrowsHttpRequestException()
     {
         var forwarder = CreateForwarder(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
@@ -23,8 +23,23 @@ public sealed class HttpApiForwarderTests
 
         var act = () => forwarder.ForwardAsync(batch, CancellationToken.None);
 
-        var ex = await act.Should().ThrowAsync<PermanentForwarderException>();
-        ex.Which.FailedRecords.Select(f => f.RecordId).Should().Equal(1, 2);
+        await act.Should().ThrowAsync<HttpRequestException>();
+    }
+
+    [TestMethod]
+    public async Task ForwardAsync_OnAuthOrRoutingFailure_ThrowsHttpRequestException()
+    {
+        foreach (var statusCode in new[] { HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.NotFound })
+        {
+            var forwarder = CreateForwarder(_ => new HttpResponseMessage(statusCode)
+            {
+                Content = new StringContent("configuration error"),
+            });
+
+            var act = () => forwarder.ForwardAsync(CreateBatch(), CancellationToken.None);
+
+            await act.Should().ThrowAsync<HttpRequestException>();
+        }
     }
 
     [TestMethod]

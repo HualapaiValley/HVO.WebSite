@@ -185,12 +185,19 @@ public sealed class ForwarderCoordinator : BackgroundService
         var now = DateTime.UtcNow;
         var pending = await store.GetReadyBatchAsync(BmsOutboxPayloadTypes.Reading, now, _options.BatchSize, ct);
 
-        PendingCount = await store.CountPendingAsync(BmsOutboxPayloadTypes.Reading, ct);
+        PendingCount = await store.CountPendingAsync(ct);
         FailedCount = await store.CountFailedAsync(ct);
         _telemetry.SetOutboxQueueDepth(PendingCount);
 
         if (pending.Count == 0)
         {
+            var snapshotsDrained = await DrainStandaloneSnapshotPayloadsAsync(store, now, ct);
+            if (snapshotsDrained > 0)
+            {
+                PendingCount = await store.CountPendingAsync(ct);
+                _telemetry.SetOutboxQueueDepth(PendingCount);
+            }
+
             sweepScope.WithTag("pending", 0).Succeed();
             // Snapshot before invoking to avoid a race on concurrent subscribe/unsubscribe.
             var noWorkHandler = SweepCompleted;
@@ -294,13 +301,18 @@ public sealed class ForwarderCoordinator : BackgroundService
 
         await store.SaveChangesAsync(ct);
 
+        var snapshotSentCount = await DrainStandaloneSnapshotPayloadsAsync(store, now, ct);
+
         if (transientFailureIds.Count == 0 && permanentlyFailedIds.Count == 0)
         {
             LastSentAt = sentAt;
             LastError = null;
             _telemetry.OutboxRecordsForwarded.Add(sentCount);
+            if (snapshotSentCount > 0)
+                _telemetry.OutboxRecordsForwarded.Add(snapshotSentCount);
             sweepScope
                 .WithTag("records_forwarded", sentCount)
+                .WithTag("snapshots_drained", snapshotSentCount)
                 .WithTag("pending", PendingCount)
                 .WithTag("failed", FailedCount)
                 .Succeed();
@@ -332,11 +344,46 @@ public sealed class ForwarderCoordinator : BackgroundService
         }
 
         // Refresh counts after the save
-        PendingCount = await store.CountPendingAsync(BmsOutboxPayloadTypes.Reading, ct);
+        PendingCount = await store.CountPendingAsync(ct);
         FailedCount = await store.CountFailedAsync(ct);
 
         // Snapshot before invoking to avoid a race on concurrent subscribe/unsubscribe.
         var sweepDoneHandler = SweepCompleted;
         sweepDoneHandler?.Invoke();
+    }
+
+    private async Task<int> DrainStandaloneSnapshotPayloadsAsync(
+        EdgeOutboxStore<OutboxDbContext> store,
+        DateTime now,
+        CancellationToken ct)
+    {
+        var sentCount = 0;
+        sentCount += await DrainStandaloneSnapshotPayloadTypeAsync(store, BmsOutboxPayloadTypes.Config, now, ct);
+        sentCount += await DrainStandaloneSnapshotPayloadTypeAsync(store, BmsOutboxPayloadTypes.DeviceInfo, now, ct);
+        if (sentCount > 0)
+        {
+            await store.SaveChangesAsync(ct);
+            _logger.LogInformation(
+                "Drained {Count} standalone JK BMS config/device-info snapshot outbox record(s); bundled reading payloads remain the website-compatible forwarding path.",
+                sentCount);
+        }
+
+        return sentCount;
+    }
+
+    private async Task<int> DrainStandaloneSnapshotPayloadTypeAsync(
+        EdgeOutboxStore<OutboxDbContext> store,
+        string payloadType,
+        DateTime now,
+        CancellationToken ct)
+    {
+        var pending = await store.GetReadyBatchAsync(payloadType, now, _options.BatchSize, ct);
+        if (pending.Count == 0)
+            return 0;
+
+        store.MarkAttempt(pending, now);
+        foreach (var record in pending)
+            store.MarkSent(record, now);
+        return pending.Count;
     }
 }
