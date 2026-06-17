@@ -20,6 +20,7 @@ using HVO.Hardware.DavisVantagePro2.Api;
 using HVO.Hardware.DavisVantagePro2.Telemetry;
 using HVO.Hardware.DavisVantagePro2.Workers;
 using HVO.Edge.Outbox;
+using HVO.Edge.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MudBlazor.Services;
@@ -150,7 +151,7 @@ builder.Services.AddDbContext<DavisLocalDbContext>(o =>
     o.UseSqlite($"Data Source={localDbPath}"),
     ServiceLifetime.Scoped);
 builder.Services.AddDbContext<OutboxDbContext>(o =>
-    o.UseSqlite($"Data Source={dbPath}"),
+    o.UseSqlite($"Data Source={dbPath};Default Timeout=30", sqlite => sqlite.CommandTimeout(30)),
     ServiceLifetime.Scoped);
 builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
 builder.Services.AddScoped<DavisOutboxWriter>();
@@ -180,6 +181,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddMudServices();
 
 var app = builder.Build();
+var gatewayStartedAtUtc = DateTime.UtcNow;
 
 // Ensure the SQLite schemas are created on startup
 using (var scope = app.Services.CreateScope())
@@ -218,7 +220,7 @@ app.MapRazorComponents<App>()
 
 app.MapGet("/api/weather/current", (HttpContext httpContext, WeatherStationWorker worker, VantageStation station, OutboxForwarder forwarder, IOptions<OutboxOptions> outboxOptions) =>
 {
-    if (!HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
     {
         return Results.StatusCode(StatusCodes.Status403Forbidden);
     }
@@ -306,6 +308,31 @@ app.MapGet("/api/weather/current", (HttpContext httpContext, WeatherStationWorke
 .WithName("GetCurrentWeather")
 .WithTags("Weather");
 
+app.MapGet("/diagnostics/health", async (HttpContext httpContext, WeatherStationWorker worker, VantageStation station, OutboxForwarder forwarder, OutboxDbContext db, IOptions<StationOptions> stationOptions, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    var status = await CreateDavisDiagnosticStatusAsync(gatewayStartedAtUtc, app.Environment.EnvironmentName, worker, station, forwarder, db, stationOptions.Value, cancellationToken);
+    return Results.Ok(status.Health);
+});
+
+app.MapGet("/diagnostics/status", async (HttpContext httpContext, WeatherStationWorker worker, VantageStation station, OutboxForwarder forwarder, OutboxDbContext db, IOptions<StationOptions> stationOptions, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    return Results.Ok(await CreateDavisDiagnosticStatusAsync(gatewayStartedAtUtc, app.Environment.EnvironmentName, worker, station, forwarder, db, stationOptions.Value, cancellationToken));
+});
+
+app.MapGet("/diagnostics/outbox", async (HttpContext httpContext, OutboxDbContext db, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    return Results.Ok(await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken));
+});
+
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     ResultStatusCodes =
@@ -318,16 +345,52 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 
 await app.RunAsync();
 
-static bool HasMatchingApiKey(HttpContext httpContext, string configuredApiKey)
+static async Task<GatewayDiagnosticStatusResponse> CreateDavisDiagnosticStatusAsync(
+    DateTime startedAtUtc,
+    string environmentName,
+    WeatherStationWorker worker,
+    VantageStation station,
+    OutboxForwarder forwarder,
+    OutboxDbContext db,
+    StationOptions options,
+    CancellationToken cancellationToken)
 {
-    if (string.IsNullOrWhiteSpace(configuredApiKey) ||
-        string.Equals(configuredApiKey, "REPLACE_ME", StringComparison.OrdinalIgnoreCase) ||
-        configuredApiKey.Contains("__SET_", StringComparison.Ordinal))
-    {
-        return false;
-    }
+    var now = DateTime.UtcNow;
+    var isFresh = worker.LastReadingAt is { } lastReadingAt && now - lastReadingAt <= TimeSpan.FromMinutes(5);
+    var hasError = !string.IsNullOrWhiteSpace(worker.LastError);
+    var health = new GatewayHealthSnapshot(
+        hasError ? GatewayHealthState.Critical : isFresh ? GatewayHealthState.Healthy : GatewayHealthState.Warning,
+        now,
+        hasError ? [new GatewayHealthAlert("station-error", GatewayAlertSeverity.Critical, worker.LastError!)] : [],
+        hasError ? GatewaySampleState.Error : isFresh ? GatewaySampleState.Live : GatewaySampleState.Stale,
+        forwarder.FailedCount > 0 ? "failed-records-present" : forwarder.PendingCount > 0 ? "pending-forward" : "current",
+        string.IsNullOrWhiteSpace(forwarder.LastError) ? "healthy" : "error");
 
-    return httpContext.Request.Headers.TryGetValue("X-Api-Key", out var providedApiKey)
-        && providedApiKey.Count > 0
-        && string.Equals(providedApiKey[0], configuredApiKey, StringComparison.Ordinal);
+    return new GatewayDiagnosticStatusResponse(
+        "1.0",
+        new GatewayIdentity("davis", "Davis Vantage Pro2 Gateway", GatewayDomain.Weather, options.StationId, RuntimeHost: Environment.MachineName),
+        new GatewayRuntimeInfo(startedAtUtc, now, now - startedAtUtc, environmentName),
+        health,
+        GatewayDeviceCounts.SingleSource(isFresh, hasError),
+        await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken),
+        CreateTelemetryDiagnostics("hvo-davis", "hvo.davis"),
+        new Dictionary<string, string>
+        {
+            ["health"] = "/diagnostics/health",
+            ["status"] = "/diagnostics/status",
+            ["outbox"] = "/diagnostics/outbox",
+            ["legacyCurrent"] = "/api/weather/current",
+        });
 }
+
+static GatewayTelemetryDiagnostics CreateTelemetryDiagnostics(string defaultServiceName, string sourceName) => new(
+    !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")),
+    Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? defaultServiceName,
+    [
+        GatewayTelemetryConventions.MetricNames.OutboxDepth,
+        GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess,
+        GatewayTelemetryConventions.MetricNames.OutboxForwardFailure,
+        GatewayTelemetryConventions.MetricNames.DeviceFreshnessSeconds,
+        GatewayTelemetryConventions.MetricNames.DevicePollFailure,
+    ],
+    [sourceName]);

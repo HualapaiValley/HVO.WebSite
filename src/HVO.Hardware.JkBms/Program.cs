@@ -1,4 +1,5 @@
 using HVO.Edge.Outbox;
+using HVO.Edge.Contracts;
 using HVO.Enterprise.Telemetry;
 using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.Http;
@@ -18,6 +19,7 @@ using HVO.Hardware.JkBms.Telemetry;
 using HVO.Hardware.JkBms.Workers;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MudBlazor.Services;
 using Serilog;
 using Serilog.Events;
@@ -136,7 +138,7 @@ string dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
     ? outboxConfig.DbPath
     : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
 builder.Services.AddDbContext<OutboxDbContext>(o =>
-    o.UseSqlite($"Data Source={dbPath}"),
+    o.UseSqlite($"Data Source={dbPath};Default Timeout=30", sqlite => sqlite.CommandTimeout(30)),
     ServiceLifetime.Scoped);
 builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
 builder.Services.AddScoped<BmsOutboxWriter>();
@@ -168,6 +170,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddMudServices();
 
 var app = builder.Build();
+var gatewayStartedAtUtc = DateTime.UtcNow;
 
 // Ensure the SQLite schema is created on startup
 using (var scope = app.Services.CreateScope())
@@ -192,6 +195,49 @@ app.UseAntiforgery();
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode();
 
+app.MapGet("/diagnostics/health", async (HttpContext httpContext, BmsPollerWorker poller, ForwarderCoordinator forwarder, OutboxDbContext db, IOptions<JkBmsOptions> bmsOptions, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    var status = await CreateJkBmsDiagnosticStatusAsync(gatewayStartedAtUtc, app.Environment.EnvironmentName, poller, forwarder, db, bmsOptions.Value, cancellationToken);
+    return Results.Ok(status.Health);
+});
+
+app.MapGet("/diagnostics/status", async (HttpContext httpContext, BmsPollerWorker poller, ForwarderCoordinator forwarder, OutboxDbContext db, IOptions<JkBmsOptions> bmsOptions, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    return Results.Ok(await CreateJkBmsDiagnosticStatusAsync(gatewayStartedAtUtc, app.Environment.EnvironmentName, poller, forwarder, db, bmsOptions.Value, cancellationToken));
+});
+
+app.MapGet("/diagnostics/outbox", async (HttpContext httpContext, OutboxDbContext db, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    return Results.Ok(await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken));
+});
+
+app.MapGet("/diagnostics/devices", (HttpContext httpContext, BmsPollerWorker poller, IOptions<OutboxOptions> outboxOptions) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    return Results.Ok(poller.DeviceStates.Select(device => new
+    {
+        device.Alias,
+        device.AdapterName,
+        device.PollIntervalSeconds,
+        IsOnline = device.LatestReading is not null && string.IsNullOrWhiteSpace(device.LastError),
+        IsDegraded = device.LatestReading is not null && !string.IsNullOrWhiteSpace(device.LastError),
+        LastPollAtUtc = device.LastPollAt,
+        device.ConsecutiveErrors,
+        device.LastError,
+    }));
+});
+
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     ResultStatusCodes =
@@ -203,3 +249,64 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 });
 
 await app.RunAsync();
+
+static async Task<GatewayDiagnosticStatusResponse> CreateJkBmsDiagnosticStatusAsync(
+    DateTime startedAtUtc,
+    string environmentName,
+    BmsPollerWorker poller,
+    ForwarderCoordinator forwarder,
+    OutboxDbContext db,
+    JkBmsOptions options,
+    CancellationToken cancellationToken)
+{
+    var now = DateTime.UtcNow;
+    var deviceCounts = new GatewayDeviceCounts(
+        options.Devices.Count,
+        poller.DeviceStates.Count(device => device.LatestReading is not null && string.IsNullOrWhiteSpace(device.LastError)),
+        poller.DeviceStates.Count(device => device.LatestReading is not null && !string.IsNullOrWhiteSpace(device.LastError)),
+        poller.DeviceStates.Count(device => device.LatestReading is null));
+    var state = deviceCounts.Offline > 0 ? GatewayHealthState.Critical : deviceCounts.Degraded > 0 ? GatewayHealthState.Warning : GatewayHealthState.Healthy;
+
+    return new GatewayDiagnosticStatusResponse(
+        "1.0",
+        new GatewayIdentity("jkbms", "JK BMS Gateway", GatewayDomain.Power, "jkbms", RuntimeHost: Environment.MachineName),
+        new GatewayRuntimeInfo(startedAtUtc, now, now - startedAtUtc, environmentName),
+        new GatewayHealthSnapshot(
+            state,
+            now,
+            BuildDeviceAlerts(poller.DeviceStates),
+            state == GatewayHealthState.Healthy ? GatewaySampleState.Live : GatewaySampleState.Error,
+            forwarder.FailedCount > 0 ? "failed-records-present" : forwarder.PendingCount > 0 ? "pending-forward" : "current",
+            string.IsNullOrWhiteSpace(forwarder.LastError) ? "healthy" : "error"),
+        deviceCounts,
+        await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken),
+        CreateTelemetryDiagnostics("hvo-jkbms", "hvo.jkbms"),
+        new Dictionary<string, string>
+        {
+            ["health"] = "/diagnostics/health",
+            ["status"] = "/diagnostics/status",
+            ["outbox"] = "/diagnostics/outbox",
+            ["devices"] = "/diagnostics/devices",
+        });
+}
+
+static IReadOnlyList<GatewayHealthAlert> BuildDeviceAlerts(IEnumerable<DevicePollState> devices) =>
+    devices
+        .Where(device => !string.IsNullOrWhiteSpace(device.LastError) || device.LatestReading is null)
+        .Select(device => new GatewayHealthAlert(
+            device.LatestReading is null ? "bms-waiting" : "bms-error",
+            device.LatestReading is null ? GatewayAlertSeverity.Warning : GatewayAlertSeverity.Critical,
+            $"BMS '{device.Alias}' is not healthy."))
+        .ToArray();
+
+static GatewayTelemetryDiagnostics CreateTelemetryDiagnostics(string defaultServiceName, string sourceName) => new(
+    !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")),
+    Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? defaultServiceName,
+    [
+        GatewayTelemetryConventions.MetricNames.OutboxDepth,
+        GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess,
+        GatewayTelemetryConventions.MetricNames.OutboxForwardFailure,
+        GatewayTelemetryConventions.MetricNames.DeviceFreshnessSeconds,
+        GatewayTelemetryConventions.MetricNames.DevicePollFailure,
+    ],
+    [sourceName]);

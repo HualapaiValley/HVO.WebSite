@@ -1,4 +1,5 @@
 using HVO.Edge.Outbox;
+using HVO.Edge.Contracts;
 using HVO.Gateway.TplinkKasa.Devices;
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Components;
@@ -247,7 +248,7 @@ static async Task RunGatewayAsync(string[] args)
     var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
         ? outboxConfig.DbPath
         : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
-    builder.Services.AddDbContext<OutboxDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
+    builder.Services.AddDbContext<OutboxDbContext>(options => options.UseSqlite($"Data Source={dbPath};Default Timeout=30", sqlite => sqlite.CommandTimeout(30)));
     builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
     builder.Services.AddScoped<KasaOutboxWriter>();
     builder.Services.AddHttpClient("KasaPowerApi", (sp, client) =>
@@ -266,6 +267,7 @@ static async Task RunGatewayAsync(string[] args)
     builder.Services.AddMudServices();
 
     var app = builder.Build();
+    var gatewayStartedAtUtc = DateTime.UtcNow;
 
     using (var scope = app.Services.CreateScope())
     {
@@ -300,6 +302,43 @@ static async Task RunGatewayAsync(string[] args)
         }
 
         return Results.Ok(await state.GetHealthAsync(cancellationToken));
+    });
+    app.MapGet("/diagnostics/health", async (HttpContext httpContext, KasaGatewayState state, KasaOutboxForwarder forwarder, OutboxDbContext db, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
+    {
+        if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        var status = await CreateKasaDiagnosticStatusAsync(gatewayStartedAtUtc, app.Environment.EnvironmentName, state, forwarder, db, gatewayOptions.Value, cancellationToken).ConfigureAwait(false);
+        return Results.Ok(status.Health);
+    });
+    app.MapGet("/diagnostics/status", async (HttpContext httpContext, KasaGatewayState state, KasaOutboxForwarder forwarder, OutboxDbContext db, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
+    {
+        if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(await CreateKasaDiagnosticStatusAsync(gatewayStartedAtUtc, app.Environment.EnvironmentName, state, forwarder, db, gatewayOptions.Value, cancellationToken).ConfigureAwait(false));
+    });
+    app.MapGet("/diagnostics/outbox", async (HttpContext httpContext, OutboxDbContext db, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
+    {
+        if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken).ConfigureAwait(false));
+    });
+    app.MapGet("/diagnostics/devices", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
+    {
+        if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(await state.GetReviewStatusAsync(cancellationToken).ConfigureAwait(false));
     });
     app.MapGet("/status-review", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
     {
@@ -419,6 +458,73 @@ static async Task RunGatewayAsync(string[] args)
 
     await app.RunAsync().ConfigureAwait(false);
 }
+
+static async Task<GatewayDiagnosticStatusResponse> CreateKasaDiagnosticStatusAsync(
+    DateTime startedAtUtc,
+    string environmentName,
+    KasaGatewayState state,
+    KasaOutboxForwarder forwarder,
+    OutboxDbContext db,
+    KasaGatewayOptions options,
+    CancellationToken cancellationToken)
+{
+    var now = DateTime.UtcNow;
+    var status = await state.GetStatusAsync(cancellationToken).ConfigureAwait(false);
+    var offline = Math.Max(0, status.ConfiguredDeviceCount - status.OnlineDeviceCount);
+    var counts = new GatewayDeviceCounts(status.ConfiguredDeviceCount, status.OnlineDeviceCount, status.DegradedDeviceCount, offline);
+    var healthState = !string.IsNullOrWhiteSpace(status.LastError) || offline > 0
+        ? GatewayHealthState.Critical
+        : status.DegradedDeviceCount > 0 ? GatewayHealthState.Warning : GatewayHealthState.Healthy;
+
+    return new GatewayDiagnosticStatusResponse(
+        "1.0",
+        new GatewayIdentity(options.GatewayId, "TP-Link Kasa Gateway", GatewayDomain.Power, options.GatewayId, RuntimeHost: Environment.MachineName),
+        new GatewayRuntimeInfo(startedAtUtc, now, now - startedAtUtc, environmentName),
+        new GatewayHealthSnapshot(
+            healthState,
+            now,
+            BuildKasaAlerts(status, offline),
+            healthState == GatewayHealthState.Healthy ? GatewaySampleState.Live : GatewaySampleState.Error,
+            forwarder.FailedCount > 0 ? "failed-records-present" : forwarder.PendingCount > 0 ? "pending-forward" : "current",
+            string.IsNullOrWhiteSpace(forwarder.LastError) ? "healthy" : "error"),
+        counts,
+        await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken).ConfigureAwait(false),
+        CreateTelemetryDiagnostics("hvo-tplink-kasa", "hvo.tplinkkasa"),
+        new Dictionary<string, string>
+        {
+            ["health"] = "/diagnostics/health",
+            ["status"] = "/diagnostics/status",
+            ["outbox"] = "/diagnostics/outbox",
+            ["devices"] = "/diagnostics/devices",
+            ["legacyGatewayHealth"] = "/gateway-health",
+            ["legacyStatus"] = "/status",
+            ["legacyDevices"] = "/devices",
+        });
+}
+
+static IReadOnlyList<GatewayHealthAlert> BuildKasaAlerts(KasaGatewayStatusResponse status, int offline)
+{
+    var alerts = new List<GatewayHealthAlert>();
+    if (!string.IsNullOrWhiteSpace(status.LastError))
+        alerts.Add(new GatewayHealthAlert("kasa-poll-error", GatewayAlertSeverity.Critical, status.LastError));
+    if (offline > 0)
+        alerts.Add(new GatewayHealthAlert("kasa-devices-offline", GatewayAlertSeverity.Critical, $"{offline} configured Kasa device(s) are offline."));
+    if (status.DegradedDeviceCount > 0)
+        alerts.Add(new GatewayHealthAlert("kasa-devices-degraded", GatewayAlertSeverity.Warning, $"{status.DegradedDeviceCount} Kasa device(s) are degraded."));
+    return alerts;
+}
+
+static GatewayTelemetryDiagnostics CreateTelemetryDiagnostics(string defaultServiceName, string sourceName) => new(
+    !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")),
+    Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? defaultServiceName,
+    [
+        GatewayTelemetryConventions.MetricNames.OutboxDepth,
+        GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess,
+        GatewayTelemetryConventions.MetricNames.OutboxForwardFailure,
+        GatewayTelemetryConventions.MetricNames.DeviceFreshnessSeconds,
+        GatewayTelemetryConventions.MetricNames.DevicePollFailure,
+    ],
+    [sourceName]);
 
 static void PrintUsage()
 {

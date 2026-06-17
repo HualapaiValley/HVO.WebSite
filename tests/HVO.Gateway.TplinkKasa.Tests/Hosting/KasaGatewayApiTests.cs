@@ -25,6 +25,10 @@ public sealed class KasaGatewayApiTests
 
     [TestMethod]
     [DataRow("/gateway-health")]
+    [DataRow("/diagnostics/health")]
+    [DataRow("/diagnostics/status")]
+    [DataRow("/diagnostics/outbox")]
+    [DataRow("/diagnostics/devices")]
     [DataRow("/status-review")]
     [DataRow("/status-review/current")]
     public async Task DiagnosticEndpoints_RequireApiKey(string path)
@@ -39,6 +43,10 @@ public sealed class KasaGatewayApiTests
 
     [TestMethod]
     [DataRow("/gateway-health")]
+    [DataRow("/diagnostics/health")]
+    [DataRow("/diagnostics/status")]
+    [DataRow("/diagnostics/outbox")]
+    [DataRow("/diagnostics/devices")]
     [DataRow("/status-review")]
     [DataRow("/status-review/current")]
     public async Task DiagnosticEndpoints_WithApiKey_ReturnOk(string path)
@@ -50,6 +58,51 @@ public sealed class KasaGatewayApiTests
         using var response = await client.GetAsync(path);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [TestMethod]
+    public async Task DiagnosticsStatus_WithApiKey_ReturnsStandardShapeAndNoSecrets()
+    {
+        await using var factory = new KasaGatewayApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", "local-test-key");
+
+        using var response = await client.GetAsync("/diagnostics/status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadAsStringAsync();
+        json.Should().Contain("contractVersion");
+        json.Should().Contain("identity");
+        json.Should().Contain("devices");
+        json.Should().Contain("outbox");
+        json.Should().Contain("telemetry");
+        json.Should().NotContain("local-test-key");
+        json.Should().NotContain("RAW_DEVICE_ID_SANITIZED");
+        json.Should().NotContain("configured-device-host.example");
+
+        using var document = JsonDocument.Parse(json);
+        var devices = document.RootElement.GetProperty("devices");
+        devices.GetProperty("configured").GetInt32().Should().Be(1);
+        devices.GetProperty("online").GetInt32().Should().Be(0);
+        devices.GetProperty("offline").GetInt32().Should().Be(1);
+    }
+
+    [TestMethod]
+    public async Task DiagnosticsDevices_WithApiKey_ReturnsDegradedSafeShape()
+    {
+        await using var factory = new KasaGatewayApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", "local-test-key");
+
+        using var response = await client.GetAsync("/diagnostics/devices");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadAsStringAsync();
+        json.Should().Contain("configuredDeviceCount");
+        json.Should().Contain("onlineDeviceCount");
+        json.Should().Contain("degradedDeviceCount");
+        json.Should().NotContain("RAW_DEVICE_ID_SANITIZED");
+        json.Should().NotContain("configured-device-host.example");
     }
 
     [TestMethod]
@@ -74,6 +127,7 @@ public sealed class KasaGatewayApiTests
     private sealed class KasaGatewayApiFactory : WebApplicationFactory<Program>
     {
         private readonly string registryPath = Path.Combine(Path.GetTempPath(), "hvo-kasa-api-tests", Guid.NewGuid().ToString("N"), "kasa-devices.json");
+        private readonly string outboxPath = Path.Combine(Path.GetTempPath(), "hvo-kasa-api-tests", Guid.NewGuid().ToString("N"), "outbox.db");
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -88,7 +142,8 @@ public sealed class KasaGatewayApiTests
                     ["KasaGateway:Devices:0:DeviceId"] = "RAW_DEVICE_ID_SANITIZED",
                     ["KasaGateway:Devices:0:SourceId"] = "tplink-kasa:api-test",
                     ["KasaGateway:Devices:0:Host"] = "configured-device-host.example",
-                    ["KasaGateway:Devices:0:ExpectedModel"] = "EP25(US)"
+                    ["KasaGateway:Devices:0:ExpectedModel"] = "EP25(US)",
+                    ["Outbox:DbPath"] = outboxPath
                 });
             });
         }

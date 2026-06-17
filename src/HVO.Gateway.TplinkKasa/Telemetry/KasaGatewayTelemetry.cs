@@ -1,10 +1,11 @@
 using System.Diagnostics.Metrics;
+using HVO.Edge.Contracts;
 
 namespace HVO.Gateway.TplinkKasa.Telemetry;
 
 public sealed class KasaGatewayTelemetry : IDisposable
 {
-    private readonly Meter meter = new("HVO.Gateway.TplinkKasa");
+    private readonly Meter meter = new("hvo.tplinkkasa");
 
     public Counter<long> DevicePollCount { get; }
 
@@ -25,7 +26,7 @@ public sealed class KasaGatewayTelemetry : IDisposable
             "Duration of each TP-Link/Kasa device poll attempt, tagged by device and result.");
 
         DevicePollSkippedCount = meter.CreateCounter<long>(
-            "kasa.device.poll.skipped.count",
+            GatewayTelemetryConventions.MetricNames.DevicePollFailure,
             "ticks",
             "Number of TP-Link/Kasa poll ticks skipped because a previous poll was still running.");
     }

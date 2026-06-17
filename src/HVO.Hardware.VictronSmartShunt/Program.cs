@@ -3,6 +3,7 @@ using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.OpenTelemetry;
 using HVO.Enterprise.Telemetry.Serilog;
 using HVO.Edge.Outbox;
+using HVO.Edge.Contracts;
 using HVO.Hardware.VictronSmartShunt.Components;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
@@ -97,7 +98,7 @@ builder.Services
         ? outboxConfig.DbPath
         : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
 
-    builder.Services.AddDbContext<OutboxDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
+    builder.Services.AddDbContext<OutboxDbContext>(o => o.UseSqlite($"Data Source={dbPath};Default Timeout=30", sqlite => sqlite.CommandTimeout(30)));
 builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
 builder.Services.AddScoped<PowerOutboxWriter>();
 
@@ -129,6 +130,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddMudServices();
 
 var app = builder.Build();
+var gatewayStartedAtUtc = DateTime.UtcNow;
 var exposeDiagnostics = app.Environment.IsDevelopment()
     || app.Configuration.GetValue("Diagnostics:ExposeDetailedEndpoints", false);
 
@@ -190,7 +192,7 @@ if (exposeDiagnostics)
 
 app.MapGet("/gateway-health", (HttpContext httpContext, SmartShuntGatewayHealthService healthService, IOptions<OutboxOptions> outboxOptions) =>
 {
-    if (!SmartShuntGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
     {
         return Results.StatusCode(StatusCodes.Status403Forbidden);
     }
@@ -198,4 +200,96 @@ app.MapGet("/gateway-health", (HttpContext httpContext, SmartShuntGatewayHealthS
     return Results.Ok(healthService.GetSnapshot());
 });
 
+app.MapGet("/diagnostics/health", async (HttpContext httpContext, SmartShuntWorker worker, SmartShuntGatewayHealthService healthService, OutboxDbContext db, IOptions<SmartShuntOptions> smartShuntOptions, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    var status = await CreateSmartShuntDiagnosticStatusAsync(gatewayStartedAtUtc, app.Environment.EnvironmentName, worker, healthService, db, smartShuntOptions.Value, cancellationToken);
+    return Results.Ok(status.Health);
+});
+
+app.MapGet("/diagnostics/status", async (HttpContext httpContext, SmartShuntWorker worker, SmartShuntGatewayHealthService healthService, OutboxDbContext db, IOptions<SmartShuntOptions> smartShuntOptions, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    return Results.Ok(await CreateSmartShuntDiagnosticStatusAsync(gatewayStartedAtUtc, app.Environment.EnvironmentName, worker, healthService, db, smartShuntOptions.Value, cancellationToken));
+});
+
+app.MapGet("/diagnostics/outbox", async (HttpContext httpContext, OutboxDbContext db, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    return Results.Ok(await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken));
+});
+
 await app.RunAsync();
+
+static async Task<GatewayDiagnosticStatusResponse> CreateSmartShuntDiagnosticStatusAsync(
+    DateTime startedAtUtc,
+    string environmentName,
+    SmartShuntWorker worker,
+    SmartShuntGatewayHealthService healthService,
+    OutboxDbContext db,
+    SmartShuntOptions options,
+    CancellationToken cancellationToken)
+{
+    var now = DateTime.UtcNow;
+    var snapshot = healthService.GetSnapshot(now);
+    var health = new GatewayHealthSnapshot(
+        MapHealthState(snapshot.State),
+        snapshot.EvaluatedAtUtc,
+        snapshot.Alerts.Select(alert => new GatewayHealthAlert(alert.Code, MapSeverity(alert.Severity), alert.Message)).ToArray(),
+        string.IsNullOrWhiteSpace(worker.LastError)
+            ? worker.LastSnapshotAt is null ? GatewaySampleState.Waiting : GatewaySampleState.Live
+            : GatewaySampleState.Error,
+        null,
+        null);
+
+    var fresh = worker.LastSnapshotAt is { } lastSnapshotAt && now - lastSnapshotAt <= TimeSpan.FromSeconds(options.SampleStaleAfterSeconds);
+    return new GatewayDiagnosticStatusResponse(
+        "1.0",
+        new GatewayIdentity("smartshunt", "Victron SmartShunt Gateway", GatewayDomain.Power, options.SourceId, options.DeviceId, Environment.MachineName),
+        new GatewayRuntimeInfo(startedAtUtc, now, now - startedAtUtc, environmentName),
+        health,
+        GatewayDeviceCounts.SingleSource(fresh, health.State == GatewayHealthState.Warning),
+        await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken),
+        CreateTelemetryDiagnostics("hvo-smartshunt", "hvo.smartshunt"),
+        new Dictionary<string, string>
+        {
+            ["health"] = "/diagnostics/health",
+            ["status"] = "/diagnostics/status",
+            ["outbox"] = "/diagnostics/outbox",
+            ["legacyGatewayHealth"] = "/gateway-health",
+            ["legacyStatus"] = "/status",
+        });
+}
+
+static GatewayHealthState MapHealthState(string state) => state switch
+{
+    "healthy" => GatewayHealthState.Healthy,
+    "warning" => GatewayHealthState.Warning,
+    "critical" => GatewayHealthState.Critical,
+    _ => GatewayHealthState.Unknown,
+};
+
+static GatewayAlertSeverity MapSeverity(SmartShuntGatewayHealthSeverity severity) => severity switch
+{
+    SmartShuntGatewayHealthSeverity.Critical => GatewayAlertSeverity.Critical,
+    SmartShuntGatewayHealthSeverity.Warning => GatewayAlertSeverity.Warning,
+    _ => GatewayAlertSeverity.Info,
+};
+
+static GatewayTelemetryDiagnostics CreateTelemetryDiagnostics(string defaultServiceName, string sourceName) => new(
+    !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")),
+    Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? defaultServiceName,
+    [
+        GatewayTelemetryConventions.MetricNames.OutboxDepth,
+        GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess,
+        GatewayTelemetryConventions.MetricNames.OutboxForwardFailure,
+        GatewayTelemetryConventions.MetricNames.DeviceFreshnessSeconds,
+        GatewayTelemetryConventions.MetricNames.DevicePollFailure,
+    ],
+    [sourceName]);
