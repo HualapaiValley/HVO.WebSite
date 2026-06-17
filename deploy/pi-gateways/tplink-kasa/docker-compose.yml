@@ -87,6 +87,17 @@ services:
       KasaGateway__Devices__3__ExpectedChildCount: ${KASA_DEVICE_3_EXPECTED_CHILD_COUNT:-}
       KasaGateway__Devices__3__DeviceKind: ${KASA_DEVICE_3_DEVICE_KIND:-Auto}
       KasaGateway__Devices__3__SafetyClass: TelemetryOnly
+      Outbox__ApiEndpoint: ${KASA_OUTBOX_APIENDPOINT:-}
+      Outbox__ApiKey: ${KASA_OUTBOX_APIKEY:-}
+      Outbox__MaxRetryAttempts: ${KASA_OUTBOX_MAXRETRYATTEMPTS:-10}
+      Outbox__MaxBackoffSeconds: ${KASA_OUTBOX_MAXBACKOFFSECONDS:-300}
+      Outbox__SweepIntervalSeconds: ${KASA_OUTBOX_SWEEPINTERVALSECONDS:-5}
+      Outbox__BatchSize: ${KASA_OUTBOX_BATCHSIZE:-50}
+      Outbox__SentRetentionDays: ${KASA_OUTBOX_SENTRETENTIONDAYS:-7}
+      Outbox__FailedRetentionDays: ${KASA_OUTBOX_FAILEDRETENTIONDAYS:-30}
+      Outbox__PendingWarningCount: ${KASA_OUTBOX_PENDINGWARNINGCOUNT:-10}
+      Outbox__FailedCriticalCount: ${KASA_OUTBOX_FAILEDCRITICALCOUNT:-1}
+      Outbox__DbPath: ${KASA_OUTBOX_DBPATH:-/app/data/outbox.db}
       DOTNET_ENVIRONMENT: Production
     volumes:
       - kasa-data:/app/data
