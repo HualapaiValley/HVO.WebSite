@@ -70,6 +70,63 @@ public static class DavisLegacyOutboxMigrator
                 [DavisOutboxPayloadTypes.Raw],
                 ct).ConfigureAwait(false);
         }
+
+        if (columns.Contains("IsArchiveRecord"))
+            await RebuildSharedTableAsync(db, ct).ConfigureAwait(false);
+    }
+
+    private static async Task RebuildSharedTableAsync(OutboxDbContext db, CancellationToken ct)
+    {
+        await db.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS OutboxRecords_shared", ct).ConfigureAwait(false);
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE OutboxRecords_shared (
+                Id INTEGER NOT NULL CONSTRAINT PK_OutboxRecords PRIMARY KEY AUTOINCREMENT,
+                SourceId TEXT NOT NULL,
+                DeviceId TEXT NULL,
+                PayloadType TEXT NOT NULL,
+                PayloadVersion TEXT NOT NULL,
+                RecordedAtUtc TEXT NOT NULL,
+                Payload TEXT NOT NULL,
+                Status INTEGER NOT NULL,
+                AttemptCount INTEGER NOT NULL,
+                LastAttemptedAtUtc TEXT NULL,
+                SentAtUtc TEXT NULL,
+                NextRetryAtUtc TEXT NOT NULL,
+                LastError TEXT NULL,
+                FailureKind INTEGER NOT NULL DEFAULT 0,
+                CreatedAtUtc TEXT NOT NULL
+            )
+            """, ct).ConfigureAwait(false);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            INSERT INTO OutboxRecords_shared (
+                Id, SourceId, DeviceId, PayloadType, PayloadVersion, RecordedAtUtc, Payload, Status,
+                AttemptCount, LastAttemptedAtUtc, SentAtUtc, NextRetryAtUtc, LastError, FailureKind, CreatedAtUtc)
+            SELECT
+                Id,
+                SourceId,
+                DeviceId,
+                PayloadType,
+                PayloadVersion,
+                RecordedAtUtc,
+                Payload,
+                Status,
+                AttemptCount,
+                LastAttemptedAtUtc,
+                SentAtUtc,
+                NextRetryAtUtc,
+                LastError,
+                FailureKind,
+                CreatedAtUtc
+            FROM OutboxRecords
+            """, ct).ConfigureAwait(false);
+
+        await db.Database.ExecuteSqlRawAsync("DROP TABLE OutboxRecords", ct).ConfigureAwait(false);
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE OutboxRecords_shared RENAME TO OutboxRecords", ct).ConfigureAwait(false);
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE UNIQUE INDEX IF NOT EXISTS IX_OutboxRecords_SourceId_PayloadType_RecordedAtUtc ON OutboxRecords (SourceId, PayloadType, RecordedAtUtc)",
+            ct).ConfigureAwait(false);
+        await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_OutboxRecords_Status ON OutboxRecords (Status)", ct).ConfigureAwait(false);
     }
 
     private static async Task<HashSet<string>> GetOutboxColumnsAsync(OutboxDbContext db, CancellationToken ct)

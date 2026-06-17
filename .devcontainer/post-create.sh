@@ -118,6 +118,14 @@ if (( ${#missing_packages[@]} > 0 )); then
 	sudo apt-get install -y --no-install-recommends "${missing_packages[@]}"
 fi
 
+if command -v az >/dev/null 2>&1; then
+	az config set extension.use_dynamic_install=yes_without_prompt >/dev/null 2>&1 || true
+	az extension add --name log-analytics --only-show-errors >/dev/null 2>&1 || \
+		az extension update --name log-analytics --only-show-errors >/dev/null 2>&1 || true
+else
+	echo "Warning: Azure CLI not found — rebuild the devcontainer to install the azure-cli feature."
+fi
+
 # NuGet uses ~/.local/share/NuGet for vulnerability metadata by default. Ensure
 # that path and the explicit cache paths are writable after restored volumes or
 # VS Code create nested mount parent directories.

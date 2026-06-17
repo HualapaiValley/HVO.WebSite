@@ -22,6 +22,7 @@ public static class EdgeOutboxSqliteDatabaseInitializer
         await EnsureColumnAsync(db, "PayloadVersion", $"TEXT NOT NULL DEFAULT '{EscapeSqlLiteral(payloadVersion)}'", ct);
         await EnsureColumnAsync(db, "FailureKind", "INTEGER NOT NULL DEFAULT 0", ct);
         await ReplaceLegacyUniqueIndexAsync(db, ct);
+        await EdgeOutboxSchemaValidator.ValidateOrThrowAsync(db, ct);
     }
 
     private static async Task EnsureColumnAsync(EdgeOutboxDbContext db, string columnName, string columnDefinition, CancellationToken ct)
