@@ -9,7 +9,7 @@
     {
         <div class="kasa-outlet-list" aria-label="Device outlets">
             <KasaOutletRow Device="Device" Outlet="Outlet" ShowEnergy="true" UseOutletIndex="false"
-                           HideIdentity="@HideOutletIdentity" OnChanged="OnChanged">
+                           CommandMode="KasaOutletCommandMode.LightState" HideIdentity="@HideOutletIdentity" OnChanged="OnChanged">
                 <InlineControls>
                     <MudSlider T="int" Value="_brightness" ValueChanged="OnBrightnessSliderChanged" Immediate="true" Min="0"
                                Max="100" Disabled="@BusyOrUnavailable" Color="Color.Primary" Class="kasa-port-slider"
