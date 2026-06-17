@@ -4,14 +4,15 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace HVO.Hardware.DavisVantagePro2.Outbox;
 
-public sealed class StationSettingsSnapshotStore(IServiceScopeFactory scopeFactory)
+public sealed class StationSettingsSnapshotStore(
+    IServiceScopeFactory scopeFactory)
 {
     private const int SnapshotId = 1;
 
     public async Task<StoredStationSettingsSnapshot?> GetAsync(CancellationToken ct = default)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<DavisLocalDbContext>();
 
         var entity = await db.StationSettingsSnapshots
             .AsNoTracking()
@@ -25,7 +26,7 @@ public sealed class StationSettingsSnapshotStore(IServiceScopeFactory scopeFacto
     public async Task<StoredStationSettingsSnapshot> SaveAsync(StationSettings settings, CancellationToken ct = default)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<DavisLocalDbContext>();
 
         var entity = await db.StationSettingsSnapshots
             .SingleOrDefaultAsync(snapshot => snapshot.Id == SnapshotId, ct)
@@ -40,6 +41,7 @@ public sealed class StationSettingsSnapshotStore(IServiceScopeFactory scopeFacto
         }
 
         await db.SaveChangesAsync(ct);
+
         return new StoredStationSettingsSnapshot(entity.ToStationSettings(), entity.SavedAtUtc);
     }
 }

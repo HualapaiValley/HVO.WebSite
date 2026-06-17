@@ -526,9 +526,21 @@
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
+      "hvo.edge.contracts": {
+        "type": "Project"
+      },
+      "hvo.edge.outbox": {
+        "type": "Project",
+        "dependencies": {
+          "HVO.Edge.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.9, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.9, )"
+        }
+      },
       "hvo.hardware.davisvantagepro2": {
         "type": "Project",
         "dependencies": {
+          "HVO.Edge.Outbox": "[1.0.0, )",
           "HVO.Enterprise.Telemetry": "[1.0.3, )",
           "HVO.Enterprise.Telemetry.OpenTelemetry": "[1.1.2, )",
           "HVO.Enterprise.Telemetry.Serilog": "[2.0.1, )",

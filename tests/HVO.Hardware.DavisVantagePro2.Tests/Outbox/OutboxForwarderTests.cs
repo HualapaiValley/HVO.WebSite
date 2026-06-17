@@ -1,13 +1,16 @@
-using System.Net;
-using System.Reflection;
 using System.Diagnostics;
+using System.Net;
+using FluentAssertions;
+using HVO.Edge.Outbox;
 using HVO.Enterprise.Telemetry.Abstractions;
 using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Telemetry;
 using HVO.Hardware.DavisVantagePro2.Workers;
-using FluentAssertions;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -26,13 +29,15 @@ public class OutboxForwarderTests
             return new HttpResponseMessage(HttpStatusCode.Created);
         }));
         using var forwarder = CreateForwarder(client);
+        await using var db = await CreateDbAsync();
+        var store = new EdgeOutboxStore<OutboxDbContext>(db);
         var record = CreateRecord("not json");
 
-        await InvokeForwardBatchAsync(forwarder, client, [record]);
+        await forwarder.ForwardBatchAsync(store, "https://example.test/api/v1/weather/raw/batch", [record], DateTime.UtcNow, CancellationToken.None);
 
         calls.Should().Be(0);
-        record.Status.Should().Be(OutboxStatus.Failed);
-        record.FailureKind.Should().Be(OutboxFailureKind.InvalidPayload);
+        record.Status.Should().Be(EdgeOutboxStatus.Failed);
+        record.FailureKind.Should().Be(EdgeOutboxFailureKind.Permanent);
         record.LastError.Should().Contain("Invalid outbox payload JSON");
     }
 
@@ -46,12 +51,14 @@ public class OutboxForwarderTests
                 Content = new StringContent($"{{\"failed\":[{{\"recordedAt\":\"{recordedAt:O}\",\"error\":\"bad format\"}}]}}")
             }));
         using var forwarder = CreateForwarder(client);
+        await using var db = await CreateDbAsync();
+        var store = new EdgeOutboxStore<OutboxDbContext>(db);
         var record = CreateRecord("{}", recordedAt);
 
-        await InvokeForwardBatchAsync(forwarder, client, [record]);
+        await forwarder.ForwardBatchAsync(store, "https://example.test/api/v1/weather/raw/batch", [record], DateTime.UtcNow, CancellationToken.None);
 
-        record.Status.Should().Be(OutboxStatus.Failed);
-        record.FailureKind.Should().Be(OutboxFailureKind.ApiValidation);
+        record.Status.Should().Be(EdgeOutboxStatus.Failed);
+        record.FailureKind.Should().Be(EdgeOutboxFailureKind.Permanent);
         record.LastError.Should().Be("bad format");
     }
 
@@ -59,47 +66,145 @@ public class OutboxForwarderTests
     public async Task ForwardBatchAsync_TransientFailureAfterMaxAttempts_RecordsRetryExhaustedReason()
     {
         using var client = new HttpClient(new StubHandler(_ =>
-                new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
-                {
-                    Content = new StringContent("cloud server down")
-                }));
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+            {
+                Content = new StringContent("cloud server down")
+            }));
         using var forwarder = CreateForwarder(
             client,
             new OutboxOptions { ApiEndpoint = "https://example.test/api/v1/weather/raw", ApiKey = "test", MaxRetryAttempts = 1 });
+        await using var db = await CreateDbAsync();
+        var store = new EdgeOutboxStore<OutboxDbContext>(db);
         var record = CreateRecord("{}");
 
-        await InvokeForwardBatchAsync(forwarder, client, [record]);
+        await forwarder.ForwardBatchAsync(store, "https://example.test/api/v1/weather/raw/batch", [record], DateTime.UtcNow, CancellationToken.None);
 
-        record.Status.Should().Be(OutboxStatus.Failed);
-        record.FailureKind.Should().Be(OutboxFailureKind.TransientExhausted);
-        record.LastError.Should().Contain("Giving up after 1 attempts");
+        record.Status.Should().Be(EdgeOutboxStatus.Failed);
+        record.FailureKind.Should().Be(EdgeOutboxFailureKind.RetryExhausted);
         record.LastError.Should().Contain("HTTP 503");
     }
 
-    private static OutboxRecord CreateRecord(string payload, DateTime? recordedAt = null) => new()
+    [TestMethod]
+    public async Task SweepAsync_DoesNotRequeueRetryExhaustedRows_AndCountsAllPendingPayloads()
     {
-        Id = 42,
-        RecordedAtUtc = recordedAt ?? new DateTime(2026, 5, 28, 22, 0, 0, DateTimeKind.Utc),
-        Payload = payload,
-        Status = OutboxStatus.Pending,
-    };
+        var calls = 0;
+        using var client = new HttpClient(new StubHandler(_ =>
+        {
+            calls++;
+            return new HttpResponseMessage(HttpStatusCode.Created);
+        }));
+        await using var fixture = await OutboxFixture.CreateAsync();
+        fixture.Db.OutboxRecords.Add(new EdgeOutboxRecord
+        {
+            SourceId = "hvo-davis-01",
+            PayloadType = DavisOutboxPayloadTypes.Raw,
+            PayloadVersion = DavisOutboxPayloadTypes.RawVersion,
+            RecordedAtUtc = new DateTime(2026, 5, 28, 22, 0, 0, DateTimeKind.Utc),
+            PayloadJson = "{}",
+            Status = EdgeOutboxStatus.Failed,
+            FailureKind = EdgeOutboxFailureKind.RetryExhausted,
+            AttemptCount = 3,
+            LastError = "HTTP 503",
+        });
+        fixture.Db.OutboxRecords.Add(new EdgeOutboxRecord
+        {
+            SourceId = "hvo-davis-01",
+            PayloadType = DavisOutboxPayloadTypes.Config,
+            PayloadVersion = DavisOutboxPayloadTypes.ConfigVersion,
+            RecordedAtUtc = new DateTime(2026, 5, 28, 22, 1, 0, DateTimeKind.Utc),
+            PayloadJson = "{}",
+            Status = EdgeOutboxStatus.Pending,
+        });
+        await fixture.Db.SaveChangesAsync();
 
-    private static async Task InvokeForwardBatchAsync(OutboxForwarder forwarder, HttpClient client, List<OutboxRecord> records)
-    {
-        var method = typeof(OutboxForwarder).GetMethod("ForwardBatchAsync", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("ForwardBatchAsync was not found.");
-        var task = (Task?)method.Invoke(forwarder, [client, records, CancellationToken.None])
-            ?? throw new InvalidOperationException("ForwardBatchAsync did not return a task.");
-        await task;
+        using var forwarder = CreateForwarder(client, scopeFactory: fixture.Services.GetRequiredService<IServiceScopeFactory>());
+
+        var sent = await forwarder.SweepAsync(CancellationToken.None);
+
+        sent.Should().BeFalse();
+        calls.Should().Be(0);
+        forwarder.PendingCount.Should().Be(1);
+        fixture.Db.ChangeTracker.Clear();
+        var retryExhausted = await fixture.Db.OutboxRecords.SingleAsync(r => r.PayloadType == DavisOutboxPayloadTypes.Raw);
+        retryExhausted.Status.Should().Be(EdgeOutboxStatus.Failed);
+        retryExhausted.FailureKind.Should().Be(EdgeOutboxFailureKind.RetryExhausted);
+        retryExhausted.AttemptCount.Should().Be(3);
     }
 
-    private static OutboxForwarder CreateForwarder(HttpClient client, OutboxOptions? options = null) => new(
-        scopeFactory: null!,
+    private static async Task<OutboxDbContext> CreateDbAsync()
+    {
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<OutboxDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        var db = new OutboxDbContext(options);
+        await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
+            db,
+            DavisOutboxPayloadTypes.Raw,
+            DavisOutboxPayloadTypes.RawVersion);
+        return db;
+    }
+
+    private static EdgeOutboxRecord CreateRecord(string payload, DateTime? recordedAt = null) => new()
+    {
+        Id = 42,
+        SourceId = "hvo-davis-01",
+        PayloadType = DavisOutboxPayloadTypes.Raw,
+        PayloadVersion = DavisOutboxPayloadTypes.RawVersion,
+        RecordedAtUtc = recordedAt ?? new DateTime(2026, 5, 28, 22, 0, 0, DateTimeKind.Utc),
+        PayloadJson = payload,
+        Status = EdgeOutboxStatus.Pending,
+    };
+
+    private static OutboxForwarder CreateForwarder(
+        HttpClient client,
+        OutboxOptions? options = null,
+        IServiceScopeFactory? scopeFactory = null) => new(
+        scopeFactory: scopeFactory!,
         httpFactory: new StubHttpClientFactory(client),
         options: Options.Create(options ?? new OutboxOptions { ApiEndpoint = "https://example.test/api/v1/weather/raw", ApiKey = "test" }),
         telemetry: new DavisTelemetry(),
         telemetryService: new NoOpTelemetryService(),
         logger: NullLogger<OutboxForwarder>.Instance);
+
+    private sealed class OutboxFixture : IAsyncDisposable
+    {
+        private readonly SqliteConnection _connection;
+
+        private OutboxFixture(SqliteConnection connection, ServiceProvider services, OutboxDbContext db)
+        {
+            _connection = connection;
+            Services = services;
+            Db = db;
+        }
+
+        public ServiceProvider Services { get; }
+        public OutboxDbContext Db { get; }
+
+        public static async Task<OutboxFixture> CreateAsync()
+        {
+            var connection = new SqliteConnection("Data Source=:memory:");
+            await connection.OpenAsync();
+            var services = new ServiceCollection()
+                .AddDbContext<OutboxDbContext>(options => options.UseSqlite(connection))
+                .AddScoped<EdgeOutboxStore<OutboxDbContext>>()
+                .BuildServiceProvider();
+            var db = services.GetRequiredService<OutboxDbContext>();
+            await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
+                db,
+                DavisOutboxPayloadTypes.Raw,
+                DavisOutboxPayloadTypes.RawVersion);
+            return new OutboxFixture(connection, services, db);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Db.DisposeAsync();
+            await Services.DisposeAsync();
+            await _connection.DisposeAsync();
+        }
+    }
 
     private sealed class StubHttpClientFactory(HttpClient client) : IHttpClientFactory
     {

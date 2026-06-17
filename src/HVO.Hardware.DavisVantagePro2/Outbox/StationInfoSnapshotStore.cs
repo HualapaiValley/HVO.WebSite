@@ -11,7 +11,7 @@ public sealed class StationInfoSnapshotStore(IServiceScopeFactory scopeFactory)
     public async Task<StoredStationInfoSnapshot?> GetAsync(CancellationToken ct = default)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<DavisLocalDbContext>();
 
         var entity = await db.StationInfoSnapshots
             .AsNoTracking()
@@ -25,7 +25,7 @@ public sealed class StationInfoSnapshotStore(IServiceScopeFactory scopeFactory)
     public async Task<StoredStationInfoSnapshot> SaveAsync(StationInfo stationInfo, CancellationToken ct = default)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<DavisLocalDbContext>();
 
         var entity = await db.StationInfoSnapshots
             .SingleOrDefaultAsync(snapshot => snapshot.Id == SnapshotId, ct)
