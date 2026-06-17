@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using System.Text.RegularExpressions;
 
 namespace HVO.WebSite.PlaywrightTests;
 
@@ -59,6 +60,34 @@ public sealed class DavisGatewayLayoutPlaywrightTests
         await AssertStyledControlAsync(page.Locator(".console-settings-page select.hvo-control").First, "Configuration select");
         await AssertStyledControlAsync(page.Locator(".console-settings-page input[type='datetime-local']").First, "Configuration datetime input");
         await AssertNoLegacyLiveClassesAsync(page, "Configuration");
+    }
+
+    [TestMethod]
+    [TestCategory("Live")]
+    public async Task DavisGateway_ShouldOpenStationInfoDialogAndToggleTheme()
+    {
+        var baseUrl = Environment.GetEnvironmentVariable("HVO_DAVIS_BASE_URL");
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            Assert.Inconclusive("Set HVO_DAVIS_BASE_URL to run the Davis gateway UI Playwright test.");
+
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+        var page = await browser.NewPageAsync();
+        await page.GotoAsync(new Uri(new Uri(baseUrl.TrimEnd('/') + "/"), string.Empty).ToString());
+
+        await page.GetByRole(AriaRole.Button, new() { Name = "Open station information summary" }).ClickAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Dialog, new() { Name = "Console identity and clock" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByText("Station Summary", new() { Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByText("Hardware Type", new() { Exact = true })).ToBeVisibleAsync();
+        await PlaywrightGatewayAssertions.AssertNoBlazorErrorAsync(page);
+
+        await page.GetByRole(AriaRole.Button, new() { Name = "Switch to light theme" }).ClickAsync();
+        await Assertions.Expect(page.Locator(".mud-layout")).ToHaveClassAsync(new Regex("shell-theme-light"));
+        await PlaywrightGatewayAssertions.AssertNoBlazorErrorAsync(page);
+
+        await page.GetByRole(AriaRole.Button, new() { Name = "Switch to dark theme" }).ClickAsync();
+        await Assertions.Expect(page.Locator(".mud-layout")).ToHaveClassAsync(new Regex("shell-theme-dark"));
+        await PlaywrightGatewayAssertions.AssertNoBlazorErrorAsync(page);
     }
 
     private static async Task AssertStyledCardAsync(ILocator locator, string label)
