@@ -39,20 +39,7 @@ public static class EdgeOutboxSchemaValidator
         "CreatedAtUtc",
     };
 
-    private static readonly HashSet<string> RequiredColumns = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Id",
-        "SourceId",
-        "PayloadType",
-        "PayloadVersion",
-        "RecordedAtUtc",
-        "Payload",
-        "Status",
-        "AttemptCount",
-        "NextRetryAtUtc",
-        "FailureKind",
-        "CreatedAtUtc",
-    };
+    private static readonly HashSet<string> RequiredColumns = [.. CurrentColumns];
 
     public static async Task<EdgeOutboxSchemaValidationResult> ValidateAsync(
         EdgeOutboxDbContext db,

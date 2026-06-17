@@ -50,7 +50,7 @@ Use the Pi Docker context:
 
 ## Safe Re-Baselining
 
-Archive only after confirming the central API has current data and the outbox contains old sent/failed records or a legacy incompatible schema. The script renames `outbox.db*` files inside the Docker volume and never deletes them:
+Archive only after confirming the central API has current data and the outbox contains old sent/failed records or a legacy incompatible schema. Stop the gateway before archiving so SQLite cannot keep writing to the renamed database or race WAL/SHM moves. The script refuses to archive when the target gateway service appears to be running, renames `outbox.db*` files inside the Docker volume, and never deletes them:
 
 ```bash
 ./scripts/outbox-maintenance.sh --remote --context devpi5 archive jkbms

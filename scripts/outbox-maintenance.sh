@@ -29,6 +29,17 @@ volume_for_target() {
 	esac
 }
 
+service_for_target() {
+	case "$1" in
+		davis) printf '%s\n' 'hvo-davis' ;;
+		jkbms) printf '%s\n' 'hvo-jkbms' ;;
+		solarassistant) printf '%s\n' 'hvo-solarassistant' ;;
+		smartshunt) printf '%s\n' 'hvo-smartshunt' ;;
+		tplinkkasa|tplink-kasa) printf '%s\n' 'hvo-tplink-kasa' ;;
+		*) fail "Unknown gateway target '$1'." ;;
+	esac
+}
+
 run_docker() {
 	if [[ "${remote}" == true ]]; then
 		docker --context "${context}" "$@"
@@ -66,7 +77,14 @@ schema() {
 
 archive() {
 	local volume="$1"
+	local service="$2"
 	local stamp
+	local running
+	running="$(run_docker ps --filter "name=${service}" --format '{{.Names}}' 2>/dev/null || true)"
+	if [[ -n "${running}" ]]; then
+		fail "Gateway service '${service}' appears to be running (${running//$'\n'/, }). Stop it before archiving live SQLite files."
+	fi
+
 	stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 	printf 'Archiving /app/data/outbox.db* in volume %s with suffix .archived-%s\n' "${volume}" "${stamp}"
 	run_docker run --rm -v "${volume}:/data" alpine:3.20 sh -c "set -e; for file in /data/outbox.db*; do [ -e \"\$file\" ] || continue; mv \"\$file\" \"\$file.archived-${stamp}\"; done; ls -la /data"
@@ -104,9 +122,10 @@ done
 [[ -n "${target}" ]] || { usage; exit 1; }
 command -v docker >/dev/null 2>&1 || fail 'Required command not found: docker'
 volume="$(volume_for_target "${target}")"
+service="$(service_for_target "${target}")"
 
 case "${action}" in
 	summary) summarize "${volume}" ;;
 	schema) schema "${volume}" ;;
-	archive) archive "${volume}" ;;
+	archive) archive "${volume}" "${service}" ;;
 esac

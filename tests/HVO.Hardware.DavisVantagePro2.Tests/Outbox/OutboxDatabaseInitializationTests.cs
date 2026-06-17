@@ -69,6 +69,32 @@ public class OutboxDatabaseInitializationTests
         }
     }
 
+    [TestMethod]
+    public async Task DavisLegacyOutboxMigrator_RebuildsLegacyArchiveRowsWithoutFailureKind()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = CreateOptions(connection);
+
+        await using (var db = new OutboxDbContext(options))
+        {
+            await CreateLegacyDavisOutboxSchemaWithoutFailureKindAsync(db);
+            await DavisLegacyOutboxMigrator.MigrateAsync(db, "hvo-davis-01");
+            await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
+                db,
+                DavisOutboxPayloadTypes.Raw,
+                DavisOutboxPayloadTypes.RawVersion);
+        }
+
+        await using (var db = new OutboxDbContext(options))
+        {
+            var row = await db.OutboxRecords.SingleAsync();
+            row.SourceId.Should().Be("hvo-davis-01");
+            row.PayloadType.Should().Be(DavisOutboxPayloadTypes.Archive);
+            row.FailureKind.Should().Be(EdgeOutboxFailureKind.None);
+        }
+    }
+
     private static async Task CreateLegacyDavisOutboxSchemaAsync(OutboxDbContext db)
     {
         await db.Database.ExecuteSqlRawAsync("""
@@ -109,6 +135,43 @@ public class OutboxDatabaseInitializationTests
                 0,
                 '0001-01-01T00:00:00Z',
                 0,
+                '2026-05-28T22:00:00Z')
+            """);
+    }
+
+    private static async Task CreateLegacyDavisOutboxSchemaWithoutFailureKindAsync(OutboxDbContext db)
+    {
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE OutboxRecords (
+                Id INTEGER NOT NULL CONSTRAINT PK_OutboxRecords PRIMARY KEY AUTOINCREMENT,
+                RecordedAtUtc TEXT NOT NULL,
+                Payload TEXT NOT NULL,
+                IsArchiveRecord INTEGER NOT NULL,
+                Status INTEGER NOT NULL,
+                AttemptCount INTEGER NOT NULL,
+                LastAttemptedAtUtc TEXT NULL,
+                SentAtUtc TEXT NULL,
+                NextRetryAtUtc TEXT NOT NULL,
+                LastError TEXT NULL,
+                CreatedAtUtc TEXT NOT NULL
+            )
+            """);
+        await db.Database.ExecuteSqlRawAsync("""
+            INSERT INTO OutboxRecords (
+                RecordedAtUtc,
+                Payload,
+                IsArchiveRecord,
+                Status,
+                AttemptCount,
+                NextRetryAtUtc,
+                CreatedAtUtc)
+            VALUES (
+                '2026-05-28T22:00:00Z',
+                '{{}}',
+                1,
+                0,
+                0,
+                '0001-01-01T00:00:00Z',
                 '2026-05-28T22:00:00Z')
             """);
     }

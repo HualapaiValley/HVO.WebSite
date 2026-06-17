@@ -136,5 +136,42 @@ public sealed class EdgeOutboxSqliteDatabaseInitializerTests
         result.Warnings.Should().Contain(warning => warning.Contains("DeviceAddress", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public async Task ValidateAsync_FailsClearly_WhenNullableMappedColumnIsMissing()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                CREATE TABLE OutboxRecords (
+                    Id INTEGER NOT NULL CONSTRAINT PK_OutboxRecords PRIMARY KEY AUTOINCREMENT,
+                    SourceId TEXT NOT NULL,
+                    PayloadType TEXT NOT NULL DEFAULT 'power.reading',
+                    PayloadVersion TEXT NOT NULL DEFAULT '1',
+                    RecordedAtUtc TEXT NOT NULL,
+                    Payload TEXT NOT NULL,
+                    Status INTEGER NOT NULL,
+                    AttemptCount INTEGER NOT NULL,
+                    LastAttemptedAtUtc TEXT NULL,
+                    SentAtUtc TEXT NULL,
+                    NextRetryAtUtc TEXT NOT NULL,
+                    LastError TEXT NULL,
+                    FailureKind INTEGER NOT NULL DEFAULT 0,
+                    CreatedAtUtc TEXT NOT NULL
+                );
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await using var db = new TestOutboxDbContext(new DbContextOptionsBuilder<TestOutboxDbContext>().UseSqlite(connection).Options);
+
+        var result = await EdgeOutboxSchemaValidator.ValidateAsync(db);
+
+        result.IsCompatible.Should().BeFalse();
+        result.Errors.Should().Contain(error => error.Contains("DeviceId", StringComparison.Ordinal));
+    }
+
     private sealed class TestOutboxDbContext(DbContextOptions<TestOutboxDbContext> options) : EdgeOutboxDbContext(options);
 }

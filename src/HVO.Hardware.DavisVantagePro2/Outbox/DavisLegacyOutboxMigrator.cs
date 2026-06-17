@@ -72,11 +72,12 @@ public static class DavisLegacyOutboxMigrator
         }
 
         if (columns.Contains("IsArchiveRecord"))
-            await RebuildSharedTableAsync(db, ct).ConfigureAwait(false);
+            await RebuildSharedTableAsync(db, columns, ct).ConfigureAwait(false);
     }
 
-    private static async Task RebuildSharedTableAsync(OutboxDbContext db, CancellationToken ct)
+    private static async Task RebuildSharedTableAsync(OutboxDbContext db, IReadOnlySet<string> columns, CancellationToken ct)
     {
+        var failureKindSelect = columns.Contains("FailureKind") ? "FailureKind" : "0";
         await db.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS OutboxRecords_shared", ct).ConfigureAwait(false);
         await db.Database.ExecuteSqlRawAsync("""
             CREATE TABLE OutboxRecords_shared (
@@ -116,10 +117,10 @@ public static class DavisLegacyOutboxMigrator
                 SentAtUtc,
                 NextRetryAtUtc,
                 LastError,
-                FailureKind,
+                __FAILURE_KIND__,
                 CreatedAtUtc
             FROM OutboxRecords
-            """, ct).ConfigureAwait(false);
+            """.Replace("__FAILURE_KIND__", failureKindSelect, StringComparison.Ordinal), ct).ConfigureAwait(false);
 
         await db.Database.ExecuteSqlRawAsync("DROP TABLE OutboxRecords", ct).ConfigureAwait(false);
         await db.Database.ExecuteSqlRawAsync("ALTER TABLE OutboxRecords_shared RENAME TO OutboxRecords", ct).ConfigureAwait(false);
