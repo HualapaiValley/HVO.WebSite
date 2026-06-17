@@ -61,6 +61,9 @@
     public bool UseOutletIndex { get; set; } = true;
 
     [Parameter]
+    public KasaOutletCommandMode CommandMode { get; set; }
+
+    [Parameter]
     public EventCallback OnChanged { get; set; }
 
     [Parameter]
@@ -79,8 +82,12 @@
 
     private bool? DisplayedIsOn => _optimisticIsOn ?? Outlet.IsOn;
 
+    private KasaCommandCapability RequiredCommandCapability => CommandMode == KasaOutletCommandMode.LightState
+        ? KasaCommandCapability.LightColor
+        : KasaCommandCapability.SwitchPower;
+
     private bool IsBusyOrUnavailable => _busy || !Device.IsOnline || DisplayedIsOn is null ||
-string.IsNullOrWhiteSpace(Device.SourceId) || !Device.CommandCapabilities.Contains(KasaCommandCapability.SwitchPower);
+string.IsNullOrWhiteSpace(Device.SourceId) || !Device.CommandCapabilities.Contains(RequiredCommandCapability);
 
     private string MessageClass => _lastSuccess ? "kasa-muted" : "kasa-error-text";
 
@@ -167,7 +174,9 @@ string.IsNullOrWhiteSpace(Device.SourceId) || !Device.CommandCapabilities.Contai
         KasaAdminOperationResult? result = null;
         try
         {
-            result = await CommandService.SetPowerAsync(sourceId, targetIsOn, UseOutletIndex ? Outlet.Index : null,
+            result = CommandMode == KasaOutletCommandMode.LightState
+                ? await CommandService.SetLightAsync(sourceId, KasaOutletCommandFactory.BuildLightCommand(Device, targetIsOn), CancellationToken.None)
+                : await CommandService.SetPowerAsync(sourceId, targetIsOn, UseOutletIndex ? Outlet.Index : null,
 CancellationToken.None);
             _lastSuccess = result.Success;
             _message = result.Success ? null : result.Message;
