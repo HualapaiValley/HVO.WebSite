@@ -302,8 +302,8 @@ Avoid:
 
 ### Files Created
 
-- `.opencode/agents/review-prep.md` (parameterized — swap model field for any provider; removed in CSS alias cleanup)
-- `.opencode/agents/qwen-review-prep.md` (removed in CSS alias cleanup)
+- `.opencode/agents/review-prep.md` (parameterized — swap model field for any provider)
+- `.opencode/agents/qwen-review-prep.md`
 - `.opencode/agents/qwen-review-resolution-prep.md` (removed in CSS alias cleanup)
 - `MODEL_RANKING.md` (running ranking updated with each reviewed model)
 - `code-review-qwen-pre/Zen-{model}-{area}-Review.md` (3 Zen prep outputs)
@@ -320,4 +320,3 @@ Avoid:
 - Run prep agent, then GPT validate, then update `MODEL_RANKING.md`.
 - Explore-agent prep outputs saved under tool-output files (Gateways: `tool_ec257b53e001...`, Hardware: `tool_ec257e75b001...`).
 - Current ranking: DeepSeek V4 Pro > DeepSeek V4 Flash Free > Qwen3.7 Plus > MiniMax M3 > Qwen3 Coder Next > Nemotron 3 Ultra > MiMo V2.5 Free.
-
