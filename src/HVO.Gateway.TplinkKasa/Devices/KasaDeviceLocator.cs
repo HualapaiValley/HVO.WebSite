@@ -5,7 +5,7 @@ namespace HVO.Gateway.TplinkKasa.Devices;
 
 public interface IKasaMacAddressLookup
 {
-    Task<string?> TryFindHostByMacAsync(string macAddress, CancellationToken cancellationToken);
+    Task<string?> TryFindHostByMacAsync(string macAddress, int port, CancellationToken cancellationToken);
 }
 
 public sealed class KasaDeviceLocator(
@@ -32,7 +32,7 @@ public sealed class KasaDeviceLocator(
 
         if (!string.IsNullOrWhiteSpace(config.MacAddress) && macAddressLookup is not null)
         {
-            var macHost = await macAddressLookup.TryFindHostByMacAsync(config.MacAddress, cancellationToken).ConfigureAwait(false);
+            var macHost = await macAddressLookup.TryFindHostByMacAsync(config.MacAddress, config.EffectivePort(defaultPort), cancellationToken).ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(macHost)
                 && !string.Equals(macHost, config.Host, StringComparison.OrdinalIgnoreCase))
             {

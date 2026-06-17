@@ -66,6 +66,26 @@ public sealed class KasaDeviceLocatorTests
         result.SystemInfo!.DeviceId.Should().Be("EP25_DEVICE_ID_SANITIZED");
     }
 
+    [TestMethod]
+    public async Task LocateAsync_ConfiguredHostWrongDeviceWithMacLookup_PassesEffectivePortToLookup()
+    {
+        await using var rightServer = new FakeKasaLegacyServer();
+        rightServer.RespondTo("system", "get_sysinfo", FixtureLoader.Read("ep25-sysinfo.json"));
+        var lookup = new StaticMacLookup("AA:BB:CC:DD:EE:01", "127.0.0.1");
+        var config = new KasaDeviceConfig
+        {
+            DeviceId = "EP25_DEVICE_ID_SANITIZED",
+            Host = "127.0.0.2",
+            Port = rightServer.Port,
+            MacAddress = "AA:BB:CC:DD:EE:01"
+        };
+
+        var result = await CreateLocator(lookup).LocateAsync(config, 9999, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        lookup.RequestedPort.Should().Be(rightServer.Port);
+    }
+
     private static KasaDeviceLocator CreateLocator(IKasaMacAddressLookup? lookup = null) =>
         new(
             new KasaLegacyClient(TimeSpan.FromSeconds(2)),
@@ -75,7 +95,12 @@ public sealed class KasaDeviceLocatorTests
 
     private sealed class StaticMacLookup(string macAddress, string host) : IKasaMacAddressLookup
     {
-        public Task<string?> TryFindHostByMacAsync(string requestedMacAddress, CancellationToken cancellationToken) =>
-            Task.FromResult(KasaJson.MacAddressesEqual(macAddress, requestedMacAddress) ? host : null);
+        public int? RequestedPort { get; private set; }
+
+        public Task<string?> TryFindHostByMacAsync(string requestedMacAddress, int port, CancellationToken cancellationToken)
+        {
+            RequestedPort = port;
+            return Task.FromResult(KasaJson.MacAddressesEqual(macAddress, requestedMacAddress) ? host : null);
+        }
     }
 }

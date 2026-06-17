@@ -13,7 +13,7 @@ public sealed class KasaMacAddressResolver(
 
     private readonly ConcurrentDictionary<string, MacLookupResult> _cache = new(StringComparer.OrdinalIgnoreCase);
 
-    public async Task<string?> TryFindHostByMacAsync(string macAddress, CancellationToken cancellationToken)
+    public async Task<string?> TryFindHostByMacAsync(string macAddress, int port, CancellationToken cancellationToken)
     {
         var normalized = KasaJson.NormalizeMacAddress(macAddress);
         if (string.IsNullOrWhiteSpace(normalized))
@@ -28,6 +28,7 @@ public sealed class KasaMacAddressResolver(
         }
 
         var completedAnyScan = false;
+        var failedAnyScan = false;
 
         foreach (var network in options.Value.Networks)
         {
@@ -51,7 +52,7 @@ public sealed class KasaMacAddressResolver(
 
                 var results = await probe.ScanCidrAsync(
                     network.Cidr,
-                    options.Value.DefaultPort,
+                    port,
                     options.Value.MaxScanConcurrency,
                     scanOptions,
                     includePrivacySensitive: false,
@@ -82,12 +83,13 @@ public sealed class KasaMacAddressResolver(
             }
             catch (Exception ex)
             {
+                failedAnyScan = true;
                 logger.LogWarning(ex, "MAC scan on network {NetworkName} ({Cidr}) failed", network.Name, network.Cidr);
             }
         }
 
         logger.LogInformation("MAC {MacAddress} was not found on any configured network", normalized);
-        if (completedAnyScan)
+        if (completedAnyScan && !failedAnyScan)
         {
             _cache[normalized] = new MacLookupResult(null, DateTimeOffset.UtcNow.Add(CacheExpiry));
         }

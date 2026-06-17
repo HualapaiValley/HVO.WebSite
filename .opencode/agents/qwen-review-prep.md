@@ -1,7 +1,7 @@
 ---
 description: Performs low-cost local Qwen code-review discovery and evidence-pack generation for a later GPT validation review.
 mode: subagent
-model: ollama/qwen3-coder-next-q8-256k:latest
+model: opencode-go/qwen3.7-plus
 permission:
   edit: deny
   bash: ask
