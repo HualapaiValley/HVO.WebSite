@@ -1,11 +1,11 @@
 # Documentation Index
 
-This directory holds current reference, operational notes, discovery findings, and archived planning material.
+This directory holds current reference, operational notes, discovery findings, and the consolidated future-work roadmap.
 
 ## Current Reference
 
 - `ARCHITECTURE.md`: current system baseline, deployment boundaries, and active data-flow direction
-- `GATEWAY_FOUNDATION_REVIEW.md`: current gateway foundation plan, shared contract direction, and edge outbox roadmap
+- `FUTURE_WORK.md`: single consolidated list of open future work after the shared outbox migrations
 - `CONTAINER_PUBLISHING.md`: ACR publishing workflow and versioning process
 - `WEBSITE_CONTAINER_APP.md`: current Azure Container App notes for the website deployment
 - `PROJECT_HISTORY.md`: session-by-session summary of recent work, decisions, and follow-up context
@@ -20,7 +20,7 @@ Project history guidance:
 ## Current Discovery And Design Notes
 
 - `SOLARASSISTANT_DISCOVERY.md`: sanitized discovery findings for the local SolarAssistant integration
-- `SMARTSHUNT_PLAN.md`: confirmed SmartShunt data inventory, screen mapping, retention plan, and initial collector architecture
+- `SMARTSHUNT_PLAN.md`: SmartShunt data inventory and BLE/reference notes; implementation status now follows `ARCHITECTURE.md`
 - `davis-console-nonloop-values.md`: Davis console field inventory and UI-relevant protocol values
 - `JKBMS_SESSION_LIFECYCLE.md`: JK BMS session-lifecycle notes for the current BLE runtime direction
 

@@ -2,7 +2,7 @@
 
 This document defines shared HVO gateway behavior that should be common across Davis, SolarAssistant, JK BMS, SmartShunt, and future gateways. Gateway-specific drivers may extend these standards, but should not redefine common lifecycle, outbox, telemetry, or health semantics without documenting why.
 
-Status: Draft. Use this as the baseline before implementing the next gateway and as the target for refactoring older gateway-specific implementations.
+Status: Current standard. Use this as the baseline for current gateways and future gateway work.
 
 ## Goals
 
@@ -87,30 +87,24 @@ APIs may expose both the UTC instant and the display timezone metadata, for exam
 | FailureKind | Retry by default | Meaning |
 |-------------|------------------|---------|
 | `None` | N/A | No failure classification. Pending/sent records should normally use this. |
-| `TransientExhausted` | No, but manually requeueable | A retryable cloud/network/configuration failure exceeded the configured retry limit. |
-| `RemoteValidation` | No | Cloud ingest rejected the specific record as permanently invalid. |
-| `InvalidLocalPayload` | No | Gateway produced malformed or unparseable payload JSON. |
-| `Unauthorized` | No until configuration changes | Cloud rejected authentication/authorization. Usually indicates bad API key or permissions. |
-| `ConfigurationError` | No until configuration changes | Gateway cannot forward because required local configuration is missing or placeholder. |
-| `UnsupportedPayloadVersion` | No until software/configuration changes | Cloud does not support the payload version. |
-
-Current Davis code uses `ApiValidation` and `InvalidPayload`; these should be renamed to the common names when Davis moves to the shared outbox implementation.
+| `Permanent` | No | Dead-lettered record caused by local invalid payload, remote validation rejection, authentication/authorization failure, unsupported endpoint, or unsupported payload version. Requires code/configuration/operator action. |
+| `RetryExhausted` | Yes, automatically after recovery | A retryable cloud/network failure exceeded the configured retry limit. These rows may be moved back to `Pending` after a successful forward proves connectivity has recovered. |
 
 ### Retry Rules
 
 - Only `Pending` records are selected by the normal sweeper.
 - Transient HTTP failures, timeouts, DNS failures, and temporary cloud outages keep records `Pending` with exponential backoff until `MaxRetryAttempts` is reached.
-- When retry attempts are exhausted, set `Status=Failed`, `FailureKind=TransientExhausted`, and preserve a useful `LastError`.
-- Remote validation failures from the cloud are dead letters. Set `Status=Failed`, `FailureKind=RemoteValidation`, and store the cloud-provided reason.
-- Locally invalid payload JSON is a dead letter. Set `Status=Failed`, `FailureKind=InvalidLocalPayload`, and avoid sending the batch until malformed records are removed from it.
-- Authentication/configuration failures should not burn through thousands of retries silently. Prefer classifying them as `Unauthorized` or `ConfigurationError` and surfacing a critical health alert.
-- Requeue operations must be explicit and should target only retryable classifications unless an operator intentionally overrides dead-letter handling.
+- When retry attempts are exhausted, set `Status=Failed`, `FailureKind=RetryExhausted`, and preserve a useful `LastError`.
+- Remote validation failures from the cloud are dead letters. Set `Status=Failed`, `FailureKind=Permanent`, and store the cloud-provided reason.
+- Locally invalid payload JSON is a dead letter. Set `Status=Failed`, `FailureKind=Permanent`, and avoid sending the batch until malformed records are removed from it.
+- Authentication/configuration failures should not burn through thousands of retries silently. Classify HTTP 400/401/403/404 as `Permanent` and surface the error.
+- Requeue operations must only automatically target `RetryExhausted`; permanent dead letters require operator/code/configuration action.
 
 ### Requeue Rules
 
-- Safe automatic requeue: historical unclassified failed rows may be requeued once during a migration when evidence suggests they were caused by old transient cloud outages.
-- Safe operator requeue: `TransientExhausted` rows may be moved back to `Pending` after the cloud endpoint or network is healthy.
-- Unsafe automatic requeue: `RemoteValidation`, `InvalidLocalPayload`, `Unauthorized`, `ConfigurationError`, and `UnsupportedPayloadVersion` should not automatically return to `Pending` without a code/configuration fix and operator decision.
+- Safe automatic requeue: `RetryExhausted` rows may be moved back to `Pending` after a successful forward proves the cloud endpoint or network is healthy.
+- Safe operator requeue: `RetryExhausted` rows may also be moved back to `Pending` after operator review.
+- Unsafe automatic requeue: `Permanent` rows should not automatically return to `Pending` without a code/configuration fix and operator decision.
 - Requeue should reset `FailureKind=None`, set `NextRetryAtUtc=DateTime.MinValue`, and append a bounded note to `LastError` explaining why the record was requeued.
 
 ### Cloud Batch Semantics
@@ -123,7 +117,7 @@ Current Davis code uses `ApiValidation` and `InvalidPayload`; these should be re
 ### Health Treatment
 
 - Current forwarding failures should degrade or fail health depending on severity and age.
-- Historical `TransientExhausted` records should warn/degrade but must not block current telemetry if new records are forwarding successfully.
+- Historical `RetryExhausted` records should warn/degrade but must not block current telemetry if new records are forwarding successfully.
 - Permanent dead letters should be visible with counts by `FailureKind` and recent examples, but should not block current forwarding.
 - Pending count should be interpreted with sample age and last success time. A growing pending queue with recent failures is more severe than a draining backlog.
 
@@ -225,13 +219,15 @@ Target shared components:
 - `HVO.Edge.Telemetry`: common metric names, tags, gateway telemetry helper, outbox telemetry helper.
 - `HVO.Edge.Contracts`: gateway status payloads, health states, and domain payload envelope types.
 
-Migration sequence:
+Current implementation status:
 
-1. Add common `EdgeOutboxFailureKind` and requeue/dead-letter helpers to `HVO.Edge.Outbox`.
-2. Align SolarAssistant and other gateways already using `HVO.Edge.Outbox` with the common failure classifications.
-3. Move Davis from its gateway-local outbox to the shared implementation when weather batching and current local UI needs are supported.
-4. Add shared telemetry helpers and migrate gateway-specific metrics to common names/tags without removing useful domain metrics.
-5. Update gateway docs and deployment runbooks to reference this standard.
+- SolarAssistant uses the shared outbox plus typed power, inventory, configuration, energy, inverter detail, and gateway-status streams.
+- TPLink Kasa uses the shared outbox for energy and inventory payloads.
+- SmartShunt uses the shared outbox for battery monitor power readings.
+- JK BMS uses the shared outbox for BMS readings/config/device-info and per-record permanent-failure isolation.
+- Davis uses the shared outbox for weather raw/archive telemetry, with station settings/info split into gateway-owned local persistence.
+
+Open future work is tracked in `docs/FUTURE_WORK.md`.
 
 ## Implementation Rules For New Gateways
 
@@ -243,11 +239,8 @@ Migration sequence:
 - Document any deviation from this standard in the gateway's `hvo-implementation.md`.
 - Add tests for retryable failures, dead-letter failures, requeue behavior, and health classification before deployment.
 
-## Open Decisions
+## Remaining Decisions
 
-- Exact final names for common failure kinds before changing shared enums.
-- Whether `Unauthorized` and `ConfigurationError` should be `Failed` records, gateway health states only, or both.
-- Whether outbox records need `FirstFailedAtUtc` or `LastFailureKindChangedAtUtc`.
 - Whether requeue should be exposed through a local admin endpoint, CLI/tooling, or manual SQLite operation only.
 - How much gateway status should be sent to cloud versus kept local-only.
-- Retention/compaction policy for sent records and permanent dead letters per gateway class.
+- Whether some gateway classes need retention values different from the current shared defaults.

@@ -13,8 +13,13 @@ Observatory dashboard and monitoring system built with ASP.NET Core and Blazor S
 | Project | Description |
 |---------|-------------|
 | **HVO.WebSite.v9** | Main observatory dashboard — Blazor SSR pages, REST API endpoints, Azure SQL persistence |
-| **HVO.Hardware.DavisVantagePro2** | Davis Vantage Pro 2 weather station collector — polls console, stores to local SQLite outbox, forwards to website API |
-| **HVO.Hardware.JkBms** | JK BMS battery monitor collector — polls devices over Bluetooth LE, stores to local SQLite outbox, forwards to website API |
+| **HVO.Hardware.DavisVantagePro2** | Davis Vantage Pro 2 weather station collector — polls console, stores local station state separately from shared SQLite outbox, forwards to website API |
+| **HVO.Hardware.JkBms** | JK BMS battery monitor collector — polls devices over Bluetooth LE, stores to shared SQLite outbox, forwards to website API |
+| **HVO.Gateway.SolarAssistant** | SolarAssistant gateway — REST/MQTT power telemetry, inventory/configuration/detail/status snapshots, shared SQLite outbox |
+| **HVO.Hardware.VictronSmartShunt** | Victron SmartShunt gateway — BLE battery monitor telemetry with shared SQLite outbox |
+| **HVO.Gateway.TplinkKasa** | TP-Link/Kasa gateway — local device status UI plus energy/inventory forwarding through shared SQLite outbox |
+| **HVO.Edge.Outbox** | Shared edge durable outbox model, store, retry/dead-letter/requeue logic, compaction, and health evaluator |
+| **HVO.Edge.Contracts** | Shared gateway status, health, and payload contracts |
 | **HVO.DataModels** | Entity Framework Core models and DbContexts for observatory data |
 | **HVO.WebSite.Themes** | Shared CSS themes, fonts, and static assets (Razor Class Library) |
 
@@ -36,6 +41,8 @@ JK BMS devices (Bluetooth LE)                                  ▼
     └─ POST /api/v1/bms/readings  ──────────────────────┤ Role-based auth (Entra ID)
                                                          └─ Health probes + OpenAPI
 ```
+
+Additional Pi gateways follow the same edge pattern: SolarAssistant, SmartShunt, and TPLink Kasa poll local sources, enqueue to their local shared outbox, and forward typed payloads to the website API.
 
 ## Edge Deployment Direction
 
@@ -59,7 +66,7 @@ Current validated BLE edge baseline:
 |---------|-------------|
 | **Weather collection** | Davis Vantage Pro 2 console polled at ~2 sec (LOOP2) and archived on schedule; UI for calibration, settings, clock, transmitters |
 | **Battery monitoring** | JK BMS devices polled over Bluetooth LE with alarm change detection and device-info snapshots |
-| **Durable outbox** | Each collector writes to a local SQLite outbox before forwarding; retries with exponential backoff survive API downtime |
+| **Durable outbox** | Each gateway writes to a local SQLite outbox before forwarding; retries with exponential backoff survive restarts/API downtime, permanent failures are dead-lettered, and retry-exhausted rows can requeue after recovery |
 | **REST API** | Versioned API (`/api/v1/…`) protected by API key + scope claims; supports single and batch ingest |
 | **Observatory dashboard** | Blazor SSR web UI with HVO dark theme; role-gated admin area |
 | **Authentication** | Microsoft Entra ID OIDC for browser users; API key + scope for hardware services |
@@ -128,6 +135,8 @@ Use the repo script to build, tag, push, and verify one image at a time:
 ./scripts/publish-acr-image.sh davis
 ./scripts/publish-acr-image.sh jkbms
 ./scripts/publish-acr-image.sh solarassistant
+./scripts/publish-acr-image.sh smartshunt
+./scripts/publish-acr-image.sh tplinkkasa
 ```
 
 See [docs/CONTAINER_PUBLISHING.md](docs/CONTAINER_PUBLISHING.md) for the Azure subscription and ACR inventory, the version-variable workflow, the gist sync requirement, and the query commands used to inspect published tags.
@@ -158,7 +167,7 @@ docker --context devpi5 compose up -d --build
 
 | Guide | Description |
 |-------|-------------|
-| [Docs Index](docs/README.md) | Entry point for current docs, discovery notes, and archived planning material |
+| [Docs Index](docs/README.md) | Entry point for current docs, discovery notes, and future-work roadmap |
 | [Contributing](CONTRIBUTING.md) | PR workflow, branch naming, coding standards |
 | [Changelog](CHANGELOG.md) | Release history and notable changes |
 | [Project History](docs/PROJECT_HISTORY.md) | Session-by-session working history, key decisions, and next-context notes |

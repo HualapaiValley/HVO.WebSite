@@ -2,7 +2,7 @@
 
 Status: sanitized live discovery from the local SolarAssistant instance. Do not add raw credentials, tokens, local secret files, or unsanitized payload captures to this document.
 
-Active rollout plan: `docs/SOLARASSISTANT_ROLLOUT_PLAN.md` defines how these discovered fields are classified into real-time telemetry, energy, inverter detail, device inventory, configuration, command capability inventory, local-only data, and deferred work.
+The implemented SolarAssistant gateway uses typed shared-outbox streams for real-time telemetry, energy, inverter detail, device inventory, configuration, command capability inventory, and gateway status. Remaining future work is tracked in `docs/FUTURE_WORK.md`.
 
 ## Interfaces Observed
 

@@ -45,7 +45,7 @@ Small or placeholder systems can start as one file, but should split before APIs
 | Topic | Document | Status |
 |-------|----------|--------|
 | Camera/media boundary | [camera-media-model.md](camera-media-model.md) | Seeded from legacy/v9 image models and Phase 0 discussion. |
-| Common gateway standards | [common-gateway-standards.md](common-gateway-standards.md) | Draft standard for shared outbox, telemetry, health/status, and gateway-specific extension points. |
+| Common gateway standards | [common-gateway-standards.md](common-gateway-standards.md) | Current standard for shared outbox, telemetry, health/status, and gateway-specific extension points. |
 
 ## Process
 
@@ -61,4 +61,4 @@ Small or placeholder systems can start as one file, but should split before APIs
 - [Phase 0 Gateway Capability Inventory](PHASE_0_GATEWAY_CAPABILITY_INVENTORY.md)
 - [Gateway documentation set template](templates/gateway-manual-template.md)
 - Existing Davis inventory: [../davis-console-nonloop-values.md](../davis-console-nonloop-values.md)
-- Existing gateway foundation: [../GATEWAY_FOUNDATION_REVIEW.md](../GATEWAY_FOUNDATION_REVIEW.md)
+- Current future-work roadmap: [../FUTURE_WORK.md](../FUTURE_WORK.md)

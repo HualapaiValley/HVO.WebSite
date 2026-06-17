@@ -91,13 +91,13 @@ To verify deployed endpoints after rollout:
 
 - Davis supports OTLP export, but the Pi-reachable collector endpoint is not resolved yet. Leave `OTEL_COLLECTOR_ENDPOINT` blank for the first Pi rollout.
 - JK BMS supports OTLP export with the same conditional endpoint wiring used by Davis. Leave `OTEL_COLLECTOR_ENDPOINT` blank until the Pi should emit to a reachable collector.
-- SolarAssistant does not currently wire OpenTelemetry exporters in the app, so OTEL environment variables are intentionally not included here yet.
-- TP-Link/Kasa does not currently wire OpenTelemetry exporters or outbox forwarding; the Phase 1 Pi deployment is local read-only status only.
+- SolarAssistant supports local gateway deployment and shared-outbox forwarding; OTEL endpoint use remains deployment-specific.
+- TP-Link/Kasa supports local polling, local UI, and shared-outbox forwarding for energy/inventory payloads. OTEL endpoint use remains deployment-specific.
 
 ## TP-Link/Kasa deployment notes
 
-- The Phase 1 gateway polls only configured devices with allowlisted read-only commands.
-- It does not scan continuously, does not forward outbox records, and does not execute device commands.
+- The gateway polls only configured devices with allowlisted read-only commands during normal operation.
+- It does not scan continuously and does not execute device commands. It does enqueue and forward energy/inventory payloads through the shared outbox when `KASA_OUTBOX_*` settings are configured.
 - Start with one enabled non-critical pilot device in `deploy/pi-gateways/tplink-kasa/.env`.
 - Configure vendor `DeviceId` as the primary identity; configure `Host` only as the current locator and `MacAddress` as a secondary validation hint.
 - Keep all `KASA_DEVICE_<n>_ENABLED=false` until the device has been explicitly selected for the pilot.

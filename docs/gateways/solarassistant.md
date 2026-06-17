@@ -3,9 +3,9 @@
 ## Status
 
 - Phase 0 status: seeded from current live discovery documents and gateway code.
-- Last updated: 2026-05-28
+- Last updated: 2026-06-17
 - Confidence: medium-high for observed REST/MQTT inventory; official docs cross-check needed.
-- Primary references: `src/HVO.Gateway.SolarAssistant`, `docs/SOLARASSISTANT_DISCOVERY.md`, `docs/SOLARASSISTANT_ROLLOUT_PLAN.md`.
+- Primary references: `src/HVO.Gateway.SolarAssistant`, `docs/SOLARASSISTANT_DISCOVERY.md`, `docs/FUTURE_WORK.md`.
 
 ## Identity
 
@@ -40,7 +40,7 @@ This table is HVO documentation metadata unless a row explicitly references a So
 | Type | Reference | Status | Notes |
 |------|-----------|--------|-------|
 | Existing discovery | `docs/SOLARASSISTANT_DISCOVERY.md` | Found | Sanitized live discovery. |
-| Rollout plan | `docs/SOLARASSISTANT_ROLLOUT_PLAN.md` | Found | Current field classification and completion definition. |
+| Future work | `docs/FUTURE_WORK.md` | Found | Remaining roadmap after the implemented SolarAssistant rollout. |
 | REST client code | `SolarAssistantRestClient.cs` | Found | Polls `/api/v1/metrics`. |
 | MQTT code | `SolarAssistantMqttClient.cs`, inventory store/worker | Found | Discovery/state/command inventory. |
 | Official docs | SolarAssistant API/docs | Needed | Must validate endpoints, auth, units, and command behavior. |

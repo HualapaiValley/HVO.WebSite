@@ -1,6 +1,6 @@
 # HVO Architecture Baseline
 
-Last updated: 2026-06-14
+Last updated: 2026-06-17
 
 This document captures the current architecture baseline for HVO.WebSite and the expected direction for near-term hardware integrations. It is a current-state reference, not a full implementation plan. Use `docs/PROJECT_HISTORY.md` for recent session context and decision notes. The validated RabbitMQ/Service Bus ingest POC was removed from the active repo after being deferred and remains available in git history if needed.
 
@@ -15,12 +15,17 @@ The central website should stay focused on ingest, persistence, dashboards, admi
 | Unit | Project | Runtime Location | Primary Responsibility |
 |------|---------|------------------|------------------------|
 | Website | `src/HVO.WebSite.v9` | Azure Container Apps or local Docker | Blazor UI, read/admin APIs, auth, dashboards |
-| Davis collector | `src/HVO.Hardware.DavisVantagePro2` | Local edge Docker host | Davis console TCP protocol, weather polling, local SQLite outbox, local status UI, website API forwarding |
-| JK BMS collector | `src/HVO.Hardware.JkBms` | Local edge Docker host with BLE access | JK BMS BLE polling, battery readings, alarms, local SQLite outbox, local status UI, website API forwarding |
+| Davis collector | `src/HVO.Hardware.DavisVantagePro2` | Local edge Docker host | Davis console TCP protocol, weather polling/archive catchup, gateway-owned local station persistence, shared SQLite outbox, local status UI, website API forwarding |
+| JK BMS collector | `src/HVO.Hardware.JkBms` | Local edge Docker host with BLE access | JK BMS BLE polling, battery readings, alarms, shared SQLite outbox, local status UI, website API forwarding |
+| SolarAssistant gateway | `src/HVO.Gateway.SolarAssistant` | Local edge Docker host | Solar/inverter/load/battery REST/MQTT telemetry, typed snapshots, shared SQLite outbox, local status UI, website API forwarding |
+| SmartShunt gateway | `src/HVO.Hardware.VictronSmartShunt` | Local edge Docker host with BLE access | Victron SmartShunt BLE telemetry, shared SQLite outbox, local status UI, website API forwarding |
+| TPLink Kasa gateway | `src/HVO.Gateway.TplinkKasa` | Local edge Docker host | Kasa device polling, local status/control-safe UI, energy/inventory shared outbox forwarding |
+| Edge contracts | `src/HVO.Edge.Contracts` | Shared library | Gateway status, health, runtime, and payload contracts |
+| Edge outbox | `src/HVO.Edge.Outbox` | Shared library | Durable outbox model/store, retry, dead-letter/requeue, compaction, and health evaluation |
 | Data models | `src/HVO.DataModels` | Shared library | EF Core DbContexts, entities, migrations |
 | Theme assets | `src/HVO.WebSite.Themes` | Shared Razor class library | Shared visual theme assets |
 
-Local application orchestration is defined in `docker-compose.yml`. Each edge service owns its own local data directory, SQLite outbox, logs, and hardware configuration.
+Local application orchestration is defined in `docker-compose.yml` and per-gateway compose files under `deploy/pi-gateways/`. Each edge service owns its own local data directory, SQLite outbox, logs, and hardware configuration.
 
 ## High-Level Data Flow
 
@@ -67,7 +72,7 @@ The current REST ingest path authenticates hardware services with scoped API key
 | `ingest:weather` | Weather ingest from the Davis collector |
 | `ingest:bms` | BMS ingest from the JK BMS collector |
 | `ingest:images` | Reserved for image ingest |
-| `ingest:power` | Reserved for power ingest |
+| `ingest:power` | Power ingest from SolarAssistant, SmartShunt, and TPLink/Kasa energy sources |
 | `read:weather` | Weather read API access |
 | `read:api` | Reserved API read access |
 
@@ -85,7 +90,7 @@ Current v9 domains:
 |--------|----------------|
 | Weather | Implemented raw ingest and recent read endpoints |
 | BMS | Implemented batch ingest, device upsert, readings, cells, config/info snapshots, alarms |
-| Power | Scope exists, but v9 models and controller are not implemented yet |
+| Power | Implemented typed ingest/read support for power readings, energy, inverter detail, device inventory/configuration, and gateway status snapshots |
 | Images | Scope and some image metadata model support exist, but ingest is not the current focus |
 | Commands | Not implemented |
 
@@ -100,6 +105,12 @@ Minute and hourly aggregate entities exist for weather and BMS, but the website 
 | `GET /api/v1/weather/raw/recent` | `read:weather` | Recent raw weather readings |
 | `GET /api/v1/weather/hourly/recent` | `read:weather` | Recent hourly weather aggregates |
 | `POST /api/v1/bms/readings` | `ingest:bms` | Batch BMS readings with related cell/config/info/alarm data |
+| `POST /api/v1/power/readings` | `ingest:power` | Batch power readings from SolarAssistant, SmartShunt, and TPLink/Kasa energy sources |
+| `POST /api/v1/power/device-inventory` | `ingest:power` | Power/gateway inventory snapshot ingest |
+| `POST /api/v1/power/configuration` | `ingest:power` | Power/gateway configuration snapshot ingest |
+| `POST /api/v1/power/energy` | `ingest:power` | Power energy-counter snapshot ingest |
+| `POST /api/v1/power/inverter-detail` | `ingest:power` | Power inverter-detail snapshot ingest |
+| `POST /api/v1/power/gateway-status` | `ingest:power` | Gateway health/runtime/outbox status snapshot ingest |
 
 These APIs are the current production ingest boundary. Future domain persistence should stay normalized rather than vendor-oriented, with vendor/provider adapters living in edge services.
 
@@ -137,7 +148,7 @@ Canonical schemas start with:
 
 ## Edge Collector Pattern
 
-The Davis and JK BMS collectors are independent ASP.NET Core applications. They share the same architectural shape:
+The gateway applications are independent ASP.NET Core applications. They share the same architectural shape:
 
 | Layer | Responsibility |
 |-------|----------------|
@@ -153,7 +164,7 @@ New collectors and gateways should use the local SQLite outbox + website API pat
 
 ## Davis Collector
 
-`HVO.Hardware.DavisVantagePro2` connects to the Davis Vantage Pro 2 console through the WeatherLink IP TCP bridge. It implements Davis protocol commands, LOOP packet parsing, archive catch-up support, local SQLite outbox storage, and a rich Blazor local admin UI.
+`HVO.Hardware.DavisVantagePro2` connects to the Davis Vantage Pro 2 console through the WeatherLink IP TCP bridge. It implements Davis protocol commands, LOOP packet parsing, archive catch-up support, gateway-owned local station persistence, shared SQLite outbox storage, and a rich Blazor local admin UI.
 
 Current responsibilities:
 
@@ -198,7 +209,7 @@ Collectors are edge services. They should run on hardware that can reach the phy
 | MQTT gateway/normalizer | Same LAN as the MQTT broker or device publisher |
 | ESPHome gateway | Same LAN as ESPHome nodes or MQTT broker |
 | SolarAssistant gateway | Same LAN as SolarAssistant MQTT/REST endpoint |
-| TPLink dedicated app | Deferred until UI/control/monitoring boundary is decided |
+| TPLink/Kasa gateway | Same LAN as configured Kasa devices; normal operation polls configured devices only, with operator-initiated discovery/setup |
 
 The website should not require inbound access to edge collectors for telemetry ingest. Edge collectors initiate outbound API calls to the website.
 
@@ -241,9 +252,9 @@ Future integrations should fit into the existing edge collector model.
 
 | Integration | Recommended Boundary |
 |-------------|----------------------|
-| SolarAssistant / EG4 6500EX | First-pass read-only source/provider gateway that inventories via REST, prefers validated MQTT live state topics, keeps WebSocket as a fallback/diagnostic stream, writes a local SQLite outbox, then posts to a typed power ingest API |
-| Victron SmartShunt | Edge collector; public paired GATT for production baseline, optional private enrichment later |
-| TPLink outlets/lights | Deferred; likely closer to a dedicated Davis-style app with its own UI than a pure monitoring gateway |
+| SolarAssistant / EG4 6500EX | Implemented read-only gateway that inventories via REST/MQTT, writes shared SQLite outbox records, and posts typed power streams |
+| Victron SmartShunt | Implemented BLE edge collector; public paired GATT for production baseline, optional private enrichment later |
+| TPLink outlets/lights | Implemented dedicated gateway for local status plus energy/inventory forwarding; commands remain gated/deferred |
 | Govee BLE sensors | ESPHome or BLE edge collector that decodes sensor values locally |
 | ESPHome nodes | Treat as edge decoders that expose values through MQTT or ESPHome native API to a provider-specific gateway, not as a generic transparent BLE adapter |
 
@@ -300,7 +311,7 @@ Good candidates for future shared edge projects:
 
 | Candidate | Reason |
 |-----------|--------|
-| `HVO.Edge.Outbox` | Same durable local delivery, retry, compaction, idempotency, and status pattern across collectors/gateways |
+| `HVO.Edge.Outbox` | Implemented shared durable local delivery, retry, compaction, idempotency, requeue, and status pattern across collectors/gateways |
 | `HVO.Edge.ApiForwarding` | Shared typed HTTP forwarding if the HTTP client/response mapping grows beyond the outbox package |
 | Ingest DTO/client package | Reduce payload drift between collectors and website |
 | Gateway host | Shared worker shell for SolarAssistant, ESPHome, and vendor topic transforms |
@@ -308,7 +319,7 @@ Good candidates for future shared edge projects:
 | Health checks | Common stale-device and outbox-backlog checks |
 | Status state models | Common UI footer/status patterns |
 
-Do not extract abstractions before the shape is stable. The first extraction should be based on the observed Davis and JK BMS differences, plus SolarAssistant discovery as the third reference point.
+Do not extract additional abstractions before the shape is stable. Future extractions should be based on repeated code across the existing Davis, JK BMS, SolarAssistant, SmartShunt, and TPLink Kasa implementations.
 
 ## Known Gaps
 
@@ -318,7 +329,7 @@ Do not extract abstractions before the shape is stable. The first extraction sho
 | v9 power persistence gaps | Aggregated power readings, energy counters, inverter detail, device inventory, and gateway status snapshots are implemented; remaining detail/inventory streams need normalized targets | Partially resolved (power.reading, power.energy, power.inverter-detail, gateway.status are live) |
 | Weather and BMS aggregates are incomplete | Some minute/hourly tables exist but are not fully populated by website workers | Ongoing |
 | Collector health is not domain-rich enough | Process health can pass while device polling or forwarding is unhealthy | Ongoing |
-| Shared outbox/API-forwarding infrastructure is not extracted | New gateways repeat collector delivery code until a common package is added | Planned for SolarAssistant migration |
+| Shared HTTP forwarding abstractions remain gateway-owned | The shared outbox exists, but each gateway still owns destination routing/response mapping | Ongoing; extract only if repetition becomes costly |
 | SolarAssistant source shape discovery | REST/MQTT/WebSocket topics, cadence, timestamps documented in SOLARASSISTANT_DISCOVERY.md | Resolved |
 | Victron SmartShunt integration | Public paired GATT telemetry working; private enrichment read-only; writes deferred | Resolved |
 | Command/control is not designed in code yet | Future control operations need security, audit, queueing, and edge execution semantics | Not started |
@@ -326,14 +337,7 @@ Do not extract abstractions before the shape is stable. The first extraction sho
 
 ## Near-Term Recommended Sequence
 
-1. Keep PR-sized changes small and preserve the current outbox-first reliability model.
-2. Run a non-deployable SolarAssistant REST, MQTT, and WebSocket discovery POC and document sanitized samples.
-3. Extract only the shared SQLite outbox/API-forwarding pieces justified by Davis, JK BMS, and SolarAssistant discovery.
-4. Implement normalized v9 power persistence before SolarAssistant production ingest.
-5. Add a SolarAssistant gateway with its own local data directory, outbox, config, and status UI if useful.
-6. Defer ESPHome until hardware/topics are available and defer TPLink until its dedicated app boundary is decided.
-7. Harden SQL auth with Entra/managed identities and separate migration/runtime permissions.
-8. Revisit brokered ingest only if operational scale justifies it.
+Use `docs/FUTURE_WORK.md` for the current prioritized roadmap. Near-term work should keep PR-sized changes small and preserve the current outbox-first reliability model.
 
 ## Architectural Decisions Captured Here
 
