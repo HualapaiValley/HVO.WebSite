@@ -138,7 +138,7 @@ if (dir is null)
         $"The resolved outbox database path '{dbPath}' is a root directory; a file path is required.");
 }
 Directory.CreateDirectory(dir);
-var localDbPath = OutboxDatabasePath.Resolve("davis-local.db");
+var localDbPath = Path.Combine(dir, "davis-local.db");
 string? localDir = Path.GetDirectoryName(Path.GetFullPath(localDbPath));
 if (localDir is null)
 {
@@ -188,6 +188,8 @@ using (var scope = app.Services.CreateScope())
     await localDb.Database.EnsureCreatedAsync();
 
     var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+    var stationOptions = scope.ServiceProvider.GetRequiredService<IOptions<StationOptions>>().Value;
+    await DavisLegacyOutboxMigrator.MigrateAsync(db, stationOptions.StationId);
     await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
         db,
         DavisOutboxPayloadTypes.Raw,

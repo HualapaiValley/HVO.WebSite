@@ -10,6 +10,7 @@ using HVO.Hardware.DavisVantagePro2.Telemetry;
 using HVO.Hardware.DavisVantagePro2.Workers;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -83,6 +84,53 @@ public class OutboxForwarderTests
         record.LastError.Should().Contain("HTTP 503");
     }
 
+    [TestMethod]
+    public async Task SweepAsync_DoesNotRequeueRetryExhaustedRows_AndCountsAllPendingPayloads()
+    {
+        var calls = 0;
+        using var client = new HttpClient(new StubHandler(_ =>
+        {
+            calls++;
+            return new HttpResponseMessage(HttpStatusCode.Created);
+        }));
+        await using var fixture = await OutboxFixture.CreateAsync();
+        fixture.Db.OutboxRecords.Add(new EdgeOutboxRecord
+        {
+            SourceId = "hvo-davis-01",
+            PayloadType = DavisOutboxPayloadTypes.Raw,
+            PayloadVersion = DavisOutboxPayloadTypes.RawVersion,
+            RecordedAtUtc = new DateTime(2026, 5, 28, 22, 0, 0, DateTimeKind.Utc),
+            PayloadJson = "{}",
+            Status = EdgeOutboxStatus.Failed,
+            FailureKind = EdgeOutboxFailureKind.RetryExhausted,
+            AttemptCount = 3,
+            LastError = "HTTP 503",
+        });
+        fixture.Db.OutboxRecords.Add(new EdgeOutboxRecord
+        {
+            SourceId = "hvo-davis-01",
+            PayloadType = DavisOutboxPayloadTypes.Config,
+            PayloadVersion = DavisOutboxPayloadTypes.ConfigVersion,
+            RecordedAtUtc = new DateTime(2026, 5, 28, 22, 1, 0, DateTimeKind.Utc),
+            PayloadJson = "{}",
+            Status = EdgeOutboxStatus.Pending,
+        });
+        await fixture.Db.SaveChangesAsync();
+
+        using var forwarder = CreateForwarder(client, scopeFactory: fixture.Services.GetRequiredService<IServiceScopeFactory>());
+
+        var sent = await forwarder.SweepAsync(CancellationToken.None);
+
+        sent.Should().BeFalse();
+        calls.Should().Be(0);
+        forwarder.PendingCount.Should().Be(1);
+        fixture.Db.ChangeTracker.Clear();
+        var retryExhausted = await fixture.Db.OutboxRecords.SingleAsync(r => r.PayloadType == DavisOutboxPayloadTypes.Raw);
+        retryExhausted.Status.Should().Be(EdgeOutboxStatus.Failed);
+        retryExhausted.FailureKind.Should().Be(EdgeOutboxFailureKind.RetryExhausted);
+        retryExhausted.AttemptCount.Should().Be(3);
+    }
+
     private static async Task<OutboxDbContext> CreateDbAsync()
     {
         var connection = new SqliteConnection("Data Source=:memory:");
@@ -109,13 +157,54 @@ public class OutboxForwarderTests
         Status = EdgeOutboxStatus.Pending,
     };
 
-    private static OutboxForwarder CreateForwarder(HttpClient client, OutboxOptions? options = null) => new(
-        scopeFactory: null!,
+    private static OutboxForwarder CreateForwarder(
+        HttpClient client,
+        OutboxOptions? options = null,
+        IServiceScopeFactory? scopeFactory = null) => new(
+        scopeFactory: scopeFactory!,
         httpFactory: new StubHttpClientFactory(client),
         options: Options.Create(options ?? new OutboxOptions { ApiEndpoint = "https://example.test/api/v1/weather/raw", ApiKey = "test" }),
         telemetry: new DavisTelemetry(),
         telemetryService: new NoOpTelemetryService(),
         logger: NullLogger<OutboxForwarder>.Instance);
+
+    private sealed class OutboxFixture : IAsyncDisposable
+    {
+        private readonly SqliteConnection _connection;
+
+        private OutboxFixture(SqliteConnection connection, ServiceProvider services, OutboxDbContext db)
+        {
+            _connection = connection;
+            Services = services;
+            Db = db;
+        }
+
+        public ServiceProvider Services { get; }
+        public OutboxDbContext Db { get; }
+
+        public static async Task<OutboxFixture> CreateAsync()
+        {
+            var connection = new SqliteConnection("Data Source=:memory:");
+            await connection.OpenAsync();
+            var services = new ServiceCollection()
+                .AddDbContext<OutboxDbContext>(options => options.UseSqlite(connection))
+                .AddScoped<EdgeOutboxStore<OutboxDbContext>>()
+                .BuildServiceProvider();
+            var db = services.GetRequiredService<OutboxDbContext>();
+            await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
+                db,
+                DavisOutboxPayloadTypes.Raw,
+                DavisOutboxPayloadTypes.RawVersion);
+            return new OutboxFixture(connection, services, db);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Db.DisposeAsync();
+            await Services.DisposeAsync();
+            await _connection.DisposeAsync();
+        }
+    }
 
     private sealed class StubHttpClientFactory(HttpClient client) : IHttpClientFactory
     {

@@ -1,19 +1,13 @@
-using System.Text.Json;
-using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.Station.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.DavisVantagePro2.Outbox;
 
 public sealed class StationSettingsSnapshotStore(
-    IServiceScopeFactory scopeFactory,
-    IOptions<StationOptions> stationOptions)
+    IServiceScopeFactory scopeFactory)
 {
     private const int SnapshotId = 1;
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private readonly StationOptions _stationOptions = stationOptions.Value;
 
     public async Task<StoredStationSettingsSnapshot?> GetAsync(CancellationToken ct = default)
     {
@@ -47,15 +41,6 @@ public sealed class StationSettingsSnapshotStore(
         }
 
         await db.SaveChangesAsync(ct);
-
-        var writer = scope.ServiceProvider.GetRequiredService<DavisOutboxWriter>();
-        var payload = new
-        {
-            StationId = _stationOptions.StationId,
-            RecordedAt = savedAtUtc,
-            Settings = entity.ToStationSettings(),
-        };
-        await writer.EnqueueConfigAsync(_stationOptions.StationId, JsonSerializer.Serialize(payload, JsonOptions), ct);
 
         return new StoredStationSettingsSnapshot(entity.ToStationSettings(), entity.SavedAtUtc);
     }

@@ -72,16 +72,10 @@ public sealed class OutboxForwarder(
         var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
         var now = DateTime.UtcNow;
 
-        var requeued = await store.RequeueRetryExhaustedAsync(ct);
-        if (requeued > 0)
-            logger.LogInformation("Requeued {Count} Davis outbox record(s) after retry exhaustion", requeued);
-
         var rawSent = await SweepPayloadTypeAsync(store, DavisOutboxPayloadTypes.Raw, BuildWeatherBatchEndpoint(), now, ct);
         var archiveSent = await SweepPayloadTypeAsync(store, DavisOutboxPayloadTypes.Archive, BuildWeatherBatchEndpoint(), now, ct);
-        await ForwardConfigSnapshotAsync(store, now, ct);
 
-        PendingCount = await store.CountPendingAsync(DavisOutboxPayloadTypes.Raw, ct)
-            + await store.CountPendingAsync(DavisOutboxPayloadTypes.Archive, ct);
+        PendingCount = await store.CountPendingAsync(ct);
         FailedCount = await store.CountFailedAsync(ct);
         telemetry.SetOutboxQueueDepth(PendingCount);
 
@@ -185,49 +179,6 @@ public sealed class OutboxForwarder(
         }
     }
 
-    private async Task ForwardConfigSnapshotAsync(EdgeOutboxStore<OutboxDbContext> store, DateTime now, CancellationToken ct)
-    {
-        var pending = await store.GetReadyBatchAsync(DavisOutboxPayloadTypes.Config, now, 1, ct);
-        if (pending.Count == 0)
-            return;
-
-        foreach (var record in pending)
-        {
-            store.MarkAttempt([record], now);
-            if (!TryReadPayload(record, out var payload))
-            {
-                store.MarkFailed(record, "Invalid outbox payload JSON; record cannot be forwarded.", EdgeOutboxFailureKind.Permanent);
-                continue;
-            }
-
-            try
-            {
-                using var response = await httpFactory
-                    .CreateClient("WeatherApi")
-                    .PostAsJsonAsync(BuildWeatherEndpoint("configuration"), payload, JsonOptions, ct);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    store.MarkSent(record, now);
-                    continue;
-                }
-
-                var body = await ReadBoundedBodyAsync(response, ct);
-                store.ScheduleRetry(record, $"HTTP {(int)response.StatusCode}: {body}", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
-            }
-            catch (HttpRequestException ex)
-            {
-                store.ScheduleRetry(record, ex.Message, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
-            }
-            catch (TaskCanceledException) when (!ct.IsCancellationRequested)
-            {
-                store.ScheduleRetry(record, "Request timed out", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
-            }
-        }
-
-        await store.SaveChangesAsync(ct);
-    }
-
     private async Task CompactAsync(CancellationToken ct)
     {
         await using var serviceScope = scopeFactory.CreateAsyncScope();
@@ -302,14 +253,6 @@ public sealed class OutboxForwarder(
     }
 
     private string BuildWeatherBatchEndpoint() => _options.ApiEndpoint.TrimEnd('/') + "/batch";
-
-    private string BuildWeatherEndpoint(string leaf)
-    {
-        var endpoint = _options.ApiEndpoint.TrimEnd('/');
-        if (endpoint.EndsWith("/raw", StringComparison.OrdinalIgnoreCase))
-            endpoint = endpoint[..^"/raw".Length];
-        return $"{endpoint}/{leaf}";
-    }
 
     private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
     {
