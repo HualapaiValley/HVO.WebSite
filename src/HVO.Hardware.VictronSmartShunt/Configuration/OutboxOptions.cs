@@ -27,4 +27,13 @@ public sealed class OutboxOptions
 
     [Range(0, 3650)]
     public int SentRetentionDays { get; set; } = 7;
+
+    [Range(0, 3650)]
+    public int FailedRetentionDays { get; set; } = 30;
+
+    [Range(0, 100000)]
+    public int PendingWarningCount { get; set; } = 10;
+
+    [Range(0, 100000)]
+    public int FailedCriticalCount { get; set; } = 1;
 }

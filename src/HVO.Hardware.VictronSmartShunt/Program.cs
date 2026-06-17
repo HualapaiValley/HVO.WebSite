@@ -2,6 +2,7 @@ using HVO.Enterprise.Telemetry;
 using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.OpenTelemetry;
 using HVO.Enterprise.Telemetry.Serilog;
+using HVO.Edge.Outbox;
 using HVO.Hardware.VictronSmartShunt.Components;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
@@ -97,6 +98,7 @@ builder.Services
         : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
 
     builder.Services.AddDbContext<OutboxDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
+builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
 builder.Services.AddScoped<PowerOutboxWriter>();
 
 builder.Services.AddHttpClient("PowerApi", (sp, client) =>
@@ -133,7 +135,10 @@ var exposeDiagnostics = app.Environment.IsDevelopment()
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
+        db,
+        SmartShuntOutboxPayloadTypes.Reading,
+        SmartShuntOutboxPayloadTypes.ReadingVersion);
 }
 
 if (!app.Environment.IsDevelopment())

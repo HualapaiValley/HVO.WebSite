@@ -21,7 +21,10 @@ public sealed class SmartShuntGatewayHealthServiceTests
             Snapshot(72),
             pendingOutboxCount: 0,
             failedOutboxCount: 0,
+            permanentFailedOutboxCount: 0,
+            retryExhaustedOutboxCount: 0,
             outboxError: null,
+            OutboxOptions(),
             now);
 
         health.State.Should().Be("healthy");
@@ -40,7 +43,10 @@ public sealed class SmartShuntGatewayHealthServiceTests
             Snapshot(72),
             pendingOutboxCount: 0,
             failedOutboxCount: 0,
+            permanentFailedOutboxCount: 0,
+            retryExhaustedOutboxCount: 0,
             outboxError: null,
+            OutboxOptions(),
             now);
 
         health.State.Should().Be("critical");
@@ -60,7 +66,10 @@ public sealed class SmartShuntGatewayHealthServiceTests
             snapshot: null,
             pendingOutboxCount: 0,
             failedOutboxCount: 0,
+            permanentFailedOutboxCount: 0,
+            retryExhaustedOutboxCount: 0,
             outboxError: null,
+            OutboxOptions(),
             now: DateTime.UtcNow);
 
         health.State.Should().Be("warning");
@@ -77,7 +86,10 @@ public sealed class SmartShuntGatewayHealthServiceTests
             Snapshot(72),
             pendingOutboxCount: 0,
             failedOutboxCount: 71,
+            permanentFailedOutboxCount: 71,
+            retryExhaustedOutboxCount: 0,
             outboxError: null,
+            OutboxOptions(),
             now: DateTime.UtcNow);
 
         health.State.Should().Be("warning");
@@ -96,7 +108,10 @@ public sealed class SmartShuntGatewayHealthServiceTests
             Snapshot(10),
             pendingOutboxCount: 0,
             failedOutboxCount: 1,
+            permanentFailedOutboxCount: 1,
+            retryExhaustedOutboxCount: 0,
             outboxError: "website validation rejected payload",
+            OutboxOptions(),
             now: DateTime.UtcNow);
 
         health.State.Should().Be("critical");
@@ -123,7 +138,10 @@ public sealed class SmartShuntGatewayHealthServiceTests
             },
             pendingOutboxCount: 0,
             failedOutboxCount: 0,
+            permanentFailedOutboxCount: 0,
+            retryExhaustedOutboxCount: 0,
             outboxError: null,
+            OutboxOptions(),
             now: DateTime.UtcNow);
 
         health.Alerts.Select(a => a.Code).Should().NotContain(["battery-critical", "battery-low"]);
@@ -152,6 +170,33 @@ public sealed class SmartShuntGatewayHealthServiceTests
         result.Data["state"].Should().Be("warning");
     }
 
+    [TestMethod]
+    public void Evaluate_UsesOutboxOptions_ForOutboxThresholds()
+    {
+        var smartShuntOptions = Options();
+        smartShuntOptions.OutboxPendingWarningCount = 10;
+        smartShuntOptions.OutboxFailedCriticalCount = 10;
+        var outboxOptions = OutboxOptions();
+        outboxOptions.PendingWarningCount = 2;
+        outboxOptions.FailedCriticalCount = 1;
+
+        var health = SmartShuntGatewayHealthService.Evaluate(
+            smartShuntOptions,
+            DateTime.UtcNow,
+            lastError: null,
+            Snapshot(72),
+            pendingOutboxCount: 3,
+            failedOutboxCount: 1,
+            permanentFailedOutboxCount: 1,
+            retryExhaustedOutboxCount: 0,
+            outboxError: null,
+            outboxOptions,
+            now: DateTime.UtcNow);
+
+        health.State.Should().Be("warning");
+        health.Alerts.Select(a => a.Code).Should().Contain(["outbox-backlog", "outbox-failed"]);
+    }
+
     private static SmartShuntOptions Options() => new()
     {
         Address = "E2:21:F0:89:A7:C0",
@@ -160,6 +205,12 @@ public sealed class SmartShuntGatewayHealthServiceTests
         OutboxFailedCriticalCount = 1,
         LowBatteryWarningPercent = 30,
         CriticalBatteryPercent = 15,
+    };
+
+    private static OutboxOptions OutboxOptions() => new()
+    {
+        PendingWarningCount = 10,
+        FailedCriticalCount = 1,
     };
 
     private static SmartShuntDeviceSnapshot Snapshot(double soc) => new()

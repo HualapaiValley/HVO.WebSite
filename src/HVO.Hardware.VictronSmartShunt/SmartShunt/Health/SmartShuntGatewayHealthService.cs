@@ -10,11 +10,13 @@ namespace HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
 public sealed class SmartShuntGatewayHealthService(
     SmartShuntWorker worker,
     PowerApiForwarder forwarder,
-    IOptions<SmartShuntOptions> optionsAccessor) : ISmartShuntGatewayHealthSnapshotProvider
+    IOptions<SmartShuntOptions> optionsAccessor,
+    IOptions<OutboxOptions> outboxOptionsAccessor) : ISmartShuntGatewayHealthSnapshotProvider
 {
     private readonly SmartShuntWorker _worker = worker;
     private readonly PowerApiForwarder _forwarder = forwarder;
     private readonly SmartShuntOptions _options = optionsAccessor.Value;
+    private readonly OutboxOptions _outboxOptions = outboxOptionsAccessor.Value;
 
     public SmartShuntGatewayHealthSnapshot GetSnapshot(DateTime? nowUtc = null) => Evaluate(
         _options,
@@ -23,7 +25,10 @@ public sealed class SmartShuntGatewayHealthService(
         _worker.LastSnapshot,
         _forwarder.PendingCount,
         _forwarder.FailedCount,
+        _forwarder.PermanentFailedCount,
+        _forwarder.RetryExhaustedCount,
         _forwarder.LastError,
+        _outboxOptions,
         nowUtc ?? DateTime.UtcNow);
 
     public static SmartShuntGatewayHealthSnapshot Evaluate(
@@ -33,7 +38,10 @@ public sealed class SmartShuntGatewayHealthService(
         SmartShuntDeviceSnapshot? snapshot,
         int pendingOutboxCount,
         int failedOutboxCount,
+        int permanentFailedOutboxCount,
+        int retryExhaustedOutboxCount,
         string? outboxError,
+        OutboxOptions outboxOptions,
         DateTime now)
     {
         var alerts = new List<SmartShuntGatewayHealthAlert>();
@@ -55,7 +63,14 @@ public sealed class SmartShuntGatewayHealthService(
             alerts.Add(Alert("stale", SmartShuntGatewayHealthSeverity.Critical, "Latest SmartShunt sample is stale."));
         }
 
-        alerts.AddRange(BuildOutboxAlerts(options, pendingOutboxCount, failedOutboxCount, outboxError));
+        alerts.AddRange(BuildOutboxAlerts(
+            options,
+            pendingOutboxCount,
+            failedOutboxCount,
+            permanentFailedOutboxCount,
+            retryExhaustedOutboxCount,
+            outboxError,
+            outboxOptions));
 
         var batterySocLooksInvalid = snapshot is not null
             && snapshot.StateOfChargePercent.HasValue
@@ -94,17 +109,21 @@ public sealed class SmartShuntGatewayHealthService(
         SmartShuntOptions options,
         int pendingOutboxCount,
         int failedOutboxCount,
-        string? outboxError)
+        int permanentFailedOutboxCount,
+        int retryExhaustedOutboxCount,
+        string? outboxError,
+        OutboxOptions outboxOptions)
     {
         var evaluation = EdgeOutboxHealthEvaluator.Evaluate(
             new EdgeOutboxObservation(
                 PendingCount: pendingOutboxCount,
                 FailedCount: failedOutboxCount,
                 LastError: outboxError,
-                PermanentFailedCount: failedOutboxCount),
+                PermanentFailedCount: permanentFailedOutboxCount,
+                RetryExhaustedCount: retryExhaustedOutboxCount),
             new EdgeOutboxHealthOptions(
-                PendingWarningCount: options.OutboxPendingWarningCount,
-                FailedCriticalCount: options.OutboxFailedCriticalCount));
+                PendingWarningCount: outboxOptions.PendingWarningCount,
+                FailedCriticalCount: outboxOptions.FailedCriticalCount));
 
         return evaluation.Alerts
             .Select(MapOutboxAlert)

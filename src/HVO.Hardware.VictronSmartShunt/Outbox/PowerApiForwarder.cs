@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HVO.Edge.Outbox;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.VictronSmartShunt.Outbox;
@@ -26,12 +26,16 @@ public sealed class PowerApiForwarder : BackgroundService
     private volatile int _failedCount;
     private volatile string? _lastError;
     private volatile int _lastBatchCount;
+    private volatile int _permanentFailedCount;
+    private volatile int _retryExhaustedCount;
     private long _lastSentAtTicks;
 
     public int PendingCount => _pendingCount;
     public int FailedCount => _failedCount;
     public string? LastError => _lastError;
     public int LastBatchCount => _lastBatchCount;
+    public int PermanentFailedCount => _permanentFailedCount;
+    public int RetryExhaustedCount => _retryExhaustedCount;
     public DateTime? LastSentAt
     {
         get
@@ -68,7 +72,10 @@ public sealed class PowerApiForwarder : BackgroundService
             try
             {
                 await SweepAsync(stoppingToken);
-                if (_options.SentRetentionDays > 0 && (DateTime.UtcNow - lastCompactionAt).TotalHours >= 24)
+                await RequeueRetryExhaustedAsync(stoppingToken);
+
+                if ((_options.SentRetentionDays > 0 || _options.FailedRetentionDays > 0) &&
+                    (DateTime.UtcNow - lastCompactionAt).TotalHours >= 24)
                 {
                     await CompactAsync(stoppingToken);
                     lastCompactionAt = DateTime.UtcNow;
@@ -94,31 +101,23 @@ public sealed class PowerApiForwarder : BackgroundService
         }
     }
 
-    internal async Task SweepAsync(CancellationToken ct)
+    internal async Task<bool> SweepAsync(CancellationToken ct)
     {
         await using var serviceScope = _scopeFactory.CreateAsyncScope();
-        var db = serviceScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
         var now = DateTime.UtcNow;
 
-        var pending = await db.OutboxRecords
-            .Where(r => r.Status == OutboxStatus.Pending && r.NextRetryAtUtc <= now)
-            .OrderBy(r => r.RecordedAtUtc)
-            .Take(_options.BatchSize)
-            .ToListAsync(ct);
+        var pending = await store.GetReadyBatchAsync(SmartShuntOutboxPayloadTypes.Reading, now, _options.BatchSize, ct);
 
-        _pendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
-        _failedCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
+        await RefreshCountsAsync(store, ct);
 
         if (pending.Count == 0 || IsPlaceholderConfig)
-            return;
+            return false;
 
-        foreach (var record in pending)
-        {
-            record.AttemptCount++;
-            record.LastAttemptedAtUtc = now;
-        }
+        store.MarkAttempt(pending, now);
 
-        var ready = new List<(OutboxRecord Record, PowerReadingPayload Payload)>();
+        var ready = new List<(EdgeOutboxRecord Record, PowerReadingPayload Payload)>();
+        var sentCount = 0;
         try
         {
             foreach (var record in pending)
@@ -135,13 +134,18 @@ public sealed class PowerApiForwarder : BackgroundService
                 if (response.IsSuccessStatusCode)
                 {
                     var body = await response.Content.ReadFromJsonAsync<PowerBatchResponse>(JsonOptions, ct);
-                    MarkBatchResult(ready.Select(x => x.Record), body, now);
+                    sentCount = MarkBatchResult(store, ready.Select(x => x.Record), body, now);
                 }
                 else
                 {
                     var error = $"HTTP {(int)response.StatusCode}: {await ReadBoundedBodyAsync(response, ct)}";
                     foreach (var record in ready.Select(x => x.Record))
-                        ScheduleRetry(record, error, now);
+                    {
+                        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                            store.MarkFailed(record, error, EdgeOutboxFailureKind.Permanent);
+                        else
+                            store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+                    }
                     _lastError = error;
                 }
             }
@@ -149,7 +153,7 @@ public sealed class PowerApiForwarder : BackgroundService
         catch (HttpRequestException ex)
         {
             foreach (var record in ready.Select(x => x.Record))
-                ScheduleRetry(record, ex.Message, now);
+                store.ScheduleRetry(record, ex.Message, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             _lastError = ex.Message;
             _logger.LogWarning(ex, "SmartShunt forward HTTP error for {Count} record(s)", ready.Count);
         }
@@ -157,45 +161,73 @@ public sealed class PowerApiForwarder : BackgroundService
         {
             const string error = "Request timed out";
             foreach (var record in ready.Select(x => x.Record))
-                ScheduleRetry(record, error, now);
+                store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             _lastError = error;
             _logger.LogWarning("SmartShunt forward timed out for {Count} record(s)", ready.Count);
         }
         catch (JsonException ex)
         {
+            const string error = "Power API response JSON was invalid";
             foreach (var record in ready.Select(x => x.Record))
-                ScheduleRetry(record, ex.Message, now);
-            _lastError = ex.Message;
+                store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+            _lastError = error;
             _logger.LogWarning(ex, "SmartShunt forward JSON error for {Count} record(s)", ready.Count);
         }
 
-        await db.SaveChangesAsync(ct);
-        _pendingCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Pending, ct);
-        _failedCount = await db.OutboxRecords.CountAsync(r => r.Status == OutboxStatus.Failed, ct);
+        await store.SaveChangesAsync(ct);
+        await RefreshCountsAsync(store, ct);
+        return sentCount > 0;
     }
 
     private async Task CompactAsync(CancellationToken ct)
     {
-        var cutoff = DateTime.UtcNow.AddDays(-_options.SentRetentionDays);
         await using var serviceScope = _scopeFactory.CreateAsyncScope();
-        var db = serviceScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-        await db.OutboxRecords
-            .Where(r => r.Status == OutboxStatus.Sent && r.SentAtUtc.HasValue && r.SentAtUtc.Value < cutoff)
-            .ExecuteDeleteAsync(ct);
+        var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
+
+        if (_options.SentRetentionDays > 0)
+            await store.CompactSentAsync(TimeSpan.FromDays(_options.SentRetentionDays), ct);
+
+        if (_options.FailedRetentionDays > 0)
+            await store.CompactFailedAsync(TimeSpan.FromDays(_options.FailedRetentionDays), ct);
     }
 
-    private bool TryReadPayload(OutboxRecord record, out PowerReadingPayload payload)
+    internal async Task RequeueRetryExhaustedAsync(CancellationToken ct)
     {
         try
         {
-            payload = JsonSerializer.Deserialize<PowerReadingPayload>(record.Payload, JsonOptions)
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var store = scope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
+            var requeued = await store.RequeueRetryExhaustedAsync(ct);
+            if (requeued > 0)
+                _logger.LogInformation("Requeued {Count} SmartShunt RetryExhausted records", requeued);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Requeue of RetryExhausted failed (non-fatal)");
+        }
+    }
+
+    private async Task RefreshCountsAsync(EdgeOutboxStore<OutboxDbContext> store, CancellationToken ct)
+    {
+        _pendingCount = await store.CountPendingAsync(SmartShuntOutboxPayloadTypes.Reading, ct);
+        _failedCount = await store.CountFailedAsync(SmartShuntOutboxPayloadTypes.Reading, ct);
+        _permanentFailedCount = await store.CountFailedAsync(EdgeOutboxFailureKind.Permanent, ct);
+        _retryExhaustedCount = await store.CountFailedAsync(EdgeOutboxFailureKind.RetryExhausted, ct);
+    }
+
+    private bool TryReadPayload(EdgeOutboxRecord record, out PowerReadingPayload payload)
+    {
+        try
+        {
+            payload = JsonSerializer.Deserialize<PowerReadingPayload>(record.PayloadJson, JsonOptions)
                 ?? throw new JsonException("Payload deserialized to null.");
             return true;
         }
         catch (JsonException ex)
         {
             const string error = "Outbox payload JSON is invalid.";
-            record.Status = OutboxStatus.Failed;
+            record.Status = EdgeOutboxStatus.Failed;
+            record.FailureKind = EdgeOutboxFailureKind.Permanent;
             record.LastError = error;
             _lastError = error;
             _logger.LogError(ex, "SmartShunt outbox record {Id} has invalid JSON and was not forwarded", record.Id);
@@ -204,7 +236,11 @@ public sealed class PowerApiForwarder : BackgroundService
         }
     }
 
-    private void MarkBatchResult(IEnumerable<OutboxRecord> records, PowerBatchResponse? response, DateTime sentAt)
+    private int MarkBatchResult(
+        EdgeOutboxStore<OutboxDbContext> store,
+        IEnumerable<EdgeOutboxRecord> records,
+        PowerBatchResponse? response,
+        DateTime sentAt)
     {
         var failures = response?.Failed ?? [];
         var sentCount = 0;
@@ -214,33 +250,18 @@ public sealed class PowerApiForwarder : BackgroundService
             var failure = failures.FirstOrDefault(f => string.Equals(f.SourceId, record.SourceId, StringComparison.Ordinal) && f.RecordedAtUtc == record.RecordedAtUtc);
             if (failure is not null)
             {
-                record.Status = OutboxStatus.Failed;
-                record.LastError = failure.Error;
+                store.MarkFailed(record, failure.Error, EdgeOutboxFailureKind.Permanent);
                 continue;
             }
 
-            record.Status = OutboxStatus.Sent;
-            record.SentAtUtc = sentAt;
-            record.LastError = null;
+            store.MarkSent(record, sentAt);
             sentCount++;
         }
 
         _lastBatchCount = sentCount;
         _lastError = null;
         Volatile.Write(ref _lastSentAtTicks, sentAt.Ticks);
-    }
-
-    private void ScheduleRetry(OutboxRecord record, string error, DateTime now)
-    {
-        record.LastError = error;
-        if (record.AttemptCount >= _options.MaxRetryAttempts)
-        {
-            record.Status = OutboxStatus.Failed;
-            return;
-        }
-
-        var backoff = Math.Min((int)Math.Pow(2, record.AttemptCount), _options.MaxBackoffSeconds);
-        record.NextRetryAtUtc = now.AddSeconds(backoff);
+        return sentCount;
     }
 
     private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
