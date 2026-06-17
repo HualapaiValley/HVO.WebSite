@@ -10,6 +10,7 @@ namespace HVO.Gateway.TplinkKasa.Hosting;
 
 public sealed class KasaGatewayWorker(
     IOptions<KasaGatewayOptions> options,
+    IOptions<KasaGatewayOptions.OutboxSection> outboxOptions,
     KasaDeviceRegistry registry,
     KasaDevicePoller poller,
     KasaDeviceInteractionState interactionState,
@@ -262,7 +263,7 @@ public sealed class KasaGatewayWorker(
 
         state.ApplyResult(device, result);
 
-        if (result is { IsSuccess: true, IsDegraded: false, Snapshot.IsOnline: true })
+        if (IsOutboxForwardingEnabled && result is { IsSuccess: true, IsDegraded: false, Snapshot.IsOnline: true })
             await EnqueueOutboxAsync(device, result.Snapshot, cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess)
@@ -290,9 +291,7 @@ public sealed class KasaGatewayWorker(
             await using var outboxScope = scopeFactory.CreateAsyncScope();
             var outboxWriter = outboxScope.ServiceProvider.GetRequiredService<KasaOutboxWriter>();
 
-            if (snapshot.Energy is not null)
-                await outboxWriter.EnqueueEnergyAsync(snapshot, ct).ConfigureAwait(false);
-
+            await outboxWriter.EnqueueEnergyAsync(snapshot, ct).ConfigureAwait(false);
             await outboxWriter.EnqueueInventoryAsync(snapshot, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -310,6 +309,11 @@ public sealed class KasaGatewayWorker(
         var intervalSeconds = options.Value.FullDetailsRefreshIntervalSeconds;
         return intervalSeconds is null ? null : TimeSpan.FromSeconds(Math.Max(60, intervalSeconds.Value));
     }
+
+    private bool IsOutboxForwardingEnabled =>
+        !string.IsNullOrWhiteSpace(outboxOptions.Value.ApiEndpoint)
+        && !string.IsNullOrWhiteSpace(outboxOptions.Value.ApiKey)
+        && !string.Equals(outboxOptions.Value.ApiKey, "REPLACE_ME", StringComparison.OrdinalIgnoreCase);
 
     private void RecordPoll(KasaDeviceConfig device, string result, TimeSpan elapsed)
     {

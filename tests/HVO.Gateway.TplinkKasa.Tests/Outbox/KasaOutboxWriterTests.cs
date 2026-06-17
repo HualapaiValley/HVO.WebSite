@@ -1,6 +1,8 @@
 using FluentAssertions;
+using System.Text.Json;
 using HVO.Edge.Outbox;
 using HVO.Gateway.TplinkKasa.Devices;
+using HVO.Gateway.TplinkKasa.Models;
 using HVO.Gateway.TplinkKasa.Outbox;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +28,33 @@ public sealed class KasaOutboxWriterTests
         record.PayloadVersion.Should().Be(KasaOutboxPayloadTypes.EnergyVersion);
         record.SourceId.Should().Be(snapshot.SourceId);
         record.DeviceId.Should().Be(snapshot.DeviceId);
+
+        var payload = JsonSerializer.Deserialize<KasaEnergyPayload>(record.PayloadJson, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        payload.Should().NotBeNull();
+        payload!.LoadPowerW.Should().Be(12.3);
+        payload.GridVoltageV.Should().Be(119.8);
+        record.PayloadJson.Should().NotContain("powerW");
+        record.PayloadJson.Should().NotContain("voltageV");
+    }
+
+    [TestMethod]
+    public async Task EnqueueEnergyAsync_InsertsOutletRecords_WhenDeviceEnergyIsNull()
+    {
+        await using var fixture = await OutboxFixture.CreateAsync();
+        var writer = fixture.CreateWriter();
+        var snapshot = CreateSnapshot(
+            energy: null,
+            outlets:
+            [
+                new KasaOutletSnapshot("outlet-a", 1, "Outlet A", true, 10, new KasaEnergyReading(7.5, 120.1, 0.06, 1.1, default))
+            ]);
+
+        var inserted = await writer.EnqueueEnergyAsync(snapshot, CancellationToken.None);
+
+        inserted.Should().BeTrue();
+        var record = await fixture.Context.OutboxRecords.SingleAsync();
+        record.SourceId.Should().Be("tplink-kasa:desk-lamp:outlet:outlet-a");
+        record.DeviceId.Should().Be("outlet-a");
     }
 
     [TestMethod]
@@ -56,7 +85,9 @@ public sealed class KasaOutboxWriterTests
         (await fixture.Context.OutboxRecords.CountAsync()).Should().Be(0);
     }
 
-    private static KasaDeviceSnapshot CreateSnapshot(KasaEnergyReading? energy) => new(
+    private static KasaDeviceSnapshot CreateSnapshot(
+        KasaEnergyReading? energy,
+        IReadOnlyList<KasaOutletSnapshot>? outlets = null) => new(
         DeviceId: "vendor-device-id",
         SourceId: "tplink-kasa:desk-lamp",
         Host: "192.0.2.10",
@@ -74,7 +105,7 @@ public sealed class KasaOutboxWriterTests
         MetadataCapabilities: new HashSet<KasaMetadataCapability>(),
         CommandCapabilities: new HashSet<KasaCommandCapability>(),
         IsOn: true,
-        Outlets: [],
+        Outlets: outlets ?? [],
         Light: null,
         Energy: energy,
         DeviceInfo: new KasaDeviceInfo(

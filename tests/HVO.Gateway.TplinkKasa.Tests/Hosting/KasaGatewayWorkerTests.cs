@@ -16,6 +16,7 @@ public sealed class KasaGatewayWorkerTests
     {
         var worker = new KasaGatewayWorker(
             Options.Create(new KasaGatewayOptions { DefaultPort = 9999, PollIntervalSeconds = 5 }),
+            Options.Create(new KasaGatewayOptions.OutboxSection()),
             null!,
             null!,
             null!,
@@ -53,11 +54,53 @@ public sealed class KasaGatewayWorkerTests
         InvokeCreateDeviceLoopSignature(worker, baseConfig).Should().NotBe(InvokeCreateDeviceLoopSignature(worker, favoriteChanged));
     }
 
+    [TestMethod]
+    public void IsOutboxForwardingEnabled_ReturnsFalse_ForPlaceholderConfig()
+    {
+        var worker = CreateWorker(new KasaGatewayOptions.OutboxSection
+        {
+            ApiEndpoint = "https://example.test/api/v1/power/readings",
+            ApiKey = "REPLACE_ME"
+        });
+
+        InvokeIsOutboxForwardingEnabled(worker).Should().BeFalse();
+    }
+
+    [TestMethod]
+    public void IsOutboxForwardingEnabled_ReturnsTrue_ForConfiguredForwarding()
+    {
+        var worker = CreateWorker(new KasaGatewayOptions.OutboxSection
+        {
+            ApiEndpoint = "https://example.test/api/v1/power/readings",
+            ApiKey = "secret"
+        });
+
+        InvokeIsOutboxForwardingEnabled(worker).Should().BeTrue();
+    }
+
+    private static KasaGatewayWorker CreateWorker(KasaGatewayOptions.OutboxSection outboxOptions) => new(
+        Options.Create(new KasaGatewayOptions { DefaultPort = 9999, PollIntervalSeconds = 5 }),
+        Options.Create(outboxOptions),
+        null!,
+        null!,
+        null!,
+        null!,
+        null!,
+        null!,
+        NullLogger<KasaGatewayWorker>.Instance);
+
     private static string InvokeCreateDeviceLoopSignature(KasaGatewayWorker worker, KasaDeviceConfig config)
     {
         var method = typeof(KasaGatewayWorker).GetMethod("CreateDeviceLoopSignature", BindingFlags.Instance | BindingFlags.NonPublic);
         method.Should().NotBeNull();
         return (string)method!.Invoke(worker, [config])!;
+    }
+
+    private static bool InvokeIsOutboxForwardingEnabled(KasaGatewayWorker worker)
+    {
+        var property = typeof(KasaGatewayWorker).GetProperty("IsOutboxForwardingEnabled", BindingFlags.Instance | BindingFlags.NonPublic);
+        property.Should().NotBeNull();
+        return (bool)property!.GetValue(worker)!;
     }
 
     private static KasaDeviceConfig Clone(KasaDeviceConfig source) => new()

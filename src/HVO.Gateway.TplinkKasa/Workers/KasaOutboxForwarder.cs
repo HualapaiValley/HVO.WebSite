@@ -1,8 +1,8 @@
-using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using HVO.Edge.Outbox;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Models;
 using HVO.Gateway.TplinkKasa.Outbox;
@@ -117,8 +117,8 @@ public sealed class KasaOutboxForwarder : BackgroundService
 
         if (energy.Count > 0)
             anySent = await ForwardBatchAsync<KasaEnergyPayload>(store, energy, _options.ApiEndpoint, now, ct).ConfigureAwait(false);
-        else
-            anySent = await ForwardInventoryAsync(store, now, ct).ConfigureAwait(false);
+
+        anySent |= await ForwardInventoryAsync(store, now, ct).ConfigureAwait(false);
 
         await RefreshCountsAsync(store, ct).ConfigureAwait(false);
         return anySent;
@@ -130,7 +130,73 @@ public sealed class KasaOutboxForwarder : BackgroundService
         if (inventory.Count == 0)
             return false;
 
-        return await ForwardBatchAsync<KasaInventoryPayload>(store, inventory, BuildPowerEndpoint("device-inventory"), now, ct).ConfigureAwait(false);
+        return await ForwardInventorySnapshotsAsync(store, inventory, BuildPowerEndpoint("device-inventory"), now, ct).ConfigureAwait(false);
+    }
+
+    private async Task<bool> ForwardInventorySnapshotsAsync(
+        EdgeOutboxStore<OutboxDbContext> store,
+        IReadOnlyList<EdgeOutboxRecord> records,
+        string endpoint,
+        DateTime now,
+        CancellationToken ct)
+    {
+        store.MarkAttempt(records, now);
+        var ready = new List<(EdgeOutboxRecord Record, PowerDeviceInventoryPayload Payload)>();
+        var anySent = false;
+
+        foreach (var record in records)
+        {
+            if (TryReadPayload(record, out KasaInventoryPayload payload))
+                ready.Add((record, MapInventoryPayload(payload)));
+        }
+
+        foreach (var item in ready)
+        {
+            try
+            {
+                using var response = await _httpClientFactory
+                    .CreateClient("KasaPowerApi")
+                    .PostAsJsonAsync(endpoint, item.Payload, JsonOptions, ct)
+                    .ConfigureAwait(false);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    store.MarkSent(item.Record, now);
+                    anySent = true;
+                    continue;
+                }
+
+                var body = await ReadBoundedBodyAsync(response, ct).ConfigureAwait(false);
+                ScheduleRetry(store, [item.Record], $"HTTP {(int)response.StatusCode}: {body}", now);
+            }
+            catch (HttpRequestException ex)
+            {
+                ScheduleRetry(store, [item.Record], ex.Message, now);
+            }
+            catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+            {
+                ScheduleRetry(store, [item.Record], "Request timed out", now);
+            }
+            catch (JsonException ex)
+            {
+                const string error = "Kasa inventory API response JSON was invalid.";
+                ScheduleRetry(store, [item.Record], error, now);
+                _logger.LogWarning(ex, "Invalid JSON response while forwarding Kasa inventory outbox record {Id}", item.Record.Id);
+            }
+        }
+
+        if (ready.Count == 0 || anySent)
+        {
+            _lastBatchCount = anySent ? ready.Count(item => item.Record.Status == EdgeOutboxStatus.Sent) : _lastBatchCount;
+            if (anySent)
+            {
+                _lastError = null;
+                Volatile.Write(ref _lastSentAtTicks, now.Ticks);
+            }
+        }
+
+        await store.SaveChangesAsync(ct).ConfigureAwait(false);
+        return anySent;
     }
 
     private async Task<bool> ForwardBatchAsync<TPayload>(
@@ -179,10 +245,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
             {
                 var body = await ReadBoundedBodyAsync(response, ct).ConfigureAwait(false);
                 var error = $"HTTP {(int)response.StatusCode}: {body}";
-                if (IsPermanentFailure(response.StatusCode))
-                    MarkFailed(store, ready.Select(item => item.Record), error);
-                else
-                    ScheduleRetry(store, ready.Select(item => item.Record), error, now);
+                ScheduleRetry(store, ready.Select(item => item.Record), error, now);
             }
         }
         catch (HttpRequestException ex)
@@ -280,14 +343,6 @@ public sealed class KasaOutboxForwarder : BackgroundService
         return sentCount > 0;
     }
 
-    private void MarkFailed(EdgeOutboxStore<OutboxDbContext> store, IEnumerable<EdgeOutboxRecord> records, string error)
-    {
-        foreach (var record in records)
-            store.MarkFailed(record, error, EdgeOutboxFailureKind.Permanent);
-        _lastError = error;
-        _logger.LogWarning("Kasa API permanent failure for outbox batch: {Error}", error);
-    }
-
     private void ScheduleRetry(EdgeOutboxStore<OutboxDbContext> store, IEnumerable<EdgeOutboxRecord> records, string error, DateTime now)
     {
         foreach (var record in records)
@@ -304,8 +359,25 @@ public sealed class KasaOutboxForwarder : BackgroundService
         return $"{endpoint}/{leaf}";
     }
 
-    private static bool IsPermanentFailure(HttpStatusCode statusCode) =>
-        statusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound;
+    private static PowerDeviceInventoryPayload MapInventoryPayload(KasaInventoryPayload payload) => new()
+    {
+        SourceId = payload.SourceId,
+        SourceSystem = payload.SourceSystem,
+        DeviceId = payload.DeviceId,
+        RecordedAtUtc = payload.RecordedAtUtc,
+        Devices =
+        [
+            new PowerDeviceInventoryDevice
+            {
+                DeviceId = string.IsNullOrWhiteSpace(payload.DeviceId) ? payload.SourceId : payload.DeviceId,
+                Name = string.IsNullOrWhiteSpace(payload.Alias) ? payload.SourceId : payload.Alias,
+                Manufacturer = "TP-Link",
+                Model = payload.Model,
+                FirmwareVersion = payload.SoftwareVersion,
+                EntityCount = payload.Capabilities?.Count ?? 0,
+            }
+        ],
+    };
 
     private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
     {

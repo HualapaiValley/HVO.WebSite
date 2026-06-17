@@ -11,35 +11,32 @@ public sealed class KasaOutboxWriter(EdgeOutboxStore<OutboxDbContext> store, ILo
 
     public async Task<bool> EnqueueEnergyAsync(KasaDeviceSnapshot snapshot, CancellationToken ct)
     {
-        if (snapshot.Energy is null)
-            return false;
-
         var recordedAt = snapshot.ObservedAtUtc.UtcDateTime;
-        var payload = new KasaEnergyPayload
+        var insertedAny = false;
+
+        if (snapshot.Energy is not null)
         {
-            SourceId = snapshot.SourceId,
-            DeviceId = snapshot.DeviceId,
-            RecordedAtUtc = recordedAt,
-            Model = snapshot.Model,
-            Alias = snapshot.Alias,
-            PowerW = snapshot.Energy.PowerW,
-            VoltageV = snapshot.Energy.VoltageV,
-            CurrentA = snapshot.Energy.CurrentA,
-            EnergyKWh = snapshot.Energy.EnergyKWh,
-        };
+            insertedAny |= await EnqueueEnergyPayloadAsync(
+                snapshot.SourceId,
+                snapshot.DeviceId,
+                recordedAt,
+                snapshot.Energy,
+                ct).ConfigureAwait(false);
+        }
 
-        var inserted = await store.EnqueueAsync(new EdgeOutboxMessage(
-            SourceId: payload.SourceId,
-            RecordedAtUtc: recordedAt,
-            PayloadType: KasaOutboxPayloadTypes.Energy,
-            PayloadVersion: KasaOutboxPayloadTypes.EnergyVersion,
-            PayloadJson: JsonSerializer.Serialize(payload, JsonOptions),
-            DeviceId: payload.DeviceId), ct);
+        foreach (var outlet in snapshot.Outlets.Where(outlet => outlet.Energy is not null))
+        {
+            var outletSourceId = BuildOutletSourceId(snapshot.SourceId, outlet);
+            var outletDeviceId = BuildOutletDeviceId(snapshot.DeviceId, outlet);
+            insertedAny |= await EnqueueEnergyPayloadAsync(
+                outletSourceId,
+                outletDeviceId,
+                recordedAt,
+                outlet.Energy!,
+                ct).ConfigureAwait(false);
+        }
 
-        if (!inserted)
-            logger.LogDebug("Kasa energy outbox duplicate skipped for {SourceId} at {RecordedAt:O}", payload.SourceId, recordedAt);
-
-        return inserted;
+        return insertedAny;
     }
 
     public async Task<bool> EnqueueInventoryAsync(KasaDeviceSnapshot snapshot, CancellationToken ct)
@@ -74,5 +71,53 @@ public sealed class KasaOutboxWriter(EdgeOutboxStore<OutboxDbContext> store, ILo
             logger.LogDebug("Kasa inventory outbox duplicate skipped for {SourceId} at {RecordedAt:O}", payload.SourceId, recordedAt);
 
         return inserted;
+    }
+
+    private async Task<bool> EnqueueEnergyPayloadAsync(
+        string sourceId,
+        string? deviceId,
+        DateTime recordedAt,
+        KasaEnergyReading energy,
+        CancellationToken ct)
+    {
+        var payload = new KasaEnergyPayload
+        {
+            SourceId = sourceId,
+            DeviceId = deviceId,
+            RecordedAtUtc = recordedAt,
+            LoadPowerW = energy.PowerW,
+            GridVoltageV = energy.VoltageV,
+        };
+
+        var inserted = await store.EnqueueAsync(new EdgeOutboxMessage(
+            SourceId: payload.SourceId,
+            RecordedAtUtc: recordedAt,
+            PayloadType: KasaOutboxPayloadTypes.Energy,
+            PayloadVersion: KasaOutboxPayloadTypes.EnergyVersion,
+            PayloadJson: JsonSerializer.Serialize(payload, JsonOptions),
+            DeviceId: payload.DeviceId), ct).ConfigureAwait(false);
+
+        if (!inserted)
+            logger.LogDebug("Kasa energy outbox duplicate skipped for {SourceId} at {RecordedAt:O}", payload.SourceId, recordedAt);
+
+        return inserted;
+    }
+
+    private static string BuildOutletSourceId(string sourceId, KasaOutletSnapshot outlet)
+    {
+        var outletKey = !string.IsNullOrWhiteSpace(outlet.OutletId)
+            ? outlet.OutletId.Trim()
+            : outlet.Index?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown";
+        return $"{sourceId}:outlet:{outletKey}";
+    }
+
+    private static string BuildOutletDeviceId(string deviceId, KasaOutletSnapshot outlet)
+    {
+        if (!string.IsNullOrWhiteSpace(outlet.OutletId))
+            return outlet.OutletId.Trim();
+
+        return outlet.Index.HasValue
+            ? $"{deviceId}:outlet:{outlet.Index.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+            : $"{deviceId}:outlet";
     }
 }
