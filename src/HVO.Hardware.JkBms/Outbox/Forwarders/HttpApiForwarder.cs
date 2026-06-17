@@ -1,3 +1,6 @@
+using System.Text.Json;
+using HVO.Edge.Outbox;
+using HVO.Hardware.JkBms.Bms;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
@@ -46,7 +49,7 @@ public sealed class HttpApiForwarder : IReadingForwarder
         _logger = logger;
     }
 
-    public async Task ForwardAsync(IReadOnlyList<OutboxRecord> batch, CancellationToken ct)
+    public async Task ForwardAsync(IReadOnlyList<EdgeOutboxRecord> batch, CancellationToken ct)
     {
         if (batch.Count == 0) return;
 
@@ -62,29 +65,85 @@ public sealed class HttpApiForwarder : IReadingForwarder
 
         // Deserialise each payload and batch them into a single POST
         var payloads = batch
-            .Select(r => System.Text.Json.JsonSerializer.Deserialize<object>(r.Payload))
+            .Select(r => JsonSerializer.Deserialize<object>(r.PayloadJson))
             .ToArray();
 
         _logger.LogDebug(
             "HttpApiForwarder: posting {Count} record(s) to {Endpoint}",
             batch.Count, _options.ApiEndpoint);
 
-        var response = await client.PostAsJsonAsync(_options.ApiEndpoint, payloads, ct);
+        HttpResponseMessage response;
+        try
+        {
+            response = await client.PostAsJsonAsync(_options.ApiEndpoint, payloads, ct);
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new HttpRequestException("Request timed out.");
+        }
+
         if (!response.IsSuccessStatusCode)
         {
             // Read only a bounded prefix to avoid buffering large HTML error pages.
-            using var stream = await response.Content.ReadAsStreamAsync(ct);
-            using var reader = new StreamReader(stream, leaveOpen: true);
-            var buffer = new char[512];
-            var charsRead = await reader.ReadAsync(buffer, ct);
-            var body = new string(buffer, 0, charsRead);
+            var body = await ReadBoundedBodyAsync(response, ct);
+            var error = $"HTTP {(int)response.StatusCode}: {body}";
             _logger.LogWarning(
                 "HttpApiForwarder: HTTP {StatusCode} from {Endpoint}. Response: {Body}",
                 (int)response.StatusCode, _options.ApiEndpoint, body);
+
+            throw new HttpRequestException(error);
         }
-        response.EnsureSuccessStatusCode();
+
+        var batchResponse = await response.Content.ReadFromJsonAsync<BmsIngestBatchResponse>(cancellationToken: ct);
+        var failedRecords = MapFailedRecords(batch, batchResponse?.Failed);
+        if (failedRecords.Count > 0)
+            throw new PermanentForwarderException(failedRecords);
 
         _logger.LogInformation(
             "HttpApiForwarder: successfully forwarded {Count} record(s).", batch.Count);
+    }
+
+    private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream, leaveOpen: true);
+        var buffer = new char[512];
+        var charsRead = await reader.ReadAsync(buffer, ct);
+        return new string(buffer, 0, charsRead);
+    }
+
+    private static List<(long RecordId, string Error)> MapFailedRecords(
+        IReadOnlyList<EdgeOutboxRecord> batch,
+        IReadOnlyList<BmsIngestFailure>? failures)
+    {
+        if (failures is null || failures.Count == 0)
+            return [];
+
+        var result = new List<(long RecordId, string Error)>();
+        foreach (var failure in failures)
+        {
+            var record = batch.FirstOrDefault(r =>
+                string.Equals(r.SourceId, failure.DeviceAddress, StringComparison.OrdinalIgnoreCase) &&
+                r.RecordedAtUtc == failure.RecordedAtUtc);
+            if (record is not null)
+                result.Add((record.Id, failure.Error));
+        }
+
+        if (result.Count == 0)
+            result.AddRange(batch.Select(r => (r.Id, "API response included record failures that could not be matched to the submitted batch.")));
+
+        return result;
+    }
+
+    private sealed class BmsIngestBatchResponse
+    {
+        public IReadOnlyList<BmsIngestFailure> Failed { get; init; } = [];
+    }
+
+    private sealed class BmsIngestFailure
+    {
+        public string DeviceAddress { get; init; } = string.Empty;
+        public DateTime RecordedAtUtc { get; init; }
+        public string Error { get; init; } = string.Empty;
     }
 }

@@ -1,3 +1,4 @@
+using HVO.Edge.Outbox;
 using HVO.Enterprise.Telemetry;
 using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.Http;
@@ -137,6 +138,8 @@ string dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
 builder.Services.AddDbContext<OutboxDbContext>(o =>
     o.UseSqlite($"Data Source={dbPath}"),
     ServiceLifetime.Scoped);
+builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
+builder.Services.AddScoped<BmsOutboxWriter>();
 
 // ── HTTP client for outbox forwarder ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("OutboxForwarder", (sp, client) =>
@@ -170,7 +173,11 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await JkBmsLegacyOutboxMigrator.MigrateAsync(db);
+    await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
+        db,
+        BmsOutboxPayloadTypes.Reading,
+        BmsOutboxPayloadTypes.ReadingVersion);
 }
 
 if (!app.Environment.IsDevelopment())
