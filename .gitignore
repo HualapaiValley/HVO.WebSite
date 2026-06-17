@@ -21,6 +21,7 @@ artifacts/
 .vs/
 *.rsuser
 .devcontainer/devcontainer-lock.json
+.vscode/chatLanguageModels.json
 
 ## Rider
 .idea/
