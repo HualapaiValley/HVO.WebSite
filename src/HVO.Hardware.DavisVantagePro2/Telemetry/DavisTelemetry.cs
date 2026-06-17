@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using HVO.Edge.Contracts;
 
 namespace HVO.Hardware.DavisVantagePro2.Telemetry;
 
@@ -33,7 +34,7 @@ public sealed class DavisTelemetry : IDisposable
             "Number of Davis console reconnect attempts");
 
         OutboxRecordsForwarded = _meter.CreateCounter<long>(
-            "davis.outbox.records_forwarded", "records",
+            GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess, "records",
             "Number of outbox records successfully forwarded to the website");
 
         OutboxForwardLatencyMs = _meter.CreateHistogram<double>(
@@ -41,7 +42,7 @@ public sealed class DavisTelemetry : IDisposable
             "Round-trip latency of outbox HTTP batch forward requests");
 
         _meter.CreateObservableGauge(
-            "davis.outbox.queue_depth", () => _outboxQueueDepth, "records",
+            GatewayTelemetryConventions.MetricNames.OutboxDepth, () => _outboxQueueDepth, "records",
             "Number of pending records in the outbox");
     }
 

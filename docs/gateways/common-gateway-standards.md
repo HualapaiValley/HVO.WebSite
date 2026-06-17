@@ -144,33 +144,31 @@ Use these tags consistently across metrics and traces when available.
 
 ### Common Metrics
 
-Metric names are draft names. Prefer counters for event totals, histograms for latency, and observable gauges for current state.
+Metric names are defined in `GatewayTelemetryConventions`. Prefer counters for event totals, histograms for latency, and observable gauges for current state.
 
 | Metric | Type | Unit | Purpose |
 |--------|------|------|---------|
-| `hvo.gateway.sample.count` | Counter | samples | Samples successfully read from the local device/protocol. |
-| `hvo.gateway.sample.age_seconds` | Gauge | seconds | Age of the latest successful sample. |
-| `hvo.gateway.sample.consecutive_failures` | Gauge | failures | Current consecutive sample/read failures. |
-| `hvo.gateway.connection.reconnects` | Counter | reconnects | Reconnect attempts to local device/protocol. |
-| `hvo.gateway.outbox.pending` | Gauge | records | Pending outbox records. |
-| `hvo.gateway.outbox.failed` | Gauge | records | Failed outbox records, tagged by `failure.kind` where practical. |
-| `hvo.gateway.outbox.forwarded` | Counter | records | Records accepted or skipped as duplicates by cloud ingest. |
-| `hvo.gateway.outbox.retry_scheduled` | Counter | records | Records scheduled for retry after transient failure. |
-| `hvo.gateway.outbox.dead_lettered` | Counter | records | Records moved to failed for permanent reasons, tagged by `failure.kind`. |
-| `hvo.gateway.forward.latency_ms` | Histogram | ms | Cloud forwarding request latency. |
-| `hvo.gateway.forward.request.count` | Counter | requests | Cloud forwarding attempts, tagged by status class/result. |
-| `hvo.gateway.health.state` | Gauge | state | Numeric gateway health state if exported as a metric. |
+| `gateway.outbox.depth` | Gauge | records | Pending outbox records. |
+| `gateway.outbox.failed` | Gauge | records | Failed outbox records, tagged by `hvo.failure.kind` where practical. |
+| `gateway.outbox.forward.success` | Counter | records | Records accepted or skipped as duplicates by cloud ingest. |
+| `gateway.outbox.forward.failure` | Counter | records | Records that failed a forward attempt. |
+| `gateway.device.freshness.seconds` | Gauge | seconds | Age of the latest successful sample. |
+| `gateway.device.poll.failure` | Counter/Gauge | failures | Device poll failures or skipped polls. |
 
 ### Common Traces/Operations
 
 | Operation | Purpose |
 |-----------|---------|
-| `Gateway.Startup` | Startup, schema checks, configuration checks. |
-| `Gateway.Device.Connect` | Local device/protocol connect. |
-| `Gateway.Device.Poll` | One poll/sample batch. |
-| `Gateway.Outbox.Enqueue` | Local outbox enqueue. Usually sampled or debug-level. |
-| `Gateway.Outbox.Sweep` | Outbox batch sweep. |
-| `Gateway.Outbox.Forward` | Cloud forwarding request. |
+| `gateway.device.connect` | Local device/protocol connect. |
+| `gateway.device.poll` | One poll/sample batch. |
+| `gateway.device.read` | Local device/protocol read. |
+| `gateway.outbox.enqueue` | Local outbox enqueue. Usually sampled or debug-level. |
+| `gateway.outbox.sweep` | Outbox batch sweep. |
+| `gateway.outbox.forward` | Cloud forwarding request. |
+| `gateway.outbox.retry` | Records scheduled for retry after transient failure. |
+| `gateway.outbox.dead_letter` | Records moved to failed for permanent reasons. |
+| `gateway.outbox.requeue` | Retry-exhausted records returned to pending after recovery. |
+| `gateway.health.evaluate` | Gateway health/status evaluation. |
 
 Gateway-specific operations should use a stable prefix such as `Davis.Console.*`, `SolarAssistant.Mqtt.*`, or `JkBms.Ble.*`.
 
@@ -216,8 +214,7 @@ Health states should distinguish these cases:
 Target shared components:
 
 - `HVO.Edge.Outbox`: common record model, status, failure kind, store, retry policy, dead-letter/requeue helpers, compaction.
-- `HVO.Edge.Telemetry`: common metric names, tags, gateway telemetry helper, outbox telemetry helper.
-- `HVO.Edge.Contracts`: gateway status payloads, health states, and domain payload envelope types.
+- `HVO.Edge.Contracts`: gateway status payloads, diagnostics responses, health states, telemetry names/tags, API-key matcher, and domain payload envelope types.
 
 Current implementation status:
 

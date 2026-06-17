@@ -222,6 +222,28 @@ public sealed class EdgeOutboxStoreTests
         retryExhaustedCount.Should().Be(1);
     }
 
+    [TestMethod]
+    public async Task DiagnosticsReader_ReturnsCountsByFailureKindAndMaintenanceState()
+    {
+        await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
+        await _store.EnqueueAsync(Message("power.energy", "2026-05-23T10:01:00Z"), CancellationToken.None);
+        var sent = _db.OutboxRecords.Single(record => record.PayloadType == "power.reading");
+        var failed = _db.OutboxRecords.Single(record => record.PayloadType == "power.energy");
+        _store.MarkSent(sent, DateTime.UtcNow.AddMinutes(-1));
+        _store.MarkFailed(failed, "HTTP 400", EdgeOutboxFailureKind.Permanent);
+        await _store.SaveChangesAsync(CancellationToken.None);
+
+        var diagnostics = await EdgeOutboxDiagnosticsReader.ReadAsync(_db, CancellationToken.None);
+
+        diagnostics.SentCount.Should().Be(1);
+        diagnostics.FailedCount.Should().Be(1);
+        diagnostics.FailedCountByKind.Should().ContainKey("Permanent").WhoseValue.Should().Be(1);
+        diagnostics.LastError.Should().Be("HTTP 400");
+        diagnostics.LastFailureKind.Should().Be("Permanent");
+        diagnostics.Schema.IsCompatible.Should().BeTrue();
+        diagnostics.MaintenanceState.Should().Be("failed-records-present");
+    }
+
     private static EdgeOutboxMessage Message(string payloadType, string recordedAt) => new(
         SourceId: "solarassistant-total",
         DeviceId: "total",

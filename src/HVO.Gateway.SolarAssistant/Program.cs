@@ -10,6 +10,7 @@ using HVO.Gateway.SolarAssistant.SolarAssistant.Health;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 using HVO.Gateway.SolarAssistant.Workers;
 using HVO.Edge.Outbox;
+using HVO.Edge.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MudBlazor.Services;
@@ -97,7 +98,7 @@ builder.Services
     var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
         ? outboxConfig.DbPath
         : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
-    builder.Services.AddDbContext<OutboxDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
+    builder.Services.AddDbContext<OutboxDbContext>(o => o.UseSqlite($"Data Source={dbPath};Default Timeout=30", sqlite => sqlite.CommandTimeout(30)));
 builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
 builder.Services.AddScoped<PowerOutboxWriter>();
 builder.Services.AddScoped<PowerInventoryConfigurationWriter>();
@@ -136,6 +137,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddMudServices();
 
 var app = builder.Build();
+var gatewayStartedAtUtc = DateTime.UtcNow;
 var exposeDiagnostics = app.Environment.IsDevelopment()
     || app.Configuration.GetValue("Diagnostics:ExposeDetailedEndpoints", false);
 
@@ -199,7 +201,7 @@ if (exposeDiagnostics)
 }
 app.MapGet("/gateway-health", (HttpContext httpContext, SolarAssistantGatewayHealthService healthService, IOptions<OutboxOptions> outboxOptions) =>
 {
-    if (!SolarAssistantGatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
     {
         return Results.StatusCode(StatusCodes.Status403Forbidden);
     }
@@ -207,4 +209,80 @@ app.MapGet("/gateway-health", (HttpContext httpContext, SolarAssistantGatewayHea
     return Results.Ok(healthService.GetSnapshot());
 });
 
+app.MapGet("/diagnostics/health", async (HttpContext httpContext, SolarAssistantGatewayHealthService healthService, OutboxDbContext db, IOptions<SolarAssistantOptions> solarOptions, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    var status = await CreateSolarAssistantDiagnosticStatusAsync(gatewayStartedAtUtc, app.Environment.EnvironmentName, healthService, db, solarOptions.Value, cancellationToken);
+    return Results.Ok(status.Health);
+});
+
+app.MapGet("/diagnostics/status", async (HttpContext httpContext, SolarAssistantGatewayHealthService healthService, OutboxDbContext db, IOptions<SolarAssistantOptions> solarOptions, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    return Results.Ok(await CreateSolarAssistantDiagnosticStatusAsync(gatewayStartedAtUtc, app.Environment.EnvironmentName, healthService, db, solarOptions.Value, cancellationToken));
+});
+
+app.MapGet("/diagnostics/outbox", async (HttpContext httpContext, OutboxDbContext db, IOptions<OutboxOptions> outboxOptions, CancellationToken cancellationToken) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    return Results.Ok(await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken));
+});
+
 await app.RunAsync();
+
+static async Task<GatewayDiagnosticStatusResponse> CreateSolarAssistantDiagnosticStatusAsync(
+    DateTime startedAtUtc,
+    string environmentName,
+    SolarAssistantGatewayHealthService healthService,
+    OutboxDbContext db,
+    SolarAssistantOptions options,
+    CancellationToken cancellationToken)
+{
+    var now = DateTime.UtcNow;
+    var payload = healthService.CreatePayload(now);
+    var counts = CountSignals(payload.Rest, payload.Mqtt);
+
+    return new GatewayDiagnosticStatusResponse(
+        "1.0",
+        payload.Identity with { RuntimeHost = Environment.MachineName },
+        new GatewayRuntimeInfo(startedAtUtc, now, now - startedAtUtc, environmentName),
+        payload.Health,
+        counts,
+        await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken),
+        CreateTelemetryDiagnostics("hvo-solarassistant", "hvo.solarassistant"),
+        new Dictionary<string, string>
+        {
+            ["health"] = "/diagnostics/health",
+            ["status"] = "/diagnostics/status",
+            ["outbox"] = "/diagnostics/outbox",
+            ["legacyGatewayHealth"] = "/gateway-health",
+            ["legacyStatus"] = "/status",
+        });
+}
+
+static GatewayDeviceCounts CountSignals(params GatewayRuntimeSignal?[] signals)
+{
+    var configured = signals.Count(signal => signal is not null && signal.State != GatewaySampleState.Disabled);
+    var online = signals.Count(signal => signal?.State == GatewaySampleState.Live);
+    var degraded = signals.Count(signal => signal?.State is GatewaySampleState.Waiting or GatewaySampleState.Stale);
+    var offline = signals.Count(signal => signal?.State is GatewaySampleState.Error or GatewaySampleState.Unknown);
+    return new GatewayDeviceCounts(configured, online, degraded, offline);
+}
+
+static GatewayTelemetryDiagnostics CreateTelemetryDiagnostics(string defaultServiceName, string sourceName) => new(
+    !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")),
+    Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? defaultServiceName,
+    [
+        GatewayTelemetryConventions.MetricNames.OutboxDepth,
+        GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess,
+        GatewayTelemetryConventions.MetricNames.OutboxForwardFailure,
+        GatewayTelemetryConventions.MetricNames.DeviceFreshnessSeconds,
+        GatewayTelemetryConventions.MetricNames.DevicePollFailure,
+    ],
+    [sourceName]);

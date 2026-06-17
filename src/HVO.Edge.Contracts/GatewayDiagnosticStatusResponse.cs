@@ -35,7 +35,8 @@ public sealed record GatewayOutboxDiagnostics(
     DateTime? LastSentAtUtc,
     string? LastError,
     string? LastFailureKind,
-    GatewayOutboxSchemaState Schema);
+    GatewayOutboxSchemaState Schema,
+    string MaintenanceState = "unknown");
 
 public sealed record GatewayOutboxSchemaState(
     bool IsCompatible,

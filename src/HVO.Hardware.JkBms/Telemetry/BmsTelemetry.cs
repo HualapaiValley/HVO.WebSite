@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using HVO.Edge.Contracts;
 
 namespace HVO.Hardware.JkBms.Telemetry;
 
@@ -33,7 +34,7 @@ public sealed class BmsTelemetry : IDisposable
             "Duration of each JK BMS device poll exchange, tagged by device alias");
 
         OutboxRecordsForwarded = _meter.CreateCounter<long>(
-            "bms.outbox.records_forwarded", "records",
+            GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess, "records",
             "Number of outbox records successfully forwarded to the website");
 
         OutboxForwardLatencyMs = _meter.CreateHistogram<double>(
@@ -41,7 +42,7 @@ public sealed class BmsTelemetry : IDisposable
             "Round-trip latency of outbox HTTP forward requests");
 
         _meter.CreateObservableGauge(
-            "bms.outbox.queue_depth", () => _outboxQueueDepth, "records",
+            GatewayTelemetryConventions.MetricNames.OutboxDepth, () => _outboxQueueDepth, "records",
             "Number of pending records in the outbox");
     }
 

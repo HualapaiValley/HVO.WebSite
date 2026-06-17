@@ -31,7 +31,8 @@ public sealed class GatewayDiagnosticStatusResponseTests
                 LastSentAtUtc: evaluatedAt.AddMinutes(-5),
                 LastError: "HTTP 503",
                 LastFailureKind: "Permanent",
-                Schema: new GatewayOutboxSchemaState(true, [], [], evaluatedAt)),
+                Schema: new GatewayOutboxSchemaState(true, [], [], evaluatedAt),
+                MaintenanceState: "failed-records-present"),
             Telemetry: new GatewayTelemetryDiagnostics(
                 OtlpEndpointConfigured: true,
                 ServiceName: "hvo-tplink-kasa",
@@ -53,5 +54,18 @@ public sealed class GatewayDiagnosticStatusResponseTests
         json.Should().Contain("outbox");
         json.Should().Contain("telemetry");
         json.Should().Contain("failedCountByKind");
+        json.Should().Contain("maintenanceState");
+    }
+
+    [TestMethod]
+    public void TelemetryConventions_DefineSharedGatewayNames()
+    {
+        GatewayTelemetryConventions.ResourceAttributes.GatewayId.Should().Be("hvo.gateway.id");
+        GatewayTelemetryConventions.ResourceAttributes.GatewayType.Should().Be("hvo.gateway.type");
+        GatewayTelemetryConventions.OperationNames.OutboxForward.Should().Be("gateway.outbox.forward");
+        GatewayTelemetryConventions.OperationNames.HealthEvaluate.Should().Be("gateway.health.evaluate");
+        GatewayTelemetryConventions.MetricNames.OutboxDepth.Should().Be("gateway.outbox.depth");
+        GatewayTelemetryConventions.MetricNames.DevicePollFailure.Should().Be("gateway.device.poll.failure");
+        GatewayTelemetryConventions.Tags.FailureKind.Should().Be("hvo.failure.kind");
     }
 }
