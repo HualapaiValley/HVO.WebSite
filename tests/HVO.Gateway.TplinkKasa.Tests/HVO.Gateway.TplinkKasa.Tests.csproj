@@ -11,6 +11,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="MSTest" />
+    <PackageReference Include="bunit" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="coverlet.collector">
       <PrivateAssets>all</PrivateAssets>
