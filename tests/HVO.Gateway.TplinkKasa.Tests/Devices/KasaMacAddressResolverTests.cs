@@ -16,7 +16,7 @@ public sealed class KasaMacAddressResolverTests
     {
         await using var server = new FakeKasaLegacyServer();
         server.RespondTo("system", "get_sysinfo", FixtureLoader.Read("ep25-sysinfo.json"));
-        var resolver = CreateResolver(server.Port, "127.0.0.1/32");
+        var resolver = CreateResolver(1, "127.0.0.1/32");
 
         var host = await resolver.TryFindHostByMacAsync("AA:BB:CC:DD:EE:01", server.Port, CancellationToken.None);
 
@@ -38,6 +38,20 @@ public sealed class KasaMacAddressResolverTests
         first.Should().BeNull();
         second.Should().BeNull();
         server.RequestKeys.Count.Should().BeGreaterThan(requestsAfterFirstLookup);
+    }
+
+    [TestMethod]
+    public async Task TryFindHostByMacAsync_CachesMissesPerPort()
+    {
+        await using var server = new FakeKasaLegacyServer();
+        server.RespondTo("system", "get_sysinfo", FixtureLoader.Read("ep25-sysinfo.json"));
+        var resolver = CreateResolver(1, "127.0.0.1/32");
+
+        var missOnWrongPort = await resolver.TryFindHostByMacAsync("AA:BB:CC:DD:EE:01", 1, CancellationToken.None);
+        var foundOnCorrectPort = await resolver.TryFindHostByMacAsync("AA:BB:CC:DD:EE:01", server.Port, CancellationToken.None);
+
+        missOnWrongPort.Should().BeNull();
+        foundOnCorrectPort.Should().Be("127.0.0.1");
     }
 
     private static KasaMacAddressResolver CreateResolver(int defaultPort, params string[] cidrs)
