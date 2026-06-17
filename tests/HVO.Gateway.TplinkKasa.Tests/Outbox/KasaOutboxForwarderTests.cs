@@ -78,7 +78,7 @@ public sealed class KasaOutboxForwarderTests
     }
 
     [TestMethod]
-    public async Task SweepAsync_SchedulesRetry_ForForbiddenResponse()
+    public async Task SweepAsync_DeadLetters_ForForbiddenResponse()
     {
         await using var fixture = await OutboxFixture.CreateAsync();
         await fixture.Store.EnqueueAsync(new EdgeOutboxMessage(
@@ -104,8 +104,8 @@ public sealed class KasaOutboxForwarderTests
         anySent.Should().BeFalse();
         fixture.Context.ChangeTracker.Clear();
         var record = await fixture.Context.OutboxRecords.SingleAsync();
-        record.Status.Should().Be(EdgeOutboxStatus.Pending);
-        record.FailureKind.Should().Be(EdgeOutboxFailureKind.None);
+        record.Status.Should().Be(EdgeOutboxStatus.Failed);
+        record.FailureKind.Should().Be(EdgeOutboxFailureKind.Permanent);
         record.AttemptCount.Should().Be(1);
         record.LastError.Should().Contain("HTTP 403");
     }

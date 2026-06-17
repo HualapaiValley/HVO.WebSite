@@ -13,7 +13,7 @@ namespace HVO.Hardware.JkBms.Tests.Outbox;
 public sealed class HttpApiForwarderTests
 {
     [TestMethod]
-    public async Task ForwardAsync_OnBadRequest_ThrowsHttpRequestException()
+    public async Task ForwardAsync_OnBadRequest_ThrowsPermanentException()
     {
         var forwarder = CreateForwarder(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
@@ -23,11 +23,12 @@ public sealed class HttpApiForwarderTests
 
         var act = () => forwarder.ForwardAsync(batch, CancellationToken.None);
 
-        await act.Should().ThrowAsync<HttpRequestException>();
+        var ex = await act.Should().ThrowAsync<PermanentForwarderException>();
+        ex.Which.FailedRecords.Should().HaveCount(2);
     }
 
     [TestMethod]
-    public async Task ForwardAsync_OnAuthOrRoutingFailure_ThrowsHttpRequestException()
+    public async Task ForwardAsync_OnAuthOrRoutingFailure_ThrowsPermanentException()
     {
         foreach (var statusCode in new[] { HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.NotFound })
         {
@@ -38,7 +39,8 @@ public sealed class HttpApiForwarderTests
 
             var act = () => forwarder.ForwardAsync(CreateBatch(), CancellationToken.None);
 
-            await act.Should().ThrowAsync<HttpRequestException>();
+            var ex = await act.Should().ThrowAsync<PermanentForwarderException>();
+            ex.Which.FailedRecords.Should().HaveCount(2);
         }
     }
 

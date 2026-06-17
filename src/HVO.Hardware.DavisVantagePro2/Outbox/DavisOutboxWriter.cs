@@ -35,4 +35,19 @@ public sealed class DavisOutboxWriter(
 
         return inserted;
     }
+
+    public async Task<bool> EnqueueConfigAsync(string stationId, string payloadJson, CancellationToken ct)
+    {
+        var inserted = await store.EnqueueAsync(new EdgeOutboxMessage(
+            SourceId: stationId,
+            RecordedAtUtc: DateTime.UtcNow,
+            PayloadType: DavisOutboxPayloadTypes.Config,
+            PayloadVersion: DavisOutboxPayloadTypes.ConfigVersion,
+            PayloadJson: payloadJson), ct);
+
+        if (!inserted)
+            logger.LogDebug("Davis config outbox duplicate skipped for {StationId}", stationId);
+
+        return inserted;
+    }
 }

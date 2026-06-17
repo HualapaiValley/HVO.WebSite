@@ -91,6 +91,10 @@ public sealed class HttpApiForwarder : IReadingForwarder
                 "HttpApiForwarder: HTTP {StatusCode} from {Endpoint}. Response: {Body}",
                 (int)response.StatusCode, _options.ApiEndpoint, body);
 
+            if ((int)response.StatusCode is 400 or 401 or 403 or 404)
+                throw new PermanentForwarderException(
+                    batch.Select(r => (r.Id, error)).ToList());
+
             throw new HttpRequestException(error);
         }
 

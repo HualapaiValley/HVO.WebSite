@@ -141,7 +141,7 @@ public sealed class PowerApiForwarder : BackgroundService
                     var error = $"HTTP {(int)response.StatusCode}: {await ReadBoundedBodyAsync(response, ct)}";
                     foreach (var record in ready.Select(x => x.Record))
                     {
-                        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                        if ((int)response.StatusCode is 400 or 401 or 403 or 404)
                             store.MarkFailed(record, error, EdgeOutboxFailureKind.Permanent);
                         else
                             store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);

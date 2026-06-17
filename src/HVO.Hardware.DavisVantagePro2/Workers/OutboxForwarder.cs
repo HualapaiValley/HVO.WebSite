@@ -37,9 +37,10 @@ public sealed class OutboxForwarder(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            bool anySent = false;
             try
             {
-                await SweepAsync(stoppingToken);
+                anySent = await SweepAsync(stoppingToken);
                 if ((DateTime.UtcNow - lastCompactionAt).TotalHours >= 24)
                 {
                     await CompactAsync(stoppingToken);
@@ -53,6 +54,22 @@ public sealed class OutboxForwarder(
             catch (Exception ex)
             {
                 logger.LogError(ex, "OutboxForwarder sweep error");
+            }
+
+            if (anySent)
+            {
+                try
+                {
+                    await using var requeueScope = scopeFactory.CreateAsyncScope();
+                    var requeueStore = requeueScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
+                    var requeued = await requeueStore.RequeueRetryExhaustedAsync(stoppingToken);
+                    if (requeued > 0)
+                        logger.LogInformation("Requeued {Count} RetryExhausted Davis outbox records", requeued);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Requeue of RetryExhausted Davis outbox records failed (non-fatal)");
+                }
             }
 
             try

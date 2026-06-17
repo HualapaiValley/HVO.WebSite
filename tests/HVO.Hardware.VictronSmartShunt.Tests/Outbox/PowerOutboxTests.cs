@@ -86,7 +86,7 @@ public sealed class PowerOutboxTests
     [DataRow(HttpStatusCode.Unauthorized)]
     [DataRow(HttpStatusCode.Forbidden)]
     [DataRow(HttpStatusCode.NotFound)]
-    public async Task SweepAsync_AuthAndEndpointFailuresRemainRetryable(HttpStatusCode statusCode)
+    public async Task SweepAsync_AuthAndEndpointFailuresAreDeadLettered(HttpStatusCode statusCode)
     {
         await using var fixture = await OutboxFixture.CreateAsync();
         var payload = CreatePayload();
@@ -113,10 +113,9 @@ public sealed class PowerOutboxTests
 
         fixture.Db.ChangeTracker.Clear();
         var record = fixture.Db.OutboxRecords.Single();
-        record.Status.Should().Be(EdgeOutboxStatus.Pending);
-        record.FailureKind.Should().Be(EdgeOutboxFailureKind.None);
+        record.Status.Should().Be(EdgeOutboxStatus.Failed);
+        record.FailureKind.Should().Be(EdgeOutboxFailureKind.Permanent);
         record.AttemptCount.Should().Be(1);
-        record.NextRetryAtUtc.Should().BeAfter(DateTime.UtcNow.AddSeconds(-1));
         record.LastError.Should().Contain($"HTTP {(int)statusCode}");
     }
 

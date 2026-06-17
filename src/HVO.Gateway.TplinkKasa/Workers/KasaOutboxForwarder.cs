@@ -245,7 +245,16 @@ public sealed class KasaOutboxForwarder : BackgroundService
             {
                 var body = await ReadBoundedBodyAsync(response, ct).ConfigureAwait(false);
                 var error = $"HTTP {(int)response.StatusCode}: {body}";
-                ScheduleRetry(store, ready.Select(item => item.Record), error, now);
+                if ((int)response.StatusCode is 400 or 401 or 403 or 404)
+                {
+                    foreach (var record in ready.Select(item => item.Record))
+                        store.MarkFailed(record, error, EdgeOutboxFailureKind.Permanent);
+                    _lastError = error;
+                }
+                else
+                {
+                    ScheduleRetry(store, ready.Select(item => item.Record), error, now);
+                }
             }
         }
         catch (HttpRequestException ex)
