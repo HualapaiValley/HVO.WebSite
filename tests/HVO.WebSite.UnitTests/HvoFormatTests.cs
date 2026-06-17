@@ -1,5 +1,6 @@
 using FluentAssertions;
 using HVO.WebSite.Themes.Components.Format;
+using System.Globalization;
 
 namespace HVO.WebSite.UnitTests;
 
@@ -158,6 +159,35 @@ public sealed class HvoFormatTests
     public void Integer_Negative_ReturnsNegative()
     {
         HvoFormat.Integer(-5).Should().Be("-5");
+    }
+
+    [TestMethod]
+    public void NumericFormatting_IsStableUnderCommaDecimalCulture()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUiCulture = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            var commaDecimalCulture = CultureInfo.GetCultureInfo("fr-FR");
+            CultureInfo.CurrentCulture = commaDecimalCulture;
+            CultureInfo.CurrentUICulture = commaDecimalCulture;
+
+            HvoFormat.Temperature(22.5).Should().Be("22.5 °C");
+            HvoFormat.Speed(5.2).Should().Be("18.7 km/h");
+            HvoFormat.PressureInHg(29.92).Should().Be("1013.2 hPa");
+            HvoFormat.Voltage(13.45).Should().Be("13.45 V");
+            HvoFormat.Current(2.75).Should().Be("2.8 A");
+            HvoFormat.Power(350.8).Should().Be("351 W");
+            HvoFormat.EnergyAh(125.5).Should().Be("125.5 Ah");
+            HvoFormat.Rain(0.25).Should().Be("0.25 in");
+            HvoFormat.Percent(78.3).Should().Be("78 %");
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+        }
     }
 
     [TestMethod]

@@ -14,7 +14,12 @@ public sealed class KasaGatewayHealthCheck(KasaGatewayState state) : IHealthChec
 
         if (status.ConfiguredDeviceCount > 0 && status.OnlineDeviceCount == 0)
         {
-            return HealthCheckResult.Degraded("No configured TP-Link/Kasa devices are online.");
+            return HealthCheckResult.Unhealthy("No configured TP-Link/Kasa devices are online.");
+        }
+
+        if (status.OnlineDeviceCount < status.ConfiguredDeviceCount)
+        {
+            return HealthCheckResult.Degraded($"{status.OnlineDeviceCount} of {status.ConfiguredDeviceCount} configured TP-Link/Kasa device(s) are online.");
         }
 
         if (status.DegradedDeviceCount > 0)
