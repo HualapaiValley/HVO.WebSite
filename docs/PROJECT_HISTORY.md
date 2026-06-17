@@ -302,9 +302,9 @@ Avoid:
 
 ### Files Created
 
-- `.opencode/agents/review-prep.md` (parameterized — swap model field for any provider)
-- `.opencode/agents/qwen-review-prep.md`
-- `.opencode/agents/qwen-review-resolution-prep.md`
+- `.opencode/agents/review-prep.md` (parameterized — swap model field for any provider; removed in CSS alias cleanup)
+- `.opencode/agents/qwen-review-prep.md` (removed in CSS alias cleanup)
+- `.opencode/agents/qwen-review-resolution-prep.md` (removed in CSS alias cleanup)
 - `MODEL_RANKING.md` (running ranking updated with each reviewed model)
 - `code-review-qwen-pre/Zen-{model}-{area}-Review.md` (3 Zen prep outputs)
 - `code-review-gpt55/HVO.WebSite.v9-Final-Review.md` (GPT validated findings)

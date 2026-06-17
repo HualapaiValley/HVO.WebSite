@@ -155,7 +155,6 @@
 
 .jk-gauge {
     --gauge-value: 0;
-    --gauge-color: var(--hvo-accent-blue);
     width: 10.5rem;
     aspect-ratio: 1;
     margin: 0 auto;
@@ -164,13 +163,13 @@
     place-items: center;
     background:
         radial-gradient(circle at center, rgba(4, 8, 14, 0.94) 0 55%, transparent 56%),
-        conic-gradient(var(--gauge-color) calc(var(--gauge-value) * 1%), rgba(126, 157, 196, 0.14) 0);
+        conic-gradient(var(--gauge-color, var(--hvo-accent-blue)) calc(var(--gauge-value) * 1%), rgba(126, 157, 196, 0.14) 0);
 }
 
 .shell-theme-light .jk-gauge {
     background:
         radial-gradient(circle at center, rgba(255, 255, 255, 0.92) 0 55%, transparent 56%),
-        conic-gradient(var(--gauge-color) calc(var(--gauge-value) * 1%), rgba(128, 151, 185, 0.18) 0);
+        conic-gradient(var(--gauge-color, var(--hvo-accent-blue)) calc(var(--gauge-value) * 1%), rgba(128, 151, 185, 0.18) 0);
 }
 
 .jk-gauge-inner {

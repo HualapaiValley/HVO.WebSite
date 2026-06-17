@@ -100,7 +100,7 @@ Follow this process for every issue. **Never auto-start the next issue unless ex
 
 ## Active Migration: Unified Theme & Layout
 
-The repo is undergoing a cross-cutting migration (epic #153) to unify all apps under a shared theme/layout system in `HVO.WebSite.Themes`. See `docs/UNIFIED_THEME_PLAN.md` for the full plan, and `.opencode/agents/theme-migration.md` for the execution agent prompt.
+The repo has completed migration (epic #153) to a unified shared theme/layout system in `HVO.WebSite.Themes`. See `docs/UNIFIED_THEME_PLAN.md` for the full plan.
 
 **Key rules during migration:**
 - **All shared components** go in `HVO.WebSite.Themes`, not per-app projects

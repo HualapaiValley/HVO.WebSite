@@ -6,11 +6,7 @@
 
     /* Compass & celestial SVG tokens — mirror Davis Status.razor.css */
     --demo-compass-face: color-mix(in srgb, var(--shell-card-background) 78%, var(--shell-overlay-panel) 22%);
-    --demo-compass-ring-strong: var(--shell-card-border);
-    --demo-compass-ring: var(--shell-overlay-panel-border);
     --demo-compass-ring-soft: color-mix(in srgb, var(--shell-overlay-panel-border) 55%, transparent 45%);
-    --demo-compass-spokes: var(--shell-overlay-panel-border);
-    --demo-compass-label: var(--shell-pill-text);
     --demo-sun-stroke: #ffcf66;
     --demo-sun-glow: rgba(255, 207, 102, 0.28);
     --demo-sun-fill: #ffcf66;

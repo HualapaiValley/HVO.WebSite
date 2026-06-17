@@ -67,12 +67,12 @@
                         <h3>Wind Compass</h3>
                         <svg class="wind-compass-svg" viewBox="0 0 240 240" width="100%" aria-label="Wind direction compass">
                             <circle cx="120" cy="120" r="102" fill="var(--dashboard-compass-face)"
-                                stroke="var(--dashboard-compass-ring-strong)" stroke-width="2"></circle>
-                            <circle cx="120" cy="120" r="84" fill="none" stroke="var(--dashboard-compass-ring)"
+                                stroke="var(--shell-card-border)" stroke-width="2"></circle>
+                            <circle cx="120" cy="120" r="84" fill="none" stroke="var(--shell-overlay-panel-border)"
                                     stroke-width="1"></circle>
                             <circle cx="120" cy="120" r="64" fill="none" stroke="var(--dashboard-compass-ring-soft)"
                                     stroke-width="1"></circle>
-                            <g stroke="var(--dashboard-compass-spokes)" stroke-linecap="round">
+                            <g stroke="var(--shell-overlay-panel-border)" stroke-linecap="round">
                                 <line x1="120" y1="20" x2="120" y2="36" stroke-width="2"></line>
                                 <line x1="120" y1="204" x2="120" y2="220" stroke-width="2"></line>
                                 <line x1="20" y1="120" x2="36" y2="120" stroke-width="2"></line>
@@ -82,18 +82,18 @@
                                 <line x1="49" y1="191" x2="60" y2="180" stroke-width="1.5"></line>
                                 <line x1="180" y1="60" x2="191" y2="49" stroke-width="1.5"></line>
                             </g>
-                            <g fill="var(--dashboard-muted)" font-size="18" font-weight="600" text-anchor="middle">
+                            <g fill="var(--shell-pill-text)" font-size="18" font-weight="600" text-anchor="middle">
                                 <text x="120" y="54">N</text>
                                 <text x="190" y="126">E</text>
                                 <text x="120" y="198">S</text>
                                 <text x="50" y="126">W</text>
                             </g>
                             <g transform="rotate(@WindDirectionRotation 120 120)">
-                                <path d="M120 34L133 118L120 108L107 118Z" fill="var(--dashboard-accent-blue)"></path>
-                                <path d="M120 206L132 126L120 132L108 126Z" fill="var(--dashboard-accent-amber)"></path>
+                                <path d="M120 34L133 118L120 108L107 118Z" fill="var(--hvo-accent-blue)"></path>
+                                <path d="M120 206L132 126L120 132L108 126Z" fill="var(--hvo-accent-amber)"></path>
                             </g>
-                            <circle cx="120" cy="120" r="10" fill="var(--dashboard-marker-fill)"></circle>
-                            <circle cx="120" cy="120" r="5" fill="var(--dashboard-accent-blue)"></circle>
+                            <circle cx="120" cy="120" r="10" fill="var(--shell-chart-marker-fill)"></circle>
+                            <circle cx="120" cy="120" r="5" fill="var(--hvo-accent-blue)"></circle>
                         </svg>
                         <footer>
                             <strong class="mono readout-compact">@WindDirectionText</strong>

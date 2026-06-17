@@ -14,10 +14,7 @@
     --dashboard-compass-face: color-mix(in srgb, var(--shell-card-background) 78%, var(--shell-overlay-panel) 22%);
     --dashboard-compass-ring-soft: color-mix(in srgb, var(--shell-overlay-panel-border) 55%, transparent 45%);
     /* celestial chart tokens */
-    --dashboard-sun-stroke: var(--hvo-accent-amber);
     --dashboard-sun-glow: color-mix(in srgb, var(--hvo-accent-amber) 28%, transparent);
-    --dashboard-sun-fill: var(--hvo-accent-amber);
-    --dashboard-moon-fill: var(--hvo-series-6);
     --dashboard-moon-shadow: color-mix(in srgb, var(--shell-card-background) 80%, var(--shell-overlay-panel) 20%);
     color: var(--shell-page-text);
 }
