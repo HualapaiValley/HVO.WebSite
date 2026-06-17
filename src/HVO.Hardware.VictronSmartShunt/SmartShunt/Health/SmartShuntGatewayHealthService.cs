@@ -10,11 +10,13 @@ namespace HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
 public sealed class SmartShuntGatewayHealthService(
     SmartShuntWorker worker,
     PowerApiForwarder forwarder,
-    IOptions<SmartShuntOptions> optionsAccessor) : ISmartShuntGatewayHealthSnapshotProvider
+    IOptions<SmartShuntOptions> optionsAccessor,
+    IOptions<OutboxOptions> outboxOptionsAccessor) : ISmartShuntGatewayHealthSnapshotProvider
 {
     private readonly SmartShuntWorker _worker = worker;
     private readonly PowerApiForwarder _forwarder = forwarder;
     private readonly SmartShuntOptions _options = optionsAccessor.Value;
+    private readonly OutboxOptions _outboxOptions = outboxOptionsAccessor.Value;
 
     public SmartShuntGatewayHealthSnapshot GetSnapshot(DateTime? nowUtc = null) => Evaluate(
         _options,
@@ -26,6 +28,7 @@ public sealed class SmartShuntGatewayHealthService(
         _forwarder.PermanentFailedCount,
         _forwarder.RetryExhaustedCount,
         _forwarder.LastError,
+        _outboxOptions,
         nowUtc ?? DateTime.UtcNow);
 
     public static SmartShuntGatewayHealthSnapshot Evaluate(
@@ -38,6 +41,7 @@ public sealed class SmartShuntGatewayHealthService(
         int permanentFailedOutboxCount,
         int retryExhaustedOutboxCount,
         string? outboxError,
+        OutboxOptions outboxOptions,
         DateTime now)
     {
         var alerts = new List<SmartShuntGatewayHealthAlert>();
@@ -65,7 +69,8 @@ public sealed class SmartShuntGatewayHealthService(
             failedOutboxCount,
             permanentFailedOutboxCount,
             retryExhaustedOutboxCount,
-            outboxError));
+            outboxError,
+            outboxOptions));
 
         var batterySocLooksInvalid = snapshot is not null
             && snapshot.StateOfChargePercent.HasValue
@@ -106,7 +111,8 @@ public sealed class SmartShuntGatewayHealthService(
         int failedOutboxCount,
         int permanentFailedOutboxCount,
         int retryExhaustedOutboxCount,
-        string? outboxError)
+        string? outboxError,
+        OutboxOptions outboxOptions)
     {
         var evaluation = EdgeOutboxHealthEvaluator.Evaluate(
             new EdgeOutboxObservation(
@@ -116,8 +122,8 @@ public sealed class SmartShuntGatewayHealthService(
                 PermanentFailedCount: permanentFailedOutboxCount,
                 RetryExhaustedCount: retryExhaustedOutboxCount),
             new EdgeOutboxHealthOptions(
-                PendingWarningCount: options.OutboxPendingWarningCount,
-                FailedCriticalCount: options.OutboxFailedCriticalCount));
+                PendingWarningCount: outboxOptions.PendingWarningCount,
+                FailedCriticalCount: outboxOptions.FailedCriticalCount));
 
         return evaluation.Alerts
             .Select(MapOutboxAlert)

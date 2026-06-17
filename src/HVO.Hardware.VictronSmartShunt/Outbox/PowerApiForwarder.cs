@@ -71,9 +71,8 @@ public sealed class PowerApiForwarder : BackgroundService
         {
             try
             {
-                var anySent = await SweepAsync(stoppingToken);
-                if (anySent)
-                    await RequeueRetryExhaustedAsync(stoppingToken);
+                await SweepAsync(stoppingToken);
+                await RequeueRetryExhaustedAsync(stoppingToken);
 
                 if ((_options.SentRetentionDays > 0 || _options.FailedRetentionDays > 0) &&
                     (DateTime.UtcNow - lastCompactionAt).TotalHours >= 24)
@@ -142,7 +141,7 @@ public sealed class PowerApiForwarder : BackgroundService
                     var error = $"HTTP {(int)response.StatusCode}: {await ReadBoundedBodyAsync(response, ct)}";
                     foreach (var record in ready.Select(x => x.Record))
                     {
-                        if (IsPermanentFailureStatus(response.StatusCode))
+                        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
                             store.MarkFailed(record, error, EdgeOutboxFailureKind.Permanent);
                         else
                             store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
@@ -192,7 +191,7 @@ public sealed class PowerApiForwarder : BackgroundService
             await store.CompactFailedAsync(TimeSpan.FromDays(_options.FailedRetentionDays), ct);
     }
 
-    private async Task RequeueRetryExhaustedAsync(CancellationToken ct)
+    internal async Task RequeueRetryExhaustedAsync(CancellationToken ct)
     {
         try
         {
@@ -264,12 +263,6 @@ public sealed class PowerApiForwarder : BackgroundService
         Volatile.Write(ref _lastSentAtTicks, sentAt.Ticks);
         return sentCount;
     }
-
-    private static bool IsPermanentFailureStatus(System.Net.HttpStatusCode statusCode) =>
-        statusCode is System.Net.HttpStatusCode.BadRequest
-            or System.Net.HttpStatusCode.Unauthorized
-            or System.Net.HttpStatusCode.Forbidden
-            or System.Net.HttpStatusCode.NotFound;
 
     private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
     {

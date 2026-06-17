@@ -82,6 +82,82 @@ public sealed class PowerOutboxTests
         forwarder.FailedCount.Should().Be(1);
     }
 
+    [TestMethod]
+    [DataRow(HttpStatusCode.Unauthorized)]
+    [DataRow(HttpStatusCode.Forbidden)]
+    [DataRow(HttpStatusCode.NotFound)]
+    public async Task SweepAsync_AuthAndEndpointFailuresRemainRetryable(HttpStatusCode statusCode)
+    {
+        await using var fixture = await OutboxFixture.CreateAsync();
+        var payload = CreatePayload();
+        await new PowerOutboxWriter(fixture.Store, NullLogger<PowerOutboxWriter>.Instance)
+            .EnqueueAsync(payload, CancellationToken.None);
+
+        var forwarder = new PowerApiForwarder(
+            fixture.ScopeFactory,
+            new StubHttpClientFactory(new HttpClient(new StubHandler(_ => new HttpResponseMessage(statusCode)
+            {
+                Content = new StringContent("configuration mismatch"),
+            }))),
+            Options.Create(new OutboxOptions
+            {
+                ApiEndpoint = "https://example.test/api/v1/power/readings",
+                ApiKey = "test-api-key",
+                BatchSize = 10,
+                MaxRetryAttempts = 10,
+                MaxBackoffSeconds = 300,
+            }),
+            NullLogger<PowerApiForwarder>.Instance);
+
+        await forwarder.SweepAsync(CancellationToken.None);
+
+        fixture.Db.ChangeTracker.Clear();
+        var record = fixture.Db.OutboxRecords.Single();
+        record.Status.Should().Be(EdgeOutboxStatus.Pending);
+        record.FailureKind.Should().Be(EdgeOutboxFailureKind.None);
+        record.AttemptCount.Should().Be(1);
+        record.NextRetryAtUtc.Should().BeAfter(DateTime.UtcNow.AddSeconds(-1));
+        record.LastError.Should().Contain($"HTTP {(int)statusCode}");
+    }
+
+    [TestMethod]
+    public async Task RequeueRetryExhaustedAsync_RequeuesWithoutFreshSentRecords()
+    {
+        await using var fixture = await OutboxFixture.CreateAsync();
+        fixture.Db.OutboxRecords.Add(new EdgeOutboxRecord
+        {
+            SourceId = "smartshunt-main",
+            RecordedAtUtc = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc),
+            PayloadType = SmartShuntOutboxPayloadTypes.Reading,
+            PayloadVersion = SmartShuntOutboxPayloadTypes.ReadingVersion,
+            PayloadJson = JsonSerializer.Serialize(CreatePayload()),
+            Status = EdgeOutboxStatus.Failed,
+            FailureKind = EdgeOutboxFailureKind.RetryExhausted,
+            AttemptCount = 10,
+            LastError = "offline",
+        });
+        await fixture.Db.SaveChangesAsync();
+
+        var forwarder = new PowerApiForwarder(
+            fixture.ScopeFactory,
+            new StubHttpClientFactory(new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Created)))),
+            Options.Create(new OutboxOptions
+            {
+                ApiEndpoint = "https://example.test/api/v1/power/readings",
+                ApiKey = "test-api-key",
+            }),
+            NullLogger<PowerApiForwarder>.Instance);
+
+        await forwarder.RequeueRetryExhaustedAsync(CancellationToken.None);
+
+        fixture.Db.ChangeTracker.Clear();
+        var record = fixture.Db.OutboxRecords.Single();
+        record.Status.Should().Be(EdgeOutboxStatus.Pending);
+        record.FailureKind.Should().Be(EdgeOutboxFailureKind.None);
+        record.AttemptCount.Should().Be(0);
+        record.LastError.Should().Contain("Requeued after retry exhaustion");
+    }
+
     private static PowerReadingPayload CreatePayload(string sourceId = "smartshunt-main") => new()
     {
         SourceId = sourceId,
