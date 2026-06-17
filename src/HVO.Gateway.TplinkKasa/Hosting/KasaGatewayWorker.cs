@@ -246,7 +246,7 @@ public sealed class KasaGatewayWorker(
                 stopwatch.Elapsed.TotalMilliseconds,
                 interval.TotalMilliseconds);
 
-            _ = TryRecoverDeviceAsync(device, CancellationToken.None);
+            await TryRecoverDeviceAsync(device, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -341,7 +341,7 @@ public sealed class KasaGatewayWorker(
                     GroupName = device.GroupName,
                     IsFavorite = device.IsFavorite,
                     Host = location.Host,
-                    Port = null,
+                    Port = device.Port,
                     MacAddress = device.MacAddress,
                     NetworkName = device.NetworkName,
                     DisplayTimeZoneId = device.DisplayTimeZoneId,

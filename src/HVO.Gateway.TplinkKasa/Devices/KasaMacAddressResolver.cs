@@ -27,9 +27,11 @@ public sealed class KasaMacAddressResolver(
             return cached.Host;
         }
 
+        var completedAnyScan = false;
+
         foreach (var network in options.Value.Networks)
         {
-            if (string.IsNullOrWhiteSpace(network.Cidr))
+            if (!network.DiscoveryEnabled || string.IsNullOrWhiteSpace(network.Cidr))
             {
                 continue;
             }
@@ -54,6 +56,8 @@ public sealed class KasaMacAddressResolver(
                     scanOptions,
                     includePrivacySensitive: false,
                     cancellationToken).ConfigureAwait(false);
+
+                completedAnyScan = true;
 
                 foreach (var result in results)
                 {
@@ -83,7 +87,11 @@ public sealed class KasaMacAddressResolver(
         }
 
         logger.LogInformation("MAC {MacAddress} was not found on any configured network", normalized);
-        _cache[normalized] = new MacLookupResult(null, DateTimeOffset.UtcNow.Add(CacheExpiry));
+        if (completedAnyScan)
+        {
+            _cache[normalized] = new MacLookupResult(null, DateTimeOffset.UtcNow.Add(CacheExpiry));
+        }
+
         return null;
     }
 
