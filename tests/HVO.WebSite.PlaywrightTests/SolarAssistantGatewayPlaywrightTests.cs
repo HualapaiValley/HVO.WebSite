@@ -34,8 +34,8 @@ public sealed class SolarAssistantGatewayPlaywrightTests
     [TestCategory("Live")]
     public async Task SolarAssistantGateway_ShouldNavigateInventoryRoutesAndKeepCircuitAlive()
     {
-        await using var browser = await CreateBrowserAsync();
-        var page = await browser.NewPageAsync();
+        await using var session = await CreateBrowserSessionAsync();
+        var page = await session.Browser.NewPageAsync();
 
         await page.GotoAsync(BuildUrl("/"));
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "SolarAssistant Gateway" })).ToBeVisibleAsync();
@@ -60,8 +60,8 @@ public sealed class SolarAssistantGatewayPlaywrightTests
     [TestCategory("Live")]
     public async Task SolarAssistantGateway_ShouldRenderHistoryCharts_WhenHistoryExists()
     {
-        await using var browser = await CreateBrowserAsync();
-        var page = await browser.NewPageAsync();
+        await using var session = await CreateBrowserSessionAsync();
+        var page = await session.Browser.NewPageAsync();
 
         await page.GotoAsync(BuildUrl("/"));
 
@@ -90,21 +90,16 @@ public sealed class SolarAssistantGatewayPlaywrightTests
     public async Task SolarAssistantGateway_ShouldLoadOnlyLocalOfflineResources()
     {
         var requestedUrls = new List<string>();
-        await using var browser = await CreateBrowserAsync();
-        var page = await browser.NewPageAsync();
+        await using var session = await CreateBrowserSessionAsync();
+        var page = await session.Browser.NewPageAsync();
         page.Request += (_, request) => requestedUrls.Add(request.Url);
 
         await page.GotoAsync(BuildUrl("/"));
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-        requestedUrls.Should().NotContain(url =>
-            url.Contains("cdn.jsdelivr.net", StringComparison.OrdinalIgnoreCase)
-            || url.Contains("fonts.googleapis.com", StringComparison.OrdinalIgnoreCase)
-            || url.Contains("unpkg.com", StringComparison.OrdinalIgnoreCase));
-        requestedUrls.Should().Contain(url => url.Contains("_content/HVO.WebSite.Themes/js/chart.min.js", StringComparison.OrdinalIgnoreCase));
-        requestedUrls.Should().Contain(url => url.Contains("_content/HVO.WebSite.Themes/js/hvo-chart.js", StringComparison.OrdinalIgnoreCase));
-        requestedUrls.Should().Contain(url => url.Contains("_content/HVO.WebSite.Themes/css/themes/hvo-shared-shell.css", StringComparison.OrdinalIgnoreCase));
-        requestedUrls.Should().Contain(url => url.Contains("_content/HVO.WebSite.Themes/css/themes/hvo-components.css", StringComparison.OrdinalIgnoreCase));
+        await PlaywrightGatewayAssertions.AssertNoCdnResourcesAsync(requestedUrls);
+        await PlaywrightGatewayAssertions.AssertLocalChartResourcesLoadedAsync(requestedUrls);
+        await PlaywrightGatewayAssertions.AssertLocalThemeResourcesLoadedAsync(requestedUrls);
         await AssertNoBlazorErrorAsync(page);
     }
 
@@ -112,8 +107,8 @@ public sealed class SolarAssistantGatewayPlaywrightTests
     [TestCategory("Live")]
     public async Task SolarAssistantGateway_ShouldRenderThemedCardsAndNoLegacyClasses()
     {
-        await using var browser = await CreateBrowserAsync();
-        var page = await browser.NewPageAsync(new BrowserNewPageOptions
+        await using var session = await CreateBrowserSessionAsync();
+        var page = await session.Browser.NewPageAsync(new BrowserNewPageOptions
         {
             ViewportSize = new ViewportSize { Width = 1600, Height = 1000 }
         });
@@ -131,8 +126,8 @@ public sealed class SolarAssistantGatewayPlaywrightTests
     [TestCategory("Live")]
     public async Task SolarAssistantGateway_ShouldToggleThemeWithoutCircuitError()
     {
-        await using var browser = await CreateBrowserAsync();
-        var page = await browser.NewPageAsync();
+        await using var session = await CreateBrowserSessionAsync();
+        var page = await session.Browser.NewPageAsync();
 
         await page.GotoAsync(BuildUrl("/"));
         await AssertNoBlazorErrorAsync(page);
@@ -148,7 +143,7 @@ public sealed class SolarAssistantGatewayPlaywrightTests
         await AssertNoBlazorErrorAsync(page);
     }
 
-    private static async Task<IBrowser> CreateBrowserAsync()
+    private static async Task<PlaywrightBrowserSession> CreateBrowserSessionAsync()
     {
         var baseUrl = Environment.GetEnvironmentVariable("HVO_SOLARASSISTANT_BASE_URL");
         if (string.IsNullOrWhiteSpace(baseUrl))
@@ -159,7 +154,8 @@ public sealed class SolarAssistantGatewayPlaywrightTests
         var playwright = await Playwright.CreateAsync();
         try
         {
-            return await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+            return new PlaywrightBrowserSession(playwright, browser);
         }
         catch
         {
@@ -223,5 +219,16 @@ public sealed class SolarAssistantGatewayPlaywrightTests
     private sealed record ElementStyle(string BackgroundColor, string BorderColor, string BorderRadius, string ClassName)
     {
         public override string ToString() => $"background={BackgroundColor}, border={BorderColor}, radius={BorderRadius}, class={ClassName}";
+    }
+
+    private sealed class PlaywrightBrowserSession(IPlaywright playwright, IBrowser browser) : IAsyncDisposable
+    {
+        public IBrowser Browser { get; } = browser;
+
+        public async ValueTask DisposeAsync()
+        {
+            await Browser.DisposeAsync();
+            playwright.Dispose();
+        }
     }
 }

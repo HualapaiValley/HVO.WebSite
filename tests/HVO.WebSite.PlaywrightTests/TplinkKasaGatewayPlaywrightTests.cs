@@ -63,12 +63,8 @@ public sealed class TplinkKasaGatewayPlaywrightTests
         await page.GotoAsync(BuildUrl("/"));
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-        requestedUrls.Should().NotContain(url =>
-            url.Contains("cdn.jsdelivr.net", StringComparison.OrdinalIgnoreCase)
-            || url.Contains("fonts.googleapis.com", StringComparison.OrdinalIgnoreCase)
-            || url.Contains("unpkg.com", StringComparison.OrdinalIgnoreCase));
-        requestedUrls.Should().Contain(url => url.Contains("_content/HVO.WebSite.Themes/css/themes/hvo-shared-shell.css", StringComparison.OrdinalIgnoreCase));
-        requestedUrls.Should().Contain(url => url.Contains("_content/HVO.WebSite.Themes/css/themes/hvo-components.css", StringComparison.OrdinalIgnoreCase));
+        await PlaywrightGatewayAssertions.AssertNoCdnResourcesAsync(requestedUrls);
+        await PlaywrightGatewayAssertions.AssertLocalThemeResourcesLoadedAsync(requestedUrls);
         requestedUrls.Should().Contain(url => url.Contains("_content/MudBlazor/MudBlazor.min.css", StringComparison.OrdinalIgnoreCase));
         await AssertNoBlazorErrorAsync(page);
     }

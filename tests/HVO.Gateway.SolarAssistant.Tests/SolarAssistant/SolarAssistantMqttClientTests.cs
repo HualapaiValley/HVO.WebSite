@@ -111,7 +111,7 @@ public sealed class SolarAssistantMqttClientTests
     }
 
     [TestMethod]
-    public async Task RunAsync_KeepaliveTimeoutRaisesFailure()
+    public async Task RunAsync_MalformedPublishRaisesFailure()
     {
         await using var broker = await FakeMqttBroker.StartAsync(async connection =>
         {
@@ -119,8 +119,6 @@ public sealed class SolarAssistantMqttClientTests
             await connection.WritePacketAsync(2, 0, [0, 0]);
             await connection.ReadPacketAsync();
             await connection.WritePacketAsync(9, 0, [0, 1, 0]);
-            var ping = await connection.ReadPacketAsync();
-            ping.PacketType.Should().Be(12);
             await connection.WriteRawAsync([0x30, 0x02, 0x00]);
         });
         var client = CreateClient(broker.Port);

@@ -234,6 +234,7 @@ public sealed class ThemeSandboxPlaywrightTests
         requestedUrls.Should().NotContain(url =>
             url.Contains("cdn.jsdelivr.net", StringComparison.OrdinalIgnoreCase)
             || url.Contains("fonts.googleapis.com", StringComparison.OrdinalIgnoreCase)
+            || url.Contains("fonts.gstatic.com", StringComparison.OrdinalIgnoreCase)
             || url.Contains("unpkg.com", StringComparison.OrdinalIgnoreCase));
         requestedUrls.Should().Contain(url => url.Contains("_content/HVO.WebSite.Themes/js/chart.min.js", StringComparison.OrdinalIgnoreCase));
         requestedUrls.Should().Contain(url => url.Contains("_content/HVO.WebSite.Themes/js/hvo-chart.js", StringComparison.OrdinalIgnoreCase));

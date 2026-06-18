@@ -60,6 +60,20 @@ public sealed class KasaGatewayHealthCheckTests
         result.Description.Should().Be("No configured TP-Link/Kasa devices are online.");
     }
 
+    [TestMethod]
+    public async Task CheckHealthAsync_ReturnsUnhealthyWhenPollFailureLeavesNoDevicesOnline()
+    {
+        var options = CreateConfig(deviceCount: 2);
+        var state = CreateState(options);
+        state.MarkPollFailed("Gateway poll failed.");
+        var healthCheck = new KasaGatewayHealthCheck(state);
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Description.Should().Be("No configured TP-Link/Kasa devices are online.");
+    }
+
     private static KasaGatewayState CreateState(KasaGatewayOptions options)
     {
         var root = Path.Combine(Path.GetTempPath(), "hvo-kasa-health-tests", Guid.NewGuid().ToString("N"));

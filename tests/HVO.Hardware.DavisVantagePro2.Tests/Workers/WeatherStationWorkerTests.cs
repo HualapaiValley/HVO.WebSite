@@ -129,9 +129,33 @@ public sealed class WeatherStationWorkerTests
     public async Task RecoverableError_UpdatesLastErrorWithoutStoppingWorker()
     {
         await using var fixture = await WorkerFixture.CreateAsync(new StationOptions { MaxConsecutiveErrors = 5 });
-        await fixture.InvokePollLoopAsync(new InvalidOperationException("transient loop failure"));
+        byte[] loop1 = PacketBuilder.BuildLoop1Packet(outsideTempF: 70.1);
+        byte[] corruptLoop2 = PacketBuilder.BuildLoop2Packet(outsideTempF: 72.2);
+        corruptLoop2[^1] ^= 0xFF;
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(8, [DavisProtocol.Ack, .. loop1])
+            .Step(8, [DavisProtocol.Ack, .. corruptLoop2])
+            .Start();
+        await fixture.OpenStationAsync(server.Port);
 
-        fixture.Worker.LastError.Should().Be("transient loop failure");
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var errorObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Worker.WorkerStateChanged += () =>
+        {
+            if (fixture.Worker.LastError is not null)
+            {
+                errorObserved.TrySetResult();
+                cts.Cancel();
+            }
+        };
+
+        var pollTask = fixture.InvokePollLoopAsync(cts.Token);
+        await errorObserved.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await pollTask.WaitAsync(TimeSpan.FromSeconds(3));
+
+        fixture.Worker.LastError.Should().Contain("CRC");
         fixture.Worker.ConsecutiveErrors.Should().Be(1);
     }
 
@@ -216,18 +240,11 @@ public sealed class WeatherStationWorkerTests
             await task;
         }
 
-        public async Task InvokePollLoopAsync(Exception error)
+        public async Task InvokePollLoopAsync(CancellationToken cancellationToken)
         {
-            var station = new ThrowingStationFacade(error);
-            var method = typeof(WeatherStationWorker).GetProperty(nameof(WeatherStationWorker.LastError));
-            method.Should().NotBeNull();
-            await Task.Run(() =>
-            {
-                typeof(WeatherStationWorker).GetProperty(nameof(WeatherStationWorker.ConsecutiveErrors))!.GetValue(Worker).Should().Be(0);
-                typeof(WeatherStationWorker).GetField("<LastError>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(Worker, error.Message);
-                typeof(WeatherStationWorker).GetField("<ConsecutiveErrors>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(Worker, 1);
-            });
-            GC.KeepAlive(station);
+            var method = typeof(WeatherStationWorker).GetMethod("PollLoopAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var task = (Task)method.Invoke(Worker, [cancellationToken])!;
+            await task;
         }
 
         public async ValueTask DisposeAsync()
@@ -237,11 +254,6 @@ public sealed class WeatherStationWorkerTests
             await _provider.DisposeAsync();
             await _connection.DisposeAsync();
         }
-    }
-
-    private sealed class ThrowingStationFacade(Exception error)
-    {
-        public Exception Error { get; } = error;
     }
 
     private sealed class NoOpTelemetryService : ITelemetryService
