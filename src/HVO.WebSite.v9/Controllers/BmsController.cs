@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Asp.Versioning;
+using HVO.WebSite.v9.Infrastructure;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -24,10 +26,12 @@ public class BmsController : ControllerBase
     public const int MaxBatchSize = 500;
 
     private readonly IBmsIngestService _ingestService;
+    private readonly ILogger<BmsController> _logger;
 
-    public BmsController(IBmsIngestService ingestService)
+    public BmsController(IBmsIngestService ingestService, ILogger<BmsController> logger)
     {
         _ingestService = ingestService;
+        _logger = logger;
     }
 
     // -------------------------------------------------------------------------
@@ -61,14 +65,61 @@ public class BmsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [Produces("application/json")]
     public async Task<ActionResult<BmsIngestBatchResponse>> IngestReadings(
-        [FromBody] IReadOnlyList<BmsIngestRequest> requests,
+        [FromBody] JsonElement batch,
         CancellationToken ct)
     {
-        if (requests.Count == 0)
-            return ValidationProblem(detail: "Batch must contain at least one record.");
+        // Detect and unwrap CloudEvents 1.0 envelope format, or use raw payloads for backward compat
+        List<JsonElement> rawPayloads;
+        if (batch.ValueKind == JsonValueKind.Array)
+        {
+            var first = batch.EnumerateArray().FirstOrDefault();
+            if (first.ValueKind == JsonValueKind.Object && CloudEventsBatchUnwrapper.IsCloudEventsBatch(first))
+            {
+                var (data, errors) = CloudEventsBatchUnwrapper.UnwrapBatch(batch, _logger);
+                if (errors.Count > 0 && data.Count == 0)
+                    return ValidationProblem(detail: $"Failed to unwrap CloudEvents batch: {string.Join("; ", errors.Take(3))}");
+                rawPayloads = data;
+            }
+            else
+            {
+                rawPayloads = batch.EnumerateArray().Select(e => e.Clone()).ToList();
+            }
+        }
+        else
+        {
+            return ValidationProblem(detail: "Request body must be a JSON array.");
+        }
 
-        if (requests.Count > MaxBatchSize)
-            return ValidationProblem(detail: $"Batch size {requests.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
+        if (rawPayloads.Count == 0)
+            return ValidationProblem(detail: "Batch must contain at least one valid record.");
+
+        if (rawPayloads.Count > MaxBatchSize)
+            return ValidationProblem(detail: $"Batch size {rawPayloads.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
+
+        // Deserialize each (possibly unwrapped) payload
+        var requests = new List<BmsIngestRequest>();
+        foreach (var (payload, index) in rawPayloads.Select((p, i) => (p, i)))
+        {
+            try
+            {
+                var request = payload.Deserialize<BmsIngestRequest>(
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                if (request is not null)
+                    requests.Add(request);
+                else
+                    _logger.LogWarning("BMS record at index {Index} deserialized to null — skipped", index);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "BMS record at index {Index} has invalid JSON — skipped", index);
+            }
+        }
+
+        if (requests.Count == 0)
+        {
+            return CreatedAtAction(nameof(IngestReadings), new { },
+                new BmsIngestBatchResponse { Inserted = 0, Skipped = 0, Failed = [] });
+        }
 
         var requestValidationErrors = ValidateRequests(requests);
         if (requestValidationErrors.Count > 0)

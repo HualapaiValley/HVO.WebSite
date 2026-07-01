@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using HVO.Edge.Outbox;
+using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
+using HVO.Edge.Outbox;
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Models;
 using HVO.Gateway.TplinkKasa.Outbox;
@@ -154,9 +156,29 @@ public sealed class KasaOutboxForwarder : BackgroundService
         {
             try
             {
+                // Wrap snapshot in CloudEvents envelope for standards-compliant delivery
+                var dataEl = JsonSerializer.SerializeToElement(item.Payload, JsonOptions);
+                var cloudEvent = new Dictionary<string, object?>
+                {
+                    ["specversion"] = CloudEventsConstants.SpecVersion,
+                    ["type"] = EdgePayloadTypes.ToCloudEventType(KasaOutboxPayloadTypes.Inventory),
+                    ["source"] = $"/gateways/tplinkkasa/{item.Record.SourceId}",
+                    ["id"] = Guid.NewGuid().ToString("D"),
+                    ["time"] = item.Record.RecordedAtUtc.ToString("O"),
+                    ["datacontenttype"] = CloudEventsConstants.JsonContentType,
+                    ["data"] = dataEl,
+                };
+                var cloudEventEl = JsonSerializer.SerializeToElement(cloudEvent, JsonOptions);
+
+                using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = JsonContent.Create(cloudEventEl, options: JsonOptions),
+                };
+                request.AddTraceContext();
+
                 using var response = await _httpClientFactory
                     .CreateClient("KasaPowerApi")
-                    .PostAsJsonAsync(endpoint, item.Payload, JsonOptions, ct)
+                    .SendAsync(request, ct)
                     .ConfigureAwait(false);
 
                 if (response.IsSuccessStatusCode)
@@ -224,9 +246,23 @@ public sealed class KasaOutboxForwarder : BackgroundService
 
         try
         {
+            // Wrap in CloudEvents 1.0 envelopes for standards-compliant delivery
+            var readyJson = ready.Select(x =>
+            {
+                var el = JsonSerializer.SerializeToElement(x.Payload, JsonOptions);
+                return (x.Record, el);
+            }).ToList();
+            var cloudEvents = CloudEventsForwardingHelper.WrapBatchAsCloudEvents(readyJson, "tplinkkasa");
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+            {
+                Content = JsonContent.Create(cloudEvents, options: JsonOptions),
+            };
+            request.AddTraceContext();
+
             using var response = await _httpClientFactory
                 .CreateClient("KasaPowerApi")
-                .PostAsJsonAsync(endpoint, ready.Select(item => item.Payload).ToArray(), JsonOptions, ct)
+                .SendAsync(request, ct)
                 .ConfigureAwait(false);
 
             if (response.IsSuccessStatusCode)

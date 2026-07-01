@@ -259,7 +259,7 @@ static async Task RunGatewayAsync(string[] args)
         if (!string.IsNullOrWhiteSpace(options.ApiKey))
             client.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
         client.Timeout = TimeSpan.FromSeconds(30);
-    });
+    }).AddStandardResilienceHandler();
     builder.Services.AddSingleton<KasaOutboxForwarder>();
     if (!builder.Environment.IsEnvironment("Testing"))
         builder.Services.AddHostedService(sp => sp.GetRequiredService<KasaOutboxForwarder>());

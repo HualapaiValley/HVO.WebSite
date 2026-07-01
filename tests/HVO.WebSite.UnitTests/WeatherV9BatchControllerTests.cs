@@ -33,6 +33,13 @@ public class WeatherV9BatchControllerTests
         return ctrl;
     }
 
+    private static JsonElement ToJsonElement<T>(IReadOnlyList<T> requests)
+    {
+        var json = JsonSerializer.Serialize(requests, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.Clone();
+    }
+
     // -------------------------------------------------------------------------
     // Empty batch
     // -------------------------------------------------------------------------
@@ -43,7 +50,7 @@ public class WeatherV9BatchControllerTests
         using var db = CreateDb();
         var ctrl = CreateController(db);
 
-        var result = await ctrl.IngestRawBatch([], CancellationToken.None);
+        var result = await ctrl.IngestRawBatch(ToJsonElement(new List<IngestWeatherRawRequest> {  }), CancellationToken.None);
 
         result.Result.Should().BeOfType<BadRequestObjectResult>();
     }
@@ -65,7 +72,7 @@ public class WeatherV9BatchControllerTests
             MakeRequest("2026-04-29T01:10:00Z", 68.9),
         };
 
-        var result = await ctrl.IngestRawBatch(batch, CancellationToken.None);
+        var result = await ctrl.IngestRawBatch(ToJsonElement(batch), CancellationToken.None);
 
         var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         var body = created.Value.Should().BeOfType<WeatherRawBatchResponse>().Subject;
@@ -93,10 +100,10 @@ public class WeatherV9BatchControllerTests
         };
 
         // First call — both records inserted
-        await ctrl.IngestRawBatch(batch, CancellationToken.None);
+        await ctrl.IngestRawBatch(ToJsonElement(batch), CancellationToken.None);
 
         // Second call with same records (retry scenario)
-        var result = await ctrl.IngestRawBatch(batch, CancellationToken.None);
+        var result = await ctrl.IngestRawBatch(ToJsonElement(batch), CancellationToken.None);
 
         var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         var body = created.Value.Should().BeOfType<WeatherRawBatchResponse>().Subject;
@@ -124,7 +131,7 @@ public class WeatherV9BatchControllerTests
             MakeRequest("2026-04-29T03:05:00Z", 65.5),
             MakeRequest("2026-04-29T03:10:00Z", 66.0),
         };
-        await ctrl.IngestRawBatch(firstBatch, CancellationToken.None);
+        await ctrl.IngestRawBatch(ToJsonElement(firstBatch), CancellationToken.None);
 
         // Simulate a retry that re-sends already-inserted records plus new ones
         var retryBatch = new[]
@@ -135,7 +142,7 @@ public class WeatherV9BatchControllerTests
             MakeRequest("2026-04-29T03:20:00Z", 67.0),  // new
         };
 
-        var result = await ctrl.IngestRawBatch(retryBatch, CancellationToken.None);
+        var result = await ctrl.IngestRawBatch(ToJsonElement(retryBatch), CancellationToken.None);
 
         var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         var body = created.Value.Should().BeOfType<WeatherRawBatchResponse>().Subject;
@@ -171,7 +178,7 @@ public class WeatherV9BatchControllerTests
             MakeRequest("2026-04-29T04:10:00Z", 69.0),
         };
 
-        var result = await ctrl.IngestRawBatch(batch, CancellationToken.None);
+        var result = await ctrl.IngestRawBatch(ToJsonElement(batch), CancellationToken.None);
 
         var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         var body = created.Value.Should().BeOfType<WeatherRawBatchResponse>().Subject;
@@ -197,7 +204,7 @@ public class WeatherV9BatchControllerTests
 
         var batch = new[] { MakeRequest("2026-04-29T05:00:00Z", 72.3) };
 
-        var result = await ctrl.IngestRawBatch(batch, CancellationToken.None);
+        var result = await ctrl.IngestRawBatch(ToJsonElement(batch), CancellationToken.None);
 
         var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         var body = created.Value.Should().BeOfType<WeatherRawBatchResponse>().Subject;
@@ -234,7 +241,7 @@ public class WeatherV9BatchControllerTests
             json,
             new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
 
-        var result = await ctrl.IngestRawBatch(batch, CancellationToken.None);
+        var result = await ctrl.IngestRawBatch(ToJsonElement(batch), CancellationToken.None);
 
         var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         var body = created.Value.Should().BeOfType<WeatherRawBatchResponse>().Subject;

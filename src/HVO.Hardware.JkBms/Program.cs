@@ -152,7 +152,8 @@ builder.Services.AddHttpClient("OutboxForwarder", (sp, client) =>
     client.Timeout = TimeSpan.FromSeconds(30);
 }).AddHttpMessageHandler(sp => new TelemetryHttpMessageHandler(
     new HttpInstrumentationOptions { CaptureRequestHeaders = false, CaptureResponseHeaders = false },
-    sp.GetService<ILogger<TelemetryHttpMessageHandler>>()));
+    sp.GetService<ILogger<TelemetryHttpMessageHandler>>()))
+.AddStandardResilienceHandler();
 
 // ── Forwarders ─────────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IReadingForwarder, HttpApiForwarder>();

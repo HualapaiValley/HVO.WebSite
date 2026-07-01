@@ -7,6 +7,7 @@ using HVO.WebSite.v9.Controllers;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Services;
 using HVO.WebSite.v9.Telemetry;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -24,6 +25,14 @@ public sealed class PowerIngestControllerTests
     private HvoV9DbContext _db = null!;
     private PowerIngestTelemetry _telemetry = null!;
     private PowerIngestController _ctrl = null!;
+
+    
+    private static JsonElement ToJsonElement<T>(IReadOnlyList<T> requests)
+    {
+        var json = JsonSerializer.Serialize(requests, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.Clone();
+    }
 
     [TestInitialize]
     public void Setup()
@@ -50,7 +59,7 @@ public sealed class PowerIngestControllerTests
     [TestMethod]
     public async Task IngestReadings_EmptyBatch_Returns400()
     {
-        var result = await _ctrl.IngestReadings([], CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(new List<PowerReadingIngestRequest> {  }), CancellationToken.None);
 
         result.Result.Should().BeOfType<BadRequestObjectResult>();
     }
@@ -64,7 +73,7 @@ public sealed class PowerIngestControllerTests
             MakeRequest("2026-05-23T01:00:10Z", pvPowerW: 1200),
         };
 
-        var result = await _ctrl.IngestReadings(batch, CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
 
         var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         var body = created.Value.Should().BeOfType<PowerReadingBatchResponse>().Subject;
@@ -84,8 +93,8 @@ public sealed class PowerIngestControllerTests
             MakeRequest("2026-05-23T02:00:10Z", pvPowerW: 1400),
         };
 
-        await _ctrl.IngestReadings(batch, CancellationToken.None);
-        var result = await _ctrl.IngestReadings(batch, CancellationToken.None);
+        await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
 
         var body = ((CreatedAtActionResult)result.Result!).Value
             .Should().BeOfType<PowerReadingBatchResponse>().Subject;
@@ -104,7 +113,7 @@ public sealed class PowerIngestControllerTests
             MakeRequest("2026-05-23T03:00:00Z", pvPowerW: 1600),
         };
 
-        var result = await _ctrl.IngestReadings(batch, CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
 
         var body = ((CreatedAtActionResult)result.Result!).Value
             .Should().BeOfType<PowerReadingBatchResponse>().Subject;
@@ -124,7 +133,7 @@ public sealed class PowerIngestControllerTests
             MakeRequest("2026-05-23T04:00:20Z", pvPowerW: 1900),
         };
 
-        var result = await _ctrl.IngestReadings(batch, CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
 
         var body = ((CreatedAtActionResult)result.Result!).Value
             .Should().BeOfType<PowerReadingBatchResponse>().Subject;
@@ -144,7 +153,7 @@ public sealed class PowerIngestControllerTests
             MakeRequest(recordedAt: null, pvPowerW: 1800),
         };
 
-        var result = await _ctrl.IngestReadings(batch, CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
 
         var body = ((CreatedAtActionResult)result.Result!).Value
             .Should().BeOfType<PowerReadingBatchResponse>().Subject;
@@ -165,7 +174,7 @@ public sealed class PowerIngestControllerTests
             deviceId: " total ",
             inverterMode: " online ");
 
-        await _ctrl.IngestReadings([request], CancellationToken.None);
+        await _ctrl.IngestReadings(ToJsonElement(new List<PowerReadingIngestRequest> { request }), CancellationToken.None);
 
         var row = _db.PowerReadings.Single();
         row.SourceId.Should().Be("solarassistant-total");

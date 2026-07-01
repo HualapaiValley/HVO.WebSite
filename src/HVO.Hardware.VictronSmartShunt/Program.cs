@@ -108,7 +108,7 @@ builder.Services.AddHttpClient("PowerApi", (sp, client) =>
     if (!string.IsNullOrWhiteSpace(options.ApiKey))
         client.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
     client.Timeout = TimeSpan.FromSeconds(30);
-});
+}).AddStandardResilienceHandler();
 
 builder.Services.AddSingleton<SmartShuntPublicSession>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SmartShuntPublicSession>());
