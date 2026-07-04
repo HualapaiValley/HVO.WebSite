@@ -3,8 +3,8 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-docker_context="${HVO_DOCKER_CONTEXT:-hvo-docker}"
-env_file="${HVO_WEBSITE_ENV_FILE:-${repo_root}/deploy/hvo-docker/.env}"
+docker_context="${HVO_DOCKER_CONTEXT:-${HVO_WEBSITE_DOCKER_CONTEXT:-hvo-docker}}"
+env_file="${HVO_WEBSITE_ENV_FILE:-${HVO_WEBSITE_DEPLOY_ENV_FILE:-${repo_root}/deploy/hvo-docker/.env}}"
 dry_run=false
 build_images=true
 image_tag=""

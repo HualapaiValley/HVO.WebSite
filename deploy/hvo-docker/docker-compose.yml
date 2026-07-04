@@ -6,11 +6,11 @@ services:
     ports:
       - "80:8080"
     environment:
-      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_URLS: "${ASPNETCORE_URLS:-http://+:8080}"
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
-      EnableHttpsRedirect: "false"
-      HealthChecks__ExposeDetailed: "false"
+      EnableHttpsRedirect: "${EnableHttpsRedirect:-false}"
+      HealthChecks__ExposeDetailed: "${HealthChecks__ExposeDetailed:-false}"
       ConnectionStrings__HualapaiValleyObservatory: "${ConnectionStrings__HualapaiValleyObservatory}"
       KeyVault__Uri: "${KeyVault__Uri:-https://obs-infra-kv.vault.azure.net/}"
       AZURE_CLIENT_ID: "${AZURE_CLIENT_ID}"
@@ -25,9 +25,9 @@ services:
       OTEL_SERVICE_NAME: hvo-website
       OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_COLLECTOR_ENDPOINT:-}"
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-      DataProtection__ApplicationName: HVO.WebSite.v9
-      DataProtection__KeyIdentifier: ""
-      DataProtection__BlobUri: ""
+      DataProtection__ApplicationName: "${DataProtection__ApplicationName:-HVO.WebSite.v9}"
+      DataProtection__KeyIdentifier: "${DataProtection__KeyIdentifier:-}"
+      DataProtection__BlobUri: "${DataProtection__BlobUri:-}"
     networks:
       - website
       - mssql

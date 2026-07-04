@@ -125,21 +125,21 @@ dotnet run
 
 ## Container Publishing
 
-The deployable images are published independently to Azure Container Registry, and each image keeps its own version in `.env`.
+The deployable images are published independently to the self-hosted registry on `hvo-docker`, and each image keeps its own version in `.env`.
 
 Use the repo script to build, tag, push, and verify one image at a time:
 
 ```bash
 ./scripts/sync-env-gist.sh
-./scripts/publish-acr-image.sh website
-./scripts/publish-acr-image.sh davis
-./scripts/publish-acr-image.sh jkbms
-./scripts/publish-acr-image.sh solarassistant
-./scripts/publish-acr-image.sh smartshunt
-./scripts/publish-acr-image.sh tplinkkasa
+./scripts/publish-image.sh website
+./scripts/publish-image.sh davis
+./scripts/publish-image.sh jkbms
+./scripts/publish-image.sh solarassistant
+./scripts/publish-image.sh smartshunt
+./scripts/publish-image.sh tplinkkasa
 ```
 
-See [docs/CONTAINER_PUBLISHING.md](docs/CONTAINER_PUBLISHING.md) for the Azure subscription and ACR inventory, the version-variable workflow, the gist sync requirement, and the query commands used to inspect published tags.
+See [docs/CONTAINER_PUBLISHING.md](docs/CONTAINER_PUBLISHING.md) for the self-hosted registry inventory, the version-variable workflow, the gist sync requirement, and the commands used to inspect published tags.
 
 ---
 
@@ -172,7 +172,7 @@ docker --context devpi5 compose up -d --build
 | [Changelog](CHANGELOG.md) | Release history and notable changes |
 | [Project History](docs/PROJECT_HISTORY.md) | Session-by-session working history, key decisions, and next-context notes |
 | [Architecture](docs/ARCHITECTURE.md) | Current system baseline, data flow, collector pattern, and future integration direction |
-| [Container Publishing](docs/CONTAINER_PUBLISHING.md) | Azure ACR inventory, versioning workflow, publish script usage |
+| [Container Publishing](docs/CONTAINER_PUBLISHING.md) | Self-hosted registry inventory, versioning workflow, publish script usage |
 | [Website Container App](docs/WEBSITE_CONTAINER_APP.md) | Azure Container App deployment decisions and runtime requirements for `HVO.WebSite` |
 
 ---
