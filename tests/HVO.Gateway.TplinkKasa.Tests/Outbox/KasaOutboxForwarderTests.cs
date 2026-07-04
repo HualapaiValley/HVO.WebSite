@@ -127,6 +127,7 @@ public sealed class KasaOutboxForwarderTests
                 FailedRetentionDays = 30,
                 SweepIntervalSeconds = 5,
             }),
+            new RuntimeOutboxSettings(),
             NullLogger<KasaOutboxForwarder>.Instance);
     }
 

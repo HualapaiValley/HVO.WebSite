@@ -136,6 +136,13 @@
                         <MudText Typo="Typo.overline" Class="smartshunt-card-kicker">Outbox</MudText>
                         <MudText Typo="Typo.h5">Forwarding health</MudText>
                     </div>
+                    <div class="hvo-action-row" style="gap: 8px;">
+                        @if (OutboxOverride)
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" OnClick="ResetOutboxSettingsAsync">Reset defaults</MudButton>
+                        }
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" Disabled="@(!OutboxDirty)" OnClick="SaveOutboxSettingsAsync">Apply</MudButton>
+                    </div>
                 </div>
 
                 <dl class="smartshunt-detail-list">
@@ -144,6 +151,18 @@
                     <div><dt>Last sent</dt><dd>@FormatTimestamp(Forwarder.LastSentAt)</dd></div>
                     <div><dt>Last batch</dt><dd>@Forwarder.LastBatchCount</dd></div>
                 </dl>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px;">
+                    <MudTextField Label="Batch size (1-500)" Variant="Variant.Outlined"
+                        @bind-Value="@OutboxBatchSize" @bind-Value:after="() => OutboxDirty = true" />
+                    <MudTextField Label="Sweep interval s (1-60)" Variant="Variant.Outlined"
+                        @bind-Value="@OutboxSweepIntervalSeconds" @bind-Value:after="() => OutboxDirty = true" />
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(OutboxStatusMessage))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-top:8px;">@OutboxStatusMessage</MudText>
+                }
             </MudPaper>
         </div>
 

@@ -1,12 +1,14 @@
 using System.Text.Json;
 using Bunit;
 using FluentAssertions;
+using HVO.Edge.Outbox;
 using HVO.Gateway.TplinkKasa.Components.Pages;
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Devices;
 using HVO.Gateway.TplinkKasa.Hosting;
 using HVO.Gateway.TplinkKasa.Protocol;
 using HVO.Gateway.TplinkKasa.Telemetry;
+using HVO.Gateway.TplinkKasa.Workers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -67,6 +69,20 @@ public sealed class KasaSettingsBunitTests : BunitContext
         Services.AddSingleton<IOptions<KasaGatewayOptions>>(options);
         Services.AddSingleton(state);
         Services.AddSingleton(BuildAdmin(options, registry, state));
+        Services.AddHttpClient();
+        Services.AddSingleton(sp =>
+        {
+            var tempServices = new ServiceCollection();
+            tempServices.AddHttpClient();
+            tempServices.AddLogging();
+            using var tempProvider = tempServices.BuildServiceProvider();
+            return new KasaOutboxForwarder(
+                tempProvider.GetRequiredService<IServiceScopeFactory>(),
+                tempProvider.GetRequiredService<IHttpClientFactory>(),
+                Options.Create(new KasaGatewayOptions.OutboxSection()),
+                new RuntimeOutboxSettings(),
+                NullLogger<KasaOutboxForwarder>.Instance);
+        });
     }
 
     private static void BuildSettings(RenderTreeBuilder builder)

@@ -13,6 +13,7 @@ using HVO.Edge.Outbox;
 using HVO.Edge.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Http.Resilience;
 using MudBlazor.Services;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -100,6 +101,7 @@ builder.Services
         : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
     builder.Services.AddDbContext<OutboxDbContext>(o => o.UseSqlite($"Data Source={dbPath};Default Timeout=30", sqlite => sqlite.CommandTimeout(30)));
 builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
+builder.Services.AddSingleton<RuntimeOutboxSettings>();
 builder.Services.AddScoped<PowerOutboxWriter>();
 builder.Services.AddScoped<PowerInventoryConfigurationWriter>();
 
@@ -113,8 +115,13 @@ builder.Services.AddHttpClient("PowerApi", (sp, client) =>
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<OutboxOptions>>().Value;
     if (!string.IsNullOrWhiteSpace(options.ApiKey))
         client.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
-    client.Timeout = TimeSpan.FromSeconds(30);
-}).AddStandardResilienceHandler();
+    client.Timeout = TimeSpan.FromSeconds(120);
+}).AddStandardResilienceHandler(o =>
+{
+    o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(60);
+    o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(120);
+    o.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(120);
+});
 
 builder.Services.AddSingleton<ISolarAssistantClient, SolarAssistantRestClient>();
 builder.Services.AddSingleton<SolarAssistantSnapshotWorker>();
@@ -232,6 +239,39 @@ app.MapGet("/diagnostics/outbox", async (HttpContext httpContext, OutboxDbContex
         return Results.StatusCode(StatusCodes.Status403Forbidden);
 
     return Results.Ok(await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken));
+});
+
+app.MapPut("/diagnostics/outbox/settings", (HttpContext httpContext, RuntimeOutboxSettings runtimeSettings, IOptions<OutboxOptions> outboxOptions, OutboxSettingsUpdate? update) =>
+{
+    if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, outboxOptions.Value.ApiKey))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    if (update is null)
+        return Results.BadRequest("Request body is required.");
+
+    if (update.Reset == true)
+    {
+        runtimeSettings.Reset();
+        return Results.Ok(new OutboxSettingsResponse(
+            runtimeSettings.BatchSizeOverride ?? outboxOptions.Value.BatchSize,
+            runtimeSettings.SweepIntervalSecondsOverride ?? outboxOptions.Value.SweepIntervalSeconds,
+            false));
+    }
+
+    try
+    {
+        runtimeSettings.BatchSizeOverride = update.BatchSize;
+        runtimeSettings.SweepIntervalSecondsOverride = update.SweepIntervalSeconds;
+    }
+    catch (ArgumentOutOfRangeException ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+
+    return Results.Ok(new OutboxSettingsResponse(
+        runtimeSettings.BatchSizeOverride ?? outboxOptions.Value.BatchSize,
+        runtimeSettings.SweepIntervalSecondsOverride ?? outboxOptions.Value.SweepIntervalSeconds,
+        true));
 });
 
 await app.RunAsync();

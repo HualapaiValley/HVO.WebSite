@@ -41,6 +41,7 @@ public sealed class ForwarderCoordinatorTests
             fixture.Services.GetRequiredService<IServiceScopeFactory>(),
             [],
             Options.Create(new OutboxOptions { BatchSize = 50, SweepIntervalSeconds = 5 }),
+            new RuntimeOutboxSettings(),
             new BmsTelemetry(),
             new NoOpTelemetryService(),
             NullLogger<ForwarderCoordinator>.Instance);

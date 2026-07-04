@@ -3,6 +3,8 @@
 @inject KasaAdminService AdminService
 @inject KasaGatewayState GatewayState
 @inject IOptions<KasaGatewayOptions> GatewayOptions
+@inject KasaOutboxForwarder OutboxForwarder
+@inject IHttpClientFactory HttpClientFactory
 
     <MudStack Spacing="3" Class="shell-page-stack kasa-page">
         <section class="kasa-page-header">
@@ -289,6 +291,41 @@
                                                         </MudPaper>
                                                     </div>
                                                 </MudTabPanel>
+                                                <MudTabPanel Text="Outbox Forwarder" Icon="@Icons.Material.Outlined.Send">
+                                                    <div class="kasa-tab-panel">
+                                                        <MudPaper Class="kasa-panel" Elevation="0" Style="max-width:600px;">
+                                                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                                                <div>
+                                                                    <MudText Typo="Typo.h5">Forwarder Configuration</MudText>
+                                                                    <MudText Typo="Typo.body2" Class="kasa-muted">Tune batch size and sweep interval at runtime.</MudText>
+                                                                </div>
+                                                                <div style="display:flex;gap:8px;">
+                                                                    @if (_outboxOverride)
+                                                                    {
+                                                                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" OnClick="ResetOutboxSettingsAsync">Reset defaults</MudButton>
+                                                                    }
+                                                                    <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" Disabled="@(!_outboxDirty)" OnClick="SaveOutboxSettingsAsync">Apply</MudButton>
+                                                                </div>
+                                                            </div>
+                                                            <div class="solar-detail-list" style="margin-top:16px;">
+                                                                <DetailRow Label="Pending" Value="@OutboxForwarder.PendingCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                                                                <DetailRow Label="Failed" Value="@OutboxForwarder.FailedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                                                                <DetailRow Label="Last batch" Value="@OutboxForwarder.LastBatchCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                                                                <DetailRow Label="Last error" Value="@(OutboxForwarder.LastError ?? "None")" />
+                                                            </div>
+                                                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px;">
+                                                                <MudTextField Label="Batch size (1-500)" Variant="Variant.Outlined" T="int"
+                                                                    @bind-Value="@_outboxBatchSize" @bind-Value:after="() => _outboxDirty = true" />
+                                                                <MudTextField Label="Sweep interval s (1-60)" Variant="Variant.Outlined" T="int"
+                                                                    @bind-Value="@_outboxSweepIntervalSeconds" @bind-Value:after="() => _outboxDirty = true" />
+                                                            </div>
+                                                            @if (!string.IsNullOrWhiteSpace(_outboxStatusMessage))
+                                                            {
+                                                                <MudText Typo="Typo.body2" Color="Color.Secondary" Style="margin-top:12px;">@_outboxStatusMessage</MudText>
+                                                            }
+                                                        </MudPaper>
+                                                    </div>
+                                                </MudTabPanel>
                                             </MudTabs>
                                         </MudStack>
 
@@ -570,5 +607,62 @@ capability.ToString()).Take(4));
         public bool IsBusy { get; set; }
 
         public string? Message { get; set; }
+    }
+
+    private int _outboxBatchSize = 50;
+    private int _outboxSweepIntervalSeconds = 5;
+    private bool _outboxDirty;
+    private bool _outboxOverride;
+    private string? _outboxStatusMessage;
+
+    private async Task SaveOutboxSettingsAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", GatewayOptions.Value.ApiKey);
+            var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
+                new { batchSize = _outboxBatchSize, sweepIntervalSeconds = _outboxSweepIntervalSeconds });
+
+            if (response.IsSuccessStatusCode)
+            {
+                _outboxOverride = true;
+                _outboxStatusMessage = $"Override active: batch={_outboxBatchSize}, sweep={_outboxSweepIntervalSeconds}s";
+                _outboxDirty = false;
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                _outboxStatusMessage = $"Failed: {error}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _outboxStatusMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task ResetOutboxSettingsAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", GatewayOptions.Value.ApiKey);
+            var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
+                new { reset = true });
+
+            if (response.IsSuccessStatusCode)
+            {
+                _outboxBatchSize = 50;
+                _outboxSweepIntervalSeconds = 5;
+                _outboxOverride = false;
+                _outboxDirty = false;
+                _outboxStatusMessage = "Reset to configured defaults.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _outboxStatusMessage = $"Reset error: {ex.Message}";
+        }
     }
 }

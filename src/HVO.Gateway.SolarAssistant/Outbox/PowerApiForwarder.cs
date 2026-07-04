@@ -25,6 +25,7 @@ public sealed class PowerApiForwarder : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHttpClientFactory _httpFactory;
     private readonly OutboxOptions _options;
+    private readonly RuntimeOutboxSettings _runtimeSettings;
     private readonly ILogger<PowerApiForwarder> _logger;
 
     private volatile int _pendingCount;
@@ -55,11 +56,13 @@ public sealed class PowerApiForwarder : BackgroundService
         IServiceScopeFactory scopeFactory,
         IHttpClientFactory httpFactory,
         IOptions<OutboxOptions> options,
+        RuntimeOutboxSettings runtimeSettings,
         ILogger<PowerApiForwarder> logger)
     {
         _scopeFactory = scopeFactory;
         _httpFactory = httpFactory;
         _options = options.Value;
+        _runtimeSettings = runtimeSettings;
         _logger = logger;
     }
 
@@ -70,9 +73,10 @@ public sealed class PowerApiForwarder : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            bool anyWork = false;
             try
             {
-                await SweepAsync(stoppingToken);
+                anyWork = await SweepAsync(stoppingToken);
                 if (_options.SentRetentionDays > 0 &&
                     (DateTime.UtcNow - lastCompactionAt).TotalHours >= 24)
                 {
@@ -89,23 +93,26 @@ public sealed class PowerApiForwarder : BackgroundService
                 _logger.LogError(ex, "PowerApiForwarder sweep error");
             }
 
-            try
+            if (!anyWork)
             {
-                await Task.Delay(TimeSpan.FromSeconds(_options.SweepIntervalSeconds), stoppingToken);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(_runtimeSettings.EffectiveSweepIntervalSeconds(_options.SweepIntervalSeconds)), stoppingToken);
+                }
+                catch (OperationCanceledException) { break; }
             }
-            catch (OperationCanceledException) { break; }
         }
 
         _logger.LogInformation("PowerApiForwarder stopped.");
     }
 
-    internal async Task SweepAsync(CancellationToken ct)
+    internal async Task<bool> SweepAsync(CancellationToken ct)
     {
         await using var serviceScope = _scopeFactory.CreateAsyncScope();
         var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
         var now = DateTime.UtcNow;
 
-        var pending = await store.GetReadyBatchAsync(PowerOutboxPayloadTypes.PowerReading, now, _options.BatchSize, ct);
+        var pending = await store.GetReadyBatchAsync(PowerOutboxPayloadTypes.PowerReading, now, _runtimeSettings.EffectiveBatchSize(_options.BatchSize), ct);
 
         _pendingCount = await store.CountPendingAsync(PowerOutboxPayloadTypes.PowerReading, ct);
         _failedCount = await store.CountFailedAsync(PowerOutboxPayloadTypes.PowerReading, ct);
@@ -145,7 +152,7 @@ public sealed class PowerApiForwarder : BackgroundService
                     now,
                     ct);
             }
-            return;
+            return false;
         }
 
         store.MarkAttempt(pending, now);
@@ -253,6 +260,7 @@ public sealed class PowerApiForwarder : BackgroundService
             BuildPowerEndpoint("gateway-status"),
             now,
             ct);
+        return true;
     }
 
     private async Task ForwardSnapshotPayloadsAsync<TPayload>(
@@ -265,7 +273,7 @@ public sealed class PowerApiForwarder : BackgroundService
         if (IsPlaceholderConfig)
             return;
 
-        var pending = await store.GetReadyBatchAsync(payloadType, now, _options.BatchSize, ct);
+        var pending = await store.GetReadyBatchAsync(payloadType, now, _runtimeSettings.EffectiveBatchSize(_options.BatchSize), ct);
         if (pending.Count == 0)
             return;
 

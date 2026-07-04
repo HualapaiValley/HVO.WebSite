@@ -10,6 +10,7 @@ using HVO.Gateway.TplinkKasa.Telemetry;
 using HVO.Gateway.TplinkKasa.Workers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Http.Resilience;
 using MudBlazor.Services;
 
 var command = args.FirstOrDefault()?.ToLowerInvariant();
@@ -252,14 +253,20 @@ static async Task RunGatewayAsync(string[] args)
         : Path.Combine(builder.Environment.ContentRootPath, "outbox.db");
     builder.Services.AddDbContext<OutboxDbContext>(options => options.UseSqlite($"Data Source={dbPath};Default Timeout=30", sqlite => sqlite.CommandTimeout(30)));
     builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
+    builder.Services.AddSingleton<RuntimeOutboxSettings>();
     builder.Services.AddScoped<KasaOutboxWriter>();
     builder.Services.AddHttpClient("KasaPowerApi", (sp, client) =>
     {
         var options = sp.GetRequiredService<IOptions<KasaGatewayOptions.OutboxSection>>().Value;
         if (!string.IsNullOrWhiteSpace(options.ApiKey))
             client.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
-        client.Timeout = TimeSpan.FromSeconds(30);
-    }).AddStandardResilienceHandler();
+        client.Timeout = TimeSpan.FromSeconds(120);
+    }).AddStandardResilienceHandler(o =>
+    {
+        o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(60);
+        o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(120);
+        o.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(120);
+    });
     builder.Services.AddSingleton<KasaOutboxForwarder>();
     if (!builder.Environment.IsEnvironment("Testing"))
         builder.Services.AddHostedService(sp => sp.GetRequiredService<KasaOutboxForwarder>());
@@ -332,6 +339,39 @@ static async Task RunGatewayAsync(string[] args)
         }
 
         return Results.Ok(await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken).ConfigureAwait(false));
+    });
+
+    app.MapPut("/diagnostics/outbox/settings", (HttpContext httpContext, RuntimeOutboxSettings runtimeSettings, IOptions<KasaGatewayOptions> gatewayOptions, IOptions<KasaGatewayOptions.OutboxSection> outboxOptions, OutboxSettingsUpdate? update) =>
+    {
+        if (!GatewayDiagnosticsAuth.HasMatchingApiKey(httpContext, gatewayOptions.Value.ApiKey))
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+        if (update is null)
+            return Results.BadRequest("Request body is required.");
+
+        if (update.Reset == true)
+        {
+            runtimeSettings.Reset();
+            return Results.Ok(new OutboxSettingsResponse(
+                runtimeSettings.BatchSizeOverride ?? outboxOptions.Value.BatchSize,
+                runtimeSettings.SweepIntervalSecondsOverride ?? outboxOptions.Value.SweepIntervalSeconds,
+                false));
+        }
+
+        try
+        {
+            runtimeSettings.BatchSizeOverride = update.BatchSize;
+            runtimeSettings.SweepIntervalSecondsOverride = update.SweepIntervalSeconds;
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            return Results.BadRequest(ex.Message);
+        }
+
+        return Results.Ok(new OutboxSettingsResponse(
+            runtimeSettings.BatchSizeOverride ?? outboxOptions.Value.BatchSize,
+            runtimeSettings.SweepIntervalSecondsOverride ?? outboxOptions.Value.SweepIntervalSeconds,
+            true));
     });
     app.MapGet("/diagnostics/devices", async (HttpContext httpContext, KasaGatewayState state, IOptions<KasaGatewayOptions> gatewayOptions, CancellationToken cancellationToken) =>
     {

@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using HVO.Edge.Outbox;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
@@ -5,6 +7,7 @@ using HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
 using HVO.Hardware.VictronSmartShunt.Workers;
 using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MudBlazor;
 
@@ -19,6 +22,15 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
     [Inject] protected PowerApiForwarder Forwarder { get; set; } = default!;
     [Inject] protected SmartShuntGatewayHealthService HealthService { get; set; } = default!;
     [Inject] protected IOptions<SmartShuntOptions> OptionsAccessor { get; set; } = default!;
+    [Inject] protected IOptions<OutboxOptions> OutboxOptionsAccessor { get; set; } = default!;
+    [Inject] protected IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    [Inject] protected ILogger<SmartShuntPageBase> Logger { get; set; } = default!;
+
+    protected int OutboxBatchSize { get; set; } = 50;
+    protected int OutboxSweepIntervalSeconds { get; set; } = 5;
+    protected bool OutboxDirty { get; set; }
+    protected bool OutboxOverride { get; set; }
+    protected string? OutboxStatusMessage { get; set; }
 
     protected SmartShuntOptions Options => OptionsAccessor.Value;
     protected SmartShuntDeviceSnapshot? LatestSnapshot => Worker.LastSnapshot;
@@ -120,6 +132,62 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
         SmartShuntGatewayHealthSeverity.Warning => Severity.Warning,
         _ => Severity.Info,
     };
+
+    protected async Task SaveOutboxSettingsAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptionsAccessor.Value.ApiKey);
+            var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
+                new { batchSize = OutboxBatchSize, sweepIntervalSeconds = OutboxSweepIntervalSeconds });
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<OutboxSettingsResponse>();
+                OutboxOverride = result?.IsOverride ?? false;
+                OutboxStatusMessage = OutboxOverride
+                    ? $"Override: batch={OutboxBatchSize}, sweep={OutboxSweepIntervalSeconds}s"
+                    : $"Defaults: batch={OutboxBatchSize}, sweep={OutboxSweepIntervalSeconds}s";
+                OutboxDirty = false;
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                OutboxStatusMessage = $"Failed: {error}";
+            }
+        }
+        catch (Exception ex)
+        {
+            OutboxStatusMessage = $"Error: {ex.Message}";
+            Logger.LogError(ex, "Error saving SmartShunt outbox runtime settings");
+        }
+    }
+
+    protected async Task ResetOutboxSettingsAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptionsAccessor.Value.ApiKey);
+            var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
+                new { reset = true });
+
+            if (response.IsSuccessStatusCode)
+            {
+                OutboxBatchSize = 50;
+                OutboxSweepIntervalSeconds = 5;
+                OutboxOverride = false;
+                OutboxDirty = false;
+                OutboxStatusMessage = "Reset to configured defaults.";
+            }
+        }
+        catch (Exception ex)
+        {
+            OutboxStatusMessage = $"Reset error: {ex.Message}";
+            Logger.LogError(ex, "Error resetting SmartShunt outbox runtime settings");
+        }
+    }
 
     private async Task RefreshLoopAsync(CancellationToken ct)
     {

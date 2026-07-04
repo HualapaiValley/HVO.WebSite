@@ -19,10 +19,12 @@ public sealed class OutboxForwarder(
     IOptions<OutboxOptions> options,
     DavisTelemetry telemetry,
     ITelemetryService telemetryService,
+    RuntimeOutboxSettings runtimeSettings,
     ILogger<OutboxForwarder> logger) : BackgroundService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly OutboxOptions _options = options.Value;
+    private readonly RuntimeOutboxSettings _runtimeSettings = runtimeSettings;
 
     public int PendingCount { get; private set; }
     public int FailedCount { get; private set; }
@@ -74,11 +76,14 @@ public sealed class OutboxForwarder(
                 }
             }
 
-            try
+            if (!anySent)
             {
-                await Task.Delay(TimeSpan.FromSeconds(_options.SweepIntervalSeconds), stoppingToken);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(_runtimeSettings.EffectiveSweepIntervalSeconds(_options.SweepIntervalSeconds)), stoppingToken);
+                }
+                catch (OperationCanceledException) { break; }
             }
-            catch (OperationCanceledException) { break; }
         }
 
         logger.LogInformation("OutboxForwarder stopped");
@@ -114,7 +119,7 @@ public sealed class OutboxForwarder(
         DateTime now,
         CancellationToken ct)
     {
-        var pending = await store.GetReadyBatchAsync(payloadType, now, _options.BatchSize, ct);
+        var pending = await store.GetReadyBatchAsync(payloadType, now, _runtimeSettings.EffectiveBatchSize(_options.BatchSize), ct);
         if (pending.Count == 0)
             return false;
 

@@ -1,5 +1,6 @@
 @page "/"
 @rendermode InteractiveServer
+@using HVO.Edge.Outbox
 @using HVO.WebSite.Themes.Components.Format
 
     <div class="shell-page-stack">
@@ -240,4 +241,60 @@
                 </div>
             }
         </section>
-</div>
+
+        <section class="jk-card" aria-label="Outbox forwarder status and settings">
+            <div class="jk-card-head">
+                <div>
+                    <div class="jk-card-kicker">Data forwarding</div>
+                    <h2>Outbox forwarder</h2>
+                </div>
+                <div class="hvo-action-row" style="gap: 8px;">
+                    @if (_outboxOverride)
+                    {
+                        <button class="hvo-button hvo-button-warning" type="button" @onclick="ResetOutboxSettingsAsync">Reset defaults</button>
+                    }
+                    <button class="hvo-button hvo-button-success" type="button" @onclick="SaveOutboxSettingsAsync" disabled="@(!_outboxDirty)">Apply</button>
+                </div>
+            </div>
+
+            <div class="jk-metric-grid">
+                <div class="jk-metric">
+                    <span>Pending records</span>
+                    <strong class="hvo-mono">@Forwarder.PendingCount</strong>
+                </div>
+                <div class="jk-metric">
+                    <span>Failed records</span>
+                    <strong class="hvo-mono">@Forwarder.FailedCount</strong>
+                </div>
+                <div class="jk-metric">
+                    <span>Last batch</span>
+                    <strong class="hvo-mono">@Forwarder.LastBatchCount</strong>
+                </div>
+                <div class="jk-metric">
+                    <span>Last sent</span>
+                    <strong>@FormatLastSent()</strong>
+                </div>
+            </div>
+
+            <div class="hvo-form-grid" style="margin-top: 18px;">
+                <div class="hvo-field">
+                    <label class="hvo-field-label">Batch size <span class="text-secondary">(1–500)</span></label>
+                    <input class="hvo-control hvo-mono" type="number" min="1" max="500" step="1" required
+                        @bind-value="_outboxBatchSize" @bind-value:event="oninput" />
+                </div>
+                <div class="hvo-field">
+                    <label class="hvo-field-label">Sweep interval (s) <span class="text-secondary">(1–60)</span></label>
+                    <input class="hvo-control hvo-mono" type="number" min="1" max="60" step="1" required
+                        @bind-value="_outboxSweepIntervalSeconds" @bind-value:event="oninput" />
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_outboxStatusMessage))
+            {
+                <div class="jk-metric" style="margin-top: 12px;">
+                    <span>Status</span>
+                    <strong>@_outboxStatusMessage</strong>
+                </div>
+            }
+        </section>
+    </div>

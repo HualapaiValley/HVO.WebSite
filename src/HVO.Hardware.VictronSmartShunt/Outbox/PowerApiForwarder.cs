@@ -22,6 +22,7 @@ public sealed class PowerApiForwarder : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHttpClientFactory _httpFactory;
     private readonly OutboxOptions _options;
+    private readonly RuntimeOutboxSettings _runtimeSettings;
     private readonly ILogger<PowerApiForwarder> _logger;
 
     private volatile int _pendingCount;
@@ -56,11 +57,13 @@ public sealed class PowerApiForwarder : BackgroundService
         IServiceScopeFactory scopeFactory,
         IHttpClientFactory httpFactory,
         IOptions<OutboxOptions> options,
+        RuntimeOutboxSettings runtimeSettings,
         ILogger<PowerApiForwarder> logger)
     {
         _scopeFactory = scopeFactory;
         _httpFactory = httpFactory;
         _options = options.Value;
+        _runtimeSettings = runtimeSettings;
         _logger = logger;
     }
 
@@ -71,9 +74,10 @@ public sealed class PowerApiForwarder : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            bool anyWork = false;
             try
             {
-                await SweepAsync(stoppingToken);
+                anyWork = await SweepAsync(stoppingToken);
                 await RequeueRetryExhaustedAsync(stoppingToken);
 
                 if ((_options.SentRetentionDays > 0 || _options.FailedRetentionDays > 0) &&
@@ -92,13 +96,16 @@ public sealed class PowerApiForwarder : BackgroundService
                 _logger.LogError(ex, "SmartShunt PowerApiForwarder sweep error");
             }
 
-            try
+            if (!anyWork)
             {
-                await Task.Delay(TimeSpan.FromSeconds(_options.SweepIntervalSeconds), stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(_runtimeSettings.EffectiveSweepIntervalSeconds(_options.SweepIntervalSeconds)), stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
         }
     }
@@ -109,7 +116,7 @@ public sealed class PowerApiForwarder : BackgroundService
         var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
         var now = DateTime.UtcNow;
 
-        var pending = await store.GetReadyBatchAsync(SmartShuntOutboxPayloadTypes.Reading, now, _options.BatchSize, ct);
+        var pending = await store.GetReadyBatchAsync(SmartShuntOutboxPayloadTypes.Reading, now, _runtimeSettings.EffectiveBatchSize(_options.BatchSize), ct);
 
         await RefreshCountsAsync(store, ct);
 

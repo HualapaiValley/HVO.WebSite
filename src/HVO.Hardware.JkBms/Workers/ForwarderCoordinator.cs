@@ -25,6 +25,7 @@ public sealed class ForwarderCoordinator : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IReadOnlyList<IReadingForwarder> _forwarders;
     private readonly OutboxOptions _options;
+    private readonly RuntimeOutboxSettings _runtimeSettings;
     private readonly BmsTelemetry _telemetry;
     private readonly ITelemetryService _telemetryService;
     private readonly ILogger<ForwarderCoordinator> _logger;
@@ -83,6 +84,7 @@ public sealed class ForwarderCoordinator : BackgroundService
         IServiceScopeFactory scopeFactory,
         IEnumerable<IReadingForwarder> forwarders,
         IOptions<OutboxOptions> options,
+        RuntimeOutboxSettings runtimeSettings,
         BmsTelemetry telemetry,
         ITelemetryService telemetryService,
         ILogger<ForwarderCoordinator> logger)
@@ -90,6 +92,7 @@ public sealed class ForwarderCoordinator : BackgroundService
         _scopeFactory = scopeFactory;
         _forwarders = forwarders.ToList();
         _options = options.Value;
+        _runtimeSettings = runtimeSettings;
         _telemetry = telemetry;
         _telemetryService = telemetryService;
         _logger = logger;
@@ -106,9 +109,10 @@ public sealed class ForwarderCoordinator : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            bool anyWork = false;
             try
             {
-                await SweepAsync(stoppingToken);
+                anyWork = await SweepAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -138,11 +142,14 @@ public sealed class ForwarderCoordinator : BackgroundService
                 }
             }
 
-            try
+            if (!anyWork)
             {
-                await Task.Delay(TimeSpan.FromSeconds(_options.SweepIntervalSeconds), stoppingToken);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(_runtimeSettings.EffectiveSweepIntervalSeconds(_options.SweepIntervalSeconds)), stoppingToken);
+                }
+                catch (OperationCanceledException) { break; }
             }
-            catch (OperationCanceledException) { break; }
         }
 
         _logger.LogInformation("ForwarderCoordinator stopped.");
@@ -176,14 +183,14 @@ public sealed class ForwarderCoordinator : BackgroundService
         }
     }
 
-    private async Task SweepAsync(CancellationToken ct)
+    private async Task<bool> SweepAsync(CancellationToken ct)
     {
         using var sweepScope = _telemetryService.StartOperation("JkBms.Outbox.Sweep");
         await using var serviceScope = _scopeFactory.CreateAsyncScope();
         var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
 
         var now = DateTime.UtcNow;
-        var pending = await store.GetReadyBatchAsync(BmsOutboxPayloadTypes.Reading, now, _options.BatchSize, ct);
+        var pending = await store.GetReadyBatchAsync(BmsOutboxPayloadTypes.Reading, now, _runtimeSettings.EffectiveBatchSize(_options.BatchSize), ct);
 
         PendingCount = await store.CountPendingAsync(ct);
         FailedCount = await store.CountFailedAsync(ct);
@@ -202,7 +209,7 @@ public sealed class ForwarderCoordinator : BackgroundService
             // Snapshot before invoking to avoid a race on concurrent subscribe/unsubscribe.
             var noWorkHandler = SweepCompleted;
             noWorkHandler?.Invoke();
-            return;
+            return snapshotsDrained > 0;
         }
 
         _logger.LogDebug("Forwarding {Count} pending record(s). Pending total: {Total}, Failed total: {Failed}.",
@@ -350,6 +357,8 @@ public sealed class ForwarderCoordinator : BackgroundService
         // Snapshot before invoking to avoid a race on concurrent subscribe/unsubscribe.
         var sweepDoneHandler = SweepCompleted;
         sweepDoneHandler?.Invoke();
+
+        return true;
     }
 
     private async Task<int> DrainStandaloneSnapshotPayloadsAsync(
@@ -377,7 +386,7 @@ public sealed class ForwarderCoordinator : BackgroundService
         DateTime now,
         CancellationToken ct)
     {
-        var pending = await store.GetReadyBatchAsync(payloadType, now, _options.BatchSize, ct);
+        var pending = await store.GetReadyBatchAsync(payloadType, now, _runtimeSettings.EffectiveBatchSize(_options.BatchSize), ct);
         if (pending.Count == 0)
             return 0;
 

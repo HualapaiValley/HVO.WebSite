@@ -216,6 +216,7 @@ internal static class DavisComponentTestServices
         Options.Create(new OutboxOptions { ApiEndpoint = "http://127.0.0.1/weather" }),
         new DavisTelemetry(),
         new NoOpTelemetryService(),
+        new RuntimeOutboxSettings(),
         NullLogger<OutboxForwarder>.Instance);
 
     private static IServiceScopeFactory CreateScopeFactory() => new ServiceCollection()

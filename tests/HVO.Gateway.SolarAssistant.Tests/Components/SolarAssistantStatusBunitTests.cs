@@ -1,6 +1,7 @@
 using System.Reflection;
 using Bunit;
 using FluentAssertions;
+using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Components.Pages;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
@@ -22,6 +23,7 @@ public sealed class SolarAssistantStatusBunitTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddMudServices();
+        Services.AddHttpClient();
     }
 
     [TestMethod]
@@ -80,7 +82,7 @@ public sealed class SolarAssistantStatusBunitTests : BunitContext
         }
 
         var mqttWorker = new SolarAssistantMqttDiscoveryWorker(solarOptions, store, NullLogger<SolarAssistantMqttDiscoveryWorker>.Instance);
-        var forwarder = new PowerApiForwarder(provider.GetRequiredService<IServiceScopeFactory>(), new EmptyHttpClientFactory(), outboxOptions, NullLogger<PowerApiForwarder>.Instance);
+        var forwarder = new PowerApiForwarder(provider.GetRequiredService<IServiceScopeFactory>(), new EmptyHttpClientFactory(), outboxOptions, new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance);
         var health = new SolarAssistantGatewayHealthService(snapshotWorker, mqttWorker, forwarder, solarOptions);
 
         if (withSnapshot)

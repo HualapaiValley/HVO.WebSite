@@ -166,6 +166,7 @@ public class OutboxForwarderTests
         options: Options.Create(options ?? new OutboxOptions { ApiEndpoint = "https://example.test/api/v1/weather/raw", ApiKey = "test" }),
         telemetry: new DavisTelemetry(),
         telemetryService: new NoOpTelemetryService(),
+        runtimeSettings: new RuntimeOutboxSettings(),
         logger: NullLogger<OutboxForwarder>.Instance);
 
     private sealed class OutboxFixture : IAsyncDisposable
