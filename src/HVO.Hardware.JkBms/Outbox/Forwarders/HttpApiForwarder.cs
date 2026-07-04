@@ -1,9 +1,11 @@
+using System.Diagnostics;
+using System.Net.Http.Json;
 using System.Text.Json;
+using HVO.Edge.Contracts;
 using HVO.Edge.Outbox;
 using HVO.Hardware.JkBms.Bms;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Net.Http.Json;
 
 namespace HVO.Hardware.JkBms.Outbox.Forwarders;
 
@@ -63,48 +65,92 @@ public sealed class HttpApiForwarder : IReadingForwarder
 
         var client = _httpFactory.CreateClient("OutboxForwarder");
 
-        // Deserialise each payload and batch them into a single POST
-        var payloads = batch
-            .Select(r => JsonSerializer.Deserialize<object>(r.PayloadJson))
-            .ToArray();
+        // Parse each payload into a JsonElement for CloudEvents wrapping
+        var ready = new List<(EdgeOutboxRecord Record, JsonElement Payload)>();
+        foreach (var record in batch)
+        {
+            if (TryReadPayload(record, out var payload))
+            {
+                ready.Add((record, payload));
+                continue;
+            }
+
+            var parseError = "Invalid outbox payload JSON; record cannot be forwarded.";
+            _logger.LogError("Dead-lettering outbox record {Id} because payload JSON is invalid", record.Id);
+            throw new PermanentForwarderException([(record.Id, parseError)]);
+        }
+
+        if (ready.Count == 0)
+        {
+            _logger.LogInformation("HttpApiForwarder: no valid payloads to forward in batch.");
+            return;
+        }
+
+        // Wrap payloads in CloudEvents 1.0 envelopes for standards-compliant delivery
+        var cloudEvents = CloudEventsForwardingHelper.WrapBatchAsCloudEvents(ready, "jkbms");
 
         _logger.LogDebug(
             "HttpApiForwarder: posting {Count} record(s) to {Endpoint}",
             batch.Count, _options.ApiEndpoint);
 
-        HttpResponseMessage response;
         try
         {
-            response = await client.PostAsJsonAsync(_options.ApiEndpoint, payloads, ct);
+            using var request = new HttpRequestMessage(HttpMethod.Post, _options.ApiEndpoint)
+            {
+                Content = JsonContent.Create(cloudEvents, options: JsonSerializerOptions.Web),
+            };
+            request.AddTraceContext();
+
+            using var response = await client.SendAsync(request, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                // Read only a bounded prefix to avoid buffering large HTML error pages.
+                var body = await ReadBoundedBodyAsync(response, ct);
+                var error = $"HTTP {(int)response.StatusCode}: {body}";
+                _logger.LogWarning(
+                    "HttpApiForwarder: HTTP {StatusCode} from {Endpoint}. Response: {Body}",
+                    (int)response.StatusCode, _options.ApiEndpoint, body);
+
+                if ((int)response.StatusCode is 400 or 401 or 403 or 404)
+                    throw new PermanentForwarderException(
+                        batch.Select(r => (r.Id, error)).ToList());
+
+                throw new HttpRequestException(error);
+            }
+
+            var batchResponse = await response.Content.ReadFromJsonAsync<BmsIngestBatchResponse>(cancellationToken: ct);
+            var failedRecords = MapFailedRecords(batch, batchResponse?.Failed);
+            if (failedRecords.Count > 0)
+                throw new PermanentForwarderException(failedRecords);
+
+            _logger.LogInformation(
+                "HttpApiForwarder: successfully forwarded {Count} record(s).", batch.Count);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
             throw new HttpRequestException("Request timed out.");
         }
+    }
 
-        if (!response.IsSuccessStatusCode)
+    private static bool TryReadPayload(EdgeOutboxRecord record, out JsonElement payload)
+    {
+        if (string.IsNullOrWhiteSpace(record.PayloadJson))
         {
-            // Read only a bounded prefix to avoid buffering large HTML error pages.
-            var body = await ReadBoundedBodyAsync(response, ct);
-            var error = $"HTTP {(int)response.StatusCode}: {body}";
-            _logger.LogWarning(
-                "HttpApiForwarder: HTTP {StatusCode} from {Endpoint}. Response: {Body}",
-                (int)response.StatusCode, _options.ApiEndpoint, body);
-
-            if ((int)response.StatusCode is 400 or 401 or 403 or 404)
-                throw new PermanentForwarderException(
-                    batch.Select(r => (r.Id, error)).ToList());
-
-            throw new HttpRequestException(error);
+            payload = default;
+            return false;
         }
 
-        var batchResponse = await response.Content.ReadFromJsonAsync<BmsIngestBatchResponse>(cancellationToken: ct);
-        var failedRecords = MapFailedRecords(batch, batchResponse?.Failed);
-        if (failedRecords.Count > 0)
-            throw new PermanentForwarderException(failedRecords);
-
-        _logger.LogInformation(
-            "HttpApiForwarder: successfully forwarded {Count} record(s).", batch.Count);
+        try
+        {
+            payload = JsonSerializer.Deserialize<JsonElement>(record.PayloadJson);
+            return payload.ValueKind == JsonValueKind.Object;
+        }
+        catch (JsonException)
+        {
+            payload = default;
+            return false;
+        }
     }
 
     private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)

@@ -7,6 +7,7 @@ using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
 using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
+using HVO.WebSite.v9.Infrastructure;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Services;
 using HVO.WebSite.v9.Telemetry;
@@ -81,14 +82,73 @@ public class PowerIngestController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [Produces("application/json")]
     public async Task<ActionResult<PowerReadingBatchResponse>> IngestReadings(
-        [FromBody] IReadOnlyList<PowerReadingIngestRequest> requests,
+        [FromBody] JsonElement batch,
         CancellationToken ct)
     {
-        if (requests.Count == 0)
-            return ValidationProblem(detail: "Batch must contain at least one record.");
+        // Detect and unwrap CloudEvents 1.0 envelope format, or use raw payloads for backward compat
+        List<JsonElement> rawPayloads;
+        if (batch.ValueKind == JsonValueKind.Array)
+        {
+            var first = batch.EnumerateArray().FirstOrDefault();
+            if (first.ValueKind == JsonValueKind.Object && CloudEventsBatchUnwrapper.IsCloudEventsBatch(first))
+            {
+                var (data, errors) = CloudEventsBatchUnwrapper.UnwrapBatch(batch, _logger);
+                if (errors.Count > 0 && data.Count == 0)
+                    return ValidationProblem(detail: $"Failed to unwrap CloudEvents batch: {string.Join("; ", errors.Take(3))}");
+                rawPayloads = data;
+            }
+            else
+            {
+                rawPayloads = batch.EnumerateArray().Select(e => e.Clone()).ToList();
+            }
+        }
+        else
+        {
+            return ValidationProblem(detail: "Request body must be a JSON array.");
+        }
 
-        if (requests.Count > MaxBatchSize)
-            return ValidationProblem(detail: $"Batch size {requests.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
+        if (rawPayloads.Count == 0)
+            return ValidationProblem(detail: "Batch must contain at least one valid record.");
+
+        if (rawPayloads.Count > MaxBatchSize)
+            return ValidationProblem(detail: $"Batch size {rawPayloads.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
+
+        // Deserialize each (possibly unwrapped) payload
+        var requests = new List<PowerReadingIngestRequest>();
+        var deserFailures = new List<PowerReadingBatchFailure>();
+        foreach (var (payload, index) in rawPayloads.Select((p, i) => (p, i)))
+        {
+            try
+            {
+                var request = payload.Deserialize<PowerReadingIngestRequest>(JsonOptions);
+                if (request is not null)
+                    requests.Add(request);
+                else
+                {
+                    var failure = ExtractPowerFailureMetadata(payload, $"Record at index {index} deserialized to null.");
+                    deserFailures.Add(failure);
+                    _logger.LogWarning("Power record at index {Index} deserialized to null — reported as failure", index);
+                }
+            }
+            catch (JsonException ex)
+            {
+                var failure = ExtractPowerFailureMetadata(payload, $"Record at index {index}: invalid JSON — {ex.Message}");
+                deserFailures.Add(failure);
+                _logger.LogWarning(ex, "Power record at index {Index} has invalid JSON — reported as failure", index);
+            }
+        }
+
+        if (requests.Count == 0 && deserFailures.Count > 0)
+        {
+            return CreatedAtAction(nameof(IngestReadings), new { },
+                new PowerReadingBatchResponse { Inserted = 0, Skipped = 0, Failed = deserFailures });
+        }
+
+        if (requests.Count == 0)
+        {
+            return CreatedAtAction(nameof(IngestReadings), new { },
+                new PowerReadingBatchResponse { Inserted = 0, Skipped = 0, Failed = [] });
+        }
 
         var result = await _readingIngestService.IngestReadingsAsync(requests, ct);
         if (result.PersistenceFailed)
@@ -99,7 +159,38 @@ public class PowerIngestController : ControllerBase
                 title: "Power Batch Ingest Failed");
         }
 
-        return CreatedAtAction(nameof(GetRecentReadings), new { }, result.Response);
+        return CreatedAtAction(nameof(GetRecentReadings), new { },
+            new PowerReadingBatchResponse
+            {
+                Inserted = result.Response.Inserted,
+                Skipped = result.Response.Skipped,
+                Failed = deserFailures.Count > 0
+                    ? [.. result.Response.Failed, .. deserFailures]
+                    : result.Response.Failed
+            });
+    }
+
+    private static PowerReadingBatchFailure ExtractPowerFailureMetadata(
+        JsonElement payload, string error)
+    {
+        string? sourceId = null;
+        DateTime? recordedAtUtc = null;
+        if (payload.ValueKind == JsonValueKind.Object)
+        {
+            if (payload.TryGetProperty("sourceId", out var sid) && sid.ValueKind == JsonValueKind.String)
+                sourceId = sid.GetString();
+            if (payload.TryGetProperty("recordedAtUtc", out var ra) && ra.ValueKind == JsonValueKind.String)
+                recordedAtUtc = ra.GetDateTime();
+            else if (payload.TryGetProperty("recordedAt", out var rad) && rad.ValueKind == JsonValueKind.String)
+                recordedAtUtc = rad.GetDateTime();
+        }
+
+        return new PowerReadingBatchFailure
+        {
+            SourceId = sourceId ?? string.Empty,
+            RecordedAtUtc = recordedAtUtc ?? DateTime.UtcNow,
+            Error = error,
+        };
     }
 
     [HttpPost("device-inventory")]

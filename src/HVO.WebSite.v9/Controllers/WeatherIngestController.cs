@@ -1,7 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using Asp.Versioning;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
+using HVO.WebSite.v9.Infrastructure;
 using HVO.WebSite.v9.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -135,14 +137,80 @@ public class WeatherIngestController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [Produces("application/json")]
     public async Task<ActionResult<WeatherRawBatchResponse>> IngestRawBatch(
-        [FromBody] IReadOnlyList<IngestWeatherRawRequest> requests,
+        [FromBody] JsonElement batch,
         CancellationToken ct)
     {
-        if (requests.Count == 0)
-            return ValidationProblem(detail: "Batch must contain at least one record.");
+        // Detect and unwrap CloudEvents 1.0 envelope format, or use raw payloads for backward compat
+        List<JsonElement> rawPayloads;
+        if (batch.ValueKind == JsonValueKind.Array)
+        {
+            var first = batch.EnumerateArray().FirstOrDefault();
+            if (first.ValueKind == JsonValueKind.Object && CloudEventsBatchUnwrapper.IsCloudEventsBatch(first))
+            {
+                var (data, errors) = CloudEventsBatchUnwrapper.UnwrapBatch(batch, _logger);
+                if (errors.Count > 0 && data.Count == 0)
+                    return ValidationProblem(detail: $"Failed to unwrap CloudEvents batch: {string.Join("; ", errors.Take(3))}");
+                rawPayloads = data;
+            }
+            else
+            {
+                // Legacy format — each element is a raw payload
+                rawPayloads = batch.EnumerateArray().Select(e => e.Clone()).ToList();
+            }
+        }
+        else
+        {
+            return ValidationProblem(detail: "Request body must be a JSON array.");
+        }
 
-        if (requests.Count > MaxBatchSize)
-            return ValidationProblem(detail: $"Batch size {requests.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
+        if (rawPayloads.Count == 0)
+            return ValidationProblem(detail: "Batch must contain at least one valid record.");
+
+        if (rawPayloads.Count > MaxBatchSize)
+            return ValidationProblem(detail: $"Batch size {rawPayloads.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
+
+        // Deserialize each (possibly unwrapped) payload
+        var requests = new List<IngestWeatherRawRequest>();
+        var deserErrors = new List<WeatherRawBatchFailure>();
+        foreach (var (payload, index) in rawPayloads.Select((p, i) => (p, i)))
+        {
+            DateTime? fallbackTime = null;
+            if (payload.ValueKind == JsonValueKind.Object)
+            {
+                if (payload.TryGetProperty("recordedAt", out var ra) && ra.ValueKind == JsonValueKind.String)
+                    fallbackTime = ra.GetDateTime();
+                else if (payload.TryGetProperty("recordedAtUtc", out var rau) && rau.ValueKind == JsonValueKind.String)
+                    fallbackTime = rau.GetDateTime();
+            }
+
+            try
+            {
+                var request = payload.Deserialize<IngestWeatherRawRequest>(
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                if (request is not null)
+                    requests.Add(request);
+                else
+                    deserErrors.Add(new WeatherRawBatchFailure
+                    {
+                        RecordedAt = fallbackTime ?? DateTime.UtcNow,
+                        Error = $"Record at index {index} deserialized to null."
+                    });
+            }
+            catch (JsonException ex)
+            {
+                deserErrors.Add(new WeatherRawBatchFailure
+                {
+                    RecordedAt = fallbackTime ?? DateTime.UtcNow,
+                    Error = $"Record at index {index}: invalid JSON — {ex.Message}"
+                });
+            }
+        }
+
+        if (requests.Count == 0)
+        {
+            return CreatedAtAction(nameof(GetRecentRaw), new { },
+                new WeatherRawBatchResponse { Inserted = 0, Skipped = 0, Failed = deserErrors });
+        }
 
         // Resolve timestamps up-front (null RecordedAt → server time)
         var resolved = requests.Select(r => (Request: r, RecordedAt: r.RecordedAt?.ToUniversalTime() ?? DateTime.UtcNow)).ToList();
@@ -157,7 +225,7 @@ public class WeatherIngestController : ControllerBase
         var existingKeys = existing.Select(x => (x.StationId, x.RecordedAt)).ToHashSet();
 
         var toInsert = new List<WeatherRaw>();
-        var failures = new List<WeatherRawBatchFailure>();
+        var failures = new List<WeatherRawBatchFailure>(deserErrors);
         int skipped = 0;
         var seenInBatch = new HashSet<(string?, DateTime)>();
 

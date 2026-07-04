@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HVO.Edge.Contracts;
 using HVO.Edge.Outbox;
 using HVO.Enterprise.Telemetry.Abstractions;
 using HVO.Hardware.DavisVantagePro2.Configuration;
@@ -149,12 +151,21 @@ public sealed class OutboxForwarder(
             return;
         }
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        // Wrap valid records in CloudEvents 1.0 envelopes for standards-compliant delivery
+        var cloudEvents = CloudEventsForwardingHelper.WrapBatchAsCloudEvents(ready, "davis");
+
+        var sw = Stopwatch.StartNew();
         try
         {
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+            {
+                Content = JsonContent.Create(cloudEvents, options: JsonOptions),
+            };
+            request.AddTraceContext();
+
             using var response = await httpFactory
                 .CreateClient("WeatherApi")
-                .PostAsJsonAsync(endpoint, ready.Select(x => x.Payload).ToArray(), JsonOptions, ct);
+                .SendAsync(request, ct);
             telemetry.OutboxForwardLatencyMs.Record(sw.Elapsed.TotalMilliseconds);
 
             if (response.IsSuccessStatusCode)

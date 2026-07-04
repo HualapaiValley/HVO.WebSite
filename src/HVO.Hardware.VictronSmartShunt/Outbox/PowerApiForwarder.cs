@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HVO.Edge.Contracts;
 using HVO.Edge.Outbox;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
@@ -128,8 +130,22 @@ public sealed class PowerApiForwarder : BackgroundService
 
             if (ready.Count > 0)
             {
+                // Wrap in CloudEvents 1.0 envelopes for standards-compliant delivery
+                var readyJson = ready.Select(x =>
+                {
+                    var el = JsonSerializer.SerializeToElement(x.Payload, JsonOptions);
+                    return (x.Record, el);
+                }).ToList();
+                var cloudEvents = CloudEventsForwardingHelper.WrapBatchAsCloudEvents(readyJson, "smartshunt");
+
+                using var request = new HttpRequestMessage(HttpMethod.Post, _options.ApiEndpoint)
+                {
+                    Content = JsonContent.Create(cloudEvents, options: JsonOptions),
+                };
+                request.AddTraceContext();
+
                 using var response = await _httpFactory.CreateClient("PowerApi")
-                    .PostAsJsonAsync(_options.ApiEndpoint, ready.Select(x => x.Payload).ToArray(), JsonOptions, ct);
+                    .SendAsync(request, ct);
 
                 if (response.IsSuccessStatusCode)
                 {

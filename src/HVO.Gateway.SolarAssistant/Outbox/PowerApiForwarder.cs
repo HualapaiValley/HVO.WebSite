@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -160,11 +161,23 @@ public sealed class PowerApiForwarder : BackgroundService
 
             if (ready.Count > 0)
             {
-                var payloads = ready.Select(x => x.Payload).ToArray();
+                // Wrap in CloudEvents 1.0 envelopes for standards-compliant delivery
+                var readyJson = ready.Select(x =>
+                {
+                    var el = JsonSerializer.SerializeToElement(x.Payload, JsonOptions);
+                    return (x.Record, el);
+                }).ToList();
+                var cloudEvents = CloudEventsForwardingHelper.WrapBatchAsCloudEvents(readyJson, "solarassistant");
+
+                using var request = new HttpRequestMessage(HttpMethod.Post, _options.ApiEndpoint)
+                {
+                    Content = JsonContent.Create(cloudEvents, options: JsonOptions),
+                };
+                request.AddTraceContext();
 
                 using var response = await _httpFactory
                     .CreateClient("PowerApi")
-                    .PostAsJsonAsync(_options.ApiEndpoint, payloads, JsonOptions, ct);
+                    .SendAsync(request, ct);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -264,9 +277,29 @@ public sealed class PowerApiForwarder : BackgroundService
 
             try
             {
+                // Wrap snapshot in CloudEvents envelope for standards-compliant delivery
+                var dataEl = JsonSerializer.SerializeToElement(payload, JsonOptions);
+                var cloudEvent = new Dictionary<string, object?>
+                {
+                    ["specversion"] = CloudEventsConstants.SpecVersion,
+                    ["type"] = EdgePayloadTypes.ToCloudEventType(payloadType),
+                    ["source"] = $"/gateways/solarassistant/{record.SourceId}",
+                    ["id"] = Guid.NewGuid().ToString("D"),
+                    ["time"] = record.RecordedAtUtc.ToString("O"),
+                    ["datacontenttype"] = CloudEventsConstants.JsonContentType,
+                    ["data"] = dataEl,
+                };
+                var cloudEventEl = JsonSerializer.SerializeToElement(cloudEvent, JsonOptions);
+
+                using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = JsonContent.Create(cloudEventEl, options: JsonOptions),
+                };
+                request.AddTraceContext();
+
                 using var response = await _httpFactory
                     .CreateClient("PowerApi")
-                    .PostAsJsonAsync(endpoint, payload, JsonOptions, ct);
+                    .SendAsync(request, ct);
 
                 if (response.IsSuccessStatusCode)
                 {

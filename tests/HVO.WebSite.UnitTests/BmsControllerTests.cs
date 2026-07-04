@@ -50,9 +50,18 @@ public class BmsControllerTests
         _conn.Dispose();
     }
 
+    private static JsonElement ToJsonElement<T>(IReadOnlyList<T> requests)
+    {
+        var json = JsonSerializer.Serialize(requests, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.Clone();
+    }
+
     private static BmsController CreateController(HvoV9DbContext db)
     {
-        var ctrl = new BmsController(new BmsIngestService(db, NullLogger<BmsIngestService>.Instance));
+        var ctrl = new BmsController(
+            new BmsIngestService(db, NullLogger<BmsIngestService>.Instance),
+            NullLogger<BmsController>.Instance);
         ctrl.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -154,7 +163,7 @@ public class BmsControllerTests
     [TestMethod]
     public async Task IngestReadings_EmptyBatch_Returns400()
     {
-        var result = await _ctrl.IngestReadings([], CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(new List<BmsIngestRequest>()), CancellationToken.None);
 
         result.Result.Should().BeOfType<BadRequestObjectResult>();
     }
@@ -163,8 +172,8 @@ public class BmsControllerTests
     public async Task IngestReadings_NullReading_Returns400()
     {
         var result = await _ctrl.IngestReadings(
-            [new BmsIngestRequest { Reading = null! }],
-            CancellationToken.None);
+                ToJsonElement([new BmsIngestRequest { Reading = null! }]),
+                CancellationToken.None);
 
         result.Result.Should().BeOfType<BadRequestObjectResult>();
         _db.BmsDevices.Should().BeEmpty();
@@ -174,8 +183,8 @@ public class BmsControllerTests
     public async Task IngestReadings_BlankDeviceAddress_Returns400()
     {
         var result = await _ctrl.IngestReadings(
-            [MakeRequest(deviceAddress: "   ")],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(deviceAddress: "   ")]),
+                CancellationToken.None);
 
         result.Result.Should().BeOfType<BadRequestObjectResult>();
         _db.BmsDevices.Should().BeEmpty();
@@ -189,8 +198,8 @@ public class BmsControllerTests
     public async Task IngestReadings_SingleRecord_InsertsReadingAndCells()
     {
         var result = await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T00:00:00Z")],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T00:00:00Z")]),
+                CancellationToken.None);
 
         var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         var body = created.Value.Should().BeOfType<BmsIngestBatchResponse>().Subject;
@@ -212,7 +221,7 @@ public class BmsControllerTests
             MakeRequest(DeviceB, "2026-01-01T00:00:00Z"),
         };
 
-        var result = await _ctrl.IngestReadings(batch, CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
 
         var created = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         var body = created.Value.Should().BeOfType<BmsIngestBatchResponse>().Subject;
@@ -232,7 +241,7 @@ public class BmsControllerTests
         // 52V × 1A = 52W
         var req = MakeRequest(DeviceA, "2026-01-01T00:00:00Z");
 
-        await _ctrl.IngestReadings([req], CancellationToken.None);
+        await _ctrl.IngestReadings(ToJsonElement(new List<BmsIngestRequest> { req }), CancellationToken.None);
 
         var reading = _db.BmsReadings.Single();
         reading.PowerWatts.Should().BeApproximately(52.0, 0.001);
@@ -251,7 +260,7 @@ public class BmsControllerTests
         var controller = CreateController(db);
         var request = MakeRequest(DeviceA, "2026-01-01T00:05:00Z");
 
-        var result = await controller.IngestReadings([request], CancellationToken.None);
+        var result = await controller.IngestReadings(ToJsonElement(new List<BmsIngestRequest> { request }), CancellationToken.None);
 
         var body = ((CreatedAtActionResult)result.Result!).Value
             .Should().BeOfType<BmsIngestBatchResponse>().Subject;
@@ -292,7 +301,7 @@ public class BmsControllerTests
         """;
         var request = JsonSerializer.Deserialize<BmsIngestRequest>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
 
-        var result = await _ctrl.IngestReadings([request], CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(new List<BmsIngestRequest> { request }), CancellationToken.None);
 
         var body = ((CreatedAtActionResult)result.Result!).Value.Should().BeOfType<BmsIngestBatchResponse>().Subject;
         body.Inserted.Should().Be(1);
@@ -319,9 +328,9 @@ public class BmsControllerTests
     {
         var batch = new[] { MakeRequest(DeviceA, "2026-01-01T01:00:00Z") };
 
-        await _ctrl.IngestReadings(batch, CancellationToken.None);
+        await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
 
-        var result = await _ctrl.IngestReadings(batch, CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
 
         var body = ((CreatedAtActionResult)result.Result!).Value
             .Should().BeOfType<BmsIngestBatchResponse>().Subject;
@@ -341,7 +350,7 @@ public class BmsControllerTests
             MakeRequest(DeviceA, "2026-01-01T02:00:00Z"),
         };
 
-        var result = await _ctrl.IngestReadings(batch, CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
 
         var body = ((CreatedAtActionResult)result.Result!).Value
             .Should().BeOfType<BmsIngestBatchResponse>().Subject;
@@ -361,7 +370,7 @@ public class BmsControllerTests
         var cfg = MakeConfig();
         var req = MakeRequest(DeviceA, "2026-01-01T03:00:00Z", config: cfg);
 
-        await _ctrl.IngestReadings([req], CancellationToken.None);
+        await _ctrl.IngestReadings(ToJsonElement(new List<BmsIngestRequest> { req }), CancellationToken.None);
 
         _db.BmsDeviceConfigs.Count().Should().Be(1);
     }
@@ -372,13 +381,13 @@ public class BmsControllerTests
         var cfg = MakeConfig();
 
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T04:00:00Z", config: cfg)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T04:00:00Z", config: cfg)]),
+                CancellationToken.None);
 
         // Second call with identical config
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T04:00:30Z", config: cfg)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T04:00:30Z", config: cfg)]),
+                CancellationToken.None);
 
         _db.BmsDeviceConfigs.Count().Should().Be(1);
     }
@@ -390,12 +399,12 @@ public class BmsControllerTests
         var cfg2 = MakeConfig(cellCount: 4, chargingEnabled: false);  // changed
 
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T05:00:00Z", config: cfg1)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T05:00:00Z", config: cfg1)]),
+                CancellationToken.None);
 
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T05:00:30Z", config: cfg2)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T05:00:30Z", config: cfg2)]),
+                CancellationToken.None);
 
         _db.BmsDeviceConfigs.Count().Should().Be(2);
     }
@@ -405,8 +414,8 @@ public class BmsControllerTests
     {
         // No config payload — steady-state record
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T06:00:00Z", config: null)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T06:00:00Z", config: null)]),
+                CancellationToken.None);
 
         _db.BmsDeviceConfigs.Count().Should().Be(0);
     }
@@ -419,8 +428,8 @@ public class BmsControllerTests
     public async Task IngestReadings_FirstDeviceInfo_InsertsSnapshot()
     {
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T07:00:00Z", deviceInfo: MakeDeviceInfo())],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T07:00:00Z", deviceInfo: MakeDeviceInfo())]),
+                CancellationToken.None);
 
         _db.BmsDeviceInfos.Count().Should().Be(1);
     }
@@ -431,12 +440,12 @@ public class BmsControllerTests
         var info = MakeDeviceInfo();
 
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T07:00:00Z", deviceInfo: info)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T07:00:00Z", deviceInfo: info)]),
+                CancellationToken.None);
 
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T07:00:30Z", deviceInfo: info)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T07:00:30Z", deviceInfo: info)]),
+                CancellationToken.None);
 
         _db.BmsDeviceInfos.Count().Should().Be(1);
     }
@@ -448,12 +457,12 @@ public class BmsControllerTests
         var info2 = MakeDeviceInfo(firmware: "1.0.1");  // firmware updated
 
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T07:01:00Z", deviceInfo: info1)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T07:01:00Z", deviceInfo: info1)]),
+                CancellationToken.None);
 
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T07:01:30Z", deviceInfo: info2)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T07:01:30Z", deviceInfo: info2)]),
+                CancellationToken.None);
 
         _db.BmsDeviceInfos.Count().Should().Be(2);
     }
@@ -462,8 +471,8 @@ public class BmsControllerTests
     public async Task IngestReadings_NullDeviceInfo_DoesNotInsertSnapshot()
     {
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T07:02:00Z", deviceInfo: null)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T07:02:00Z", deviceInfo: null)]),
+                CancellationToken.None);
 
         _db.BmsDeviceInfos.Count().Should().Be(0);
     }
@@ -477,8 +486,8 @@ public class BmsControllerTests
     {
         // First reading — alarm bit 0x01 appears
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T10:00:00Z", alarmBitmask: 0x01)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T10:00:00Z", alarmBitmask: 0x01)]),
+                CancellationToken.None);
 
         _db.BmsAlarms.Count().Should().Be(1);
         var alarm = _db.BmsAlarms.Single();
@@ -493,13 +502,13 @@ public class BmsControllerTests
 
         // Alarm fires
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T11:00:00Z", alarmBitmask: 0x02)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T11:00:00Z", alarmBitmask: 0x02)]),
+                CancellationToken.None);
 
         // Alarm clears
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T11:00:30Z", alarmBitmask: 0x00)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T11:00:30Z", alarmBitmask: 0x00)]),
+                CancellationToken.None);
 
         var alarm = _db.BmsAlarms.Single();
         alarm.ClearedAt.Should().NotBeNull();
@@ -510,8 +519,8 @@ public class BmsControllerTests
     public async Task IngestReadings_NoAlarms_DoesNotCreateAlarmRow()
     {
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T12:00:00Z", alarmBitmask: 0x00)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T12:00:00Z", alarmBitmask: 0x00)]),
+                CancellationToken.None);
 
         _db.BmsAlarms.Count().Should().Be(0);
     }
@@ -521,13 +530,13 @@ public class BmsControllerTests
     {
         // First alarm
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T13:00:00Z", alarmBitmask: 0x01)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T13:00:00Z", alarmBitmask: 0x01)]),
+                CancellationToken.None);
 
         // Alarm bitmask changes (different bits) without clearing first
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T13:00:30Z", alarmBitmask: 0x04)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T13:00:30Z", alarmBitmask: 0x04)]),
+                CancellationToken.None);
 
         _db.BmsAlarms.Count().Should().Be(2);
 
@@ -543,13 +552,13 @@ public class BmsControllerTests
     {
         // Alarm fires
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T14:00:00Z", alarmBitmask: 0x01)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T14:00:00Z", alarmBitmask: 0x01)]),
+                CancellationToken.None);
 
         // Same alarm still active on next poll
         await _ctrl.IngestReadings(
-            [MakeRequest(DeviceA, "2026-01-01T14:00:30Z", alarmBitmask: 0x01)],
-            CancellationToken.None);
+                ToJsonElement([MakeRequest(DeviceA, "2026-01-01T14:00:30Z", alarmBitmask: 0x01)]),
+                CancellationToken.None);
 
         // Only one open alarm row
         _db.BmsAlarms.Count().Should().Be(1);
@@ -566,7 +575,7 @@ public class BmsControllerTests
                 start.AddMinutes(i).ToString("yyyy-MM-ddTHH:mm:ssZ")))
             .ToList();
 
-        var result = await _ctrl.IngestReadings(requests, CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(requests), CancellationToken.None);
         var objectResult = result.Result.Should().BeAssignableTo<ObjectResult>().Subject;
         objectResult.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
     }

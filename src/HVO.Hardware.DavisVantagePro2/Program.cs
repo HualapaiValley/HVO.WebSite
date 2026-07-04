@@ -164,9 +164,11 @@ builder.Services.AddHttpClient("WeatherApi", (sp, client) =>
     var opt = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<OutboxOptions>>().Value;
     client.DefaultRequestHeaders.Add("X-Api-Key", opt.ApiKey);
     client.Timeout = TimeSpan.FromSeconds(30);
-}).AddHttpMessageHandler(sp => new TelemetryHttpMessageHandler(
+})
+.AddHttpMessageHandler(sp => new TelemetryHttpMessageHandler(
     new HttpInstrumentationOptions { CaptureRequestHeaders = false, CaptureResponseHeaders = false },
-    sp.GetService<ILogger<TelemetryHttpMessageHandler>>()));
+    sp.GetService<ILogger<TelemetryHttpMessageHandler>>()))
+.AddStandardResilienceHandler();
 
 // ── Background workers ─────────────────────────────────────────────────────────
 builder.Services.AddSingleton<WeatherStationWorker>();
