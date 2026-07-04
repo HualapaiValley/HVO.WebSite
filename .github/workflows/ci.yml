@@ -70,7 +70,7 @@ jobs:
           docker build -f src/HVO.Gateway.TplinkKasa/Dockerfile -t hvo-tplinkkasa-ci:latest .
 
       - name: Publish script dry run
-        run: bash tools/validate-publish-acr-dry-run.sh
+        run: bash tools/validate-publish-dry-run.sh
 
       - name: Upload test results
         if: always()
