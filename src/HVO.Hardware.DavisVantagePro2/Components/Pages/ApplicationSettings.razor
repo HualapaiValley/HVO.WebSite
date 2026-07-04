@@ -1,5 +1,6 @@
 @page "/application-settings"
 @rendermode InteractiveServer
+@using HVO.Edge.Outbox
 
 <div class="application-settings-page">
     <div class="shell-page-stack application-settings-stack">
@@ -8,7 +9,7 @@
         <div class="hvo-action-row">
             <div class="hvo-chip"><span>Environment</span><strong>Production</strong></div>
             <div class="hvo-chip"><span>Config source</span><strong>appsettings.Production.json</strong></div>
-            <div class="hvo-chip"><span>Restart required</span><strong>Worker / Outbox</strong></div>
+            <div class="hvo-chip"><span>Outbox settings</span><strong>Runtime (no restart)</strong></div>
         </div>
 
         <div class="hvo-grid">
@@ -57,28 +58,32 @@
                     <div class="hvo-eyebrow">Outbox / API Forwarder</div>
                     <h2>Outbox Configuration</h2>
                 </div>
-                <button class="hvo-button hvo-button-success" type="button">Save outbox settings</button>
+                @if (_isOverride)
+                {
+                    <button class="hvo-button hvo-button-warning" type="button" @onclick="ResetSettingsAsync">Reset to defaults</button>
+                }
+                <button class="hvo-button hvo-button-success" type="button" @onclick="SaveSettingsAsync" disabled="@(!_dirty)">Save outbox settings</button>
             </div>
             <div class="hvo-form-grid">
-                <div class="hvo-field"><label class="hvo-field-label">API endpoint</label><input class="hvo-control"
-                    value="https://weather-api.hvo.local/api/weather" /></div>
-                <div class="hvo-field"><label class="hvo-field-label">API key</label><input class="hvo-control"
-                    value="••••••••••••••••••••" /></div>
-                <div class="hvo-field"><label class="hvo-field-label">Batch size</label><input
-                    class="hvo-control hvo-mono" type="number" min="1" max="1000" step="1" required value="100" /></div>
-                <div class="hvo-field"><label class="hvo-field-label">Sweep interval (s)</label><input
-                    class="hvo-control hvo-mono" type="number" min="1" max="3600" step="1" required value="30" /></div>
-                <div class="hvo-field"><label class="hvo-field-label">Max retry attempts</label><input
-                    class="hvo-control hvo-mono" type="number" min="0" max="100" step="1" required value="10" /></div>
-                <div class="hvo-field"><label class="hvo-field-label">Max backoff (s)</label><input
-                    class="hvo-control hvo-mono" type="number" min="1" max="3600" step="1" required value="300" /></div>
-                <div class="hvo-field"><label class="hvo-field-label">SQLite DB path</label><input class="hvo-control"
-                    value="/var/lib/hvo/davis/outbox.db" /></div>
+                <div class="hvo-field">
+                    <label class="hvo-field-label">Batch size <span class="text-secondary">(1–500)</span></label>
+                    <input class="hvo-control hvo-mono" type="number" min="1" max="500" step="1" required
+                        @bind-value="_batchSize" @bind-value:event="oninput" />
+                </div>
+                <div class="hvo-field">
+                    <label class="hvo-field-label">Sweep interval (s) <span class="text-secondary">(1–60)</span></label>
+                    <input class="hvo-control hvo-mono" type="number" min="1" max="60" step="1" required
+                        @bind-value="_sweepIntervalSeconds" @bind-value:event="oninput" />
+                </div>
             </div>
             <div class="hvo-grid" style="margin-top: 18px;">
-                <div class="hvo-list-item"><span>Pending count</span><strong class="hvo-mono">12</strong></div>
-                <div class="hvo-list-item"><span>Failed count</span><strong class="hvo-mono">0</strong></div>
-                <div class="hvo-list-item"><span>Last sweep</span><strong class="hvo-mono">08 May 2026 - 2:34 PM</strong></div>
+                <div class="hvo-list-item"><span>Pending count</span><strong class="hvo-mono">@Forwarder.PendingCount</strong></div>
+                <div class="hvo-list-item"><span>Failed count</span><strong class="hvo-mono">@Forwarder.FailedCount</strong></div>
+                <div class="hvo-list-item"><span>Last sweep</span><strong class="hvo-mono">@FormatLastSweep()</strong></div>
+                @if (!string.IsNullOrWhiteSpace(_lastSaveMessage))
+                {
+                    <div class="hvo-list-item"><span>Status</span><strong>@_lastSaveMessage</strong></div>
+                }
             </div>
         </section>
 

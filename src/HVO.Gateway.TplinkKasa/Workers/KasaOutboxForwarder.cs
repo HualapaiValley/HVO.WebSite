@@ -18,6 +18,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly KasaGatewayOptions.OutboxSection _options;
+    private readonly RuntimeOutboxSettings _runtimeSettings;
     private readonly ILogger<KasaOutboxForwarder> _logger;
     private volatile int _pendingCount;
     private volatile int _failedCount;
@@ -29,11 +30,13 @@ public sealed class KasaOutboxForwarder : BackgroundService
         IServiceScopeFactory scopeFactory,
         IHttpClientFactory httpClientFactory,
         IOptions<KasaGatewayOptions.OutboxSection> options,
+        RuntimeOutboxSettings runtimeSettings,
         ILogger<KasaOutboxForwarder> logger)
     {
         _scopeFactory = scopeFactory;
         _httpClientFactory = httpClientFactory;
         _options = options.Value;
+        _runtimeSettings = runtimeSettings;
         _logger = logger;
     }
 
@@ -65,9 +68,10 @@ public sealed class KasaOutboxForwarder : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            bool anySent = false;
             try
             {
-                var anySent = await SweepAsync(stoppingToken).ConfigureAwait(false);
+                anySent = await SweepAsync(stoppingToken).ConfigureAwait(false);
                 if (anySent)
                     await RequeueRetryExhaustedAsync(stoppingToken).ConfigureAwait(false);
 
@@ -91,13 +95,16 @@ public sealed class KasaOutboxForwarder : BackgroundService
                 SweepCompleted?.Invoke();
             }
 
-            try
+            if (!anySent)
             {
-                await Task.Delay(TimeSpan.FromSeconds(_options.SweepIntervalSeconds), stoppingToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(_runtimeSettings.EffectiveSweepIntervalSeconds(_options.SweepIntervalSeconds)), stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
             }
         }
 
@@ -111,7 +118,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
         var now = DateTime.UtcNow;
         var anySent = false;
 
-        var energy = await store.GetReadyBatchAsync(KasaOutboxPayloadTypes.Energy, now, _options.BatchSize, ct).ConfigureAwait(false);
+        var energy = await store.GetReadyBatchAsync(KasaOutboxPayloadTypes.Energy, now, _runtimeSettings.EffectiveBatchSize(_options.BatchSize), ct).ConfigureAwait(false);
         await RefreshCountsAsync(store, ct).ConfigureAwait(false);
 
         if (IsPlaceholderConfig)
@@ -128,7 +135,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
 
     private async Task<bool> ForwardInventoryAsync(EdgeOutboxStore<OutboxDbContext> store, DateTime now, CancellationToken ct)
     {
-        var inventory = await store.GetReadyBatchAsync(KasaOutboxPayloadTypes.Inventory, now, _options.BatchSize, ct).ConfigureAwait(false);
+        var inventory = await store.GetReadyBatchAsync(KasaOutboxPayloadTypes.Inventory, now, _runtimeSettings.EffectiveBatchSize(_options.BatchSize), ct).ConfigureAwait(false);
         if (inventory.Count == 0)
             return false;
 

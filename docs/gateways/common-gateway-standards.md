@@ -107,7 +107,35 @@ APIs may expose both the UTC instant and the display timezone metadata, for exam
 - Unsafe automatic requeue: `Permanent` rows should not automatically return to `Pending` without a code/configuration fix and operator decision.
 - Requeue should reset `FailureKind=None`, set `NextRetryAtUtc=DateTime.MinValue`, and append a bounded note to `LastError` explaining why the record was requeued.
 
-### Cloud Batch Semantics
+#### Compaction
+
+Deployed gateways can accumulate millions of outbox rows during long-running deployments and outage backfills. Compaction runs once per day and deletes terminal rows older than the configured retention.
+
+- `SentRetentionDays` (default 7) controls deletion of sent records.
+- `FailedRetentionDays` (default 30) controls deletion of failed records.
+- Compaction only removes records that have been in their terminal state for longer than the retention window. Pending and retrying records are never compacted.
+- Compaction does not resolve a backlog; it only reclaims disk space for already-delivered or already-failed data.
+- Record-level history after compaction is limited to what is available in the cloud database or monitoring systems.
+
+### Runtime-Configurable Settings
+
+All gateways support runtime adjustment of outbox batch size and sweep interval
+without restarting the container. This is useful during outage backfill or when
+tuning forwarding throughput.
+
+- **API endpoint** (API-key protected): `PUT /diagnostics/outbox/settings`
+  - Body: `{"batchSize": 500, "sweepIntervalSeconds": 1}`
+  - Body: `{"reset": true}` — reverts to configured defaults
+- **UI controls**: Each gateway's status/settings page provides editable fields
+  with Apply and Reset buttons for batch size and sweep interval.
+- **Defaults**: `OUTBOX_BATCH_SIZE=500`, `OUTBOX_SWEEP_INTERVAL_SECONDS=1` in `.env`
+- The forwarder skips the sweep interval delay entirely when the queue has work,
+  so backlog draining proceeds at maximum rate.
+- **HTTP timeouts**: All gateways configure the resilience handler with 60s
+  attempt timeout, 120s total request timeout, and 120s circuit breaker sampling.
+  The `HttpClient.Timeout` is set to 120s for all outbox forwarding clients.
+
+## Cloud Batch Semantics
 
 - Batch endpoints should be idempotent by `SourceId` or station/device identity plus `RecordedAtUtc`.
 - Inserted and duplicate/skipped records both count as successfully delivered from the edge perspective.

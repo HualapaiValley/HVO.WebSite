@@ -21,6 +21,7 @@ public sealed class TelemetryPageBunitTests : BunitContext
     public void RendersPrivateMetadataOverlay()
     {
         Services.AddMudServices();
+        Services.AddHttpClient();
         var options = new SmartShuntOptions { Address = "D0:39:72:AA:BB:CC", EnablePrivateEnrichment = true, PublicOnly = false };
         var worker = CreateWorker(options);
         SetWorkerSnapshot(worker, CreateSnapshot(), new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Utc));
@@ -49,6 +50,7 @@ public sealed class TelemetryPageBunitTests : BunitContext
     public void RendersTelemetryChart()
     {
         Services.AddMudServices();
+        Services.AddHttpClient();
         var options = new SmartShuntOptions { Address = "D0:39:72:AA:BB:CC", EnablePrivateEnrichment = true, PublicOnly = false };
         var worker = CreateWorker(options);
         SetWorkerSnapshot(worker, CreateSnapshot(), new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Utc));
@@ -65,6 +67,7 @@ public sealed class TelemetryPageBunitTests : BunitContext
     public void RendersMissingPrivateValuesAsFallback()
     {
         Services.AddMudServices();
+        Services.AddHttpClient();
         var options = new SmartShuntOptions { Address = "D0:39:72:AA:BB:CC", EnablePrivateEnrichment = false, PublicOnly = true };
         var worker = CreateWorker(options);
         SetWorkerSnapshot(worker, CreateSnapshot(), new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Utc));
@@ -110,7 +113,7 @@ public sealed class TelemetryPageBunitTests : BunitContext
         => new(new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), new FakeSessionState(), new FakePrivateInfoSource(), Options.Create(options), NullLogger<SmartShuntWorker>.Instance);
 
     private static PowerApiForwarder CreateForwarder()
-        => new(new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), new FakeHttpClientFactory(), Options.Create(new OutboxOptions()), NullLogger<PowerApiForwarder>.Instance);
+        => new(new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), new FakeHttpClientFactory(), Options.Create(new OutboxOptions()), new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance);
 
     private static void SetWorkerSnapshot(SmartShuntWorker worker, SmartShuntDeviceSnapshot snapshot, DateTime recordedAtUtc)
     {

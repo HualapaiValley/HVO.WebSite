@@ -266,7 +266,7 @@ public class BmsControllerTests
             .Should().BeOfType<BmsIngestBatchResponse>().Subject;
         body.Inserted.Should().Be(0);
         body.Failed.Should().ContainSingle()
-            .Which.Error.Should().Be("The BMS reading could not be ingested.");
+            .Which.Error.Should().Be("Batch ingest failed; record could not be ingested.");
     }
 
     [TestMethod]

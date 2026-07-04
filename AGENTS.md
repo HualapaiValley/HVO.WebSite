@@ -26,7 +26,7 @@ Prefer clear, actionable, evidence-based findings over style preferences.
 
 ```
 src/
-  HVO.WebSite.v9/               Main Azure-hosted observatory site (Blazor SSR + ASP.NET Core API)
+  HVO.WebSite.v9/               Main observatory site (Blazor SSR + ASP.NET Core API)
   HVO.WebSite.Themes/           Shared Razor Class Library — CSS tokens, components, layouts, fonts
   HVO.DataModels/               EF Core models and DbContext
   HVO.Hardware.DavisVantagePro2/  Davis weather station gateway
@@ -36,15 +36,18 @@ src/
   HVO.Gateway.TplinkKasa/       TP-Link Kasa smart plug gateway
   HVO.ThemeSandbox/             CSS/component reference app (not deployed to production)
 deploy/
+  hvo-docker/                   Docker Compose + .env for the website host (hvo-docker)
   pi-gateways/                  Per-gateway Docker Compose + .env for devpi5
 scripts/
+  deploy-hvo-website.sh         Deploys the website to hvo-docker via Docker SSH context
   deploy-pi-gateway.sh          Deploys one or all gateways to devpi5 via Docker SSH context
+  publish-image.sh              Builds and pushes images to self-hosted container registry
   sync-env-gist.sh              Syncs root .env to private GitHub gist (devcontainer bootstrap)
 docs/
   CSS_GOVERNANCE.md             Full CSS authoring policy (read before touching any CSS)
   UNIFIED_THEME_PLAN.md         Migration epic plan
 tests/
-  HVO.WebSite.UnitTests/        Unit tests (169 tests)
+  HVO.WebSite.UnitTests/        Unit tests (188 tests)
   HVO.WebSite.PlaywrightTests/  Playwright end-to-end tests
 ```
 
@@ -60,9 +63,11 @@ tests/
 | Charts | Chart.js 4.4.0, bundled locally at `_content/HVO.WebSite.Themes/js/chart.min.js` |
 | ORM | Entity Framework Core (async-only: `ToListAsync`, `FirstOrDefaultAsync`, etc.) |
 | Testing | xUnit + FluentAssertions (unit); Playwright (E2E) |
-| Containers | Docker + `docker --context devpi5` SSH remote context |
+| Containers | Docker + `docker --context devpi5` / `docker --context hvo-docker` SSH remote contexts |
 | CI | GitHub Actions |
-| Deployment | Azure Container Apps (main site); Raspberry Pi 5 via Docker SSH context (gateways) |
+| Hosting | Self-hosted Docker (hvo-docker for website + registry + SQL Server; devpi5 for gateways) |
+| Registry | Self-hosted Docker Registry (registry:2 on hvo-docker, exposed as registry.hualapaivalleyobservatory.org) |
+| Secrets | Azure Key Vault (obs-infra-kv) — only Azure resource besides the Tailscale proxy VM |
 
 ---
 

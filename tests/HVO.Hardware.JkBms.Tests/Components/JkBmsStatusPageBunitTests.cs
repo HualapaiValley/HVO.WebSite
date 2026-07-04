@@ -37,6 +37,7 @@ public sealed class JkBmsStatusPageBunitTests : BunitContext
         poller.DeviceStates[1].LatestSettings = new SettingsPacket { NominalCapacityMah = 280_000 };
         Services.AddSingleton(poller);
         Services.AddSingleton(CreateForwarder());
+        Services.AddHttpClient();
         Services.AddSingleton(NullLogger<HVO.Hardware.JkBms.Components.Pages.Status>.Instance);
 
         var component = Render<HVO.Hardware.JkBms.Components.Pages.Status>();
@@ -54,6 +55,7 @@ public sealed class JkBmsStatusPageBunitTests : BunitContext
     {
         Services.AddSingleton(CreatePoller([]));
         Services.AddSingleton(CreateForwarder());
+        Services.AddHttpClient();
         Services.AddSingleton(NullLogger<HVO.Hardware.JkBms.Components.Pages.Status>.Instance);
 
         var component = Render<HVO.Hardware.JkBms.Components.Pages.Status>();
@@ -96,6 +98,7 @@ public sealed class JkBmsStatusPageBunitTests : BunitContext
             new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
             Array.Empty<IReadingForwarder>(),
             Options.Create(new OutboxOptions()),
+            new RuntimeOutboxSettings(),
             new BmsTelemetry(),
             new NoOpTelemetryService(),
             NullLogger<ForwarderCoordinator>.Instance);

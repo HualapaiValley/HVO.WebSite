@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
@@ -6,6 +8,7 @@ using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 using HVO.Gateway.SolarAssistant.Workers;
 using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MudBlazor;
 
@@ -27,6 +30,10 @@ public partial class Status : IDisposable
     [Inject] private IOptions<SolarAssistantOptions> SolarAssistantOptionsAccessor { get; set; } = default!;
 
     [Inject] private IOptions<OutboxOptions> OutboxOptionsAccessor { get; set; } = default!;
+
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+
+    [Inject] private ILogger<Status> Logger { get; set; } = default!;
 
     private SolarAssistantOptions SolarOptions => SolarAssistantOptionsAccessor.Value;
     private OutboxOptions OutboxOptions => OutboxOptionsAccessor.Value;
@@ -149,4 +156,64 @@ public partial class Status : IDisposable
         SolarAssistantGatewayHealthSeverity.Warning => Severity.Warning,
         _ => Severity.Info,
     };
+
+    private int _outboxBatchSize = 50;
+    private int _outboxSweepIntervalSeconds = 5;
+    private bool _outboxDirty;
+    private bool _outboxOverride;
+    private string? _outboxStatusMessage;
+
+    private async Task SaveOutboxSettingsAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient();
+            var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
+                new { batchSize = _outboxBatchSize, sweepIntervalSeconds = _outboxSweepIntervalSeconds });
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<OutboxSettingsResponse>();
+                _outboxOverride = result?.IsOverride ?? false;
+                _outboxStatusMessage = _outboxOverride
+                    ? $"Override: batch={_outboxBatchSize}, sweep={_outboxSweepIntervalSeconds}s"
+                    : $"Defaults: batch={_outboxBatchSize}, sweep={_outboxSweepIntervalSeconds}s";
+                _outboxDirty = false;
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                _outboxStatusMessage = $"Failed: {error}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _outboxStatusMessage = $"Error: {ex.Message}";
+            Logger.LogError(ex, "Error saving SolarAssistant outbox runtime settings");
+        }
+    }
+
+    private async Task ResetOutboxSettingsAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient();
+            var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
+                new { reset = true });
+
+            if (response.IsSuccessStatusCode)
+            {
+                _outboxBatchSize = 50;
+                _outboxSweepIntervalSeconds = 5;
+                _outboxOverride = false;
+                _outboxDirty = false;
+                _outboxStatusMessage = "Reset to configured defaults.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _outboxStatusMessage = $"Reset error: {ex.Message}";
+            Logger.LogError(ex, "Error resetting SolarAssistant outbox runtime settings");
+        }
+    }
 }

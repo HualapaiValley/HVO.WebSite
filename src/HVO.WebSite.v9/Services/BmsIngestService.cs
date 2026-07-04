@@ -83,10 +83,11 @@ public sealed class BmsIngestService : IBmsIngestService
             .Select(x => (x.DeviceId, x.RecordedAt))
             .ToHashSet();
 
-        int inserted = 0;
-        int skipped = 0;
+        var skipped = 0;
         var failures = new List<BmsIngestFailure>();
         var seenInBatch = new HashSet<(int, DateTime)>();
+
+        var validRecords = new List<(BmsIngestRequest Request, int DeviceId, DateTime RecordedAt)>();
 
         foreach (var request in requests)
         {
@@ -122,18 +123,51 @@ public sealed class BmsIngestService : IBmsIngestService
                 continue;
             }
 
-            try
+            validRecords.Add((request, deviceId, recordedAt));
+        }
+
+        if (validRecords.Count == 0)
+        {
+            _logger.LogInformation(
+                "BMS batch ingest: 0 inserted, {Skipped} skipped, {Failed} failed. Devices: {Addresses}",
+                skipped, failures.Count, string.Join(", ", addresses));
+
+            return new BmsIngestBatchResponse { Inserted = 0, Skipped = skipped, Failed = failures };
+        }
+
+        var distinctDeviceIds = validRecords.Select(v => v.DeviceId).Distinct().ToList();
+
+        var latestConfigs = await _db.BmsDeviceConfigs
+            .Where(c => distinctDeviceIds.Contains(c.DeviceId))
+            .GroupBy(c => c.DeviceId)
+            .Select(g => g.OrderByDescending(c => c.RecordedAt).First())
+            .ToDictionaryAsync(c => c.DeviceId, ct);
+
+        var latestInfos = await _db.BmsDeviceInfos
+            .Where(i => distinctDeviceIds.Contains(i.DeviceId))
+            .GroupBy(i => i.DeviceId)
+            .Select(g => g.OrderByDescending(i => i.RecordedAt).First())
+            .ToDictionaryAsync(i => i.DeviceId, ct);
+
+        var openAlarms = await _db.BmsAlarms
+            .Where(a => distinctDeviceIds.Contains(a.DeviceId) && a.ClearedAt == null)
+            .ToDictionaryAsync(a => a.DeviceId, ct);
+
+        var inserted = 0;
+
+        try
+        {
+            var strategy = _db.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
             {
-                var strategy = _db.Database.CreateExecutionStrategy();
-                await strategy.ExecuteAsync(async () =>
+                await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+                var readings = new List<BmsReading>(validRecords.Count);
+                var readingIndexByKey = new Dictionary<(int, DateTime), int>();
+
+                foreach (var (request, deviceId, recordedAt) in validRecords)
                 {
-                    await using var tx = await _db.Database.BeginTransactionAsync(ct);
-
-                    if (request.Config is not null)
-                        await UpsertDeviceConfigAsync(deviceId, recordedAt, request.Config, ct);
-
-                    if (request.DeviceInfo is not null)
-                        await UpsertDeviceInfoAsync(deviceId, recordedAt, request.DeviceInfo, ct);
+                    var readingReq = request.Reading;
 
                     var packVoltageMv = readingReq.PackVoltageMv > 0
                         ? readingReq.PackVoltageMv
@@ -165,88 +199,163 @@ public sealed class BmsIngestService : IBmsIngestService
                         AlarmBitmask = readingReq.AlarmBitmask,
                     };
 
-                    _db.BmsReadings.Add(reading);
-                    await _db.SaveChangesAsync(ct);
+                    readings.Add(reading);
+                    readingIndexByKey[(deviceId, recordedAt)] = readings.Count - 1;
+                }
+
+                _db.BmsReadings.AddRange(readings);
+                await _db.SaveChangesAsync(ct);
+
+                var cellVoltages = new List<BmsCellVoltage>();
+                var cellResistances = new List<BmsCellResistance>();
+
+                foreach (var (request, deviceId, recordedAt) in validRecords)
+                {
+                    var readingReq = request.Reading;
+                    var readingIndex = readingIndexByKey[(deviceId, recordedAt)];
+                    var readingId = readings[readingIndex].Id;
 
                     if (readingReq.CellVoltagesMv is { Count: > 0 })
                     {
-                        var voltageRows = readingReq.CellVoltagesMv
-                            .Select((v, i) => new BmsCellVoltage
+                        for (var i = 0; i < readingReq.CellVoltagesMv.Count; i++)
+                        {
+                            cellVoltages.Add(new BmsCellVoltage
                             {
-                                ReadingId = reading.Id,
+                                ReadingId = readingId,
                                 CellIndex = (byte)(i + 1),
-                                VoltageMv = v,
-                            })
-                            .ToList();
-                        _db.BmsCellVoltages.AddRange(voltageRows);
+                                VoltageMv = readingReq.CellVoltagesMv[i],
+                            });
+                        }
                     }
 
                     if (readingReq.CellResistancesMOhm is { Count: > 0 })
                     {
-                        var resistanceRows = readingReq.CellResistancesMOhm
-                            .Select((r, i) => new BmsCellResistance
+                        for (var i = 0; i < readingReq.CellResistancesMOhm.Count; i++)
+                        {
+                            cellResistances.Add(new BmsCellResistance
                             {
-                                ReadingId = reading.Id,
+                                ReadingId = readingId,
                                 CellIndex = (byte)(i + 1),
-                                ResistanceMOhm = r,
-                            })
-                            .ToList();
-                        _db.BmsCellResistances.AddRange(resistanceRows);
+                                ResistanceMOhm = readingReq.CellResistancesMOhm[i],
+                            });
+                        }
+                    }
+                }
+
+                if (cellVoltages.Count > 0)
+                    _db.BmsCellVoltages.AddRange(cellVoltages);
+                if (cellResistances.Count > 0)
+                    _db.BmsCellResistances.AddRange(cellResistances);
+
+                foreach (var (request, deviceId, recordedAt) in validRecords)
+                {
+                    if (request.Config is not null)
+                    {
+                        if (!latestConfigs.TryGetValue(deviceId, out var lastConfig) ||
+                            !ConfigEquals(lastConfig, request.Config))
+                        {
+                            _db.BmsDeviceConfigs.Add(BuildConfigEntity(deviceId, recordedAt, request.Config));
+                            latestConfigs[deviceId] = BuildConfigEntity(deviceId, recordedAt, request.Config);
+                        }
                     }
 
-                    if (readingReq.CellVoltagesMv is { Count: > 0 } || readingReq.CellResistancesMOhm is { Count: > 0 })
-                        await _db.SaveChangesAsync(ct);
+                    if (request.DeviceInfo is not null)
+                    {
+                        if (!latestInfos.TryGetValue(deviceId, out var lastInfo) ||
+                            !DeviceInfoEquals(lastInfo, request.DeviceInfo))
+                        {
+                            _db.BmsDeviceInfos.Add(BuildInfoEntity(deviceId, recordedAt, request.DeviceInfo));
+                            latestInfos[deviceId] = BuildInfoEntity(deviceId, recordedAt, request.DeviceInfo);
+                        }
+                    }
+                }
 
-                    await HandleAlarmChangeAsync(deviceId, recordedAt, readingReq.AlarmBitmask, ct);
+                foreach (var (request, deviceId, recordedAt) in validRecords)
+                {
+                    var alarmBitmask = request.Reading.AlarmBitmask;
+                    var hasOpenAlarm = openAlarms.TryGetValue(deviceId, out var openAlarm);
 
-                    await tx.CommitAsync(ct);
+                    if (alarmBitmask != 0)
+                    {
+                        if (!hasOpenAlarm || openAlarm!.AlarmBitmask != alarmBitmask)
+                        {
+                            if (hasOpenAlarm)
+                            {
+                                openAlarm!.ClearedAt = recordedAt;
+                                _db.BmsAlarms.Update(openAlarm);
+                            }
 
-                    inserted++;
+                            var newAlarm = new BmsAlarm
+                            {
+                                DeviceId = deviceId,
+                                AlarmBitmask = alarmBitmask,
+                                ActivatedAt = recordedAt,
+                            };
+                            _db.BmsAlarms.Add(newAlarm);
+                            openAlarms[deviceId] = newAlarm;
+                        }
+                    }
+                    else if (hasOpenAlarm)
+                    {
+                        openAlarm!.ClearedAt = recordedAt;
+                        _db.BmsAlarms.Update(openAlarm);
+                        openAlarms.Remove(deviceId);
+                    }
+                }
 
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+
+                inserted = validRecords.Count;
+
+                _logger.LogInformation(
+                    "BMS batch ingest: {Inserted} inserted, {Skipped} skipped, {Failed} failed in single TX. Devices: {Addresses}",
+                    inserted, skipped, failures.Count, string.Join(", ", addresses));
+
+                foreach (var (request, deviceId, recordedAt) in validRecords)
+                {
                     _logger.LogDebug(
-                        "Ingested BMS reading {Id} for device {Address} at {RecordedAt}",
-                        reading.Id, readingReq.DeviceAddress, recordedAt);
-                });
-            }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
-            {
-                skipped++;
-                _logger.LogDebug(ex,
-                    "Duplicate BMS reading for {Address} at {RecordedAt} — skipped",
-                    readingReq.DeviceAddress, recordedAt);
-            }
-            catch (Exception ex)
+                        "Ingested BMS reading for device {Address} at {RecordedAt}",
+                        request.Reading.DeviceAddress, recordedAt);
+                }
+            });
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            _logger.LogWarning(ex,
+                "BMS batch insert hit constraint violation; {Count} records skipped. {Addresses}",
+                validRecords.Count, string.Join(", ", addresses));
+            skipped += validRecords.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "BMS batch transaction failed for {Count} records. Marking all as failures. {Addresses}",
+                validRecords.Count, string.Join(", ", addresses));
+
+            foreach (var (request, _, recordedAt) in validRecords)
             {
                 failures.Add(new BmsIngestFailure
                 {
-                    DeviceAddress = readingReq.DeviceAddress,
+                    DeviceAddress = request.Reading.DeviceAddress,
                     RecordedAtUtc = recordedAt,
-                    Error = "The BMS reading could not be ingested.",
+                    Error = "Batch ingest failed; record could not be ingested.",
                 });
-                _logger.LogError(ex,
-                    "Failed to ingest BMS reading for {Address} at {RecordedAt}",
-                    readingReq.DeviceAddress, recordedAt);
             }
         }
 
-        _logger.LogInformation(
-            "BMS batch ingest: {Inserted} inserted, {Skipped} skipped, {Failed} failed. Devices: {Addresses}",
-            inserted, skipped, failures.Count, string.Join(", ", addresses));
+        if (inserted > 0)
+        {
+            _logger.LogInformation(
+                "BMS batch ingest: {Inserted} inserted, {Skipped} skipped, {Failed} failed. Devices: {Addresses}",
+                inserted, skipped, failures.Count, string.Join(", ", addresses));
+        }
 
         return new BmsIngestBatchResponse { Inserted = inserted, Skipped = skipped, Failed = failures };
     }
 
-    private async Task UpsertDeviceConfigAsync(int deviceId, DateTime recordedAt, BmsConfigRequest cfg, CancellationToken ct)
-    {
-        var last = await _db.BmsDeviceConfigs
-            .Where(c => c.DeviceId == deviceId)
-            .OrderByDescending(c => c.RecordedAt)
-            .FirstOrDefaultAsync(ct);
-
-        if (last is not null && ConfigEquals(last, cfg))
-            return;
-
-        _db.BmsDeviceConfigs.Add(new BmsDeviceConfig
+    private static BmsDeviceConfig BuildConfigEntity(int deviceId, DateTime recordedAt, BmsConfigRequest cfg) =>
+        new()
         {
             DeviceId = deviceId,
             RecordedAt = recordedAt,
@@ -277,22 +386,10 @@ public sealed class BmsIngestService : IBmsIngestService
             DischargeOtpRecoveryC = cfg.DischargeOtpRecoveryC,
             MosOtpC = cfg.MosOtpC,
             MosOtpRecoveryC = cfg.MosOtpRecoveryC,
-        });
+        };
 
-        await _db.SaveChangesAsync(ct);
-    }
-
-    private async Task UpsertDeviceInfoAsync(int deviceId, DateTime recordedAt, BmsDeviceInfoRequest info, CancellationToken ct)
-    {
-        var last = await _db.BmsDeviceInfos
-            .Where(i => i.DeviceId == deviceId)
-            .OrderByDescending(i => i.RecordedAt)
-            .FirstOrDefaultAsync(ct);
-
-        if (last is not null && DeviceInfoEquals(last, info))
-            return;
-
-        _db.BmsDeviceInfos.Add(new BmsDeviceInfo
+    private static BmsDeviceInfo BuildInfoEntity(int deviceId, DateTime recordedAt, BmsDeviceInfoRequest info) =>
+        new()
         {
             DeviceId = deviceId,
             RecordedAt = recordedAt,
@@ -303,45 +400,7 @@ public sealed class BmsIngestService : IBmsIngestService
             DeviceName = info.DeviceName,
             ManufacturingDate = info.ManufacturingDate,
             UserData = info.UserData,
-        });
-
-        await _db.SaveChangesAsync(ct);
-    }
-
-    private async Task HandleAlarmChangeAsync(int deviceId, DateTime recordedAt, long alarmBitmask, CancellationToken ct)
-    {
-        var openAlarm = await _db.BmsAlarms
-            .Where(a => a.DeviceId == deviceId && a.ClearedAt == null)
-            .OrderByDescending(a => a.ActivatedAt)
-            .FirstOrDefaultAsync(ct);
-
-        if (alarmBitmask != 0)
-        {
-            if (openAlarm is null || openAlarm.AlarmBitmask != alarmBitmask)
-            {
-                if (openAlarm is not null)
-                {
-                    openAlarm.ClearedAt = recordedAt;
-                    _db.BmsAlarms.Update(openAlarm);
-                }
-
-                _db.BmsAlarms.Add(new BmsAlarm
-                {
-                    DeviceId = deviceId,
-                    AlarmBitmask = alarmBitmask,
-                    ActivatedAt = recordedAt,
-                });
-
-                await _db.SaveChangesAsync(ct);
-            }
-        }
-        else if (openAlarm is not null)
-        {
-            openAlarm.ClearedAt = recordedAt;
-            _db.BmsAlarms.Update(openAlarm);
-            await _db.SaveChangesAsync(ct);
-        }
-    }
+        };
 
     private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
         ex.InnerException is SqlException sqlEx &&

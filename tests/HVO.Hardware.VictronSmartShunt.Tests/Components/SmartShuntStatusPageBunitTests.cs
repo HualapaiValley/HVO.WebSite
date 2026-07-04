@@ -10,6 +10,7 @@ using HVO.Hardware.VictronSmartShunt.Workers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.JSInterop;
 using MudBlazor.Services;
 
 namespace HVO.Hardware.VictronSmartShunt.Tests.Components;
@@ -17,10 +18,16 @@ namespace HVO.Hardware.VictronSmartShunt.Tests.Components;
 [TestClass]
 public sealed class SmartShuntStatusPageBunitTests : BunitContext
 {
+    public SmartShuntStatusPageBunitTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+    }
+
     [TestMethod]
     public void RendersCurrentSnapshotAndHealth()
     {
         Services.AddMudServices();
+        Services.AddHttpClient();
         var options = new SmartShuntOptions { Address = "D0:39:72:AA:BB:CC", EnablePrivateEnrichment = true, PublicOnly = false };
         var worker = CreateWorker(options);
         SetWorkerSnapshot(worker, CreateSnapshot(), DateTime.UtcNow);
@@ -43,6 +50,7 @@ public sealed class SmartShuntStatusPageBunitTests : BunitContext
     public void RendersFallbacksWhenSnapshotMissing()
     {
         Services.AddMudServices();
+        Services.AddHttpClient();
         var options = new SmartShuntOptions { Address = "D0:39:72:AA:BB:CC", EnablePrivateEnrichment = false };
         var worker = CreateWorker(options);
         var forwarder = CreateForwarder();
@@ -79,7 +87,7 @@ public sealed class SmartShuntStatusPageBunitTests : BunitContext
         => new(new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), new FakeSessionState(), new FakePrivateInfoSource(), Options.Create(options), NullLogger<SmartShuntWorker>.Instance);
 
     private static PowerApiForwarder CreateForwarder()
-        => new(new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), new FakeHttpClientFactory(), Options.Create(new OutboxOptions()), NullLogger<PowerApiForwarder>.Instance);
+        => new(new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), new FakeHttpClientFactory(), Options.Create(new OutboxOptions()), new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance);
 
     private static SmartShuntGatewayHealthService CreateHealthService(SmartShuntWorker worker, PowerApiForwarder forwarder, SmartShuntOptions options)
         => new(worker, forwarder, Options.Create(options), Options.Create(new OutboxOptions()));

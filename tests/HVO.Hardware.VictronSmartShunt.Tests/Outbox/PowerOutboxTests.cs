@@ -69,7 +69,7 @@ public sealed class PowerOutboxTests
                 ApiKey = "test-api-key",
                 BatchSize = 10,
             }),
-            NullLogger<PowerApiForwarder>.Instance);
+            new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance);
 
         await forwarder.SweepAsync(CancellationToken.None);
 
@@ -107,7 +107,7 @@ public sealed class PowerOutboxTests
                 MaxRetryAttempts = 10,
                 MaxBackoffSeconds = 300,
             }),
-            NullLogger<PowerApiForwarder>.Instance);
+            new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance);
 
         await forwarder.SweepAsync(CancellationToken.None);
 
@@ -145,7 +145,7 @@ public sealed class PowerOutboxTests
                 ApiEndpoint = "https://example.test/api/v1/power/readings",
                 ApiKey = "test-api-key",
             }),
-            NullLogger<PowerApiForwarder>.Instance);
+            new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance);
 
         await forwarder.RequeueRetryExhaustedAsync(CancellationToken.None);
 

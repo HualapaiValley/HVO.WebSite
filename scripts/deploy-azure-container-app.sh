@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# DEPRECATED — The website is now deployed on hvo-docker via deploy-hvo-website.sh.
+# This script is retained for reference. Azure Container Apps is no longer used.
 
 set -euo pipefail
 

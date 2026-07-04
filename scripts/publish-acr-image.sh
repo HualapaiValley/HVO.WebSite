@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# NOTE — This script was replaced by publish-image.sh for the self-hosted
+# registry at registry.hualapaivalleyobservatory.org. This version still
+# references az acr login and is retained for reference only.
+# Use scripts/publish-image.sh for the self-hosted registry workflow.
 
 set -euo pipefail
 
@@ -173,7 +177,12 @@ else
 	printf 'Latest tag: disabled (use --push-latest to publish mutable latest)\n'
 fi
 
-run_cmd az acr login --name "${AZURE_CONTAINER_REGISTRY_NAME}"
+if [[ -n "${HVO_CONTAINER_REGISTRY_USERNAME:-}" && -n "${HVO_CONTAINER_REGISTRY_PASSWORD:-}" ]]; then
+	echo "Logging in to ${AZURE_CONTAINER_REGISTRY_LOGIN_SERVER} with container registry credentials"
+	echo "${HVO_CONTAINER_REGISTRY_PASSWORD}" | run_cmd docker login "${AZURE_CONTAINER_REGISTRY_LOGIN_SERVER}" --username "${HVO_CONTAINER_REGISTRY_USERNAME}" --password-stdin
+else
+	run_cmd az acr login --name "${AZURE_CONTAINER_REGISTRY_NAME}"
+fi
 
 docker_build_args=("${build_args[@]}" -t "${version_ref}")
 if [[ "${push_latest}" == true ]]; then

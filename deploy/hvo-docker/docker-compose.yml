@@ -1,0 +1,48 @@
+services:
+  hvo-website:
+    build:
+      context: ../..
+      dockerfile: src/HVO.WebSite.v9/Dockerfile
+    ports:
+      - "80:8080"
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      EnableHttpsRedirect: "false"
+      HealthChecks__ExposeDetailed: "false"
+      ConnectionStrings__HualapaiValleyObservatory: "${ConnectionStrings__HualapaiValleyObservatory}"
+      KeyVault__Uri: "${KeyVault__Uri:-https://obs-infra-kv.vault.azure.net/}"
+      AZURE_CLIENT_ID: "${AZURE_CLIENT_ID}"
+      AZURE_CLIENT_SECRET: "${AZURE_CLIENT_SECRET}"
+      AZURE_TENANT_ID: "${AZURE_TENANT_ID}"
+      Seeding__DavisApiKey: "${Seeding__DavisApiKey}"
+      Seeding__WeatherReadApiKey: "${Seeding__WeatherReadApiKey}"
+      Seeding__BmsApiKey: "${Seeding__BmsApiKey}"
+      Seeding__PowerApiKey: "${Seeding__PowerApiKey}"
+      Seeding__PowerReadApiKey: "${Seeding__PowerReadApiKey}"
+      PowerStatus__SolarAssistantGatewayUrl: "${PowerStatus__SolarAssistantGatewayUrl:-http://devpi5:5300}"
+      OTEL_SERVICE_NAME: hvo-website
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_COLLECTOR_ENDPOINT:-}"
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      DataProtection__ApplicationName: HVO.WebSite.v9
+      DataProtection__KeyIdentifier: ""
+      DataProtection__BlobUri: ""
+    networks:
+      - website
+      - mssql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+networks:
+  website:
+    name: website_default
+    external: true
+  mssql:
+    name: mssql_default
+    external: true

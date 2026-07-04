@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using HVO.Edge.Outbox;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Workers;
 using HVO.WebSite.Themes.Components.Format;
@@ -14,6 +16,7 @@ public partial class Status : IDisposable
     [Inject] private ILogger<Status> Logger { get; set; } = default!;
     [Inject] private BmsPollerWorker Poller { get; set; } = default!;
     [Inject] private ForwarderCoordinator Forwarder { get; set; } = default!;
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
 
     private IReadOnlyList<DevicePollState> Devices => Poller.DeviceStates;
     private IReadOnlyList<DevicePollState> ReportingDevices => Devices.Where(device => device.LatestReading is not null).ToList();
@@ -113,5 +116,82 @@ public partial class Status : IDisposable
             return "badge-error";
 
         return "badge-none";
+    }
+
+    private int _outboxBatchSize;
+    private int _outboxSweepIntervalSeconds;
+    private int _configuredOutboxBatchSize = 50;
+    private int _configuredOutboxSweepIntervalSeconds = 5;
+    private bool _outboxDirty;
+    private bool _outboxOverride;
+    private string? _outboxStatusMessage;
+
+    private string FormatLastSent()
+    {
+        if (Forwarder.LastSentAt is { } lastSent)
+            return HvoFormat.Timestamp(lastSent, "MMM d, yyyy - HH:mm:ss");
+        return "--";
+    }
+
+    private async Task SaveOutboxSettingsAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient();
+            var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
+                new { batchSize = _outboxBatchSize, sweepIntervalSeconds = _outboxSweepIntervalSeconds });
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<OutboxSettingsResponse>();
+                _outboxOverride = result?.IsOverride ?? false;
+                _outboxStatusMessage = _outboxOverride
+                    ? $"Override active: batch={_outboxBatchSize}, sweep={_outboxSweepIntervalSeconds}s"
+                    : $"Defaults: batch={_outboxBatchSize}, sweep={_outboxSweepIntervalSeconds}s";
+                _outboxDirty = false;
+                Logger.LogInformation("BMS outbox runtime settings saved: batch={BatchSize}, sweep={SweepIntervalSeconds}s",
+                    _outboxBatchSize, _outboxSweepIntervalSeconds);
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                _outboxStatusMessage = $"Failed: {error}";
+                Logger.LogWarning("Failed to save BMS outbox settings: {Error}", error);
+            }
+        }
+        catch (Exception ex)
+        {
+            _outboxStatusMessage = $"Error: {ex.Message}";
+            Logger.LogError(ex, "Error saving BMS outbox runtime settings");
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ResetOutboxSettingsAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient();
+            var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
+                new { reset = true });
+
+            if (response.IsSuccessStatusCode)
+            {
+                _outboxBatchSize = _configuredOutboxBatchSize;
+                _outboxSweepIntervalSeconds = _configuredOutboxSweepIntervalSeconds;
+                _outboxOverride = false;
+                _outboxDirty = false;
+                _outboxStatusMessage = "Reset to configured defaults.";
+                Logger.LogInformation("BMS outbox runtime settings reset to defaults");
+            }
+        }
+        catch (Exception ex)
+        {
+            _outboxStatusMessage = $"Reset error: {ex.Message}";
+            Logger.LogError(ex, "Error resetting BMS outbox runtime settings");
+        }
+
+        StateHasChanged();
     }
 }

@@ -50,6 +50,7 @@ public sealed class PowerApiForwarderTests
             sp.GetRequiredService<IServiceScopeFactory>(),
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<IOptions<OutboxOptions>>(),
+            new RuntimeOutboxSettings(),
             NullLogger<PowerApiForwarder>.Instance));
 
         _provider = services.BuildServiceProvider();
