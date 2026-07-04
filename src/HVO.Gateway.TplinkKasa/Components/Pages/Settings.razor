@@ -620,6 +620,7 @@ capability.ToString()).Take(4));
         try
         {
             var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", GatewayOptions.Value.ApiKey);
             var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
                 new { batchSize = _outboxBatchSize, sweepIntervalSeconds = _outboxSweepIntervalSeconds });
 
@@ -646,6 +647,7 @@ capability.ToString()).Take(4));
         try
         {
             var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", GatewayOptions.Value.ApiKey);
             var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
                 new { reset = true });
 

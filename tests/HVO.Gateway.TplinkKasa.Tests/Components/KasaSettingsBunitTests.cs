@@ -75,7 +75,7 @@ public sealed class KasaSettingsBunitTests : BunitContext
             var tempServices = new ServiceCollection();
             tempServices.AddHttpClient();
             tempServices.AddLogging();
-            var tempProvider = tempServices.BuildServiceProvider();
+            using var tempProvider = tempServices.BuildServiceProvider();
             return new KasaOutboxForwarder(
                 tempProvider.GetRequiredService<IServiceScopeFactory>(),
                 tempProvider.GetRequiredService<IHttpClientFactory>(),

@@ -168,6 +168,7 @@ public partial class Status : IDisposable
         try
         {
             var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptionsAccessor.Value.ApiKey);
             var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
                 new { batchSize = _outboxBatchSize, sweepIntervalSeconds = _outboxSweepIntervalSeconds });
 
@@ -198,6 +199,7 @@ public partial class Status : IDisposable
         try
         {
             var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptionsAccessor.Value.ApiKey);
             var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
                 new { reset = true });
 

@@ -1,10 +1,12 @@
 using System.Net.Http.Json;
 using HVO.Edge.Outbox;
+using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Workers;
 using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.JkBms.Components.Pages;
 
@@ -17,6 +19,7 @@ public partial class Status : IDisposable
     [Inject] private BmsPollerWorker Poller { get; set; } = default!;
     [Inject] private ForwarderCoordinator Forwarder { get; set; } = default!;
     [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    [Inject] private IOptions<OutboxOptions> OutboxOptions { get; set; } = default!;
 
     private IReadOnlyList<DevicePollState> Devices => Poller.DeviceStates;
     private IReadOnlyList<DevicePollState> ReportingDevices => Devices.Where(device => device.LatestReading is not null).ToList();
@@ -138,6 +141,7 @@ public partial class Status : IDisposable
         try
         {
             var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptions.Value.ApiKey);
             var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
                 new { batchSize = _outboxBatchSize, sweepIntervalSeconds = _outboxSweepIntervalSeconds });
 
@@ -173,6 +177,7 @@ public partial class Status : IDisposable
         try
         {
             var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptions.Value.ApiKey);
             var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
                 new { reset = true });
 

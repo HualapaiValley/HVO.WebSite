@@ -106,8 +106,6 @@ warn_shell_env_overrides "${compose_file}"
 if [[ -n "${image_tag}" ]]; then
 	printf 'Image tag: %s\n' "${image_tag}"
 	IMAGE_NAME="registry.hualapaivalleyobservatory.org/hvo-website:${image_tag}"
-	compose_args+=(-f -)
-	# Generate an override compose file that uses the specified image without build
 	tmp_compose="$(mktemp /tmp/hvo-website-override.XXXXXX.yml)"
 	cat > "${tmp_compose}" <<YML
 services:

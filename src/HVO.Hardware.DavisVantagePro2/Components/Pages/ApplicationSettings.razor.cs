@@ -1,9 +1,11 @@
 using System.Net.Http.Json;
 using HVO.Edge.Outbox;
+using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.Workers;
 using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.DavisVantagePro2.Components.Pages;
 
@@ -12,6 +14,7 @@ public partial class ApplicationSettings : IDisposable
     [Inject] private ILogger<ApplicationSettings> Logger { get; set; } = default!;
     [Inject] private OutboxForwarder Forwarder { get; set; } = default!;
     [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    [Inject] private IOptions<OutboxOptions> OutboxOptions { get; set; } = default!;
 
     private int _batchSize;
     private int _sweepIntervalSeconds;
@@ -49,6 +52,7 @@ public partial class ApplicationSettings : IDisposable
         try
         {
             var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptions.Value.ApiKey);
             var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
                 new { batchSize = _batchSize, sweepIntervalSeconds = _sweepIntervalSeconds });
 
@@ -84,6 +88,7 @@ public partial class ApplicationSettings : IDisposable
         try
         {
             var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptions.Value.ApiKey);
             var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
                 new { reset = true });
 

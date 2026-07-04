@@ -22,6 +22,7 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
     [Inject] protected PowerApiForwarder Forwarder { get; set; } = default!;
     [Inject] protected SmartShuntGatewayHealthService HealthService { get; set; } = default!;
     [Inject] protected IOptions<SmartShuntOptions> OptionsAccessor { get; set; } = default!;
+    [Inject] protected IOptions<OutboxOptions> OutboxOptionsAccessor { get; set; } = default!;
     [Inject] protected IHttpClientFactory HttpClientFactory { get; set; } = default!;
     [Inject] protected ILogger<SmartShuntPageBase> Logger { get; set; } = default!;
 
@@ -137,6 +138,7 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
         try
         {
             var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptionsAccessor.Value.ApiKey);
             var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
                 new { batchSize = OutboxBatchSize, sweepIntervalSeconds = OutboxSweepIntervalSeconds });
 
@@ -167,6 +169,7 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
         try
         {
             var client = HttpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptionsAccessor.Value.ApiKey);
             var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
                 new { reset = true });
 
