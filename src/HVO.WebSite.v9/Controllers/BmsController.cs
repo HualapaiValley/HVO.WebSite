@@ -97,6 +97,7 @@ public class BmsController : ControllerBase
             return ValidationProblem(detail: $"Batch size {rawPayloads.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
 
         // Deserialize each (possibly unwrapped) payload
+        var deserFailures = new List<BmsIngestFailure>();
         var requests = new List<BmsIngestRequest>();
         foreach (var (payload, index) in rawPayloads.Select((p, i) => (p, i)))
         {
@@ -107,12 +108,22 @@ public class BmsController : ControllerBase
                 if (request is not null)
                     requests.Add(request);
                 else
-                    _logger.LogWarning("BMS record at index {Index} deserialized to null — skipped", index);
+                {
+                    deserFailures.Add(ExtractBmsFailureMetadata(payload, $"Record at index {index} deserialized to null."));
+                    _logger.LogWarning("BMS record at index {Index} deserialized to null — reported as failure", index);
+                }
             }
             catch (JsonException ex)
             {
-                _logger.LogWarning(ex, "BMS record at index {Index} has invalid JSON — skipped", index);
+                deserFailures.Add(ExtractBmsFailureMetadata(payload, $"Record at index {index}: invalid JSON — {ex.Message}"));
+                _logger.LogWarning(ex, "BMS record at index {Index} has invalid JSON — reported as failure", index);
             }
+        }
+
+        if (requests.Count == 0 && deserFailures.Count > 0)
+        {
+            return CreatedAtAction(nameof(IngestReadings), new { },
+                new BmsIngestBatchResponse { Inserted = 0, Skipped = 0, Failed = deserFailures });
         }
 
         if (requests.Count == 0)
@@ -133,8 +144,17 @@ public class BmsController : ControllerBase
 
         var response = await _ingestService.IngestReadingsAsync(requests, ct);
 
-        return CreatedAtAction(nameof(IngestReadings), new { },
-            response);
+        if (deserFailures.Count > 0)
+        {
+            response = new BmsIngestBatchResponse
+            {
+                Inserted = response.Inserted,
+                Skipped = response.Skipped,
+                Failed = [.. response.Failed, .. deserFailures],
+            };
+        }
+
+        return CreatedAtAction(nameof(IngestReadings), new { }, response);
     }
 
     // -------------------------------------------------------------------------
@@ -164,4 +184,30 @@ public class BmsController : ControllerBase
         return errors;
     }
 
+    private static BmsIngestFailure ExtractBmsFailureMetadata(
+        JsonElement payload, string error)
+    {
+        string? deviceAddress = null;
+        DateTime? recordedAtUtc = null;
+        if (payload.ValueKind == JsonValueKind.Object)
+        {
+            if (payload.TryGetProperty("reading", out var reading) && reading.ValueKind == JsonValueKind.Object)
+            {
+                if (reading.TryGetProperty("deviceAddress", out var da) && da.ValueKind == JsonValueKind.String)
+                    deviceAddress = da.GetString();
+            }
+
+            if (payload.TryGetProperty("recordedAtUtc", out var ra) && ra.ValueKind == JsonValueKind.String)
+                recordedAtUtc = ra.GetDateTime();
+            else if (payload.TryGetProperty("recordedAt", out var rad) && rad.ValueKind == JsonValueKind.String)
+                recordedAtUtc = rad.GetDateTime();
+        }
+
+        return new BmsIngestFailure
+        {
+            DeviceAddress = deviceAddress ?? string.Empty,
+            RecordedAtUtc = recordedAtUtc ?? DateTime.UtcNow,
+            Error = error,
+        };
+    }
 }

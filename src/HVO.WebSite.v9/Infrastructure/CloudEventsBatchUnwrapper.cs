@@ -16,7 +16,8 @@ public static class CloudEventsBatchUnwrapper
     {
         return firstElement.ValueKind == JsonValueKind.Object
             && firstElement.TryGetProperty("specversion", out var sv)
-            && sv.ValueKind == JsonValueKind.String;
+            && sv.ValueKind == JsonValueKind.String
+            && sv.GetString() == "1.0";
     }
 
     /// <summary>

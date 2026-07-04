@@ -174,6 +174,15 @@ public class WeatherIngestController : ControllerBase
         var deserErrors = new List<WeatherRawBatchFailure>();
         foreach (var (payload, index) in rawPayloads.Select((p, i) => (p, i)))
         {
+            DateTime? fallbackTime = null;
+            if (payload.ValueKind == JsonValueKind.Object)
+            {
+                if (payload.TryGetProperty("recordedAt", out var ra) && ra.ValueKind == JsonValueKind.String)
+                    fallbackTime = ra.GetDateTime();
+                else if (payload.TryGetProperty("recordedAtUtc", out var rau) && rau.ValueKind == JsonValueKind.String)
+                    fallbackTime = rau.GetDateTime();
+            }
+
             try
             {
                 var request = payload.Deserialize<IngestWeatherRawRequest>(
@@ -183,7 +192,7 @@ public class WeatherIngestController : ControllerBase
                 else
                     deserErrors.Add(new WeatherRawBatchFailure
                     {
-                        RecordedAt = DateTime.UtcNow,
+                        RecordedAt = fallbackTime ?? DateTime.UtcNow,
                         Error = $"Record at index {index} deserialized to null."
                     });
             }
@@ -191,7 +200,7 @@ public class WeatherIngestController : ControllerBase
             {
                 deserErrors.Add(new WeatherRawBatchFailure
                 {
-                    RecordedAt = DateTime.UtcNow,
+                    RecordedAt = fallbackTime ?? DateTime.UtcNow,
                     Error = $"Record at index {index}: invalid JSON — {ex.Message}"
                 });
             }

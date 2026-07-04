@@ -115,6 +115,7 @@ public class PowerIngestController : ControllerBase
 
         // Deserialize each (possibly unwrapped) payload
         var requests = new List<PowerReadingIngestRequest>();
+        var deserFailures = new List<PowerReadingBatchFailure>();
         foreach (var (payload, index) in rawPayloads.Select((p, i) => (p, i)))
         {
             try
@@ -123,12 +124,24 @@ public class PowerIngestController : ControllerBase
                 if (request is not null)
                     requests.Add(request);
                 else
-                    _logger.LogWarning("Power record at index {Index} deserialized to null — skipped", index);
+                {
+                    var failure = ExtractPowerFailureMetadata(payload, $"Record at index {index} deserialized to null.");
+                    deserFailures.Add(failure);
+                    _logger.LogWarning("Power record at index {Index} deserialized to null — reported as failure", index);
+                }
             }
             catch (JsonException ex)
             {
-                _logger.LogWarning(ex, "Power record at index {Index} has invalid JSON — skipped", index);
+                var failure = ExtractPowerFailureMetadata(payload, $"Record at index {index}: invalid JSON — {ex.Message}");
+                deserFailures.Add(failure);
+                _logger.LogWarning(ex, "Power record at index {Index} has invalid JSON — reported as failure", index);
             }
+        }
+
+        if (requests.Count == 0 && deserFailures.Count > 0)
+        {
+            return CreatedAtAction(nameof(IngestReadings), new { },
+                new PowerReadingBatchResponse { Inserted = 0, Skipped = 0, Failed = deserFailures });
         }
 
         if (requests.Count == 0)
@@ -146,7 +159,38 @@ public class PowerIngestController : ControllerBase
                 title: "Power Batch Ingest Failed");
         }
 
-        return CreatedAtAction(nameof(GetRecentReadings), new { }, result.Response);
+        return CreatedAtAction(nameof(GetRecentReadings), new { },
+            new PowerReadingBatchResponse
+            {
+                Inserted = result.Response.Inserted,
+                Skipped = result.Response.Skipped,
+                Failed = deserFailures.Count > 0
+                    ? [.. result.Response.Failed, .. deserFailures]
+                    : result.Response.Failed
+            });
+    }
+
+    private static PowerReadingBatchFailure ExtractPowerFailureMetadata(
+        JsonElement payload, string error)
+    {
+        string? sourceId = null;
+        DateTime? recordedAtUtc = null;
+        if (payload.ValueKind == JsonValueKind.Object)
+        {
+            if (payload.TryGetProperty("sourceId", out var sid) && sid.ValueKind == JsonValueKind.String)
+                sourceId = sid.GetString();
+            if (payload.TryGetProperty("recordedAtUtc", out var ra) && ra.ValueKind == JsonValueKind.String)
+                recordedAtUtc = ra.GetDateTime();
+            else if (payload.TryGetProperty("recordedAt", out var rad) && rad.ValueKind == JsonValueKind.String)
+                recordedAtUtc = rad.GetDateTime();
+        }
+
+        return new PowerReadingBatchFailure
+        {
+            SourceId = sourceId ?? string.Empty,
+            RecordedAtUtc = recordedAtUtc ?? DateTime.UtcNow,
+            Error = error,
+        };
     }
 
     [HttpPost("device-inventory")]
