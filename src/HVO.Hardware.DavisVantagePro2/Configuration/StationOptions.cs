@@ -74,6 +74,9 @@ public sealed class OutboxOptions
     [Range(0, 100000)]
     public int FailedCriticalCount { get; set; } = 1;
 
+    [Range(0, 3650)]
+    public int SentRetentionDays { get; set; } = 7;
+
     /// <summary>Path to the SQLite database file. Defaults to local application data when empty.</summary>
     public string DbPath { get; set; } = string.Empty;
 }

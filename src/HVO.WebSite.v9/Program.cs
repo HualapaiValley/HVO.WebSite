@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
 using Asp.Versioning;
 using HVO.DataModels.Extensions;
-using Azure.Monitor.OpenTelemetry.AspNetCore;
 using OpenTelemetry.Resources;
 using HVO.Enterprise.Telemetry;
-using HVO.Enterprise.Telemetry.AppInsights;
+using HVO.Enterprise.Telemetry.HealthChecks;
+using HVO.Enterprise.Telemetry.Http;
+using HVO.Enterprise.Telemetry.OpenTelemetry;
 using HVO.Enterprise.Telemetry.Serilog;
+using Serilog.Sinks.OpenTelemetry;
+using OpenTelemetry.Trace;
 using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Components.Web;
 using HVO.WebSite.v9.Middleware;
@@ -58,8 +61,8 @@ namespace HVO.WebSite.v9
             }
 
             // Build the Serilog logger and register it as an additional logging provider.
-            // Using AddSerilog (not UseSerilog) so Azure Monitor's OTel logging provider
-            // added by UseAzureMonitor() below also receives log events.
+            // Using AddSerilog (not UseSerilog) so additional OTel logging providers
+            // also receive log events.
             var logDir = Path.Combine(builder.Environment.ContentRootPath, "logs");
             Directory.CreateDirectory(logDir);
             var loggerConfig = new LoggerConfiguration()
@@ -74,6 +77,23 @@ namespace HVO.WebSite.v9
                 .WriteTo.File(new CompactJsonFormatter(), Path.Combine(logDir, "website-.log"),
                     rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30, fileSizeLimitBytes: 100_000_000,
                     rollOnFileSizeLimit: true);
+
+            // Forward logs to the OTel collector when the endpoint is configured.
+            var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+            if (!string.IsNullOrEmpty(otlpEndpoint))
+            {
+                var serviceName = Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? "hvo-website";
+                loggerConfig.WriteTo.OpenTelemetry(options =>
+                {
+                    options.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
+                    options.Protocol = Serilog.Sinks.OpenTelemetry.OtlpProtocol.HttpProtobuf;
+                    options.ResourceAttributes = new Dictionary<string, object>
+                    {
+                        ["service.name"] = serviceName
+                    };
+                });
+            }
+
             if (builder.Environment.IsDevelopment())
                 loggerConfig
                     .MinimumLevel.Override("HVO.WebSite.v9", LogEventLevel.Debug)
@@ -81,8 +101,8 @@ namespace HVO.WebSite.v9
                     .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Information)
                     .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Information);
             Log.Logger = loggerConfig.CreateLogger();
-            // ClearProviders removes default console/debug providers (Serilog handles console
-            // via its sink). Azure Monitor's OTel provider is added later by UseAzureMonitor().
+            // ClearProviders removes default console/debug providers. Additional OTel
+            // providers are added below.
             builder.Logging.ClearProviders();
             builder.Logging.AddSerilog(Log.Logger, dispose: true);
 
@@ -230,34 +250,30 @@ namespace HVO.WebSite.v9
                 opt.ApiVersionReader = new UrlSegmentApiVersionReader();
             }).AddMvc();
 
-            // Add HVO telemetry with Application Insights
-            // Connection string is loaded from Key Vault (ApplicationInsights--ConnectionString)
-            // or from appsettings.json (empty by default — graceful no-op when not configured)
-            var appInsightsConnectionString = configuration["ApplicationInsights:ConnectionString"];
-            services.AddTelemetry(tb =>
+            // ── Telemetry ──────────────────────────────────────────────────────────────────────────────
+            services.AddTelemetry(configuration.GetSection("Telemetry"));
+            // HVO library sets the OTLP endpoint programmatically, which disables AppendSignalPathToEndpoint
+            // in OTel SDK 1.10+, causing exports to POST to the root URL (404). Disable HVO's built-in
+            // exporters and use native SDK exporters with no configure callback — the SDK reads
+            // OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_EXPORTER_OTLP_PROTOCOL from environment and appends
+            // the correct signal paths (/v1/traces, /v1/metrics, /v1/logs).
+            services.AddOpenTelemetryExport(options =>
             {
-                tb.Configure(o => configuration.GetSection("Telemetry").Bind(o));
-                tb.WithAppInsights(options =>
-                {
-                    options.ConnectionString = appInsightsConnectionString;
-                });
+                options.EnableTraceExport = false;
+                options.EnableMetricsExport = false;
+                options.EnableLogExport = false;
+                options.EnableStandardMeters = true;
+                options.AdditionalMeterNames.Add(PowerIngestTelemetry.MeterName);
+                options.AdditionalActivitySources.Add("HVO.Edge");
             });
-
-            // Azure Monitor OpenTelemetry — automatic request/dependency/exception tracking
-            // and Live Metrics. Operates on a separate OTel pipeline from the HVO bridge above.
-            if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
             {
-                var serviceName = configuration["Telemetry:ServiceName"] ?? "hvo-website";
                 services.AddOpenTelemetry()
-                    .UseAzureMonitor(options =>
-                    {
-                        options.ConnectionString = appInsightsConnectionString;
-                    })
-                    .WithMetrics(mb => mb.AddMeter(PowerIngestTelemetry.MeterName))
-                    .ConfigureResource(rb => rb.AddService(
-                        serviceName: serviceName,
-                        serviceInstanceId: Environment.MachineName));
+                    .WithTracing(tb => tb.AddOtlpExporter())
+                    .WithMetrics(mb => mb.AddOtlpExporter());
             }
+            services.AddTelemetryStatistics();
+            services.AddTelemetryHealthCheck();
 
             // Add HVO Data Services with Entity Framework
             services.AddHvoDataServices(configuration);
@@ -273,6 +289,9 @@ namespace HVO.WebSite.v9
             {
                 client.BaseAddress = new Uri("http://localhost:5136");
             })
+            .AddHttpMessageHandler(sp => new TelemetryHttpMessageHandler(
+                new HttpInstrumentationOptions { CaptureRequestHeaders = false, CaptureResponseHeaders = false },
+                sp.GetService<ILogger<TelemetryHttpMessageHandler>>()))
             .ConfigurePrimaryHttpMessageHandler(sp =>
             {
                 var config = sp.GetRequiredService<IConfiguration>();

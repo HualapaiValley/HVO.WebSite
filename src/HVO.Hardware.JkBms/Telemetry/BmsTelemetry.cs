@@ -20,6 +20,7 @@ public sealed class BmsTelemetry : IDisposable
     public readonly Histogram<double> DevicePollDurationMs;
     public readonly Counter<long> OutboxRecordsForwarded;
     public readonly Histogram<double> OutboxForwardLatencyMs;
+    public readonly Counter<long> OutboxForwardFailureCount;
 
     public BmsTelemetry()
     {
@@ -40,6 +41,10 @@ public sealed class BmsTelemetry : IDisposable
         OutboxForwardLatencyMs = _meter.CreateHistogram<double>(
             "bms.outbox.forward_latency_ms", "ms",
             "Round-trip latency of outbox HTTP forward requests");
+
+        OutboxForwardFailureCount = _meter.CreateCounter<long>(
+            GatewayTelemetryConventions.MetricNames.OutboxForwardFailure, "records",
+            "Number of outbox records that failed to forward");
 
         _meter.CreateObservableGauge(
             GatewayTelemetryConventions.MetricNames.OutboxDepth, () => _outboxQueueDepth, "records",

@@ -2,11 +2,13 @@ using HVO.Enterprise.Telemetry;
 using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.OpenTelemetry;
 using HVO.Enterprise.Telemetry.Serilog;
+using HVO.Enterprise.Telemetry.Http;
 using HVO.Edge.Outbox;
 using HVO.Edge.Contracts;
 using HVO.Hardware.VictronSmartShunt.Components;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
+using HVO.Hardware.VictronSmartShunt.Telemetry;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
 using HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
 using HVO.Hardware.VictronSmartShunt.Workers;
@@ -84,6 +86,7 @@ builder.Services
         options.EnableStandardMeters = true;
         options.AdditionalMeterNames.Add("hvo.smartshunt");
         options.AdditionalActivitySources.Add("hvo.smartshunt");
+        options.AdditionalActivitySources.Add("HVO.Edge");
     });
     if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
     {
@@ -93,6 +96,7 @@ builder.Services
     }
     builder.Services.AddTelemetryStatistics();
     builder.Services.AddTelemetryHealthCheck();
+    builder.Services.AddSingleton<SmartShuntTelemetry>();
 
     var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
     var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
@@ -110,7 +114,10 @@ builder.Services.AddHttpClient("PowerApi", (sp, client) =>
     if (!string.IsNullOrWhiteSpace(options.ApiKey))
         client.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
     client.Timeout = TimeSpan.FromSeconds(120);
-}).AddStandardResilienceHandler(o =>
+}).AddHttpMessageHandler(sp => new TelemetryHttpMessageHandler(
+    new HttpInstrumentationOptions { CaptureRequestHeaders = false, CaptureResponseHeaders = false },
+    sp.GetService<ILogger<TelemetryHttpMessageHandler>>()))
+.AddStandardResilienceHandler(o =>
 {
     o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(60);
     o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(120);

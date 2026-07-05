@@ -93,6 +93,7 @@ builder.Services.AddOpenTelemetryExport(options =>
     options.EnableStandardMeters = true;
     options.AdditionalMeterNames.Add("hvo.davis");
     options.AdditionalActivitySources.Add("hvo.davis");
+    options.AdditionalActivitySources.Add("HVO.Edge");
 });
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
 {
@@ -435,4 +436,4 @@ static GatewayTelemetryDiagnostics CreateTelemetryDiagnostics(string defaultServ
         GatewayTelemetryConventions.MetricNames.DeviceFreshnessSeconds,
         GatewayTelemetryConventions.MetricNames.DevicePollFailure,
     ],
-    [sourceName]);
+    ["HVO.Edge", sourceName]);

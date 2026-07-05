@@ -2,6 +2,7 @@ using HVO.Enterprise.Telemetry;
 using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.OpenTelemetry;
 using HVO.Enterprise.Telemetry.Serilog;
+using HVO.Enterprise.Telemetry.Http;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.Components;
@@ -11,6 +12,7 @@ using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 using HVO.Gateway.SolarAssistant.Workers;
 using HVO.Edge.Outbox;
 using HVO.Edge.Contracts;
+using HVO.Gateway.SolarAssistant.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Http.Resilience;
@@ -85,6 +87,7 @@ builder.Services
         options.EnableStandardMeters = true;
         options.AdditionalMeterNames.Add("hvo.solarassistant");
         options.AdditionalActivitySources.Add("hvo.solarassistant");
+        options.AdditionalActivitySources.Add("HVO.Edge");
     });
     if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
     {
@@ -94,6 +97,7 @@ builder.Services
     }
     builder.Services.AddTelemetryStatistics();
     builder.Services.AddTelemetryHealthCheck();
+    builder.Services.AddSingleton<SolarAssistantTelemetry>();
 
     var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
     var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
@@ -116,7 +120,10 @@ builder.Services.AddHttpClient("PowerApi", (sp, client) =>
     if (!string.IsNullOrWhiteSpace(options.ApiKey))
         client.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
     client.Timeout = TimeSpan.FromSeconds(120);
-}).AddStandardResilienceHandler(o =>
+}).AddHttpMessageHandler(sp => new TelemetryHttpMessageHandler(
+    new HttpInstrumentationOptions { CaptureRequestHeaders = false, CaptureResponseHeaders = false },
+    sp.GetService<ILogger<TelemetryHttpMessageHandler>>()))
+.AddStandardResilienceHandler(o =>
 {
     o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(60);
     o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(120);

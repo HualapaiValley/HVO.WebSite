@@ -217,7 +217,7 @@ public sealed class OutboxForwarder(
         await using var serviceScope = scopeFactory.CreateAsyncScope();
         var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
 
-        var sentDeleted = await store.CompactSentAsync(TimeSpan.FromDays(7), ct);
+        var sentDeleted = await store.CompactSentAsync(TimeSpan.FromDays(_options.SentRetentionDays), ct);
         var failedDeleted = _options.FailedRetentionDays > 0
             ? await store.CompactFailedAsync(TimeSpan.FromDays(_options.FailedRetentionDays), ct)
             : 0;
