@@ -257,7 +257,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
                 ["CellCount"] = packet.CellCount,
             }))
             {
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "Polled {Alias}: SOC={Soc}%, V={VoltageMv}mV, I={CurrentMa}mA, Δ={DeltaMv}mV, " +
                     "T1={T1C}°C T2={T2C}°C Tmos={TmosC}°C",
                     State.Alias,

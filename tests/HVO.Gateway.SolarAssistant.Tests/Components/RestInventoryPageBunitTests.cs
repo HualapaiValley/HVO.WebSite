@@ -4,6 +4,7 @@ using FluentAssertions;
 using HVO.Gateway.SolarAssistant.Components.Pages;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
+using HVO.Gateway.SolarAssistant.Telemetry;
 using HVO.Gateway.SolarAssistant.Workers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -21,7 +22,7 @@ public sealed class RestInventoryPageBunitTests : BunitContext
     public void RendersRestMetricInventory()
     {
         var provider = new ServiceCollection().BuildServiceProvider();
-        var worker = new SolarAssistantSnapshotWorker(provider.GetRequiredService<IServiceScopeFactory>(), new EmptySolarAssistantClient(), Options.Create(new SolarAssistantOptions()), NullLogger<SolarAssistantSnapshotWorker>.Instance);
+        var worker = new SolarAssistantSnapshotWorker(provider.GetRequiredService<IServiceScopeFactory>(), new EmptySolarAssistantClient(), Options.Create(new SolarAssistantOptions()), NullLogger<SolarAssistantSnapshotWorker>.Instance, new SolarAssistantTelemetry());
         typeof(SolarAssistantSnapshotWorker).GetField("_lastInventory", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(worker, new SolarAssistantMetricInventory
         {
             RecordedAtUtc = DateTime.UtcNow,

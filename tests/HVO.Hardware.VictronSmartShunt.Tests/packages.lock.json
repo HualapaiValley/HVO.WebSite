@@ -904,7 +904,7 @@
           "Linux.Bluetooth": "[5.67.1, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.9, )",
           "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
-          "MudBlazor": "[9.5.0, )",
+          "MudBlazor": "[9.6.0, )",
           "OpenTelemetry.Api": "[1.16.0, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.16.0, )",
           "Serilog.AspNetCore": "[10.0.0, )",
@@ -916,7 +916,7 @@
       "hvo.website.themes": {
         "type": "Project",
         "dependencies": {
-          "MudBlazor": "[9.5.0, )"
+          "MudBlazor": "[9.6.0, )"
         }
       },
       "AngleSharp": {
@@ -1090,9 +1090,9 @@
       },
       "MudBlazor": {
         "type": "CentralTransitive",
-        "requested": "[9.5.0, )",
-        "resolved": "9.5.0",
-        "contentHash": "mZiuKdOG42RkA/cZhiwNwbBZAKBExDx387ylvxzokcenRFHi8n4tq8olGuXs/oWNX1Qgo7Tj7J0AhOjjSnTpcw==",
+        "requested": "[9.6.0, )",
+        "resolved": "9.6.0",
+        "contentHash": "2bziL5wy8axn82R3hPB0WBlK7o+dKYOOje0Jw7E0oqxAhFll/uqZkvVdFR/rfyA5I7sldyPs6eWO6smkMJbDZQ==",
         "dependencies": {
           "Microsoft.AspNetCore.Components": "10.0.1",
           "Microsoft.AspNetCore.Components.Web": "10.0.1",

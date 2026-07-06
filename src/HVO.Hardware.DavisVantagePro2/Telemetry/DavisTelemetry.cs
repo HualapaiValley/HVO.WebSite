@@ -20,6 +20,7 @@ public sealed class DavisTelemetry : IDisposable
     public readonly Counter<long> ConsoleReconnectCount;
     public readonly Counter<long> OutboxRecordsForwarded;
     public readonly Histogram<double> OutboxForwardLatencyMs;
+    public readonly Counter<long> OutboxForwardFailureCount;
 
     public DavisTelemetry()
     {
@@ -40,6 +41,10 @@ public sealed class DavisTelemetry : IDisposable
         OutboxForwardLatencyMs = _meter.CreateHistogram<double>(
             "davis.outbox.forward_latency_ms", "ms",
             "Round-trip latency of outbox HTTP batch forward requests");
+
+        OutboxForwardFailureCount = _meter.CreateCounter<long>(
+            GatewayTelemetryConventions.MetricNames.OutboxForwardFailure, "records",
+            "Number of outbox records that failed to forward");
 
         _meter.CreateObservableGauge(
             GatewayTelemetryConventions.MetricNames.OutboxDepth, () => _outboxQueueDepth, "records",

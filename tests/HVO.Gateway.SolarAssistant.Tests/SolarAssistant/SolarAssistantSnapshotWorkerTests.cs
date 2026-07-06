@@ -5,6 +5,7 @@ using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
+using HVO.Gateway.SolarAssistant.Telemetry;
 using HVO.Gateway.SolarAssistant.Workers;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -46,7 +47,8 @@ public sealed class SolarAssistantSnapshotWorkerTests
             sp.GetRequiredService<IServiceScopeFactory>(),
             sp.GetRequiredService<ISolarAssistantClient>(),
             sp.GetRequiredService<IOptions<SolarAssistantOptions>>(),
-            NullLogger<SolarAssistantSnapshotWorker>.Instance));
+            NullLogger<SolarAssistantSnapshotWorker>.Instance,
+            new SolarAssistantTelemetry()));
 
         _provider = services.BuildServiceProvider();
         using var scope = _provider.CreateScope();

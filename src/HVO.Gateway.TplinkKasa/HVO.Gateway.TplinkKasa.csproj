@@ -9,9 +9,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="HVO.Enterprise.Telemetry" />
+    <PackageReference Include="HVO.Enterprise.Telemetry.OpenTelemetry" />
+    <PackageReference Include="HVO.Enterprise.Telemetry.Serilog" />
+    <PackageReference Include="MudBlazor" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
-    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="OpenTelemetry.Api" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Formatting.Compact" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Sinks.OpenTelemetry" />
   </ItemGroup>
 
   <ItemGroup>

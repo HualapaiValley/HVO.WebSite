@@ -6,6 +6,7 @@ using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
 using HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
+using HVO.Hardware.VictronSmartShunt.Telemetry;
 using HVO.Hardware.VictronSmartShunt.Workers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -84,10 +85,10 @@ public sealed class SmartShuntStatusPageBunitTests : BunitContext
         };
 
     private static SmartShuntWorker CreateWorker(SmartShuntOptions options)
-        => new(new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), new FakeSessionState(), new FakePrivateInfoSource(), Options.Create(options), NullLogger<SmartShuntWorker>.Instance);
+        => new(new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), new FakeSessionState(), new FakePrivateInfoSource(), Options.Create(options), NullLogger<SmartShuntWorker>.Instance, new SmartShuntTelemetry());
 
     private static PowerApiForwarder CreateForwarder()
-        => new(new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), new FakeHttpClientFactory(), Options.Create(new OutboxOptions()), new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance);
+        => new(new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), new FakeHttpClientFactory(), Options.Create(new OutboxOptions()), new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance, new SmartShuntTelemetry());
 
     private static SmartShuntGatewayHealthService CreateHealthService(SmartShuntWorker worker, PowerApiForwarder forwarder, SmartShuntOptions options)
         => new(worker, forwarder, Options.Create(options), Options.Create(new OutboxOptions()));

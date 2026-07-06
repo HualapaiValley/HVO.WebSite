@@ -266,6 +266,7 @@ public sealed class ForwarderCoordinator : BackgroundService
                     ex.FailedRecords.Count,
                     recordsForForwarder.Count,
                     sw.Elapsed.TotalMilliseconds);
+                _telemetry.OutboxForwardFailureCount.Add(ex.FailedRecords.Count);
             }
             catch (Exception ex)
             {
@@ -275,6 +276,7 @@ public sealed class ForwarderCoordinator : BackgroundService
                 foreach (var record in recordsForForwarder)
                     transientFailureIds.Add(record.Id);
                 _logger.LogWarning(ex, "Forwarder '{Name}' transiently failed for batch of {Count} after {Ms:F0}ms.", forwarder.Name, recordsForForwarder.Count, sw.Elapsed.TotalMilliseconds);
+                _telemetry.OutboxForwardFailureCount.Add(recordsForForwarder.Count);
             }
         }
 

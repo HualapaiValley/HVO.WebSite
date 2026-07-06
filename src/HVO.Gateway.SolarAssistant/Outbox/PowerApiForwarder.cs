@@ -7,6 +7,7 @@ using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
+using HVO.Gateway.SolarAssistant.Telemetry;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Gateway.SolarAssistant.Outbox;
@@ -27,6 +28,7 @@ public sealed class PowerApiForwarder : BackgroundService
     private readonly OutboxOptions _options;
     private readonly RuntimeOutboxSettings _runtimeSettings;
     private readonly ILogger<PowerApiForwarder> _logger;
+    private readonly SolarAssistantTelemetry _telemetry;
 
     private volatile int _pendingCount;
     private volatile int _failedCount;
@@ -57,13 +59,15 @@ public sealed class PowerApiForwarder : BackgroundService
         IHttpClientFactory httpFactory,
         IOptions<OutboxOptions> options,
         RuntimeOutboxSettings runtimeSettings,
-        ILogger<PowerApiForwarder> logger)
+        ILogger<PowerApiForwarder> logger,
+        SolarAssistantTelemetry telemetry)
     {
         _scopeFactory = scopeFactory;
         _httpFactory = httpFactory;
         _options = options.Value;
         _runtimeSettings = runtimeSettings;
         _logger = logger;
+        _telemetry = telemetry;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -182,6 +186,7 @@ public sealed class PowerApiForwarder : BackgroundService
                 };
                 request.AddTraceContext();
 
+                var fwSw = Stopwatch.StartNew();
                 using var response = await _httpFactory
                     .CreateClient("PowerApi")
                     .SendAsync(request, ct);
@@ -190,6 +195,8 @@ public sealed class PowerApiForwarder : BackgroundService
                 {
                     var body = await response.Content.ReadFromJsonAsync<PowerBatchResponse>(JsonOptions, ct);
                     MarkBatchResult(ready.Select(x => x.Record), body, now);
+                    _telemetry.OutboxForwardLatencyMs.Record(fwSw.Elapsed.TotalMilliseconds);
+                    _telemetry.OutboxRecordsForwarded.Add(_lastBatchCount);
                 }
                 else
                 {
@@ -229,6 +236,7 @@ public sealed class PowerApiForwarder : BackgroundService
         await store.SaveChangesAsync(ct);
         _pendingCount = await store.CountPendingAsync(PowerOutboxPayloadTypes.PowerReading, ct);
         _failedCount = await store.CountFailedAsync(PowerOutboxPayloadTypes.PowerReading, ct);
+        _telemetry.SetOutboxQueueDepth(_pendingCount);
 
         await ForwardSnapshotPayloadsAsync<PowerDeviceInventoryPayload>(
             store,

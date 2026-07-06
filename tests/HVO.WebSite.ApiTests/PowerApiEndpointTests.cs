@@ -377,7 +377,6 @@ public sealed class PowerApiEndpointTests
                 configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["KeyVault:Uri"] = string.Empty,
-                    ["ApplicationInsights:ConnectionString"] = string.Empty,
                     ["AzureAd:ClientId"] = "00000000-0000-0000-0000-000000000001",
                     ["AzureAd:ClientSecret"] = "test-dummy-secret",
                     ["AzureAd:TenantId"] = "00000000-0000-0000-0000-000000000002",

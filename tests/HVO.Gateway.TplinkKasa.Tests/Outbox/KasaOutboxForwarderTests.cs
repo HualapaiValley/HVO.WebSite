@@ -7,6 +7,7 @@ using HVO.Edge.Outbox;
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Models;
 using HVO.Gateway.TplinkKasa.Outbox;
+using HVO.Gateway.TplinkKasa.Telemetry;
 using HVO.Gateway.TplinkKasa.Workers;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -128,7 +129,8 @@ public sealed class KasaOutboxForwarderTests
                 SweepIntervalSeconds = 5,
             }),
             new RuntimeOutboxSettings(),
-            NullLogger<KasaOutboxForwarder>.Instance);
+            NullLogger<KasaOutboxForwarder>.Instance,
+            new KasaGatewayTelemetry());
     }
 
     private static async Task<bool> InvokeSweepAsync(KasaOutboxForwarder forwarder)

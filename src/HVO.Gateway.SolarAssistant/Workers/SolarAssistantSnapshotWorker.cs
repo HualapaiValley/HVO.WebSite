@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
@@ -5,6 +6,7 @@ using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
+using HVO.Gateway.SolarAssistant.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -19,6 +21,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
     private readonly ISolarAssistantClient _client;
     private readonly SolarAssistantOptions _options;
     private readonly ILogger<SolarAssistantSnapshotWorker> _logger;
+    private readonly SolarAssistantTelemetry _telemetry;
     private readonly object _historyLock = new();
     private readonly Queue<PowerSnapshotHistoryPoint> _history = new();
 
@@ -63,12 +66,14 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         IServiceScopeFactory scopeFactory,
         ISolarAssistantClient client,
         IOptions<SolarAssistantOptions> options,
-        ILogger<SolarAssistantSnapshotWorker> logger)
+        ILogger<SolarAssistantSnapshotWorker> logger,
+        SolarAssistantTelemetry telemetry)
     {
         _scopeFactory = scopeFactory;
         _client = client;
         _options = options.Value;
         _logger = logger;
+        _telemetry = telemetry;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -93,6 +98,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
             catch (Exception ex)
             {
                 _lastError = ex.Message;
+                _telemetry.SnapshotPollCount.Add(1, new KeyValuePair<string, object?>("result", "failed"));
                 _logger.LogWarning(ex, "SolarAssistant snapshot poll failed");
                 await TryHydrateLatestSnapshotAsync(stoppingToken);
             }
@@ -109,6 +115,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
 
     internal async Task<bool> PollOnceAsync(CancellationToken ct)
     {
+        var sw = Stopwatch.StartNew();
         var metrics = await _client.GetMetricsAsync(ct);
         _lastMetricCount = metrics.Count;
 
@@ -137,6 +144,8 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
             _lastEnergy = energy;
         AddHistory(payload);
         _lastError = null;
+        _telemetry.SnapshotPollDurationMs.Record(sw.Elapsed.TotalMilliseconds);
+        _telemetry.SnapshotPollCount.Add(1, new KeyValuePair<string, object?>("result", "success"));
         if (inserted)
         {
             _logger.LogInformation(

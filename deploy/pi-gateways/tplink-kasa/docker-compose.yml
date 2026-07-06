@@ -99,6 +99,9 @@ services:
       Outbox__FailedCriticalCount: ${KASA_OUTBOX_FAILEDCRITICALCOUNT:-1}
       Outbox__DbPath: ${KASA_OUTBOX_DBPATH:-/app/data/outbox.db}
       DOTNET_ENVIRONMENT: Production
+      OTEL_SERVICE_NAME: hvo-tplinkkasa
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
       - kasa-data:/app/data
       - kasa-data-protection:/root/.aspnet/DataProtection-Keys

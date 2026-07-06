@@ -3,6 +3,7 @@ using HVO.Edge.Outbox;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
+using HVO.Hardware.VictronSmartShunt.Telemetry;
 using HVO.Hardware.VictronSmartShunt.Workers;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -189,7 +190,8 @@ public sealed class SmartShuntWorkerTests
                 sp.GetRequiredService<ISmartShuntSessionState>(),
                 sp.GetRequiredService<ISmartShuntPrivateInfoSource>(),
                 sp.GetRequiredService<IOptions<SmartShuntOptions>>(),
-                NullLogger<SmartShuntWorker>.Instance));
+                NullLogger<SmartShuntWorker>.Instance,
+                new SmartShuntTelemetry()));
             var provider = services.BuildServiceProvider();
             var db = provider.GetRequiredService<OutboxDbContext>();
             await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
