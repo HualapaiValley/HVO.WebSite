@@ -8,6 +8,7 @@ using HVO.Edge.Outbox;
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Models;
 using HVO.Gateway.TplinkKasa.Outbox;
+using HVO.Gateway.TplinkKasa.Telemetry;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Gateway.TplinkKasa.Workers;
@@ -20,6 +21,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
     private readonly KasaGatewayOptions.OutboxSection _options;
     private readonly RuntimeOutboxSettings _runtimeSettings;
     private readonly ILogger<KasaOutboxForwarder> _logger;
+    private readonly KasaGatewayTelemetry _telemetry;
     private volatile int _pendingCount;
     private volatile int _failedCount;
     private long _lastSentAtTicks;
@@ -31,13 +33,15 @@ public sealed class KasaOutboxForwarder : BackgroundService
         IHttpClientFactory httpClientFactory,
         IOptions<KasaGatewayOptions.OutboxSection> options,
         RuntimeOutboxSettings runtimeSettings,
-        ILogger<KasaOutboxForwarder> logger)
+        ILogger<KasaOutboxForwarder> logger,
+        KasaGatewayTelemetry telemetry)
     {
         _scopeFactory = scopeFactory;
         _httpClientFactory = httpClientFactory;
         _options = options.Value;
         _runtimeSettings = runtimeSettings;
         _logger = logger;
+        _telemetry = telemetry;
     }
 
     public event Action? SweepCompleted;
@@ -120,6 +124,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
 
         var energy = await store.GetReadyBatchAsync(KasaOutboxPayloadTypes.Energy, now, _runtimeSettings.EffectiveBatchSize(_options.BatchSize), ct).ConfigureAwait(false);
         await RefreshCountsAsync(store, ct).ConfigureAwait(false);
+        _telemetry.SetOutboxQueueDepth(_pendingCount);
 
         if (IsPlaceholderConfig)
             return false;
@@ -261,6 +266,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
             }).ToList();
             var cloudEvents = CloudEventsForwardingHelper.WrapBatchAsCloudEvents(readyJson, "tplinkkasa");
 
+            var fwSw = Stopwatch.StartNew();
             using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
             {
                 Content = JsonContent.Create(cloudEvents, options: JsonOptions),
@@ -282,6 +288,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
                 else
                 {
                     anySent = MarkBatchResult(store, ready.Select(item => item.Record), body, now);
+                    _telemetry.OutboxForwardLatencyMs.Record(fwSw.Elapsed.TotalMilliseconds);
                 }
             }
             else
@@ -392,6 +399,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
         if (sentCount > 0)
             Volatile.Write(ref _lastSentAtTicks, sentAt.Ticks);
         _logger.LogInformation("Forwarded {Count} Kasa outbox record(s)", sentCount);
+        _telemetry.OutboxRecordsForwarded.Add(sentCount);
         return sentCount > 0;
     }
 

@@ -8,6 +8,7 @@ using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
+using HVO.Gateway.SolarAssistant.Telemetry;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,7 +52,8 @@ public sealed class PowerApiForwarderTests
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<IOptions<OutboxOptions>>(),
             new RuntimeOutboxSettings(),
-            NullLogger<PowerApiForwarder>.Instance));
+            NullLogger<PowerApiForwarder>.Instance,
+            new SolarAssistantTelemetry()));
 
         _provider = services.BuildServiceProvider();
         using var scope = _provider.CreateScope();

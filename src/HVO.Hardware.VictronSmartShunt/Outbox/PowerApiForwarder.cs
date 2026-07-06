@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -5,6 +6,7 @@ using HVO.Edge.Contracts;
 using HVO.Edge.Outbox;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
+using HVO.Hardware.VictronSmartShunt.Telemetry;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.VictronSmartShunt.Outbox;
@@ -23,6 +25,7 @@ public sealed class PowerApiForwarder : BackgroundService
     private readonly OutboxOptions _options;
     private readonly RuntimeOutboxSettings _runtimeSettings;
     private readonly ILogger<PowerApiForwarder> _logger;
+    private readonly SmartShuntTelemetry _telemetry;
 
     private volatile int _pendingCount;
     private volatile int _failedCount;
@@ -57,13 +60,15 @@ public sealed class PowerApiForwarder : BackgroundService
         IHttpClientFactory httpFactory,
         IOptions<OutboxOptions> options,
         RuntimeOutboxSettings runtimeSettings,
-        ILogger<PowerApiForwarder> logger)
+        ILogger<PowerApiForwarder> logger,
+        SmartShuntTelemetry telemetry)
     {
         _scopeFactory = scopeFactory;
         _httpFactory = httpFactory;
         _options = options.Value;
         _runtimeSettings = runtimeSettings;
         _logger = logger;
+        _telemetry = telemetry;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -150,6 +155,7 @@ public sealed class PowerApiForwarder : BackgroundService
                 };
                 request.AddTraceContext();
 
+                var fwSw = Stopwatch.StartNew();
                 using var response = await _httpFactory.CreateClient("PowerApi")
                     .SendAsync(request, ct);
 
@@ -157,6 +163,8 @@ public sealed class PowerApiForwarder : BackgroundService
                 {
                     var body = await response.Content.ReadFromJsonAsync<PowerBatchResponse>(JsonOptions, ct);
                     sentCount = MarkBatchResult(store, ready.Select(x => x.Record), body, now);
+                    _telemetry.OutboxForwardLatencyMs.Record(fwSw.Elapsed.TotalMilliseconds);
+                    _telemetry.OutboxRecordsForwarded.Add(sentCount);
                 }
                 else
                 {
@@ -198,6 +206,7 @@ public sealed class PowerApiForwarder : BackgroundService
 
         await store.SaveChangesAsync(ct);
         await RefreshCountsAsync(store, ct);
+        _telemetry.SetOutboxQueueDepth(_pendingCount);
         return sentCount > 0;
     }
 

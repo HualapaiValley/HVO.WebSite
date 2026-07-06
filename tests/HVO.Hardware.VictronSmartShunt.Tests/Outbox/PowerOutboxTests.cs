@@ -5,6 +5,7 @@ using HVO.Edge.Outbox;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
+using HVO.Hardware.VictronSmartShunt.Telemetry;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -69,7 +70,8 @@ public sealed class PowerOutboxTests
                 ApiKey = "test-api-key",
                 BatchSize = 10,
             }),
-            new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance);
+            new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance,
+            new SmartShuntTelemetry());
 
         await forwarder.SweepAsync(CancellationToken.None);
 
@@ -107,7 +109,8 @@ public sealed class PowerOutboxTests
                 MaxRetryAttempts = 10,
                 MaxBackoffSeconds = 300,
             }),
-            new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance);
+            new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance,
+            new SmartShuntTelemetry());
 
         await forwarder.SweepAsync(CancellationToken.None);
 
@@ -145,7 +148,8 @@ public sealed class PowerOutboxTests
                 ApiEndpoint = "https://example.test/api/v1/power/readings",
                 ApiKey = "test-api-key",
             }),
-            new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance);
+            new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance,
+            new SmartShuntTelemetry());
 
         await forwarder.RequeueRetryExhaustedAsync(CancellationToken.None);
 

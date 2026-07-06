@@ -192,6 +192,7 @@ public sealed class OutboxForwarder(
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, ex.Message, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             LastError = ex.Message;
+            telemetry.OutboxForwardFailureCount.Add(ready.Count);
             logger.LogWarning(ex, "HTTP error forwarding batch of {Count} records", ready.Count);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
@@ -200,6 +201,7 @@ public sealed class OutboxForwarder(
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             LastError = error;
+            telemetry.OutboxForwardFailureCount.Add(ready.Count);
             logger.LogWarning("Batch request timed out for {Count} records", ready.Count);
         }
         catch (JsonException ex)
@@ -208,6 +210,7 @@ public sealed class OutboxForwarder(
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             LastError = error;
+            telemetry.OutboxForwardFailureCount.Add(ready.Count);
             logger.LogWarning(ex, "Invalid JSON response while forwarding {Count} record(s)", ready.Count);
         }
     }
@@ -217,7 +220,9 @@ public sealed class OutboxForwarder(
         await using var serviceScope = scopeFactory.CreateAsyncScope();
         var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
 
-        var sentDeleted = await store.CompactSentAsync(TimeSpan.FromDays(_options.SentRetentionDays), ct);
+        var sentDeleted = _options.SentRetentionDays > 0
+            ? await store.CompactSentAsync(TimeSpan.FromDays(_options.SentRetentionDays), ct)
+            : 0;
         var failedDeleted = _options.FailedRetentionDays > 0
             ? await store.CompactFailedAsync(TimeSpan.FromDays(_options.FailedRetentionDays), ct)
             : 0;

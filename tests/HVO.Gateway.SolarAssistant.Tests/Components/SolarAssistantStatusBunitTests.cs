@@ -8,6 +8,7 @@ using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Health;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
+using HVO.Gateway.SolarAssistant.Telemetry;
 using HVO.Gateway.SolarAssistant.Workers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -73,7 +74,7 @@ public sealed class SolarAssistantStatusBunitTests : BunitContext
         var solarOptions = Options.Create(new SolarAssistantOptions { Host = "solar.local", EnableMqttDiscovery = true });
         var outboxOptions = Options.Create(new OutboxOptions { ApiEndpoint = "https://example.invalid/api/v1/power/readings", ApiKey = "test" });
         var provider = new ServiceCollection().BuildServiceProvider();
-        var snapshotWorker = new SolarAssistantSnapshotWorker(provider.GetRequiredService<IServiceScopeFactory>(), new EmptySolarAssistantClient(), solarOptions, NullLogger<SolarAssistantSnapshotWorker>.Instance);
+        var snapshotWorker = new SolarAssistantSnapshotWorker(provider.GetRequiredService<IServiceScopeFactory>(), new EmptySolarAssistantClient(), solarOptions, NullLogger<SolarAssistantSnapshotWorker>.Instance, new SolarAssistantTelemetry());
         var store = new SolarAssistantMqttInventoryStore();
         if (mqttConnected)
         {
@@ -82,7 +83,7 @@ public sealed class SolarAssistantStatusBunitTests : BunitContext
         }
 
         var mqttWorker = new SolarAssistantMqttDiscoveryWorker(solarOptions, store, NullLogger<SolarAssistantMqttDiscoveryWorker>.Instance);
-        var forwarder = new PowerApiForwarder(provider.GetRequiredService<IServiceScopeFactory>(), new EmptyHttpClientFactory(), outboxOptions, new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance);
+        var forwarder = new PowerApiForwarder(provider.GetRequiredService<IServiceScopeFactory>(), new EmptyHttpClientFactory(), outboxOptions, new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance, new SolarAssistantTelemetry());
         var health = new SolarAssistantGatewayHealthService(snapshotWorker, mqttWorker, forwarder, solarOptions);
 
         if (withSnapshot)

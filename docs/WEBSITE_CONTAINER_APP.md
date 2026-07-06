@@ -46,7 +46,7 @@ The website startup currently depends on the following configuration sources:
 |--------|---------|
 | `KeyVault:Uri` | Enables Azure Key Vault secret loading via `DefaultAzureCredential` |
 | `ConnectionStrings:HualapaiValleyObservatory` | Azure SQL connection string |
-| `ApplicationInsights:ConnectionString` | OpenTelemetry OTLP export |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry collector endpoint for OTLP export (traces, metrics, logs) |
 | `AzureAd:TenantId` | Entra tenant |
 | `AzureAd:ClientId` | Entra app registration |
 | `AzureAd:ClientSecret` | Entra app client secret |

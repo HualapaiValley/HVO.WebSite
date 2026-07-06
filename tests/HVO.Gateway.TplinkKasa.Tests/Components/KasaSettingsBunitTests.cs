@@ -81,7 +81,8 @@ public sealed class KasaSettingsBunitTests : BunitContext
                 tempProvider.GetRequiredService<IHttpClientFactory>(),
                 Options.Create(new KasaGatewayOptions.OutboxSection()),
                 new RuntimeOutboxSettings(),
-                NullLogger<KasaOutboxForwarder>.Instance);
+                NullLogger<KasaOutboxForwarder>.Instance,
+                new KasaGatewayTelemetry());
         });
     }
 

@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
+using HVO.Hardware.VictronSmartShunt.Telemetry;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.VictronSmartShunt.Workers;
@@ -14,6 +16,7 @@ public sealed class SmartShuntWorker : BackgroundService
     private readonly ISmartShuntPrivateInfoSource _privateInfoSource;
     private readonly SmartShuntOptions _options;
     private readonly ILogger<SmartShuntWorker> _logger;
+    private readonly SmartShuntTelemetry _telemetry;
     private readonly object _historyLock = new();
     private readonly Queue<SmartShuntHistoryPoint> _history = new();
 
@@ -50,13 +53,15 @@ public sealed class SmartShuntWorker : BackgroundService
         ISmartShuntSessionState sessionState,
         ISmartShuntPrivateInfoSource privateInfoSource,
         IOptions<SmartShuntOptions> options,
-        ILogger<SmartShuntWorker> logger)
+        ILogger<SmartShuntWorker> logger,
+        SmartShuntTelemetry telemetry)
     {
         _scopeFactory = scopeFactory;
         _sessionState = sessionState;
         _privateInfoSource = privateInfoSource;
         _options = options.Value;
         _logger = logger;
+        _telemetry = telemetry;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -87,6 +92,7 @@ public sealed class SmartShuntWorker : BackgroundService
             catch (Exception ex)
             {
                 _lastError = ex.Message;
+                _telemetry.SamplePollCount.Add(1, new KeyValuePair<string, object?>("result", "failed"));
                 _logger.LogWarning(ex, "SmartShunt poll failed");
             }
 
@@ -103,6 +109,7 @@ public sealed class SmartShuntWorker : BackgroundService
 
     internal async Task<bool> PollOnceAsync(CancellationToken ct)
     {
+        var sw = Stopwatch.StartNew();
         var sample = _sessionState.CurrentSample;
         if (sample is null)
             return false;
@@ -129,6 +136,8 @@ public sealed class SmartShuntWorker : BackgroundService
         _lastSnapshot = snapshot;
         Volatile.Write(ref _lastSnapshotAtTicks, recordedAt.Ticks);
         _lastError = null;
+        _telemetry.SamplePollDurationMs.Record(sw.Elapsed.TotalMilliseconds);
+        _telemetry.SamplePollCount.Add(1, new KeyValuePair<string, object?>("result", "success"));
         AddHistory(normalizedSample);
 
         if (_options.EnablePrivateEnrichment && (_lastPrivateRefreshAtUtc == default || recordedAt - _lastPrivateRefreshAtUtc >= TimeSpan.FromSeconds(_options.PrivateRefreshIntervalSeconds)))
