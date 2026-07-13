@@ -4,9 +4,9 @@
     "net10.0": {
       "AngleSharp": {
         "type": "Direct",
-        "requested": "[1.5.1, )",
-        "resolved": "1.5.1",
-        "contentHash": "jFG0tKwFMNzIdv0rX3qvyiKyxAzUIvDyTLTJo2ORKtv/hiJC8juZTknc4b9DQmBFbrky+0twr58QQWt6DR48Og=="
+        "requested": "[1.5.2, )",
+        "resolved": "1.5.2",
+        "contentHash": "LVZ7rrr6GHbhERhTgVDarVygl1e6KwE96pronA90LBOMacDhxR4lB+xYLjn/vlnUu+xbOB2RM9fuCPEx5bdyWA=="
       },
       "bunit": {
         "type": "Direct",
@@ -115,15 +115,15 @@
       },
       "MSTest": {
         "type": "Direct",
-        "requested": "[4.2.3, )",
-        "resolved": "4.2.3",
-        "contentHash": "fUaw2rGyhaSMRuAibJo+1PQkI4PHS1FZx/tASq1Lr3eZk5NlshQRyBBdUkhnvfvOG+tCKKy3T/BnMiI47qeZrw==",
+        "requested": "[4.3.0, )",
+        "resolved": "4.3.0",
+        "contentHash": "Yl026CW4+3+xiwP5fAmcdLRdwbA2xOZ0XdV9o/yBGaRyndYLHI44d6Mr35CC/vG2KGZo3VdDOMnRS3V1wu2KcQ==",
         "dependencies": {
-          "MSTest.TestAdapter": "4.2.3",
-          "MSTest.TestFramework": "4.2.3",
-          "Microsoft.NET.Test.Sdk": "18.3.0",
-          "Microsoft.Testing.Extensions.CodeCoverage": "18.5.2",
-          "Microsoft.Testing.Extensions.TrxReport": "2.2.3"
+          "MSTest.TestAdapter": "4.3.0",
+          "MSTest.TestFramework": "4.3.0",
+          "Microsoft.NET.Test.Sdk": "18.4.0",
+          "Microsoft.Testing.Extensions.CodeCoverage": "18.9.0",
+          "Microsoft.Testing.Extensions.TrxReport": "2.3.1"
         }
       },
       "OpenTelemetry.Api": {
@@ -412,8 +412,8 @@
       },
       "Microsoft.DiaSymReader": {
         "type": "Transitive",
-        "resolved": "2.2.3",
-        "contentHash": "bhwzJfzyiJM0nXJyNB7Y9OfsEXyxLdDBHG99soIp5JjnPydwkOaBdRCtRtWgQh3noSLi2cSIZ/wpbHNNE9knxQ=="
+        "resolved": "2.2.9",
+        "contentHash": "WLbDc/W9XkHpGVtd1L6Vml8W6+PaaYZZTJASHjHF7W2WX/hld6bfNK102Ui+I3a6zIdx4+oKRJtMgHz44JmBfw=="
       },
       "Microsoft.EntityFrameworkCore.Abstractions": {
         "type": "Transitive",
@@ -618,13 +618,13 @@
       },
       "Microsoft.Identity.Abstractions": {
         "type": "Transitive",
-        "resolved": "12.2.0",
-        "contentHash": "FBx4dsdQ2EHU++WINjMn7PNyhTJzPlEnrGYzo7ArE2yKnCeXPftFsB3W5z6PNK1BMMTxSHmK2Z3qruj5q1EuYg=="
+        "resolved": "12.4.0",
+        "contentHash": "L9ekWH1wVdeYgJoH4ALlyhUDqUXFbHo++CfL+z10kKucM6jXUlbWercGweRGtdQYEcs5W3HdRxY8DElixCO4Jg=="
       },
       "Microsoft.Identity.Client": {
         "type": "Transitive",
-        "resolved": "4.85.1",
-        "contentHash": "9QjTBf7ROf5u4LiR7jSSexOth5LbH1fNonwiuHeGJTi2xhpUj1m0hh7oFzKMXCYK4dobzKbKKf8CxDBsr9u6tw==",
+        "resolved": "4.86.0",
+        "contentHash": "ZraQwohwmUsoDDN0jukt7l/Wj6kyE1Nh3jOiQKW1DIfXEr3TpgHIxwWinnrjM/D3+4K6jObns+x3Y+EMiv1Odw==",
         "dependencies": {
           "Microsoft.IdentityModel.Abstractions": "8.14.0"
         }
@@ -640,56 +640,56 @@
       },
       "Microsoft.Identity.Client.KeyAttestation": {
         "type": "Transitive",
-        "resolved": "4.85.1",
-        "contentHash": "3xlrXjBd4I7ldxoNgnKPXyQoBeXZJQIqGvQcbTpCEw2Ol9xzLJp1Bh/BWwyUMphI+ND8IBQ0pQotv2pwEdn8uQ==",
+        "resolved": "4.86.0",
+        "contentHash": "NMHOQBaYihPKcqAiO/4F3adswok/jdshMgRu1pIcf2+sq7xyHo5Yvt9JkT4gmvogMuE+Zhg9MqtYbemFk5C27Q==",
         "dependencies": {
           "Microsoft.Azure.Security.KeyGuardAttestation": "1.1.5",
-          "Microsoft.Identity.Client": "4.85.1"
+          "Microsoft.Identity.Client": "4.86.0"
         }
       },
       "Microsoft.Identity.Web.Certificate": {
         "type": "Transitive",
-        "resolved": "4.11.0",
-        "contentHash": "XCnWMBOmu17mGBYe7i7zOZPkeS+Byy/6JgT8hA93BXIWYiA8E3fb37JWsOj9bInMSH/088BvTi0A1C1I4uu+3Q==",
+        "resolved": "4.13.0",
+        "contentHash": "0wcwDC7ROCct+B7xd3EmMcFs6YaIHs4HdYJmnNnmgCWK7OZMfFEU0kmby6fIYXGGYHzm7/TfbOn/HIR2LX5zGA==",
         "dependencies": {
           "Azure.Identity": "1.17.2",
           "Azure.Security.KeyVault.Certificates": "4.6.0",
           "Azure.Security.KeyVault.Secrets": "4.6.0",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.0",
-          "Microsoft.Identity.Abstractions": "12.2.0",
-          "Microsoft.Identity.Web.Certificateless": "4.11.0",
-          "Microsoft.Identity.Web.Diagnostics": "4.11.0"
+          "Microsoft.Identity.Abstractions": "12.4.0",
+          "Microsoft.Identity.Web.Certificateless": "4.13.0",
+          "Microsoft.Identity.Web.Diagnostics": "4.13.0"
         }
       },
       "Microsoft.Identity.Web.Certificateless": {
         "type": "Transitive",
-        "resolved": "4.11.0",
-        "contentHash": "DqL9gUs+BDAgqPlfw8U2hQWAh8toocmGXekKPrMZAyL2gRcHBgonQdX92jPIYAz2j5xwmVRyhBTvpdOCAwwIZw==",
+        "resolved": "4.13.0",
+        "contentHash": "szkv+AWkyiH+VI2z4ytX4KZTCv+YC3fOhtQxSJyplKETZgZSQdAynBqRHiZusz0YTSplUr0UI+GW2IykeBTe0Q==",
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "8.0.3",
-          "Microsoft.Identity.Client": "4.85.1",
-          "Microsoft.Identity.Client.KeyAttestation": "4.85.1",
+          "Microsoft.Identity.Client": "4.86.0",
+          "Microsoft.Identity.Client.KeyAttestation": "4.86.0",
           "Microsoft.IdentityModel.JsonWebTokens": "8.19.1",
           "Microsoft.IdentityModel.LoggingExtensions": "8.19.1"
         }
       },
       "Microsoft.Identity.Web.Diagnostics": {
         "type": "Transitive",
-        "resolved": "4.11.0",
-        "contentHash": "MUDbQptxwUPn7C1ukBjGtiY9GTh3qdbZjK4cgSH8CUIeVqjFCr12slO0ZdloiZrlD72GJQc3H1apIWm1ids4qA=="
+        "resolved": "4.13.0",
+        "contentHash": "LzgVUewldNPH3603LHQjxbJEbP956HPi0rcUov0ERZe9pt6f6OiLAF/1TEzj+xoPaSgpy5QPn0R2DbW1zBRo4w=="
       },
       "Microsoft.Identity.Web.TokenAcquisition": {
         "type": "Transitive",
-        "resolved": "4.11.0",
-        "contentHash": "v8VgrML9SppzjdZPnhKX/se0RQbJiHocGF9NsJKVJsZSwb7KRVaGfnTaGdLggiQwYj+zzn6OVsJhmREfajc58w==",
+        "resolved": "4.13.0",
+        "contentHash": "IO3tjWWedczD9ZCbGAX/pGnGX92lMS/LY1fCgy1Zw5oaCdlfLfdNq+K7sy3tF3rDqWZI6MGUprYMuXth3WZ4Sw==",
         "dependencies": {
           "Microsoft.AspNetCore.Authentication.JwtBearer": "10.0.0",
           "Microsoft.AspNetCore.Authentication.OpenIdConnect": "10.0.0",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "10.0.0",
-          "Microsoft.Identity.Abstractions": "12.2.0",
-          "Microsoft.Identity.Web.Certificate": "4.11.0",
-          "Microsoft.Identity.Web.Certificateless": "4.11.0",
-          "Microsoft.Identity.Web.TokenCache": "4.11.0",
+          "Microsoft.Identity.Abstractions": "12.4.0",
+          "Microsoft.Identity.Web.Certificate": "4.13.0",
+          "Microsoft.Identity.Web.Certificateless": "4.13.0",
+          "Microsoft.Identity.Web.TokenCache": "4.13.0",
           "Microsoft.IdentityModel.Logging": "8.19.1",
           "Microsoft.IdentityModel.LoggingExtensions": "8.19.1",
           "Microsoft.IdentityModel.Protocols.OpenIdConnect": "8.19.1",
@@ -698,14 +698,14 @@
       },
       "Microsoft.Identity.Web.TokenCache": {
         "type": "Transitive",
-        "resolved": "4.11.0",
-        "contentHash": "8VoDH7yQUYU+yBZTHZX1ev3vnjnkEioQafy9y/qGwv15GO2Gu0HuQYcfaeZm1aUT4h/dC8arBZjoYZNAVG+mug==",
+        "resolved": "4.13.0",
+        "contentHash": "se09iKy9na+Sy7KM987tB/wHceg2EUodOsKwiI/arEMWrFBh6hgB0yZcJwxVeXgXO4UUHwBGh4fAguF0PRt9nA==",
         "dependencies": {
           "Microsoft.AspNetCore.DataProtection": "10.0.7",
           "Microsoft.Extensions.Caching.Memory": "10.0.0",
           "Microsoft.Extensions.Logging": "10.0.0",
-          "Microsoft.Identity.Client": "4.85.1",
-          "Microsoft.Identity.Web.Diagnostics": "4.11.0",
+          "Microsoft.Identity.Client": "4.86.0",
+          "Microsoft.Identity.Web.Diagnostics": "4.13.0",
           "System.Security.Cryptography.Pkcs": "10.0.7",
           "System.Security.Cryptography.Xml": "10.0.7"
         }
@@ -803,62 +803,62 @@
       },
       "Microsoft.Testing.Extensions.CodeCoverage": {
         "type": "Transitive",
-        "resolved": "18.5.2",
-        "contentHash": "UNcGLx9pVtlXF8MPDR8KDp+/OKKNIJjpzwRyZSt609TSGvaD8mtuQMb5GKZvhMucPp0a5Juvn3kxXDceQZWmAg==",
+        "resolved": "18.9.0",
+        "contentHash": "Odp8djWEUFTJoRV02y0zJaAwAHF31CtNaDgnKKM+8dBHbbaH7Ee0oo9gweLpbzjI7UrtMUzH6xLJSrICZw+Nwg==",
         "dependencies": {
-          "Microsoft.DiaSymReader": "2.2.3",
-          "Microsoft.Extensions.DependencyModel": "8.0.2",
-          "Microsoft.Testing.Platform": "2.1.0"
+          "Microsoft.DiaSymReader": "2.2.9",
+          "Microsoft.Extensions.DependencyModel": "10.0.8",
+          "Microsoft.Testing.Platform": "2.3.0"
         }
       },
       "Microsoft.Testing.Extensions.Telemetry": {
         "type": "Transitive",
-        "resolved": "2.2.3",
-        "contentHash": "mLdW+JOR3kXYGTdgR/qc/UZBA0r+eCR2k6bUxTcuDj5w9WdIQ7Lol5MBUU7YOSGd9bs9bvhSYWAptgz0YtQqCA==",
+        "resolved": "2.3.1",
+        "contentHash": "SrlzgK9X4YM2No6LqXJg7ZPC0UNgjiy+wTwb3OhiSYfuNjQWJXGyL+iWtKOqHwJ/C1eGmyz7Cqs5WOE1Cp191g==",
         "dependencies": {
           "Microsoft.ApplicationInsights": "2.23.0",
-          "Microsoft.Testing.Platform": "2.2.3"
+          "Microsoft.Testing.Platform": "2.3.1"
         }
       },
       "Microsoft.Testing.Extensions.TrxReport": {
         "type": "Transitive",
-        "resolved": "2.2.3",
-        "contentHash": "9Hot3ty5ZVWHrW40k2NPfD0dCaPwIxj7j7VjujNYwpYkYw9AdbejPHjGNkL/gvUWorauJf5IkeDoUeIbS7LuUg==",
+        "resolved": "2.3.1",
+        "contentHash": "nuYT2oV6xht8HkRWsPJvNbM1CwiHiwe6T4B5XsJv2eKCGbE68/teMJlzNybYn2TWJ0oBuYgbTroFDhgciYUMcQ==",
         "dependencies": {
-          "Microsoft.Testing.Extensions.TrxReport.Abstractions": "2.2.3",
-          "Microsoft.Testing.Platform": "2.2.3"
+          "Microsoft.Testing.Extensions.TrxReport.Abstractions": "2.3.1",
+          "Microsoft.Testing.Platform": "2.3.1"
         }
       },
       "Microsoft.Testing.Extensions.TrxReport.Abstractions": {
         "type": "Transitive",
-        "resolved": "2.2.3",
-        "contentHash": "hntvxJEkmUAx6C2xXc/PO38DqEQl4rimzOgSvTR1hAMruMid7R4RcXOrzzF33J66gKaN7jRaQ0TMW/nNfaV9jw==",
+        "resolved": "2.3.1",
+        "contentHash": "RpMkMST/uzU3UMGMtqu5PjXk7mg4pyHLKP0tCdpt6fIqWvAsO7Vp34eA6bwdgtlQZMBCXZMlFiavGIxTGAOfHA==",
         "dependencies": {
-          "Microsoft.Testing.Platform": "2.2.3"
+          "Microsoft.Testing.Platform": "2.3.1"
         }
       },
       "Microsoft.Testing.Extensions.VSTestBridge": {
         "type": "Transitive",
-        "resolved": "2.2.3",
-        "contentHash": "7WlJISO8QKUK+d+WhgnANwy4ACwUrvICnviY/mthPwjZ2gVeDaSUAeBnMy2cxfzZgm8VATtGUDbYzUxsgV2CyQ==",
+        "resolved": "2.3.1",
+        "contentHash": "dpimiGO3U5DZIw1YX9kSywVWRaBy38m8PalCo9z1oHkufFUdKD3XT6WDYyC8tZpqXKFUKJhrKoVrZtMS8gdgPw==",
         "dependencies": {
-          "Microsoft.TestPlatform.ObjectModel": "18.3.0",
-          "Microsoft.Testing.Extensions.Telemetry": "2.2.3",
-          "Microsoft.Testing.Extensions.TrxReport.Abstractions": "2.2.3",
-          "Microsoft.Testing.Platform": "2.2.3"
+          "Microsoft.TestPlatform.ObjectModel": "18.4.0",
+          "Microsoft.Testing.Extensions.Telemetry": "2.3.1",
+          "Microsoft.Testing.Extensions.TrxReport.Abstractions": "2.3.1",
+          "Microsoft.Testing.Platform": "2.3.1"
         }
       },
       "Microsoft.Testing.Platform": {
         "type": "Transitive",
-        "resolved": "2.2.3",
-        "contentHash": "LhM1/Qoi8Ams5QcD4r3f09CSOono9iQr3NEJQItFtyzWB55nWTgEOsVqXqMWWWIwk3nkPqc+XfnlJmp8xUI5fg=="
+        "resolved": "2.3.1",
+        "contentHash": "sZlgL8zvquO/uOMFK9YdovHzfnI/MPNXvakTPskKzRB3CQp9Yzdqs9ZFew7STlNzib9X/twjezdSPW4CE9YjIQ=="
       },
       "Microsoft.Testing.Platform.MSBuild": {
         "type": "Transitive",
-        "resolved": "2.2.3",
-        "contentHash": "Q22jJYJLx4srTinsAuoCskqmzjrBJC8YeGJMHHIcrf1dQeHoEZ7wsqDzTlENkMoke2qfufF7U+9u58nlZunH/Q==",
+        "resolved": "2.3.1",
+        "contentHash": "ikKS89MaM4gWwBr+ApcV2vy55v0kauOpBFqY7Mh0LCcLtiNlFsumZmjOc4BPt+msJhDf83o03/kuucVtepb55w==",
         "dependencies": {
-          "Microsoft.Testing.Platform": "2.2.3"
+          "Microsoft.Testing.Platform": "2.3.1"
         }
       },
       "Microsoft.TestPlatform.ObjectModel": {
@@ -877,25 +877,25 @@
       },
       "MSTest.Analyzers": {
         "type": "Transitive",
-        "resolved": "4.2.3",
-        "contentHash": "dxOZt8/LWuiox7rugInJoIa5Mmu3pBmXdfaoZOx/mxx8+sUFFpjBXPlWXQXGeWzpkVPNC3x1Jf7rt2h2Zjyvvg=="
+        "resolved": "4.3.0",
+        "contentHash": "Od+0h98vkWxsDKwk3N7RfS4SHOq2D4imLeCcs5YO2+g8ZsO2+QhymVg7HDoB81J3zA1UEj09PNBdNBGAdNUMNg=="
       },
       "MSTest.TestAdapter": {
         "type": "Transitive",
-        "resolved": "4.2.3",
-        "contentHash": "oVV/luk0bBghnVvLaw8MwFlD7It0Cx9P2nKobeqIafmTQqFFWY69Wo801dxjeNaLzO/o9WQ84WSK84gXJuubhg==",
+        "resolved": "4.3.0",
+        "contentHash": "lJiqBscyRAUawzwnzEAZpDAqG8HaRi6a6YNQ1CcfEEYLZksoj0KUySaVWNbgEp/j0pvEe5hJRdJAu1jqJEQoJA==",
         "dependencies": {
-          "MSTest.TestFramework": "4.2.3",
-          "Microsoft.Testing.Extensions.VSTestBridge": "2.2.3",
-          "Microsoft.Testing.Platform.MSBuild": "2.2.3"
+          "MSTest.TestFramework": "4.3.0",
+          "Microsoft.Testing.Extensions.VSTestBridge": "2.3.1",
+          "Microsoft.Testing.Platform.MSBuild": "2.3.1"
         }
       },
       "MSTest.TestFramework": {
         "type": "Transitive",
-        "resolved": "4.2.3",
-        "contentHash": "9zzij59YLh+tf+FRLNqhzHjmdspR91bol+jdQxLlxxTGMAML6LDbvuyXKMGdcrE84+QpKkk6KjTVBC5PBGrDeA==",
+        "resolved": "4.3.0",
+        "contentHash": "5g6Bx47jdzsHt0Kf9u9W8z/8ZWixGz2BvO+FVmoLht0yW24Ac9djZ+mvgTqdM9YXdS948ywM8eOtVhRyPio7aw==",
         "dependencies": {
-          "MSTest.Analyzers": "4.2.3"
+          "MSTest.Analyzers": "4.3.0"
         }
       },
       "Newtonsoft.Json": {
@@ -1106,8 +1106,8 @@
           "HVO.WebSite.Themes": "[1.0.0, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.9, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.9, )",
-          "Microsoft.Identity.Web": "[4.11.0, )",
-          "Microsoft.Identity.Web.UI": "[4.11.0, )",
+          "Microsoft.Identity.Web": "[4.13.0, )",
+          "Microsoft.Identity.Web.UI": "[4.13.0, )",
           "MudBlazor": "[9.6.0, )",
           "OpenTelemetry.Api": "[1.16.0, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.16.0, )",
@@ -1354,14 +1354,14 @@
       },
       "Microsoft.Identity.Web": {
         "type": "CentralTransitive",
-        "requested": "[4.11.0, )",
-        "resolved": "4.11.0",
-        "contentHash": "s7/up7XohCu7I+9Oio8OqqHQbhkPqA3OeQQ/nr/CcKtCQryY2nbgoT53ofxJ6npO2dggjpePvOWC+rs832RKXg==",
+        "requested": "[4.13.0, )",
+        "resolved": "4.13.0",
+        "contentHash": "J+tmT42tfUmtLjMTll+NjLf3i5SkT7CzqYtNQGLf4mbWNTrN1PKTt4+GM4UCQnyB2j7LFg8Xlh77f4zLi+1T+A==",
         "dependencies": {
-          "Microsoft.Identity.Web.Certificate": "4.11.0",
-          "Microsoft.Identity.Web.Certificateless": "4.11.0",
-          "Microsoft.Identity.Web.TokenAcquisition": "4.11.0",
-          "Microsoft.Identity.Web.TokenCache": "4.11.0",
+          "Microsoft.Identity.Web.Certificate": "4.13.0",
+          "Microsoft.Identity.Web.Certificateless": "4.13.0",
+          "Microsoft.Identity.Web.TokenAcquisition": "4.13.0",
+          "Microsoft.Identity.Web.TokenCache": "4.13.0",
           "Microsoft.IdentityModel.Protocols.OpenIdConnect": "8.19.1",
           "Microsoft.IdentityModel.Validators": "8.19.1",
           "System.IdentityModel.Tokens.Jwt": "8.19.1"
@@ -1369,11 +1369,11 @@
       },
       "Microsoft.Identity.Web.UI": {
         "type": "CentralTransitive",
-        "requested": "[4.11.0, )",
-        "resolved": "4.11.0",
-        "contentHash": "PgezAkxlqEjNfD4YusNHUFEg+5E1BaSJ8oWj4cYHCgGJ2tUBhSHx1fGpOx9rwweqdhJPmN/fqVGmw3wqs9ANjg==",
+        "requested": "[4.13.0, )",
+        "resolved": "4.13.0",
+        "contentHash": "W7zNA5DJG08GxqBkK38ch7xmZAdFWOzdoRlH9et9rwFhFeW55CAdSr5Gp4Dw1+jqDL/AHfUKwZ6TrgcFL5Iq5g==",
         "dependencies": {
-          "Microsoft.Identity.Web": "4.11.0"
+          "Microsoft.Identity.Web": "4.13.0"
         }
       },
       "MudBlazor": {
