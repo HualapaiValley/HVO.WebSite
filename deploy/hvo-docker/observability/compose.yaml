@@ -1,0 +1,105 @@
+name: hvo-observability
+
+services:
+  otel-collector:
+    image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:latest}
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./config/otelcol-config.yaml:/etc/otelcol/config.yaml:ro
+      - otelcol-storage:/var/lib/otelcol/file_storage
+    ports:
+      - "${HVO_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${OTEL_GRPC_PORT:-4317}:4317"
+      - "${HVO_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${OTEL_HTTP_PORT:-4318}:4318"
+      - "127.0.0.1:${OTEL_HEALTH_PORT:-13133}:13133"
+    networks:
+      - hvo-observability
+    depends_on:
+      - tempo
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-365d}"
+      - "--web.enable-lifecycle"
+      - "--web.enable-remote-write-receiver"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${HVO_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - hvo-observability
+    depends_on:
+      - otel-collector
+
+  loki:
+    image: ${LOKI_IMAGE:-grafana/loki:latest}
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "${HVO_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
+    networks:
+      - hvo-observability
+
+  promtail:
+    image: ${PROMTAIL_IMAGE:-grafana/promtail:latest}
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yaml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./promtail/promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - promtail-data:/var/lib/promtail
+    networks:
+      - hvo-observability
+    depends_on:
+      - loki
+
+  tempo:
+    image: ${TEMPO_IMAGE:-grafana/tempo:latest}
+    restart: unless-stopped
+    command: -config.file=/etc/tempo/tempo-config.yaml
+    volumes:
+      - ./tempo/tempo-config.yaml:/etc/tempo/tempo-config.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "127.0.0.1:${TEMPO_PORT:-3200}:3200"
+    networks:
+      - hvo-observability
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?Set GRAFANA_ADMIN_USER in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "${HVO_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
+    networks:
+      - hvo-observability
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+networks:
+  hvo-observability:
+    name: hvo-observability
+
+volumes:
+  otelcol-storage:
+  prometheus-data:
+  loki-data:
+  promtail-data:
+  tempo-data:
+  grafana-data:

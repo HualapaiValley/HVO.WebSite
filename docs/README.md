@@ -7,6 +7,7 @@ This directory holds current reference, operational notes, discovery findings, a
 - `ARCHITECTURE.md`: current system baseline, deployment boundaries, and active data-flow direction
 - `FUTURE_WORK.md`: single consolidated list of open future work after the shared outbox migrations
 - `CONTAINER_PUBLISHING.md`: self-hosted registry publishing workflow and versioning process
+- `SHARED_INFRASTRUCTURE.md`: reusable hvo-docker infrastructure and observability stacks, storage policy, and migration guidance
 - `WEBSITE_CONTAINER_APP.md`: current Azure Container App notes for the website deployment
 - `PROJECT_HISTORY.md`: session-by-session summary of recent work, decisions, and follow-up context
 - `CSS_GOVERNANCE.md`: active CSS and theme authoring policy for all projects
