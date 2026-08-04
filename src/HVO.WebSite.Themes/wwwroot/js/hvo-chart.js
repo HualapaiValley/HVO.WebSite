@@ -114,6 +114,30 @@ window.hvoChart.render = function (chartId, config) {
                 const callerYTicks = defaultScales.y.ticks || {};
                 defaultScales.y.ticks = Object.assign(callerYTicks, { color: colors.labelColor });
             }
+
+            const showFahrenheitAxis = defaultScales.fahrenheitAxis;
+            delete defaultScales.fahrenheitAxis;
+            if (showFahrenheitAxis && defaultScales.y) {
+                const values = (cleanConfig.data && cleanConfig.data.datasets || [])
+                    .flatMap(ds => Array.isArray(ds.data) ? ds.data : [])
+                    .filter(value => typeof value === 'number' && Number.isFinite(value));
+                const minimum = defaultScales.y.suggestedMin ?? (values.length ? Math.min(...values) : 0);
+                const maximum = defaultScales.y.suggestedMax ?? (values.length ? Math.max(...values) : 1);
+                defaultScales.y.min = minimum;
+                defaultScales.y.max = maximum;
+                defaultScales.yF = {
+                    type: 'linear',
+                    position: 'right',
+                    min: minimum,
+                    max: maximum,
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: 'Fahrenheit' },
+                    ticks: {
+                        color: colors.labelColor,
+                        callback: value => `${((Number(value) * 9 / 5) + 32).toFixed(0)} °F`
+                    }
+                };
+            }
         }
 
         if (cleanConfig.options && cleanConfig.options.plugins) {

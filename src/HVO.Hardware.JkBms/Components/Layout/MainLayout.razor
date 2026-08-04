@@ -9,6 +9,7 @@
                   IsDarkMode="@_shellState.IsDarkMode"
                   IsDarkModeChanged="@OnThemeModeChanged">
     <NavItems>
+        <MudButton Href="/" Variant="@GetNavLinkVariant("Overview")" Color="Color.Inherit" Class="@GetNavLinkClass("Overview")">Overview</MudButton>
         <MudButton Href="/devices" Variant="@GetNavLinkVariant("Device details")" Color="Color.Inherit" Class="@GetNavLinkClass("Device details")">Device details</MudButton>
         <MudButton Href="/charts" Variant="@GetNavLinkVariant("Full history")" Color="Color.Inherit" Class="@GetNavLinkClass("Full history")">Full history</MudButton>
     </NavItems>

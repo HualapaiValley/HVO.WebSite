@@ -147,9 +147,9 @@
                             </div>
                         </div>
                         <dl class="jk-detail-list">
-                            <div><dt>Battery Temp 1</dt><dd>@HvoFormat.Temperature(r.BatteryTemperature1C)</dd></div>
-                            <div><dt>Battery Temp 2</dt><dd>@HvoFormat.Temperature(r.BatteryTemperature2C)</dd></div>
-                            <div><dt>Power Tube Temp</dt><dd>@HvoFormat.Temperature(r.PowerTubeTemperatureC)</dd></div>
+                            <div><dt>Battery Temp 1</dt><dd>@HvoFormat.TemperatureBoth(r.BatteryTemperature1C)</dd></div>
+                            <div><dt>Battery Temp 2</dt><dd>@HvoFormat.TemperatureBoth(r.BatteryTemperature2C)</dd></div>
+                            <div><dt>Power Tube Temp</dt><dd>@HvoFormat.TemperatureBoth(r.PowerTubeTemperatureC)</dd></div>
                             <div><dt>Balancing</dt><dd>@(r.BalancingActive ? $"Active {r.BalancingCurrentMa:F0} mA" : "Inactive")</dd></div>
                         </dl>
                     </article>

@@ -67,6 +67,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         var path = Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/');
         return section switch
         {
+            "Overview" => false,
             "Device details" => path.StartsWith("device", StringComparison.OrdinalIgnoreCase),
             "Full history" => path.StartsWith("charts", StringComparison.OrdinalIgnoreCase),
             _ => false

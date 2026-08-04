@@ -27,6 +27,11 @@ public static class HvoFormat
                 ? $"{(celsius.Value * 9.0 / 5.0 + 32.0).ToString("F1", CultureInfo.InvariantCulture)} °F"
                 : $"{celsius.Value.ToString("F1", CultureInfo.InvariantCulture)} °C";
 
+    public static string TemperatureBoth(double? celsius)
+        => celsius is null
+            ? "--"
+            : $"{celsius.Value.ToString("F1", CultureInfo.InvariantCulture)} °C / {(celsius.Value * 9.0 / 5.0 + 32.0).ToString("F1", CultureInfo.InvariantCulture)} °F";
+
     public static string Speed(double? ms, UnitSystem units = UnitSystem.Metric)
         => ms is null ? "--"
             : units == UnitSystem.Imperial

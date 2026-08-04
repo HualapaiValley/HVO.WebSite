@@ -129,8 +129,8 @@ public partial class Charts : IDisposable
     private IReadOnlyList<HvoChartDataset> EnergyDatasets =>
     [
         new("Today", [(double?)History.Today.ChargeEnergyKwh ?? 0, (double?)History.Today.DischargeEnergyKwh ?? 0],
-            BorderColor: "#69d3ff", // --hvo-series-1
-            BackgroundColor: "#69d3ff", // --hvo-series-1
+            BorderColors: ["#57d38d", "#ff8b87"], // --hvo-accent-success, --hvo-accent-danger
+            BackgroundColors: ["#57d38d", "#ff8b87"], // --hvo-accent-success, --hvo-accent-danger
             BorderWidth: 1)
     ];
 

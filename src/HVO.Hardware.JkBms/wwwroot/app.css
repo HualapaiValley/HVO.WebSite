@@ -1095,7 +1095,12 @@
 
 .jk-dashboard-shell {
     max-width: 2200px;
-    gap: 2.25rem;
+    gap: 1.5rem;
+}
+
+.jk-dashboard-shell > section + section {
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--shell-overlay-panel-border);
 }
 
 .jk-overview-header {
