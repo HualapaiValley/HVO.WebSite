@@ -260,6 +260,40 @@ The normalized SolarAssistant `power.reading` stream does not cover this event. 
 
 The live SolarAssistant metrics currently expose conflicting SoC topics (`total/battery_state_of_charge` reported 55 while `inverter_1/battery_state_of_charge` reported 80 during the August 4 check). Do not use either as the historical anchor until the topic semantics are resolved.
 
+### Direct SolarAssistant Device History
+
+The official REST API exposes current metrics at `/api/v1/metrics`; historical charts are served by the authenticated device web application. The device’s Charts page embeds Grafana at `/grafana/d/sa-charts`, with dashboard UID `sa-charts` and an InfluxDB datasource proxy at `/grafana/api/datasources/proxy/1`. The configured Influx database is `solar_assistant`.
+
+The dashboard definition exposes these measurements:
+
+- `Battery voltage`, field `inverter_0`
+- `Battery current`, field `inverter_0`
+- `Battery power`, field `combined`
+- `Battery state of charge`, field `combined`
+
+Querying the device directly recovered the suspected event and the subsequent history:
+
+- 2026-07-16 13:01:19 UTC: `44 V`, `-19 A`, `-706 W`, SolarAssistant SoC `85%`.
+- 2026-07-17: SolarAssistant SoC minimum `12%`.
+- 2026-07-18: SolarAssistant SoC minimum `1%`; voltage minimum approximately `44.2 V`.
+- The 44 V event therefore represents an operational dead/near-empty system even though the reported SoC field was stale or semantically wrong.
+
+The raw SolarAssistant battery-power series from the 44 V event through 2026-08-04 contained approximately 160,742 points with only three gaps longer than ten minutes. Trapezoidal integration produced:
+
+- Charge energy: approximately `262.76 kWh`.
+- Discharge energy: approximately `175.43 kWh`.
+- Net energy: approximately `87.34 kWh`.
+- Configured battery capacity: `95.2 kWh`.
+
+An idealized 100% efficient estimate would therefore be `91.7%` SoC today. Applying effective charge/conversion efficiency produces a wide range:
+
+- 95% effective efficiency: approximately `77.9%`.
+- 90% effective efficiency: approximately `64.1%`.
+- 87% effective efficiency: approximately `55.9%`.
+- 85% effective efficiency: approximately `50.3%`.
+
+The current SolarAssistant total SoC of approximately `55%` corresponds to an inferred effective efficiency near `86.7%` over this interval. This is useful evidence, but not proof of battery efficiency because the power measurement boundary, inverter losses, reserve behavior, and charge/discharge calibration are not yet verified. The recommended derived display is an uncertainty-bounded estimate, not a silent replacement for reported SoC.
+
 SmartShunt local history remains discontinuous: its legacy database ends June 17 and its active database begins July 27. No SmartShunt reading around July 16-20 was retained locally.
 
 Signed amp-hour integration from each Pi bank’s retained low point to the latest reading closely matched the reported SoC rise:
@@ -286,6 +320,7 @@ If the retained low points were incorrectly treated as true zero, the current ca
 8. Do not replace the BMS-reported SoC in production until the anchor and capacity basis are validated.
 9. Investigate SolarAssistant’s direct historical/chart API or source storage to recover July 17-August 2 battery SoC and energy data.
 10. Resolve the meaning of SolarAssistant `total/battery_state_of_charge` versus `inverter_1/battery_state_of_charge` before using either in a derived SoC calculation.
+11. Preserve the direct SolarAssistant Grafana/Influx query method and validate the 95.2 kWh capacity and effective efficiency against a known full-charge synchronization event.
 
 ## Validation History
 
