@@ -29,6 +29,8 @@ public partial class HvoGatewayLayout : LayoutComponentBase
 
     [Parameter] public MudTheme? Theme { get; set; }
 
+    [Parameter] public string? FrameModifierClass { get; set; }
+
     private MudTheme EffectiveTheme => Theme ?? HvoTheme.Create();
 
     private string LayoutThemeClass => IsDarkMode ? "shell-theme-dark" : "shell-theme-light";

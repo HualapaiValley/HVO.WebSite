@@ -6,7 +6,7 @@ namespace HVO.Hardware.JkBms.Bms;
 ///
 /// All electrical values are in SI base units to keep the API consistent:
 ///   voltages → millivolts (mV)
-///   current  → milliamps (mA, negative = charging)
+///   current  → milliamps (mA, positive = charging; negative = discharging)
 ///   capacity → milliamp-hours (mAh)
 ///   temperature → degrees Celsius
 /// </summary>
@@ -70,7 +70,7 @@ public sealed class BmsDeviceReading
     /// <summary>Total pack voltage (mV).</summary>
     public uint TotalVoltageMv { get; init; }
 
-    /// <summary>Pack current (mA). Positive = discharging. Negative = charging.</summary>
+    /// <summary>Pack current (mA). Positive = charging. Negative = discharging.</summary>
     public int CurrentMa { get; init; }
 
     // ── Capacity and state ────────────────────────────────────────────────────

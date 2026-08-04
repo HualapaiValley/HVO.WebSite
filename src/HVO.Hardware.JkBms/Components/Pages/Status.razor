@@ -1,300 +1,139 @@
 @page "/"
 @rendermode InteractiveServer
-@using HVO.Edge.Outbox
 @using HVO.WebSite.Themes.Components.Format
 
-    <div class="shell-page-stack">
-        <section class="jk-hero" aria-label="Fleet overview header">
-            <div>
-                <div class="jk-eyebrow">Fleet Overview</div>
-                <h1 class="jk-hero-title">@PageHeadingText</h1>
-                <p class="jk-hero-summary">@PageSummaryText</p>
-            </div>
+<div class="shell-page-stack jk-dashboard-shell">
+    <section class="jk-overview-header" aria-label="Fleet overview header">
+        <div>
+            <div class="jk-eyebrow">Combined battery system</div>
+            <h1 class="jk-overview-title">JK BMS fleet overview</h1>
+            <p class="jk-overview-summary">One view of the combined battery banks: charge state, electrical flow, thermal trend, and recent operating history.</p>
+        </div>
+        <div class="jk-overview-header-actions">
+            <div class="jk-live-state"><span class="jk-live-dot" aria-hidden="true"></span><strong>Live</strong><span>@ConnectedBanks/@TotalBanks connected</span></div>
+        </div>
+    </section>
 
-            <div class="jk-hero-meta">
-                <div class="jk-stat-chip">
-                    <span>Connected banks</span>
-                    <strong>@ConnectedBanks / @TotalBanks</strong>
-                </div>
-                <div class="jk-stat-chip">
-                    <span>Fleet charge</span>
-                    <strong>@HvoFormat.Percent(AverageStateOfChargePercent)</strong>
-                </div>
-                <div class="jk-stat-chip">
-                    <span>Latest poll</span>
-                    <strong>@HvoFormat.Timestamp(LatestPollAtUtc, "MMM d, HH:mm:ss")</strong>
-                </div>
-            </div>
-        </section>
+    <section class="jk-fleet-summary" aria-label="Combined fleet summary">
+        <div class="jk-section-heading">
+            <div><div class="jk-eyebrow">Live fleet totals</div><h2>Battery system now</h2></div>
+            <span class="jk-section-note">@ReportingBanks of @TotalBanks banks reporting</span>
+        </div>
+        <div class="jk-fleet-metric-grid">
+            <article class="jk-fleet-metric jk-fleet-metric--soc">
+                <span class="jk-metric-label">State of charge</span>
+                <strong>@HvoFormat.Percent(AverageStateOfChargePercent)</strong>
+                <small>@DisplaySocRate(Today.SocRatePercentPerHour) current SoC trend</small>
+            </article>
+            <article class="jk-fleet-metric jk-fleet-metric--voltage">
+                <span class="jk-metric-label">Pack voltage</span>
+                <strong>@HvoFormat.Voltage(AverageVoltageV)</strong>
+                <small>Average bank voltage</small>
+            </article>
+            <article class="jk-fleet-metric jk-fleet-metric--current">
+                <span class="jk-metric-label">Current into pack</span>
+                <strong>@DisplayCurrent(CurrentIntoA)</strong>
+                <small>Charging current</small>
+            </article>
+            <article class="jk-fleet-metric jk-fleet-metric--current-out">
+                <span class="jk-metric-label">Current out of pack</span>
+                <strong>@DisplayCurrent(CurrentOutA, false)</strong>
+                <small>Discharge current</small>
+            </article>
+            <article class="jk-fleet-metric jk-fleet-metric--power">
+                <span class="jk-metric-label">Power into pack</span>
+                <strong>@DisplayPower(PowerIntoW)</strong>
+                <small>Battery charge rate</small>
+            </article>
+            <article class="jk-fleet-metric jk-fleet-metric--power-out">
+                <span class="jk-metric-label">Power out of pack</span>
+                <strong>@DisplayPower(PowerOutW, false)</strong>
+                <small>Battery discharge rate</small>
+            </article>
+            <article class="jk-fleet-metric jk-fleet-metric--forecast">
+                <span class="jk-metric-label">Hours to full</span>
+                <strong>@HoursToFull</strong>
+                <small>@ForecastLabel</small>
+            </article>
+            <article class="jk-fleet-metric jk-fleet-metric--forecast-empty">
+                <span class="jk-metric-label">Hours to empty</span>
+                <strong>@HoursToEmpty</strong>
+                <small>@ForecastLabel</small>
+            </article>
+        </div>
+    </section>
 
-        <section class="jk-card" aria-label="Whole system snapshot">
-            <div class="jk-card-head">
-                <div>
-                    <div class="jk-card-kicker">Fleet summary</div>
-                    <h2>Combined battery picture</h2>
-                </div>
-                <div class="jk-summary-pill">
-                    <span>Reporting</span>
-                    <strong>@ReportingBanks bank(s)</strong>
-                </div>
+    <section class="jk-trends-section" aria-label="Fleet trend charts">
+        <div class="jk-section-heading jk-section-heading--trends">
+            <div><div class="jk-eyebrow">Fleet history</div><h2>Electrical and thermal trends</h2></div>
+            <div class="jk-range-selector" role="group" aria-label="Chart range">
+                @foreach (var option in RangeOptions)
+                {
+                    <button class="hvo-button jk-range-button @(option.Hours == _rangeHours ? "hvo-button-primary" : string.Empty)"
+                            type="button"
+                            aria-pressed="@(option.Hours == _rangeHours)"
+                            @onclick="() => SetRangeAsync(option.Hours)">@option.Label</button>
+                }
             </div>
+        </div>
 
-            <div class="jk-gauge-grid">
-                <div class="jk-gauge" style="@AverageSocGaugeStyle">
-                    <div class="jk-gauge-inner">
-                        <span>Avg SoC</span>
-                        <strong>@HvoFormat.Percent(AverageStateOfChargePercent)</strong>
-                    </div>
-                </div>
-                <div class="jk-gauge" style="@AverageVoltageGaugeStyle">
-                    <div class="jk-gauge-inner">
-                        <span>Avg V</span>
-                        <strong>@HvoFormat.Voltage(AverageVoltageV)</strong>
-                    </div>
-                </div>
-                <div class="jk-gauge" style="@CurrentGaugeStyle">
-                    <div class="jk-gauge-inner">
-                        <span>Total A</span>
-                        <strong>@HvoFormat.Current(TotalCurrentA)</strong>
-                    </div>
-                </div>
-            </div>
-
-            <div class="jk-metric-grid">
-                <div class="jk-metric">
-                    <span>Average state of charge</span>
-                    <strong>@HvoFormat.Percent(AverageStateOfChargePercent)</strong>
-                </div>
-                <div class="jk-metric">
-                    <span>Average pack voltage</span>
-                    <strong>@HvoFormat.Voltage(AverageVoltageV)</strong>
-                </div>
-                <div class="jk-metric">
-                    <span>Total current</span>
-                    <strong>@HvoFormat.Current(TotalCurrentA)</strong>
-                </div>
-                <div class="jk-metric">
-                    <span>Total nominal capacity</span>
-                    <strong>@HvoFormat.EnergyAh(TotalNominalCapacityAh)</strong>
-                </div>
-                <div class="jk-metric">
-                    <span>Average delta cell</span>
-                    <strong>@DisplayMillivolts(AverageDeltaCellMv)</strong>
-                </div>
-                <div class="jk-metric">
-                    <span>Highest battery temp</span>
-                    <strong>@HvoFormat.Temperature(MaxBatteryTemperatureC)</strong>
-                </div>
-            </div>
-        </section>
-
-        <section class="jk-card" aria-label="Fleet high and low indicators">
-            <div class="jk-card-head">
-                <div>
-                    <div class="jk-card-kicker">Highlights</div>
-                    <h2>High and low bank indicators</h2>
-                </div>
-            </div>
-
-            <div class="jk-highlight-grid">
-                <article class="jk-highlight-card">
-                    <span class="jk-highlight-label">Highest SoC bank</span>
-                    @if (HighestSocBank is null)
-                    {
-                        <strong>--</strong>
-                        <div class="text-secondary">Waiting for readings</div>
-                    }
-                    else
-                    {
-                        <strong>@HighestSocBank.Alias</strong>
-                        <div class="jk-highlight-value">@HvoFormat.Percent(HighestSocBank.LatestReading?.StateOfChargePercent)</div>
-                    }
+        @if (_trendPoints.Count == 0)
+        {
+            <div class="jk-empty-state">No persisted fleet history is available for the selected range.</div>
+        }
+        else
+        {
+            <div class="jk-chart-grid jk-chart-grid--primary">
+                <article class="jk-chart-card">
+                    <div class="jk-chart-card-heading"><div><div class="jk-eyebrow">Battery level</div><h3>State of charge</h3></div><span>%</span></div>
+                    <HvoChart ChartId="jk-overview-soc" Type="HvoChartType.Line" Height="330" ShowLegend="false" EnableAnimations="false" DataRevision="@_chartRevision" YAxisSuggestedMin="0" YAxisSuggestedMax="100" Labels="@TrendLabels" Datasets="@SocDatasets" />
                 </article>
-
-                <article class="jk-highlight-card">
-                    <span class="jk-highlight-label">Lowest SoC bank</span>
-                    @if (LowestSocBank is null)
-                    {
-                        <strong>--</strong>
-                        <div class="text-secondary">Waiting for readings</div>
-                    }
-                    else
-                    {
-                        <strong>@LowestSocBank.Alias</strong>
-                        <div class="jk-highlight-value">@HvoFormat.Percent(LowestSocBank.LatestReading?.StateOfChargePercent)</div>
-                    }
-                </article>
-
-                <article class="jk-highlight-card">
-                    <span class="jk-highlight-label">Highest delta cell</span>
-                    @if (HighestDeltaBank is null)
-                    {
-                        <strong>--</strong>
-                        <div class="text-secondary">Waiting for readings</div>
-                    }
-                    else
-                    {
-                        <strong>@HighestDeltaBank.Alias</strong>
-                        <div class="jk-highlight-value">@DisplayMillivolts(HighestDeltaBank.LatestReading?.DeltaCellVoltageMv)</div>
-                    }
-                </article>
-
-                <article class="jk-highlight-card">
-                    <span class="jk-highlight-label">Hottest bank</span>
-                    @if (HottestBank is null)
-                    {
-                        <strong>--</strong>
-                        <div class="text-secondary">Waiting for readings</div>
-                    }
-                    else
-                    {
-                        <strong>@HottestBank.Alias</strong>
-                        <div class="jk-highlight-value">@HvoFormat.Temperature(HottestBank.LatestReading?.BatteryTemperature1C)</div>
-                    }
+                <article class="jk-chart-card">
+                    <div class="jk-chart-card-heading"><div><div class="jk-eyebrow">Battery flow</div><h3>Battery power</h3></div><span>+ in / - out W</span></div>
+                    <HvoChart ChartId="jk-overview-power" Type="HvoChartType.Line" Height="330" ShowLegend="false" EnableAnimations="false" DataRevision="@_chartRevision" YAxisLabel="Watts" Labels="@TrendLabels" Datasets="@PowerDatasets" />
                 </article>
             </div>
-        </section>
-
-        <section class="jk-card" aria-label="Fleet bank status board">
-            <div class="jk-card-head">
-                <div>
-                    <div class="jk-card-kicker">Status board</div>
-                    <h2>At-a-glance bank grid</h2>
-                </div>
-                <a class="shell-nav-link" href="/devices">Open banks and config</a>
+            <div class="jk-chart-grid jk-chart-grid--secondary">
+                <article class="jk-chart-card">
+                    <div class="jk-chart-card-heading"><div><div class="jk-eyebrow">Electrical</div><h3>Pack voltage</h3></div><span>V</span></div>
+                    <HvoChart ChartId="jk-overview-voltage" Type="HvoChartType.Line" Height="270" ShowLegend="false" EnableAnimations="false" DataRevision="@_chartRevision" YAxisLabel="Volts" Labels="@TrendLabels" Datasets="@VoltageDatasets" />
+                </article>
+                <article class="jk-chart-card">
+                    <div class="jk-chart-card-heading"><div><div class="jk-eyebrow">Electrical</div><h3>Pack current</h3></div><span>+ in / - out A</span></div>
+                    <HvoChart ChartId="jk-overview-current" Type="HvoChartType.Line" Height="270" ShowLegend="false" EnableAnimations="false" DataRevision="@_chartRevision" YAxisLabel="Amps" Labels="@TrendLabels" Datasets="@CurrentDatasets" />
+                </article>
+                <article class="jk-chart-card">
+                    <div class="jk-chart-card-heading"><div><div class="jk-eyebrow">Thermals</div><h3>Battery temperature</h3></div><span>°C</span></div>
+                    <HvoChart ChartId="jk-overview-temperature" Type="HvoChartType.Line" Height="270" ShowLegend="false" EnableAnimations="false" DataRevision="@_chartRevision" YAxisLabel="Celsius" ShowFahrenheitAxis="true" Labels="@TrendLabels" Datasets="@TemperatureDatasets" />
+                </article>
             </div>
+        }
+    </section>
 
-            @if (!Poller.DeviceStates.Any())
-            {
-                <p class="placeholder-message">No devices configured.</p>
-            }
-            else
-            {
-                <div class="jk-ataglance-grid">
-                    @foreach (var device in Poller.DeviceStates)
+    <section class="jk-daily-section" aria-label="Seven day fleet history">
+        <div class="jk-section-heading">
+            <div><div class="jk-eyebrow">Recent operating history</div><h2>Last seven days</h2></div>
+            <span class="jk-section-note">@DisplayTimeZoneLabel · battery-side energy</span>
+        </div>
+        <div class="jk-daily-table-wrap">
+            <table class="jk-daily-table">
+                <thead>
+                    <tr><th scope="col">Day</th><th scope="col">Battery charged</th><th scope="col">Battery discharged</th><th scope="col">Net battery energy</th><th scope="col">High voltage</th><th scope="col">Low voltage</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var day in _history.DailySummaries)
                     {
-                        var reading = device.LatestReading;
-                        <a class="jk-bank-link" href="/device/@device.Address">
-                            <article class="jk-ataglance-card">
-                                <div class="jk-bank-title-row jk-bank-title-row-compact">
-                                    <div>
-                                        <div class="jk-bank-title">@device.Alias</div>
-                                        <div class="text-secondary">@BankStatusLabel(device, reading)</div>
-                                    </div>
-                                    <span class="jk-health-dot @BankStatusClass(device, reading)" aria-hidden="true"></span>
-                                </div>
-
-                                <div class="jk-mini-gauge-shell">
-                                    <div class="jk-mini-gauge-track">
-                                        <div class="jk-mini-gauge-fill" style="@MiniGaugeStyle(reading?.StateOfChargePercent)"></div>
-                                    </div>
-                                    <div class="jk-mini-gauge-meta">
-                                        <span>Charge</span>
-                                        <strong>@HvoFormat.Percent(reading?.StateOfChargePercent)</strong>
-                                    </div>
-                                </div>
-
-                                <div class="jk-ataglance-stats">
-                                    <div class="jk-ataglance-stat"><span>Voltage</span><strong>@HvoFormat.Voltage(reading is null ? null : reading.TotalVoltageMv / 1000.0)</strong></div>
-                                    <div class="jk-ataglance-stat"><span>Current</span><strong>@HvoFormat.Current(reading is null ? null : reading.CurrentMa / 1000.0)</strong></div>
-                                    <div class="jk-ataglance-stat"><span>Delta</span><strong>@DisplayMillivolts(reading?.DeltaCellVoltageMv)</strong></div>
-                                    <div class="jk-ataglance-stat"><span>Temp</span><strong>@HvoFormat.Temperature(reading?.BatteryTemperature1C)</strong></div>
-                                </div>
-
-                                <div class="jk-ataglance-footer">
-                                    <span class="badge @BankBadgeClass(device, reading)">@BankStatusLabel(device, reading)</span>
-                                    <span class="text-secondary">@HvoFormat.Timestamp(device.LastPollAt, "MMM d, HH:mm:ss")</span>
-                                </div>
-                            </article>
-                        </a>
+                        <tr>
+                            <th scope="row">@DisplayDay(day.DayUtc)</th>
+                            <td>@DisplayKwh(day.ChargeEnergyKwh)</td>
+                            <td>@DisplayKwh(day.DischargeEnergyKwh)</td>
+                            <td>@DisplayKwh(day.NetEnergyKwh)</td>
+                            <td>@HvoFormat.Voltage(day.HighVoltageV)</td>
+                            <td>@HvoFormat.Voltage(day.LowVoltageV)</td>
+                        </tr>
                     }
-                </div>
-            }
-        </section>
-
-        <section class="jk-table-shell" aria-label="Fleet balance chart">
-            <div class="jk-card-head jk-card">
-                <div>
-                    <div class="jk-card-kicker">Fleet chart</div>
-                    <h2>Bank charge balance</h2>
-                </div>
-            </div>
-            @if (!ReportingDevices.Any())
-            {
-                <p class="placeholder-message">Charge bars appear after the fleet reports its first readings.</p>
-            }
-            else
-            {
-                <div class="jk-balance-list">
-                    @foreach (var device in ReportingDevices.OrderByDescending(d => d.LatestReading!.StateOfChargePercent))
-                    {
-                        <div class="jk-balance-row">
-                            <div class="jk-balance-labels">
-                                <a href="/device/@device.Address">@device.Alias</a>
-                                <span>@HvoFormat.Percent(device.LatestReading?.StateOfChargePercent)</span>
-                            </div>
-                            <div class="jk-balance-track" aria-hidden="true">
-                                <div class="jk-balance-fill" style="@MiniGaugeStyle(device.LatestReading?.StateOfChargePercent)"></div>
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-        </section>
-
-        <section class="jk-card" aria-label="Outbox forwarder status and settings">
-            <div class="jk-card-head">
-                <div>
-                    <div class="jk-card-kicker">Data forwarding</div>
-                    <h2>Outbox forwarder</h2>
-                </div>
-                <div class="hvo-action-row" style="gap: 8px;">
-                    @if (_outboxOverride)
-                    {
-                        <button class="hvo-button hvo-button-warning" type="button" @onclick="ResetOutboxSettingsAsync">Reset defaults</button>
-                    }
-                    <button class="hvo-button hvo-button-success" type="button" @onclick="SaveOutboxSettingsAsync" disabled="@(!_outboxDirty)">Apply</button>
-                </div>
-            </div>
-
-            <div class="jk-metric-grid">
-                <div class="jk-metric">
-                    <span>Pending records</span>
-                    <strong class="hvo-mono">@Forwarder.PendingCount</strong>
-                </div>
-                <div class="jk-metric">
-                    <span>Failed records</span>
-                    <strong class="hvo-mono">@Forwarder.FailedCount</strong>
-                </div>
-                <div class="jk-metric">
-                    <span>Last batch</span>
-                    <strong class="hvo-mono">@Forwarder.LastBatchCount</strong>
-                </div>
-                <div class="jk-metric">
-                    <span>Last sent</span>
-                    <strong>@FormatLastSent()</strong>
-                </div>
-            </div>
-
-            <div class="hvo-form-grid" style="margin-top: 18px;">
-                <div class="hvo-field">
-                    <label class="hvo-field-label">Batch size <span class="text-secondary">(1–500)</span></label>
-                    <input class="hvo-control hvo-mono" type="number" min="1" max="500" step="1" required
-                        @bind-value="_outboxBatchSize" @bind-value:event="oninput" />
-                </div>
-                <div class="hvo-field">
-                    <label class="hvo-field-label">Sweep interval (s) <span class="text-secondary">(1–60)</span></label>
-                    <input class="hvo-control hvo-mono" type="number" min="1" max="60" step="1" required
-                        @bind-value="_outboxSweepIntervalSeconds" @bind-value:event="oninput" />
-                </div>
-            </div>
-
-            @if (!string.IsNullOrWhiteSpace(_outboxStatusMessage))
-            {
-                <div class="jk-metric" style="margin-top: 12px;">
-                    <span>Status</span>
-                    <strong>@_outboxStatusMessage</strong>
-                </div>
-            }
-        </section>
-    </div>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

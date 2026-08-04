@@ -5,8 +5,9 @@
 @using HVO.WebSite.Themes.Components.Format
 @inject BmsPollerWorker Poller
 @inject Microsoft.Extensions.Options.IOptions<JkBmsOptions> Options
+@inject JkBmsDisplayTimeZoneResolver DisplayTimeZoneResolver
 
-    <div class="shell-page-stack">
+    <div class="shell-page-stack jk-dashboard-shell">
         <section class="jk-hero" aria-label="Configured banks header">
             <div>
                 <div class="jk-eyebrow">Banks</div>
@@ -48,6 +49,7 @@
                             <th>Consecutive Errors</th>
                             <th>Last Poll</th>
                             <th>Last Error</th>
+                            <th>Admin</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -64,8 +66,9 @@
                                 <td>@(cfg.Enabled ? "Yes" : "No")</td>
                                 <td>@interval s</td>
                                 <td>@(state?.ConsecutiveErrors ?? 0)</td>
-                                <td>@HvoFormat.Timestamp(state?.LastPollAt, "MMM d, HH:mm:ss")</td>
+                                <td>@HvoFormat.Timestamp(state?.LastPollAt, DisplayTimeZoneResolver.TimeZone, "MMM d, HH:mm:ss")</td>
                                 <td>@(state?.LastError ?? "--")</td>
+                                <td><a href="@($"/device/{cfg.Address}/admin")">Open</a></td>
                             </tr>
                         }
                     </tbody>

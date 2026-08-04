@@ -51,6 +51,9 @@
     /// <summary>Optional upper-bound hint for the y-axis (uses Chart.js suggestedMax).</summary>
     [Parameter] public double? YAxisSuggestedMax { get; set; }
 
+    /// <summary>When true, mirror the Celsius y-axis on the right as Fahrenheit.</summary>
+    [Parameter] public bool ShowFahrenheitAxis { get; set; }
+
     private int _renderedRevision = -1;
 
     private string TypeJs => Type switch
@@ -108,9 +111,13 @@
                     // hvo-chart.js resolveCssVar() before passing to Chart.js, because
                     // Canvas 2D cannot resolve CSS custom properties.
                     // --shell-chart-label-color (e.g. #8da4c7)
-                    borderColor = d.BorderColor ?? "var(--shell-chart-label-color)",
+                    borderColor = d.BorderColors is not null
+                        ? (object)d.BorderColors
+                        : d.BorderColor ?? "var(--shell-chart-label-color)",
                     // --shell-chart-marker-fill (e.g. #ebf5ff)
-                    backgroundColor = d.BackgroundColor ?? "var(--shell-chart-marker-fill)",
+                    backgroundColor = d.BackgroundColors is not null
+                        ? (object)d.BackgroundColors
+                        : d.BackgroundColor ?? "var(--shell-chart-marker-fill)",
                     borderWidth = d.BorderWidth,
                     pointRadius = d.PointRadius,
                     fill = d.Fill
@@ -138,7 +145,8 @@
                         title = YAxisLabel is not null ? new { display = true, text = YAxisLabel } : (object?)null,
                         suggestedMin = YAxisSuggestedMin,
                         suggestedMax = YAxisSuggestedMax
-                    }
+                    },
+                    fahrenheitAxis = ShowFahrenheitAxis
                 }
             }
         };

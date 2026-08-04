@@ -54,7 +54,8 @@ public sealed class SolarAssistantMqttDiscoveryWorker : BackgroundService
                 _logger.LogInformation("SolarAssistant MQTT discovery connecting to {Host}:{Port}", _options.Host, _options.MqttPort);
                 var client = new SolarAssistantMqttClient(_options);
                 await client.RunAsync(Subscriptions, OnMessageAsync, _store.MarkConnected, stoppingToken);
-                _store.MarkDisconnected(null);
+                if (!stoppingToken.IsCancellationRequested)
+                    _store.MarkDisconnected(null);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
