@@ -5,11 +5,9 @@ namespace HVO.Hardware.JkBms.Configuration;
 public sealed class JkBmsDisplayTimeZoneResolver(IOptions<JkBmsOptions> options)
 {
     private const string DefaultTimeZoneId = "America/Phoenix";
-    private readonly string _timeZoneId = NormalizeTimeZoneId(options.Value.DisplayTimeZoneId) ?? DefaultTimeZoneId;
-    private readonly TimeZoneInfo _timeZone = ResolveTimeZone(
-        NormalizeTimeZoneId(options.Value.DisplayTimeZoneId) ?? DefaultTimeZoneId);
+    private readonly TimeZoneInfo _timeZone = ResolveTimeZone(options.Value.DisplayTimeZoneId);
 
-    public string TimeZoneId => _timeZoneId;
+    public string TimeZoneId => _timeZone.Id;
 
     public TimeZoneInfo TimeZone => _timeZone;
 
@@ -18,11 +16,12 @@ public sealed class JkBmsDisplayTimeZoneResolver(IOptions<JkBmsOptions> options)
 
     public string Label => _timeZone.Id == "UTC" ? "UTC" : _timeZone.Id;
 
-    private static TimeZoneInfo ResolveTimeZone(string timeZoneId)
+    private static TimeZoneInfo ResolveTimeZone(string? timeZoneId)
     {
+        var normalizedTimeZoneId = NormalizeTimeZoneId(timeZoneId) ?? DefaultTimeZoneId;
         try
         {
-            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            return TimeZoneInfo.FindSystemTimeZoneById(normalizedTimeZoneId);
         }
         catch (TimeZoneNotFoundException)
         {

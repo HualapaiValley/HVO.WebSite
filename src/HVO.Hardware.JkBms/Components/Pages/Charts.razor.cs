@@ -149,19 +149,26 @@ public partial class Charts : IDisposable
     public void Dispose()
     {
         _refreshCts?.Cancel();
-        _refreshTimer?.Dispose();
+        var refreshTimer = _refreshTimer;
+        _refreshTimer = null;
+        refreshTimer?.Dispose();
         _refreshCts?.Dispose();
     }
 
     private async Task RefreshLoopAsync(CancellationToken ct)
     {
-        while (_refreshTimer is not null && !ct.IsCancellationRequested)
+        var refreshTimer = _refreshTimer;
+        while (refreshTimer is not null && !ct.IsCancellationRequested)
         {
             try
             {
                 await RefreshAsync(ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (ObjectDisposedException) when (ct.IsCancellationRequested)
             {
                 break;
             }
@@ -172,10 +179,14 @@ public partial class Charts : IDisposable
 
             try
             {
-                if (!await _refreshTimer.WaitForNextTickAsync(ct))
+                if (!await refreshTimer.WaitForNextTickAsync(ct))
                     break;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (ObjectDisposedException) when (ct.IsCancellationRequested)
             {
                 break;
             }
@@ -190,7 +201,10 @@ public partial class Charts : IDisposable
 
     private async Task RefreshAsync(CancellationToken ct)
     {
-        History = await HistoryService.RefreshAsync(SelectedRange, ct);
+        var historyRange = SelectedRange < TimeSpan.FromDays(1)
+            ? TimeSpan.FromDays(1)
+            : SelectedRange;
+        History = await HistoryService.RefreshAsync(historyRange, ct);
         _revision++;
         await InvokeAsync(StateHasChanged);
     }

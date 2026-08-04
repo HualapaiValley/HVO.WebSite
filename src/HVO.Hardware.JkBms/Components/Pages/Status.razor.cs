@@ -72,19 +72,26 @@ public partial class Status : IDisposable
     {
         Poller.DeviceStateChanged -= OnStateChanged;
         _historyCts?.Cancel();
-        _historyTimer?.Dispose();
+        var historyTimer = _historyTimer;
+        _historyTimer = null;
+        historyTimer?.Dispose();
         _historyCts?.Dispose();
     }
 
     private async Task RefreshHistoryLoopAsync(CancellationToken ct)
     {
-        while (_historyTimer is not null && !ct.IsCancellationRequested)
+        var historyTimer = _historyTimer;
+        while (historyTimer is not null && !ct.IsCancellationRequested)
         {
             try
             {
                 await RefreshHistoryAsync(ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (ObjectDisposedException) when (ct.IsCancellationRequested)
             {
                 break;
             }
@@ -95,10 +102,14 @@ public partial class Status : IDisposable
 
             try
             {
-                if (!await _historyTimer.WaitForNextTickAsync(ct))
+                if (!await historyTimer.WaitForNextTickAsync(ct))
                     break;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (ObjectDisposedException) when (ct.IsCancellationRequested)
             {
                 break;
             }
