@@ -2,6 +2,7 @@ using HVO.Hardware.JkBms.History;
 using HVO.Hardware.JkBms.Configuration;
 using HVO.WebSite.Themes.Components.Charts;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 
 namespace HVO.Hardware.JkBms.Components.Pages;
 
@@ -21,6 +22,7 @@ public partial class Charts : IDisposable
 
     [Inject] private IBmsHistoryService HistoryService { get; set; } = default!;
     [Inject] private JkBmsDisplayTimeZoneResolver DisplayTimeZoneResolver { get; set; } = default!;
+    [Inject] private ILogger<Charts> Logger { get; set; } = default!;
 
     private BmsHistorySnapshot History { get; set; } = BmsHistorySnapshot.Empty;
     private int _rangeHours = 24;
@@ -153,14 +155,30 @@ public partial class Charts : IDisposable
 
     private async Task RefreshLoopAsync(CancellationToken ct)
     {
-        try
+        while (_refreshTimer is not null && !ct.IsCancellationRequested)
         {
-            await RefreshAsync(ct);
-            while (_refreshTimer is not null && await _refreshTimer.WaitForNextTickAsync(ct))
+            try
+            {
                 await RefreshAsync(ct);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "BMS charts history refresh failed");
+            }
+
+            try
+            {
+                if (!await _refreshTimer.WaitForNextTickAsync(ct))
+                    break;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
         }
     }
 

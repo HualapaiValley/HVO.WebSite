@@ -78,18 +78,30 @@ public partial class Status : IDisposable
 
     private async Task RefreshHistoryLoopAsync(CancellationToken ct)
     {
-        try
+        while (_historyTimer is not null && !ct.IsCancellationRequested)
         {
-            await RefreshHistoryAsync(ct);
-            while (_historyTimer is not null && await _historyTimer.WaitForNextTickAsync(ct))
+            try
+            {
                 await RefreshHistoryAsync(ct);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "BMS history refresh failed");
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "BMS history refresh failed");
+            }
+
+            try
+            {
+                if (!await _historyTimer.WaitForNextTickAsync(ct))
+                    break;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
         }
     }
 

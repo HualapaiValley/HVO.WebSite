@@ -133,6 +133,11 @@ window.hvoChart.render = function (chartId, config) {
                     if (minimum === undefined) minimum = values.length ? dataMinimum : 0;
                     if (maximum === undefined) maximum = values.length ? dataMaximum : 1;
                 }
+                if (minimum === maximum) {
+                    const padding = Math.max(Math.abs(minimum) * 0.05, 1);
+                    minimum -= padding;
+                    maximum += padding;
+                }
                 defaultScales.y.min = minimum;
                 defaultScales.y.max = maximum;
                 defaultScales.yF = {
@@ -181,6 +186,12 @@ window.hvoChart.applyTheme = function (chartId) {
         if (instance.options.scales.y) {
             instance.options.scales.y.grid.color = colors.gridColor;
             instance.options.scales.y.ticks.color = colors.labelColor;
+        }
+        if (instance.options.scales.yF) {
+            instance.options.scales.yF.ticks.color = colors.labelColor;
+            if (instance.options.scales.yF.title) {
+                instance.options.scales.yF.title.color = colors.labelColor;
+            }
         }
     }
 
