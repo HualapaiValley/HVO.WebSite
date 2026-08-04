@@ -36,6 +36,9 @@ public sealed class JkBmsOptions
     /// </summary>
     public string HciAdapter { get; set; } = "hci0";
 
+    /// <summary>Time zone used for dashboard labels and local-day energy summaries.</summary>
+    public string DisplayTimeZoneId { get; set; } = "America/Phoenix";
+
     /// <summary>Configured BMS devices to poll.</summary>
     [Required, MinLength(1)]
     public List<BmsDeviceConfig> Devices { get; set; } = [];

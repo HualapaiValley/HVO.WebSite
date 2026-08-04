@@ -9,8 +9,17 @@ public static class HvoFormat
     public static string Timestamp(DateTime? utc, string? format = null)
         => utc?.ToLocalTime().ToString(format ?? "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "--";
 
+    public static string Timestamp(DateTime? utc, TimeZoneInfo timeZone, string? format = null)
+        => utc.HasValue
+            ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc), timeZone)
+                .ToString(format ?? "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            : "--";
+
     public static string FooterTimestamp(DateTime? utc)
         => Timestamp(utc, "dd MMM yyyy - h:mm:ss tt");
+
+    public static string FooterTimestamp(DateTime? utc, TimeZoneInfo timeZone)
+        => Timestamp(utc, timeZone, "dd MMM yyyy - h:mm:ss tt");
 
     public static string Temperature(double? celsius, UnitSystem units = UnitSystem.Metric)
         => celsius is null ? "--"

@@ -2,8 +2,10 @@
 @rendermode InteractiveServer
 @using HVO.Hardware.JkBms.Protocol.Packets
 @using HVO.Hardware.JkBms.Workers
+@using HVO.Hardware.JkBms.Configuration
 @using HVO.WebSite.Themes.Components.Format
 @inject BmsPollerWorker Poller
+@inject JkBmsDisplayTimeZoneResolver DisplayTimeZoneResolver
 
     <div class="shell-page-stack">
         <a class="back-link" href="/">Back to fleet overview</a>
@@ -33,8 +35,9 @@
                     </div>
                     <div class="jk-stat-chip">
                         <span>Last poll</span>
-                        <strong>@HvoFormat.Timestamp(_state.LastPollAt, "MMM d, HH:mm:ss")</strong>
+                        <strong>@HvoFormat.Timestamp(_state.LastPollAt, DisplayTimeZoneResolver.TimeZone, "MMM d, HH:mm:ss")</strong>
                     </div>
+                    <a class="hvo-button" href="@($"/device/{_state.Address}/admin")">Device admin</a>
                 </div>
             </section>
 
@@ -46,8 +49,9 @@
             {
                 var r = _state.LatestReading;
                 var ageSeconds = (int)(DateTime.UtcNow - r.RecordedAtUtc).TotalSeconds;
-                var currentA = r.CurrentMa / 1000.0;
+                var currentA = BmsDisplayFormatting.IntoPackCurrentAmps(r.CurrentMa);
                 var packVoltageV = r.TotalVoltageMv / 1000.0;
+                var packPowerW = BmsDisplayFormatting.IntoPackPowerWatts(r.TotalVoltageMv, r.CurrentMa);
 
                 <section class="jk-card" aria-label="Bank summary">
                     <div class="jk-card-head">
@@ -81,7 +85,8 @@
                     <div class="jk-metric-grid">
                         <div class="jk-metric"><span>State of charge</span><strong>@r.StateOfChargePercent%</strong></div>
                         <div class="jk-metric"><span>Pack voltage</span><strong>@HvoFormat.Voltage(packVoltageV)</strong></div>
-                        <div class="jk-metric"><span>Current</span><strong>@HvoFormat.Current(currentA)</strong></div>
+                        <div class="jk-metric"><span>Pack current</span><strong>@BmsDisplayFormatting.CurrentLabel(r.CurrentMa)</strong></div>
+                        <div class="jk-metric"><span>Pack power</span><strong>@BmsDisplayFormatting.PowerLabel(packPowerW)</strong><small class="jk-flow-label">@BmsDisplayFormatting.FlowLabel(packPowerW)</small></div>
                         <div class="jk-metric"><span>Delta cell</span><strong>@r.DeltaCellVoltageMv mV</strong></div>
                         <div class="jk-metric"><span>Remaining</span><strong>@HvoFormat.EnergyAh(r.RemainingCapacityMah / 1000.0)</strong></div>
                         <div class="jk-metric"><span>State of health</span><strong>@r.StateOfHealthPercent%</strong></div>
@@ -152,6 +157,24 @@
                     <article class="jk-card">
                         <div class="jk-card-head">
                             <div>
+                                <div class="jk-card-kicker">Electrical flow</div>
+                                <h2>Pack power direction</h2>
+                            </div>
+                            <span class="jk-chart-note">+ into / - out</span>
+                        </div>
+                        <HvoChart @ref="_powerChart"
+                                  ChartId="jk-device-power-chart"
+                                  Type="HvoChartType.Bar"
+                                  Height="220"
+                                  ShowLegend="false"
+                                  EnableAnimations="false"
+                                  Labels="@_powerLabels"
+                                  Datasets="@_powerDatasets" />
+                    </article>
+
+                    <article class="jk-card">
+                        <div class="jk-card-head">
+                            <div>
                                 <div class="jk-card-kicker">Capacity</div>
                                 <h2>Capacity and cycles</h2>
                             </div>
@@ -178,8 +201,8 @@
                             <div><dt>Session disconnects</dt><dd>@_state.SessionDisconnectedCount</dd></div>
                             <div><dt>Connect failures</dt><dd>@_state.SessionRequestFailureCount</dd></div>
                             <div><dt>Consecutive errors</dt><dd>@_state.ConsecutiveErrors</dd></div>
-                            <div><dt>Last connected</dt><dd>@HvoFormat.Timestamp(_state.LastConnectedAt, "yyyy-MM-dd HH:mm:ss") UTC</dd></div>
-                            <div><dt>Last disconnected</dt><dd>@HvoFormat.Timestamp(_state.LastDisconnectedAt, "yyyy-MM-dd HH:mm:ss") UTC</dd></div>
+                            <div><dt>Last connected</dt><dd>@HvoFormat.Timestamp(_state.LastConnectedAt, DisplayTimeZoneResolver.TimeZone, "yyyy-MM-dd HH:mm:ss") @DisplayTimeZoneResolver.Label</dd></div>
+                            <div><dt>Last disconnected</dt><dd>@HvoFormat.Timestamp(_state.LastDisconnectedAt, DisplayTimeZoneResolver.TimeZone, "yyyy-MM-dd HH:mm:ss") @DisplayTimeZoneResolver.Label</dd></div>
                         </dl>
                     </article>
                 </section>

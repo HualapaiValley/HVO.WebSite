@@ -11,6 +11,7 @@ public partial class DeviceDetail : IDisposable
 
     private Workers.DevicePollState? _state;
     private HvoChart? _cellChart;
+    private HvoChart? _powerChart;
 
     private string[] _cellLabels
         => _state?.LatestReading?.CellVoltagesMv
@@ -32,6 +33,28 @@ public partial class DeviceDetail : IDisposable
                     BackgroundColor: "rgba(109,165,255,0.25)", // --hvo-accent-blue derived alpha
                     BorderWidth: 1)
             };
+        }
+    }
+
+    private IReadOnlyList<string> _powerLabels => ["Pack flow"];
+
+    private IReadOnlyList<HvoChartDataset> _powerDatasets
+    {
+        get
+        {
+            var reading = _state?.LatestReading;
+            var power = reading is null
+                ? (double?)null
+                : BmsDisplayFormatting.IntoPackPowerWatts(reading.TotalVoltageMv, reading.CurrentMa);
+            return
+            [
+                new HvoChartDataset(
+                    "Power into pack (+) / out (-)",
+                    [power],
+                    BorderColor: "#ffcf66", // --hvo-accent-amber
+                    BackgroundColor: "#ffcf66", // --hvo-accent-amber
+                    BorderWidth: 1)
+            ];
         }
     }
 
@@ -57,6 +80,8 @@ public partial class DeviceDetail : IDisposable
             await InvokeAsync(StateHasChanged);
             if (_cellChart is not null)
                 await _cellChart.RefreshAsync();
+            if (_powerChart is not null)
+                await _powerChart.RefreshAsync();
         }
         catch (Exception ex)
         {

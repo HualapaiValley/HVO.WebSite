@@ -1,202 +1,225 @@
-using System.Net.Http.Json;
-using HVO.Edge.Outbox;
-using HVO.Hardware.JkBms.Outbox;
-using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Workers;
+using HVO.Hardware.JkBms.History;
+using HVO.Hardware.JkBms.Configuration;
+using HVO.WebSite.Themes.Components.Charts;
 using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.JkBms.Components.Pages;
 
 public partial class Status : IDisposable
 {
-    private const string PageHeadingText = "JK BMS fleet overview";
-    private const string PageSummaryText = "Fleet-first monitoring with combined charge, balance, and connection health for the active JK BMS banks.";
-
     [Inject] private ILogger<Status> Logger { get; set; } = default!;
     [Inject] private BmsPollerWorker Poller { get; set; } = default!;
-    [Inject] private ForwarderCoordinator Forwarder { get; set; } = default!;
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
-    [Inject] private IOptions<OutboxOptions> OutboxOptions { get; set; } = default!;
+    [Inject] private IBmsHistoryService HistoryService { get; set; } = default!;
+    [Inject] private JkBmsDisplayTimeZoneResolver DisplayTimeZoneResolver { get; set; } = default!;
 
     private IReadOnlyList<DevicePollState> Devices => Poller.DeviceStates;
     private IReadOnlyList<DevicePollState> ReportingDevices => Devices.Where(device => device.LatestReading is not null).ToList();
+    private static readonly (int Hours, string Label)[] RangeOptions = [(24, "24h"), (48, "48h"), (168, "7d")];
+    private int _chartRevision;
+    private int _rangeHours = 24;
+    private BmsHistorySnapshot _history = BmsHistorySnapshot.Empty;
+    private IReadOnlyList<BmsFleetTrendPoint> _trendPoints = [];
+    private DateTime _trendEndUtc = DateTime.UtcNow;
+    private CancellationTokenSource? _historyCts;
+    private PeriodicTimer? _historyTimer;
     private int TotalBanks => Devices.Count;
     private int ConnectedBanks => Devices.Count(device => device.IsSessionConnected);
     private int ReportingBanks => ReportingDevices.Count;
-    private DateTime? LatestPollAtUtc => Devices.Where(device => device.LastPollAt.HasValue).Max(device => device.LastPollAt);
+    private BmsHistorySummary Today => _history.Today;
+    private string ForecastLabel => Today.PowerDirection switch
+    {
+        BmsPowerFlowDirection.Charging => "Charging now",
+        BmsPowerFlowDirection.Discharging => "Discharging now",
+        BmsPowerFlowDirection.Idle => "No net pack flow",
+        _ => "Waiting for recent power"
+    };
+    private string HoursToFull => Today.TimeToFull.HasValue
+        ? DisplayEta(Today.TimeToFull)
+        : Today.PowerDirection == BmsPowerFlowDirection.Charging ? "Trend pending" : "Not charging";
+    private string HoursToEmpty => Today.TimeToEmpty.HasValue
+        ? DisplayEta(Today.TimeToEmpty)
+        : Today.PowerDirection == BmsPowerFlowDirection.Discharging ? "Trend pending" : "Not discharging";
     private double? AverageStateOfChargePercent => ReportingDevices.Count > 0 ? ReportingDevices.Average(device => device.LatestReading!.StateOfChargePercent) : null;
     private double? AverageVoltageV => ReportingDevices.Count > 0 ? ReportingDevices.Average(device => device.LatestReading!.TotalVoltageMv / 1000d) : null;
-    private double? TotalCurrentA => ReportingDevices.Count > 0 ? ReportingDevices.Sum(device => device.LatestReading!.CurrentMa / 1000d) : null;
-    private double? TotalNominalCapacityAh => Devices.Where(device => device.LatestSettings is not null).Sum(device => device.LatestSettings!.NominalCapacityMah / 1000d);
-    private double? AverageDeltaCellMv => ReportingDevices.Count > 0 ? ReportingDevices.Average(device => device.LatestReading!.DeltaCellVoltageMv) : null;
-    private double? MaxBatteryTemperatureC => ReportingDevices.Count > 0 ? ReportingDevices.Max(device => device.LatestReading!.BatteryTemperature1C) : null;
-    private DevicePollState? HighestSocBank => ReportingDevices.MaxBy(device => device.LatestReading!.StateOfChargePercent);
-    private DevicePollState? LowestSocBank => ReportingDevices.MinBy(device => device.LatestReading!.StateOfChargePercent);
-    private DevicePollState? HighestDeltaBank => ReportingDevices.MaxBy(device => device.LatestReading!.DeltaCellVoltageMv);
-    private DevicePollState? HottestBank => ReportingDevices.MaxBy(device => device.LatestReading!.BatteryTemperature1C);
-    private string AverageSocGaugeStyle => GaugeStyle(ClampPercent(AverageStateOfChargePercent, 0, 100), "var(--hvo-accent-success)");
-    private string AverageVoltageGaugeStyle => GaugeStyle(ClampPercent(AverageVoltageV, 48, 58), "var(--hvo-accent-blue)");
-    private string CurrentGaugeStyle => GaugeStyle(ClampPercent(TotalCurrentA is double current ? Math.Abs(current) : null, 0, 300), "var(--hvo-accent-amber)");
+    private double? CurrentIntoA => ReportingDevices.Count > 0 ? ReportingDevices.Sum(device => Math.Max(0, BmsDisplayFormatting.IntoPackCurrentAmps(device.LatestReading!.CurrentMa))) : null;
+    private double? CurrentOutA => ReportingDevices.Count > 0 ? ReportingDevices.Sum(device => Math.Max(0, -BmsDisplayFormatting.IntoPackCurrentAmps(device.LatestReading!.CurrentMa))) : null;
+    private double? PowerIntoW => ReportingDevices.Count > 0 ? ReportingDevices.Sum(device => Math.Max(0, BmsDisplayFormatting.IntoPackPowerWatts(device.LatestReading!.TotalVoltageMv, device.LatestReading!.CurrentMa))) : null;
+    private double? PowerOutW => ReportingDevices.Count > 0 ? ReportingDevices.Sum(device => Math.Max(0, -BmsDisplayFormatting.IntoPackPowerWatts(device.LatestReading!.TotalVoltageMv, device.LatestReading!.CurrentMa))) : null;
+    private string DisplayTimeZoneLabel => DisplayTimeZoneResolver.Label;
+    private IReadOnlyList<string> TrendLabels => _trendPoints.Select(point => DisplayTimeZoneResolver.ConvertFromUtc(point.RecordedAtUtc).ToString(_rangeHours == 24 ? "HH:mm" : "MMM d HH:mm")).ToArray();
+    private TimeSpan TrendBucketSize => _rangeHours switch
+    {
+        <= 24 => TimeSpan.FromMinutes(15),
+        <= 48 => TimeSpan.FromMinutes(30),
+        _ => TimeSpan.FromHours(2)
+    };
 
     protected override void OnInitialized()
     {
         Poller.DeviceStateChanged += OnStateChanged;
-        Forwarder.SweepCompleted += OnStateChanged;
+        _historyCts = new CancellationTokenSource();
+        _historyTimer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        _ = RefreshHistoryLoopAsync(_historyCts.Token);
         Logger.LogInformation(
-            "BMS status page loaded. {DeviceCount} device(s). Pending outbox: {Pending}",
-            Poller.DeviceStates.Count, Forwarder.PendingCount);
+            "BMS status page loaded. {DeviceCount} device(s).",
+            Poller.DeviceStates.Count);
     }
 
     public void Dispose()
     {
         Poller.DeviceStateChanged -= OnStateChanged;
-        Forwarder.SweepCompleted -= OnStateChanged;
+        _historyCts?.Cancel();
+        _historyTimer?.Dispose();
+        _historyCts?.Dispose();
     }
 
-    private void OnStateChanged() => InvokeAsync(StateHasChanged);
-
-    private static double ClampPercent(double? value, double min, double max)
-    {
-        if (!value.HasValue || max <= min)
-            return 0;
-
-        var normalized = (value.Value - min) / (max - min) * 100d;
-        return Math.Clamp(normalized, 0d, 100d);
-    }
-
-    private static string GaugeStyle(double progressPercent, string color)
-        => $"--gauge-value:{progressPercent:0.##}; --gauge-color:{color};";
-
-    private static string DisplayMillivolts(double? value)
-        => value.HasValue ? $"{value.Value:0} mV" : "--";
-
-    private static string DisplayMillivolts(ushort? value)
-        => value.HasValue ? $"{value.Value} mV" : "--";
-
-    private static string MiniGaugeStyle(double? percent)
-        => $"width:{Math.Clamp(percent ?? 0, 0, 100):0.##}%;";
-
-    private static string BankStatusLabel(DevicePollState device, CellInfoPacket? reading)
-    {
-        if (device.IsSessionConnected && reading is not null)
-            return "Connected";
-
-        if (reading?.HasAlarms == true)
-            return "Alarm";
-
-        if (device.ConsecutiveErrors > 0)
-            return "Attention";
-
-        return "Waiting";
-    }
-
-    private static string BankStatusClass(DevicePollState device, CellInfoPacket? reading)
-    {
-        if (device.IsSessionConnected && reading is not null)
-            return "jk-health-dot-ok";
-
-        if (reading?.HasAlarms == true)
-            return "jk-health-dot-warn";
-
-        if (device.ConsecutiveErrors > 0)
-            return "jk-health-dot-error";
-
-        return "jk-health-dot-idle";
-    }
-
-    private static string BankBadgeClass(DevicePollState device, CellInfoPacket? reading)
-    {
-        if (device.IsSessionConnected && reading is not null)
-            return "badge-ok";
-
-        if (reading?.HasAlarms == true)
-            return "badge-warn";
-
-        if (device.ConsecutiveErrors > 0)
-            return "badge-error";
-
-        return "badge-none";
-    }
-
-    private int _outboxBatchSize;
-    private int _outboxSweepIntervalSeconds;
-    private int _configuredOutboxBatchSize = 50;
-    private int _configuredOutboxSweepIntervalSeconds = 5;
-    private bool _outboxDirty;
-    private bool _outboxOverride;
-    private string? _outboxStatusMessage;
-
-    private string FormatLastSent()
-    {
-        if (Forwarder.LastSentAt is { } lastSent)
-            return HvoFormat.Timestamp(lastSent, "MMM d, yyyy - HH:mm:ss");
-        return "--";
-    }
-
-    private async Task SaveOutboxSettingsAsync()
+    private async Task RefreshHistoryLoopAsync(CancellationToken ct)
     {
         try
         {
-            var client = HttpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptions.Value.ApiKey);
-            var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
-                new { batchSize = _outboxBatchSize, sweepIntervalSeconds = _outboxSweepIntervalSeconds });
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<OutboxSettingsResponse>();
-                _outboxOverride = result?.IsOverride ?? false;
-                _outboxStatusMessage = _outboxOverride
-                    ? $"Override active: batch={_outboxBatchSize}, sweep={_outboxSweepIntervalSeconds}s"
-                    : $"Defaults: batch={_outboxBatchSize}, sweep={_outboxSweepIntervalSeconds}s";
-                _outboxDirty = false;
-                Logger.LogInformation("BMS outbox runtime settings saved: batch={BatchSize}, sweep={SweepIntervalSeconds}s",
-                    _outboxBatchSize, _outboxSweepIntervalSeconds);
-            }
-            else
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                _outboxStatusMessage = $"Failed: {error}";
-                Logger.LogWarning("Failed to save BMS outbox settings: {Error}", error);
-            }
+            await RefreshHistoryAsync(ct);
+            while (_historyTimer is not null && await _historyTimer.WaitForNextTickAsync(ct))
+                await RefreshHistoryAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
-            _outboxStatusMessage = $"Error: {ex.Message}";
-            Logger.LogError(ex, "Error saving BMS outbox runtime settings");
+            Logger.LogWarning(ex, "BMS history refresh failed");
         }
-
-        StateHasChanged();
     }
 
-    private async Task ResetOutboxSettingsAsync()
+    private async Task RefreshHistoryAsync(CancellationToken ct)
+    {
+        _history = await HistoryService.RefreshAsync(TimeSpan.FromDays(7), ct);
+        RefreshTrendPoints();
+        _chartRevision++;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnStateChanged()
     {
         try
         {
-            var client = HttpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.Add("X-Api-Key", OutboxOptions.Value.ApiKey);
-            var response = await client.PutAsJsonAsync("/diagnostics/outbox/settings",
-                new { reset = true });
-
-            if (response.IsSuccessStatusCode)
-            {
-                _outboxBatchSize = _configuredOutboxBatchSize;
-                _outboxSweepIntervalSeconds = _configuredOutboxSweepIntervalSeconds;
-                _outboxOverride = false;
-                _outboxDirty = false;
-                _outboxStatusMessage = "Reset to configured defaults.";
-                Logger.LogInformation("BMS outbox runtime settings reset to defaults");
-            }
+            _chartRevision++;
+            await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
-            _outboxStatusMessage = $"Reset error: {ex.Message}";
-            Logger.LogError(ex, "Error resetting BMS outbox runtime settings");
+            Logger.LogWarning(ex, "BMS combined dashboard refresh failed");
         }
-
-        StateHasChanged();
     }
+
+    private IReadOnlyList<HvoChartDataset> SocDatasets =>
+    [
+        new HvoChartDataset(
+            "State of charge",
+            _trendPoints.Select(point => (double?)point.StateOfChargePercent).ToArray(),
+            BorderColor: "#57d38d", // --hvo-accent-success
+            BackgroundColor: "#57d38d", // --hvo-accent-success
+            BorderWidth: 2,
+            PointRadius: 1)
+    ];
+
+    private IReadOnlyList<HvoChartDataset> PowerDatasets =>
+    [
+        new HvoChartDataset(
+            "Power into pack (+) / out (-)",
+            _trendPoints.Select(point => (double?)point.IntoPackPowerW).ToArray(),
+            BorderColor: "#ffcf66", // --hvo-accent-amber
+            BackgroundColor: "#ffcf66", // --hvo-accent-amber
+            BorderWidth: 2,
+            PointRadius: 1,
+            Fill: true)
+    ];
+
+    private IReadOnlyList<HvoChartDataset> VoltageDatasets =>
+    [
+        new HvoChartDataset(
+            "Pack voltage",
+            _trendPoints.Select(point => (double?)point.PackVoltageV).ToArray(),
+            BorderColor: "#69d3ff", // --hvo-series-1
+            BackgroundColor: "#69d3ff", // --hvo-series-1
+            BorderWidth: 2,
+            PointRadius: 1)
+    ];
+
+    private IReadOnlyList<HvoChartDataset> CurrentDatasets =>
+    [
+        new HvoChartDataset(
+            "Current into (+) / out (-)",
+            _trendPoints.Select(point => (double?)point.IntoPackCurrentA).ToArray(),
+            BorderColor: "#9fd6ff", // --hvo-series-6
+            BackgroundColor: "#9fd6ff", // --hvo-series-6
+            BorderWidth: 2,
+            PointRadius: 1)
+    ];
+
+    private IReadOnlyList<HvoChartDataset> TemperatureDatasets =>
+    [
+        new HvoChartDataset(
+            "Battery temperature",
+            _trendPoints.Select(point => (double?)point.BatteryTemperatureC).ToArray(),
+            BorderColor: "#ff8b87", // --hvo-accent-danger
+            BackgroundColor: "#ff8b87", // --hvo-accent-danger
+            BorderWidth: 2,
+            PointRadius: 1)
+    ];
+
+    private async Task SetRangeAsync(int hours)
+    {
+        if (hours is not (24 or 48 or 168))
+            return;
+
+        _rangeHours = hours;
+        RefreshTrendPoints();
+        _chartRevision++;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshTrendPoints()
+    {
+        _trendEndUtc = DateTime.UtcNow;
+        _trendPoints = BmsHistoryCalculations.AggregateFleet(
+            _history.Points,
+            _trendEndUtc.Subtract(TimeSpan.FromHours(_rangeHours)),
+            _trendEndUtc,
+            TrendBucketSize);
+    }
+
+    private static string DisplayCurrent(double? value, bool intoPack = true)
+        => value.HasValue ? $"{(intoPack ? "+" : "-")}{value.Value:0.0} A" : "--";
+
+    private static string DisplayPower(double? value, bool intoPack = true)
+        => value.HasValue ? $"{(intoPack ? "+" : "-")}{value.Value:0} W" : "--";
+
+    private static string DisplayKwh(double? value)
+        => value.HasValue ? $"{value.Value:0.00} kWh" : "--";
+
+    private static string DisplayAh(double? value)
+        => value.HasValue ? $"{value.Value:0.0} Ah" : "--";
+
+    private static string DisplaySocRate(double? value)
+        => value.HasValue ? $"{value.Value:+0.0;-0.0;0.0} %/h" : "--";
+
+    private static string DisplayEta(TimeSpan? value)
+    {
+        if (!value.HasValue)
+            return "No stable trend";
+
+        var hours = (int)value.Value.TotalHours;
+        return hours >= 24
+            ? $"{hours / 24}d {hours % 24}h"
+            : $"{hours}h {value.Value.Minutes}m";
+    }
+
+    private string DisplayDay(DateTime dayUtc) => DisplayTimeZoneResolver.ConvertFromUtc(dayUtc).ToString("ddd, MMM d");
+
+    private static string DisplayCurrent(int? rawCurrentMa)
+        => rawCurrentMa.HasValue ? BmsDisplayFormatting.CurrentLabel(rawCurrentMa.Value) : "--";
+
 }

@@ -12,6 +12,7 @@ using HVO.Hardware.JkBms.Bms;
 using HVO.Hardware.JkBms.Components;
 using HVO.Hardware.JkBms.Configuration;
 using HVO.Hardware.JkBms.Outbox;
+using HVO.Hardware.JkBms.History;
 using HVO.Hardware.JkBms.Outbox.Forwarders;
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Transport;
@@ -85,6 +86,7 @@ builder.Services
     .BindConfiguration(JkBmsOptions.SectionName)
     .ValidateDataAnnotations()
     .ValidateOnStart();
+builder.Services.AddSingleton<JkBmsDisplayTimeZoneResolver>();
 
 builder.Services
     .AddOptions<OutboxOptions>()
@@ -145,6 +147,7 @@ builder.Services.AddDbContext<OutboxDbContext>(o =>
 builder.Services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
 builder.Services.AddSingleton<RuntimeOutboxSettings>();
 builder.Services.AddScoped<BmsOutboxWriter>();
+builder.Services.AddSingleton<IBmsHistoryService, BmsHistoryService>();
 
 // ── HTTP client for outbox forwarder ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("OutboxForwarder", (sp, client) =>

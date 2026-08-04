@@ -11,6 +11,7 @@ services:
       JkBms__ConnectTimeoutSeconds: ${JKBMS_CONNECT_TIMEOUT_SECONDS:-20}
       JkBms__ExchangeTimeoutSeconds: ${JKBMS_EXCHANGE_TIMEOUT_SECONDS:-10}
       JkBms__DefaultPollIntervalSeconds: ${JKBMS_DEFAULT_POLL_INTERVAL_SECONDS:-30}
+      JkBms__DisplayTimeZoneId: ${JKBMS_DISPLAY_TIME_ZONE_ID:-America/Phoenix}
       JkBms__Devices__0__Address: ${JKBMS_DEVICE_0_ADDRESS:-}
       JkBms__Devices__0__Alias: ${JKBMS_DEVICE_0_ALIAS:-}
       JkBms__Devices__0__HciAdapter: ${JKBMS_DEVICE_0_ADAPTER:-}
