@@ -99,7 +99,7 @@ public sealed class BmsHistoryService(
     JkBmsDisplayTimeZoneResolver displayTimeZoneResolver) : IBmsHistoryService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(30);
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private BmsHistorySnapshot _snapshot = BmsHistorySnapshot.Empty;
 
