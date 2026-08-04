@@ -237,6 +237,31 @@ Central JK history:
 
 No retained source contained the user-reported 4% / 46 V event.
 
+### Recovered SolarAssistant Event
+
+After moving the dev container to the new host, the local SolarAssistant outbox was copied read-only from `solarassistant-hvo-solarassistant-1:/app/data/outbox.db` together with its WAL/SHM files.
+
+The `power.inverter-detail` stream contains a likely near-empty event on 2026-07-16:
+
+- 2026-07-16 12:37:40 UTC: battery reached 46.0 V.
+- 2026-07-16 12:54:04 UTC: battery reached 45.0 V.
+- 2026-07-16 13:01:14 UTC: minimum retained voltage 44.1 V at approximately -16 A / -706 W.
+- Battery stayed at or below 46.0 V for roughly 24 minutes.
+- Approximate battery discharge energy integrated from 10:00 UTC through the final sample was 1.09 kWh.
+
+The current SolarAssistant metrics also report inverter settings of approximately:
+
+- `shutdown_battery_voltage = 44.0 V`
+- `to_grid_battery_voltage = 46.0 V`
+
+This makes the 44.1 V event a credible near-empty/shutdown anchor. It should not automatically be called exactly 0% SoC without confirming the inverter battery model, reserve behavior, and the actual SolarAssistant historical SoC at that moment.
+
+The normalized SolarAssistant `power.reading` stream does not cover this event. It begins on August 3. The richer `power.inverter-detail` stream covers July 2-16, then has no records until August 3, so continuous post-event energy integration is still blocked by a July 17-August 2 gap.
+
+The live SolarAssistant metrics currently expose conflicting SoC topics (`total/battery_state_of_charge` reported 55 while `inverter_1/battery_state_of_charge` reported 80 during the August 4 check). Do not use either as the historical anchor until the topic semantics are resolved.
+
+SmartShunt local history remains discontinuous: its legacy database ends June 17 and its active database begins July 27. No SmartShunt reading around July 16-20 was retained locally.
+
 Signed amp-hour integration from each Pi bank’s retained low point to the latest reading closely matched the reported SoC rise:
 
 - bank-1a: reported +32%, integrated about +32%
@@ -259,6 +284,8 @@ If the retained low points were incorrectly treated as true zero, the current ca
 6. Compare their signed power/current integration after the event with their reported SoC.
 7. If both independent sources agree on a low anchor, calculate an uncertainty-bounded derived SoC estimate.
 8. Do not replace the BMS-reported SoC in production until the anchor and capacity basis are validated.
+9. Investigate SolarAssistant’s direct historical/chart API or source storage to recover July 17-August 2 battery SoC and energy data.
+10. Resolve the meaning of SolarAssistant `total/battery_state_of_charge` versus `inverter_1/battery_state_of_charge` before using either in a derived SoC calculation.
 
 ## Validation History
 
