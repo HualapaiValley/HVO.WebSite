@@ -17,6 +17,12 @@ namespace HVO.Hardware.JkBms.Tests.Components;
 [TestClass]
 public sealed class DevicesPageBunitTests : BunitContext
 {
+    [TestInitialize]
+    public void ConfigureDisplayTimeZone()
+    {
+        Services.AddSingleton(new JkBmsDisplayTimeZoneResolver(Options.Create(new JkBmsOptions())));
+    }
+
     [TestMethod]
     public void RendersConfiguredDeviceRows()
     {
@@ -39,6 +45,7 @@ public sealed class DevicesPageBunitTests : BunitContext
         component.Markup.Should().Contain("AA:BB:CC:DD:EE:01");
         component.Markup.Should().Contain("bank-1b");
         component.Markup.Should().Contain("No");
+        component.Markup.Should().Contain("/device/AA:BB:CC:DD:EE:01/admin");
     }
 
     [TestMethod]

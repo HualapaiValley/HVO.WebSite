@@ -169,7 +169,7 @@ public class CellInfoPacketTests
     }
 
     [TestMethod]
-    public void Parse_CurrentMa_PositiveDischarge()
+    public void Parse_CurrentMa_PositiveCharge()
     {
         byte[] frame = TestFrameBuilder.BuildCellInfoFrame(currentMa: 10_000);
         var data = JkBmsProtocol.GetData(frame);
@@ -178,7 +178,7 @@ public class CellInfoPacketTests
     }
 
     [TestMethod]
-    public void Parse_CurrentMa_NegativeCharging()
+    public void Parse_CurrentMa_NegativeDischarge()
     {
         byte[] frame = TestFrameBuilder.BuildCellInfoFrame(currentMa: -5_000);
         var data = JkBmsProtocol.GetData(frame);

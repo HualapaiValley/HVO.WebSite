@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 
 <HvoGatewayLayout Subtitle="JK BMS DASHBOARD"
+                  FrameModifierClass="jk-wide-frame"
                   FooterSlot1="@_footer1"
                   FooterSlot2="@_footer2"
                   FooterSlot3="@_footer3"
@@ -10,7 +11,8 @@
                   IsDarkModeChanged="@OnThemeModeChanged">
     <NavItems>
         <MudButton Href="/" Variant="@GetNavLinkVariant("Overview")" Color="Color.Inherit" Class="@GetNavLinkClass("Overview")">Overview</MudButton>
-        <MudButton Href="/devices" Variant="@GetNavLinkVariant("Banks")" Color="Color.Inherit" Class="@GetNavLinkClass("Banks")">Banks</MudButton>
+        <MudButton Href="/devices" Variant="@GetNavLinkVariant("Device details")" Color="Color.Inherit" Class="@GetNavLinkClass("Device details")">Device details</MudButton>
+        <MudButton Href="/charts" Variant="@GetNavLinkVariant("Full history")" Color="Color.Inherit" Class="@GetNavLinkClass("Full history")">Full history</MudButton>
     </NavItems>
     <AppBarActions>
         <MudIconButton Icon="@ThemeSelectorIcon" Color="Color.Inherit" Size="Size.Medium" aria-label="@ThemeSelectorLabel" OnClick="ToggleTheme" />

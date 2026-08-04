@@ -15,7 +15,7 @@ namespace HVO.Hardware.JkBms.Protocol.Packets;
 ///   0x39         MinVoltageCellIndex (uint8, 1-based; 0 = none)
 ///   0x3A – 0x69  24 × cell resistance (uint16 LE, mΩ)  [only first CellCount slots used]
 ///   0x70 – 0x73  TotalVoltageMv (uint32 LE, mV)
-///   0x78 – 0x7B  CurrentMa (int32 LE, mA; positive = discharge, negative = charge)
+///   0x78 – 0x7B  CurrentMa (int32 LE, mA; positive = charge, negative = discharge)
 ///   0x7C – 0x7D  BatteryTemperature1 (int16 LE, × 0.1 °C)
 ///   0x7E – 0x7F  BatteryTemperature2 (int16 LE, × 0.1 °C)
 ///   0x80 – 0x81  PowerTubeTemperature (int16 LE, × 0.1 °C)
@@ -89,7 +89,7 @@ public sealed class CellInfoPacket
     public uint TotalVoltageMv { get; init; }
 
     /// <summary>
-    /// Pack current (mA). Positive = discharging. Negative = charging.
+    /// Pack current (mA). Positive = charging. Negative = discharging.
     /// </summary>
     public int CurrentMa { get; init; }
 

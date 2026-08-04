@@ -7,7 +7,7 @@
 
 <MudLayout Class="@LayoutThemeClass">
     <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
-        <div class="shell-frame shell-bar-content shell-header-frame">
+        <div class="shell-frame shell-bar-content shell-header-frame @FrameModifierClass">
             <div class="shell-brand-block">
                 <div class="shell-brand-mark" aria-hidden="true">
                     <MudImage Src="_content/HVO.WebSite.Themes/images/observatory-background.jpg" Alt="" Class="shell-brand-image" />
@@ -31,7 +31,7 @@
     </MudAppBar>
 
     <MudMainContent Class="shell-main">
-        <div class="shell-frame shell-content">
+        <div class="shell-frame shell-content @FrameModifierClass">
             <MudPaper Class="layout-canvas shell-page" Elevation="0">
                 @(Body ?? ChildContent)
             </MudPaper>
@@ -39,7 +39,7 @@
     </MudMainContent>
 
     <MudAppBar Bottom="true" Fixed="true" Elevation="0" Dense="true" Class="shell-appbar shell-appbar-footer">
-        <div class="shell-frame shell-bar-content shell-footer-frame">
+        <div class="shell-frame shell-bar-content shell-footer-frame @FrameModifierClass">
             <div class="shell-footer-layout" aria-label="Footer sections">
                 <MudText Typo="Typo.caption" Class="shell-footer-slot shell-footer-slot-1">
                     @if (GetFooterIndicatorClass(FooterSlot1?.Indicator ?? ShellFooterIndicator.None) is { } slot1IndicatorClass)

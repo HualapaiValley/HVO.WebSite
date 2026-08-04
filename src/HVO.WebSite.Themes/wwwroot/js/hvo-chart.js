@@ -114,6 +114,45 @@ window.hvoChart.render = function (chartId, config) {
                 const callerYTicks = defaultScales.y.ticks || {};
                 defaultScales.y.ticks = Object.assign(callerYTicks, { color: colors.labelColor });
             }
+
+            const showFahrenheitAxis = defaultScales.fahrenheitAxis;
+            delete defaultScales.fahrenheitAxis;
+            if (showFahrenheitAxis && defaultScales.y) {
+                const values = (cleanConfig.data && cleanConfig.data.datasets || [])
+                    .flatMap(ds => Array.isArray(ds.data) ? ds.data : [])
+                    .filter(value => typeof value === 'number' && Number.isFinite(value));
+                let minimum = defaultScales.y.suggestedMin;
+                let maximum = defaultScales.y.suggestedMax;
+                if (minimum === undefined || maximum === undefined) {
+                    let dataMinimum = Number.POSITIVE_INFINITY;
+                    let dataMaximum = Number.NEGATIVE_INFINITY;
+                    values.forEach(value => {
+                        if (value < dataMinimum) dataMinimum = value;
+                        if (value > dataMaximum) dataMaximum = value;
+                    });
+                    if (minimum === undefined) minimum = values.length ? dataMinimum : 0;
+                    if (maximum === undefined) maximum = values.length ? dataMaximum : 1;
+                }
+                if (minimum === maximum) {
+                    const padding = Math.max(Math.abs(minimum) * 0.05, 1);
+                    minimum -= padding;
+                    maximum += padding;
+                }
+                defaultScales.y.min = minimum;
+                defaultScales.y.max = maximum;
+                defaultScales.yF = {
+                    type: 'linear',
+                    position: 'right',
+                    min: minimum,
+                    max: maximum,
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: 'Fahrenheit' },
+                    ticks: {
+                        color: colors.labelColor,
+                        callback: value => `${((Number(value) * 9 / 5) + 32).toFixed(0)} °F`
+                    }
+                };
+            }
         }
 
         if (cleanConfig.options && cleanConfig.options.plugins) {
@@ -147,6 +186,12 @@ window.hvoChart.applyTheme = function (chartId) {
         if (instance.options.scales.y) {
             instance.options.scales.y.grid.color = colors.gridColor;
             instance.options.scales.y.ticks.color = colors.labelColor;
+        }
+        if (instance.options.scales.yF) {
+            instance.options.scales.yF.ticks.color = colors.labelColor;
+            if (instance.options.scales.yF.title) {
+                instance.options.scales.yF.title.color = colors.labelColor;
+            }
         }
     }
 
