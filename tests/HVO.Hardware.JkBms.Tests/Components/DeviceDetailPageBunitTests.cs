@@ -18,6 +18,12 @@ namespace HVO.Hardware.JkBms.Tests.Components;
 [TestClass]
 public sealed class DeviceDetailPageBunitTests : BunitContext
 {
+    [TestInitialize]
+    public void ConfigureDisplayTimeZone()
+    {
+        Services.AddSingleton(new JkBmsDisplayTimeZoneResolver(Options.Create(new JkBmsOptions())));
+    }
+
     [TestMethod]
     public void RendersSelectedBankTelemetry()
     {
@@ -35,6 +41,8 @@ public sealed class DeviceDetailPageBunitTests : BunitContext
         component.Markup.Should().Contain("Pack summary");
         component.Markup.Should().Contain("State of charge");
         component.Markup.Should().Contain("87%");
+        component.Markup.Should().Contain("Out of pack");
+        component.Markup.Should().Contain("/device/AA:BB:CC:DD:EE:01/admin");
         component.Markup.Should().Contain("No alarms active");
     }
 

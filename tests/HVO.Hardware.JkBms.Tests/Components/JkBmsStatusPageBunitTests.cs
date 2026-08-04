@@ -12,6 +12,7 @@ using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Telemetry;
 using HVO.Hardware.JkBms.Tests.Fakes;
 using HVO.Hardware.JkBms.Workers;
+using HVO.Hardware.JkBms.History;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -21,8 +22,14 @@ namespace HVO.Hardware.JkBms.Tests.Components;
 [TestClass]
 public sealed class JkBmsStatusPageBunitTests : BunitContext
 {
+    [TestInitialize]
+    public void ConfigureDisplayTimeZone()
+    {
+        Services.AddSingleton(new JkBmsDisplayTimeZoneResolver(Options.Create(new JkBmsOptions())));
+    }
+
     [TestMethod]
-    public void RendersGatewaySummaryAndBankStates()
+    public void RendersCombinedFleetSummary()
     {
         var poller = CreatePoller([
             new BmsDeviceConfig { Address = "AA:BB:CC:DD:EE:01", Alias = "bank-1a", PollIntervalSeconds = 30 },
@@ -37,17 +44,20 @@ public sealed class JkBmsStatusPageBunitTests : BunitContext
         poller.DeviceStates[1].LatestSettings = new SettingsPacket { NominalCapacityMah = 280_000 };
         Services.AddSingleton(poller);
         Services.AddSingleton(CreateForwarder());
+        Services.AddSingleton<IBmsHistoryService>(new EmptyHistoryService());
         Services.AddHttpClient();
         Services.AddSingleton(NullLogger<HVO.Hardware.JkBms.Components.Pages.Status>.Instance);
 
         var component = Render<HVO.Hardware.JkBms.Components.Pages.Status>();
 
         component.Markup.Should().Contain("JK BMS fleet overview");
-        component.Markup.Should().Contain("Connected banks");
-        component.Markup.Should().Contain("1 / 2");
-        component.Markup.Should().Contain("bank-1a");
-        component.Markup.Should().Contain("bank-1b");
-        component.Markup.Should().Contain("Connected");
+        component.Markup.Should().Contain("Battery system now");
+        component.Markup.Should().Contain("1/2");
+        component.Markup.Should().Contain("State of charge");
+        component.Markup.Should().Contain("Power into pack");
+        component.Markup.Should().Contain("Power out of pack");
+        component.Markup.Should().Contain("7d");
+        component.Markup.Should().Contain("Last seven days");
     }
 
     [TestMethod]
@@ -55,14 +65,15 @@ public sealed class JkBmsStatusPageBunitTests : BunitContext
     {
         Services.AddSingleton(CreatePoller([]));
         Services.AddSingleton(CreateForwarder());
+        Services.AddSingleton<IBmsHistoryService>(new EmptyHistoryService());
         Services.AddHttpClient();
         Services.AddSingleton(NullLogger<HVO.Hardware.JkBms.Components.Pages.Status>.Instance);
 
         var component = Render<HVO.Hardware.JkBms.Components.Pages.Status>();
 
-        component.Markup.Should().Contain("No devices configured.");
-        component.Markup.Should().Contain("Charge bars appear after the fleet reports its first readings.");
-        component.Markup.Should().Contain("0 / 0");
+        component.Markup.Should().Contain("JK BMS fleet overview");
+        component.Markup.Should().Contain("Battery system now");
+        component.Markup.Should().Contain("0/0");
     }
 
     private static CellInfoPacket CreateReading(ushort soc, uint voltageMv, int currentMa, ushort deltaMv, double temperatureC)
@@ -102,6 +113,14 @@ public sealed class JkBmsStatusPageBunitTests : BunitContext
             new BmsTelemetry(),
             new NoOpTelemetryService(),
             NullLogger<ForwarderCoordinator>.Instance);
+
+    private sealed class EmptyHistoryService : IBmsHistoryService
+    {
+        public BmsHistorySnapshot Snapshot => BmsHistorySnapshot.Empty;
+
+        public Task<BmsHistorySnapshot> RefreshAsync(TimeSpan range, CancellationToken ct = default) =>
+            Task.FromResult(BmsHistorySnapshot.Empty);
+    }
 
     private sealed class NoOpTelemetryService : ITelemetryService
     {

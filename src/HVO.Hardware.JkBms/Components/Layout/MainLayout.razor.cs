@@ -1,6 +1,7 @@
 using HVO.Edge.Outbox;
 using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.Workers;
+using HVO.Hardware.JkBms.Configuration;
 using HVO.WebSite.Themes.Components.Format;
 using HVO.WebSite.Themes.Components.Layout;
 using Microsoft.AspNetCore.Components;
@@ -18,6 +19,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     [Inject] private ForwarderCoordinator Forwarder { get; set; } = default!;
     [Inject] private IOptions<OutboxOptions> OutboxOptionsAccessor { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private JkBmsDisplayTimeZoneResolver DisplayTimeZoneResolver { get; set; } = default!;
 
     private ShellFooterItem _footer1 = new("JK BMS");
     private ShellFooterItem _footer2 = new("Fleet summary");
@@ -66,7 +68,8 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         return section switch
         {
             "Overview" => path is "" or "monitor",
-            "Banks" => path.StartsWith("device", StringComparison.OrdinalIgnoreCase),
+            "Device details" => path.StartsWith("device", StringComparison.OrdinalIgnoreCase),
+            "Full history" => path.StartsWith("charts", StringComparison.OrdinalIgnoreCase),
             _ => false
         };
     }
@@ -114,7 +117,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         return new ShellFooterItem($"{connectedDevices}/{totalDevices} banks connected", ShellFooterIndicator.Warning);
     }
 
-    private static ShellFooterItem BuildTimestampFooterItem(DateTime? latestPoll)
+    private ShellFooterItem BuildTimestampFooterItem(DateTime? latestPoll)
     {
         if (!latestPoll.HasValue)
             return new ShellFooterItem("Waiting for data", ShellFooterIndicator.Warning);
@@ -123,7 +126,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
             ? ShellFooterIndicator.Online
             : ShellFooterIndicator.Warning;
 
-        return new ShellFooterItem(HvoFormat.FooterTimestamp(latestPoll), indicator);
+        return new ShellFooterItem(HvoFormat.FooterTimestamp(latestPoll, DisplayTimeZoneResolver.TimeZone), indicator);
     }
 
     private ShellFooterItem BuildApiFooterItem()

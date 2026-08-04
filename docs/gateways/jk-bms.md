@@ -87,7 +87,7 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 | MinVoltageCellIndex | byte | cell index | `0x39` or `0x49` | Read-only | Metadata | 0-32 | Candidate | Yes | Not currently central | 1-based, 0 none. |
 | CellResistancesMOhm | list ushort | mOhm | `0x3A` or `0x4A` | Read-only | Instantaneous/diagnostic | 0+ | Candidate | Yes | Yes child rows | Units use milli-ohm naming in code. |
 | TotalVoltageMv | uint | mV | `0x70` or `0x90` | Read-only | Instantaneous | 0+ | Yes | Yes | Yes | Website accepts alias after PR #115 path. |
-| CurrentMa | int | mA | `0x78` or `0x98` | Read-only | Instantaneous | signed | Yes | Yes | Yes | Positive = discharge, negative = charge. |
+| CurrentMa | int | mA | `0x78` or `0x98` | Read-only | Instantaneous | signed | Yes | Yes | Yes | Positive = charge, negative = discharge (verified against deployed banks). |
 | BatteryTemperature1C | double | deg C | `0x7C` or `0x9C` | Read-only | Instantaneous | sensor dependent | Yes | Yes | Yes |
 | BatteryTemperature2C | double | deg C | `0x7E` or `0x9E` | Read-only | Instantaneous | sensor dependent | Yes | Yes | Yes |
 | PowerTubeTemperatureC | double | deg C | `0x80` or `0x8A` | Read-only | Instantaneous | sensor dependent | Yes | Yes | Yes |
@@ -181,6 +181,7 @@ Needed before local completeness:
 | Settings frame explicit query not proven | `JKBMS_SESSION_LIFECYCLE.md` | Cannot rely on on-demand config refresh | Capture spontaneous settings frame on connect/poll | Research protocol and capture. |
 | Shared BLE adapter contention | SmartShunt docs and JK session notes | JK/SmartShunt can interfere on `hci0` | Sequential sessions; avoid mixed unstable workloads | Hardware adapter validation. |
 | Some emitted fields were not persisted centrally | Recent field audit | Lost diagnostic data | Decide schema/UI before mapping | Average/max/min cell index decision. |
+| Central BMS history retention and rollups are not operating | SQL inspection on 2026-08-04 found `v9.BmsReading` ending 2026-07-03, while the Pi outbox continued through 2026-08-04; `v9.BmsReadingMinute` and `v9.BmsReadingHourly` both contained zero rows | Central history has a multi-week gap and no long-range trend source | Restore ingest continuity, then add a scheduled retention/rollup worker | Preserve raw readings for at least 30-60 days, hourly rollups for 6-12 months, and daily rollups beyond that; add monitoring for ingest gaps and rollup freshness. |
 
 ## Security And Safety Notes
 

@@ -22,5 +22,7 @@ public sealed record HvoChartDataset(
     double BorderWidth = 3,
     double PointRadius = 3,
     bool Fill = false,
-    double? Tension = null
+    double? Tension = null,
+    IReadOnlyList<string>? BorderColors = null,
+    IReadOnlyList<string>? BackgroundColors = null
 );
