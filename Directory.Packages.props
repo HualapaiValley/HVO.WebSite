@@ -16,7 +16,7 @@
     <PackageVersion Include="HVO.Enterprise.Telemetry.OpenTelemetry" Version="1.1.2" />
     <PackageVersion Include="HVO.Enterprise.Telemetry.Serilog" Version="2.0.1" />
 
-    <!-- OpenTelemetry — pin to 1.15.3 to resolve moderate severity vulnerabilities
+    <!-- OpenTelemetry — pin to 1.17.0 to resolve moderate severity vulnerabilities
          in 1.15.0 that are pulled in transitively from HVO.Enterprise.Telemetry.OpenTelemetry:
          OpenTelemetry.Api:      GHSA-g94r-2vxg-569j
          OpenTelemetry.Exporter: GHSA-4625-4j76-fww9, GHSA-mr8r-92fq-pj8p, GHSA-q834-8qmm-v933 -->
