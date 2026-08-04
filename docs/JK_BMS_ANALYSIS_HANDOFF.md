@@ -223,17 +223,9 @@ rg -n "PayloadType|PowerReading|Battery|Voltage|Current|Soc|StateOfCharge" \
 
 Pi JK outbox coverage at the time of analysis:
 
-- Approximately 140,789 valid reading records.
-- 7 banks.
-- Approximately 2026-07-27 through 2026-08-04.
-- Lowest observed SoC: about 5-10% depending on bank.
-- Lowest observed pack voltage: about 51.0 V.
 
 Central JK history:
 
-- Approximately 2026-06-26 through 2026-07-03.
-- Per-bank minimum SoC ranged from 36% to 84%.
-- Lowest central voltage was about 52.43 V.
 
 No retained source contained the user-reported 4% / 46 V event.
 
@@ -243,16 +235,9 @@ After moving the dev container to the new host, the local SolarAssistant outbox 
 
 The `power.inverter-detail` stream contains a likely near-empty event on 2026-07-16:
 
-- 2026-07-16 12:37:40 UTC: battery reached 46.0 V.
-- 2026-07-16 12:54:04 UTC: battery reached 45.0 V.
-- 2026-07-16 13:01:14 UTC: minimum retained voltage 44.1 V at approximately -16 A / -706 W.
-- Battery stayed at or below 46.0 V for roughly 24 minutes.
-- Approximate battery discharge energy integrated from 10:00 UTC through the final sample was 1.09 kWh.
 
 The current SolarAssistant metrics also report inverter settings of approximately:
 
-- `shutdown_battery_voltage = 44.0 V`
-- `to_grid_battery_voltage = 46.0 V`
 
 This makes the 44.1 V event a credible near-empty/shutdown anchor. It should not automatically be called exactly 0% SoC without confirming the inverter battery model, reserve behavior, and the actual SolarAssistant historical SoC at that moment.
 
@@ -293,6 +278,16 @@ An idealized 100% efficient estimate would therefore be `91.7%` SoC today. Apply
 - 85% effective efficiency: approximately `50.3%`.
 
 The current SolarAssistant total SoC of approximately `55%` corresponds to an inferred effective efficiency near `86.7%` over this interval. This is useful evidence, but not proof of battery efficiency because the power measurement boundary, inverter losses, reserve behavior, and charge/discharge calibration are not yet verified. The recommended derived display is an uncertainty-bounded estimate, not a silent replacement for reported SoC.
+
+### SoC Reliability Conclusion
+
+At this point none of the three absolute SoC values should be treated as authoritative:
+
+- **JK BMS SoC:** useful as a relative trend, but its absolute calibration and the missing July 16-18 readings are not verified.
+- **Inverter battery SoC:** demonstrably unreliable for this event because it reported approximately `85%` while the inverter reached `44 V` and shut down.
+- **Calculated SolarAssistant SoC:** mathematically reproducible from the 44 V anchor and battery-power integration, but dependent on the assumed `95.2 kWh` capacity, charge/conversion efficiency, measurement boundary, and treatment of gaps.
+
+The correct product behavior for now is to show these as separate signals, for example `BMS reported SoC`, `Inverter reported SoC`, and `Energy-derived SoC range`, with an explicit calibration warning. Do not collapse them into one `true SoC` number until a known full-charge synchronization event establishes capacity and effective charge efficiency. The SmartShunt should be used as an independent coulomb/voltage cross-check once a history overlap is available.
 
 SmartShunt local history remains discontinuous: its legacy database ends June 17 and its active database begins July 27. No SmartShunt reading around July 16-20 was retained locally.
 
