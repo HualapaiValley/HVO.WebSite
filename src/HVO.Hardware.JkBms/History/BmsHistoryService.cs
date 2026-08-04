@@ -256,7 +256,7 @@ public static class BmsHistoryCalculations
 
         var chargeWh = 0d;
         var dischargeWh = 0d;
-        foreach (var devicePoints in points.GroupBy(point => point.Address))
+        foreach (var devicePoints in dayPoints.GroupBy(point => point.Address))
         {
             var ordered = devicePoints.OrderBy(point => point.RecordedAtUtc).ToArray();
             for (var index = 1; index < ordered.Length; index++)

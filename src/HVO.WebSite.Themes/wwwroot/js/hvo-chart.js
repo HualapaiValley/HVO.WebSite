@@ -121,8 +121,18 @@ window.hvoChart.render = function (chartId, config) {
                 const values = (cleanConfig.data && cleanConfig.data.datasets || [])
                     .flatMap(ds => Array.isArray(ds.data) ? ds.data : [])
                     .filter(value => typeof value === 'number' && Number.isFinite(value));
-                const minimum = defaultScales.y.suggestedMin ?? (values.length ? Math.min(...values) : 0);
-                const maximum = defaultScales.y.suggestedMax ?? (values.length ? Math.max(...values) : 1);
+                let minimum = defaultScales.y.suggestedMin;
+                let maximum = defaultScales.y.suggestedMax;
+                if (minimum === undefined || maximum === undefined) {
+                    let dataMinimum = Number.POSITIVE_INFINITY;
+                    let dataMaximum = Number.NEGATIVE_INFINITY;
+                    values.forEach(value => {
+                        if (value < dataMinimum) dataMinimum = value;
+                        if (value > dataMaximum) dataMaximum = value;
+                    });
+                    if (minimum === undefined) minimum = values.length ? dataMinimum : 0;
+                    if (maximum === undefined) maximum = values.length ? dataMaximum : 1;
+                }
                 defaultScales.y.min = minimum;
                 defaultScales.y.max = maximum;
                 defaultScales.yF = {

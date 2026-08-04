@@ -1084,10 +1084,8 @@
     }
 }
 
-/* Fleet overview: give the combined system room to read as a dashboard. */
-.shell-frame:has(.jk-dashboard-shell),
-.shell-frame.shell-header-frame,
-.shell-frame.shell-footer-frame {
+/* JK BMS opts into a wider shell frame while other gateways retain the shared default. */
+.shell-frame.jk-wide-frame {
     width: calc(100vw - 24px);
     min-width: calc(100vw - 24px);
     max-width: 2200px;
@@ -1306,9 +1304,7 @@
 }
 
 @media (max-width: 1400px) {
-    .shell-frame:has(.jk-dashboard-shell),
-    .shell-frame.shell-header-frame,
-    .shell-frame.shell-footer-frame {
+    .shell-frame.jk-wide-frame {
         width: calc(100vw - 24px);
         min-width: calc(100vw - 24px);
     }
