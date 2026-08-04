@@ -57,7 +57,7 @@ public sealed class JkBmsStatusPageBunitTests : BunitContext
         component.Markup.Should().Contain("Power into pack");
         component.Markup.Should().Contain("Power out of pack");
         component.Markup.Should().Contain("7d");
-        component.Markup.Should().Contain("Last three days");
+        component.Markup.Should().Contain("Last seven days");
     }
 
     [TestMethod]

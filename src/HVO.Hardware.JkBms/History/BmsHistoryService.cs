@@ -76,7 +76,7 @@ public sealed class BmsHistorySnapshot
         LoadedAtUtc = loadedAtUtc;
         RangeStartUtc = rangeStartUtc;
         Today = BmsHistoryCalculations.CalculateToday(points, loadedAtUtc, displayTimeZone);
-        DailySummaries = BmsHistoryCalculations.CalculateDailySummaries(points, loadedAtUtc, 3, displayTimeZone);
+        DailySummaries = BmsHistoryCalculations.CalculateDailySummaries(points, loadedAtUtc, 7, displayTimeZone);
     }
 
     public IReadOnlyList<BmsHistoryPoint> Points { get; }
