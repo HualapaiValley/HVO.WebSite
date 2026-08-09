@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.Eg4.Dashboard;
 
-public enum Eg4DashboardDeviceState { Online, Degraded, Offline, Disabled }
+public enum Eg4DashboardDeviceState { Waiting, Online, Degraded, Offline, Disabled }
 public enum Eg4DashboardHealthState { Healthy, Degraded, Offline, Misconfigured }
 
 public sealed record Eg4DashboardDevice(
@@ -38,7 +38,9 @@ public sealed record Eg4OutboxDashboard(
     int BatchSize,
     int SweepIntervalSeconds,
     bool IsOverride,
-    bool IsRuntimeAvailable);
+    bool IsRuntimeAvailable,
+    int PermanentFailedCount = 0,
+    int RetryExhaustedCount = 0);
 
 public sealed record Eg4GatewayDashboardSnapshot(
     IReadOnlyList<Eg4DashboardDevice> Devices,
@@ -47,7 +49,7 @@ public sealed record Eg4GatewayDashboardSnapshot(
 {
     public int ConfiguredCount => Devices.Count;
     public int OnlineCount => Devices.Count(device => device.State == Eg4DashboardDeviceState.Online);
-    public int DegradedCount => Devices.Count(device => device.State == Eg4DashboardDeviceState.Degraded);
+    public int DegradedCount => Devices.Count(device => device.State is Eg4DashboardDeviceState.Waiting or Eg4DashboardDeviceState.Degraded);
     public int OfflineCount => Devices.Count(device => device.State == Eg4DashboardDeviceState.Offline);
     public int DisabledCount => Devices.Count(device => device.State == Eg4DashboardDeviceState.Disabled);
     public Eg4DashboardHealthState HealthState => Devices.Count(device => device.State != Eg4DashboardDeviceState.Disabled) switch
@@ -151,7 +153,7 @@ public sealed class Eg4GatewayDashboardState : IEg4GatewayDashboardState, IEg4Ga
         var state = !device.Enabled
             ? Eg4DashboardDeviceState.Disabled
             : observation is null
-                ? Eg4DashboardDeviceState.Offline
+                ? runtime?.Error is null ? Eg4DashboardDeviceState.Waiting : Eg4DashboardDeviceState.Offline
                 : runtime?.Error is not null || isStale || !hasTelemetry
                     ? Eg4DashboardDeviceState.Degraded
                     : Eg4DashboardDeviceState.Online;

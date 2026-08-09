@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Playwright;
 
@@ -12,6 +13,7 @@ public sealed class Eg4GatewayPlaywrightTests
 {
     private static Process? _simulationHost;
     private static string _baseUrl = string.Empty;
+    private static string? _outboxPath;
 
     [ClassInitialize]
     public static async Task StartSimulationHost(TestContext context)
@@ -36,6 +38,9 @@ public sealed class Eg4GatewayPlaywrightTests
         start.ArgumentList.Add("--urls");
         start.ArgumentList.Add(_baseUrl);
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
+        _outboxPath = Path.Combine(Path.GetTempPath(), $"eg4-playwright-{Guid.NewGuid():N}.db");
+        start.Environment["Outbox__DbPath"] = _outboxPath;
+        start.Environment["Outbox__ApiKey"] = "playwright-diagnostics-key";
         _simulationHost = Process.Start(start) ?? throw new InvalidOperationException("Could not start EG4 simulation host.");
         _simulationHost.BeginOutputReadLine();
         _simulationHost.BeginErrorReadLine();
@@ -60,6 +65,10 @@ public sealed class Eg4GatewayPlaywrightTests
         if (_simulationHost is null) return;
         if (!_simulationHost.HasExited) _simulationHost.Kill(entireProcessTree: true);
         _simulationHost.Dispose();
+        if (_outboxPath is not null)
+        {
+            try { File.Delete(_outboxPath); } catch (IOException) { }
+        }
     }
 
     [TestMethod]
@@ -83,13 +92,14 @@ public sealed class Eg4GatewayPlaywrightTests
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "EG4 Battery Branches" })).ToBeVisibleAsync();
-        await Assertions.Expect(page.Locator("article.eg4-device-card")).ToHaveCountAsync(3);
+        await Assertions.Expect(page.Locator("article.eg4-device-card")).ToHaveCountAsync(2);
         await Assertions.Expect(page.GetByText("Simulator Inverter A", new() { Exact = true })).ToBeVisibleAsync();
-        await Assertions.Expect(page.GetByText("Simulator MPPT A", new() { Exact = true })).ToBeVisibleAsync();
-        await Assertions.Expect(page.GetByText("Simulator MPPT B", new() { Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByText("Simulator Inverter B", new() { Exact = true })).ToBeVisibleAsync();
         var sourceOrder = await page.Locator("article.eg4-device-card").EvaluateAllAsync<string[]>(
             "cards => cards.map(card => card.getAttribute('data-source-id'))");
-        sourceOrder.Should().Equal("eg4-sim-inverter-a", "eg4-sim-mppt-a", "eg4-sim-mppt-b");
+        sourceOrder.Should().Equal("eg4-sim-inverter-a", "eg4-sim-inverter-b");
+        (await WaitForPendingOutboxCountAsync()).Should().BeGreaterThanOrEqualTo(2,
+            "the simulator must exercise the same durable collection path as production");
         await page.GetByRole(AriaRole.Button, new() { Name = "Refresh view" }).ClickAsync();
         failedAssets.Should().BeEmpty();
         await AssertThemedSurfaceAsync(page.Locator("article.eg4-device-card").First, "EG4 device card");
@@ -112,6 +122,7 @@ public sealed class Eg4GatewayPlaywrightTests
 
         await Assertions.Expect(page.Locator("article.eg4-device-card").First).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByLabel("Batch size (1-500)")).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByLabel("Batch size (1-500)")).ToBeEnabledAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Apply runtime settings" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Apply runtime settings" })).ToBeDisabledAsync();
         await AssertThemedControlAsync(page.GetByLabel("Batch size (1-500)"));
@@ -134,6 +145,24 @@ public sealed class Eg4GatewayPlaywrightTests
             playwright.Dispose();
             throw;
         }
+    }
+
+    private static async Task<int> WaitForPendingOutboxCountAsync()
+    {
+        using var client = new HttpClient { BaseAddress = new Uri(_baseUrl) };
+        client.DefaultRequestHeaders.Add("X-Api-Key", "playwright-diagnostics-key");
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            using var response = await client.GetAsync("/diagnostics/outbox");
+            if (response.IsSuccessStatusCode)
+            {
+                using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                var count = json.RootElement.GetProperty("pendingCount").GetInt32();
+                if (count >= 2) return count;
+            }
+            await Task.Delay(100);
+        }
+        return 0;
     }
 
     private static string BuildUrl(string route)

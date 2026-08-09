@@ -78,7 +78,7 @@ public sealed class Eg4GatewayDashboardStateTests
     }
 
     [TestMethod]
-    public async Task HealthCheck_ReflectsMisconfiguredOfflineAndHealthyFleet()
+    public async Task HealthCheck_ReflectsMisconfiguredWaitingAndHealthyFleet()
     {
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 8, 9, 15, 0, 0, TimeSpan.Zero));
         var emptyState = new Eg4GatewayDashboardState(
@@ -89,7 +89,7 @@ public sealed class Eg4GatewayDashboardStateTests
         var state = new Eg4GatewayDashboardState(
             Options.Create(new Eg4Options { Devices = [device] }), time, new UnavailableEg4OutboxDashboardProvider());
         var health = new Eg4DashboardHealthCheck(state);
-        (await health.CheckHealthAsync(new HealthCheckContext())).Status.Should().Be(HealthStatus.Unhealthy);
+        (await health.CheckHealthAsync(new HealthCheckContext())).Status.Should().Be(HealthStatus.Degraded);
 
         var simulator = new Eg4FleetSimulator(time);
         await simulator.SetScriptAsync(device.SourceId, [new Eg4SimulationStep(new Eg4SimulatedTelemetry(52, 5, 260, 80))]);

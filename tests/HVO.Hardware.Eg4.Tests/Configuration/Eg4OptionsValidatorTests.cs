@@ -20,6 +20,7 @@ public sealed class Eg4OptionsValidatorTests
             ],
         };
 
+        options.Devices.ForEach(device => device.Enabled = false);
         new Eg4OptionsValidator(Environment("Production")).Validate(null, options).Succeeded.Should().BeTrue();
     }
 
@@ -99,6 +100,31 @@ public sealed class Eg4OptionsValidatorTests
         var result = new Eg4OptionsValidator(Environment("Production"))
             .Validate(null, new Eg4Options { Devices = [invalidUnit] });
         result.Failures.Should().ContainSingle(message => message.Contains("PI30 does not use Modbus", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Validate_RejectsEnabledMpptUntilMonitoringInterfaceIsValidated()
+    {
+        var controller = Device("controller", 1, Eg4DeviceType.ChargeControllerMppt10048Hv);
+
+        var result = new Eg4OptionsValidator(Environment("Production"))
+            .Validate(null, new Eg4Options { Devices = [controller] });
+
+        result.Failures.Should().ContainSingle(message => message.Contains("no validated monitoring interface", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Validate_RejectsSourceAndDeviceIdsLongerThanIngestContract()
+    {
+        var device = Device("length", 0, port: "/dev/hvo/eg4-length");
+        device.SourceId = new string('s', 65);
+        device.DeviceId = new string('d', 65);
+
+        var result = new Eg4OptionsValidator(Environment("Production"))
+            .Validate(null, new Eg4Options { Devices = [device] });
+
+        result.Failures.Should().Contain(message => message.Contains("SourceId of 1-64", StringComparison.Ordinal));
+        result.Failures.Should().Contain(message => message.Contains("DeviceId of 1-64", StringComparison.Ordinal));
     }
 
     private static Eg4DeviceOptions Device(

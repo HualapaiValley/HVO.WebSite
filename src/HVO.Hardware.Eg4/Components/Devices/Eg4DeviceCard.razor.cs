@@ -14,6 +14,7 @@ public partial class Eg4DeviceCard
     private string StateChipClass => Device.State switch
     {
         Eg4DashboardDeviceState.Online => "hvo-chip-success",
+        Eg4DashboardDeviceState.Waiting => "hvo-chip-warning",
         Eg4DashboardDeviceState.Degraded => "hvo-chip-warning",
         Eg4DashboardDeviceState.Offline => "hvo-chip-danger",
         _ => string.Empty,

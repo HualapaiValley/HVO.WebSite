@@ -34,8 +34,14 @@ public static class Eg4ServiceCollectionExtensions
             services.AddSingleton<IEg4RegisterTransportFactory>(provider =>
                 provider.GetRequiredService<ScriptedEg4RegisterTransportFactory>());
             services.AddSingleton<IEg4PortCoordinator, Eg4PortCoordinator>();
-            services.AddSingleton<Eg4SimulationDashboardWorker>();
-            services.AddHostedService(provider => provider.GetRequiredService<Eg4SimulationDashboardWorker>());
+        }
+        else
+        {
+            services.AddSingleton<Eg46500ExHidrawTransportFactory>();
+            services.AddSingleton<IEg46500ExInquiryTransportFactory>(provider =>
+                provider.GetRequiredService<Eg46500ExHidrawTransportFactory>());
+            services.AddSingleton<Eg46500ExTelemetrySource>();
+            services.AddSingleton<IEg4TelemetrySource>(provider => provider.GetRequiredService<Eg46500ExTelemetrySource>());
         }
 
         return services;
