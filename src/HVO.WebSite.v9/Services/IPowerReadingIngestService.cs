@@ -1,3 +1,4 @@
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Models;
 
 namespace HVO.WebSite.v9.Services;
@@ -5,7 +6,7 @@ namespace HVO.WebSite.v9.Services;
 public interface IPowerReadingIngestService
 {
     Task<PowerReadingIngestResult> IngestReadingsAsync(
-        IReadOnlyList<PowerReadingIngestRequest> requests,
+        IReadOnlyList<PowerReadingPayload> requests,
         CancellationToken ct);
 }
 

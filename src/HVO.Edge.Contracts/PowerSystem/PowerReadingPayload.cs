@@ -1,8 +1,11 @@
 using System.Text.Json.Serialization;
 
-namespace HVO.Gateway.SolarAssistant.SolarAssistant;
+namespace HVO.Edge.Contracts.PowerSystem;
 
-/// <summary>DTO matching the website power ingest API request shape.</summary>
+/// <summary>
+/// Version 1 normalized power-reading payload. Existing fields retain their source-native
+/// sign behavior; canonical battery signs apply only when composing battery observations.
+/// </summary>
 public sealed class PowerReadingPayload
 {
     [JsonPropertyName("sourceId")]

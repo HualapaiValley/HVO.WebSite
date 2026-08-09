@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Controllers;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Telemetry;
@@ -26,11 +27,11 @@ public sealed class PowerReadingIngestService : IPowerReadingIngestService
     }
 
     public async Task<PowerReadingIngestResult> IngestReadingsAsync(
-        IReadOnlyList<PowerReadingIngestRequest> requests,
+        IReadOnlyList<PowerReadingPayload> requests,
         CancellationToken ct)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var candidates = new List<(PowerReadingIngestRequest Request, string SourceId, DateTime RecordedAt)>();
+        var candidates = new List<(PowerReadingPayload Request, string SourceId, DateTime RecordedAt)>();
         var failures = new List<PowerReadingBatchFailure>();
 
         foreach (var request in requests)
@@ -159,7 +160,7 @@ public sealed class PowerReadingIngestService : IPowerReadingIngestService
             new PowerReadingBatchResponse { Inserted = toInsert.Count, Skipped = skipped, Failed = failures });
     }
 
-    private static PowerReading MapToEntity(PowerReadingIngestRequest request, string sourceId, DateTime recordedAt) => new()
+    private static PowerReading MapToEntity(PowerReadingPayload request, string sourceId, DateTime recordedAt) => new()
     {
         SourceId = sourceId,
         SourceSystem = NormalizeSourceSystem(request.SourceSystem),

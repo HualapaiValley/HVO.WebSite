@@ -1,6 +1,6 @@
 using System.Text.Json;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
-using HVO.Hardware.VictronSmartShunt.SmartShunt;
 
 namespace HVO.Hardware.VictronSmartShunt.Outbox;
 

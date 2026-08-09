@@ -1,5 +1,9 @@
 namespace HVO.Edge.Contracts.PowerSystem;
 
+/// <summary>
+/// Rich source-specific battery-bank data. Electrical signs remain source-native for
+/// compatibility; use <see cref="PowerBatteryObservation"/> for canonical composed signs.
+/// </summary>
 public sealed record PowerSystemBatteryBankSnapshot(
     string BankId,
     DateTime RecordedAtUtc,

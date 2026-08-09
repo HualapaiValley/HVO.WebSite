@@ -1,5 +1,6 @@
 using FluentAssertions;
 using HVO.Edge.Contracts;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Health;

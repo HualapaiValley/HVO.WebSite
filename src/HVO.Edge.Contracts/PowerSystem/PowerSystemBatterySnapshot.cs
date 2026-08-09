@@ -1,5 +1,9 @@
 namespace HVO.Edge.Contracts.PowerSystem;
 
+/// <summary>
+/// Preferred composed battery summary. Positive current and power represent discharge;
+/// negative values represent charge.
+/// </summary>
 public sealed record PowerSystemBatterySnapshot(
     SourcedValue<double>? StateOfChargePercent = null,
     SourcedValue<double>? VoltageV = null,

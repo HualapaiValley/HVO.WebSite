@@ -1,3 +1,4 @@
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 
 namespace HVO.Hardware.VictronSmartShunt.SmartShunt;

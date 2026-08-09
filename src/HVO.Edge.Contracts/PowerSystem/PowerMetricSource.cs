@@ -7,4 +7,6 @@ public enum PowerMetricSource
     JkBms = 2,
     VictronSmartShunt = 3,
     Derived = 4,
+    Eg46500Ex = 5,
+    Eg4Mppt10048Hv = 6,
 }
