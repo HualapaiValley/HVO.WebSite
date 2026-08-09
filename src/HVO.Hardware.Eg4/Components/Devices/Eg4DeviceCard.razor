@@ -1,0 +1,42 @@
+<article class="hvo-card eg4-device-card" data-source-id="@Device.SourceId" data-device-state="@Device.State.ToString().ToLowerInvariant()">
+    <header class="eg4-device-card__header">
+        <div class="hvo-device-meta">
+            <p class="hvo-eyebrow">@TypeLabel</p>
+            <h2 class="hvo-card-title">@Device.Alias</h2>
+            <span class="hvo-device-meta-caption">@Device.SourceId</span>
+        </div>
+        <span class="hvo-chip @StateChipClass">@StateLabel</span>
+    </header>
+
+    <div class="eg4-device-card__role">
+        <span>@RoleLabel</span>
+        <strong>Branch measurement</strong>
+    </div>
+
+    <dl class="eg4-device-card__metrics">
+        <div><dt>State</dt><dd>@PowerState</dd></div>
+        <div><dt>Voltage</dt><dd>@HvoFormat.Voltage(Device.VoltageV, 2)</dd></div>
+        <div><dt>Current</dt><dd>@HvoFormat.Current(Device.CurrentA)</dd></div>
+        <div><dt>Power</dt><dd>@HvoFormat.Power(Device.PowerW)</dd></div>
+        <div><dt>SOC</dt><dd>@HvoFormat.Percent(Device.StateOfChargePercent)</dd></div>
+        <div><dt>Freshness</dt><dd>@FreshnessLabel</dd></div>
+    </dl>
+
+    <div class="eg4-device-card__provenance" aria-label="Observation provenance">
+        <span>Provenance</span>
+        <strong>@ProvenanceLabel</strong>
+        <small>Values describe this branch only, never the whole battery bus.</small>
+    </div>
+
+    <dl class="eg4-device-card__identity">
+        <div><dt>Device ID</dt><dd>@Device.DeviceId</dd></div>
+        <div><dt>Model</dt><dd>@(Device.Model ?? "Unavailable")</dd></div>
+        <div><dt>Firmware</dt><dd>@(Device.Firmware ?? "Unavailable")</dd></div>
+        <div><dt>Observed</dt><dd>@HvoFormat.Timestamp(Device.ObservedAtUtc, "MMM d, HH:mm:ss")</dd></div>
+    </dl>
+
+    @if (!string.IsNullOrWhiteSpace(Device.LastError))
+    {
+        <div class="hvo-callout hvo-callout-error" role="alert">@Device.LastError</div>
+    }
+</article>

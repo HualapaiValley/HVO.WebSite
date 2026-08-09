@@ -22,6 +22,18 @@
           "OpenTelemetry.Extensions.Hosting": "1.15.0"
         }
       },
+      "Microsoft.AspNetCore.App.Internal.Assets": {
+        "type": "Direct",
+        "requested": "[10.0.10, )",
+        "resolved": "10.0.10",
+        "contentHash": "8k0KoYKvNrSqP8E3oDJMBVKavlTEE6BacdLGtEDcxv9Hz0XxWFkD6JdLJsxXUlGeAfZ6YfvWmxKenl73qeCTSA=="
+      },
+      "MudBlazor": {
+        "type": "Direct",
+        "requested": "[9.7.0, )",
+        "resolved": "9.7.0",
+        "contentHash": "uWOgNn9B556J/TL8KFoSqpA3YD2heqOpK5etcofwlj1RiEX1IDy0NmwYE9urlTUQ8zProEK5GqwTBnoObFPN3g=="
+      },
       "OpenTelemetry.Api": {
         "type": "Direct",
         "requested": "[1.17.0, )",
@@ -149,6 +161,12 @@
           "HVO.Enterprise.Telemetry.Serilog": "[2.0.1, )",
           "Serilog.AspNetCore": "[10.0.0, )",
           "Serilog.Sinks.OpenTelemetry": "[4.2.0, )"
+        }
+      },
+      "hvo.website.themes": {
+        "type": "Project",
+        "dependencies": {
+          "MudBlazor": "[9.7.0, )"
         }
       },
       "HVO.Enterprise.Telemetry.Serilog": {
