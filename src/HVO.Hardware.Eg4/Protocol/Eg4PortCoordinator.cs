@@ -30,9 +30,16 @@ public sealed class Eg4PortCoordinator(IEg4RegisterTransportFactory factory) : I
         BeginOperation();
         try
         {
-            var state = _ports.GetOrAdd(
+            var lazyState = _ports.GetOrAdd(
                 port,
-                key => new Lazy<PortState>(() => new PortState(factory.Create(key)), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+                key => new Lazy<PortState>(() => new PortState(factory.Create(key)), LazyThreadSafetyMode.ExecutionAndPublication));
+            PortState state;
+            try { state = lazyState.Value; }
+            catch
+            {
+                _ports.TryRemove(new KeyValuePair<string, Lazy<PortState>>(port, lazyState));
+                throw;
+            }
             await state.Gate.WaitAsync(cancellationToken);
             try { return await state.Transport.ReadRegistersAsync(request, cancellationToken); }
             finally { state.Gate.Release(); }

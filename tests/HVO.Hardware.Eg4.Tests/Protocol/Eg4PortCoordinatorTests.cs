@@ -69,6 +69,18 @@ public sealed class Eg4PortCoordinatorTests
         await coordinator.DisposeAsync();
     }
 
+    [TestMethod]
+    public async Task TransientFactoryFailureCanRetryTheSamePort()
+    {
+        var factory = new RetryFactory();
+        await using var coordinator = new Eg4PortCoordinator(factory);
+        await FluentActions.Awaiting(async () => await coordinator.ReadRegistersAsync("port", Request, CancellationToken.None))
+            .Should().ThrowAsync<InvalidOperationException>();
+
+        (await coordinator.ReadRegistersAsync("port", Request, CancellationToken.None)).Registers.Should().Equal(1);
+        factory.CreateCount.Should().Be(2);
+    }
+
     private sealed class GateTransportFactory : IEg4RegisterTransportFactory
     {
         private int _globalConcurrency;
@@ -107,6 +119,25 @@ public sealed class Eg4PortCoordinatorTests
     {
         public int CreateCount { get; private set; }
         public IEg4RegisterTransport Create(string port) { CreateCount++; throw new InvalidOperationException("open failed"); }
+    }
+
+    private sealed class RetryFactory : IEg4RegisterTransportFactory
+    {
+        public int CreateCount { get; private set; }
+        public IEg4RegisterTransport Create(string port)
+        {
+            if (++CreateCount == 1) throw new InvalidOperationException("transient open failure");
+            return new SuccessfulTransport();
+        }
+    }
+
+    private sealed class SuccessfulTransport : IEg4RegisterTransport
+    {
+        public ValueTask<Eg4ReadRegistersResponse> ReadRegistersAsync(
+            Eg4ReadRegistersRequest request,
+            CancellationToken cancellationToken) => ValueTask.FromResult(new Eg4ReadRegistersResponse([1]));
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private static class InterlockedExtensions
