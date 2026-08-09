@@ -1,3 +1,4 @@
+using HVO.Edge.Contracts;
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Devices;
 using HVO.Gateway.TplinkKasa.Outbox;
@@ -160,14 +161,14 @@ public sealed class KasaGatewayWorker(
     {
         if (interactionState.IsSuspended(device.EffectiveSourceId))
         {
-            telemetry.DevicePollSkippedCount.Add(1, PollTags(device));
+            telemetry.RecordPollSkipped(device.EffectiveSourceId, device.DeviceKind.ToString(), "suspended");
             logger.LogDebug("Skipping TP-Link/Kasa device {SourceId} poll tick because the device is being edited.", device.EffectiveSourceId);
             return activePoll ?? Task.CompletedTask;
         }
 
         if (activePoll is { IsCompleted: false })
         {
-            telemetry.DevicePollSkippedCount.Add(1, PollTags(device));
+            telemetry.RecordPollSkipped(device.EffectiveSourceId, device.DeviceKind.ToString(), "overlap");
             logger.LogWarning(
                 "Skipping TP-Link/Kasa device {SourceId} poll tick because the previous poll is still running. IntervalMs={IntervalMs}",
                 device.EffectiveSourceId,
@@ -423,9 +424,9 @@ public sealed class KasaGatewayWorker(
 
     private void RecordPoll(KasaDeviceConfig device, string result, TimeSpan elapsed)
     {
-        var tags = PollTags(device, result);
-        telemetry.DevicePollCount.Add(1, tags);
-        telemetry.DevicePollDurationMs.Record(elapsed.TotalMilliseconds, tags);
+        var canonicalResult = result is "success" or "degraded" ? result : GatewayTelemetryConventions.Results.Failure;
+        telemetry.RecordPoll(device.EffectiveSourceId, device.DeviceKind.ToString(), canonicalResult, elapsed.TotalSeconds,
+            canonicalResult == GatewayTelemetryConventions.Results.Failure ? result : null);
     }
 
     private static KeyValuePair<string, object?>[] PollTags(KasaDeviceConfig device, string? result = null)

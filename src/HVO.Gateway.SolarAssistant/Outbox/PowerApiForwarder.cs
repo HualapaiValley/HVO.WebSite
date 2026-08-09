@@ -162,6 +162,8 @@ public sealed class PowerApiForwarder : BackgroundService
         store.MarkAttempt(pending, now);
 
         var ready = new List<(EdgeOutboxRecord Record, PowerReadingPayload Payload)>();
+        Stopwatch? fwSw = null;
+        Activity? forwardActivity = null;
         try
         {
             foreach (var record in pending)
@@ -180,13 +182,14 @@ public sealed class PowerApiForwarder : BackgroundService
                 }).ToList();
                 var cloudEvents = CloudEventsForwardingHelper.WrapBatchAsCloudEvents(readyJson, "solarassistant");
 
+                forwardActivity = _telemetry.StartForwardOperation();
+                fwSw = Stopwatch.StartNew();
                 using var request = new HttpRequestMessage(HttpMethod.Post, _options.ApiEndpoint)
                 {
                     Content = JsonContent.Create(cloudEvents, options: JsonOptions),
                 };
                 request.AddTraceContext();
 
-                var fwSw = Stopwatch.StartNew();
                 using var response = await _httpFactory
                     .CreateClient("PowerApi")
                     .SendAsync(request, ct);
@@ -194,9 +197,8 @@ public sealed class PowerApiForwarder : BackgroundService
                 if (response.IsSuccessStatusCode)
                 {
                     var body = await response.Content.ReadFromJsonAsync<PowerBatchResponse>(JsonOptions, ct);
-                    MarkBatchResult(ready.Select(x => x.Record), body, now);
-                    _telemetry.OutboxForwardLatencyMs.Record(fwSw.Elapsed.TotalMilliseconds);
-                    _telemetry.OutboxRecordsForwarded.Add(_lastBatchCount);
+                    var sentCount = MarkBatchResult(ready.Select(x => x.Record), body, now);
+                    _telemetry.RecordForwardBatch(sentCount, ready.Count - sentCount, fwSw.Elapsed.TotalSeconds, forwardActivity);
                 }
                 else
                 {
@@ -204,6 +206,7 @@ public sealed class PowerApiForwarder : BackgroundService
                     foreach (var record in ready.Select(x => x.Record))
                         store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
                     _lastError = error;
+                    _telemetry.RecordForward(ready.Count, false, fwSw.Elapsed.TotalSeconds, "http_status", forwardActivity);
                     _logger.LogWarning("Power API forward failed for {Count} record(s): {Error}", ready.Count, error);
                 }
             }
@@ -213,6 +216,7 @@ public sealed class PowerApiForwarder : BackgroundService
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, ex.Message, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             _lastError = ex.Message;
+            _telemetry.RecordForward(ready.Count, false, fwSw?.Elapsed.TotalSeconds ?? 0, "http_request", forwardActivity);
             _logger.LogWarning(ex, "HTTP error forwarding {Count} power record(s)", ready.Count);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
@@ -221,6 +225,7 @@ public sealed class PowerApiForwarder : BackgroundService
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             _lastError = error;
+            _telemetry.RecordForward(ready.Count, false, fwSw?.Elapsed.TotalSeconds ?? 0, "timeout", forwardActivity);
             _logger.LogWarning("Power API request timed out for {Count} record(s)", ready.Count);
         }
         catch (JsonException ex)
@@ -229,13 +234,18 @@ public sealed class PowerApiForwarder : BackgroundService
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             _lastError = error;
+            _telemetry.RecordForward(ready.Count, false, fwSw?.Elapsed.TotalSeconds ?? 0, "invalid_response", forwardActivity);
             _logger.LogWarning(ex, "Invalid JSON response while forwarding {Count} power record(s)", ready.Count);
+        }
+        finally
+        {
+            forwardActivity?.Dispose();
         }
 
         await store.SaveChangesAsync(ct);
         _pendingCount = await store.CountPendingAsync(PowerOutboxPayloadTypes.PowerReading, ct);
         _failedCount = await store.CountFailedAsync(PowerOutboxPayloadTypes.PowerReading, ct);
-        _telemetry.SetOutboxQueueDepth(_pendingCount);
+        _telemetry.SetOutboxQueueDepth(_pendingCount, _failedCount);
 
         await ForwardSnapshotPayloadsAsync<PowerDeviceInventoryPayload>(
             store,
@@ -290,6 +300,8 @@ public sealed class PowerApiForwarder : BackgroundService
             if (!TryReadPayload<TPayload>(record, out var payload))
                 continue;
 
+            var sw = Stopwatch.StartNew();
+            using var forwardActivity = _telemetry.StartForwardOperation();
             try
             {
                 // Wrap snapshot in CloudEvents envelope for standards-compliant delivery
@@ -321,19 +333,23 @@ public sealed class PowerApiForwarder : BackgroundService
                     record.Status = EdgeOutboxStatus.Sent;
                     record.SentAtUtc = now;
                     record.LastError = null;
+                    _telemetry.RecordForward(1, true, sw.Elapsed.TotalSeconds, payloadType, null, forwardActivity);
                     _logger.LogDebug("Forwarded {PayloadType} outbox record {Id}", payloadType, record.Id);
                     continue;
                 }
 
                 store.ScheduleRetry(record, $"HTTP {(int)response.StatusCode}", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+                _telemetry.RecordForward(1, false, sw.Elapsed.TotalSeconds, payloadType, "http_status", forwardActivity);
             }
             catch (HttpRequestException ex)
             {
                 store.ScheduleRetry(record, ex.Message, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+                _telemetry.RecordForward(1, false, sw.Elapsed.TotalSeconds, payloadType, "http_request", forwardActivity);
             }
             catch (TaskCanceledException) when (!ct.IsCancellationRequested)
             {
                 store.ScheduleRetry(record, "Request timed out", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+                _telemetry.RecordForward(1, false, sw.Elapsed.TotalSeconds, payloadType, "timeout", forwardActivity);
             }
         }
 
@@ -383,7 +399,7 @@ public sealed class PowerApiForwarder : BackgroundService
         return $"{endpoint}/{leaf}";
     }
 
-    private void MarkBatchResult(IEnumerable<EdgeOutboxRecord> records, PowerBatchResponse? response, DateTime sentAt)
+    private int MarkBatchResult(IEnumerable<EdgeOutboxRecord> records, PowerBatchResponse? response, DateTime sentAt)
     {
         var failures = response?.Failed ?? [];
         var sentCount = 0;
@@ -416,6 +432,7 @@ public sealed class PowerApiForwarder : BackgroundService
         _lastError = lastFailureError;
         Volatile.Write(ref _lastSentAtTicks, sentAt.Ticks);
         _logger.LogInformation("Forwarded {Count} power record(s)", sentCount);
+        return sentCount;
     }
 
     private sealed class PowerBatchResponse

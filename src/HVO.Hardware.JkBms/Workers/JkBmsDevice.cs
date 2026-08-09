@@ -214,7 +214,6 @@ public sealed class JkBmsDevice : IAsyncDisposable
     {
         using var pollScope = _telemetryService.StartOperation("BMS.Poll");
         pollScope.WithTag("device", State.Alias);
-
         _logger.LogDebug("Polling {Alias} ({Address})", State.Alias, State.Address);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -223,11 +222,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
             var packet = await PollCellInfoWithTimeoutAsync(ct);
             sw.Stop();
 
-            _telemetry.DevicePollCount.Add(1,
-                new KeyValuePair<string, object?>("device", State.Alias),
-                new KeyValuePair<string, object?>("result", "success"));
-            _telemetry.DevicePollDurationMs.Record(sw.Elapsed.TotalMilliseconds,
-                new KeyValuePair<string, object?>("device", State.Alias));
+            _telemetry.RecordPoll(State.Alias, true, sw.Elapsed.TotalSeconds);
 
             State.LatestReading = packet;
             State.LastPollAt = DateTime.UtcNow;
@@ -242,12 +237,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
 
             await _onSuccessfulPoll(State, _client, packet, ct);
 
-            pollScope
-                .WithTag("soc_pct", packet.StateOfChargePercent)
-                .WithTag("voltage_mv", packet.TotalVoltageMv)
-                .WithTag("current_ma", packet.CurrentMa)
-                .WithTag("alarms", packet.HasAlarms)
-                .Succeed();
+            pollScope.Succeed();
 
             _onStateChanged();
 
@@ -281,12 +271,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
         {
             sw.Stop();
 
-            _telemetry.DevicePollCount.Add(1,
-                new KeyValuePair<string, object?>("device", State.Alias),
-                new KeyValuePair<string, object?>("result", "error"));
-            _telemetry.DevicePollDurationMs.Record(sw.Elapsed.TotalMilliseconds,
-                new KeyValuePair<string, object?>("device", State.Alias));
-
+            _telemetry.RecordPoll(State.Alias, false, sw.Elapsed.TotalSeconds, "device_error");
             State.ConsecutiveErrors++;
             State.LastError = ex.Message;
             State.BackoffLevel = Math.Min(State.BackoffLevel + 1, 10);

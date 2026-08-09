@@ -159,16 +159,18 @@ Use these tags consistently across metrics and traces when available.
 
 | Tag | Purpose |
 |-----|---------|
-| `gateway.id` | Stable gateway identifier. |
-| `gateway.type` | Gateway implementation family. |
-| `site.id` | Observatory/site identity. |
-| `source.id` | Source identity used for payload attribution. |
-| `device.id` | Per-device identity for multi-device gateways. |
-| `payload.type` | Outbox payload category. |
-| `payload.version` | Payload contract version. |
-| `failure.kind` | Common failure classification. |
-| `http.status_code` | HTTP status code for forwarding requests. |
-| `operation.name` | Trace/span operation name. |
+| `hvo.gateway.id` | Stable gateway identifier; normally a resource attribute. |
+| `hvo.gateway.type` | Gateway implementation family; normally a resource attribute. |
+| `hvo.site.id` | Observatory/site identity; normally a resource attribute. |
+| `hvo.source.id` | Configured source identity used for payload attribution. |
+| `hvo.device.id` | Stable configured device identity for multi-device gateways. |
+| `hvo.device.type` | Bounded device/model family. |
+| `hvo.result` | Bounded `success`, `failure`, `degraded`, `skipped`, or `unknown`. |
+| `hvo.payload.type` | Bounded outbox payload category. |
+| `hvo.failure.kind` | Bounded failure classification; never an exception message. |
+| `hvo.health.state` | Bounded gateway health state. |
+
+Hostnames, IPs, serial paths, raw frames, MQTT topics, record IDs, exception messages, timestamps, and battery/weather/power measurements must not be metric tags. Runtime host identity belongs in resource attributes, while physical measurements belong in typed payloads and SQL.
 
 ### Common Metrics
 
@@ -176,12 +178,26 @@ Metric names are defined in `GatewayTelemetryConventions`. Prefer counters for e
 
 | Metric | Type | Unit | Purpose |
 |--------|------|------|---------|
-| `gateway.outbox.depth` | Gauge | records | Pending outbox records. |
-| `gateway.outbox.failed` | Gauge | records | Failed outbox records, tagged by `hvo.failure.kind` where practical. |
-| `gateway.outbox.forward.success` | Counter | records | Records accepted or skipped as duplicates by cloud ingest. |
-| `gateway.outbox.forward.failure` | Counter | records | Records that failed a forward attempt. |
-| `gateway.device.freshness.seconds` | Gauge | seconds | Age of the latest successful sample. |
-| `gateway.device.poll.failure` | Counter/Gauge | failures | Device poll failures or skipped polls. |
+| `gateway.device.connect.attempt` | Counter | `{attempt}` | Device connection attempts. |
+| `gateway.device.connect.failure` | Counter | `{failure}` | Failed connection attempts. |
+| `gateway.device.reconnect` | Counter | `{reconnect}` | Reconnection attempts. |
+| `gateway.device.connect.duration` | Histogram | `s` | Connection duration. |
+| `gateway.device.read.attempt` | Counter | `{attempt}` | Protocol read attempts. |
+| `gateway.device.read.failure` | Counter | `{failure}` | Failed reads. |
+| `gateway.device.read.duration` | Histogram | `s` | Read duration. |
+| `gateway.device.poll.attempt` | Counter | `{attempt}` | Poll/sample attempts. |
+| `gateway.device.poll.failure` | Counter | `{failure}` | Failed or classified skipped polls. |
+| `gateway.device.poll.duration` | Histogram | `s` | Poll duration. |
+| `gateway.device.freshness.seconds` | Gauge | `s` | Age of the latest successful sample. |
+| `gateway.outbox.depth` | Gauge | `{record}` | Pending outbox records. |
+| `gateway.outbox.failed` | Gauge | `{record}` | Failed outbox records. |
+| `gateway.outbox.forward.success` | Counter | `{record}` | Records accepted or skipped as duplicates by cloud ingest. |
+| `gateway.outbox.forward.failure` | Counter | `{record}` | Records that failed a forward attempt. |
+| `gateway.outbox.forward.duration` | Histogram | `s` | Forward request duration. |
+| `gateway.health.evaluation` | Counter | `{evaluation}` | Health evaluations by state. |
+| `gateway.health.evaluation.duration` | Histogram | `s` | Health evaluation duration. |
+
+The common meter and activity source are both `HVO.Edge`. Existing `davis.*`, `bms.*`, `smartshunt.*`, `solarassistant.*`, and `kasa.*` instruments remain temporary compatibility aliases. Remove them only after externally stored Grafana dashboards have been exported, checked for those names, and migrated.
 
 ### Common Traces/Operations
 

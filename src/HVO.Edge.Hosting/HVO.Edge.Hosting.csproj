@@ -13,6 +13,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\HVO.Edge.Contracts\HVO.Edge.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="HVO.Edge.Hosting.Tests" />
   </ItemGroup>
 </Project>

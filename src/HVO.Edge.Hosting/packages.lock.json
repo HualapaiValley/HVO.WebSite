@@ -116,6 +116,9 @@
           "Serilog": "4.0.0"
         }
       },
+      "hvo.edge.contracts": {
+        "type": "Project"
+      },
       "HVO.Enterprise.Telemetry": {
         "type": "CentralTransitive",
         "requested": "[1.0.3, )",

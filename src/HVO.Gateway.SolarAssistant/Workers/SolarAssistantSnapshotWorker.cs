@@ -98,7 +98,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
             catch (Exception ex)
             {
                 _lastError = ex.Message;
-                _telemetry.SnapshotPollCount.Add(1, new KeyValuePair<string, object?>("result", "failed"));
+                _telemetry.RecordPoll(false, 0, "device_error");
                 _logger.LogWarning(ex, "SolarAssistant snapshot poll failed");
                 await TryHydrateLatestSnapshotAsync(stoppingToken);
             }
@@ -121,6 +121,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
 
         if (metrics.Count == 0)
         {
+            _telemetry.RecordPoll(false, sw.Elapsed.TotalSeconds, "empty_response");
             _logger.LogDebug("SolarAssistant snapshot poll returned no metrics.");
             await TryHydrateLatestSnapshotAsync(ct);
             return false;
@@ -144,8 +145,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
             _lastEnergy = energy;
         AddHistory(payload);
         _lastError = null;
-        _telemetry.SnapshotPollDurationMs.Record(sw.Elapsed.TotalMilliseconds);
-        _telemetry.SnapshotPollCount.Add(1, new KeyValuePair<string, object?>("result", "success"));
+        _telemetry.RecordPoll(true, sw.Elapsed.TotalSeconds);
         if (inserted)
         {
             _logger.LogDebug(

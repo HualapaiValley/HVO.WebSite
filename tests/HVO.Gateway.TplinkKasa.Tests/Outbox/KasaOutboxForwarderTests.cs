@@ -1,9 +1,11 @@
 using System.Net;
+using System.Diagnostics.Metrics;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using HVO.Edge.Outbox;
+using HVO.Edge.Contracts;
 using HVO.Gateway.TplinkKasa.Configuration;
 using HVO.Gateway.TplinkKasa.Models;
 using HVO.Gateway.TplinkKasa.Outbox;
@@ -110,6 +112,42 @@ public sealed class KasaOutboxForwarderTests
         record.AttemptCount.Should().Be(1);
         record.LastError.Should().Contain("HTTP 403");
         record.LastError.Should().NotContain("forbidden");
+    }
+
+    [TestMethod]
+    public async Task SweepAsync_HttpRequestFailure_EmitsCanonicalFailureMetric()
+    {
+        await using var fixture = await OutboxFixture.CreateAsync();
+        await fixture.Store.EnqueueAsync(new EdgeOutboxMessage(
+            SourceId: "tplink-kasa:desk-lamp",
+            RecordedAtUtc: new DateTime(2026, 6, 16, 12, 0, 0, DateTimeKind.Utc),
+            PayloadType: KasaOutboxPayloadTypes.Energy,
+            PayloadVersion: KasaOutboxPayloadTypes.EnergyVersion,
+            PayloadJson: JsonSerializer.Serialize(new KasaEnergyPayload
+            {
+                SourceId = "tplink-kasa:desk-lamp",
+                RecordedAtUtc = new DateTime(2026, 6, 16, 12, 0, 0, DateTimeKind.Utc),
+                LoadPowerW = 12.3,
+            }, JsonOptions)), CancellationToken.None);
+        var failures = new List<long>();
+        using var listener = new MeterListener
+        {
+            InstrumentPublished = (instrument, current) =>
+            {
+                if (instrument.Meter.Name == GatewayTelemetryConventions.MeterName
+                    && instrument.Name == GatewayTelemetryConventions.MetricNames.OutboxForwardFailure)
+                    current.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, _, _) => failures.Add(value));
+        listener.Start();
+        var handler = new RecordingHandler(_ => throw new HttpRequestException("network unavailable"));
+        var forwarder = CreateForwarder(fixture, handler);
+
+        var anySent = await InvokeSweepAsync(forwarder);
+
+        anySent.Should().BeFalse();
+        failures.Should().ContainSingle().Which.Should().Be(1);
     }
 
     private static KasaOutboxForwarder CreateForwarder(OutboxFixture fixture, RecordingHandler handler)

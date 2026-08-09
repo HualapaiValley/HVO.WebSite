@@ -194,7 +194,7 @@ public sealed class ForwarderCoordinator : BackgroundService
 
         PendingCount = await store.CountPendingAsync(ct);
         FailedCount = await store.CountFailedAsync(ct);
-        _telemetry.SetOutboxQueueDepth(PendingCount);
+        _telemetry.SetOutboxQueueDepth(PendingCount, FailedCount);
 
         if (pending.Count == 0)
         {
@@ -202,7 +202,7 @@ public sealed class ForwarderCoordinator : BackgroundService
             if (snapshotsDrained > 0)
             {
                 PendingCount = await store.CountPendingAsync(ct);
-                _telemetry.SetOutboxQueueDepth(PendingCount);
+                _telemetry.SetOutboxQueueDepth(PendingCount, FailedCount);
             }
 
             sweepScope.WithTag("pending", 0).Succeed();
@@ -221,6 +221,8 @@ public sealed class ForwarderCoordinator : BackgroundService
         var permanentlyFailedIds = new HashSet<long>();
         var transientFailureIds = new HashSet<long>();
 
+        double forwardDurationSeconds = 0;
+        using var forwardActivity = _telemetry.StartForwardOperation();
         foreach (var forwarder in _forwarders)
         {
             var recordsForForwarder = pending
@@ -234,7 +236,7 @@ public sealed class ForwarderCoordinator : BackgroundService
             {
                 await forwarder.ForwardAsync(recordsForForwarder, ct);
                 sw.Stop();
-                _telemetry.OutboxForwardLatencyMs.Record(sw.Elapsed.TotalMilliseconds);
+                forwardDurationSeconds += sw.Elapsed.TotalSeconds;
             }
             catch (OperationCanceledException ex) { sweepScope.Fail(ex); throw; }
             catch (PermanentForwarderException ex)
@@ -266,7 +268,7 @@ public sealed class ForwarderCoordinator : BackgroundService
                     ex.FailedRecords.Count,
                     recordsForForwarder.Count,
                     sw.Elapsed.TotalMilliseconds);
-                _telemetry.OutboxForwardFailureCount.Add(ex.FailedRecords.Count);
+                forwardDurationSeconds += sw.Elapsed.TotalSeconds;
             }
             catch (Exception ex)
             {
@@ -276,7 +278,7 @@ public sealed class ForwarderCoordinator : BackgroundService
                 foreach (var record in recordsForForwarder)
                     transientFailureIds.Add(record.Id);
                 _logger.LogWarning(ex, "Forwarder '{Name}' transiently failed for batch of {Count} after {Ms:F0}ms.", forwarder.Name, recordsForForwarder.Count, sw.Elapsed.TotalMilliseconds);
-                _telemetry.OutboxForwardFailureCount.Add(recordsForForwarder.Count);
+                forwardDurationSeconds += sw.Elapsed.TotalSeconds;
             }
         }
 
@@ -316,9 +318,7 @@ public sealed class ForwarderCoordinator : BackgroundService
         {
             LastSentAt = sentAt;
             LastError = null;
-            _telemetry.OutboxRecordsForwarded.Add(sentCount);
-            if (snapshotSentCount > 0)
-                _telemetry.OutboxRecordsForwarded.Add(snapshotSentCount);
+            _telemetry.RecordForward(sentCount + snapshotSentCount, true, forwardDurationSeconds, activity: forwardActivity);
             sweepScope
                 .WithTag("records_forwarded", sentCount)
                 .WithTag("snapshots_drained", snapshotSentCount)
@@ -331,10 +331,10 @@ public sealed class ForwarderCoordinator : BackgroundService
         {
             LastError = firstError;
             if (sentCount > 0)
-            {
                 LastSentAt = sentAt;
-                _telemetry.OutboxRecordsForwarded.Add(sentCount);
-            }
+
+            var failedCount = transientFailureIds.Count + permanentlyFailedIds.Count;
+            _telemetry.RecordForwardBatch(sentCount, failedCount, forwardDurationSeconds, forwardActivity);
 
             sweepScope
                 .WithTag("records_attempted", pending.Count)

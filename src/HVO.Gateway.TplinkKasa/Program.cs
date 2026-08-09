@@ -13,6 +13,7 @@ using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.Http;
 using HVO.Enterprise.Telemetry.OpenTelemetry;
 using HVO.Edge.Hosting.Logging;
+using HVO.Edge.Hosting.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Http.Resilience;
@@ -20,6 +21,7 @@ using MudBlazor.Services;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using OpenTelemetry.Resources;
 
 var command = args.FirstOrDefault()?.ToLowerInvariant();
 if (command is "probe" or "scan" or "plug-lab")
@@ -240,12 +242,16 @@ static async Task RunGatewayAsync(string[] args)
         options.EnableLogExport = false;
         options.EnableStandardMeters = true;
         options.AdditionalMeterNames.Add("hvo.tplinkkasa");
-        options.AdditionalActivitySources.Add("hvo.tplinkkasa");
-        options.AdditionalActivitySources.Add("HVO.Edge");
+        options.AdditionalMeterNames.Add(GatewayTelemetryConventions.MeterName);
+        options.AdditionalActivitySources.Add(GatewayTelemetryConventions.ActivitySourceName);
     });
     if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
     {
         builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddAttributes(GatewayTelemetryResource.Create(
+                "hvo-tplinkkasa",
+                new GatewayTelemetryIdentity(builder.Configuration["KasaGateway:GatewayId"] ?? "hvo-tplink-kasa", "smart-plug", "hvo"),
+                builder.Environment.EnvironmentName)))
             .WithTracing(tb => tb.AddOtlpExporter())
             .WithMetrics(mb => mb.AddOtlpExporter());
     }
@@ -277,7 +283,8 @@ static async Task RunGatewayAsync(string[] args)
     builder.Services.AddSingleton<KasaDeviceInteractionState>();
     builder.Services.AddSingleton<KasaDevicePoller>();
     builder.Services.AddSingleton<KasaGatewayState>();
-    builder.Services.AddSingleton<KasaGatewayTelemetry>();
+    builder.Services.AddSingleton(sp => new KasaGatewayTelemetry(
+        sp.GetRequiredService<IOptions<KasaGatewayOptions>>().Value.GatewayId));
     builder.Services.AddSingleton<IKasaMacAddressLookup, KasaMacAddressResolver>();
     builder.Services.AddSingleton<KasaDeviceLocator>();
     builder.Services.AddSingleton<KasaGatewayWorker>();
@@ -571,7 +578,7 @@ static async Task<GatewayDiagnosticStatusResponse> CreateKasaDiagnosticStatusAsy
             apiSyncState),
         counts,
         await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken).ConfigureAwait(false),
-        CreateTelemetryDiagnostics("hvo-tplink-kasa", "hvo.tplinkkasa"),
+        GatewayTelemetry.CreateDiagnostics("hvo-tplinkkasa", [.. KasaGatewayTelemetry.CompatibilityMetricNames]),
         new Dictionary<string, string>
         {
             ["health"] = "/diagnostics/health",
@@ -595,18 +602,6 @@ static IReadOnlyList<GatewayHealthAlert> BuildKasaAlerts(KasaGatewayStatusRespon
         alerts.Add(new GatewayHealthAlert("kasa-devices-degraded", GatewayAlertSeverity.Warning, $"{status.DegradedDeviceCount} Kasa device(s) are degraded."));
     return alerts;
 }
-
-static GatewayTelemetryDiagnostics CreateTelemetryDiagnostics(string defaultServiceName, string sourceName) => new(
-    !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")),
-    Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? defaultServiceName,
-    [
-        GatewayTelemetryConventions.MetricNames.OutboxDepth,
-        GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess,
-        GatewayTelemetryConventions.MetricNames.OutboxForwardFailure,
-        GatewayTelemetryConventions.MetricNames.DeviceFreshnessSeconds,
-        GatewayTelemetryConventions.MetricNames.DevicePollFailure,
-    ],
-    [sourceName]);
 
 static void PrintUsage()
 {

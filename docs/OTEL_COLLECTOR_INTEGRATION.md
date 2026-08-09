@@ -59,6 +59,13 @@ providers so application-specific telemetry is not omitted. The existing HVO
 services use the `HVO.Enterprise.Telemetry` helpers and add their custom meter
 names through that configuration.
 
+All gateways register the canonical `HVO.Edge` meter and activity source. Common
+instruments use the names, units, and bounded tags documented in
+`docs/gateways/common-gateway-standards.md`; physical battery, weather, and power
+measurements remain in typed payloads rather than operational metrics. Existing
+gateway-specific meter names are compatibility aliases for externally stored
+Grafana dashboards and have a documented removal gate.
+
 ## Gateway logs
 
 Gateway hosts use `HVO.Edge.Hosting` and `UseHvoGatewayLogging(...)` rather than

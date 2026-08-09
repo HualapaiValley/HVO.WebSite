@@ -124,7 +124,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
 
         var energy = await store.GetReadyBatchAsync(KasaOutboxPayloadTypes.Energy, now, _runtimeSettings.EffectiveBatchSize(_options.BatchSize), ct).ConfigureAwait(false);
         await RefreshCountsAsync(store, ct).ConfigureAwait(false);
-        _telemetry.SetOutboxQueueDepth(_pendingCount);
+        _telemetry.SetOutboxQueueDepth(_pendingCount, _failedCount);
 
         if (IsPlaceholderConfig)
             return false;
@@ -166,6 +166,8 @@ public sealed class KasaOutboxForwarder : BackgroundService
 
         foreach (var item in ready)
         {
+            var sw = Stopwatch.StartNew();
+            using var forwardActivity = _telemetry.StartForwardOperation();
             try
             {
                 // Wrap snapshot in CloudEvents envelope for standards-compliant delivery
@@ -196,24 +198,29 @@ public sealed class KasaOutboxForwarder : BackgroundService
                 if (response.IsSuccessStatusCode)
                 {
                     store.MarkSent(item.Record, now);
+                    _telemetry.RecordForward(1, true, sw.Elapsed.TotalSeconds, KasaOutboxPayloadTypes.Inventory, null, forwardActivity);
                     anySent = true;
                     continue;
                 }
 
                 ScheduleRetry(store, [item.Record], $"HTTP {(int)response.StatusCode}", now);
+                _telemetry.RecordForward(1, false, sw.Elapsed.TotalSeconds, KasaOutboxPayloadTypes.Inventory, "http_status", forwardActivity);
             }
             catch (HttpRequestException ex)
             {
                 ScheduleRetry(store, [item.Record], ex.Message, now);
+                _telemetry.RecordForward(1, false, sw.Elapsed.TotalSeconds, KasaOutboxPayloadTypes.Inventory, "http_request", forwardActivity);
             }
             catch (TaskCanceledException) when (!ct.IsCancellationRequested)
             {
                 ScheduleRetry(store, [item.Record], "Request timed out", now);
+                _telemetry.RecordForward(1, false, sw.Elapsed.TotalSeconds, KasaOutboxPayloadTypes.Inventory, "timeout", forwardActivity);
             }
             catch (JsonException ex)
             {
                 const string error = "Kasa inventory API response JSON was invalid.";
                 ScheduleRetry(store, [item.Record], error, now);
+                _telemetry.RecordForward(1, false, sw.Elapsed.TotalSeconds, KasaOutboxPayloadTypes.Inventory, "invalid_response", forwardActivity);
                 _logger.LogWarning(ex, "Invalid JSON response while forwarding Kasa inventory outbox record {Id}", item.Record.Id);
             }
         }
@@ -255,6 +262,8 @@ public sealed class KasaOutboxForwarder : BackgroundService
             return false;
         }
 
+        var fwSw = Stopwatch.StartNew();
+        using var forwardActivity = _telemetry.StartForwardOperation();
         try
         {
             // Wrap in CloudEvents 1.0 envelopes for standards-compliant delivery
@@ -265,7 +274,6 @@ public sealed class KasaOutboxForwarder : BackgroundService
             }).ToList();
             var cloudEvents = CloudEventsForwardingHelper.WrapBatchAsCloudEvents(readyJson, "tplinkkasa");
 
-            var fwSw = Stopwatch.StartNew();
             using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
             {
                 Content = JsonContent.Create(cloudEvents, options: JsonOptions),
@@ -283,11 +291,12 @@ public sealed class KasaOutboxForwarder : BackgroundService
                 if (body is null)
                 {
                     ScheduleRetry(store, ready.Select(item => item.Record), "Kasa API response body was null.", now);
+                    _telemetry.RecordForward(ready.Count, false, fwSw.Elapsed.TotalSeconds, "invalid_response", forwardActivity);
                 }
                 else
                 {
                     anySent = MarkBatchResult(store, ready.Select(item => item.Record), body, now);
-                    _telemetry.OutboxForwardLatencyMs.Record(fwSw.Elapsed.TotalMilliseconds);
+                    _telemetry.RecordForwardBatch(_lastBatchCount, ready.Count - _lastBatchCount, fwSw.Elapsed.TotalSeconds, forwardActivity);
                 }
             }
             else
@@ -298,25 +307,30 @@ public sealed class KasaOutboxForwarder : BackgroundService
                     foreach (var record in ready.Select(item => item.Record))
                         store.MarkFailed(record, error, EdgeOutboxFailureKind.Permanent);
                     _lastError = error;
+                    _telemetry.RecordForward(ready.Count, false, fwSw.Elapsed.TotalSeconds, "permanent_http_status", forwardActivity);
                 }
                 else
                 {
                     ScheduleRetry(store, ready.Select(item => item.Record), error, now);
+                    _telemetry.RecordForward(ready.Count, false, fwSw.Elapsed.TotalSeconds, "transient_http_status", forwardActivity);
                 }
             }
         }
         catch (HttpRequestException ex)
         {
             ScheduleRetry(store, ready.Select(item => item.Record), ex.Message, now);
+            _telemetry.RecordForward(ready.Count, false, fwSw.Elapsed.TotalSeconds, "http_request", forwardActivity);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
             ScheduleRetry(store, ready.Select(item => item.Record), "Request timed out", now);
+            _telemetry.RecordForward(ready.Count, false, fwSw.Elapsed.TotalSeconds, "timeout", forwardActivity);
         }
         catch (JsonException ex)
         {
             const string error = "Kasa API response JSON was invalid.";
             ScheduleRetry(store, ready.Select(item => item.Record), error, now);
+            _telemetry.RecordForward(ready.Count, false, fwSw.Elapsed.TotalSeconds, "invalid_response", forwardActivity);
             _logger.LogWarning(ex, "Invalid JSON response while forwarding {Count} Kasa outbox record(s)", ready.Count);
         }
 
@@ -397,7 +411,6 @@ public sealed class KasaOutboxForwarder : BackgroundService
         if (sentCount > 0)
             Volatile.Write(ref _lastSentAtTicks, sentAt.Ticks);
         _logger.LogInformation("Forwarded {Count} Kasa outbox record(s)", sentCount);
-        _telemetry.OutboxRecordsForwarded.Add(sentCount);
         return sentCount > 0;
     }
 

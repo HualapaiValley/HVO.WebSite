@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Net;
 using FluentAssertions;
 using HVO.Edge.Outbox;
+using HVO.Edge.Contracts;
 using HVO.Enterprise.Telemetry.Abstractions;
 using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Hardware.DavisVantagePro2.Configuration;
@@ -60,6 +62,46 @@ public class OutboxForwarderTests
         record.Status.Should().Be(EdgeOutboxStatus.Failed);
         record.FailureKind.Should().Be(EdgeOutboxFailureKind.Permanent);
         record.LastError.Should().Be("bad format");
+    }
+
+    [TestMethod]
+    public async Task ForwardBatchAsync_PartialValidationFailure_EmitsSplitCountsAndOneDuration()
+    {
+        var acceptedAt = new DateTime(2026, 5, 28, 22, 0, 0, DateTimeKind.Utc);
+        var rejectedAt = acceptedAt.AddMinutes(1);
+        using var client = new HttpClient(new StubHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.Created)
+            {
+                Content = new StringContent($"{{\"failed\":[{{\"recordedAt\":\"{rejectedAt:O}\",\"error\":\"bad format\"}}]}}")
+            }));
+        var counts = new List<(string Name, long Value)>();
+        var durationCount = 0;
+        using var listener = new MeterListener
+        {
+            InstrumentPublished = (instrument, current) =>
+            {
+                if (instrument.Meter.Name == GatewayTelemetryConventions.MeterName)
+                    current.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, value, _, _) => counts.Add((instrument.Name, value)));
+        listener.SetMeasurementEventCallback<double>((instrument, _, _, _) =>
+        {
+            if (instrument.Name == GatewayTelemetryConventions.MetricNames.OutboxForwardDuration) durationCount++;
+        });
+        listener.Start();
+        using var forwarder = CreateForwarder(client);
+        await using var db = await CreateDbAsync();
+        var store = new EdgeOutboxStore<OutboxDbContext>(db);
+        var accepted = CreateRecord("{}", acceptedAt);
+        var rejected = CreateRecord("{}", rejectedAt);
+        rejected.Id = 43;
+
+        await forwarder.ForwardBatchAsync(store, "https://example.test/api/v1/weather/raw/batch", [accepted, rejected], DateTime.UtcNow, CancellationToken.None);
+
+        counts.Should().ContainSingle(item => item.Name == GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess && item.Value == 1);
+        counts.Should().ContainSingle(item => item.Name == GatewayTelemetryConventions.MetricNames.OutboxForwardFailure && item.Value == 1);
+        durationCount.Should().Be(1);
     }
 
     [TestMethod]

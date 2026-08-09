@@ -5,9 +5,11 @@ using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.Http;
 using HVO.Enterprise.Telemetry.OpenTelemetry;
 using HVO.Edge.Hosting.Logging;
+using HVO.Edge.Hosting.Telemetry;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using OpenTelemetry.Resources;
 using HVO.Hardware.JkBms.Bms;
 using HVO.Hardware.JkBms.Components;
 using HVO.Hardware.JkBms.Configuration;
@@ -59,12 +61,14 @@ builder.Services.AddOpenTelemetryExport(options =>
     options.EnableLogExport = false;
     options.EnableStandardMeters = true;
     options.AdditionalMeterNames.Add("hvo.jkbms");
-    options.AdditionalActivitySources.Add("hvo.jkbms");
-    options.AdditionalActivitySources.Add("HVO.Edge");
+    options.AdditionalMeterNames.Add(GatewayTelemetryConventions.MeterName);
+    options.AdditionalActivitySources.Add(GatewayTelemetryConventions.ActivitySourceName);
 });
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
 {
     builder.Services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource.AddAttributes(GatewayTelemetryResource.Create(
+            "hvo-jkbms", new GatewayTelemetryIdentity("jkbms", "battery-bms", "hvo"), builder.Environment.EnvironmentName)))
         .WithTracing(tb => tb.AddOtlpExporter())
         .WithMetrics(mb => mb.AddOtlpExporter());
 }
@@ -276,7 +280,7 @@ static async Task<GatewayDiagnosticStatusResponse> CreateJkBmsDiagnosticStatusAs
             string.IsNullOrWhiteSpace(forwarder.LastError) ? "healthy" : "error"),
         deviceCounts,
         await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken),
-        CreateTelemetryDiagnostics("hvo-jkbms", "hvo.jkbms"),
+        GatewayTelemetry.CreateDiagnostics("hvo-jkbms", [.. BmsTelemetry.CompatibilityMetricNames]),
         new Dictionary<string, string>
         {
             ["health"] = "/diagnostics/health",
@@ -294,15 +298,3 @@ static IReadOnlyList<GatewayHealthAlert> BuildDeviceAlerts(IEnumerable<DevicePol
             device.LatestReading is null ? GatewayAlertSeverity.Warning : GatewayAlertSeverity.Critical,
             $"BMS '{device.Alias}' is not healthy."))
         .ToArray();
-
-static GatewayTelemetryDiagnostics CreateTelemetryDiagnostics(string defaultServiceName, string sourceName) => new(
-    !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")),
-    Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? defaultServiceName,
-    [
-        GatewayTelemetryConventions.MetricNames.OutboxDepth,
-        GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess,
-        GatewayTelemetryConventions.MetricNames.OutboxForwardFailure,
-        GatewayTelemetryConventions.MetricNames.DeviceFreshnessSeconds,
-        GatewayTelemetryConventions.MetricNames.DevicePollFailure,
-    ],
-    ["HVO.Edge", sourceName]);

@@ -3,6 +3,7 @@ using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.OpenTelemetry;
 using HVO.Enterprise.Telemetry.Http;
 using HVO.Edge.Hosting.Logging;
+using HVO.Edge.Hosting.Telemetry;
 using HVO.Edge.Outbox;
 using HVO.Edge.Contracts;
 using HVO.Hardware.VictronSmartShunt.Components;
@@ -19,6 +20,7 @@ using MudBlazor.Services;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using OpenTelemetry.Resources;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,18 +52,24 @@ builder.Services
         options.EnableLogExport = false;
         options.EnableStandardMeters = true;
         options.AdditionalMeterNames.Add("hvo.smartshunt");
-        options.AdditionalActivitySources.Add("hvo.smartshunt");
-        options.AdditionalActivitySources.Add("HVO.Edge");
+        options.AdditionalMeterNames.Add(GatewayTelemetryConventions.MeterName);
+        options.AdditionalActivitySources.Add(GatewayTelemetryConventions.ActivitySourceName);
     });
     if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
     {
         builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddAttributes(GatewayTelemetryResource.Create(
+                "hvo-smartshunt", new GatewayTelemetryIdentity("smartshunt", "battery-monitor", "hvo"), builder.Environment.EnvironmentName)))
             .WithTracing(tb => tb.AddOtlpExporter())
             .WithMetrics(mb => mb.AddOtlpExporter());
     }
     builder.Services.AddTelemetryStatistics();
     builder.Services.AddTelemetryHealthCheck();
-    builder.Services.AddSingleton<SmartShuntTelemetry>();
+    builder.Services.AddSingleton(sp =>
+    {
+        var options = sp.GetRequiredService<IOptions<SmartShuntOptions>>().Value;
+        return new SmartShuntTelemetry(options.SourceId, options.DeviceId);
+    });
 
     var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
     var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)
@@ -266,7 +274,7 @@ static async Task<GatewayDiagnosticStatusResponse> CreateSmartShuntDiagnosticSta
         health,
         GatewayDeviceCounts.SingleSource(fresh, health.State == GatewayHealthState.Warning),
         await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken),
-        CreateTelemetryDiagnostics("hvo-smartshunt", "hvo.smartshunt"),
+        GatewayTelemetry.CreateDiagnostics("hvo-smartshunt", [.. SmartShuntTelemetry.CompatibilityMetricNames]),
         new Dictionary<string, string>
         {
             ["health"] = "/diagnostics/health",
@@ -300,15 +308,3 @@ static GatewayAlertSeverity MapSeverity(SmartShuntGatewayHealthSeverity severity
     SmartShuntGatewayHealthSeverity.Warning => GatewayAlertSeverity.Warning,
     _ => GatewayAlertSeverity.Info,
 };
-
-static GatewayTelemetryDiagnostics CreateTelemetryDiagnostics(string defaultServiceName, string sourceName) => new(
-    !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")),
-    Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? defaultServiceName,
-    [
-        GatewayTelemetryConventions.MetricNames.OutboxDepth,
-        GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess,
-        GatewayTelemetryConventions.MetricNames.OutboxForwardFailure,
-        GatewayTelemetryConventions.MetricNames.DeviceFreshnessSeconds,
-        GatewayTelemetryConventions.MetricNames.DevicePollFailure,
-    ],
-    [sourceName]);

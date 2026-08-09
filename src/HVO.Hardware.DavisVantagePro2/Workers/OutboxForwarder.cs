@@ -101,7 +101,7 @@ public sealed class OutboxForwarder(
 
         PendingCount = await store.CountPendingAsync(ct);
         FailedCount = await store.CountFailedAsync(ct);
-        telemetry.SetOutboxQueueDepth(PendingCount);
+        telemetry.SetOutboxQueueDepth(PendingCount, FailedCount);
 
         sweepScope
             .WithTag("pending", PendingCount)
@@ -160,6 +160,7 @@ public sealed class OutboxForwarder(
         var cloudEvents = CloudEventsForwardingHelper.WrapBatchAsCloudEvents(ready, "davis");
 
         var sw = Stopwatch.StartNew();
+        using var forwardActivity = telemetry.StartForwardOperation();
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
@@ -171,12 +172,11 @@ public sealed class OutboxForwarder(
             using var response = await httpFactory
                 .CreateClient("WeatherApi")
                 .SendAsync(request, ct);
-            telemetry.OutboxForwardLatencyMs.Record(sw.Elapsed.TotalMilliseconds);
-
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<BatchResponseDto>(JsonOptions, ct);
-                MarkBatchResult(store, ready.Select(x => x.Record), result, DateTime.UtcNow);
+                var sentCount = MarkBatchResult(store, ready.Select(x => x.Record), result, DateTime.UtcNow);
+                telemetry.RecordForwardBatch(sentCount, ready.Count - sentCount, sw.Elapsed.TotalSeconds, forwardActivity);
                 return;
             }
 
@@ -184,6 +184,7 @@ public sealed class OutboxForwarder(
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             LastError = error;
+            telemetry.RecordForward(ready.Count, false, sw.Elapsed.TotalSeconds, "http_status", forwardActivity);
             logger.LogWarning("Batch forward failed for {Count} records with {Error}", ready.Count, error);
         }
         catch (HttpRequestException ex)
@@ -191,7 +192,7 @@ public sealed class OutboxForwarder(
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, ex.Message, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             LastError = ex.Message;
-            telemetry.OutboxForwardFailureCount.Add(ready.Count);
+            telemetry.RecordForward(ready.Count, false, sw.Elapsed.TotalSeconds, "http_request", forwardActivity);
             logger.LogWarning(ex, "HTTP error forwarding batch of {Count} records", ready.Count);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
@@ -200,7 +201,7 @@ public sealed class OutboxForwarder(
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             LastError = error;
-            telemetry.OutboxForwardFailureCount.Add(ready.Count);
+            telemetry.RecordForward(ready.Count, false, sw.Elapsed.TotalSeconds, "timeout", forwardActivity);
             logger.LogWarning("Batch request timed out for {Count} records", ready.Count);
         }
         catch (JsonException ex)
@@ -209,7 +210,7 @@ public sealed class OutboxForwarder(
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             LastError = error;
-            telemetry.OutboxForwardFailureCount.Add(ready.Count);
+            telemetry.RecordForward(ready.Count, false, sw.Elapsed.TotalSeconds, "invalid_response", forwardActivity);
             logger.LogWarning(ex, "Invalid JSON response while forwarding {Count} record(s)", ready.Count);
         }
     }
@@ -230,7 +231,7 @@ public sealed class OutboxForwarder(
             logger.LogInformation("Davis outbox compaction deleted {Sent} sent and {Failed} failed record(s)", sentDeleted, failedDeleted);
     }
 
-    private void MarkBatchResult(
+    private int MarkBatchResult(
         EdgeOutboxStore<OutboxDbContext> store,
         IEnumerable<EdgeOutboxRecord> records,
         BatchResponseDto? response,
@@ -258,8 +259,8 @@ public sealed class OutboxForwarder(
         LastSentAt = sentAt;
         LastError = lastFailureError;
         LastBatchCount = sentCount;
-        telemetry.OutboxRecordsForwarded.Add(sentCount);
         logger.LogDebug("Forwarded batch of {Count} Davis weather records", sentCount);
+        return sentCount;
     }
 
     private static bool MatchesFailure(EdgeOutboxRecord record, BatchFailureDto failure)

@@ -3,9 +3,11 @@ using HVO.Enterprise.Telemetry.Http;
 using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.OpenTelemetry;
 using HVO.Edge.Hosting.Logging;
+using HVO.Edge.Hosting.Telemetry;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using OpenTelemetry.Resources;
 using HVO.Hardware.DavisVantagePro2.Components;
 using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.Outbox;
@@ -44,16 +46,19 @@ builder.Services.AddOpenTelemetryExport(options =>
     options.EnableLogExport = false;
     options.EnableStandardMeters = true;
     options.AdditionalMeterNames.Add("hvo.davis");
-    options.AdditionalActivitySources.Add("hvo.davis");
-    options.AdditionalActivitySources.Add("HVO.Edge");
+    options.AdditionalMeterNames.Add(GatewayTelemetryConventions.MeterName);
+    options.AdditionalActivitySources.Add(GatewayTelemetryConventions.ActivitySourceName);
 });
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))
 {
     builder.Services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource.AddAttributes(GatewayTelemetryResource.Create(
+            "hvo-davis", new GatewayTelemetryIdentity("davis", "weather-station", "hvo"), builder.Environment.EnvironmentName)))
         .WithTracing(tb => tb.AddOtlpExporter())
         .WithMetrics(mb => mb.AddOtlpExporter());
 }
-builder.Services.AddSingleton<DavisTelemetry>();
+builder.Services.AddSingleton(sp => new DavisTelemetry(
+    sp.GetRequiredService<IOptions<StationOptions>>().Value.StationId));
 builder.Services.AddTelemetryStatistics();
 builder.Services.AddTelemetryHealthCheck();
 builder.Services.AddHealthChecks()
@@ -368,7 +373,7 @@ static async Task<GatewayDiagnosticStatusResponse> CreateDavisDiagnosticStatusAs
         health,
         GatewayDeviceCounts.SingleSource(isFresh, hasError),
         await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken),
-        CreateTelemetryDiagnostics("hvo-davis", "hvo.davis"),
+        GatewayTelemetry.CreateDiagnostics("hvo-davis", [.. DavisTelemetry.CompatibilityMetricNames]),
         new Dictionary<string, string>
         {
             ["health"] = "/diagnostics/health",
@@ -377,15 +382,3 @@ static async Task<GatewayDiagnosticStatusResponse> CreateDavisDiagnosticStatusAs
             ["legacyCurrent"] = "/api/weather/current",
         });
 }
-
-static GatewayTelemetryDiagnostics CreateTelemetryDiagnostics(string defaultServiceName, string sourceName) => new(
-    !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")),
-    Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? defaultServiceName,
-    [
-        GatewayTelemetryConventions.MetricNames.OutboxDepth,
-        GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess,
-        GatewayTelemetryConventions.MetricNames.OutboxForwardFailure,
-        GatewayTelemetryConventions.MetricNames.DeviceFreshnessSeconds,
-        GatewayTelemetryConventions.MetricNames.DevicePollFailure,
-    ],
-    ["HVO.Edge", sourceName]);
