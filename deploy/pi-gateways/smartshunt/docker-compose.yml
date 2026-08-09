@@ -1,3 +1,17 @@
+x-hvo-local-logging: &hvo-local-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+    mode: non-blocking
+    max-buffer-size: "4m"
+
+x-hvo-no-core: &hvo-no-core
+  core:
+    soft: 0
+    hard: 0
+
 services:
   hvo-smartshunt:
     build:
@@ -37,6 +51,8 @@ services:
       - smartshunt-outbox:/app/data
       - smartshunt-data-protection:/root/.aspnet/DataProtection-Keys
     restart: unless-stopped
+    logging: *hvo-local-logging
+    ulimits: *hvo-no-core
 
 volumes:
   smartshunt-outbox:

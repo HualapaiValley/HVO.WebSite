@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace HVO.Edge.Hosting.Logging;
 
-internal sealed class SensitivePropertyRedactionEnricher : ILogEventEnricher
+public sealed class SensitivePropertyRedactionEnricher : ILogEventEnricher
 {
     private static readonly string[] SensitiveNameParts =
     [

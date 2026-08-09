@@ -7,7 +7,7 @@ using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.Http;
 using HVO.Enterprise.Telemetry.OpenTelemetry;
 using HVO.Enterprise.Telemetry.Serilog;
-using Serilog.Sinks.OpenTelemetry;
+using HVO.Edge.Hosting.Logging;
 using OpenTelemetry.Trace;
 using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Components.Web;
@@ -29,7 +29,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Serilog.Events;
-using Serilog.Formatting.Compact;
 using HVO.WebSite.v9.Telemetry;
 using OpenTelemetry.Metrics;
 namespace HVO.WebSite.v9
@@ -60,11 +59,11 @@ namespace HVO.WebSite.v9
                     new DefaultAzureCredential());
             }
 
-            // Build the Serilog logger and register it as an additional logging provider.
-            // Using AddSerilog (not UseSerilog) so additional OTel logging providers
-            // also receive log events.
-            var logDir = Path.Combine(builder.Environment.ContentRootPath, "logs");
-            Directory.CreateDirectory(logDir);
+            // Emit one sanitized stdout stream; Docker bounds it and Promtail ships it once.
+            var consoleLogger = new LoggerConfiguration()
+                .MinimumLevel.Verbose()
+                .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .CreateLogger();
             var loggerConfig = new LoggerConfiguration()
                 .MinimumLevel.Information()
                 .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
@@ -73,26 +72,8 @@ namespace HVO.WebSite.v9
                 .MinimumLevel.Override("HVO.WebSite.v9", LogEventLevel.Information)
                 .Enrich.FromLogContext()
                 .Enrich.WithTelemetry()
-                .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-                .WriteTo.File(new CompactJsonFormatter(), Path.Combine(logDir, "website-.log"),
-                    rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30, fileSizeLimitBytes: 100_000_000,
-                    rollOnFileSizeLimit: true);
-
-            // Forward logs to the OTel collector when the endpoint is configured.
-            var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
-            if (!string.IsNullOrEmpty(otlpEndpoint))
-            {
-                var serviceName = Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? "hvo-website";
-                loggerConfig.WriteTo.OpenTelemetry(options =>
-                {
-                    options.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
-                    options.Protocol = Serilog.Sinks.OpenTelemetry.OtlpProtocol.HttpProtobuf;
-                    options.ResourceAttributes = new Dictionary<string, object>
-                    {
-                        ["service.name"] = serviceName
-                    };
-                });
-            }
+                .Enrich.With(new SensitivePropertyRedactionEnricher())
+                .WriteTo.Sink(new SanitizingLogEventSink(consoleLogger));
 
             if (builder.Environment.IsDevelopment())
                 loggerConfig
@@ -256,7 +237,7 @@ namespace HVO.WebSite.v9
             // in OTel SDK 1.10+, causing exports to POST to the root URL (404). Disable HVO's built-in
             // exporters and use native SDK exporters with no configure callback — the SDK reads
             // OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_EXPORTER_OTLP_PROTOCOL from environment and appends
-            // the correct signal paths (/v1/traces, /v1/metrics, /v1/logs).
+            // the correct signal paths (/v1/traces and /v1/metrics).
             services.AddOpenTelemetryExport(options =>
             {
                 options.EnableTraceExport = false;

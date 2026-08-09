@@ -21,6 +21,20 @@
 # Deploy to the Mac Mini (ARM64 — set WEBSITE_RUNTIME=linux-arm64 in .env):
 #   docker --context macmini-ubuntu compose up -d --build
 
+x-hvo-local-logging: &hvo-local-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+    mode: non-blocking
+    max-buffer-size: "4m"
+
+x-hvo-no-core: &hvo-no-core
+  core:
+    soft: 0
+    hard: 0
+
 services:
 
   # ---------------------------------------------------------------------------
@@ -59,6 +73,8 @@ services:
     ports:
       - "80:8080"
     restart: unless-stopped
+    logging: *hvo-local-logging
+    ulimits: *hvo-no-core
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/health/live" ]
       interval: 30s
@@ -96,6 +112,8 @@ services:
       - davis-outbox:/app/data
       - davis-data-protection:/root/.aspnet/DataProtection-Keys
     restart: unless-stopped
+    logging: *hvo-local-logging
+    ulimits: *hvo-no-core
 
   # ---------------------------------------------------------------------------
   # JK BMS driver — polls battery management systems via BLE, posts to hvo-website
@@ -126,6 +144,8 @@ services:
       - jkbms-data-protection:/root/.aspnet/DataProtection-Keys
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
     restart: unless-stopped
+    logging: *hvo-local-logging
+    ulimits: *hvo-no-core
 
   # ---------------------------------------------------------------------------
   # SolarAssistant gateway — polls SolarAssistant REST, posts power readings
@@ -170,6 +190,8 @@ services:
     volumes:
       - solarassistant-outbox:/app/data
     restart: unless-stopped
+    logging: *hvo-local-logging
+    ulimits: *hvo-no-core
 
   # ---------------------------------------------------------------------------
   # Victron SmartShunt gateway — paired BLE monitor, posts power readings
@@ -212,6 +234,8 @@ services:
       - smartshunt-data-protection:/root/.aspnet/DataProtection-Keys
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
     restart: unless-stopped
+    logging: *hvo-local-logging
+    ulimits: *hvo-no-core
 
   # ---------------------------------------------------------------------------
   hvo-tplinkkasa:
@@ -236,6 +260,8 @@ services:
     volumes:
       - kasa-registry:/app/data
     restart: unless-stopped
+    logging: *hvo-local-logging
+    ulimits: *hvo-no-core
 
 volumes:
   davis-outbox:

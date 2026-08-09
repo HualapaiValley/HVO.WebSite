@@ -1069,6 +1069,15 @@
       "hvo.edge.contracts": {
         "type": "Project"
       },
+      "hvo.edge.hosting": {
+        "type": "Project",
+        "dependencies": {
+          "HVO.Edge.Contracts": "[1.0.0, )",
+          "HVO.Enterprise.Telemetry.Serilog": "[2.0.1, )",
+          "Serilog.AspNetCore": "[10.0.0, )",
+          "Serilog.Sinks.OpenTelemetry": "[4.2.0, )"
+        }
+      },
       "hvo.staging": {
         "type": "Project",
         "dependencies": {
@@ -1094,6 +1103,7 @@
           "HVO.Core": "[1.1.1, )",
           "HVO.DataModels": "[1.0.0, )",
           "HVO.Edge.Contracts": "[1.0.0, )",
+          "HVO.Edge.Hosting": "[1.0.0, )",
           "HVO.Enterprise.Telemetry": "[1.0.3, )",
           "HVO.Enterprise.Telemetry.OpenTelemetry": "[1.1.2, )",
           "HVO.Enterprise.Telemetry.Serilog": "[2.0.1, )",
@@ -1106,10 +1116,7 @@
           "OpenTelemetry.Api": "[1.17.0, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.17.0, )",
           "Scalar.AspNetCore": "[2.16.17, )",
-          "Serilog.AspNetCore": "[10.0.0, )",
-          "Serilog.Formatting.Compact": "[3.0.0, )",
-          "Serilog.Sinks.File": "[7.0.0, )",
-          "Serilog.Sinks.OpenTelemetry": "[4.2.0, )"
+          "Serilog.AspNetCore": "[10.0.0, )"
         }
       },
       "Asp.Versioning.Mvc": {

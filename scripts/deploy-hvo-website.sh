@@ -98,7 +98,7 @@ printf 'Target: hvo-website\n'
 printf 'Docker context: %s\n' "${docker_context}"
 
 compose_args=(--context "${docker_context}" compose --env-file "${env_file}" -f "${compose_file}")
-up_args=(up -d)
+up_args=(up -d --wait --wait-timeout 120)
 seen_env_names=()
 
 warn_shell_env_overrides "${compose_file}"
@@ -125,3 +125,7 @@ fi
 run_cmd docker "${compose_args[@]}" config --quiet
 run_cmd docker "${compose_args[@]}" "${up_args[@]}"
 run_cmd docker "${compose_args[@]}" ps
+if [[ "${dry_run}" == false ]]; then
+	mapfile -t container_ids < <(docker "${compose_args[@]}" ps -aq)
+	"${repo_root}/tools/verify-running-container-policy.sh" --require-core "${docker_context}" "${container_ids[@]}"
+fi

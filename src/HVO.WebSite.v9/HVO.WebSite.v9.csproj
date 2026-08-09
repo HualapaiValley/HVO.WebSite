@@ -19,7 +19,6 @@
     <PackageReference Include="HVO.Enterprise.Telemetry.Serilog" />
     <PackageReference Include="HVO.Enterprise.Telemetry.OpenTelemetry" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
-    <PackageReference Include="Serilog.Sinks.OpenTelemetry" />
     <PackageReference Include="OpenTelemetry.Api" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
@@ -32,13 +31,12 @@
     <PackageReference Include="MudBlazor" />
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="Serilog.AspNetCore" />
-    <PackageReference Include="Serilog.Sinks.File" />
-    <PackageReference Include="Serilog.Formatting.Compact" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="HVO.Core" />
     <ProjectReference Include="..\HVO.Edge.Contracts\HVO.Edge.Contracts.csproj" />
+    <ProjectReference Include="..\HVO.Edge.Hosting\HVO.Edge.Hosting.csproj" />
     <ProjectReference Include="..\HVO.DataModels\HVO.DataModels.csproj" />
     <ProjectReference Include="..\HVO.WebSite.Themes\HVO.WebSite.Themes.csproj" />
   </ItemGroup>

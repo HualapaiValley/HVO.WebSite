@@ -92,6 +92,9 @@ To verify deployed endpoints after rollout:
 - All gateway hosts emit compact structured logs to stdout and conditionally export logs, traces, and metrics to the shared collector.
 - The collector is Pi-reachable at `http://192.168.1.238:4318` using `http/protobuf` only when the observability stack sets `HVO_OBSERVABILITY_BIND_ADDRESS=192.168.1.238`; verify the resolved bind and connectivity before configuring each stack's `OTEL_COLLECTOR_ENDPOINT` value.
 - Use `docker logs <container>` for short-term local diagnostics and Grafana/Loki for centralized logs. Gateway applications do not create `/app/logs` or manage local log files.
+- Every gateway has a nominal 34 MB local budget: three compressed 10 MB files plus a 4 MB non-blocking buffer. When full, new stdout records are dropped rather than blocking device polling.
+- Core dumps are disabled in every gateway container. The deploy script verifies both logging and core policies after recreation.
+- Direct OTLP logging buffers at most 5,000 events and retries for ten minutes. Longer outages can lose central records; use bounded local `docker logs` for incident reconstruction.
 - SolarAssistant and TP-Link/Kasa retain their independent local polling, diagnostics, and shared-outbox forwarding behavior when OTLP is unavailable.
 
 ## TP-Link/Kasa deployment notes
