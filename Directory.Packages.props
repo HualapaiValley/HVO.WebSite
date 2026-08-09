@@ -68,6 +68,7 @@
     <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.10" />
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.10" />
     <PackageVersion Include="System.Text.Json" Version="10.0.9" />
+    <PackageVersion Include="System.IO.Ports" Version="10.0.10" />
 
     <!-- Hardware / BLE -->
     <PackageVersion Include="InTheHand.BluetoothLE" Version="4.0.44" />
