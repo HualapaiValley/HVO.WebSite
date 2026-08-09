@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
 docker_command="${DOCKER_COMMAND:-docker}"
 smoke_image=""
 
@@ -12,14 +14,20 @@ cleanup() {
 	fi
 	"${docker_command}" builder prune --all --force >/dev/null
 }
-trap cleanup EXIT
+
+cleanup_on_exit() {
+	local exit_code="$?"
+	cleanup || true
+	exit "${exit_code}"
+}
+trap cleanup_on_exit EXIT
 
 build_smoke_image() {
 	local dockerfile="$1"
 	local image="$2"
 
 	smoke_image="${image}"
-	"${docker_command}" build --file "${dockerfile}" --tag "${image}" .
+	"${docker_command}" build --file "${repo_root}/${dockerfile}" --tag "${image}" "${repo_root}"
 	cleanup
 }
 
