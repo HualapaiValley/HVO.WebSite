@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "captureKind": "hardware-capture",
+  "sessionStartedAtUtc": "2026-08-09T13:18:53.085145Z",
+  "sessionEndedAtUtc": "2026-08-09T13:20:29.725658Z",
+  "host": "sanitized-devpi5",
+  "model": "EG4 MPPT100-48HV",
+  "firmware": "unknown",
+  "interface": "battery-facing RS485 BMS bus",
+  "adapter": "sanitized CH341 stable by-id adapter",
+  "serial": "9600 8N1",
+  "unitId": 1,
+  "state": "standby-no-pv",
+  "transactions": [
+    {
+      "name": "candidate-identity-initial",
+      "observedAtUtc": "2026-08-09T13:18:53.085145Z",
+      "requestHex": "01 03 00 BA 00 0C 64 2A",
+      "responseHex": "01 03 18 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 6C F4"
+    },
+    {
+      "name": "candidate-identity-repeat-84s",
+      "observedAtUtc": "2026-08-09T13:20:17.657434Z",
+      "requestHex": "01 03 00 BA 00 0C 64 2A",
+      "responseHex": "01 03 18 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 6C F4"
+    },
+    {
+      "name": "candidate-telemetry-215-234",
+      "observedAtUtc": "2026-08-09T13:20:27.725658Z",
+      "requestHex": "01 03 00 D7 00 14 F5 FD",
+      "responseHex": "01 03 28 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4B 5A"
+    }
+  ],
+  "validatedClaims": [
+    "an unidentified unit-1 slave on the dedicated cable responds to Modbus RTU function 0x03 at 9600 8N1",
+    "CRC16 uses low-byte-first wire order",
+    "unvalidated candidate ranges 186-197 and 215-234 return data rather than exceptions during standby",
+    "identity response repeated byte-for-byte after approximately 84 seconds"
+  ],
+  "unvalidatedClaims": [
+    "whether responses originate from the controller, a connected battery/BMS, or an intermediary",
+    "controller registers, meanings, and scaling",
+    "controller serial number or firmware identity",
+    "battery voltage, current, power, SOC, state, temperature, or alarms",
+    "active-charging behavior",
+    "sentinel values",
+    "multiple controller addressing"
+  ]
+}
