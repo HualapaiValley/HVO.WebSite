@@ -75,15 +75,18 @@ for relative_file in \
 		fail "${relative_file} contains an unbounded service log"
 done
 
-observability="$(docker compose -f "${repo_root}/deploy/hvo-docker/observability/compose.yaml" config --format json 2>/dev/null)"
+observability_file="${repo_root}/deploy/hvo-docker/observability/compose.yaml"
+observability="$(docker compose -f "${observability_file}" config --format json 2>/dev/null)"
 jq -e 'all(.services[].image; endswith(":latest") | not)' <<<"${observability}" >/dev/null ||
 	fail 'observability images must be version-pinned'
 jq -e '
-	.services.loki.volumes | any(.target == "/loki" and .type == "bind" and .source == "/var/lib/docker/hvo-observability/loki" and .bind.create_host_path == false)
+	.services.loki.volumes | any(.target == "/loki" and .type == "bind" and .source == "/var/lib/docker/hvo-observability/loki")
 	' <<<"${observability}" >/dev/null || fail 'Loki storage is not a fail-closed tank-backed bind mount'
 jq -e '
-	.services["otel-collector"].volumes | any(.target == "/var/lib/otelcol/file_storage" and .type == "bind" and .source == "/var/lib/docker/hvo-observability/otelcol" and .bind.create_host_path == false)
+	.services["otel-collector"].volumes | any(.target == "/var/lib/otelcol/file_storage" and .type == "bind" and .source == "/var/lib/docker/hvo-observability/otelcol")
 	' <<<"${observability}" >/dev/null || fail 'collector storage is not a fail-closed tank-backed bind mount'
+[[ "$(grep -c 'create_host_path:[[:space:]]*false' "${observability_file}")" -eq 2 ]] ||
+	fail 'Loki and collector binds must both disable host-path creation'
 
 if grep -R -E -q --include='*.cs' 'WriteTo\.File|CompactJsonFormatter|Path\.Combine\([^)]*,[[:space:]]*"logs"\)' "${repo_root}/src/HVO.WebSite.v9"; then
 	fail 'website application-owned file logging is still enabled'
