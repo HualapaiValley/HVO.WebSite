@@ -70,14 +70,11 @@ jobs:
       - name: Build (Release)
         run: dotnet build HVO.WebSite.sln --no-restore -c Release --nologo -v minimal /p:ContinuousIntegrationBuild=true
 
+      - name: Validate Docker smoke cleanup
+        run: bash tools/verify-docker-build-smoke.sh
+
       - name: Docker build smoke
-        run: |
-          docker build -f src/HVO.WebSite.v9/Dockerfile -t hvo-website-ci:latest .
-          docker build -f src/HVO.Hardware.DavisVantagePro2/Dockerfile -t hvo-davis-ci:latest .
-          docker build -f src/HVO.Hardware.JkBms/Dockerfile -t hvo-jkbms-ci:latest .
-          docker build -f src/HVO.Gateway.SolarAssistant/Dockerfile -t hvo-solarassistant-ci:latest .
-          docker build -f src/HVO.Hardware.VictronSmartShunt/Dockerfile -t hvo-smartshunt-ci:latest .
-          docker build -f src/HVO.Gateway.TplinkKasa/Dockerfile -t hvo-tplinkkasa-ci:latest .
+        run: bash tools/docker-build-smoke.sh
 
       - name: Publish script dry run
         run: bash tools/validate-publish-dry-run.sh
