@@ -36,7 +36,7 @@ public sealed class OutboxForwarder(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("OutboxForwarder starting. Endpoint: {Endpoint}", _options.ApiEndpoint);
+        logger.LogInformation("OutboxForwarder starting. Remote forwarding is configured.");
         var lastCompactionAt = DateTime.MinValue;
 
         while (!stoppingToken.IsCancellationRequested)
@@ -180,12 +180,11 @@ public sealed class OutboxForwarder(
                 return;
             }
 
-            var body = await ReadBoundedBodyAsync(response, ct);
-            var error = $"HTTP {(int)response.StatusCode}: {body}";
+            var error = $"HTTP {(int)response.StatusCode}";
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             LastError = error;
-            logger.LogWarning("Batch forward failed ({Count} records): {Error}", ready.Count, error);
+            logger.LogWarning("Batch forward failed for {Count} records with {Error}", ready.Count, error);
         }
         catch (HttpRequestException ex)
         {
@@ -291,15 +290,6 @@ public sealed class OutboxForwarder(
     }
 
     private string BuildWeatherBatchEndpoint() => _options.ApiEndpoint.TrimEnd('/') + "/batch";
-
-    private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
-    {
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var reader = new StreamReader(stream, leaveOpen: true);
-        var buffer = new char[512];
-        var read = await reader.ReadAsync(buffer, ct);
-        return new string(buffer, 0, read);
-    }
 
     private sealed class BatchResponseDto
     {

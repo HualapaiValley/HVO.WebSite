@@ -21,11 +21,12 @@ The central website should stay focused on ingest, persistence, dashboards, admi
 | SmartShunt gateway | `src/HVO.Hardware.VictronSmartShunt` | Local edge Docker host with BLE access | Victron SmartShunt BLE telemetry, shared SQLite outbox, local status UI, website API forwarding |
 | TPLink Kasa gateway | `src/HVO.Gateway.TplinkKasa` | Local edge Docker host | Kasa device polling, local status/control-safe UI, energy/inventory shared outbox forwarding |
 | Edge contracts | `src/HVO.Edge.Contracts` | Shared library | Gateway status, health, runtime, and payload contracts |
+| Edge hosting | `src/HVO.Edge.Hosting` | Shared library | Gateway structured logging, OTLP log export, metadata, redaction, and repeated-failure suppression |
 | Edge outbox | `src/HVO.Edge.Outbox` | Shared library | Durable outbox model/store, retry, dead-letter/requeue, compaction, and health evaluation |
 | Data models | `src/HVO.DataModels` | Shared library | EF Core DbContexts, entities, migrations |
 | Theme assets | `src/HVO.WebSite.Themes` | Shared Razor class library | Shared visual theme assets |
 
-Local application orchestration is defined in `docker-compose.yml` and per-gateway compose files under `deploy/pi-gateways/`. Each edge service owns its own local data directory, SQLite outbox, logs, and hardware configuration.
+Local application orchestration is defined in `docker-compose.yml` and per-gateway compose files under `deploy/pi-gateways/`. Each edge service owns its local data directory, SQLite outbox, and hardware configuration. Gateway logs are structured stdout/stderr managed by the container runtime and are optionally exported through OTLP to central Loki; gateways do not own application log files.
 
 ## High-Level Data Flow
 

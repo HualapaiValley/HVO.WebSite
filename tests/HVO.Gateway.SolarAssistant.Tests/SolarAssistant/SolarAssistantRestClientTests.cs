@@ -69,7 +69,7 @@ public sealed class SolarAssistantRestClientTests
     }
 
     [TestMethod]
-    public async Task GetMetricsAsync_NonSuccessThrowsWithBoundedErrorBody()
+    public async Task GetMetricsAsync_NonSuccessThrowsWithoutLoggingResponseBody()
     {
         var logger = new CapturingLogger<SolarAssistantRestClient>();
         var client = CreateClient(new FakeHttpClientFactory(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError)
@@ -82,8 +82,7 @@ public sealed class SolarAssistantRestClientTests
         await act.Should().ThrowAsync<HttpRequestException>();
         logger.Messages.Should().ContainSingle(message =>
             message.Contains("HTTP 500", StringComparison.Ordinal) &&
-            message.Contains(new string('x', 512), StringComparison.Ordinal) &&
-            !message.Contains(new string('x', 513), StringComparison.Ordinal));
+            !message.Contains('x', StringComparison.Ordinal));
     }
 
     [TestMethod]

@@ -308,10 +308,10 @@
                                                                 </div>
                                                             </div>
                                                             <div class="solar-detail-list" style="margin-top:16px;">
-                                                                <DetailRow Label="Pending" Value="@OutboxForwarder.PendingCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
-                                                                <DetailRow Label="Failed" Value="@OutboxForwarder.FailedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
-                                                                <DetailRow Label="Last batch" Value="@OutboxForwarder.LastBatchCount.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
-                                                                <DetailRow Label="Last error" Value="@(OutboxForwarder.LastError ?? "None")" />
+                                                                <div class="solar-detail-row"><span>Pending</span><strong>@OutboxForwarder.PendingCount.ToString(System.Globalization.CultureInfo.InvariantCulture)</strong></div>
+                                                                <div class="solar-detail-row"><span>Failed</span><strong>@OutboxForwarder.FailedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)</strong></div>
+                                                                <div class="solar-detail-row"><span>Last batch</span><strong>@OutboxForwarder.LastBatchCount.ToString(System.Globalization.CultureInfo.InvariantCulture)</strong></div>
+                                                                <div class="solar-detail-row"><span>Last error</span><strong title="@OutboxForwarder.LastError">@(OutboxForwarder.LastError ?? "None")</strong></div>
                                                             </div>
                                                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px;">
                                                                 <MudTextField Label="Batch size (1-500)" Variant="Variant.Outlined" T="int"

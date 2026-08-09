@@ -25,6 +25,7 @@ public sealed class HttpApiForwarderTests
 
         var ex = await act.Should().ThrowAsync<PermanentForwarderException>();
         ex.Which.FailedRecords.Should().HaveCount(2);
+        ex.Which.FailedRecords.Should().OnlyContain(failure => !failure.Error.Contains("bad payload", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -54,7 +55,8 @@ public sealed class HttpApiForwarderTests
 
         var act = () => forwarder.ForwardAsync(CreateBatch(), CancellationToken.None);
 
-        await act.Should().ThrowAsync<HttpRequestException>();
+        var ex = await act.Should().ThrowAsync<HttpRequestException>();
+        ex.Which.Message.Should().NotContain("server error");
     }
 
     [TestMethod]

@@ -121,6 +121,7 @@ public sealed class PowerApiForwarderTests
         row.AttemptCount.Should().Be(1);
         row.NextRetryAtUtc.Should().BeAfter(DateTime.UtcNow);
         row.LastError.Should().Contain("503");
+        row.LastError.Should().NotContain("temporary outage");
     }
 
     [TestMethod]

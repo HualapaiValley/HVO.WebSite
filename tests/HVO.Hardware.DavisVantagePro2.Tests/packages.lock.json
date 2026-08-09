@@ -839,11 +839,6 @@
         "resolved": "2.1.11",
         "contentHash": "PK0GLFkfhZzLQeR3PJf71FmhtHox+U3vcY6ZtswoMjrefkB9k6ErNJEnwXqc5KgXDSjige2XXrezqS39gkpQKA=="
       },
-      "SQLitePCLRaw.lib.e_sqlite3": {
-        "type": "Transitive",
-        "resolved": "2.1.11",
-        "contentHash": "Ev2ytaXiOlWZ4b3R67GZBsemTINslLD1DCJr2xiacpn4tbapu0Q4dHEzSvZSMnVWeE5nlObU3VZN2p81q3XOYQ=="
-      },
       "SQLitePCLRaw.provider.e_sqlite3": {
         "type": "Transitive",
         "resolved": "2.1.11",
@@ -865,6 +860,14 @@
       "hvo.edge.contracts": {
         "type": "Project"
       },
+      "hvo.edge.hosting": {
+        "type": "Project",
+        "dependencies": {
+          "HVO.Enterprise.Telemetry.Serilog": "[2.0.1, )",
+          "Serilog.AspNetCore": "[10.0.0, )",
+          "Serilog.Sinks.OpenTelemetry": "[4.2.0, )"
+        }
+      },
       "hvo.edge.outbox": {
         "type": "Project",
         "dependencies": {
@@ -876,21 +879,17 @@
       "hvo.hardware.davisvantagepro2": {
         "type": "Project",
         "dependencies": {
+          "HVO.Edge.Hosting": "[1.0.0, )",
           "HVO.Edge.Outbox": "[1.0.0, )",
           "HVO.Enterprise.Telemetry": "[1.0.3, )",
           "HVO.Enterprise.Telemetry.OpenTelemetry": "[1.1.2, )",
-          "HVO.Enterprise.Telemetry.Serilog": "[2.0.1, )",
           "HVO.Staging": "[1.0.0, )",
           "HVO.WebSite.Themes": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.10, )",
           "Microsoft.Extensions.Http.Resilience": "[10.8.0, )",
           "MudBlazor": "[9.7.0, )",
           "OpenTelemetry.Api": "[1.17.0, )",
-          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.17.0, )",
-          "Serilog.AspNetCore": "[10.0.0, )",
-          "Serilog.Formatting.Compact": "[3.0.0, )",
-          "Serilog.Sinks.File": "[7.0.0, )",
-          "Serilog.Sinks.OpenTelemetry": "[4.2.0, )"
+          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.17.0, )"
         }
       },
       "hvo.staging": {
@@ -1157,6 +1156,12 @@
           "Grpc.Net.Client": "2.70.0",
           "Serilog": "4.2.0"
         }
+      },
+      "SQLitePCLRaw.lib.e_sqlite3": {
+        "type": "CentralTransitive",
+        "requested": "[3.53.3, )",
+        "resolved": "3.53.3",
+        "contentHash": "ZXiSbBkrlw2Of/dBqny/qtQol7dlThrUD8zH/jkQicCFm2yn2BbhKsQW0+YHAzhANWz4ZJCz7gvo88BwluVhkA=="
       }
     }
   }

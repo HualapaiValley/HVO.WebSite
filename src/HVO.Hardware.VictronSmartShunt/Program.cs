@@ -1,8 +1,8 @@
 using HVO.Enterprise.Telemetry;
 using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.OpenTelemetry;
-using HVO.Enterprise.Telemetry.Serilog;
 using HVO.Enterprise.Telemetry.Http;
+using HVO.Edge.Hosting.Logging;
 using HVO.Edge.Outbox;
 using HVO.Edge.Contracts;
 using HVO.Hardware.VictronSmartShunt.Components;
@@ -19,50 +19,15 @@ using MudBlazor.Services;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
-using Serilog;
-using Serilog.Events;
-using Serilog.Formatting.Compact;
-using Serilog.Sinks.OpenTelemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((ctx, _, loggerConfig) =>
-{
-    var logDir = Path.Combine(ctx.HostingEnvironment.ContentRootPath, "logs");
-    Directory.CreateDirectory(logDir);
-
-    loggerConfig
-        .MinimumLevel.Information()
-        .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-        .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
-        .MinimumLevel.Override("HVO.Hardware.VictronSmartShunt", LogEventLevel.Information)
-        .Enrich.FromLogContext()
-        .Enrich.WithTelemetry()
-        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-        .WriteTo.File(
-            new CompactJsonFormatter(),
-            Path.Combine(logDir, "smartshunt-.log"),
-            rollingInterval: RollingInterval.Day,
-            retainedFileCountLimit: 30,
-            fileSizeLimitBytes: 100_000_000,
-            rollOnFileSizeLimit: true);
-
-    // Forward logs to the OTel collector sidecar when the endpoint is configured.
-    var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
-    if (!string.IsNullOrEmpty(otlpEndpoint))
-    {
-        var serviceName = Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? "hvo-smartshunt";
-        loggerConfig.WriteTo.OpenTelemetry(options =>
-        {
-            options.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
-            options.Protocol = OtlpProtocol.HttpProtobuf;
-            options.ResourceAttributes = new Dictionary<string, object>
-            {
-                ["service.name"] = serviceName
-            };
-        });
-    }
-});
+builder.Host.UseHvoGatewayLogging(new GatewayLogIdentity(
+    "hvo-smartshunt",
+    "smartshunt",
+    "battery-monitor",
+    builder.Configuration["SmartShunt:SourceId"],
+    builder.Configuration["SmartShunt:DeviceId"]));
 
 builder.Services
     .AddOptions<SmartShuntOptions>()

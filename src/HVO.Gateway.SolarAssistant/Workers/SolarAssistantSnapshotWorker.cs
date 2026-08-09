@@ -148,7 +148,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         _telemetry.SnapshotPollCount.Add(1, new KeyValuePair<string, object?>("result", "success"));
         if (inserted)
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Queued SolarAssistant power snapshot for {SourceId} at {RecordedAt:O} from {MetricCount} metrics",
                 payload.SourceId,
                 recordedAt,
@@ -176,7 +176,7 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         if (inventoryInserted || configurationInserted)
         {
             Volatile.Write(ref _lastInventoryConfigQueuedAtTicks, recordedAt.Ticks);
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Queued SolarAssistant inventory/config snapshot at {RecordedAt:O}: {DeviceCount} device(s), {SettingCount} setting(s), {CapabilityCount} command capabilit(ies)",
                 recordedAt,
                 inventory.Devices.Count,

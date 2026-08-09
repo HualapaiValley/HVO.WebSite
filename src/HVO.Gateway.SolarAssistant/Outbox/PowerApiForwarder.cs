@@ -72,7 +72,7 @@ public sealed class PowerApiForwarder : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("PowerApiForwarder starting. Endpoint: {Endpoint}", _options.ApiEndpoint);
+        _logger.LogInformation("PowerApiForwarder starting. Remote forwarding is configured.");
         var lastCompactionAt = DateTime.MinValue;
 
         while (!stoppingToken.IsCancellationRequested)
@@ -200,8 +200,7 @@ public sealed class PowerApiForwarder : BackgroundService
                 }
                 else
                 {
-                    var body = await ReadBoundedBodyAsync(response, ct);
-                    var error = $"HTTP {(int)response.StatusCode}: {body}";
+                    var error = $"HTTP {(int)response.StatusCode}";
                     foreach (var record in ready.Select(x => x.Record))
                         store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
                     _lastError = error;
@@ -322,12 +321,11 @@ public sealed class PowerApiForwarder : BackgroundService
                     record.Status = EdgeOutboxStatus.Sent;
                     record.SentAtUtc = now;
                     record.LastError = null;
-                    _logger.LogInformation("Forwarded {PayloadType} outbox record {Id}", payloadType, record.Id);
+                    _logger.LogDebug("Forwarded {PayloadType} outbox record {Id}", payloadType, record.Id);
                     continue;
                 }
 
-                var body = await ReadBoundedBodyAsync(response, ct);
-                store.ScheduleRetry(record, $"HTTP {(int)response.StatusCode}: {body}", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+                store.ScheduleRetry(record, $"HTTP {(int)response.StatusCode}", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             }
             catch (HttpRequestException ex)
             {
@@ -418,15 +416,6 @@ public sealed class PowerApiForwarder : BackgroundService
         _lastError = lastFailureError;
         Volatile.Write(ref _lastSentAtTicks, sentAt.Ticks);
         _logger.LogInformation("Forwarded {Count} power record(s)", sentCount);
-    }
-
-    private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
-    {
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var reader = new StreamReader(stream, leaveOpen: true);
-        var buffer = new char[512];
-        var read = await reader.ReadAsync(buffer, ct);
-        return new string(buffer, 0, read);
     }
 
     private sealed class PowerBatchResponse

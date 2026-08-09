@@ -100,7 +100,7 @@ public sealed class SmartShuntPrivateInfoSource(
 
         var result = info.Build();
         if (result is not null)
-            _logger.LogInformation("SmartShunt private enrichment updated. Firmware={Firmware} Serial={Serial}", result.FirmwareVersion, result.SerialNumber);
+            _logger.LogInformation("SmartShunt private enrichment updated. Firmware={Firmware}", result.FirmwareVersion);
 
         return result;
     }

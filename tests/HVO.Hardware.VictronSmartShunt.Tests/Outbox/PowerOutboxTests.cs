@@ -120,6 +120,7 @@ public sealed class PowerOutboxTests
         record.FailureKind.Should().Be(EdgeOutboxFailureKind.Permanent);
         record.AttemptCount.Should().Be(1);
         record.LastError.Should().Contain($"HTTP {(int)statusCode}");
+        record.LastError.Should().NotContain("configuration mismatch");
     }
 
     [TestMethod]

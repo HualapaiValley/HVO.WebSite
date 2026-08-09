@@ -9,10 +9,12 @@ COPY ["Directory.Packages.props", "."]
 COPY ["NuGet.config", "."]
 COPY ["src/HVO.Staging/packages.lock.json", "src/HVO.Staging/"]
 COPY ["src/HVO.WebSite.Themes/packages.lock.json", "src/HVO.WebSite.Themes/"]
+COPY ["src/HVO.Edge.Hosting/packages.lock.json", "src/HVO.Edge.Hosting/"]
 COPY ["src/HVO.Hardware.DavisVantagePro2/packages.lock.json", "src/HVO.Hardware.DavisVantagePro2/"]
 COPY ["src/HVO.Hardware.DavisVantagePro2/HVO.Hardware.DavisVantagePro2.csproj", "src/HVO.Hardware.DavisVantagePro2/"]
 COPY ["src/HVO.Staging/HVO.Staging.csproj", "src/HVO.Staging/"]
 COPY ["src/HVO.WebSite.Themes/HVO.WebSite.Themes.csproj", "src/HVO.WebSite.Themes/"]
+COPY ["src/HVO.Edge.Hosting/HVO.Edge.Hosting.csproj", "src/HVO.Edge.Hosting/"]
 COPY . .
 RUN dotnet restore "src/HVO.Hardware.DavisVantagePro2/HVO.Hardware.DavisVantagePro2.csproj" --locked-mode
 WORKDIR "/src/src/HVO.Hardware.DavisVantagePro2"

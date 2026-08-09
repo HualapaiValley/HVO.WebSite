@@ -90,8 +90,8 @@ public sealed class HttpApiForwarder : IReadingForwarder
         var cloudEvents = CloudEventsForwardingHelper.WrapBatchAsCloudEvents(ready, "jkbms");
 
         _logger.LogDebug(
-            "HttpApiForwarder: posting {Count} record(s) to {Endpoint}",
-            batch.Count, _options.ApiEndpoint);
+            "HttpApiForwarder: posting {Count} record(s)",
+            batch.Count);
 
         try
         {
@@ -105,12 +105,10 @@ public sealed class HttpApiForwarder : IReadingForwarder
 
             if (!response.IsSuccessStatusCode)
             {
-                // Read only a bounded prefix to avoid buffering large HTML error pages.
-                var body = await ReadBoundedBodyAsync(response, ct);
-                var error = $"HTTP {(int)response.StatusCode}: {body}";
+                var error = $"HTTP {(int)response.StatusCode}";
                 _logger.LogWarning(
-                    "HttpApiForwarder: HTTP {StatusCode} from {Endpoint}. Response: {Body}",
-                    (int)response.StatusCode, _options.ApiEndpoint, body);
+                    "HttpApiForwarder received HTTP {StatusCode}",
+                    (int)response.StatusCode);
 
                 if ((int)response.StatusCode is 400 or 401 or 403 or 404)
                     throw new PermanentForwarderException(
@@ -151,15 +149,6 @@ public sealed class HttpApiForwarder : IReadingForwarder
             payload = default;
             return false;
         }
-    }
-
-    private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
-    {
-        using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var reader = new StreamReader(stream, leaveOpen: true);
-        var buffer = new char[512];
-        var charsRead = await reader.ReadAsync(buffer, ct);
-        return new string(buffer, 0, charsRead);
     }
 
     private static List<(long RecordId, string Error)> MapFailedRecords(

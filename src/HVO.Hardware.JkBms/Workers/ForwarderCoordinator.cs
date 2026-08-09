@@ -325,7 +325,7 @@ public sealed class ForwarderCoordinator : BackgroundService
                 .WithTag("pending", PendingCount)
                 .WithTag("failed", FailedCount)
                 .Succeed();
-            _logger.LogInformation("Forwarded {Count} record(s) successfully.", sentCount);
+            _logger.LogDebug("Forwarded {Count} record(s) successfully.", sentCount);
         }
         else
         {
