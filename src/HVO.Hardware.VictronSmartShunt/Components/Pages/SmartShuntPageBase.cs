@@ -39,6 +39,7 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
     protected string DisplayAddress => string.IsNullOrWhiteSpace(Options.Address) ? "Not configured" : Options.Address;
     protected string ModeSummary => Options.PublicOnly ? "Public baseline" : Options.EnablePrivateEnrichment ? "Public + private enrichment" : "Custom mode";
     protected string CurrentDisplay => FormatCurrentWithFallback(LatestSnapshot);
+    protected string BatteryFlowDisplay => FormatBatteryFlow(LatestSnapshot?.PowerW);
     protected string HealthLabel => Health.State switch
     {
         "healthy" => "Healthy",
@@ -96,8 +97,8 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
 
     // Thin wrappers around HvoFormat for RenderField delegate compatibility
     protected static string FormatVolts(double? v) => HvoFormat.Voltage(v);
-    protected static string FormatAmps(double? a) => HvoFormat.Current(a);
-    protected static string FormatWatts(double? w) => HvoFormat.Power(w);
+    protected static string FormatAmps(double? a) => HvoFormat.SignedCurrent(a);
+    protected static string FormatWatts(double? w) => HvoFormat.SignedPower(w);
     protected static string FormatPercent(double? p) => HvoFormat.Percent(p);
     protected static string FormatAh(double? a) => HvoFormat.EnergyAh(a);
     protected static string FormatTemperature(double? t) => HvoFormat.Temperature(t);
@@ -118,13 +119,21 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
     protected static string FormatCurrentWithFallback(SmartShuntDeviceSnapshot? snapshot)
     {
         if (snapshot?.CurrentA is double currentA)
-            return HvoFormat.Current(currentA);
+            return HvoFormat.SignedCurrent(currentA);
 
         if (snapshot?.CurrentCoarseA is double coarseCurrentA)
-            return $"{HvoFormat.Current(coarseCurrentA)} approx";
+            return $"{HvoFormat.SignedCurrent(coarseCurrentA)} approx";
 
         return "--";
     }
+
+    protected static string FormatBatteryFlow(double? powerW) => powerW switch
+    {
+        > 0.5 => "Charging - into battery",
+        < -0.5 => "Discharging - out of battery",
+        >= -0.5 and <= 0.5 => "Idle",
+        _ => "--",
+    };
 
     protected static Severity MapSeverity(SmartShuntGatewayHealthSeverity severity) => severity switch
     {

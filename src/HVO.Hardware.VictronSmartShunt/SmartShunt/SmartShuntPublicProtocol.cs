@@ -9,8 +9,8 @@ public static class SmartShuntPublicProtocol
     [
         new("soc", "65970fff-4bda-4c1e-af4b-551c4cf74769", DecodeUnsignedHundredths, "ffff"),
         new("voltage", "6597ed8d-4bda-4c1e-af4b-551c4cf74769", DecodeSignedHundredths, "ff7f"),
-        new("power", "6597ed8e-4bda-4c1e-af4b-551c4cf74769", DecodeNegatedSignedInt16, "ff7f"),
-        new("current", "6597ed8c-4bda-4c1e-af4b-551c4cf74769", DecodeNegatedSignedThousandths, "ffffff7f"),
+        new("power", "6597ed8e-4bda-4c1e-af4b-551c4cf74769", DecodeSignedInt16, "ff7f"),
+        new("current", "6597ed8c-4bda-4c1e-af4b-551c4cf74769", DecodeSignedThousandths, "ffffff7f"),
         new("consumed_ah", "6597eeff-4bda-4c1e-af4b-551c4cf74769", DecodeSignedTenths, "ffffff7f"),
         new("starter_voltage", "6597ed7d-4bda-4c1e-af4b-551c4cf74769", DecodeSignedHundredths, "ff7f"),
         new("val2", "6597edec-4bda-4c1e-af4b-551c4cf74769", DecodeUnsignedInt16, "ffff"),
@@ -59,11 +59,8 @@ public static class SmartShuntPublicProtocol
     private static double? DecodeSignedTenths(byte[] value, string notAvailableHex)
         => MatchesNotAvailable(value, notAvailableHex) ? null : BitConverter.ToInt32(value, 0) / 10.0;
 
-    private static double? DecodeNegatedSignedThousandths(byte[] value, string notAvailableHex)
-        => MatchesNotAvailable(value, notAvailableHex) ? null : -BitConverter.ToInt32(value, 0) / 1000.0;
-
-    private static double? DecodeNegatedSignedInt16(byte[] value, string notAvailableHex)
-        => MatchesNotAvailable(value, notAvailableHex) ? null : -BitConverter.ToInt16(value, 0);
+    private static double? DecodeSignedThousandths(byte[] value, string notAvailableHex)
+        => MatchesNotAvailable(value, notAvailableHex) ? null : BitConverter.ToInt32(value, 0) / 1000.0;
 
     private static double? DecodeSignedInt16(byte[] value, string notAvailableHex)
         => MatchesNotAvailable(value, notAvailableHex) ? null : BitConverter.ToInt16(value, 0);

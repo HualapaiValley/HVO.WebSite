@@ -44,7 +44,9 @@ public sealed class SmartShuntStatusPageBunitTests : BunitContext
         component.Markup.Should().Contain("Healthy");
         component.Markup.Should().Contain("82 %");
         component.Markup.Should().Contain("53.20 V");
-        component.Markup.Should().Contain("-125 W");
+        component.Markup.Should().Contain("+ into / - out");
+        component.Markup.Should().Contain("+125 W");
+        component.Markup.Should().Contain("Charging - into battery");
     }
 
     [TestMethod]
@@ -69,6 +71,15 @@ public sealed class SmartShuntStatusPageBunitTests : BunitContext
         component.Markup.Should().Contain("Waiting for first SmartShunt sample.");
     }
 
+    [TestMethod]
+    [DataRow(125d, "Charging - into battery")]
+    [DataRow(-125d, "Discharging - out of battery")]
+    [DataRow(0d, "Idle")]
+    public void BatteryFlowLabel_DescribesSourceNativeDirection(double powerW, string expected)
+    {
+        TestPageBase.BatteryFlow(powerW).Should().Be(expected);
+    }
+
     private static SmartShuntDeviceSnapshot CreateSnapshot()
         => new()
         {
@@ -78,8 +89,8 @@ public sealed class SmartShuntStatusPageBunitTests : BunitContext
             PrivateEnrichmentActive = true,
             StateOfChargePercent = 82,
             VoltageV = 53.2,
-            CurrentA = -2.35,
-            PowerW = -125,
+            CurrentA = 2.35,
+            PowerW = 125,
             ConsumedAh = -18.4,
             RemainingMinutes = 420,
         };
@@ -112,5 +123,10 @@ public sealed class SmartShuntStatusPageBunitTests : BunitContext
     private sealed class FakeHttpClientFactory : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new();
+    }
+
+    private sealed class TestPageBase : HVO.Hardware.VictronSmartShunt.Components.Pages.SmartShuntPageBase
+    {
+        public static string BatteryFlow(double? powerW) => FormatBatteryFlow(powerW);
     }
 }
