@@ -29,6 +29,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Serilog.Events;
+using Serilog.Formatting.Json;
 using HVO.WebSite.v9.Telemetry;
 using OpenTelemetry.Metrics;
 namespace HVO.WebSite.v9
@@ -62,7 +63,7 @@ namespace HVO.WebSite.v9
             // Emit one sanitized stdout stream; Docker bounds it and Promtail ships it once.
             var consoleLogger = new LoggerConfiguration()
                 .MinimumLevel.Verbose()
-                .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .WriteTo.Console(new JsonFormatter(renderMessage: true))
                 .CreateLogger();
             var loggerConfig = new LoggerConfiguration()
                 .MinimumLevel.Information()

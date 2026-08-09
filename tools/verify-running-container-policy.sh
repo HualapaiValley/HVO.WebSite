@@ -13,6 +13,9 @@ fi
 	exit 2
 }
 
+command -v docker >/dev/null 2>&1 || { printf 'docker is required\n' >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || { printf 'jq is required\n' >&2; exit 1; }
+
 docker_context="$1"
 shift
 inspection="$(docker --context "${docker_context}" inspect "$@")"
