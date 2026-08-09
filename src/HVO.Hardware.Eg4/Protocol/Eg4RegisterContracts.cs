@@ -38,7 +38,10 @@ public sealed record Eg4ReadRegistersResponse
 
 public enum Eg4TransportFailureKind { Crc, MalformedFrame, Disconnected, Timeout, Protocol }
 
-public sealed class Eg4TransportException(Eg4TransportFailureKind kind, string message) : Exception(message)
+public sealed class Eg4TransportException : Exception
 {
-    public Eg4TransportFailureKind Kind { get; } = kind;
+    public Eg4TransportException(Eg4TransportFailureKind kind, string message) : base(message) => Kind = kind;
+    public Eg4TransportException(Eg4TransportFailureKind kind, string message, Exception innerException)
+        : base(message, innerException) => Kind = kind;
+    public Eg4TransportFailureKind Kind { get; }
 }

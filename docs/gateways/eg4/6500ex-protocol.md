@@ -1,8 +1,8 @@
 # EG4 6500EX Battery Telemetry Protocol Evidence
 
-Status: RS232/COM inquiry profile validated for limited battery fields; BMS RS485 blocked.
+Status: RS232/COM inquiry profile and direct USB HID transport validated for limited battery fields; BMS RS485 blocked.
 
-Research date: 2026-08-09. Target: EG4 6500EX-48, observed firmware `79.02` / `61.00`, model `MKS2-6500`, general model `045`.
+Research date: 2026-08-09. Target: EG4 6500EX-48, observed firmware `79.02` / `61.00` and `79.71` / `61.13`, model `MKS2-6500`, general model `045`.
 
 ## Scope Decision
 
@@ -20,6 +20,8 @@ The BMS RS485 bus participates in battery charge/discharge control. EG4 publishe
 | E4 | [PI30MAX protocol, 2021-02-17](https://github.com/jblance/mpp-solar/blob/master/docs/protocols/PI30MAX.Communication.Protocol20210217.pdf) | OEM-family document corroborated by E3. Defines 2400 8N1, ASCII inquiry plus adjusted CRC-CCITT/XMODEM and CR, and QPIGS field positions/scales. | Community-hosted copy; not an EG4 publication. Model applicability comes from E3/E5. |
 | E5 | [SolarAssistant 6500EX support](https://solar-assistant.io/help/inverters/eg4/6500EX-48) and [RS232 instructions](https://solar-assistant.io/help/inverters/eg4/6500EX-48/rs232) | Independent direct-model implementation. Uses the RS232/COM port and Voltronic driver; documents RJ45 pins 1 RX, 2 TX, 8 GND from its cable perspective. | Does not publish frames, parser, cadence, or field provenance. |
 | E6 | [Independent 6500EX SOC comparison](https://diysolarforum.com/threads/raw-data-vs-watchpower-battery-capacity-question.83721/) | Direct model. `QPIGS` SOC matched WatchPower; `QPGS0/1/2` SOC did not. | Community observation, one installation. Does not prove SOC is always genuine BMS SOC. |
+| E7 | [`mpp-solar` HID transport at `eafdd43`](https://github.com/jblance/mpp-solar/blob/eafdd4328c77f516cf82430c5bcb6fa042c45d3a/mppsolar/inout/hidrawio.py) | Maintained PI30 implementation opens `/dev/hidraw*`, writes inquiry frames in 8-byte HID reports, and reads until CR. | Community implementation; corroborated by H1 on the target device. |
+| H1 | HVO live capture, 2026-08-09, fixture `charging-2026-08-09-live-hid.json` | Target device enumerated as USB HID `0665:5161`; identity `PI30` / `MKS2-6500` / `045`; firmware `79.71` / `61.13`; byte-complete QPIGS response with valid CRC reported 54.40 V, 68 A charging, 0 A discharging, and 100% reported SOC. | One charging-state capture. Current fields are inverter-reported integer magnitudes. |
 
 ## Validated RS232 Profile
 
@@ -32,6 +34,7 @@ The BMS RS485 bus participates in battery charge/discharge control. EG4 publishe
 | Response | `(` + payload + adjusted CRC high/low + `CR` | E4 |
 | Negative response | `(NAK` with CRC and CR | E3, E4 |
 | Ownership | One port owner and one outstanding inquiry | Community operational evidence; conservative HVO rule |
+| Direct USB transport | Linux hidraw, USB `0665:5161`, 8-byte HID reports; all allowlisted inquiry frames fit one report | E7, H1 |
 
 ## Inquiry Allowlist
 
@@ -63,19 +66,20 @@ No model-specific numeric sentinel is validated. Zero is a valid current. `NAK`,
 
 `tests/HVO.Hardware.Eg4.Tests/Fixtures/6500ex/discharging-2022-public-capture.json` preserves the public E3 payload and expected battery values. Its frame is explicitly reconstructed because the published capture omitted response CRC bytes. It is not represented as a byte-perfect hardware capture.
 
-Idle and charging hardware fixtures remain required before production adapter #282 is complete.
+`tests/HVO.Hardware.Eg4.Tests/Fixtures/6500ex/charging-2026-08-09-live-hid.json` preserves H1's exact QPIGS request and response, including captured CRC bytes and the expected canonical `-68 A` / `-3699.2 W` charging result. The public discharging fixture proves a zero charging-current field, and H1 proves a zero discharging-current field. Their combination exhausts the idle parser case, so a separately timed zero/zero hardware capture is useful shadow-run evidence but is not a production-parser blocker.
 
 ## DevPi5 Inventory
 
-Read-only inventory on 2026-08-09 found one unowned CH341 adapter at a stable by-id path, replacing a CP210x device previously attached at the same USB topology. USB metadata did not prove the cable's remote endpoint, so the port was not opened and no bytes were transmitted. Existing containers and configuration were unchanged.
+Read-only inventory on 2026-08-09 found both expected USB devices. The MPPT BMS cable is the CH341 serial adapter at USB path `1-2`; it remains excluded from 6500EX traffic. The inverter monitoring cable is a separate Cypress/STMicroelectronics HID device `0665:5161` at USB path `1-1`, exposed as `/dev/hidraw0`. The owner confirmed both endpoints, and bounded identity inquiries proved that the HID device is the 6500EX.
 
-Before a live proof, a human must confirm that the adapter is connected to the 6500EX RS232/COM port, not BMS RS485. The proof must run with no competing poller and record model/firmware identity before one QPIGS request.
+No process owned the HID node during proof. Five allowlisted identity inquiries were sent before one QPIGS request. An immediate second HID session timed out before writing its first identity inquiry; after a conservative cooldown, the complete identity and status sequence succeeded. Production reconnect handling must reopen, repeat identity validation, and retain bounded timeout/backoff behavior.
 
 ## Explicit Blockers
 
 - BMS RS485 remains unsupported: protocol identity, serial settings, role, framing, CRC, addressing, telemetry, and safe cadence are unknown.
 - QPIGS SOC is reported by the inverter; genuine closed-loop BMS provenance is not guaranteed by current evidence.
 - Battery alarms and battery/cell temperatures have no validated RS232 field map.
-- Numeric sentinels and firmware differences beyond the observed `79.02/61.00` device are unknown.
-- Idle and charging byte captures are unavailable.
+- Numeric sentinels remain unknown; zero is a valid current magnitude.
+- Firmware layouts other than the exact captured `79.02/61.00` and `79.71/61.13` tuples are unsupported.
+- A simultaneous zero/zero idle byte capture is unavailable and should be recorded during the shadow run; both individual zero field encodings are validated.
 - No PV or AC value from QPIGS is in HVO scope.

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "captureKind": "live-hardware-capture",
+  "captureDateUtc": "2026-08-09",
+  "model": "EG4 6500EX-48",
+  "mainFirmware": "00079.71",
+  "secondaryFirmware": "00061.13",
+  "modelName": "MKS2-6500",
+  "generalModelName": "045",
+  "interface": "USB HID bridge to RS232/COM",
+  "usbIdentity": "0665:5161",
+  "state": "charging",
+  "requestHex": "51 50 49 47 53 b7 a9 0d",
+  "responseHex": "28 30 30 30 2e 30 20 30 30 2e 30 20 31 32 30 2e 31 20 36 30 2e 30 20 31 38 39 37 20 31 37 39 30 20 30 32 39 20 34 33 37 20 35 34 2e 34 30 20 30 36 38 20 31 30 30 20 30 30 37 35 20 30 39 2e 31 20 33 30 35 2e 36 20 30 30 2e 30 30 20 30 30 30 30 30 20 30 30 30 31 30 31 31 30 20 30 30 20 30 30 20 30 32 37 39 37 20 30 31 30 a1 8f 0d",
+  "expected": {
+    "voltageV": 54.4,
+    "chargingCurrentA": 68,
+    "dischargingCurrentA": 0,
+    "reportedStateOfChargePercent": 100,
+    "derivedCurrentA": -68,
+    "derivedPowerW": -3699.2
+  }
+}

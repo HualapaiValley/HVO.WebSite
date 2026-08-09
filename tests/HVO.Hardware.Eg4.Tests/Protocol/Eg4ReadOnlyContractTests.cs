@@ -15,6 +15,14 @@ public sealed class Eg4ReadOnlyContractTests
         typeof(IEg4RegisterTransport).Assembly.GetTypes()
             .SelectMany(type => type.GetMembers())
             .Should().NotContain(member => member.Name.Contains("WriteRegister", StringComparison.OrdinalIgnoreCase));
+        typeof(IEg46500ExInquiryTransport).GetMethods().Select(method => method.Name)
+            .Should().Equal("ExchangeAsync");
+        typeof(IEg46500ExInquiryTransport).Should().Implement<IAsyncDisposable>();
+        typeof(IEg46500ExInquiryTransport).GetMethod("ExchangeAsync")!.GetParameters()[0].ParameterType
+            .Should().Be<Eg46500ExInquiry>();
+        Enum.GetNames<Eg46500ExInquiry>().Should().OnlyContain(name =>
+            !name.Contains("Write", StringComparison.OrdinalIgnoreCase) &&
+            !name.Contains("Set", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]

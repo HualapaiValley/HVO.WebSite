@@ -39,6 +39,29 @@ public sealed class Eg46500ExPi30ProtocolTests
     }
 
     [TestMethod]
+    public void LiveChargingFixture_DecodesCapturedCrcScalingAndCanonicalDirection()
+    {
+        var fixture = JsonSerializer.Deserialize<LiveFixture>(File.ReadAllText(Path.Combine(
+                AppContext.BaseDirectory, "Fixtures", "6500ex", "charging-2026-08-09-live-hid.json")),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        var frame = Convert.FromHexString(fixture.ResponseHex.Replace(" ", string.Empty, StringComparison.Ordinal));
+
+        var status = Eg46500ExPi30Protocol.DecodeGeneralStatus(frame);
+        var currentA = status.DischargingCurrentA - status.ChargingCurrentA;
+
+        fixture.CaptureKind.Should().Be("live-hardware-capture");
+        fixture.UsbIdentity.Should().Be("0665:5161");
+        Eg46500ExPi30Protocol.Encode(Eg46500ExInquiry.GeneralStatus).Should().Equal(
+            Convert.FromHexString(fixture.RequestHex.Replace(" ", string.Empty, StringComparison.Ordinal)));
+        status.VoltageV.Should().Be(54.4);
+        status.ChargingCurrentA.Should().Be(68);
+        status.DischargingCurrentA.Should().Be(0);
+        status.ReportedStateOfChargePercent.Should().Be(100);
+        currentA.Should().Be(-68);
+        (status.VoltageV * currentA).Should().BeApproximately(-3699.2, 0.001);
+    }
+
+    [TestMethod]
     public void Decode_RejectsCrcFramingNakAndWrongFieldCount()
     {
         var valid = FrameResponse("(PI30");
@@ -70,6 +93,17 @@ public sealed class Eg46500ExPi30ProtocolTests
             .Should().Throw<Eg4TransportException>().Which.Kind.Should().Be(Eg4TransportFailureKind.MalformedFrame);
     }
 
+    [TestMethod]
+    public void GeneralStatus_ZeroCurrentMagnitudesProduceIdle()
+    {
+        var idle = FrameResponse("(000.0 00.0 120.0 60.0 0000 0000 000 360 54.40 000 100 0030 00.0 000.0 00.00 00000 00010000 00 00 00000 010");
+
+        var status = Eg46500ExPi30Protocol.DecodeGeneralStatus(idle);
+
+        (status.DischargingCurrentA - status.ChargingCurrentA).Should().Be(0);
+        (status.VoltageV * (status.DischargingCurrentA - status.ChargingCurrentA)).Should().Be(0);
+    }
+
     private static byte[] FrameResponse(string payload)
     {
         var bytes = Encoding.ASCII.GetBytes(payload);
@@ -85,4 +119,5 @@ public sealed class Eg46500ExPi30ProtocolTests
     }
 
     private sealed record Fixture(string CaptureKind, string Model, string Interface, string ResponsePayload);
+    private sealed record LiveFixture(string CaptureKind, string UsbIdentity, string RequestHex, string ResponseHex);
 }

@@ -5,6 +5,7 @@ namespace HVO.Hardware.Eg4.Configuration;
 public sealed class Eg4OptionsValidator(IHostEnvironment environment) : IValidateOptions<Eg4Options>
 {
     private const string StablePortPrefix = "/dev/serial/by-id/";
+    private const string StableHidrawPrefix = "/dev/hvo/";
 
     public ValidateOptionsResult Validate(string? name, Eg4Options options)
     {
@@ -24,7 +25,7 @@ public sealed class Eg4OptionsValidator(IHostEnvironment environment) : IValidat
         var sourceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var deviceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var endpoints = new HashSet<(string Port, byte UnitId)>();
+        var endpoints = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var device in devices)
         {
@@ -35,18 +36,34 @@ public sealed class Eg4OptionsValidator(IHostEnvironment environment) : IValidat
 
             if (!Enum.IsDefined(device.Type) || device.Type == Eg4DeviceType.Unknown)
                 failures.Add($"Device '{device.Alias}' has an unsupported Type.");
-            if (string.IsNullOrWhiteSpace(device.Port) || device.Port != device.Port.Trim() || !device.Port.StartsWith(StablePortPrefix, StringComparison.Ordinal) ||
-                device.Port.Length == StablePortPrefix.Length || device.Port.EndsWith('/') ||
-                device.Port.Contains("..", StringComparison.Ordinal))
-                failures.Add($"Device '{device.Alias}' Port must be a stable /dev/serial/by-id path.");
-            if (device.UnitId is < 1 or > 247)
-                failures.Add($"Device '{device.Alias}' UnitId must be between 1 and 247.");
+            var stableSerialPort = IsStablePath(device.Port, StablePortPrefix);
+            var stableHidrawPort = IsStablePath(device.Port, StableHidrawPrefix);
+            if (device.Type == Eg4DeviceType.Inverter6500Ex)
+            {
+                if (!stableHidrawPort)
+                    failures.Add($"Device '{device.Alias}' Port must be a stable /dev/hvo HID path.");
+                if (device.UnitId != 0)
+                    failures.Add($"Device '{device.Alias}' UnitId must be 0 because PI30 does not use Modbus addressing.");
+                if (!endpoints.Add($"pi30:{device.Port}"))
+                    failures.Add($"PI30 port '{device.Port}' is configured more than once.");
+            }
+            else
+            {
+                if (!stableSerialPort)
+                    failures.Add($"Device '{device.Alias}' Port must be a stable /dev/serial/by-id path.");
+                if (device.UnitId is < 1 or > 247)
+                    failures.Add($"Device '{device.Alias}' UnitId must be between 1 and 247.");
+                if (!endpoints.Add($"modbus:{device.Port}:{device.UnitId}"))
+                    failures.Add($"Port/unit combination '{device.Port}'/{device.UnitId} is configured more than once.");
+            }
             if (device.PollIntervalSeconds is < 10 or > 3600)
                 failures.Add($"Device '{device.Alias}' PollIntervalSeconds must be between 10 and 3600.");
-            if (!endpoints.Add((device.Port, device.UnitId)))
-                failures.Add($"Port/unit combination '{device.Port}'/{device.UnitId} is configured more than once.");
         }
     }
+
+    private static bool IsStablePath(string? value, string prefix) =>
+        !string.IsNullOrWhiteSpace(value) && value == value.Trim() && value.StartsWith(prefix, StringComparison.Ordinal) &&
+        value.Length > prefix.Length && !value.EndsWith('/') && !value.Contains("..", StringComparison.Ordinal);
 
     private static void ValidateIdentity(string value, string field, HashSet<string> values, List<string> failures)
     {
