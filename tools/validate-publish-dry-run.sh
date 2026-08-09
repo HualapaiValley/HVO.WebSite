@@ -27,5 +27,13 @@ export HVO_PUBLISH_ENV_FILE="$tmp_dir/.env"
 } > "$HVO_PUBLISH_ENV_FILE"
 
 for target in website davis jkbms solarassistant smartshunt tplinkkasa; do
-	bash scripts/publish-image.sh --dry-run "$target" >/dev/null
+	output="$(bash scripts/publish-image.sh --dry-run "$target")"
+	[[ "${output}" == *'--password-stdin'* ]] || {
+		printf 'Dry run for %s omitted the registry login command.\n' "${target}" >&2
+		exit 1
+	}
+	[[ "${output}" != *'ci-password'* ]] || {
+		printf 'Dry run for %s exposed the registry password.\n' "${target}" >&2
+		exit 1
+	}
 done

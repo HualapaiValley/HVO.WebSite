@@ -148,7 +148,11 @@ else
 fi
 
 echo "Logging in to ${HVO_CONTAINER_REGISTRY_LOGIN_SERVER}"
-echo "${HVO_CONTAINER_REGISTRY_PASSWORD}" | run_cmd docker login "${HVO_CONTAINER_REGISTRY_LOGIN_SERVER}" --username "${HVO_CONTAINER_REGISTRY_USERNAME}" --password-stdin
+if [[ "${dry_run}" == true ]]; then
+	run_cmd docker login "${HVO_CONTAINER_REGISTRY_LOGIN_SERVER}" --username "${HVO_CONTAINER_REGISTRY_USERNAME}" --password-stdin
+else
+	printf '%s\n' "${HVO_CONTAINER_REGISTRY_PASSWORD}" | docker login "${HVO_CONTAINER_REGISTRY_LOGIN_SERVER}" --username "${HVO_CONTAINER_REGISTRY_USERNAME}" --password-stdin
+fi
 
 docker_build_args=(-t "${version_ref}")
 if [[ "${push_latest}" == true ]]; then

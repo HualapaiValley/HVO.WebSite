@@ -12,9 +12,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, hvo-website]
     timeout-minutes: 25
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -36,15 +39,21 @@ jobs:
         run: dotnet build HVO.WebSite.sln --no-restore -c Debug --nologo -v minimal /p:ContinuousIntegrationBuild=true
 
       - name: Install Playwright Chromium
-        run: pwsh tests/HVO.WebSite.PlaywrightTests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+        run: pwsh tests/HVO.WebSite.PlaywrightTests/bin/Debug/net10.0/playwright.ps1 install chromium
 
       - name: Test (Unit)
-        run: >
-          dotnet test HVO.WebSite.sln --no-build -c Debug --nologo -v minimal
-          --filter "TestCategory!=Integration&TestCategory!=Live"
-          --logger "trx;LogFileName=tests.trx"
-          --collect:"XPlat Code Coverage"
-          --results-directory TestResults
+        shell: bash
+        run: |
+          test_args=(
+            HVO.WebSite.sln --no-build -c Debug --nologo -v minimal
+            --filter "TestCategory!=Integration&TestCategory!=Live"
+            --logger "trx;LogFileName=tests.trx"
+            --results-directory TestResults
+          )
+          if [[ "${{ github.event_name }}" != pull_request ]]; then
+            test_args+=(--collect:"XPlat Code Coverage")
+          fi
+          dotnet test "${test_args[@]}"
 
       - name: Test (Integration - gated)
         if: |
@@ -85,8 +94,10 @@ jobs:
           retention-days: 7
 
   docker-smoke:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, hvo-website]
     timeout-minutes: 25
+    env:
+      DOCKER_SMOKE_CACHE_MODE: persistent
     steps:
       - uses: actions/checkout@v7
         with:
