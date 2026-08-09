@@ -2,38 +2,36 @@ using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Models;
+using HVO.WebSite.v9.Configuration;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace HVO.WebSite.v9.Services;
 
-public sealed class PowerSystemSnapshotProvider(HvoV9DbContext db) : IPowerSystemSnapshotProvider
+public sealed class PowerSystemSnapshotProvider(
+    HvoV9DbContext db,
+    IOptions<PowerCompositionOptions> options,
+    TimeProvider timeProvider) : IPowerSystemSnapshotProvider
 {
-    private static readonly string[] SourceSystems = ["solarassistant", "victron-smartshunt"];
+    public PowerSystemSnapshotProvider(HvoV9DbContext db)
+        : this(db, Options.Create(new PowerCompositionOptions()), TimeProvider.System) { }
 
     public async Task<PowerSystemSnapshot?> GetLatestAsync(int lookbackMinutes = 60, CancellationToken ct = default)
     {
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         var cutoffUtc = nowUtc.AddMinutes(-lookbackMinutes);
-        var readings = new List<PowerReading>(SourceSystems.Length);
-
-        foreach (var sourceSystem in SourceSystems)
-        {
-            var reading = await db.PowerReadings
-                .AsNoTracking()
-                .Where(r => r.RecordedAt >= cutoffUtc
-                    && r.SourceSystem != null
-                    && r.SourceSystem.ToLower() == sourceSystem)
-                .OrderByDescending(r => r.RecordedAt)
-                .ThenByDescending(r => r.Id)
-                .FirstOrDefaultAsync(ct);
-
-            if (reading is not null)
-                readings.Add(reading);
-        }
+        var futureCutoffUtc = nowUtc.AddSeconds(options.Value.MaxFutureClockSkewSeconds);
+        var latestReadingIds = await db.PowerReadings.AsNoTracking()
+            .Where(r => r.RecordedAt >= cutoffUtc && r.RecordedAt <= futureCutoffUtc)
+            .GroupBy(r => new { r.SourceId, r.DeviceId })
+            .Select(group => group.OrderByDescending(r => r.RecordedAt).ThenByDescending(r => r.Id).Select(r => r.Id).First())
+            .ToArrayAsync(ct);
+        var readings = latestReadingIds.Length == 0 ? [] : await db.PowerReadings.AsNoTracking()
+            .Where(r => latestReadingIds.Contains(r.Id)).ToArrayAsync(ct);
 
         var latestBmsReadingIds = await db.BmsReadings
                 .AsNoTracking()
-                .Where(r => r.RecordedAt >= cutoffUtc)
+                .Where(r => r.RecordedAt >= cutoffUtc && r.RecordedAt <= futureCutoffUtc)
                 .GroupBy(r => r.DeviceId)
                 .Select(g => g
                     .OrderByDescending(r => r.RecordedAt)
@@ -51,8 +49,8 @@ public sealed class PowerSystemSnapshotProvider(HvoV9DbContext db) : IPowerSyste
                 .Where(r => latestBmsReadingIds.Contains(r.Id))
                 .ToArrayAsync(ct);
 
-        return readings.Count == 0 && bmsReadings.Length == 0
+        return readings.Length == 0 && bmsReadings.Length == 0
             ? null
-            : PowerSystemSnapshotComposer.Compose(readings, nowUtc, bmsReadings);
+            : PowerSystemSnapshotComposer.Compose(readings, nowUtc, bmsReadings, options.Value);
     }
 }
