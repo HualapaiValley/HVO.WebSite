@@ -168,7 +168,7 @@ public sealed class SmartShuntWorker : BackgroundService
             if (inserted)
             {
                 _lastOutboxWriteAtUtc = recordedAt;
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "Queued SmartShunt snapshot for {SourceId} at {RecordedAt:O}",
                     payload.SourceId,
                     recordedAt);

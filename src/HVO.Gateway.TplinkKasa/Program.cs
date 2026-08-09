@@ -12,7 +12,7 @@ using HVO.Enterprise.Telemetry;
 using HVO.Enterprise.Telemetry.HealthChecks;
 using HVO.Enterprise.Telemetry.Http;
 using HVO.Enterprise.Telemetry.OpenTelemetry;
-using HVO.Enterprise.Telemetry.Serilog;
+using HVO.Edge.Hosting.Logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Http.Resilience;
@@ -20,10 +20,6 @@ using MudBlazor.Services;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
-using Serilog;
-using Serilog.Events;
-using Serilog.Formatting.Compact;
-using Serilog.Sinks.OpenTelemetry;
 
 var command = args.FirstOrDefault()?.ToLowerInvariant();
 if (command is "probe" or "scan" or "plug-lab")
@@ -221,50 +217,10 @@ static async Task RunGatewayAsync(string[] args)
 
     var builder = WebApplication.CreateBuilder(args);
 
-    builder.Host.UseSerilog((ctx, _, loggerConfig) =>
-    {
-        var logDir = Path.Combine(ctx.HostingEnvironment.ContentRootPath, "logs");
-        Directory.CreateDirectory(logDir);
-
-        loggerConfig
-            .MinimumLevel.Information()
-            .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-            .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
-            .MinimumLevel.Override("HVO.Gateway.TplinkKasa", LogEventLevel.Information)
-            .Enrich.FromLogContext()
-            .Enrich.WithTelemetry()
-            .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-            .WriteTo.File(
-                new CompactJsonFormatter(),
-                Path.Combine(logDir, "tplinkkasa-.log"),
-                rollingInterval: RollingInterval.Day,
-                retainedFileCountLimit: 30,
-                fileSizeLimitBytes: 100_000_000,
-                rollOnFileSizeLimit: true);
-
-        var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
-        if (!string.IsNullOrEmpty(otlpEndpoint))
-        {
-            var serviceName = Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? "hvo-tplinkkasa";
-            loggerConfig.WriteTo.OpenTelemetry(options =>
-            {
-                options.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
-                options.Protocol = OtlpProtocol.HttpProtobuf;
-                options.ResourceAttributes = new Dictionary<string, object>
-                {
-                    ["service.name"] = serviceName
-                };
-            });
-        }
-
-        if (ctx.HostingEnvironment.IsDevelopment())
-        {
-            loggerConfig
-                .MinimumLevel.Override("HVO.Gateway.TplinkKasa", LogEventLevel.Debug)
-                .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-                .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Information);
-        }
-    });
+    builder.Host.UseHvoGatewayLogging(new GatewayLogIdentity(
+        "hvo-tplinkkasa",
+        builder.Configuration["KasaGateway:GatewayId"] ?? "hvo-tplink-kasa",
+        "smart-plug"));
     builder.Services
         .AddOptions<KasaGatewayOptions>()
         .BindConfiguration(KasaGatewayOptions.SectionName)

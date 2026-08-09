@@ -206,7 +206,14 @@ public sealed class KasaGatewayWorker(
             }
             else
             {
-                _consecutiveFailures.TryRemove(device.EffectiveSourceId, out _);
+                if (_consecutiveFailures.TryRemove(device.EffectiveSourceId, out var recoveredFailureCount) &&
+                    recoveredFailureCount > 0)
+                {
+                    logger.LogInformation(
+                        "TP-Link/Kasa device {SourceId} recovered after {FailureCount} consecutive poll failures",
+                        device.EffectiveSourceId,
+                        recoveredFailureCount);
+                }
             }
 
             if (stopwatch.Elapsed > interval)
@@ -221,7 +228,7 @@ public sealed class KasaGatewayWorker(
             }
             else
             {
-                logger.LogInformation(
+                logger.LogDebug(
                     "TP-Link/Kasa device {SourceId} poll completed in {ElapsedMs:0} ms. IntervalMs={IntervalMs:0} FullDetails={FullDetails} Result={PollResult}",
                     device.EffectiveSourceId,
                     stopwatch.Elapsed.TotalMilliseconds,

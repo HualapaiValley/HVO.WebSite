@@ -7,7 +7,9 @@ WORKDIR /src
 COPY ["Directory.Build.props", "."]
 COPY ["Directory.Packages.props", "."]
 COPY ["NuGet.config", "."]
+COPY ["src/HVO.Edge.Hosting/packages.lock.json", "src/HVO.Edge.Hosting/"]
 COPY ["src/HVO.Gateway.TplinkKasa/packages.lock.json", "src/HVO.Gateway.TplinkKasa/"]
+COPY ["src/HVO.Edge.Hosting/HVO.Edge.Hosting.csproj", "src/HVO.Edge.Hosting/"]
 COPY ["src/HVO.Gateway.TplinkKasa/HVO.Gateway.TplinkKasa.csproj", "src/HVO.Gateway.TplinkKasa/"]
 COPY . .
 RUN dotnet restore "src/HVO.Gateway.TplinkKasa/HVO.Gateway.TplinkKasa.csproj" --locked-mode

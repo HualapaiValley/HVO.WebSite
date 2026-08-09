@@ -84,6 +84,15 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 
 The collector accepts OTLP/gRPC on `4317` and OTLP/HTTP on `4318`. Grafana, Prometheus, Loki, and Tempo have no external authentication configured by these base files beyond Grafana's administrator credentials. Put any externally reachable user interface behind an authenticated reverse proxy and TLS.
 
+Gateway applications write structured logs to stdout/stderr and export directly
+to the collector when configured. They do not write application-owned files
+under `/app/logs`. Promtail observes only containers on the `hvo-docker` Docker
+host; it does not scrape remote Pi Docker hosts. Consequently, direct OTLP is
+the central log path for Pi gateways, while `docker logs` remains the local
+diagnostic path. Docker log rotation, OTLP outage buffering, Loki retention, and
+durable Loki storage are deployment responsibilities documented and validated
+with the observability stack rather than application sink settings.
+
 ## Application Connectivity
 
 Containers in the same stack resolve service names through Docker DNS: for example, `mssql:1433`, `redis:6379`, `minio:9000`, `rabbitmq:5672`, and `otel-collector:4318`.

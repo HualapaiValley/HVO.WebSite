@@ -67,7 +67,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Kasa outbox forwarder starting. Endpoint: {Endpoint}", _options.ApiEndpoint);
+        _logger.LogInformation("Kasa outbox forwarder starting. Remote forwarding is configured.");
         var lastCompactionAtUtc = DateTime.MinValue;
 
         while (!stoppingToken.IsCancellationRequested)
@@ -200,8 +200,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
                     continue;
                 }
 
-                var body = await ReadBoundedBodyAsync(response, ct).ConfigureAwait(false);
-                ScheduleRetry(store, [item.Record], $"HTTP {(int)response.StatusCode}: {body}", now);
+                ScheduleRetry(store, [item.Record], $"HTTP {(int)response.StatusCode}", now);
             }
             catch (HttpRequestException ex)
             {
@@ -293,8 +292,7 @@ public sealed class KasaOutboxForwarder : BackgroundService
             }
             else
             {
-                var body = await ReadBoundedBodyAsync(response, ct).ConfigureAwait(false);
-                var error = $"HTTP {(int)response.StatusCode}: {body}";
+                var error = $"HTTP {(int)response.StatusCode}";
                 if ((int)response.StatusCode is 400 or 401 or 403 or 404)
                 {
                     foreach (var record in ready.Select(item => item.Record))
@@ -438,15 +436,6 @@ public sealed class KasaOutboxForwarder : BackgroundService
             }
         ],
     };
-
-    private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
-    {
-        await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        using var reader = new StreamReader(stream, leaveOpen: true);
-        var buffer = new char[512];
-        var read = await reader.ReadAsync(buffer, ct).ConfigureAwait(false);
-        return new string(buffer, 0, read);
-    }
 
     private sealed class KasaBatchResponse
     {

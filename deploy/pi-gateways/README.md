@@ -89,10 +89,10 @@ To verify deployed endpoints after rollout:
 
 ## Current telemetry status
 
-- Davis supports OTLP export, but the Pi-reachable collector endpoint is not resolved yet. Leave `OTEL_COLLECTOR_ENDPOINT` blank for the first Pi rollout.
-- JK BMS supports OTLP export with the same conditional endpoint wiring used by Davis. Leave `OTEL_COLLECTOR_ENDPOINT` blank until the Pi should emit to a reachable collector.
-- SolarAssistant supports local gateway deployment and shared-outbox forwarding; OTEL endpoint use remains deployment-specific.
-- TP-Link/Kasa supports local polling, local UI, and shared-outbox forwarding for energy/inventory payloads. OTEL endpoint use remains deployment-specific.
+- All gateway hosts emit compact structured logs to stdout and conditionally export logs, traces, and metrics to the shared collector.
+- The collector is Pi-reachable at `http://192.168.1.238:4318` using `http/protobuf` only when the observability stack sets `HVO_OBSERVABILITY_BIND_ADDRESS=192.168.1.238`; verify the resolved bind and connectivity before configuring each stack's `OTEL_COLLECTOR_ENDPOINT` value.
+- Use `docker logs <container>` for short-term local diagnostics and Grafana/Loki for centralized logs. Gateway applications do not create `/app/logs` or manage local log files.
+- SolarAssistant and TP-Link/Kasa retain their independent local polling, diagnostics, and shared-outbox forwarding behavior when OTLP is unavailable.
 
 ## TP-Link/Kasa deployment notes
 

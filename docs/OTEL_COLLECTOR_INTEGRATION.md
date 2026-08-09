@@ -59,37 +59,44 @@ providers so application-specific telemetry is not omitted. The existing HVO
 services use the `HVO.Enterprise.Telemetry` helpers and add their custom meter
 names through that configuration.
 
-## Serilog OTLP logs
+## Gateway logs
 
-The Serilog OTLP sink needs the logs signal path explicitly when configured with
-HTTP/Protobuf:
+Gateway hosts use `HVO.Edge.Hosting` and `UseHvoGatewayLogging(...)` rather than
+registering Serilog sinks independently:
 
 ```csharp
-var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
-
-if (!string.IsNullOrWhiteSpace(otlpEndpoint))
-{
-    loggerConfig.WriteTo.OpenTelemetry(options =>
-    {
-        options.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
-        options.Protocol = OtlpProtocol.HttpProtobuf;
-    });
-}
+builder.Host.UseHvoGatewayLogging(new GatewayLogIdentity(
+    "hvo-example",
+    "example",
+    "device-type"));
 ```
 
-Do not append `/v1/logs` to `OTEL_EXPORTER_OTLP_ENDPOINT`; it must remain the
-base endpoint for the OpenTelemetry SDK trace and metric exporters.
+The shared bootstrap writes compact structured JSON to stdout and conditionally
+exports logs over OTLP. It appends `/v1/logs` to the generic base endpoint for
+HTTP/Protobuf without changing the base value used by traces and metrics. Set
+`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` only when logs require a complete,
+signal-specific endpoint. OTLP log export is disabled by default in the
+`Testing` environment.
+
+Gateway applications do not create local `.log` files or `/app/logs`. Docker
+stdout/stderr is the authoritative short-term local log source (`docker logs`),
+and Loki is the authoritative central destination queried through Grafana.
+Docker log rotation, central retention, and outage buffering are operations
+settings rather than application file sinks.
+
+Every gateway event includes `service.name`, `service.version`,
+`service.instance.id`, `deployment.environment.name`, `host.name`,
+`hvo.gateway.id`, and `hvo.gateway.type`. A host also supplies
+`hvo.source.id` and `hvo.device.id` when one stable source or device applies.
+Activity-backed events include trace and span identifiers. Credentials and
+other sensitive named properties are redacted, and response bodies are not
+written to normal gateway logs.
 
 ## Collector routing
 
-The collector enriches all received telemetry with:
-
-```text
-deployment.environment = hvo-production
-service.namespace      = haulapai-valley-observatory
-```
-
-It routes telemetry as follows:
+Applications provide their resource identity before export. The checked-in
+collector batches and routes telemetry; it does not add deployment or service
+namespace attributes. It routes telemetry as follows:
 
 | Signal | Destination |
 | --- | --- |

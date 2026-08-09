@@ -73,7 +73,7 @@ public sealed class PowerApiForwarder : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("SmartShunt PowerApiForwarder starting. Endpoint: {Endpoint}", _options.ApiEndpoint);
+        _logger.LogInformation("SmartShunt PowerApiForwarder starting. Remote forwarding is configured.");
         var lastCompactionAt = DateTime.MinValue;
 
         while (!stoppingToken.IsCancellationRequested)
@@ -168,7 +168,7 @@ public sealed class PowerApiForwarder : BackgroundService
                 }
                 else
                 {
-                    var error = $"HTTP {(int)response.StatusCode}: {await ReadBoundedBodyAsync(response, ct)}";
+                    var error = $"HTTP {(int)response.StatusCode}";
                     foreach (var record in ready.Select(x => x.Record))
                     {
                         if ((int)response.StatusCode is 400 or 401 or 403 or 404)
@@ -293,15 +293,6 @@ public sealed class PowerApiForwarder : BackgroundService
         _lastError = null;
         Volatile.Write(ref _lastSentAtTicks, sentAt.Ticks);
         return sentCount;
-    }
-
-    private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
-    {
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var reader = new StreamReader(stream, leaveOpen: true);
-        var buffer = new char[512];
-        var read = await reader.ReadAsync(buffer, ct);
-        return new string(buffer, 0, read);
     }
 
     private sealed class PowerBatchResponse

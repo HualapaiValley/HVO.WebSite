@@ -46,23 +46,13 @@ public sealed class SolarAssistantRestClient : ISolarAssistantClient
         using var response = await client.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
         {
-            var body = await ReadBoundedBodyAsync(response, ct);
             _logger.LogWarning(
-                "SolarAssistant REST returned HTTP {StatusCode} for metrics request. Response: {Body}",
-                (int)response.StatusCode,
-                body);
+                "SolarAssistant REST returned HTTP {StatusCode} for metrics request",
+                (int)response.StatusCode);
         }
 
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<List<SolarAssistantMetric>>(cancellationToken: ct) ?? [];
     }
 
-    private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage response, CancellationToken ct)
-    {
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var reader = new StreamReader(stream, leaveOpen: true);
-        var buffer = new char[512];
-        var read = await reader.ReadAsync(buffer, ct);
-        return new string(buffer, 0, read);
-    }
 }

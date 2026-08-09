@@ -8,8 +8,10 @@ COPY ["Directory.Build.props", "."]
 COPY ["Directory.Packages.props", "."]
 COPY ["NuGet.config", "."]
 COPY ["src/HVO.WebSite.Themes/packages.lock.json", "src/HVO.WebSite.Themes/"]
+COPY ["src/HVO.Edge.Hosting/packages.lock.json", "src/HVO.Edge.Hosting/"]
 COPY ["src/HVO.Hardware.VictronSmartShunt/packages.lock.json", "src/HVO.Hardware.VictronSmartShunt/"]
 COPY ["src/HVO.WebSite.Themes/HVO.WebSite.Themes.csproj", "src/HVO.WebSite.Themes/"]
+COPY ["src/HVO.Edge.Hosting/HVO.Edge.Hosting.csproj", "src/HVO.Edge.Hosting/"]
 COPY ["src/HVO.Hardware.VictronSmartShunt/HVO.Hardware.VictronSmartShunt.csproj", "src/HVO.Hardware.VictronSmartShunt/"]
 COPY . .
 RUN dotnet restore "src/HVO.Hardware.VictronSmartShunt/HVO.Hardware.VictronSmartShunt.csproj" --locked-mode

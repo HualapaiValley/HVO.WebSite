@@ -82,6 +82,7 @@ public class OutboxForwarderTests
         record.Status.Should().Be(EdgeOutboxStatus.Failed);
         record.FailureKind.Should().Be(EdgeOutboxFailureKind.RetryExhausted);
         record.LastError.Should().Contain("HTTP 503");
+        record.LastError.Should().NotContain("cloud server down");
     }
 
     [TestMethod]

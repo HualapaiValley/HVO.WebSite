@@ -109,6 +109,7 @@ public sealed class KasaOutboxForwarderTests
         record.FailureKind.Should().Be(EdgeOutboxFailureKind.Permanent);
         record.AttemptCount.Should().Be(1);
         record.LastError.Should().Contain("HTTP 403");
+        record.LastError.Should().NotContain("forbidden");
     }
 
     private static KasaOutboxForwarder CreateForwarder(OutboxFixture fixture, RecordingHandler handler)
