@@ -32,6 +32,7 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Json;
 using HVO.WebSite.v9.Telemetry;
+using HVO.WebSite.v9.Configuration;
 using OpenTelemetry.Metrics;
 namespace HVO.WebSite.v9
 {
@@ -53,12 +54,17 @@ namespace HVO.WebSite.v9
             //   1. Environment vars (AZURE_CLIENT_ID / SECRET / TENANT_ID) — devcontainer SP
             //   2. Azure CLI (az login) — local bare-metal dev
             //   3. Managed Identity — when deployed to Azure
+            var hostDatabaseConnection = builder.Configuration.GetConnectionString(HostConfigurationPrecedence.DatabaseConnectionName);
             var kvUri = builder.Configuration["KeyVault:Uri"];
             if (!string.IsNullOrWhiteSpace(kvUri))
             {
                 builder.Configuration.AddAzureKeyVault(
                     new Uri(kvUri),
                     new DefaultAzureCredential());
+
+                // Host-local settings must win over legacy cloud secrets. In particular,
+                // self-hosted deployments provide the authoritative local SQL connection.
+                HostConfigurationPrecedence.Restore(builder.Configuration, hostDatabaseConnection);
             }
 
             // Emit one sanitized stdout stream; Docker bounds it and Promtail ships it once.

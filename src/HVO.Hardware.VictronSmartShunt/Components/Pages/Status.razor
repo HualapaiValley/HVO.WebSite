@@ -57,7 +57,7 @@
                     <div class="smartshunt-gauge-tile">
                         <div class="smartshunt-gauge" style="@PowerGaugeStyle">
                             <div class="smartshunt-gauge-inner">
-                                <span>Power</span>
+                                <span>Power (+ into / - out)</span>
                                 <strong>@FormatWatts(LatestSnapshot?.PowerW)</strong>
                             </div>
                         </div>
@@ -74,12 +74,16 @@
                         <strong>@FormatVolts(LatestSnapshot?.VoltageV)</strong>
                     </div>
                     <div class="smartshunt-metric-tile">
-                        <span>Current</span>
+                        <span>Current (+ into / - out)</span>
                         <strong>@CurrentDisplay</strong>
                     </div>
                     <div class="smartshunt-metric-tile">
-                        <span>Power</span>
+                        <span>Power (+ into / - out)</span>
                         <strong>@FormatWatts(LatestSnapshot?.PowerW)</strong>
+                    </div>
+                    <div class="smartshunt-metric-tile">
+                        <span>Battery flow</span>
+                        <strong>@BatteryFlowDisplay</strong>
                     </div>
                     <div class="smartshunt-metric-tile">
                         <span>Consumed Ah</span>

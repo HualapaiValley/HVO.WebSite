@@ -26,8 +26,8 @@ public sealed class SmartShuntPublicProtocolTests
         sample.RecordedAtUtc.Should().Be(recordedAt);
         sample.StateOfChargePercent.Should().Be(91.80);
         sample.VoltageV.Should().Be(53.76);
-        sample.CurrentA.Should().Be(-22.173);
-        sample.PowerW.Should().Be(-1243);
+        sample.CurrentA.Should().Be(22.173);
+        sample.PowerW.Should().Be(1243);
         sample.ConsumedAh.Should().Be(-168.0);
         sample.StarterVoltageV.Should().Be(12.34);
         sample.TemperatureC.Should().Be(26);
@@ -49,5 +49,18 @@ public sealed class SmartShuntPublicProtocolTests
         sample.StarterVoltageV.Should().BeNull();
         sample.TemperatureC.Should().BeNull();
         sample.RemainingMinutes.Should().BeNull();
+    }
+
+    [TestMethod]
+    public void DecodeSample_PreservesNegativeDischargeSigns()
+    {
+        var sample = SmartShuntPublicProtocol.DecodeSample(new Dictionary<string, byte[]>
+        {
+            ["current"] = BitConverter.GetBytes(-5_000),
+            ["power"] = BitConverter.GetBytes((short)-260),
+        }, DateTime.UtcNow);
+
+        sample.CurrentA.Should().Be(-5);
+        sample.PowerW.Should().Be(-260);
     }
 }

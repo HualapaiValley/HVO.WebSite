@@ -59,12 +59,25 @@ This table is HVO documentation metadata unless a row explicitly references a Vi
 |------|------|------|------|--------|-----------|--------------------|----------|--------|---------------|-------|
 | StateOfChargePercent | double? | % | `65970fff-...` | Read-only | Instantaneous | `ffff` | Yes | Yes | Yes | Sometimes invalid at 0; private overlay may help. |
 | VoltageV | double? | V | `6597ed8d-...` | Read-only | Instantaneous | `ff7f` | Yes | Yes | Yes | Stable. |
-| CurrentA | double? | A | `6597ed8c-...` | Read-only | Instantaneous | `ffffff7f` | Yes | Yes | Yes | Decode negates signed thousandths. |
-| PowerW | double? | W | `6597ed8e-...` | Read-only | Instantaneous | `ff7f` | Yes | Yes | Yes | Decode negates signed int16. |
+| CurrentA | double? | A | `6597ed8c-...` | Read-only | Instantaneous | `ffffff7f` | Yes | Yes | Yes | Signed thousandths; positive is charge into the battery and negative is discharge. |
+| PowerW | double? | W | `6597ed8e-...` | Read-only | Instantaneous | `ff7f` | Yes | Yes | Yes | Signed watts; positive is charge into the battery and negative is discharge. |
 | ConsumedAh | double? | Ah | `6597eeff-...` | Read-only | Cumulative/session | `ffffff7f` | Yes | Local-only currently | Not central | Stable locally. |
 | StarterVoltageV | double? | V | `6597ed7d-...` | Read-only | Instantaneous | `ff7f` | Yes if present | Local-only currently | Not central | Often unavailable on this device. |
 | TemperatureC | double? | deg C | `65970383-...` | Read-only | Instantaneous | `ff7f` | Yes if present | Local-only currently | Not central | Often unavailable. |
 | RemainingMinutes | double? | minutes | `65970ffe-...` | Read-only | Estimate | `ffff` | Yes if present | Local-only currently | Not central | Often unavailable. |
+
+## Sign-Correction Rollout
+
+The source-native SmartShunt convention is positive charge into the battery and negative discharge. The shared composed power-system contract intentionally converts this to positive discharge and negative charge.
+
+When deploying the corrected decoder from issue #302:
+
+1. Stop the SmartShunt gateway before changing retained data or deploying the new image.
+2. Archive the complete Pi `smartshunt_smartshunt-outbox` database with `scripts/outbox-maintenance.sh`; do not replay old opposite-sign payloads.
+3. Back up the self-hosted SQL Server database and remove existing `v9.PowerReading` rows where `SourceSystem = 'victron-smartshunt'`.
+4. Deploy the website first so its host-local SQL connection remains authoritative over the legacy Key Vault setting.
+5. Deploy and start the corrected SmartShunt gateway, then verify source `+` charging becomes composed `-` charging exactly once.
+6. Leave Azure SQL history untouched; it is not part of the local production data path.
 
 ## Private Enrichment Fields
 

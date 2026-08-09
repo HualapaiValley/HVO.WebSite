@@ -166,8 +166,8 @@ Avoid:
   - writing little-endian `20000` (`204e`) to `6597ffff-4bda-4c1e-af4b-551c4cf74769` succeeded as keepalive
   - direct reads succeeded for the main public telemetry characteristics:
     - `6597ed8d` -> `0015` -> `53.76 V`
-    - `6597ed8c` -> `9d5a0000` -> `-22.173 A`
-    - `6597ed8e` -> `db04` -> `-1243 W`
+    - `6597ed8c` -> `9d5a0000` -> `+23.197 A`
+    - `6597ed8e` -> `db04` -> `+1243 W`
     - `6597eeff` -> `70f9ffff` -> `-168.0 Ah`
     - `65970fff` -> `dc23` -> `91.80 %`
 - Without keepalive, the paired public read session still dropped after a couple of reads; keepalive remains part of the viable public-GATT session model

@@ -102,6 +102,15 @@ public sealed class HvoFormatTests
     }
 
     [TestMethod]
+    public void SignedElectricalValues_IncludeExplicitDirectionSign()
+    {
+        HvoFormat.SignedCurrent(2.75).Should().Be("+2.8 A");
+        HvoFormat.SignedCurrent(-2.75).Should().Be("-2.8 A");
+        HvoFormat.SignedPower(350.8).Should().Be("+351 W");
+        HvoFormat.SignedPower(-350.8).Should().Be("-351 W");
+    }
+
+    [TestMethod]
     public void Power_Null_ReturnsDash()
     {
         HvoFormat.Power(null).Should().Be("--");

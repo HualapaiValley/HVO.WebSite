@@ -50,8 +50,14 @@ public static class HvoFormat
     public static string Current(double? amps)
         => amps is null ? "--" : $"{amps.Value.ToString("F1", CultureInfo.InvariantCulture)} A";
 
+    public static string SignedCurrent(double? amps)
+        => amps is null ? "--" : $"{amps.Value.ToString("+0.0;-0.0;0.0", CultureInfo.InvariantCulture)} A";
+
     public static string Power(double? watts)
         => watts is null ? "--" : $"{watts.Value.ToString("F0", CultureInfo.InvariantCulture)} W";
+
+    public static string SignedPower(double? watts)
+        => watts is null ? "--" : $"{watts.Value.ToString("+0;-0;0", CultureInfo.InvariantCulture)} W";
 
     public static string EnergyAh(double? ah)
         => ah is null ? "--" : $"{ah.Value.ToString("F1", CultureInfo.InvariantCulture)} Ah";
