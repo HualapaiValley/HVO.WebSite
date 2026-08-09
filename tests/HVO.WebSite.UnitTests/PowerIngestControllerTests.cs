@@ -59,7 +59,7 @@ public sealed class PowerIngestControllerTests
     [TestMethod]
     public async Task IngestReadings_EmptyBatch_Returns400()
     {
-        var result = await _ctrl.IngestReadings(ToJsonElement(new List<PowerReadingIngestRequest> {  }), CancellationToken.None);
+        var result = await _ctrl.IngestReadings(ToJsonElement(new List<PowerReadingPayload>()), CancellationToken.None);
 
         result.Result.Should().BeOfType<BadRequestObjectResult>();
     }
@@ -174,7 +174,7 @@ public sealed class PowerIngestControllerTests
             deviceId: " total ",
             inverterMode: " online ");
 
-        await _ctrl.IngestReadings(ToJsonElement(new List<PowerReadingIngestRequest> { request }), CancellationToken.None);
+        await _ctrl.IngestReadings(ToJsonElement(new List<PowerReadingPayload> { request }), CancellationToken.None);
 
         var row = _db.PowerReadings.Single();
         row.SourceId.Should().Be("solarassistant-total");
@@ -603,7 +603,7 @@ public sealed class PowerIngestControllerTests
         return ctrl;
     }
 
-    private static PowerReadingIngestRequest MakeRequest(
+    private static PowerReadingPayload MakeRequest(
         string? recordedAt,
         double pvPowerW,
         string sourceId = "solarassistant-total",

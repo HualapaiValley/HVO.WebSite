@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Gateway.SolarAssistant.Configuration;
 
 namespace HVO.Gateway.SolarAssistant.SolarAssistant;

@@ -27,10 +27,10 @@ public class BmsReading
     /// <summary>Total pack voltage (mV).</summary>
     public long PackVoltageMv { get; set; }
 
-    /// <summary>Pack current (mA). Positive = discharging, negative = charging.</summary>
+    /// <summary>Pack current (mA). JK source convention: positive = charging, negative = discharging.</summary>
     public int CurrentMa { get; set; }
 
-    /// <summary>Instantaneous power (W). Positive = discharging, negative = charging.</summary>
+    /// <summary>Instantaneous power (W). JK source convention: positive = charging, negative = discharging.</summary>
     public double PowerWatts { get; set; }
 
     // ── State ─────────────────────────────────────────────────────────────────

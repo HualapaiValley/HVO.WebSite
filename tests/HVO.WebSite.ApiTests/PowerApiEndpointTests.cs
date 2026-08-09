@@ -152,6 +152,27 @@ public sealed class PowerApiEndpointTests
     }
 
     [TestMethod]
+    public async Task IngestReadings_AcceptsPinnedLegacyV1JsonShape()
+    {
+        var sourceId = $"legacy-power-api-test-{Guid.NewGuid():N}";
+        var json = $$"""
+            [{"sourceId":"{{sourceId}}","sourceSystem":"solarassistant","deviceId":"total","recordedAtUtc":"2026-05-23T08:05:00Z","pvPowerW":1200,"loadPowerW":900,"gridPowerW":-50,"batteryPowerW":-250,"systemPowerW":1000,"batteryStateOfChargePercent":82,"batteryVoltageV":53.2,"batteryCurrentA":-4.7,"batteryCapacityKwh":30.72,"gridVoltageV":240,"gridFrequencyHz":60,"outputVoltageV":120,"outputFrequencyHz":60,"loadPercentage":23,"inverterMode":"Battery","outputSourcePriority":"SBU","chargerSourcePriority":"Solar first"}]
+            """;
+        _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+
+        using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        var response = await _client.PostAsync("/api/v1/power/readings", content);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HvoV9DbContext>();
+        var row = db.PowerReadings.Single(reading => reading.SourceId == sourceId);
+        row.BatteryPowerW.Should().Be(-250);
+        row.BatteryCurrentA.Should().Be(-4.7);
+        row.OutputSourcePriority.Should().Be("SBU");
+    }
+
+    [TestMethod]
     public async Task IngestReadings_DeadLettersInvalidRecordsAndPersistsValidRecords()
     {
         var sourceId = $"power-api-test-{Guid.NewGuid():N}";
@@ -343,7 +364,7 @@ public sealed class PowerApiEndpointTests
         forbiddenRead.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
-    private static PowerReadingIngestRequest ValidPayload(
+    private static PowerReadingPayload ValidPayload(
         string sourceId,
         string recordedAt = "2026-05-23T07:00:00Z",
         double? batteryStateOfChargePercent = 82) => new()

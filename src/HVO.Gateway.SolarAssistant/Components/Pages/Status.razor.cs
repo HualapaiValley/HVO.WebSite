@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;

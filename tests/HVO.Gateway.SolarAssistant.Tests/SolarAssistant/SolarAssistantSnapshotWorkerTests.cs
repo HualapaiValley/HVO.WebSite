@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.Outbox;

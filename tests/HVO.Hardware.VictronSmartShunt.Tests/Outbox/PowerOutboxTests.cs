@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using FluentAssertions;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using HVO.Hardware.VictronSmartShunt.Configuration;
 using HVO.Hardware.VictronSmartShunt.Outbox;
@@ -82,6 +83,50 @@ public sealed class PowerOutboxTests
         record.FailureKind.Should().Be(EdgeOutboxFailureKind.Permanent);
         record.LastError.Should().Be("Outbox payload JSON is invalid.");
         forwarder.FailedCount.Should().Be(1);
+    }
+
+    [TestMethod]
+    public async Task SweepAsync_ForwardsPinnedLegacyStoredPayload()
+    {
+        await using var fixture = await OutboxFixture.CreateAsync();
+        const string json = """
+            {"sourceId":"smartshunt-main","sourceSystem":"victron-smartshunt","deviceId":"main","recordedAtUtc":"2026-06-01T12:00:00Z","pvPowerW":null,"loadPowerW":null,"gridPowerW":null,"batteryPowerW":-667.75,"systemPowerW":-667.75,"batteryStateOfChargePercent":82.4,"batteryVoltageV":53.42,"batteryCurrentA":-12.5,"batteryCapacityKwh":14.3,"gridVoltageV":null,"gridFrequencyHz":null,"outputVoltageV":null,"outputFrequencyHz":null,"loadPercentage":null,"inverterMode":null,"outputSourcePriority":null,"chargerSourcePriority":null}
+            """;
+        fixture.Db.OutboxRecords.Add(new EdgeOutboxRecord
+        {
+            SourceId = "smartshunt-main",
+            DeviceId = "main",
+            RecordedAtUtc = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc),
+            PayloadType = SmartShuntOutboxPayloadTypes.Reading,
+            PayloadVersion = SmartShuntOutboxPayloadTypes.ReadingVersion,
+            PayloadJson = json,
+        });
+        await fixture.Db.SaveChangesAsync();
+        var calls = 0;
+        var forwarder = new PowerApiForwarder(
+            fixture.ScopeFactory,
+            new StubHttpClientFactory(new HttpClient(new StubHandler(_ =>
+            {
+                calls++;
+                return new HttpResponseMessage(HttpStatusCode.Created)
+                {
+                    Content = new StringContent("{\"inserted\":1,\"skipped\":0,\"failed\":[]}"),
+                };
+            }))),
+            Options.Create(new OutboxOptions
+            {
+                ApiEndpoint = "https://example.test/api/v1/power/readings",
+                ApiKey = "test-api-key",
+                BatchSize = 10,
+            }),
+            new RuntimeOutboxSettings(), NullLogger<PowerApiForwarder>.Instance,
+            new SmartShuntTelemetry());
+
+        await forwarder.SweepAsync(CancellationToken.None);
+
+        calls.Should().Be(1);
+        fixture.Db.ChangeTracker.Clear();
+        fixture.Db.OutboxRecords.Single().Status.Should().Be(EdgeOutboxStatus.Sent);
     }
 
     [TestMethod]

@@ -1,6 +1,7 @@
 using System.Reflection;
 using Bunit;
 using FluentAssertions;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using HVO.Gateway.SolarAssistant.Components.Pages;
 using HVO.Gateway.SolarAssistant.Configuration;

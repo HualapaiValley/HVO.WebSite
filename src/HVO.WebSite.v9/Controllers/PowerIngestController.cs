@@ -114,13 +114,13 @@ public class PowerIngestController : ControllerBase
             return ValidationProblem(detail: $"Batch size {rawPayloads.Count} exceeds the maximum of {MaxBatchSize} records. Split the batch or reduce the outbox batch size on the gateway.");
 
         // Deserialize each (possibly unwrapped) payload
-        var requests = new List<PowerReadingIngestRequest>();
+        var requests = new List<PowerReadingPayload>();
         var deserFailures = new List<PowerReadingBatchFailure>();
         foreach (var (payload, index) in rawPayloads.Select((p, i) => (p, i)))
         {
             try
             {
-                var request = payload.Deserialize<PowerReadingIngestRequest>(JsonOptions);
+                var request = payload.Deserialize<PowerReadingPayload>(JsonOptions);
                 if (request is not null)
                     requests.Add(request);
                 else

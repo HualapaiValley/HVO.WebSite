@@ -4,8 +4,9 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HVO.DataModels.Models.V9;
 
 /// <summary>
-/// Normalized power-system snapshot from an edge source such as SolarAssistant.
+/// Unit-normalized power-system snapshot from an edge source such as SolarAssistant.
 /// One row represents one source snapshot at one source timestamp.
+/// Electrical signs remain source-native for legacy compatibility.
 /// </summary>
 [Table("PowerReading", Schema = "v9")]
 public class PowerReading
@@ -34,12 +35,13 @@ public class PowerReading
     /// <summary>Grid power in W. Negative values represent export where the source uses that convention.</summary>
     public double? GridPowerW { get; set; }
 
-    /// <summary>Battery power in W. Negative values represent charging where the source uses that convention.</summary>
+    /// <summary>Source-native battery power in W; use source provenance when interpreting its sign.</summary>
     public double? BatteryPowerW { get; set; }
 
     public double? SystemPowerW { get; set; }
     public double? BatteryStateOfChargePercent { get; set; }
     public double? BatteryVoltageV { get; set; }
+    /// <summary>Source-native battery current in A; use source provenance when interpreting its sign.</summary>
     public double? BatteryCurrentA { get; set; }
     public double? BatteryCapacityKwh { get; set; }
     public double? GridVoltageV { get; set; }

@@ -65,4 +65,33 @@ public sealed class PowerSystemSnapshotTests
         result.BatteryBanks![0].BankId.Should().Be("bank-1a");
         result.BatteryBanks[0].DeltaCellVoltageV!.Value.Should().Be(0.003);
     }
+
+    [TestMethod]
+    public void PowerSystemSnapshot_AddsObservationsWithoutChangingLegacyShapeWhenAbsent()
+    {
+        var observedAtUtc = new DateTime(2026, 8, 9, 5, 45, 0, DateTimeKind.Utc);
+        var legacySnapshot = new PowerSystemSnapshot(observedAtUtc);
+        var observation = new PowerBatteryObservation(
+            SourceId: "eg4-6500ex-east",
+            DeviceId: "inverter-east",
+            Source: PowerMetricSource.Eg46500Ex,
+            Role: PowerMeasurementRole.InverterBranch,
+            MeasurementPoint: "inverter-east-battery",
+            ObservedAtUtc: observedAtUtc,
+            VoltageV: 53.2,
+            CurrentA: 12.5,
+            PowerW: 665,
+            StateOfChargePercent: 84);
+        var snapshot = legacySnapshot with { BatteryObservations = [observation] };
+
+        var legacyJson = JsonSerializer.Serialize(legacySnapshot, WebJsonOptions);
+        var json = JsonSerializer.Serialize(snapshot, WebJsonOptions);
+        var result = JsonSerializer.Deserialize<PowerSystemSnapshot>(json, WebJsonOptions);
+
+        legacyJson.Should().NotContain("batteryObservations");
+        json.Should().Contain("\"batteryObservations\"");
+        result!.BatteryObservations.Should().ContainSingle();
+        result.BatteryObservations![0].Role.Should().Be(PowerMeasurementRole.InverterBranch);
+        result.BatteryObservations[0].StateOfChargePercent.Should().Be(84);
+    }
 }

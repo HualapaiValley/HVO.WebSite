@@ -85,6 +85,19 @@ public sealed class PowerApiForwarderTests
     }
 
     [TestMethod]
+    public async Task SweepAsync_ForwardsPinnedLegacyStoredPayload()
+    {
+        await SeedLegacyRecordAsync();
+
+        await _provider.GetRequiredService<PowerApiForwarder>().SweepAsync(CancellationToken.None);
+
+        using var scope = _provider.CreateScope();
+        var row = scope.ServiceProvider.GetRequiredService<OutboxDbContext>().OutboxRecords.Single();
+        row.Status.Should().Be(EdgeOutboxStatus.Sent);
+        _handler.Requests.Should().ContainSingle();
+    }
+
+    [TestMethod]
     public async Task SweepAsync_ValidationFailure_MarksRecordFailed()
     {
         _handler.Responder = _ => new HttpResponseMessage(HttpStatusCode.Created)
@@ -297,6 +310,25 @@ public sealed class PowerApiForwarderTests
             PayloadVersion = PowerOutboxPayloadTypes.PowerReadingVersion,
             RecordedAtUtc = payload.RecordedAtUtc,
             PayloadJson = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+        });
+        await db.SaveChangesAsync();
+    }
+
+    private async Task SeedLegacyRecordAsync()
+    {
+        const string json = """
+            {"sourceId":"solarassistant-total","sourceSystem":"solarassistant","deviceId":"total","recordedAtUtc":"2026-05-23T11:02:00Z","pvPowerW":1200,"loadPowerW":900,"gridPowerW":-50,"batteryPowerW":-250,"systemPowerW":1000,"batteryStateOfChargePercent":82,"batteryVoltageV":53.2,"batteryCurrentA":-4.7,"batteryCapacityKwh":30.72,"gridVoltageV":240,"gridFrequencyHz":60,"outputVoltageV":120,"outputFrequencyHz":60,"loadPercentage":23,"inverterMode":"Battery","outputSourcePriority":"SBU","chargerSourcePriority":"Solar first"}
+            """;
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
+        db.OutboxRecords.Add(new EdgeOutboxRecord
+        {
+            SourceId = "solarassistant-total",
+            DeviceId = "total",
+            PayloadType = PowerOutboxPayloadTypes.PowerReading,
+            PayloadVersion = PowerOutboxPayloadTypes.PowerReadingVersion,
+            RecordedAtUtc = new DateTime(2026, 5, 23, 11, 2, 0, DateTimeKind.Utc),
+            PayloadJson = json,
         });
         await db.SaveChangesAsync();
     }

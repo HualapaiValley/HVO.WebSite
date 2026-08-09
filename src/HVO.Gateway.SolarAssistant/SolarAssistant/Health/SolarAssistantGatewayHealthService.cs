@@ -3,6 +3,7 @@ using HVO.Gateway.SolarAssistant.Outbox;
 using HVO.Gateway.SolarAssistant.SolarAssistant.Mqtt;
 using HVO.Gateway.SolarAssistant.Workers;
 using HVO.Edge.Contracts;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Outbox;
 using Microsoft.Extensions.Options;
 
