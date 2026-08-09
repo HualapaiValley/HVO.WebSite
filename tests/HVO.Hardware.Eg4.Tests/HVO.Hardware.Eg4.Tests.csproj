@@ -21,4 +21,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\HVO.Hardware.Eg4\HVO.Hardware.Eg4.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Fixtures/**/*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

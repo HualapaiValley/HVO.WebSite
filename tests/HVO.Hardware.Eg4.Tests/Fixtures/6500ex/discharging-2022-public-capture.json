@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "captureKind": "reconstructed-from-public-payload",
+  "sourceUrl": "https://github.com/jblance/mpp-solar/discussions/284#discussioncomment-4489705",
+  "model": "EG4 6500EX-48",
+  "mainFirmware": "00079.02",
+  "secondaryFirmware": "00061.00",
+  "modelName": "MKS2-6500",
+  "generalModelName": "045",
+  "interface": "RS232/COM",
+  "serial": "2400 8N1",
+  "state": "discharging",
+  "request": "QPIGS",
+  "responsePayload": "(000.0 00.0 119.7 60.0 0855 0703 013 367 52.50 000 083 0033 00.0 000.0 00.00 00016 00010000 00 00 00000 010",
+  "expected": {
+    "voltageV": 52.5,
+    "chargingCurrentA": 0,
+    "dischargingCurrentA": 16,
+    "reportedStateOfChargePercent": 83,
+    "derivedCurrentA": 16,
+    "derivedPowerW": 840.0
+  }
+}
