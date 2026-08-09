@@ -30,13 +30,93 @@
 
     <div class="power-status-card__footer">
         <span>Battery SOC <strong>@_viewModel.BatteryStateOfCharge</strong></span>
-        <span>Battery source <strong>@_viewModel.BatterySource</strong></span>
+        <span>Battery electrical source <strong>@_viewModel.BatterySource</strong></span>
+        <span>Battery SOC source <strong>@_viewModel.BatterySocSource</strong></span>
         <span>Battery banks <strong>@_viewModel.BatteryBankCount</strong></span>
         <span>Bank freshness <strong>@_viewModel.BatteryFreshnessState</strong></span>
         <span>BMS alarms <strong>@_viewModel.BatteryAlarmState</strong></span>
         <span>Mode <strong>@_viewModel.InverterMode</strong></span>
         <span>@_viewModel.ObservedAt</span>
     </div>
+
+    <section class="power-inventory" aria-labelledby="battery-source-comparison-heading">
+        <div class="power-bank__header">
+            <h3 id="battery-source-comparison-heading">Battery Source Comparison</h3>
+            <span>@_viewModel.BatteryObservations.Count observation(s)</span>
+        </div>
+
+        @if (_viewModel.BatteryObservations.Count == 0)
+        {
+            <div class="hvo-state-empty" role="status">No source-level battery observations are available. The preferred summary remains available when legacy telemetry supplies it.</div>
+        }
+        else
+        {
+            <div class="hvo-table-wrap">
+                <table class="hvo-table" aria-label="Battery source observations">
+                    <caption class="hvo-visually-hidden">Battery measurements by source, device, and physical role</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Source / device</th>
+                            <th scope="col">Physical role</th>
+                            <th scope="col">Voltage</th>
+                            <th scope="col">Current / flow</th>
+                            <th scope="col">Power</th>
+                            <th scope="col">SOC</th>
+                            <th scope="col">Freshness</th>
+                            <th scope="col">Selection</th>
+                            <th scope="col">Provenance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var observation in _viewModel.BatteryObservations)
+                        {
+                            <tr data-source-id="@observation.SourceId" data-role="@observation.Role">
+                                <td>
+                                    <strong>@observation.Source</strong>
+                                    <div class="hvo-mono">@observation.SourceId</div>
+                                    <div>@observation.DeviceId</div>
+                                </td>
+                                <td>
+                                    <strong>@observation.Role</strong>
+                                    <div>@observation.MeasurementPoint</div>
+                                </td>
+                                <td class="hvo-mono">@observation.Voltage</td>
+                                <td>
+                                    <div class="hvo-mono">@observation.Current</div>
+                                    <div>@observation.Flow</div>
+                                </td>
+                                <td class="hvo-mono">@observation.Power</td>
+                                <td class="hvo-mono">@observation.StateOfCharge</td>
+                                <td><span class="hvo-chip @FreshnessChipClass(observation.FreshnessStatus)">@observation.Freshness</span></td>
+                                <td>
+                                    <div class="hvo-chip-row">
+                                        @foreach (var label in observation.SelectionLabels)
+                                        {
+                                            <span class="hvo-chip @SelectionChipClass(label)">@label</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="hvo-chip">@observation.Provenance</span>
+                                    <div>@observation.ProvenanceDetail</div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (_viewModel.BatteryObservationNotes.Count > 0)
+        {
+            <div class="hvo-stack" aria-label="Battery composition notes">
+                @foreach (var note in _viewModel.BatteryObservationNotes)
+                {
+                    <div class="hvo-callout hvo-callout-info">@note</div>
+                }
+            </div>
+        }
+    </section>
 
     @if (_viewModel.BatteryBanks.Count > 0)
     {
@@ -51,8 +131,14 @@
                     <dl>
                         <div><dt>SOC</dt><dd>@bank.StateOfCharge</dd></div>
                         <div><dt>Voltage</dt><dd>@bank.Voltage</dd></div>
-                        <div><dt>Current</dt><dd>@bank.Current</dd></div>
+                        <div><dt>Current (source-native)</dt><dd>@bank.Current</dd></div>
+                        <div><dt>Power (source-native)</dt><dd>@bank.Power</dd></div>
+                        <div><dt>Health</dt><dd>@bank.StateOfHealth</dd></div>
+                        <div><dt>Cell range</dt><dd>@bank.CellRange</dd></div>
+                        <div><dt>Cell average</dt><dd>@bank.AverageCellVoltage</dd></div>
                         <div><dt>Cell delta</dt><dd>@bank.DeltaCellVoltage</dd></div>
+                        <div><dt>Temperatures</dt><dd>@bank.Temperatures</dd></div>
+                        <div><dt>Balancing</dt><dd>@bank.Balancing</dd></div>
                         <div><dt>Seen</dt><dd>@bank.Seen</dd></div>
                     </dl>
                 </article>

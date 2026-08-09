@@ -99,7 +99,42 @@ public sealed class MainSitePlaywrightTests
         await AssertNoBlazorErrorAsync(page);
     }
 
-    private static async Task<(IPlaywright Playwright, IBrowser Browser, IPage Page)> CreatePageAsync()
+    [TestMethod]
+    [TestCategory("Live")]
+    public async Task MainSite_AuthorizedBatteryComparison_ShouldRemainContainedOnDesktopAndMobile()
+    {
+        var apiKey = Environment.GetEnvironmentVariable("HVO_WEBSITE_POWER_READ_API_KEY");
+        if (string.IsNullOrWhiteSpace(apiKey))
+            Assert.Inconclusive("Set HVO_WEBSITE_POWER_READ_API_KEY to run the authorized battery comparison test.");
+
+        var session = await CreatePageAsync(1440, 900, apiKey);
+        using var playwright = session.Playwright;
+        await using var browser = session.Browser;
+        var page = session.Page;
+
+        await page.GotoAsync(BuildUrl("/"));
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Battery Source Comparison" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".power-status-card")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".hvo-table-wrap")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("table[aria-label='Battery source observations'] tbody tr").First).ToBeVisibleAsync();
+        await AssertThemedSurfaceAsync(page.Locator(".power-status-card"), "power status card");
+        await AssertNoPageOverflowAsync(page, "desktop battery comparison");
+        await AssertNoBlazorErrorAsync(page);
+
+        await page.SetViewportSizeAsync(390, 844);
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Battery Source Comparison" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".hvo-table-wrap")).ToBeVisibleAsync();
+        await AssertNoPageOverflowAsync(page, "mobile battery comparison");
+        await AssertNoBlazorErrorAsync(page);
+    }
+
+    private static Task<(IPlaywright Playwright, IBrowser Browser, IPage Page)> CreatePageAsync()
+        => CreatePageAsync(1440, 900);
+
+    private static async Task<(IPlaywright Playwright, IBrowser Browser, IPage Page)> CreatePageAsync(
+        int width,
+        int height,
+        string? apiKey = null)
     {
         var baseUrl = Environment.GetEnvironmentVariable("HVO_WEBSITE_BASE_URL");
         if (string.IsNullOrWhiteSpace(baseUrl))
@@ -113,7 +148,10 @@ public sealed class MainSitePlaywrightTests
             var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
             var page = await browser.NewPageAsync(new BrowserNewPageOptions
             {
-                ViewportSize = new ViewportSize { Width = 1440, Height = 900 }
+                ViewportSize = new ViewportSize { Width = width, Height = height },
+                ExtraHTTPHeaders = string.IsNullOrWhiteSpace(apiKey)
+                    ? null
+                    : new Dictionary<string, string> { ["X-Api-Key"] = apiKey },
             });
             return (playwright, browser, page);
         }
@@ -137,4 +175,17 @@ public sealed class MainSitePlaywrightTests
 
     private static async Task AssertNoBlazorErrorAsync(IPage page) =>
         await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
+
+    private static async Task AssertNoPageOverflowAsync(IPage page, string label)
+    {
+        var hasOverflow = await page.EvaluateAsync<bool>(
+            "document.documentElement.scrollWidth > document.documentElement.clientWidth + 1");
+        hasOverflow.Should().BeFalse($"{label} should contain the comparison table without page-level overlap");
+    }
+
+    private static async Task AssertThemedSurfaceAsync(ILocator locator, string label)
+    {
+        var background = await locator.EvaluateAsync<string>("element => getComputedStyle(element).backgroundColor");
+        background.Should().NotBe("rgba(0, 0, 0, 0)", $"{label} should use a themed background").And.NotBe("transparent");
+    }
 }
