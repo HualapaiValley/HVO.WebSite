@@ -11,7 +11,6 @@ fail() {
 
 command -v docker >/dev/null 2>&1 || fail 'docker is required'
 command -v jq >/dev/null 2>&1 || fail 'jq is required'
-command -v rg >/dev/null 2>&1 || fail 'rg is required'
 
 # Compose interpolation needs non-secret placeholders; no service is started.
 export AZURE_KEYVAULT_URI="https://example.test/"
@@ -86,15 +85,15 @@ jq -e '
 	.services["otel-collector"].volumes | any(.target == "/var/lib/otelcol/file_storage" and .type == "bind" and .source == "/var/lib/docker/hvo-observability/otelcol" and .bind.create_host_path == false)
 	' <<<"${observability}" >/dev/null || fail 'collector storage is not a fail-closed tank-backed bind mount'
 
-if rg -q 'WriteTo\.File|CompactJsonFormatter|Path\.Combine\([^)]*,[[:space:]]*"logs"\)' "${repo_root}/src/HVO.WebSite.v9"; then
+if grep -R -E -q --include='*.cs' 'WriteTo\.File|CompactJsonFormatter|Path\.Combine\([^)]*,[[:space:]]*"logs"\)' "${repo_root}/src/HVO.WebSite.v9"; then
 	fail 'website application-owned file logging is still enabled'
 fi
 
-rg -q 'queue_size:[[:space:]]+67108864' "${repo_root}/deploy/hvo-docker/observability/config/otelcol-config.yaml" ||
+grep -E -q 'queue_size:[[:space:]]+67108864' "${repo_root}/deploy/hvo-docker/observability/config/otelcol-config.yaml" ||
 	fail 'collector log queue is not explicitly capped at 64 MiB'
-rg -q 'retention_period:[[:space:]]+720h' "${repo_root}/deploy/hvo-docker/observability/loki/loki-config.yaml" ||
+grep -E -q 'retention_period:[[:space:]]+720h' "${repo_root}/deploy/hvo-docker/observability/loki/loki-config.yaml" ||
 	fail 'Loki central retention is not explicitly set to 30 days'
-rg -q 'HvoLogRecordsDropped' "${repo_root}/deploy/hvo-docker/observability/prometheus/alerts.yml" ||
+grep -q 'HvoLogRecordsDropped' "${repo_root}/deploy/hvo-docker/observability/prometheus/alerts.yml" ||
 	fail 'required dropped-log alert is missing'
 
 printf 'Observability policy validation passed for all checked-in services.\n'

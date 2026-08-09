@@ -92,8 +92,8 @@ fi
 # Restarting while Loki is down proves the queue is disk-backed rather than process memory.
 sleep 3
 metrics="$(curl --fail --silent --show-error "http://127.0.0.1:${collector_metrics_port}/metrics")"
-capacity_line="$(rg 'otelcol_exporter_queue_capacity.*exporter="otlp_http/loki"' <<<"${metrics}" || true)"
-queue_size_line="$(rg 'otelcol_exporter_queue_size.*exporter="otlp_http/loki"' <<<"${metrics}" || true)"
+capacity_line="$(grep -E 'otelcol_exporter_queue_capacity.*exporter="otlp_http/loki"' <<<"${metrics}" || true)"
+queue_size_line="$(grep -E 'otelcol_exporter_queue_size.*exporter="otlp_http/loki"' <<<"${metrics}" || true)"
 [[ -n "${capacity_line}" && -n "${queue_size_line}" ]] || {
 	printf 'Collector did not expose the expected log queue metrics\n' >&2
 	exit 1
