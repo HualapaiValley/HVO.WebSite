@@ -131,6 +131,8 @@ public sealed class PowerApiForwarder : BackgroundService
 
         var ready = new List<(EdgeOutboxRecord Record, PowerReadingPayload Payload)>();
         var sentCount = 0;
+        Stopwatch? fwSw = null;
+        Activity? forwardActivity = null;
         try
         {
             foreach (var record in pending)
@@ -149,13 +151,14 @@ public sealed class PowerApiForwarder : BackgroundService
                 }).ToList();
                 var cloudEvents = CloudEventsForwardingHelper.WrapBatchAsCloudEvents(readyJson, "smartshunt");
 
+                forwardActivity = _telemetry.StartForwardOperation();
+                fwSw = Stopwatch.StartNew();
                 using var request = new HttpRequestMessage(HttpMethod.Post, _options.ApiEndpoint)
                 {
                     Content = JsonContent.Create(cloudEvents, options: JsonOptions),
                 };
                 request.AddTraceContext();
 
-                var fwSw = Stopwatch.StartNew();
                 using var response = await _httpFactory.CreateClient("PowerApi")
                     .SendAsync(request, ct);
 
@@ -163,8 +166,7 @@ public sealed class PowerApiForwarder : BackgroundService
                 {
                     var body = await response.Content.ReadFromJsonAsync<PowerBatchResponse>(JsonOptions, ct);
                     sentCount = MarkBatchResult(store, ready.Select(x => x.Record), body, now);
-                    _telemetry.OutboxForwardLatencyMs.Record(fwSw.Elapsed.TotalMilliseconds);
-                    _telemetry.OutboxRecordsForwarded.Add(sentCount);
+                    _telemetry.RecordForwardBatch(sentCount, ready.Count - sentCount, fwSw.Elapsed.TotalSeconds, forwardActivity);
                 }
                 else
                 {
@@ -177,6 +179,7 @@ public sealed class PowerApiForwarder : BackgroundService
                             store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
                     }
                     _lastError = error;
+                    _telemetry.RecordForward(ready.Count, false, fwSw.Elapsed.TotalSeconds, "http_status", forwardActivity);
                 }
             }
         }
@@ -185,6 +188,7 @@ public sealed class PowerApiForwarder : BackgroundService
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, ex.Message, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             _lastError = ex.Message;
+            _telemetry.RecordForward(ready.Count, false, fwSw?.Elapsed.TotalSeconds ?? 0, "http_request", forwardActivity);
             _logger.LogWarning(ex, "SmartShunt forward HTTP error for {Count} record(s)", ready.Count);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
@@ -193,6 +197,7 @@ public sealed class PowerApiForwarder : BackgroundService
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             _lastError = error;
+            _telemetry.RecordForward(ready.Count, false, fwSw?.Elapsed.TotalSeconds ?? 0, "timeout", forwardActivity);
             _logger.LogWarning("SmartShunt forward timed out for {Count} record(s)", ready.Count);
         }
         catch (JsonException ex)
@@ -201,12 +206,17 @@ public sealed class PowerApiForwarder : BackgroundService
             foreach (var record in ready.Select(x => x.Record))
                 store.ScheduleRetry(record, error, now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
             _lastError = error;
+            _telemetry.RecordForward(ready.Count, false, fwSw?.Elapsed.TotalSeconds ?? 0, "invalid_response", forwardActivity);
             _logger.LogWarning(ex, "SmartShunt forward JSON error for {Count} record(s)", ready.Count);
+        }
+        finally
+        {
+            forwardActivity?.Dispose();
         }
 
         await store.SaveChangesAsync(ct);
         await RefreshCountsAsync(store, ct);
-        _telemetry.SetOutboxQueueDepth(_pendingCount);
+        _telemetry.SetOutboxQueueDepth(_pendingCount, _failedCount);
         return sentCount > 0;
     }
 

@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using HVO.Edge.Contracts;
+using HVO.Edge.Hosting.Telemetry;
 
 namespace HVO.Hardware.DavisVantagePro2.Telemetry;
 
@@ -10,48 +12,76 @@ namespace HVO.Hardware.DavisVantagePro2.Telemetry;
 /// </summary>
 public sealed class DavisTelemetry : IDisposable
 {
+    public const string ConsolePollMetricName = "davis.console.poll.count";
+    public const string ConsoleReconnectMetricName = "davis.console.reconnect.count";
+    public const string OutboxLatencyMetricName = "davis.outbox.forward_latency_ms";
+    public static IReadOnlyList<string> CompatibilityMetricNames { get; } =
+        [ConsolePollMetricName, ConsoleReconnectMetricName, OutboxLatencyMetricName];
+
     private readonly Meter _meter;
+    private readonly GatewayTelemetry _common = new(new("davis", "weather-station"));
 
     // Volatile ensures the observable gauge callback always sees the latest value
     // without needing a lock (single-writer from the outbox sweep loop).
-    private volatile int _outboxQueueDepth;
 
     public readonly Counter<long> ConsolePollCount;
     public readonly Counter<long> ConsoleReconnectCount;
-    public readonly Counter<long> OutboxRecordsForwarded;
     public readonly Histogram<double> OutboxForwardLatencyMs;
-    public readonly Counter<long> OutboxForwardFailureCount;
 
     public DavisTelemetry()
     {
         _meter = new Meter("hvo.davis", "1.0.0");
 
         ConsolePollCount = _meter.CreateCounter<long>(
-            "davis.console.poll.count", "polls",
+            ConsolePollMetricName, "polls",
             "Number of LOOP2 packets received from the Davis console");
 
         ConsoleReconnectCount = _meter.CreateCounter<long>(
-            "davis.console.reconnect.count", "reconnects",
+            ConsoleReconnectMetricName, "reconnects",
             "Number of Davis console reconnect attempts");
 
-        OutboxRecordsForwarded = _meter.CreateCounter<long>(
-            GatewayTelemetryConventions.MetricNames.OutboxForwardSuccess, "records",
-            "Number of outbox records successfully forwarded to the website");
-
         OutboxForwardLatencyMs = _meter.CreateHistogram<double>(
-            "davis.outbox.forward_latency_ms", "ms",
+            OutboxLatencyMetricName, "ms",
             "Round-trip latency of outbox HTTP batch forward requests");
 
-        OutboxForwardFailureCount = _meter.CreateCounter<long>(
-            GatewayTelemetryConventions.MetricNames.OutboxForwardFailure, "records",
-            "Number of outbox records that failed to forward");
-
-        _meter.CreateObservableGauge(
-            GatewayTelemetryConventions.MetricNames.OutboxDepth, () => _outboxQueueDepth, "records",
-            "Number of pending records in the outbox");
     }
 
-    public void SetOutboxQueueDepth(int depth) => _outboxQueueDepth = depth;
+    public void RecordPoll(bool succeeded, double durationSeconds, string? failureKind = null)
+    {
+        _common.RecordPoll(succeeded, durationSeconds, "hvo-davis-01", deviceType: "davis-vantage-pro2", failureKind: failureKind);
+    }
 
-    public void Dispose() => _meter.Dispose();
+    public void RecordReconnect(double durationSeconds, bool succeeded, string? failureKind = null)
+    {
+        ConsoleReconnectCount.Add(1);
+        _common.RecordConnect(succeeded, durationSeconds, "hvo-davis-01", deviceType: "davis-vantage-pro2", failureKind: failureKind, reconnect: true);
+    }
+
+    public Activity? StartForwardOperation() =>
+        _common.StartOperation(GatewayTelemetryConventions.OperationNames.OutboxForward, ActivityKind.Client);
+
+    public void RecordForward(long count, bool succeeded, double durationSeconds, string? failureKind = null, Activity? activity = null)
+    {
+        OutboxForwardLatencyMs.Record(durationSeconds * 1000);
+        _common.RecordForward(count, succeeded, durationSeconds, "hvo.weather.raw.v1", failureKind, activity);
+    }
+
+    public void RecordForwardBatch(long successfulCount, long failedCount, double durationSeconds, Activity? activity = null)
+    {
+        OutboxForwardLatencyMs.Record(durationSeconds * 1000);
+        _common.RecordForwardBatch(successfulCount, failedCount, durationSeconds, "hvo.weather.raw.v1", "validation", activity);
+    }
+
+    public void RecordLegacyPacket() => ConsolePollCount.Add(1);
+
+    public void SetOutboxQueueDepth(int depth, int failed = 0)
+    {
+        _common.SetOutboxState(depth, failed);
+    }
+
+    public void Dispose()
+    {
+        _common.Dispose();
+        _meter.Dispose();
+    }
 }

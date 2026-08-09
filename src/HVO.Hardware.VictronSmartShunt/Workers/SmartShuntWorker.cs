@@ -92,7 +92,7 @@ public sealed class SmartShuntWorker : BackgroundService
             catch (Exception ex)
             {
                 _lastError = ex.Message;
-                _telemetry.SamplePollCount.Add(1, new KeyValuePair<string, object?>("result", "failed"));
+                _telemetry.RecordPoll(false, 0, "device_error");
                 _logger.LogWarning(ex, "SmartShunt poll failed");
             }
 
@@ -112,7 +112,10 @@ public sealed class SmartShuntWorker : BackgroundService
         var sw = Stopwatch.StartNew();
         var sample = _sessionState.CurrentSample;
         if (sample is null)
+        {
+            _telemetry.RecordPoll(false, sw.Elapsed.TotalSeconds, "no_sample");
             return false;
+        }
 
         var recordedAt = sample.RecordedAtUtc == default ? DateTime.UtcNow : sample.RecordedAtUtc.ToUniversalTime();
         var normalizedSample = new SmartShuntLiveSample
@@ -136,8 +139,7 @@ public sealed class SmartShuntWorker : BackgroundService
         _lastSnapshot = snapshot;
         Volatile.Write(ref _lastSnapshotAtTicks, recordedAt.Ticks);
         _lastError = null;
-        _telemetry.SamplePollDurationMs.Record(sw.Elapsed.TotalMilliseconds);
-        _telemetry.SamplePollCount.Add(1, new KeyValuePair<string, object?>("result", "success"));
+        _telemetry.RecordPoll(true, sw.Elapsed.TotalSeconds);
         AddHistory(normalizedSample);
 
         if (_options.EnablePrivateEnrichment && (_lastPrivateRefreshAtUtc == default || recordedAt - _lastPrivateRefreshAtUtc >= TimeSpan.FromSeconds(_options.PrivateRefreshIntervalSeconds)))

@@ -307,9 +307,13 @@
           "Serilog": "4.0.0"
         }
       },
+      "hvo.edge.contracts": {
+        "type": "Project"
+      },
       "hvo.edge.hosting": {
         "type": "Project",
         "dependencies": {
+          "HVO.Edge.Contracts": "[1.0.0, )",
           "HVO.Enterprise.Telemetry.Serilog": "[2.0.1, )",
           "Serilog.AspNetCore": "[10.0.0, )",
           "Serilog.Sinks.OpenTelemetry": "[4.2.0, )"

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using HVO.Enterprise.Telemetry.Abstractions;
 using HVO.Hardware.DavisVantagePro2.Configuration;
@@ -85,7 +86,7 @@ public sealed class WeatherStationWorker(
             catch (Exception ex)
             {
                 reconnectAttempts++;
-                telemetry.ConsoleReconnectCount.Add(1);
+                telemetry.RecordReconnect(0, succeeded: false, "station_error");
                 LastError = ex.Message;
                 WorkerStateChanged?.Invoke();
                 // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (capped)
@@ -111,6 +112,7 @@ public sealed class WeatherStationWorker(
 
         while (!ct.IsCancellationRequested)
         {
+            var batchStarted = Stopwatch.GetTimestamp();
             // Each batch is a separate trace span so App Insights shows one span per ~60 s window.
             using var batchScope = telemetryService.StartOperation("WeatherStation.PollBatch");
             batchScope.WithTag("batch_size", BatchSize);
@@ -152,13 +154,14 @@ public sealed class WeatherStationWorker(
                     LastReadingAt = DateTime.UtcNow;
                     ConsecutiveErrors = 0;
                     ReadingUpdated?.Invoke(reading);
-                    telemetry.ConsolePollCount.Add(1);
+                    telemetry.RecordLegacyPacket();
                     packetCount++;
 
                     await WriteToOutboxAsync(reading, ct);
                     logger.LogDebug("LOOP2: {T:F1}°F, {H:F0}%RH, {P:F3} inHg",
                         reading.OutsideTemperatureF, reading.OutsideHumidityPercent, reading.BarometricPressureInHg);
                 }
+                telemetry.RecordPoll(true, Stopwatch.GetElapsedTime(batchStarted).TotalSeconds);
                 batchScope.WithTag("packets_received", packetCount).Succeed();
             }
             catch (OperationCanceledException ex) when (ct.IsCancellationRequested)
@@ -172,6 +175,7 @@ public sealed class WeatherStationWorker(
                 LastError = ex.Message;
                 WorkerStateChanged?.Invoke();
                 logger.LogWarning(ex, "LOOP2 stream failed ({N} consecutive)", ConsecutiveErrors);
+                telemetry.RecordPoll(false, Stopwatch.GetElapsedTime(batchStarted).TotalSeconds, "stream_error");
                 batchScope.RecordException(ex);
                 if (ConsecutiveErrors >= _options.MaxConsecutiveErrors)
                 {
