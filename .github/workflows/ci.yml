@@ -70,12 +70,6 @@ jobs:
       - name: Build (Release)
         run: dotnet build HVO.WebSite.sln --no-restore -c Release --nologo -v minimal /p:ContinuousIntegrationBuild=true
 
-      - name: Validate Docker smoke cleanup
-        run: bash tools/verify-docker-build-smoke.sh
-
-      - name: Docker build smoke
-        run: bash tools/docker-build-smoke.sh
-
       - name: Publish script dry run
         run: bash tools/validate-publish-dry-run.sh
 
@@ -86,3 +80,17 @@ jobs:
           name: test-results-${{ github.run_id }}
           path: TestResults/**
           retention-days: 7
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Validate Docker smoke cleanup
+        run: bash tools/verify-docker-build-smoke.sh
+
+      - name: Docker build smoke
+        run: bash tools/docker-build-smoke.sh
