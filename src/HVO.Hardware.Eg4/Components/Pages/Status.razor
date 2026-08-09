@@ -1,0 +1,110 @@
+@page "/"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@implements IAsyncDisposable
+
+<PageTitle>EG4 Battery Gateway</PageTitle>
+
+<main class="shell-page-stack eg4-dashboard">
+    <header class="eg4-dashboard__hero">
+        <div>
+            <p class="hvo-eyebrow">Read-only local diagnostics</p>
+            <h1>EG4 Battery Branches</h1>
+            <p>Independent inverter and charge-controller observations. Branch values are never presented as whole-bus totals.</p>
+        </div>
+        <div class="hvo-chip-row" aria-label="Gateway device counts">
+            <span class="hvo-chip @HealthChipClass">@HealthLabel</span>
+            <span class="hvo-chip">@_snapshot.ConfiguredCount configured</span>
+            <span class="hvo-chip hvo-chip-success">@_snapshot.OnlineCount online</span>
+            <span class="hvo-chip hvo-chip-warning">@_snapshot.DegradedCount degraded</span>
+            <span class="hvo-chip hvo-chip-danger">@_snapshot.OfflineCount offline</span>
+            @if (_snapshot.DisabledCount > 0)
+            {
+                <span class="hvo-chip">@_snapshot.DisabledCount disabled</span>
+            }
+        </div>
+    </header>
+
+    <section id="devices" aria-labelledby="eg4-devices-title">
+        <div class="hvo-section-head">
+            <div>
+                <p class="hvo-eyebrow">Fleet</p>
+                <h2 id="eg4-devices-title">Configured Devices</h2>
+            </div>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Refresh" OnClick="RefreshView">Refresh view</MudButton>
+        </div>
+
+        @if (_snapshot.Devices.Count == 0)
+        {
+            <div class="hvo-state-empty" role="status">
+                <MudIcon Icon="@Icons.Material.Outlined.BatteryUnknown" Size="Size.Large" />
+                <strong>No configured EG4 devices</strong>
+                <span>Add stable source/device identities in configuration. No port scanning is available.</span>
+            </div>
+        }
+        else
+        {
+            <div class="eg4-dashboard__device-grid">
+                @foreach (var device in _snapshot.Devices.OrderBy(device => device.SourceId, StringComparer.OrdinalIgnoreCase))
+                {
+                    <Eg4DeviceCard @key="device.SourceId" Device="device" />
+                }
+            </div>
+        }
+    </section>
+
+    <div class="eg4-dashboard__operations-grid">
+        <section id="outbox" class="hvo-card" aria-labelledby="eg4-outbox-title">
+            <div class="hvo-section-head">
+                <div>
+                    <p class="hvo-eyebrow">Website forwarding</p>
+                    <h2 id="eg4-outbox-title">Outbox Runtime</h2>
+                </div>
+                <span class="hvo-chip @ForwardingChipClass">@_snapshot.Outbox.ForwardingStatus</span>
+            </div>
+            <dl class="eg4-dashboard__facts">
+                <div><dt>Pending</dt><dd>@HvoFormat.Integer(_snapshot.Outbox.PendingCount)</dd></div>
+                <div><dt>Failed</dt><dd>@HvoFormat.Integer(_snapshot.Outbox.FailedCount)</dd></div>
+                <div><dt>Last batch</dt><dd>@HvoFormat.Integer(_snapshot.Outbox.LastBatchCount)</dd></div>
+                <div><dt>Last sent</dt><dd>@HvoFormat.Timestamp(_snapshot.Outbox.LastSentAtUtc, "MMM d, HH:mm:ss")</dd></div>
+                <div><dt>Endpoint</dt><dd>@(_snapshot.Outbox.EndpointHost ?? "Not configured")</dd></div>
+            </dl>
+            <div class="eg4-dashboard__outbox-form">
+                <MudNumericField T="int" Label="Batch size (1-500)" Variant="Variant.Outlined" Min="1" Max="500" Disabled="@(!_snapshot.Outbox.IsRuntimeAvailable)" @bind-Value="_batchSize" @bind-Value:after="MarkOutboxDirty" />
+                <MudNumericField T="int" Label="Sweep interval seconds (1-60)" Variant="Variant.Outlined" Min="1" Max="60" Disabled="@(!_snapshot.Outbox.IsRuntimeAvailable)" @bind-Value="_sweepIntervalSeconds" @bind-Value:after="MarkOutboxDirty" />
+            </div>
+            <div class="hvo-action-row">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!_snapshot.Outbox.IsRuntimeAvailable || !_outboxDirty)" OnClick="ApplyOutboxSettings">Apply runtime settings</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Inherit" Disabled="@(!_snapshot.Outbox.IsRuntimeAvailable || !_snapshot.Outbox.IsOverride)" OnClick="ResetOutboxSettings">Reset defaults</MudButton>
+            </div>
+            @if (!_snapshot.Outbox.IsRuntimeAvailable)
+            {
+                <p class="eg4-dashboard__message">Runtime controls become available when the collector/outbox service is active.</p>
+            }
+            @if (!string.IsNullOrWhiteSpace(_outboxMessage))
+            {
+                <p class="eg4-dashboard__message" role="status">@_outboxMessage</p>
+            }
+            @if (!string.IsNullOrWhiteSpace(_snapshot.Outbox.LastError))
+            {
+                <div class="hvo-callout hvo-callout-error" role="alert">@_snapshot.Outbox.LastError</div>
+            }
+        </section>
+
+        <section class="hvo-card" aria-labelledby="eg4-diagnostics-title">
+            <div class="hvo-section-head">
+                <div>
+                    <p class="hvo-eyebrow">Operations</p>
+                    <h2 id="eg4-diagnostics-title">Diagnostics</h2>
+                </div>
+            </div>
+            <div class="hvo-stack">
+                <a class="hvo-list-item" href="/health"><span>Process and gateway health</span><strong>/health</strong></a>
+                <a class="hvo-list-item" href="#devices"><span>Per-device states and last errors</span><strong>Device diagnostics</strong></a>
+                <a class="hvo-list-item" href="#outbox"><span>Queue and forwarding state</span><strong>Outbox diagnostics</strong></a>
+            </div>
+            <div class="hvo-callout hvo-callout-info eg4-dashboard__boundary-note">
+                Telemetry is read-only. This site exposes no register writes, inverter settings, firmware controls, raw frames, credentials, or full serial topology.
+            </div>
+        </section>
+    </div>
+</main>

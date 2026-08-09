@@ -1,4 +1,5 @@
 using HVO.Hardware.Eg4.Configuration;
+using HVO.Hardware.Eg4.Dashboard;
 using HVO.Hardware.Eg4.Protocol;
 using HVO.Hardware.Eg4.Simulation;
 using HVO.Hardware.Eg4.Telemetry;
@@ -20,6 +21,10 @@ public static class Eg4ServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<Eg4Options>, Eg4OptionsValidator>();
         services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IEg4OutboxDashboardProvider, UnavailableEg4OutboxDashboardProvider>();
+        services.AddSingleton<Eg4GatewayDashboardState>();
+        services.AddSingleton<IEg4GatewayDashboardState>(provider => provider.GetRequiredService<Eg4GatewayDashboardState>());
+        services.AddSingleton<IEg4GatewayDashboardPublisher>(provider => provider.GetRequiredService<Eg4GatewayDashboardState>());
 
         if (configuration.GetValue<bool>($"{Eg4Options.SectionName}:SimulationEnabled"))
         {
@@ -29,6 +34,8 @@ public static class Eg4ServiceCollectionExtensions
             services.AddSingleton<IEg4RegisterTransportFactory>(provider =>
                 provider.GetRequiredService<ScriptedEg4RegisterTransportFactory>());
             services.AddSingleton<IEg4PortCoordinator, Eg4PortCoordinator>();
+            services.AddSingleton<Eg4SimulationDashboardWorker>();
+            services.AddHostedService(provider => provider.GetRequiredService<Eg4SimulationDashboardWorker>());
         }
 
         return services;

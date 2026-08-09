@@ -35,6 +35,9 @@ jobs:
       - name: Build (Debug)
         run: dotnet build HVO.WebSite.sln --no-restore -c Debug --nologo -v minimal /p:ContinuousIntegrationBuild=true
 
+      - name: Install Playwright Chromium
+        run: pwsh tests/HVO.WebSite.PlaywrightTests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+
       - name: Test (Unit)
         run: >
           dotnet test HVO.WebSite.sln --no-build -c Debug --nologo -v minimal

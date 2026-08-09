@@ -11,6 +11,7 @@
   <ItemGroup>
     <PackageReference Include="HVO.Enterprise.Telemetry" />
     <PackageReference Include="HVO.Enterprise.Telemetry.OpenTelemetry" />
+    <PackageReference Include="MudBlazor" />
     <PackageReference Include="OpenTelemetry.Api" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
   </ItemGroup>
@@ -18,5 +19,6 @@
   <ItemGroup>
     <ProjectReference Include="..\HVO.Edge.Contracts\HVO.Edge.Contracts.csproj" />
     <ProjectReference Include="..\HVO.Edge.Hosting\HVO.Edge.Hosting.csproj" />
+    <ProjectReference Include="..\HVO.WebSite.Themes\HVO.WebSite.Themes.csproj" />
   </ItemGroup>
 </Project>
