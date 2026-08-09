@@ -65,13 +65,13 @@ public sealed class Eg4GatewayPlaywrightTests
     [TestMethod]
     public async Task SimulationDashboard_RendersFleetAndOnlyLocalAssetsOnDesktop()
     {
-        var requestedUrls = new List<string>();
+        var requestedUrls = new ConcurrentQueue<string>();
         var failedAssets = new ConcurrentQueue<string>();
         var session = await CreatePageAsync(1600, 1000);
         using var playwright = session.Playwright;
         await using var browser = session.Browser;
         var page = session.Page;
-        page.Request += (_, request) => requestedUrls.Add(request.Url);
+        page.Request += (_, request) => requestedUrls.Enqueue(request.Url);
         page.Response += (_, response) =>
         {
             if (response.Status >= 400 && (response.Url.Contains("_content/", StringComparison.OrdinalIgnoreCase) ||
@@ -93,8 +93,9 @@ public sealed class Eg4GatewayPlaywrightTests
         await page.GetByRole(AriaRole.Button, new() { Name = "Refresh view" }).ClickAsync();
         failedAssets.Should().BeEmpty();
         await AssertThemedSurfaceAsync(page.Locator("article.eg4-device-card").First, "EG4 device card");
-        await PlaywrightGatewayAssertions.AssertNoCdnResourcesAsync(requestedUrls);
-        await PlaywrightGatewayAssertions.AssertLocalThemeResourcesLoadedAsync(requestedUrls);
+        var requestedUrlSnapshot = requestedUrls.ToArray();
+        await PlaywrightGatewayAssertions.AssertNoCdnResourcesAsync(requestedUrlSnapshot);
+        await PlaywrightGatewayAssertions.AssertLocalThemeResourcesLoadedAsync(requestedUrlSnapshot);
         await PlaywrightGatewayAssertions.AssertNoLegacyClassesAsync(page, "EG4 dashboard");
         await PlaywrightGatewayAssertions.AssertNoBlazorErrorAsync(page);
     }

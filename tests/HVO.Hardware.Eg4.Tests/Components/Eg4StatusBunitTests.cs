@@ -80,6 +80,19 @@ public sealed class Eg4StatusBunitTests : BunitContext
     }
 
     [TestMethod]
+    public void OutboxResetFailure_IsSurfacedWithoutEscapingTheCircuit()
+    {
+        var snapshot = Snapshot([]) with { Outbox = Snapshot([]).Outbox with { IsOverride = true } };
+        var state = new FakeDashboardState(snapshot, throwOnReset: true);
+        Services.AddSingleton<IEg4GatewayDashboardState>(state);
+        var component = Render<Status>();
+
+        component.FindAll("button").Single(button => button.TextContent.Contains("Reset defaults", StringComparison.Ordinal)).Click();
+
+        component.WaitForAssertion(() => component.Markup.Should().Contain("Outbox reset unavailable"));
+    }
+
+    [TestMethod]
     public async Task FleetSimulator_PublishesTransitionsWithoutBrowserDrivenPolling()
     {
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 8, 9, 15, 0, 0, TimeSpan.Zero));
@@ -163,7 +176,7 @@ public sealed class Eg4StatusBunitTests : BunitContext
         UnitId = 1,
     };
 
-    private sealed class FakeDashboardState(Eg4GatewayDashboardSnapshot snapshot) : IEg4GatewayDashboardState
+    private sealed class FakeDashboardState(Eg4GatewayDashboardSnapshot snapshot, bool throwOnReset = false) : IEg4GatewayDashboardState
     {
         private Eg4GatewayDashboardSnapshot _snapshot = snapshot;
         public int UpdateCount { get; private set; }
@@ -172,6 +185,7 @@ public sealed class Eg4StatusBunitTests : BunitContext
         public Eg4GatewayDashboardSnapshot GetSnapshot() => _snapshot;
         public Eg4OutboxSettingsResponse UpdateOutboxSettings(Eg4OutboxSettingsUpdate update)
         {
+            if (throwOnReset && update.Reset) throw new InvalidOperationException("Outbox reset unavailable.");
             UpdateCount++;
             var reset = update.Reset == true;
             var outbox = _snapshot.Outbox with

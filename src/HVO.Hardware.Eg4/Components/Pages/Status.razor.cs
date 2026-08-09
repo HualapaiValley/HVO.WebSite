@@ -122,10 +122,17 @@ public partial class Status
 
     private void ResetOutboxSettings()
     {
-        var result = DashboardState.UpdateOutboxSettings(new Eg4OutboxSettingsUpdate(Reset: true));
-        _batchSize = result.BatchSize;
-        _sweepIntervalSeconds = result.SweepIntervalSeconds;
-        _outboxDirty = false;
-        _outboxMessage = "Runtime settings reset to configured defaults.";
+        try
+        {
+            var result = DashboardState.UpdateOutboxSettings(new Eg4OutboxSettingsUpdate(Reset: true));
+            _batchSize = result.BatchSize;
+            _sweepIntervalSeconds = result.SweepIntervalSeconds;
+            _outboxDirty = false;
+            _outboxMessage = "Runtime settings reset to configured defaults.";
+        }
+        catch (Exception exception) when (exception is ArgumentOutOfRangeException or InvalidOperationException)
+        {
+            _outboxMessage = exception.Message;
+        }
     }
 }
