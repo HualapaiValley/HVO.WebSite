@@ -64,6 +64,17 @@ public sealed class PowerReadingIngestService : IPowerReadingIngestService
             ValidateRange(validationResults, nameof(request.OutputVoltageV), request.OutputVoltageV, 0, 1_000);
             ValidateRange(validationResults, nameof(request.OutputFrequencyHz), request.OutputFrequencyHz, 0, 1_000);
             ValidateRange(validationResults, nameof(request.LoadPercentage), request.LoadPercentage, 0, 1_000);
+            var sourceSystem = NormalizeSourceSystem(request.SourceSystem);
+            if (sourceSystem is PowerSourceSystems.Eg46500Ex or PowerSourceSystems.Eg4Mppt10048Hv)
+            {
+                if (string.IsNullOrWhiteSpace(request.DeviceId))
+                    validationResults.Add(new ValidationResult("Direct EG4 readings require DeviceId.", [nameof(request.DeviceId)]));
+                if (request.PvPowerW.HasValue || request.LoadPowerW.HasValue || request.GridPowerW.HasValue || request.SystemPowerW.HasValue ||
+                    request.GridVoltageV.HasValue || request.GridFrequencyHz.HasValue || request.OutputVoltageV.HasValue ||
+                    request.OutputFrequencyHz.HasValue || request.LoadPercentage.HasValue || !string.IsNullOrWhiteSpace(request.InverterMode) ||
+                    !string.IsNullOrWhiteSpace(request.OutputSourcePriority) || !string.IsNullOrWhiteSpace(request.ChargerSourcePriority))
+                    validationResults.Add(new ValidationResult("Direct EG4 readings may contain battery fields only."));
+            }
 
             if (validationResults.Count > 0)
             {
@@ -210,7 +221,7 @@ public sealed class PowerReadingIngestService : IPowerReadingIngestService
 
     private static void ValidateRange(List<ValidationResult> results, string memberName, double? value, double minimum, double maximum)
     {
-        if (value.HasValue && (value.Value < minimum || value.Value > maximum))
+        if (value.HasValue && (!double.IsFinite(value.Value) || value.Value < minimum || value.Value > maximum))
             results.Add(new ValidationResult($"The field {memberName} must be between {minimum} and {maximum}.", [memberName]));
     }
 

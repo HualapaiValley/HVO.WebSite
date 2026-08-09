@@ -184,6 +184,40 @@ public sealed class PowerIngestControllerTests
     }
 
     [TestMethod]
+    public async Task IngestReadings_AcceptsIndependentEg4BatteryBranchesAtSameTimestamp()
+    {
+        var recordedAt = DateTime.Parse("2026-05-23T05:10:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var batch = new[]
+        {
+            new PowerReadingPayload { SourceId = "6500-a", SourceSystem = "eg4-6500ex", DeviceId = "6500-a", RecordedAtUtc = recordedAt, BatteryVoltageV = 52, BatteryCurrentA = 10, BatteryPowerW = 520 },
+            new PowerReadingPayload { SourceId = "6500-b", SourceSystem = "eg4-6500ex", DeviceId = "6500-b", RecordedAtUtc = recordedAt, BatteryVoltageV = 52, BatteryCurrentA = 12, BatteryPowerW = 624 },
+        };
+
+        var result = await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
+
+        var body = ((CreatedAtActionResult)result.Result!).Value.Should().BeOfType<PowerReadingBatchResponse>().Subject;
+        body.Inserted.Should().Be(2);
+        _db.PowerReadings.Select(item => item.SourceId).Should().BeEquivalentTo("6500-a", "6500-b");
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_RejectsEg4BranchWithoutIdentityOrWithAcFields()
+    {
+        var batch = new[]
+        {
+            new PowerReadingPayload { SourceId = "6500-a", SourceSystem = "eg4-6500ex", RecordedAtUtc = DateTime.UtcNow, BatteryPowerW = 520 },
+            new PowerReadingPayload { SourceId = "mppt-a", SourceSystem = "eg4-mppt100-48hv", DeviceId = "mppt-a", RecordedAtUtc = DateTime.UtcNow, BatteryPowerW = -520, PvPowerW = 520 },
+        };
+
+        var result = await _ctrl.IngestReadings(ToJsonElement(batch), CancellationToken.None);
+
+        var body = ((CreatedAtActionResult)result.Result!).Value.Should().BeOfType<PowerReadingBatchResponse>().Subject;
+        body.Inserted.Should().Be(0);
+        body.Failed.Should().HaveCount(2);
+        _db.PowerReadings.Should().BeEmpty();
+    }
+
+    [TestMethod]
     public async Task GetRecentReadings_FiltersOrdersAndLimitsResults()
     {
         _db.PowerReadings.AddRange(
@@ -231,7 +265,7 @@ public sealed class PowerIngestControllerTests
         body.Ac!.GridFlowDirection!.Value.Should().Be(PowerFlowDirection.Export);
         body.Battery!.StateOfChargePercent!.Value.Should().Be(82);
         body.Battery.VoltageV!.Source.Should().Be(PowerMetricSource.VictronSmartShunt);
-        body.Battery.FlowDirection!.Value.Should().Be(PowerFlowDirection.Charging);
+        body.Battery.FlowDirection!.Value.Should().Be(PowerFlowDirection.Discharging);
     }
 
     [TestMethod]

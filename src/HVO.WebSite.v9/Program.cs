@@ -18,6 +18,7 @@ using System.Text.Json.Serialization;
 using Scalar.AspNetCore;
 using HVO.DataModels.Data;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Hosting;
 using System.Net.Http;
 using System.Net;
@@ -152,6 +153,11 @@ namespace HVO.WebSite.v9
 
             // API key cache — short-lived to avoid DB hit on every request
             services.AddMemoryCache();
+            services.AddOptions<HVO.WebSite.v9.Configuration.PowerCompositionOptions>()
+                .Bind(configuration.GetSection(HVO.WebSite.v9.Configuration.PowerCompositionOptions.SectionName))
+                .ValidateOnStart();
+            services.AddSingleton<IValidateOptions<HVO.WebSite.v9.Configuration.PowerCompositionOptions>, HVO.WebSite.v9.Configuration.PowerCompositionOptionsValidator>();
+            services.AddSingleton<TimeProvider>(TimeProvider.System);
             services.AddScoped<IPowerReadingIngestService, PowerReadingIngestService>();
             services.AddScoped<IBmsIngestService, BmsIngestService>();
             services.AddScoped<IPowerSystemSnapshotProvider, PowerSystemSnapshotProvider>();

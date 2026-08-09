@@ -2,6 +2,7 @@ using FluentAssertions;
 using HVO.DataModels.Models.V9;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Models;
+using HVO.WebSite.v9.Configuration;
 
 namespace HVO.WebSite.UnitTests;
 
@@ -39,9 +40,9 @@ public sealed class PowerSystemSnapshotComposerTests
 
         snapshot.Battery!.VoltageV!.Source.Should().Be(PowerMetricSource.VictronSmartShunt);
         snapshot.Battery.VoltageV.Value.Should().Be(53.74);
-        snapshot.Battery.CurrentA!.Value.Should().Be(-20.72);
-        snapshot.Battery.PowerW!.Value.Should().Be(-1113);
-        snapshot.Battery.FlowDirection!.Value.Should().Be(PowerFlowDirection.Charging);
+        snapshot.Battery.CurrentA!.Value.Should().Be(20.72);
+        snapshot.Battery.PowerW!.Value.Should().Be(1113);
+        snapshot.Battery.FlowDirection!.Value.Should().Be(PowerFlowDirection.Discharging);
     }
 
     [TestMethod]
@@ -54,7 +55,7 @@ public sealed class PowerSystemSnapshotComposerTests
 
         snapshot.Battery!.StateOfChargePercent!.Source.Should().Be(PowerMetricSource.VictronSmartShunt);
         snapshot.Battery.StateOfChargePercent.Confidence.Should().Be("fallback-untrusted");
-        snapshot.Battery.FlowDirection!.Value.Should().Be(PowerFlowDirection.Discharging);
+        snapshot.Battery.FlowDirection!.Value.Should().Be(PowerFlowDirection.Charging);
     }
 
     [TestMethod]
@@ -84,6 +85,115 @@ public sealed class PowerSystemSnapshotComposerTests
         snapshot.Battery!.BankCount!.Value.Should().Be(2);
         snapshot.Battery.BankCount.Source.Should().Be(PowerMetricSource.JkBms);
         snapshot.Battery.HasAlarms!.Value.Should().BeTrue();
+        snapshot.BatteryObservations!.Where(item => item.Source == PowerMetricSource.JkBms)
+            .Should().AllSatisfy(item => item.CurrentA.Should().Be(-7.5));
+    }
+
+    [TestMethod]
+    public void Compose_PreservesMultipleInverterBranchesAndBuildsAggregateOnly()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var snapshot = PowerSystemSnapshotComposer.Compose(
+            [Eg4(now, "6500-a", "eg4-6500ex", 10, 520), Eg4(now.AddSeconds(-2), "6500-b", "eg4-6500ex", 12, 624)], now);
+
+        snapshot.BatteryObservations!.Count(item => item.Role == PowerMeasurementRole.InverterBranch).Should().Be(2);
+        snapshot.BatteryObservations!.Where(item => item.Role == PowerMeasurementRole.InverterBranch)
+            .Should().AllSatisfy(item => item.Provenance.Should().Be(PowerObservationProvenance.Direct));
+        var aggregate = snapshot.BatteryObservations!.Single(item => item.SourceId == "derived-6500ex-branch-sum");
+        aggregate.Role.Should().Be(PowerMeasurementRole.DerivedAggregate);
+        aggregate.CurrentA.Should().Be(22);
+        aggregate.PowerW.Should().Be(1144);
+        aggregate.Inputs!.Select(input => input.SourceId).Should().BeEquivalentTo("6500-a", "6500-b");
+    }
+
+    [TestMethod]
+    public void Compose_DerivesResidualOnlyWhenEveryConfiguredMpptInputIsFreshAndAligned()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var options = new PowerCompositionOptions { EnabledMpptSourceIds = ["mppt-a", "mppt-b"] };
+        var snapshot = PowerSystemSnapshotComposer.Compose(
+            [SmartShunt(now, 52, -100, -5200, 80), Eg4(now.AddSeconds(-1), "mppt-a", "eg4-mppt100-48hv", -10, -520),
+                Eg4(now.AddSeconds(-2), "mppt-b", "eg4-mppt100-48hv", -20, -1040)], now, options: options);
+
+        var residual = snapshot.BatteryObservations!.Single(item => item.SourceId == "derived-inverter-side-residual");
+        residual.CurrentA.Should().Be(130);
+        residual.PowerW.Should().Be(6760);
+        residual.Provenance.Should().Be(PowerObservationProvenance.Derived);
+        residual.Inputs.Should().HaveCount(3);
+
+        var incomplete = PowerSystemSnapshotComposer.Compose(
+            [SmartShunt(now, 52, -100, -5200, 80), Eg4(now, "mppt-a", "eg4-mppt100-48hv", -10, -520)], now, options: options);
+        incomplete.BatteryObservations.Should().NotContain(item => item.SourceId == "derived-inverter-side-residual");
+    }
+
+    [TestMethod]
+    public void Compose_SuppressesStaleAndTimestampSkewedDerivations()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var options = new PowerCompositionOptions
+        {
+            SmartShuntFreshnessSeconds = 60,
+            Eg4BranchFreshnessSeconds = 60,
+            MaxDerivationSkewSeconds = 5,
+            EnabledMpptSourceIds = ["mppt-a"],
+        };
+        var stale = PowerSystemSnapshotComposer.Compose(
+            [SmartShunt(now.AddMinutes(-2), 52, -100, -5200, 80), Eg4(now, "mppt-a", "eg4-mppt100-48hv", -10, -520)], now, options: options);
+        stale.BatteryObservations.Should().NotContain(item => item.Source == PowerMetricSource.VictronSmartShunt);
+
+        var skewed = PowerSystemSnapshotComposer.Compose(
+            [SmartShunt(now, 52, -100, -5200, 80), Eg4(now.AddSeconds(-10), "mppt-a", "eg4-mppt100-48hv", -10, -520)], now, options: options);
+        skewed.BatteryObservations.Should().NotContain(item => item.SourceId == "derived-inverter-side-residual");
+    }
+
+    [TestMethod]
+    public void Compose_FutureSampleDoesNotMaskPriorValidStreamSample()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var valid = SolarAssistant(now.AddSeconds(-10), pvPowerW: 1300);
+        var future = SolarAssistant(now.AddMinutes(5), pvPowerW: 9999);
+        future.Id = 2;
+
+        var snapshot = PowerSystemSnapshotComposer.Compose([valid, future], now);
+
+        snapshot.Pv!.PowerW!.Value.Should().Be(1300);
+    }
+
+    [TestMethod]
+    public void Compose_UsesValidatedSourcePreferenceAndSuppressesEmptyResidual()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var preferred = SmartShunt(now.AddSeconds(-10), 52, null, null, 80);
+        preferred.SourceId = "smart-preferred";
+        var newer = SmartShunt(now, 53, -100, -5300, 81);
+        newer.SourceId = "smart-newer";
+        var mppt = new PowerReading
+        {
+            SourceId = "mppt-a", SourceSystem = "eg4-mppt100-48hv", DeviceId = "mppt-a",
+            RecordedAt = now, BatteryVoltageV = 52,
+        };
+        var options = new PowerCompositionOptions
+        {
+            PreferredSmartShuntSourceIds = ["smart-preferred"],
+            EnabledMpptSourceIds = ["mppt-a"],
+        };
+
+        var snapshot = PowerSystemSnapshotComposer.Compose([preferred, newer, mppt], now, options: options);
+
+        snapshot.Battery!.VoltageV!.SourceId.Should().Be("smart-preferred");
+        snapshot.BatteryObservations.Should().NotContain(item => item.SourceId == "derived-inverter-side-residual");
+    }
+
+    [TestMethod]
+    public void PowerCompositionOptionsValidator_RejectsInvalidOrDuplicateSourceIds()
+    {
+        var options = new PowerCompositionOptions
+        {
+            PreferredSmartShuntSourceIds = ["duplicate", "DUPLICATE"],
+            EnabledMpptSourceIds = [" untrimmed"],
+        };
+
+        new PowerCompositionOptionsValidator().Validate(null, options).Failed.Should().BeTrue();
     }
 
     private static PowerReading SolarAssistant(
@@ -131,6 +241,17 @@ public sealed class PowerSystemSnapshotComposerTests
             BatteryPowerW = powerW,
             BatteryStateOfChargePercent = soc,
         };
+
+    private static PowerReading Eg4(DateTime recordedAt, string sourceId, string sourceSystem, double currentA, double powerW) => new()
+    {
+        SourceId = sourceId,
+        SourceSystem = sourceSystem,
+        DeviceId = sourceId,
+        RecordedAt = recordedAt,
+        BatteryVoltageV = 52,
+        BatteryCurrentA = currentA,
+        BatteryPowerW = powerW,
+    };
 
     private static BmsReading JkBmsReading(
         DateTime recordedAt,
