@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
@@ -56,6 +56,16 @@ jobs:
 
       - name: Validate test category conventions
         run: bash tools/validate-test-categories.sh
+
+      - name: Validate observability policy
+        run: |
+          bash tools/validate-observability-policy.sh
+          bash tools/verify-alert-rules.sh
+
+      - name: Verify bounded logging and outage recovery
+        run: |
+          bash tools/verify-local-log-budget.sh
+          bash tools/verify-log-outage-recovery.sh
 
       - name: Build (Release)
         run: dotnet build HVO.WebSite.sln --no-restore -c Release --nologo -v minimal /p:ContinuousIntegrationBuild=true

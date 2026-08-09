@@ -91,6 +91,11 @@ and Loki is the authoritative central destination queried through Grafana.
 Docker log rotation, central retention, and outage buffering are operations
 settings rather than application file sinks.
 
+Gateway OTLP logging is explicitly bounded to 5,000 queued events, 256 events
+per batch, and ten minutes of retry time. Docker's `local` driver retains at
+most three compressed 10 MB files per container and uses a 4 MB non-blocking
+buffer. Queue or buffer overflow drops logs instead of blocking a gateway.
+
 Every gateway event includes `service.name`, `service.version`,
 `service.instance.id`, `deployment.environment.name`, `host.name`,
 `hvo.gateway.id`, and `hvo.gateway.type`. A host also supplies
@@ -114,6 +119,11 @@ namespace attributes. It routes telemetry as follows:
 The collector no longer exports to Azure Monitor or Application Insights. Do
 not configure Application Insights connection strings in applications solely
 for this collector pipeline.
+
+The collector persists a 64 MiB log queue on tank-backed storage and retries
+Loki for up to six hours. Loki retains logs for 30 days. Prometheus alerts on
+send failure, queue saturation, rejected records, Loki/Promtail unavailability,
+the required XFS mount, and 15%/5% free-space thresholds.
 
 ## Observability interfaces
 
@@ -152,3 +162,8 @@ The collector health endpoint is available only on the host:
 ```text
 http://127.0.0.1:13133/
 ```
+
+Run `bash tools/validate-observability-policy.sh` for static policy validation,
+`bash tools/verify-local-log-budget.sh` for a production-sized failure storm, and
+`bash tools/verify-log-outage-recovery.sh` to verify persistent queue recovery,
+timestamps, and ordering without touching the deployed stack.

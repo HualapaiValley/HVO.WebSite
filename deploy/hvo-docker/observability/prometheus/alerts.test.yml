@@ -1,0 +1,196 @@
+rule_files:
+  - /alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="loki",instance="loki:3100"}'
+        values: '0 0 0 1 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: HvoLokiUnavailable
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              instance: loki:3100
+              job: loki
+            exp_annotations:
+              summary: Loki is unavailable
+      - eval_time: 4m
+        alertname: HvoLokiUnavailable
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'otelcol_exporter_queue_size{exporter="otlp_http/loki"}'
+        values: '90x12 0 0'
+      - series: 'otelcol_exporter_queue_capacity{exporter="otlp_http/loki"}'
+        values: '100x14'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: HvoLogExporterQueueNearCapacity
+        exp_alerts:
+          - exp_labels:
+              exporter: otlp_http/loki
+              severity: warning
+            exp_annotations:
+              summary: Log shipping queue exceeds 80 percent capacity
+      - eval_time: 13m
+        alertname: HvoLogExporterQueueNearCapacity
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'otelcol_exporter_send_failed_log_records_total{exporter="otlp_http/loki"}'
+        values: '0 0 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: HvoLogExporterSendFailures
+        exp_alerts:
+          - exp_labels:
+              exporter: otlp_http/loki
+              severity: warning
+            exp_annotations:
+              summary: OpenTelemetry Collector cannot send logs to Loki
+      - eval_time: 8m
+        alertname: HvoLogExporterSendFailures
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'otelcol_exporter_enqueue_failed_log_records_total{exporter="otlp_http/loki"}'
+        values: '0 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: HvoLogRecordsDropped
+        exp_alerts:
+          - exp_labels:
+              exporter: otlp_http/loki
+              severity: critical
+            exp_annotations:
+              summary: Logs were rejected or dropped by the collector
+      - eval_time: 7m
+        alertname: HvoLogRecordsDropped
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="otel-collector-internal",instance="otel-collector:8888"}'
+        values: '0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: HvoCollectorUnavailable
+        exp_alerts:
+          - exp_labels:
+              instance: otel-collector:8888
+              job: otel-collector-internal
+              severity: critical
+            exp_annotations:
+              summary: OpenTelemetry Collector is unavailable
+      - eval_time: 4m
+        alertname: HvoCollectorUnavailable
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="promtail",instance="promtail:9080"}'
+        values: '0x6 1 1'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HvoPromtailUnavailable
+        exp_alerts:
+          - exp_labels:
+              instance: promtail:9080
+              job: promtail
+              severity: warning
+            exp_annotations:
+              summary: hvo-docker local log shipping is unavailable
+      - eval_time: 7m
+        alertname: HvoPromtailUnavailable
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node-exporter",instance="node-exporter:9100"}'
+        values: '0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: HvoNodeExporterUnavailable
+        exp_alerts:
+          - exp_labels:
+              instance: node-exporter:9100
+              job: node-exporter
+              severity: critical
+            exp_annotations:
+              summary: Node exporter is unavailable; host storage cannot be monitored
+      - eval_time: 4m
+        alertname: HvoNodeExporterUnavailable
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node-exporter"}'
+        values: '1x5'
+      - series: 'node_filesystem_size_bytes{mountpoint="/var/lib/docker",fstype="xfs"}'
+        values: '_ _ 100 100 100'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: HvoTankBackedDockerMountMissing
+        exp_alerts:
+          - exp_labels:
+              fstype: xfs
+              mountpoint: /var/lib/docker
+              severity: critical
+            exp_annotations:
+              summary: Tank-backed Docker storage mount is missing
+      - eval_time: 3m
+        alertname: HvoTankBackedDockerMountMissing
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{mountpoint="/var/lib/docker",fstype="xfs"}'
+        values: '10x16 20x3'
+      - series: 'node_filesystem_size_bytes{mountpoint="/var/lib/docker",fstype="xfs"}'
+        values: '100x19'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HvoTankBackedDockerStorageLow
+        exp_alerts:
+          - exp_labels:
+              fstype: xfs
+              mountpoint: /var/lib/docker
+              severity: warning
+            exp_annotations:
+              summary: Tank-backed Docker storage has less than 15 percent free
+      - eval_time: 15m
+        alertname: HvoTankBackedDockerStorageCritical
+        exp_alerts: []
+      - eval_time: 18m
+        alertname: HvoTankBackedDockerStorageLow
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{mountpoint="/var/lib/docker",fstype="xfs"}'
+        values: '4x6 20x3'
+      - series: 'node_filesystem_size_bytes{mountpoint="/var/lib/docker",fstype="xfs"}'
+        values: '100x9'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HvoTankBackedDockerStorageCritical
+        exp_alerts:
+          - exp_labels:
+              fstype: xfs
+              mountpoint: /var/lib/docker
+              severity: critical
+            exp_annotations:
+              summary: Tank-backed Docker storage has less than 5 percent free
+      - eval_time: 5m
+        alertname: HvoTankBackedDockerStorageLow
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: HvoTankBackedDockerStorageCritical
+        exp_alerts: []

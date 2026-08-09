@@ -81,7 +81,7 @@ deploy_target() {
 	printf 'Deploying %s with Docker context %s\n' "${gateway}" "${docker_context}"
 
 	local compose_args=(--context "${docker_context}" compose --env-file "${env_file}" -f "${compose_file}")
-	local up_args=(up -d)
+	local up_args=(up -d --wait --wait-timeout 120)
 	local seen_env_names=()
 
 	warn_shell_env_overrides "${compose_file}"
@@ -97,6 +97,10 @@ deploy_target() {
 	run_cmd docker "${compose_args[@]}" config --quiet
 	run_cmd docker "${compose_args[@]}" "${up_args[@]}"
 	run_cmd docker "${compose_args[@]}" ps
+	if [[ "${dry_run}" == false ]]; then
+		mapfile -t container_ids < <(docker "${compose_args[@]}" ps -aq)
+		"${repo_root}/tools/verify-running-container-policy.sh" --require-core "${docker_context}" "${container_ids[@]}"
+	fi
 }
 
 while (($# > 0)); do

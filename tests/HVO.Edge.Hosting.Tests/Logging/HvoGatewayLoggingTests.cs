@@ -155,6 +155,10 @@ public sealed class HvoGatewayLoggingTests
         options.Protocol.Should().Be(OtlpProtocol.HttpProtobuf);
         options.ResourceAttributes.Should().BeSameAs(attributes);
         options.Headers["Authorization"].Should().Be("Bearer test");
+        options.BatchingOptions.BatchSizeLimit.Should().Be(256);
+        options.BatchingOptions.BufferingTimeLimit.Should().Be(TimeSpan.FromSeconds(2));
+        options.BatchingOptions.QueueLimit.Should().Be(5_000);
+        options.BatchingOptions.RetryTimeLimit.Should().Be(TimeSpan.FromMinutes(10));
     }
 
     [TestMethod]

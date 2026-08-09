@@ -58,10 +58,23 @@ Archive only after confirming the central API has current data and the outbox co
 
 Restart the affected gateway after archive so the app creates a fresh shared outbox schema. Preserve archived DB files for postmortem unless explicitly approved for deletion.
 
+## Local Logs And Core Dumps
+
+Gateway Compose files use Docker's `local` logging driver with a 30 MB compressed rotation budget and 4 MB non-blocking buffer per container. Core dumps are disabled with soft/hard limits of zero. Deployment scripts inspect the created containers and fail when either policy is absent.
+
+```bash
+docker --context devpi5 inspect <container> --format '{{json .HostConfig.LogConfig}} {{json .HostConfig.Ulimits}}'
+docker --context devpi5 logs --since 30m <container>
+```
+
+Do not enter Docker's log storage directory or delete driver files. Do not run broad Docker volume cleanup: `/app/data` volumes contain SQLite outboxes and device registries. A prolonged OTLP outage may exhaust the 5,000-event application queue; newer central log records are then dropped while bounded local Docker logs remain available.
+
+Central recovery and alert handling are documented in `docs/SHARED_INFRASTRUCTURE.md`. `HvoLogExporterSendFailures` indicates retrying, while `HvoLogRecordsDropped` indicates confirmed data loss and requires incident review.
+
 ## Schema Compatibility
 
 Startup now validates the SQLite `OutboxRecords` table after initialization. Missing shared columns or legacy `NOT NULL` columns without defaults fail startup clearly instead of allowing repeated enqueue failures such as `NOT NULL constraint failed: OutboxRecords.DeviceAddress`.
 
 ## Follow-Up Work
 
-The remaining hardening work is to migrate all gateway-specific diagnostic endpoints to the standard `/diagnostics/*` routes and consolidate telemetry tags/metric names into shared gateway telemetry helpers.
+Promtail is pinned for the existing `hvo-docker` Docker discovery path but is end-of-life. Migrate that central-host-only path to Grafana Alloy in a focused infrastructure change; do not install a second unbounded shipper on Pi gateways.

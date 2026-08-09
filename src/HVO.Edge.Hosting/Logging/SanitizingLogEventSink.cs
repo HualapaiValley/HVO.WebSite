@@ -5,7 +5,7 @@ using Serilog.Parsing;
 
 namespace HVO.Edge.Hosting.Logging;
 
-internal sealed class SanitizingLogEventSink(ILogger target) : ILogEventSink, IDisposable
+public sealed class SanitizingLogEventSink(ILogger target) : ILogEventSink, IDisposable
 {
     private static readonly MessageTemplateParser MessageTemplateParser = new();
 

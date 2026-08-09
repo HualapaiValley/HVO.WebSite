@@ -1,0 +1,71 @@
+groups:
+  - name: hvo-log-pipeline
+    rules:
+      - alert: HvoLogExporterSendFailures
+        expr: increase(otelcol_exporter_send_failed_log_records_total{exporter="otlp_http/loki"}[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: OpenTelemetry Collector cannot send logs to Loki
+      - alert: HvoLogExporterQueueNearCapacity
+        expr: otelcol_exporter_queue_size{exporter="otlp_http/loki"} / otelcol_exporter_queue_capacity{exporter="otlp_http/loki"} > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Log shipping queue exceeds 80 percent capacity
+      - alert: HvoLogRecordsDropped
+        expr: increase(otelcol_exporter_enqueue_failed_log_records_total{exporter="otlp_http/loki"}[5m]) > 0 or increase(otelcol_receiver_refused_log_records_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: Logs were rejected or dropped by the collector
+      - alert: HvoLokiUnavailable
+        expr: up{job="loki"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Loki is unavailable
+      - alert: HvoCollectorUnavailable
+        expr: up{job="otel-collector-internal"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: OpenTelemetry Collector is unavailable
+      - alert: HvoPromtailUnavailable
+        expr: up{job="promtail"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: hvo-docker local log shipping is unavailable
+      - alert: HvoTankBackedDockerMountMissing
+        expr: absent(node_filesystem_size_bytes{mountpoint="/var/lib/docker",fstype="xfs"}) and on() (up{job="node-exporter"} == 1)
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Tank-backed Docker storage mount is missing
+      - alert: HvoNodeExporterUnavailable
+        expr: up{job="node-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Node exporter is unavailable; host storage cannot be monitored
+      - alert: HvoTankBackedDockerStorageLow
+        expr: node_filesystem_avail_bytes{mountpoint="/var/lib/docker",fstype="xfs"} / node_filesystem_size_bytes{mountpoint="/var/lib/docker",fstype="xfs"} < 0.15 and node_filesystem_avail_bytes{mountpoint="/var/lib/docker",fstype="xfs"} / node_filesystem_size_bytes{mountpoint="/var/lib/docker",fstype="xfs"} >= 0.05
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Tank-backed Docker storage has less than 15 percent free
+      - alert: HvoTankBackedDockerStorageCritical
+        expr: node_filesystem_avail_bytes{mountpoint="/var/lib/docker",fstype="xfs"} / node_filesystem_size_bytes{mountpoint="/var/lib/docker",fstype="xfs"} < 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Tank-backed Docker storage has less than 5 percent free

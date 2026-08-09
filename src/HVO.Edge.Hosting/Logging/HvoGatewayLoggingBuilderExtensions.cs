@@ -130,6 +130,10 @@ public static class HvoGatewayLoggingBuilderExtensions
         options.LogsEndpoint = settings.Endpoint;
         options.TracesEndpoint = null;
         options.ResourceAttributes = resourceAttributes;
+        options.BatchingOptions.BatchSizeLimit = 256;
+        options.BatchingOptions.BufferingTimeLimit = TimeSpan.FromSeconds(2);
+        options.BatchingOptions.QueueLimit = 5_000;
+        options.BatchingOptions.RetryTimeLimit = TimeSpan.FromMinutes(10);
         foreach (var header in settings.Headers ?? new Dictionary<string, string>())
         {
             options.Headers[header.Key] = header.Value;

@@ -1,24 +1,42 @@
 name: hvo-observability
 
+x-hvo-storage-device: ${HVO_OBSERVABILITY_STORAGE_DEVICE:-/dev/sdb1}
+
+x-hvo-local-logging: &hvo-local-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+    mode: non-blocking
+    max-buffer-size: "4m"
+
 services:
   otel-collector:
-    image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:latest}
+    image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.152.0}
     restart: unless-stopped
     command: ["--config=/etc/otelcol/config.yaml"]
+    mem_limit: 768m
     volumes:
       - ./config/otelcol-config.yaml:/etc/otelcol/config.yaml:ro
-      - otelcol-storage:/var/lib/otelcol/file_storage
+      - type: bind
+        source: ${HVO_OBSERVABILITY_DATA_ROOT:?Set HVO_OBSERVABILITY_DATA_ROOT in .env}/otelcol
+        target: /var/lib/otelcol/file_storage
+        bind:
+          create_host_path: false
     ports:
       - "${HVO_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${OTEL_GRPC_PORT:-4317}:4317"
       - "${HVO_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${OTEL_HTTP_PORT:-4318}:4318"
       - "127.0.0.1:${OTEL_HEALTH_PORT:-13133}:13133"
     networks:
       - hvo-observability
+    logging: *hvo-local-logging
     depends_on:
       - tempo
+      - loki
 
   prometheus:
-    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.11.3}
     restart: unless-stopped
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -28,28 +46,35 @@ services:
       - "--web.enable-remote-write-receiver"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "${HVO_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
     networks:
       - hvo-observability
+    logging: *hvo-local-logging
     depends_on:
       - otel-collector
 
   loki:
-    image: ${LOKI_IMAGE:-grafana/loki:latest}
+    image: ${LOKI_IMAGE:-grafana/loki:3.7.2}
     restart: unless-stopped
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
-      - loki-data:/loki
+      - type: bind
+        source: ${HVO_OBSERVABILITY_DATA_ROOT:?Set HVO_OBSERVABILITY_DATA_ROOT in .env}/loki
+        target: /loki
+        bind:
+          create_host_path: false
     ports:
       - "${HVO_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
     networks:
       - hvo-observability
+    logging: *hvo-local-logging
 
   promtail:
-    image: ${PROMTAIL_IMAGE:-grafana/promtail:latest}
+    image: ${PROMTAIL_IMAGE:-grafana/promtail:3.6.8}
     restart: unless-stopped
     command: -config.file=/etc/promtail/config.yaml
     volumes:
@@ -58,11 +83,12 @@ services:
       - promtail-data:/var/lib/promtail
     networks:
       - hvo-observability
+    logging: *hvo-local-logging
     depends_on:
       - loki
 
   tempo:
-    image: ${TEMPO_IMAGE:-grafana/tempo:latest}
+    image: ${TEMPO_IMAGE:-grafana/tempo:3.0.0-rc.1}
     restart: unless-stopped
     command: -config.file=/etc/tempo/tempo-config.yaml
     volumes:
@@ -72,9 +98,22 @@ services:
       - "127.0.0.1:${TEMPO_PORT:-3200}:3200"
     networks:
       - hvo-observability
+    logging: *hvo-local-logging
+
+  node-exporter:
+    image: ${NODE_EXPORTER_IMAGE:-prom/node-exporter:v1.9.1}
+    restart: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+      - "--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/rootfs)($$|/)"
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - hvo-observability
+    logging: *hvo-local-logging
 
   grafana:
-    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
+    image: ${GRAFANA_IMAGE:-grafana/grafana:13.0.1-security-01}
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?Set GRAFANA_ADMIN_USER in .env}
@@ -87,6 +126,7 @@ services:
       - "${HVO_OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
     networks:
       - hvo-observability
+    logging: *hvo-local-logging
     depends_on:
       - prometheus
       - loki
@@ -97,9 +137,7 @@ networks:
     name: hvo-observability
 
 volumes:
-  otelcol-storage:
   prometheus-data:
-  loki-data:
   promtail-data:
   tempo-data:
   grafana-data:

@@ -1,5 +1,14 @@
 name: hvo-shared-infrastructure
 
+x-hvo-local-logging: &hvo-local-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+    mode: non-blocking
+    max-buffer-size: "4m"
+
 services:
   mssql:
     image: ${MSSQL_IMAGE:-mcr.microsoft.com/mssql/server:2022-latest}
@@ -15,6 +24,7 @@ services:
       - mssql-data:/var/opt/mssql
     networks:
       - hvo-infrastructure
+    logging: *hvo-local-logging
     healthcheck:
       test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' -b"]
       interval: 30s
@@ -32,6 +42,7 @@ services:
       - redis-data:/data
     networks:
       - hvo-infrastructure
+    logging: *hvo-local-logging
     healthcheck:
       test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 30s
@@ -52,6 +63,7 @@ services:
       - minio-data:/data
     networks:
       - hvo-infrastructure
+    logging: *hvo-local-logging
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 30s
@@ -67,6 +79,7 @@ services:
       - registry-data:/var/lib/registry
     networks:
       - hvo-infrastructure
+    logging: *hvo-local-logging
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:5000/v2/"]
       interval: 30s
@@ -90,6 +103,7 @@ services:
       - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
     networks:
       - hvo-infrastructure
+    logging: *hvo-local-logging
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 30s

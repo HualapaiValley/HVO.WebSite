@@ -5,6 +5,7 @@ set -euo pipefail
 docker_context="${HVO_PI_DOCKER_CONTEXT:-devpi5}"
 pi_host="${HVO_PI_HOST:-devPi5}"
 website_base_url="${HVO_WEBSITE_PUBLIC_BASE_URL:-https://hvo-website.calmsand-72a6c5ac.westus.azurecontainerapps.io}"
+observability_base_url="${HVO_OBSERVABILITY_BASE_URL:-http://192.168.1.238}"
 
 failures=0
 
@@ -28,6 +29,9 @@ check_url 'jkbms /health' "http://${pi_host}:5200/health"
 check_url 'solarassistant /health' "http://${pi_host}:5300/health"
 check_url 'smartshunt /health' "http://${pi_host}:5400/health"
 check_url 'tplink-kasa /health' "http://${pi_host}:5500/health"
+check_url 'loki /ready' "${observability_base_url}:3100/ready"
+check_url 'prometheus /-/ready' "${observability_base_url}:9090/-/ready"
+check_url 'grafana /api/health' "${observability_base_url}:3000/api/health"
 
 if command -v docker >/dev/null 2>&1; then
 	docker --context "${docker_context}" ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
