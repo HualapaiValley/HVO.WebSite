@@ -21,7 +21,7 @@ public sealed class Eg46500ExPi30ProtocolTests
     [TestMethod]
     public void PublicDischargingFixture_DecodesScalingDirectionAndDerivedPower()
     {
-        var fixture = JsonSerializer.Deserialize<Fixture>(File.ReadAllText(Path.Combine("Fixtures", "6500ex", "discharging-2022-public-capture.json")),
+        var fixture = JsonSerializer.Deserialize<Fixture>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "6500ex", "discharging-2022-public-capture.json")),
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
         fixture.Model.Should().Be("EG4 6500EX-48");
         fixture.Interface.Should().Be("RS232/COM");
