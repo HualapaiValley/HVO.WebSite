@@ -37,7 +37,7 @@ internal sealed class SensitivePropertyRedactionEnricher : ILogEventEnricher
 
     public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
     {
-        foreach (var property in logEvent.Properties)
+        foreach (var property in logEvent.Properties.ToList())
         {
             logEvent.AddOrUpdateProperty(new LogEventProperty(
                 property.Key,

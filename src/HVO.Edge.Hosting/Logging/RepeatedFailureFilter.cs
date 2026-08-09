@@ -128,7 +128,7 @@ internal sealed class RepeatedFailureFilter(
         var gatewayId = GetScalar(recoveryEvent, "hvo.gateway.id");
         var identity = GetIdentity(recoveryEvent);
 
-        foreach (var fingerprint in _lastEmitted.Keys)
+        foreach (var fingerprint in _lastEmitted.Keys.ToList())
         {
             if (fingerprint.SourceContext == sourceContext &&
                 fingerprint.GatewayId == gatewayId &&

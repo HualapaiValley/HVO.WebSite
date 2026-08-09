@@ -44,6 +44,21 @@ public sealed class RepeatedFailureFilterTests
     }
 
     [TestMethod]
+    public void IsEnabled_RecoveryClearsAllMatchingFailureEntries()
+    {
+        var filter = new RepeatedFailureFilter(TimeSpan.FromMinutes(1));
+        var timeout = CreateEvent(LogEventLevel.Warning, "Device {SourceId} poll failed: {FailureReason}", "device-1", "timeout");
+        var authentication = CreateEvent(LogEventLevel.Warning, "Device {SourceId} poll failed: {FailureReason}", "device-1", "authentication");
+
+        filter.IsEnabled(timeout).Should().BeTrue();
+        filter.IsEnabled(authentication).Should().BeTrue();
+        filter.IsEnabled(CreateEvent(LogEventLevel.Information, "Device {SourceId} poll recovered", "device-1")).Should().BeTrue();
+
+        filter.IsEnabled(timeout).Should().BeTrue();
+        filter.IsEnabled(authentication).Should().BeTrue();
+    }
+
+    [TestMethod]
     public void IsEnabled_DoesNotConflateDifferentFailureReasons()
     {
         var filter = new RepeatedFailureFilter(TimeSpan.FromMinutes(1));
