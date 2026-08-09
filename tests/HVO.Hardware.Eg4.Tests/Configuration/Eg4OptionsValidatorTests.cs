@@ -11,7 +11,14 @@ public sealed class Eg4OptionsValidatorTests
     [TestMethod]
     public void Validate_MultipleSameTypeAndSharedPortWithDistinctUnits_IsValid()
     {
-        var options = new Eg4Options { Devices = [Device("a", 1), Device("b", 2)] };
+        var options = new Eg4Options
+        {
+            Devices =
+            [
+                Device("a", 1, Eg4DeviceType.ChargeControllerMppt10048Hv),
+                Device("b", 2, Eg4DeviceType.ChargeControllerMppt10048Hv),
+            ],
+        };
 
         new Eg4OptionsValidator(Environment("Production")).Validate(null, options).Succeeded.Should().BeTrue();
     }
@@ -19,9 +26,9 @@ public sealed class Eg4OptionsValidatorTests
     [TestMethod]
     public void Validate_ReorderAddAndDisable_DoNotChangeConfiguredIdentity()
     {
-        var first = Device("east", 1);
-        var second = Device("west", 2);
-        var reordered = new[] { Device("new", 3), second, first };
+        var first = Device("east", 0, port: "/dev/hvo/eg4-east");
+        var second = Device("west", 0, port: "/dev/hvo/eg4-west");
+        var reordered = new[] { Device("new", 0, port: "/dev/hvo/eg4-new"), second, first };
         second.Enabled = false;
 
         reordered.Single(device => device.Alias == "east").SourceId.Should().Be("eg4-east");
@@ -32,10 +39,10 @@ public sealed class Eg4OptionsValidatorTests
     [TestMethod]
     public void Validate_DuplicateIdentityAndEndpoint_IsInvalidEvenWhenDisabled()
     {
-        var duplicate = Device("dup", 1);
+        var duplicate = Device("dup", 0, port: "/dev/hvo/eg4-east");
         duplicate.SourceId = "EG4-EAST";
         duplicate.Enabled = false;
-        var options = new Eg4Options { Devices = [Device("east", 1), duplicate] };
+        var options = new Eg4Options { Devices = [Device("east", 0, port: "/dev/hvo/eg4-east"), duplicate] };
 
         var result = new Eg4OptionsValidator(Environment("Production")).Validate(null, options);
 
@@ -72,22 +79,39 @@ public sealed class Eg4OptionsValidatorTests
     [TestMethod]
     public void Validate_NullDeviceAndPortReturnFailures()
     {
-        var noPort = Device("no-port", 1);
+        var noPort = Device("no-port", 0);
         noPort.Port = null!;
         var result = new Eg4OptionsValidator(Environment("Production"))
             .Validate(null, new Eg4Options { Devices = [null!, noPort] });
 
         result.Failures.Should().Contain(message => message.Contains("null entries", StringComparison.Ordinal));
-        result.Failures.Should().Contain(message => message.Contains("stable /dev/serial/by-id", StringComparison.Ordinal));
+        result.Failures.Should().Contain(message => message.Contains("stable /dev/hvo HID", StringComparison.Ordinal));
     }
 
-    private static Eg4DeviceOptions Device(string alias, byte unitId) => new()
+    [TestMethod]
+    public void Validate_6500ExRequiresSingleOwnerPi30EndpointWithoutUnitAddress()
     {
-        Type = Eg4DeviceType.Inverter6500Ex,
+        var valid = Device("valid", 0, port: "/dev/hvo/eg4-6500ex-a");
+        var invalidUnit = Device("unit", 1, port: "/dev/hvo/eg4-6500ex-b");
+
+        new Eg4OptionsValidator(Environment("Production"))
+            .Validate(null, new Eg4Options { Devices = [valid] }).Succeeded.Should().BeTrue();
+        var result = new Eg4OptionsValidator(Environment("Production"))
+            .Validate(null, new Eg4Options { Devices = [invalidUnit] });
+        result.Failures.Should().ContainSingle(message => message.Contains("PI30 does not use Modbus", StringComparison.Ordinal));
+    }
+
+    private static Eg4DeviceOptions Device(
+        string alias,
+        byte unitId,
+        Eg4DeviceType type = Eg4DeviceType.Inverter6500Ex,
+        string port = "/dev/serial/by-id/usb-eg4-bus") => new()
+    {
+        Type = type,
         SourceId = $"eg4-{alias}",
         DeviceId = $"inverter-{alias}",
         Alias = alias,
-        Port = "/dev/serial/by-id/usb-eg4-bus",
+        Port = port,
         UnitId = unitId,
     };
 

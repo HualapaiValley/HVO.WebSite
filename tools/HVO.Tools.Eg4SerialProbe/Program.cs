@@ -1,16 +1,41 @@
 using System.IO.Ports;
+using HVO.Hardware.Eg4.Configuration;
 using HVO.Hardware.Eg4.Protocol;
+using HVO.Hardware.Eg4.Telemetry;
 
 var statusRequested = args.Length == 3 && args[1] == "status" && args[2] == "--confirm-rs232-com";
-if (args.Length < 1 || !args[0].StartsWith("/dev/serial/by-id/", StringComparison.Ordinal) ||
+var stableSerial = args.Length > 0 && args[0].StartsWith("/dev/serial/by-id/", StringComparison.Ordinal);
+var hidraw = args.Length > 0 && args[0].StartsWith("/dev/hidraw", StringComparison.Ordinal);
+if (args.Length < 1 || (!stableSerial && !hidraw) ||
     (args.Length != 1 && !statusRequested))
 {
-    Console.Error.WriteLine("Usage: HVO.Tools.Eg4SerialProbe /dev/serial/by-id/<adapter> [status --confirm-rs232-com]");
+    Console.Error.WriteLine("Usage: HVO.Tools.Eg4SerialProbe </dev/serial/by-id/<adapter>|/dev/hidrawN> [status --confirm-rs232-com]");
     return 2;
 }
 
 try
 {
+    if (hidraw)
+    {
+        if (!statusRequested)
+            throw new InvalidOperationException("The HID proof requires status --confirm-rs232-com so identity and one status frame are validated together.");
+        await using var source = new Eg46500ExTelemetrySource(
+            new Eg46500ExHidrawTransportFactory(TimeProvider.System),
+            TimeProvider.System);
+        var observation = await source.ReadAsync(new Eg4DeviceOptions
+        {
+            Type = Eg4DeviceType.Inverter6500Ex,
+            SourceId = "eg4-proof-6500ex",
+            DeviceId = "proof-6500ex",
+            Alias = "6500EX proof",
+            Port = args[0],
+            UnitId = 0,
+        }, CancellationToken.None);
+        Console.WriteLine("Identity and supported firmware layout verified.");
+        Console.WriteLine($"Battery: {observation.VoltageV:F2} V; canonical current {observation.CurrentA:+0.##;-0.##;0} A; derived power {observation.PowerW:+0.##;-0.##;0} W; reported SOC {observation.StateOfChargePercent:F0}%");
+        return 0;
+    }
+
     using var port = new SerialPort(args[0], 2400, Parity.None, 8, StopBits.One)
     {
         ReadTimeout = 1500,
