@@ -24,7 +24,9 @@ chmod +x "${fake_docker}"
 
 (
 	cd "${tmp_dir}"
-	DOCKER_COMMAND="${fake_docker}" DOCKER_SMOKE_TEST_LOG="${log_file}" DOCKER_SMOKE_RUN_KEY=latest bash "${repo_root}/tools/docker-build-smoke.sh"
+	DOCKER_COMMAND="${fake_docker}" DOCKER_SMOKE_TEST_LOG="${log_file}" \
+		DOCKER_SMOKE_RUN_KEY=latest DOCKER_SMOKE_CACHE_MODE=ephemeral \
+		bash "${repo_root}/tools/docker-build-smoke.sh"
 )
 
 [[ "$(grep -c '^build ' "${log_file}")" == 6 ]] || { printf 'Expected six Docker smoke builds.\n' >&2; exit 1; }
@@ -53,7 +55,7 @@ set +e
 (
 	cd "${tmp_dir}"
 	DOCKER_COMMAND="${fake_docker}" DOCKER_SMOKE_TEST_LOG="${log_file}" \
-		DOCKER_SMOKE_RUN_KEY=latest \
+		DOCKER_SMOKE_RUN_KEY=latest DOCKER_SMOKE_CACHE_MODE=ephemeral \
 		DOCKER_SMOKE_FAIL_IMAGE="hvo-jkbms-ci:latest" DOCKER_SMOKE_FAIL_PRUNE=true \
 		bash "${repo_root}/tools/docker-build-smoke.sh"
 )
