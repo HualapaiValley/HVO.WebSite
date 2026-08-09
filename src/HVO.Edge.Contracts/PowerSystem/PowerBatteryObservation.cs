@@ -24,9 +24,9 @@ public sealed record PowerBatteryObservation
         string? Confidence = null,
         IReadOnlyList<PowerObservationInput>? Inputs = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(SourceId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(DeviceId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(MeasurementPoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(SourceId, nameof(SourceId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(DeviceId, nameof(DeviceId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(MeasurementPoint, nameof(MeasurementPoint));
         ValidateUtc(ObservedAtUtc, nameof(ObservedAtUtc));
         ValidateEnum(Source, nameof(Source));
         ValidateEnum(Role, nameof(Role));
@@ -88,9 +88,9 @@ public sealed record PowerObservationInput
     [JsonConstructor]
     public PowerObservationInput(string SourceId, DateTime ObservedAtUtc, string? DeviceId = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(SourceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(SourceId, nameof(SourceId));
         if (DeviceId is not null)
-            ArgumentException.ThrowIfNullOrWhiteSpace(DeviceId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(DeviceId, nameof(DeviceId));
         if (ObservedAtUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("Observation timestamps must be UTC.", nameof(ObservedAtUtc));
 

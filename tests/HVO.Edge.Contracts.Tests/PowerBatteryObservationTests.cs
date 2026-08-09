@@ -123,9 +123,9 @@ public sealed class PowerBatteryObservationTests
             "source", "device", PowerMetricSource.Eg46500Ex, PowerMeasurementRole.InverterBranch, "point", utc,
             CurrentA: -10, PowerW: 500);
 
-        missingSource.Should().Throw<ArgumentException>();
-        missingDevice.Should().Throw<ArgumentException>();
-        missingPoint.Should().Throw<ArgumentException>();
+        missingSource.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("SourceId");
+        missingDevice.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("DeviceId");
+        missingPoint.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("MeasurementPoint");
         nonUtc.Should().Throw<ArgumentException>();
         undefinedRole.Should().Throw<ArgumentOutOfRangeException>();
         contradictoryDirection.Should().Throw<ArgumentException>();
