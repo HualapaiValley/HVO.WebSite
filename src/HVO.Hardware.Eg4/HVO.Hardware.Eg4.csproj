@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>HVO.Hardware.Eg4</RootNamespace>
+    <AssemblyName>HVO.Hardware.Eg4</AssemblyName>
+    <UserSecretsId>hvo-hardware-eg4</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HVO.Enterprise.Telemetry" />
+    <PackageReference Include="HVO.Enterprise.Telemetry.OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Api" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HVO.Edge.Contracts\HVO.Edge.Contracts.csproj" />
+    <ProjectReference Include="..\HVO.Edge.Hosting\HVO.Edge.Hosting.csproj" />
+  </ItemGroup>
+</Project>
