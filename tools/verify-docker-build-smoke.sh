@@ -19,9 +19,9 @@ chmod +x "${fake_docker}"
 
 DOCKER_COMMAND="${fake_docker}" DOCKER_SMOKE_TEST_LOG="${log_file}" bash tools/docker-build-smoke.sh
 
-[[ "$(rg -c '^build ' "${log_file}")" == 6 ]] || { printf 'Expected six Docker smoke builds.\n' >&2; exit 1; }
-[[ "$(rg -c '^image rm --force ' "${log_file}")" == 6 ]] || { printf 'Expected every smoke image to be removed.\n' >&2; exit 1; }
-[[ "$(rg -c '^builder prune --all --force$' "${log_file}")" == 8 ]] || { printf 'Expected cache cleanup before, between, and after builds.\n' >&2; exit 1; }
+[[ "$(grep -c '^build ' "${log_file}")" == 6 ]] || { printf 'Expected six Docker smoke builds.\n' >&2; exit 1; }
+[[ "$(grep -c '^image rm --force ' "${log_file}")" == 6 ]] || { printf 'Expected every smoke image to be removed.\n' >&2; exit 1; }
+[[ "$(grep -c '^builder prune --all --force$' "${log_file}")" == 8 ]] || { printf 'Expected cache cleanup before, between, and after builds.\n' >&2; exit 1; }
 
 : > "${log_file}"
 if DOCKER_COMMAND="${fake_docker}" DOCKER_SMOKE_TEST_LOG="${log_file}" \
@@ -29,11 +29,11 @@ if DOCKER_COMMAND="${fake_docker}" DOCKER_SMOKE_TEST_LOG="${log_file}" \
 	printf 'Expected the scripted Docker build failure to propagate.\n' >&2
 	exit 1
 fi
-rg -q '^image rm --force hvo-jkbms-ci:latest$' "${log_file}" || {
+grep -q '^image rm --force hvo-jkbms-ci:latest$' "${log_file}" || {
 	printf 'Expected the failed build image to be cleaned by the exit trap.\n' >&2
 	exit 1
 }
-[[ "$(rg -c '^builder prune --all --force$' "${log_file}")" == 4 ]] || {
+[[ "$(grep -c '^builder prune --all --force$' "${log_file}")" == 4 ]] || {
 	printf 'Expected cache cleanup to run after the failed build.\n' >&2
 	exit 1
 }
