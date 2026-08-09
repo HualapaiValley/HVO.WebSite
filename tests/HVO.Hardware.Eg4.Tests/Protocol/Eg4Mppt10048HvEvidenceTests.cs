@@ -47,15 +47,18 @@ public sealed class Eg4Mppt10048HvEvidenceTests
     [TestMethod]
     public void OperatorReportedCandidateBatteryPoll_IsValidReadOnlyModbusFrame()
     {
-        var request = Hex("01 03 00 13 00 11 74 03");
+        var request = Hex("01 03 00 13\n00 11\t74 03");
 
         HasValidModbusCrc(request).Should().BeTrue();
+        HasValidModbusCrc([0x01]).Should().BeFalse();
         request[1].Should().Be(3);
         request.AsSpan(2, 4).ToArray().Should().Equal(0x00, 0x13, 0x00, 0x11);
     }
 
     private static bool HasValidModbusCrc(ReadOnlySpan<byte> frame)
     {
+        if (frame.Length < 4)
+            return false;
         ushort crc = 0xFFFF;
         foreach (var value in frame[..^2])
         {
@@ -66,5 +69,5 @@ public sealed class Eg4Mppt10048HvEvidenceTests
         return frame[^2] == (byte)crc && frame[^1] == (byte)(crc >> 8);
     }
 
-    private static byte[] Hex(string value) => Convert.FromHexString(value.Replace(" ", "", StringComparison.Ordinal));
+    private static byte[] Hex(string value) => Convert.FromHexString(string.Concat(value.Where(character => !char.IsWhiteSpace(character))));
 }
