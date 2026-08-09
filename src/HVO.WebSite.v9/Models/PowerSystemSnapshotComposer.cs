@@ -9,8 +9,6 @@ public static class PowerSystemSnapshotComposer
 {
     private const string SolarAssistantSystem = "solarassistant";
     private const string SmartShuntSystem = "victron-smartshunt";
-    private const string Eg46500ExSystem = "eg4-6500ex";
-    private const string Eg4MpptSystem = "eg4-mppt100-48hv";
 
     public static PowerSystemSnapshot Compose(
         IReadOnlyList<PowerReading> readings,
@@ -63,9 +61,9 @@ public static class PowerSystemSnapshotComposer
                     "battery-bus-net", PowerObservationProvenance.Direct, -reading.BatteryCurrentA, -reading.BatteryPowerW),
                 SolarAssistantSystem => Observation(reading, PowerMetricSource.SolarAssistant, PowerMeasurementRole.AggregateEstimate,
                     "solarassistant-battery-aggregate", PowerObservationProvenance.SourceAggregate, reading.BatteryCurrentA, reading.BatteryPowerW),
-                Eg46500ExSystem => Observation(reading, PowerMetricSource.Eg46500Ex, PowerMeasurementRole.InverterBranch,
-                    "inverter-battery-branch", PowerObservationProvenance.Derived, reading.BatteryCurrentA, reading.BatteryPowerW),
-                Eg4MpptSystem => Observation(reading, PowerMetricSource.Eg4Mppt10048Hv, PowerMeasurementRole.ChargeControllerBranch,
+                PowerSourceSystems.Eg46500Ex => Observation(reading, PowerMetricSource.Eg46500Ex, PowerMeasurementRole.InverterBranch,
+                    "inverter-battery-branch", PowerObservationProvenance.Direct, reading.BatteryCurrentA, reading.BatteryPowerW),
+                PowerSourceSystems.Eg4Mppt10048Hv => Observation(reading, PowerMetricSource.Eg4Mppt10048Hv, PowerMeasurementRole.ChargeControllerBranch,
                     "charge-controller-battery-branch", PowerObservationProvenance.Direct, reading.BatteryCurrentA, reading.BatteryPowerW),
                 _ => null,
             };
@@ -144,7 +142,7 @@ public static class PowerSystemSnapshotComposer
     {
         SmartShuntSystem => options.SmartShuntFreshnessSeconds,
         SolarAssistantSystem => options.SolarAssistantFreshnessSeconds,
-        Eg46500ExSystem or Eg4MpptSystem => options.Eg4BranchFreshnessSeconds,
+        PowerSourceSystems.Eg46500Ex or PowerSourceSystems.Eg4Mppt10048Hv => options.Eg4BranchFreshnessSeconds,
         _ => options.SolarAssistantFreshnessSeconds,
     });
 

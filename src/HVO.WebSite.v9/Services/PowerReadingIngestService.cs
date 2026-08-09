@@ -65,7 +65,7 @@ public sealed class PowerReadingIngestService : IPowerReadingIngestService
             ValidateRange(validationResults, nameof(request.OutputFrequencyHz), request.OutputFrequencyHz, 0, 1_000);
             ValidateRange(validationResults, nameof(request.LoadPercentage), request.LoadPercentage, 0, 1_000);
             var sourceSystem = NormalizeSourceSystem(request.SourceSystem);
-            if (sourceSystem is "eg4-6500ex" or "eg4-mppt100-48hv")
+            if (sourceSystem is PowerSourceSystems.Eg46500Ex or PowerSourceSystems.Eg4Mppt10048Hv)
             {
                 if (string.IsNullOrWhiteSpace(request.DeviceId))
                     validationResults.Add(new ValidationResult("Direct EG4 readings require DeviceId.", [nameof(request.DeviceId)]));

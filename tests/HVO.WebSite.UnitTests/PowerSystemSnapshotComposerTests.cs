@@ -97,6 +97,8 @@ public sealed class PowerSystemSnapshotComposerTests
             [Eg4(now, "6500-a", "eg4-6500ex", 10, 520), Eg4(now.AddSeconds(-2), "6500-b", "eg4-6500ex", 12, 624)], now);
 
         snapshot.BatteryObservations!.Count(item => item.Role == PowerMeasurementRole.InverterBranch).Should().Be(2);
+        snapshot.BatteryObservations!.Where(item => item.Role == PowerMeasurementRole.InverterBranch)
+            .Should().AllSatisfy(item => item.Provenance.Should().Be(PowerObservationProvenance.Direct));
         var aggregate = snapshot.BatteryObservations!.Single(item => item.SourceId == "derived-6500ex-branch-sum");
         aggregate.Role.Should().Be(PowerMeasurementRole.DerivedAggregate);
         aggregate.CurrentA.Should().Be(22);
