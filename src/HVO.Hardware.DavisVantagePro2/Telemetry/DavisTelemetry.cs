@@ -19,7 +19,8 @@ public sealed class DavisTelemetry : IDisposable
         [ConsolePollMetricName, ConsoleReconnectMetricName, OutboxLatencyMetricName];
 
     private readonly Meter _meter;
-    private readonly GatewayTelemetry _common = new(new("davis", "weather-station"));
+    private readonly GatewayTelemetry _common;
+    private readonly string _stationId;
 
     // Volatile ensures the observable gauge callback always sees the latest value
     // without needing a lock (single-writer from the outbox sweep loop).
@@ -28,8 +29,10 @@ public sealed class DavisTelemetry : IDisposable
     public readonly Counter<long> ConsoleReconnectCount;
     public readonly Histogram<double> OutboxForwardLatencyMs;
 
-    public DavisTelemetry()
+    public DavisTelemetry(string stationId = "hvo-davis-01")
     {
+        _stationId = stationId;
+        _common = new(new("davis", "weather-station"));
         _meter = new Meter("hvo.davis", "1.0.0");
 
         ConsolePollCount = _meter.CreateCounter<long>(
@@ -48,13 +51,13 @@ public sealed class DavisTelemetry : IDisposable
 
     public void RecordPoll(bool succeeded, double durationSeconds, string? failureKind = null)
     {
-        _common.RecordPoll(succeeded, durationSeconds, "hvo-davis-01", deviceType: "davis-vantage-pro2", failureKind: failureKind);
+        _common.RecordPoll(succeeded, durationSeconds, _stationId, deviceType: "davis-vantage-pro2", failureKind: failureKind);
     }
 
-    public void RecordReconnect(double durationSeconds, bool succeeded, string? failureKind = null)
+    public void RecordConnect(double durationSeconds, bool succeeded, bool reconnect, string? failureKind = null)
     {
-        ConsoleReconnectCount.Add(1);
-        _common.RecordConnect(succeeded, durationSeconds, "hvo-davis-01", deviceType: "davis-vantage-pro2", failureKind: failureKind, reconnect: true);
+        if (reconnect) ConsoleReconnectCount.Add(1);
+        _common.RecordConnect(succeeded, durationSeconds, _stationId, deviceType: "davis-vantage-pro2", failureKind: failureKind, reconnect: reconnect);
     }
 
     public Activity? StartForwardOperation() =>

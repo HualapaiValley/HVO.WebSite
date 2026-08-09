@@ -57,7 +57,8 @@ if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER
         .WithTracing(tb => tb.AddOtlpExporter())
         .WithMetrics(mb => mb.AddOtlpExporter());
 }
-builder.Services.AddSingleton<DavisTelemetry>();
+builder.Services.AddSingleton(sp => new DavisTelemetry(
+    sp.GetRequiredService<IOptions<StationOptions>>().Value.StationId));
 builder.Services.AddTelemetryStatistics();
 builder.Services.AddTelemetryHealthCheck();
 builder.Services.AddHealthChecks()

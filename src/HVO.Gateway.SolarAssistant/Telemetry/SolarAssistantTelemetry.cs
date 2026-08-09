@@ -14,15 +14,20 @@ public sealed class SolarAssistantTelemetry : IDisposable
         [SnapshotPollMetricName, SnapshotPollDurationMetricName, OutboxLatencyMetricName];
 
     private readonly Meter _meter;
-    private readonly GatewayTelemetry _common = new(new("solarassistant", "inverter-aggregator"));
+    private readonly GatewayTelemetry _common;
+    private readonly string _sourceId;
+    private readonly string _deviceId;
 
 
     public readonly Counter<long> SnapshotPollCount;
     public readonly Histogram<double> SnapshotPollDurationMs;
     public readonly Histogram<double> OutboxForwardLatencyMs;
 
-    public SolarAssistantTelemetry()
+    public SolarAssistantTelemetry(string sourceId = "solarassistant-total", string deviceId = "total")
     {
+        _sourceId = sourceId;
+        _deviceId = deviceId;
+        _common = new(new("solarassistant", "inverter-aggregator"));
         _meter = new Meter("hvo.solarassistant", "1.0.0");
 
         SnapshotPollCount = _meter.CreateCounter<long>(
@@ -43,7 +48,7 @@ public sealed class SolarAssistantTelemetry : IDisposable
     {
         SnapshotPollCount.Add(1, new KeyValuePair<string, object?>("result", succeeded ? "success" : "failed"));
         SnapshotPollDurationMs.Record(durationSeconds * 1000);
-        _common.RecordPoll(succeeded, durationSeconds, "solarassistant-total", "total", "solarassistant", failureKind);
+        _common.RecordPoll(succeeded, durationSeconds, _sourceId, _deviceId, "solarassistant", failureKind);
     }
 
     public Activity? StartForwardOperation() =>

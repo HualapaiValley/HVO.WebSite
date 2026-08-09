@@ -14,15 +14,20 @@ public sealed class SmartShuntTelemetry : IDisposable
         [SamplePollMetricName, SamplePollDurationMetricName, OutboxLatencyMetricName];
 
     private readonly Meter _meter;
-    private readonly GatewayTelemetry _common = new(new("smartshunt", "battery-monitor"));
+    private readonly GatewayTelemetry _common;
+    private readonly string _sourceId;
+    private readonly string _deviceId;
 
 
     public readonly Counter<long> SamplePollCount;
     public readonly Histogram<double> SamplePollDurationMs;
     public readonly Histogram<double> OutboxForwardLatencyMs;
 
-    public SmartShuntTelemetry()
+    public SmartShuntTelemetry(string sourceId = "smartshunt-main", string deviceId = "smartshunt-lifepo4")
     {
+        _sourceId = sourceId;
+        _deviceId = deviceId;
+        _common = new(new("smartshunt", "battery-monitor"));
         _meter = new Meter("hvo.smartshunt", "1.0.0");
 
         SamplePollCount = _meter.CreateCounter<long>(
@@ -43,7 +48,7 @@ public sealed class SmartShuntTelemetry : IDisposable
     {
         SamplePollCount.Add(1, new KeyValuePair<string, object?>("result", succeeded ? "success" : "failed"));
         SamplePollDurationMs.Record(durationSeconds * 1000);
-        _common.RecordPoll(succeeded, durationSeconds, "smartshunt-main", "smartshunt-lifepo4", "victron-smartshunt", failureKind);
+        _common.RecordPoll(succeeded, durationSeconds, _sourceId, _deviceId, "victron-smartshunt", failureKind);
     }
 
     public Activity? StartForwardOperation() =>

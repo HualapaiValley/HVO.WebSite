@@ -65,9 +65,32 @@ public sealed class WeatherStationWorker(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var reconnect = reconnectAttempts > 0;
+            var connectStarted = Stopwatch.GetTimestamp();
             try
             {
-                await station.ConnectAsync(stoppingToken);
+                try
+                {
+                    await station.ConnectAsync(stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch
+                {
+                    telemetry.RecordConnect(
+                        Stopwatch.GetElapsedTime(connectStarted).TotalSeconds,
+                        succeeded: false,
+                        reconnect: reconnect,
+                        failureKind: "station_error");
+                    throw;
+                }
+
+                telemetry.RecordConnect(
+                    Stopwatch.GetElapsedTime(connectStarted).TotalSeconds,
+                    succeeded: true,
+                    reconnect: reconnect);
                 reconnectAttempts = 0; // Successful connect — reset backoff
                 ConsecutiveErrors = 0;
                 LastError = null;
@@ -86,7 +109,6 @@ public sealed class WeatherStationWorker(
             catch (Exception ex)
             {
                 reconnectAttempts++;
-                telemetry.RecordReconnect(0, succeeded: false, "station_error");
                 LastError = ex.Message;
                 WorkerStateChanged?.Invoke();
                 // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (capped)

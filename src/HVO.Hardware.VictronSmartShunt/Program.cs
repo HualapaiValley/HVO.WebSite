@@ -65,7 +65,11 @@ builder.Services
     }
     builder.Services.AddTelemetryStatistics();
     builder.Services.AddTelemetryHealthCheck();
-    builder.Services.AddSingleton<SmartShuntTelemetry>();
+    builder.Services.AddSingleton(sp =>
+    {
+        var options = sp.GetRequiredService<IOptions<SmartShuntOptions>>().Value;
+        return new SmartShuntTelemetry(options.SourceId, options.DeviceId);
+    });
 
     var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
     var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)

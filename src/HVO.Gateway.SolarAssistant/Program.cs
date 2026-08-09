@@ -66,7 +66,11 @@ builder.Services
     }
     builder.Services.AddTelemetryStatistics();
     builder.Services.AddTelemetryHealthCheck();
-    builder.Services.AddSingleton<SolarAssistantTelemetry>();
+    builder.Services.AddSingleton(sp =>
+    {
+        var options = sp.GetRequiredService<IOptions<SolarAssistantOptions>>().Value;
+        return new SolarAssistantTelemetry(options.TotalSourceId, options.TotalDeviceId);
+    });
 
     var outboxConfig = builder.Configuration.GetSection(OutboxOptions.SectionName).Get<OutboxOptions>();
     var dbPath = !string.IsNullOrWhiteSpace(outboxConfig?.DbPath)

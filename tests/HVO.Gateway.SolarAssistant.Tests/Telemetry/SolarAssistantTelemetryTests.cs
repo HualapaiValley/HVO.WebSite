@@ -37,6 +37,26 @@ public sealed class SolarAssistantTelemetryTests
             GatewayTelemetry.CreateDiagnostics("hvo-solarassistant", [.. SolarAssistantTelemetry.CompatibilityMetricNames]).MetricNames);
     }
 
+    [TestMethod]
+    public void RecordPoll_UsesConfiguredSourceAndDeviceIds()
+    {
+        IReadOnlyDictionary<string, object?>? tags = null;
+        using var listener = new MeterListener { InstrumentPublished = (instrument, current) =>
+        {
+            if (instrument.Name == GatewayTelemetryConventions.MetricNames.DevicePollAttempt)
+                current.EnableMeasurementEvents(instrument);
+        }};
+        listener.SetMeasurementEventCallback<long>((_, _, measurementTags, _) =>
+            tags = measurementTags.ToArray().ToDictionary(tag => tag.Key, tag => tag.Value));
+        listener.Start();
+        using var telemetry = new SolarAssistantTelemetry("configured-source", "configured-device");
+
+        telemetry.RecordPoll(true, 0.1);
+
+        tags![GatewayTelemetryConventions.Tags.SourceId].Should().Be("configured-source");
+        tags[GatewayTelemetryConventions.Tags.DeviceId].Should().Be("configured-device");
+    }
+
     private static MeterListener Listen(List<string> names, params string[] meters)
     {
         var listener = new MeterListener { InstrumentPublished = (instrument, current) =>

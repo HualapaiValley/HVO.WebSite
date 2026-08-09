@@ -62,6 +62,25 @@ public sealed class DavisTelemetryTests
             GatewayTelemetry.CreateDiagnostics("hvo-davis", [.. DavisTelemetry.CompatibilityMetricNames]).MetricNames);
     }
 
+    [TestMethod]
+    public void RecordPoll_UsesConfiguredStationId()
+    {
+        IReadOnlyDictionary<string, object?>? tags = null;
+        using var listener = new MeterListener { InstrumentPublished = (instrument, current) =>
+        {
+            if (instrument.Name == GatewayTelemetryConventions.MetricNames.DevicePollAttempt)
+                current.EnableMeasurementEvents(instrument);
+        }};
+        listener.SetMeasurementEventCallback<long>((_, _, measurementTags, _) =>
+            tags = measurementTags.ToArray().ToDictionary(tag => tag.Key, tag => tag.Value));
+        listener.Start();
+        using var telemetry = new DavisTelemetry("configured-station");
+
+        telemetry.RecordPoll(true, 0.1);
+
+        tags![GatewayTelemetryConventions.Tags.SourceId].Should().Be("configured-station");
+    }
+
     private static MeterListener CreateListener(List<string> names, params string[] meters)
     {
         var listener = new MeterListener
