@@ -54,7 +54,7 @@ public sealed class Eg4HostingTests
         await host.StartAsync();
 
         host.Services.GetService<Eg4FleetSimulator>().Should().BeNull();
-        host.Services.GetService<IEg4TelemetrySource>().Should().BeNull();
+        host.Services.GetRequiredService<IEg4TelemetrySource>().Should().BeOfType<Eg46500ExTelemetrySource>();
         await host.StopAsync();
     }
 

@@ -30,12 +30,14 @@ public sealed class Eg4OptionsValidator(IHostEnvironment environment) : IValidat
         foreach (var device in devices)
         {
             if (device is null) { failures.Add("Eg4:Devices cannot contain null entries."); continue; }
-            ValidateIdentity(device.SourceId, "SourceId", sourceIds, failures);
-            ValidateIdentity(device.DeviceId, "DeviceId", deviceIds, failures);
-            ValidateIdentity(device.Alias, "Alias", aliases, failures);
+            ValidateIdentity(device.SourceId, "SourceId", 64, sourceIds, failures);
+            ValidateIdentity(device.DeviceId, "DeviceId", 64, deviceIds, failures);
+            ValidateIdentity(device.Alias, "Alias", 128, aliases, failures);
 
             if (!Enum.IsDefined(device.Type) || device.Type == Eg4DeviceType.Unknown)
                 failures.Add($"Device '{device.Alias}' has an unsupported Type.");
+            if (device.Enabled && device.Type == Eg4DeviceType.ChargeControllerMppt10048Hv)
+                failures.Add($"Device '{device.Alias}' cannot be enabled because MPPT controller telemetry has no validated monitoring interface.");
             var stableSerialPort = IsStablePath(device.Port, StablePortPrefix);
             var stableHidrawPort = IsStablePath(device.Port, StableHidrawPrefix);
             if (device.Type == Eg4DeviceType.Inverter6500Ex)
@@ -65,10 +67,10 @@ public sealed class Eg4OptionsValidator(IHostEnvironment environment) : IValidat
         !string.IsNullOrWhiteSpace(value) && value == value.Trim() && value.StartsWith(prefix, StringComparison.Ordinal) &&
         value.Length > prefix.Length && !value.EndsWith('/') && !value.Contains("..", StringComparison.Ordinal);
 
-    private static void ValidateIdentity(string value, string field, HashSet<string> values, List<string> failures)
+    private static void ValidateIdentity(string value, string field, int maximumLength, HashSet<string> values, List<string> failures)
     {
-        if (string.IsNullOrWhiteSpace(value) || value != value.Trim() || value.Length > 128)
-            failures.Add($"Every EG4 device must have a trimmed {field} of 1-128 characters.");
+        if (string.IsNullOrWhiteSpace(value) || value != value.Trim() || value.Length > maximumLength)
+            failures.Add($"Every EG4 device must have a trimmed {field} of 1-{maximumLength} characters.");
         else if (!values.Add(value))
             failures.Add($"EG4 device {field} '{value}' must be unique.");
     }
