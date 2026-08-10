@@ -670,6 +670,28 @@ public sealed class PowerIngestControllerTests
     }
 
     [TestMethod]
+    public async Task IngestInverterDetail_RejectsNullCollectionEntriesWithoutThrowing()
+    {
+        var payload = new PowerInverterDetailPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "inverter_1",
+            RecordedAtUtc = DateTime.UtcNow,
+            PvStrings = [null!],
+            Temperatures = [null!],
+            Statuses = [null!],
+        };
+
+        var result = await _ctrl.IngestInverterDetail(payload, CancellationToken.None);
+
+        var badRequest = result.Result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        var problem = badRequest.Value.Should().BeOfType<ValidationProblemDetails>().Subject;
+        problem.Errors.Keys.Should().Contain(["PvStrings[0]", "Temperatures[0]", "Statuses[0]"]);
+        _db.PowerInverterDetailSnapshots.Should().BeEmpty();
+    }
+
+    [TestMethod]
     public async Task IngestGatewayStatus_PersistsRuntimeStatusAndLatestHandlesAlerts()
     {
         var observedAt = DateTime.UtcNow;

@@ -83,6 +83,45 @@ public sealed class PowerSystemSnapshotProviderTests
         snapshot.Pv.PowerW!.Source.Should().Be(PowerMetricSource.Derived);
     }
 
+    [TestMethod]
+    public async Task GetLatestAsync_SkipsInvalidPersistedMpptPayloads()
+    {
+        var now = new DateTimeOffset(2026, 5, 27, 18, 45, 0, TimeSpan.Zero);
+        var dbOptions = new DbContextOptionsBuilder<HvoV9DbContext>()
+            .UseInMemoryDatabase($"power-invalid-mppt-provider-{Guid.NewGuid()}")
+            .Options;
+        await using var db = new HvoV9DbContext(dbOptions);
+        db.PowerReadings.Add(new PowerReading
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "total",
+            RecordedAt = now.UtcDateTime,
+            PvPowerW = 1200,
+        });
+        db.PowerMpptDetailSnapshots.AddRange(
+            InvalidSnapshot("invalid-json", now.UtcDateTime, "{"),
+            InvalidSnapshot("null-trackers", now.UtcDateTime, """{"sourceId":"null-trackers","trackers":null}"""));
+        await db.SaveChangesAsync();
+        var provider = new PowerSystemSnapshotProvider(
+            db, Options.Create(new PowerCompositionOptions()), new FixedTimeProvider(now));
+
+        var snapshot = await provider.GetLatestAsync(10);
+
+        snapshot!.Pv!.PowerW!.Value.Should().Be(1200);
+        snapshot.Pv.Trackers.Should().BeNull();
+    }
+
+    private static PowerMpptDetailSnapshot InvalidSnapshot(string sourceId, DateTime recordedAt, string payloadJson) => new()
+    {
+        SourceId = sourceId,
+        SourceSystem = "eg4-mppt100-48hv",
+        DeviceId = sourceId,
+        RecordedAt = recordedAt,
+        PayloadJson = payloadJson,
+        CreatedAt = recordedAt,
+    };
+
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;

@@ -12,12 +12,13 @@ namespace HVO.WebSite.v9.Services;
 public sealed class PowerSystemSnapshotProvider(
     HvoV9DbContext db,
     IOptions<PowerCompositionOptions> options,
-    TimeProvider timeProvider) : IPowerSystemSnapshotProvider
+    TimeProvider timeProvider,
+    ILogger<PowerSystemSnapshotProvider>? logger = null) : IPowerSystemSnapshotProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public PowerSystemSnapshotProvider(HvoV9DbContext db)
-        : this(db, Options.Create(new PowerCompositionOptions()), TimeProvider.System) { }
+        : this(db, Options.Create(new PowerCompositionOptions()), TimeProvider.System, null) { }
 
     public async Task<PowerSystemSnapshot?> GetLatestAsync(int lookbackMinutes = 60, CancellationToken ct = default)
     {
@@ -65,12 +66,32 @@ public sealed class PowerSystemSnapshotProvider(
                 .Where(r => latestMpptDetailIds.Contains(r.Id))
                 .ToArrayAsync(ct);
         var mpptDetails = mpptDetailRows
-            .Select(row => JsonSerializer.Deserialize<PowerMpptDetailPayload>(row.PayloadJson, JsonOptions))
+            .Select(TryDeserializeMpptDetail)
             .OfType<PowerMpptDetailPayload>()
             .ToArray();
 
         return readings.Length == 0 && bmsReadings.Length == 0 && mpptDetails.Length == 0
             ? null
             : PowerSystemSnapshotComposer.Compose(readings, nowUtc, bmsReadings, options.Value, mpptDetails);
+    }
+
+    private PowerMpptDetailPayload? TryDeserializeMpptDetail(PowerMpptDetailSnapshot row)
+    {
+        try
+        {
+            var payload = JsonSerializer.Deserialize<PowerMpptDetailPayload>(row.PayloadJson, JsonOptions);
+            if (payload?.Trackers is null || payload.Trackers.Any(tracker => tracker is null))
+                throw new JsonException("MPPT detail payload has a null tracker collection or entry.");
+            return payload;
+        }
+        catch (JsonException exception)
+        {
+            logger?.LogWarning(
+                exception,
+                "Skipping invalid MPPT detail snapshot {SnapshotId} for source {SourceId}",
+                row.Id,
+                row.SourceId);
+            return null;
+        }
     }
 }

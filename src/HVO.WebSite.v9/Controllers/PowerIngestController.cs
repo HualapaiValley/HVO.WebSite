@@ -896,15 +896,31 @@ public class PowerIngestController : ControllerBase
 
     private static void ValidateInverterDetail(List<ValidationResult> results, PowerInverterDetailPayload request)
     {
+        if (request.PvStrings is null || request.Temperatures is null || request.Statuses is null)
+        {
+            if (request.PvStrings is null)
+                results.Add(new ValidationResult("The PvStrings field cannot be null.", [nameof(request.PvStrings)]));
+            if (request.Temperatures is null)
+                results.Add(new ValidationResult("The Temperatures field cannot be null.", [nameof(request.Temperatures)]));
+            if (request.Statuses is null)
+                results.Add(new ValidationResult("The Statuses field cannot be null.", [nameof(request.Statuses)]));
+            return;
+        }
+
         ValidateCount(results, nameof(request.PvStrings), request.PvStrings.Count, MaxPvStrings);
         ValidateCount(results, nameof(request.Temperatures), request.Temperatures.Count, MaxInverterTemperatures);
         ValidateCount(results, nameof(request.Statuses), request.Statuses.Count, MaxInverterStatuses);
-        ValidateUniqueTrimmedValues(results, "PvStrings.StringId", request.PvStrings.Select(item => item.StringId));
-        ValidateUniqueTrimmedValues(results, "Temperatures.TemperatureId", request.Temperatures.Select(item => item.TemperatureId));
-        ValidateUniqueTrimmedValues(results, "Statuses.Key", request.Statuses.Select(item => item.Key));
+        ValidateUniqueTrimmedValues(results, "PvStrings.StringId", request.PvStrings.Select(item => item?.StringId));
+        ValidateUniqueTrimmedValues(results, "Temperatures.TemperatureId", request.Temperatures.Select(item => item?.TemperatureId));
+        ValidateUniqueTrimmedValues(results, "Statuses.Key", request.Statuses.Select(item => item?.Key));
         for (var i = 0; i < request.PvStrings.Count; i++)
         {
             var pv = request.PvStrings[i];
+            if (pv is null)
+            {
+                results.Add(new ValidationResult($"The PvStrings[{i}] field cannot be null.", [$"PvStrings[{i}]"]));
+                continue;
+            }
             ValidateRequiredString(results, $"PvStrings[{i}].StringId", pv.StringId, MaxSnapshotStringLength);
             ValidateRange(results, $"PvStrings[{i}].PowerW", pv.PowerW, 0, 1_000_000);
             ValidateRange(results, $"PvStrings[{i}].VoltageV", pv.VoltageV, 0, 10_000);
@@ -946,6 +962,11 @@ public class PowerIngestController : ControllerBase
         for (var i = 0; i < request.Temperatures.Count; i++)
         {
             var temperature = request.Temperatures[i];
+            if (temperature is null)
+            {
+                results.Add(new ValidationResult($"The Temperatures[{i}] field cannot be null.", [$"Temperatures[{i}]"]));
+                continue;
+            }
             ValidateRequiredString(results, $"Temperatures[{i}].TemperatureId", temperature.TemperatureId, MaxSnapshotStringLength);
             ValidateRequiredString(results, $"Temperatures[{i}].Name", temperature.Name, MaxSnapshotStringLength);
             ValidateRange(results, $"Temperatures[{i}].TemperatureC", temperature.TemperatureC, -100, 200);
@@ -954,6 +975,11 @@ public class PowerIngestController : ControllerBase
         for (var i = 0; i < request.Statuses.Count; i++)
         {
             var status = request.Statuses[i];
+            if (status is null)
+            {
+                results.Add(new ValidationResult($"The Statuses[{i}] field cannot be null.", [$"Statuses[{i}]"]));
+                continue;
+            }
             ValidateRequiredString(results, $"Statuses[{i}].Key", status.Key, MaxSnapshotStringLength);
             ValidateRequiredString(results, $"Statuses[{i}].Value", status.Value, MaxSnapshotValueLength);
             ValidateMaxLength(results, $"Statuses[{i}].SourceTopic", status.SourceTopic, MaxSnapshotStringLength);
