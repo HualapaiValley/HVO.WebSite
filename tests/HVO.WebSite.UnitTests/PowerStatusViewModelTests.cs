@@ -158,7 +158,10 @@ public sealed class PowerStatusViewModelTests
             PowerMeasurementRole.AggregateEstimate, observedAt.AddSeconds(-20), voltage: 54.1, current: -18, power: -974, soc: 91,
             provenance: PowerObservationProvenance.SourceAggregate);
         var inverterA = Observation("eg4-inverter-a", "inverter-a", PowerMetricSource.Eg46500Ex,
-            PowerMeasurementRole.InverterBranch, observedAt.AddSeconds(-30), voltage: 54.4, current: -8, power: -435);
+            PowerMeasurementRole.InverterBranch, observedAt.AddSeconds(-30), voltage: 54.4, current: -8, power: -435,
+            provenance: PowerObservationProvenance.Derived,
+            confidence: "PI30 voltage/SOC direct; current=discharge-charge; power=voltage*current",
+            inputs: [new PowerObservationInput("eg4-inverter-a", observedAt.AddSeconds(-30), "inverter-a")]);
         var inverterB = Observation("eg4-inverter-b", "inverter-b", PowerMetricSource.Eg46500Ex,
             PowerMeasurementRole.InverterBranch, observedAt.AddSeconds(-40), voltage: 54.3, current: 3, power: 163);
         var mpptA = Observation("eg4-mppt-a", "controller-a", PowerMetricSource.Eg4Mppt10048Hv,
@@ -210,6 +213,8 @@ public sealed class PowerStatusViewModelTests
         var dischargingBranch = model.BatteryObservations.Single(row => row.SourceId == "eg4-inverter-b");
         dischargingBranch.Flow.Should().Be("Discharging (out of battery)");
         dischargingBranch.SelectionLabels.Should().Equal("Comparison only");
+        model.BatteryObservations.Single(row => row.SourceId == "eg4-inverter-a").ProvenanceDetail.Should().Be(
+            "PI30 voltage/SOC direct; current=discharge-charge; power=voltage*current; Inputs: eg4-inverter-a/inverter-a");
         var staleController = model.BatteryObservations.Single(row => row.SourceId == "eg4-mppt-a");
         staleController.FreshnessStatus.Should().Be("stale");
         var pack = model.BatteryObservations.Single(row => row.SourceId == "jk-bms-1");
@@ -306,8 +311,10 @@ public sealed class PowerStatusViewModelTests
         double? current = null,
         double? power = null,
         double? soc = null,
-        PowerObservationProvenance provenance = PowerObservationProvenance.Direct)
-        => new(sourceId, deviceId, source, role, role.ToString(), observedAt, voltage, current, power, soc, provenance);
+        PowerObservationProvenance provenance = PowerObservationProvenance.Direct,
+        string? confidence = null,
+        IReadOnlyList<PowerObservationInput>? inputs = null)
+        => new(sourceId, deviceId, source, role, role.ToString(), observedAt, voltage, current, power, soc, provenance, confidence, inputs);
 
     private static SourcedValue<T> Value<T>(
         T value,

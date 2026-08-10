@@ -98,7 +98,13 @@ public sealed class PowerSystemSnapshotComposerTests
 
         snapshot.BatteryObservations!.Count(item => item.Role == PowerMeasurementRole.InverterBranch).Should().Be(2);
         snapshot.BatteryObservations!.Where(item => item.Role == PowerMeasurementRole.InverterBranch)
-            .Should().AllSatisfy(item => item.Provenance.Should().Be(PowerObservationProvenance.Direct));
+            .Should().AllSatisfy(item =>
+            {
+                item.Provenance.Should().Be(PowerObservationProvenance.Derived);
+                item.Confidence.Should().Be("PI30 voltage/SOC direct; current=discharge-charge; power=voltage*current");
+                item.Inputs.Should().ContainSingle().Which.Should().Be(
+                    new PowerObservationInput(item.SourceId, item.ObservedAtUtc, item.DeviceId));
+            });
         var aggregate = snapshot.BatteryObservations!.Single(item => item.SourceId == "derived-6500ex-branch-sum");
         aggregate.Role.Should().Be(PowerMeasurementRole.DerivedAggregate);
         aggregate.CurrentA.Should().Be(22);

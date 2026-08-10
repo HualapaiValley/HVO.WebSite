@@ -62,7 +62,8 @@ public static class PowerSystemSnapshotComposer
                 SolarAssistantSystem => Observation(reading, PowerMetricSource.SolarAssistant, PowerMeasurementRole.AggregateEstimate,
                     "solarassistant-battery-aggregate", PowerObservationProvenance.SourceAggregate, reading.BatteryCurrentA, reading.BatteryPowerW),
                 PowerSourceSystems.Eg46500Ex => Observation(reading, PowerMetricSource.Eg46500Ex, PowerMeasurementRole.InverterBranch,
-                    "inverter-battery-branch", PowerObservationProvenance.Direct, reading.BatteryCurrentA, reading.BatteryPowerW),
+                    "inverter-battery-branch", PowerObservationProvenance.Derived, reading.BatteryCurrentA, reading.BatteryPowerW,
+                    "PI30 voltage/SOC direct; current=discharge-charge; power=voltage*current", includeSourceInput: true),
                 PowerSourceSystems.Eg4Mppt10048Hv => Observation(reading, PowerMetricSource.Eg4Mppt10048Hv, PowerMeasurementRole.ChargeControllerBranch,
                     "charge-controller-battery-branch", PowerObservationProvenance.Direct, reading.BatteryCurrentA, reading.BatteryPowerW),
                 _ => null,
@@ -82,12 +83,15 @@ public static class PowerSystemSnapshotComposer
 
     private static PowerBatteryObservation? Observation(
         PowerReading reading, PowerMetricSource source, PowerMeasurementRole role, string point,
-        PowerObservationProvenance provenance, double? current, double? power)
+        PowerObservationProvenance provenance, double? current, double? power,
+        string? confidence = null, bool includeSourceInput = false)
     {
         if (reading.BatteryVoltageV is null && current is null && power is null && reading.BatteryStateOfChargePercent is null) return null;
+        var observedAtUtc = DateTime.SpecifyKind(reading.RecordedAt, DateTimeKind.Utc);
         return new PowerBatteryObservation(reading.SourceId, reading.DeviceId ?? reading.SourceId, source, role, point,
-            DateTime.SpecifyKind(reading.RecordedAt, DateTimeKind.Utc), reading.BatteryVoltageV, current, power,
-            reading.BatteryStateOfChargePercent, provenance);
+            observedAtUtc, reading.BatteryVoltageV, current, power,
+            reading.BatteryStateOfChargePercent, provenance, confidence,
+            includeSourceInput ? [new PowerObservationInput(reading.SourceId, observedAtUtc, reading.DeviceId)] : null);
     }
 
     private static void AddDerivedObservations(List<PowerBatteryObservation> observations, PowerCompositionOptions options, string? preferredBusSourceId)

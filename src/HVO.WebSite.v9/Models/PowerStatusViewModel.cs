@@ -389,7 +389,10 @@ public sealed record PowerStatusViewModel(
                 : $"{input.SourceId}/{input.DeviceId}")
             .ToArray() ?? [];
         if (inputs.Length > 0)
-            return $"Inputs: {string.Join(", ", inputs)}";
+        {
+            var inputDetail = $"Inputs: {string.Join(", ", inputs)}";
+            return confidence is null ? inputDetail : $"{confidence}; {inputDetail}";
+        }
         return confidence ?? observation.MeasurementPoint;
     }
 
