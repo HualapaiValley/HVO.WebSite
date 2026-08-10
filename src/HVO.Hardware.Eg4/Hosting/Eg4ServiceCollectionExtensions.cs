@@ -41,7 +41,14 @@ public static class Eg4ServiceCollectionExtensions
             services.AddSingleton<IEg46500ExInquiryTransportFactory>(provider =>
                 provider.GetRequiredService<Eg46500ExHidrawTransportFactory>());
             services.AddSingleton<Eg46500ExTelemetrySource>();
-            services.AddSingleton<IEg4TelemetrySource>(provider => provider.GetRequiredService<Eg46500ExTelemetrySource>());
+            services.AddSingleton<IEg4DeviceTelemetrySource>(provider => provider.GetRequiredService<Eg46500ExTelemetrySource>());
+            services.AddSingleton<Eg4Mppt10048HvSerialTransportFactory>();
+            services.AddSingleton<IEg4RegisterTransportFactory>(provider =>
+                provider.GetRequiredService<Eg4Mppt10048HvSerialTransportFactory>());
+            services.AddSingleton<IEg4PortCoordinator, Eg4PortCoordinator>();
+            services.AddSingleton<Eg4Mppt10048HvTelemetrySource>();
+            services.AddSingleton<IEg4DeviceTelemetrySource>(provider => provider.GetRequiredService<Eg4Mppt10048HvTelemetrySource>());
+            services.AddSingleton<IEg4TelemetrySource, Eg4TelemetrySourceRouter>();
         }
 
         return services;

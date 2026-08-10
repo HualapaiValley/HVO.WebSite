@@ -103,11 +103,12 @@ compose_dir_for_target() {
 
 deploy_target() {
 	local gateway="$1"
-	local compose_dir compose_file env_file two_device_file
+	local compose_dir compose_file env_file two_device_file mppt_file
 	compose_dir="$(compose_dir_for_target "${gateway}")"
 	compose_file="${repo_root}/${compose_dir}/docker-compose.yml"
 	env_file="${HVO_PI_GATEWAY_ENV_FILE:-${repo_root}/${compose_dir}/.env}"
 	two_device_file="${repo_root}/${compose_dir}/docker-compose.two-device.yml"
+	mppt_file="${repo_root}/${compose_dir}/docker-compose.mppt.yml"
 
 	[[ -f "${compose_file}" ]] || fail "Compose file not found: ${compose_file}"
 	[[ -f "${env_file}" ]] || fail "Environment file not found: ${env_file}"
@@ -125,6 +126,13 @@ deploy_target() {
 		if is_true "$(read_env_value "${env_file}" EG4_DEVICE_1_ENABLED)"; then
 			compose_files+=("${two_device_file}")
 			printf 'Enabling the EG4 two-device Compose overlay.\n'
+		fi
+	fi
+	if [[ "${gateway}" == eg4 && -f "${mppt_file}" ]]; then
+		warn_shell_env_overrides "${mppt_file}"
+		if is_true "$(read_env_value "${env_file}" EG4_MPPT_0_ENABLED)"; then
+			compose_files+=("${mppt_file}")
+			printf 'Enabling the EG4 MPPT read-only Compose overlay.\n'
 		fi
 	fi
 	if [[ "${gateway}" == eg4 && "${allow_env_overrides}" == false && ${#override_env_names[@]} -gt 0 ]]; then

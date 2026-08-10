@@ -32,6 +32,7 @@ public static class EdgePayloadTypes
     public const string PowerConfiguration = "com.hvo.power.configuration.v1";
     public const string PowerEnergy = "com.hvo.power.energy.v1";
     public const string PowerInverterDetail = "com.hvo.power.inverter-detail.v1";
+    public const string PowerMpptDetail = "com.hvo.power.mppt-detail.v1";
 
     // ── Plug (TP-Link Kasa) ─────────────────────────────────────────────
     public const string PlugReading = "com.hvo.plug.reading.v1";
@@ -67,6 +68,7 @@ public static class EdgePayloadTypes
         public const string PowerConfiguration = "power.configuration";
         public const string PowerEnergy = "power.energy";
         public const string PowerInverterDetail = "power.inverter-detail";
+        public const string PowerMpptDetail = "power.mppt-detail";
 
         public const string PlugReading = "plug.reading";
         public const string PlugState = "plug.state";
@@ -96,6 +98,7 @@ public static class EdgePayloadTypes
         Legacy.PowerConfiguration => PowerConfiguration,
         Legacy.PowerEnergy => PowerEnergy,
         Legacy.PowerInverterDetail => PowerInverterDetail,
+        Legacy.PowerMpptDetail => PowerMpptDetail,
         Legacy.PlugReading => PlugReading,
         Legacy.PlugState => PlugState,
         Legacy.KasaEnergy => KasaEnergy,

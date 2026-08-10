@@ -364,6 +364,44 @@ public sealed class PowerApiEndpointTests
         forbiddenRead.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    [TestMethod]
+    public async Task MpptDetailEndpoints_RequireScopesAndReturnLatestAndRecentSnapshots()
+    {
+        var sourceId = $"mppt-{Guid.NewGuid():N}";
+        _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+        var ingestResponse = await _client.PostAsJsonAsync("/api/v1/power/mppt-detail", new PowerMpptDetailPayload
+        {
+            SourceId = sourceId,
+            SourceSystem = "eg4-mppt100-48hv",
+            DeviceId = "mppt-a",
+            RecordedAtUtc = DateTime.UtcNow,
+            Trackers = [new PowerMpptTrackerDetail { TrackerId = "pv-1", Name = "Array A", PowerW = 800, Provenance = PowerObservationProvenance.Direct }],
+            BatteryOutput = new PowerMpptBatteryOutputDetail { CurrentA = 0, PowerW = 0, Provenance = PowerObservationProvenance.Direct },
+        });
+        ingestResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        _client.DefaultRequestHeaders.Remove("X-Api-Key");
+        _client.DefaultRequestHeaders.Add("X-Api-Key", ReadPlaintext);
+        var latestResponse = await _client.GetAsync($"/api/v1/power/mppt-detail/latest?sourceId={sourceId}");
+        var recentResponse = await _client.GetAsync($"/api/v1/power/mppt-detail/recent?sourceId={sourceId}&limit=1");
+        var missingSourceResponse = await _client.GetAsync("/api/v1/power/mppt-detail/latest");
+        var invalidLimitResponse = await _client.GetAsync("/api/v1/power/mppt-detail/recent?limit=5001");
+
+        latestResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var latest = await latestResponse.Content.ReadFromJsonAsync<PowerMpptDetailSnapshotResponse>();
+        latest!.Trackers.Single().PowerW.Should().Be(800);
+        recentResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var recent = await recentResponse.Content.ReadFromJsonAsync<List<PowerMpptDetailSnapshotResponse>>();
+        recent.Should().ContainSingle();
+        missingSourceResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        invalidLimitResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        _client.DefaultRequestHeaders.Remove("X-Api-Key");
+        _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+        var forbiddenRead = await _client.GetAsync($"/api/v1/power/mppt-detail/latest?sourceId={sourceId}");
+        forbiddenRead.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
     private static PowerReadingPayload ValidPayload(
         string sourceId,
         string recordedAt = "2026-05-23T07:00:00Z",

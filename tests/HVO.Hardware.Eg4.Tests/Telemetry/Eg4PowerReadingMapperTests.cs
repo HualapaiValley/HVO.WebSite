@@ -38,13 +38,17 @@ public sealed class Eg4PowerReadingMapperTests
     }
 
     [TestMethod]
-    public void Map_RejectsUnvalidatedSourceOrRole()
+    public void Map_MapsValidatedMpptBranchAndRejectsMismatchedRole()
     {
         var observation = new PowerBatteryObservation(
             "source", "device", PowerMetricSource.Eg4Mppt10048Hv,
             PowerMeasurementRole.ChargeControllerBranch, "branch", DateTime.UtcNow);
 
-        FluentActions.Invoking(() => Eg4PowerReadingMapper.Map(observation))
+        Eg4PowerReadingMapper.Map(observation).SourceSystem.Should().Be("eg4-mppt100-48hv");
+        var invalid = new PowerBatteryObservation(
+            "source", "device", PowerMetricSource.Eg4Mppt10048Hv,
+            PowerMeasurementRole.InverterBranch, "branch", DateTime.UtcNow);
+        FluentActions.Invoking(() => Eg4PowerReadingMapper.Map(invalid))
             .Should().Throw<ArgumentException>();
     }
 }

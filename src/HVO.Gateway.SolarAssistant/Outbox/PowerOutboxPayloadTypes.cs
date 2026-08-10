@@ -18,6 +18,8 @@ public static class PowerOutboxPayloadTypes
     public const string EnergyVersion = "1";
     public const string InverterDetail = EdgePayloadTypes.Legacy.PowerInverterDetail;
     public const string InverterDetailVersion = "1";
+    public const string MpptDetail = EdgePayloadTypes.Legacy.PowerMpptDetail;
+    public const string MpptDetailVersion = "1";
     public const string GatewayStatus = EdgePayloadTypes.Legacy.GatewayStatus;
     public const string GatewayStatusVersion = "1";
 }

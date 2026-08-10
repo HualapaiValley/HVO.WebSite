@@ -1,0 +1,7 @@
+services:
+  hvo-eg4:
+    devices:
+      - "${EG4_MPPT_0_PORT}:${EG4_MPPT_0_PORT}:rw"
+    environment:
+      Eg4__Devices__1__Enabled: "true"
+      Eg4__Devices__1__PollIntervalSeconds: ${EG4_MPPT_0_POLL_INTERVAL_SECONDS:-60}

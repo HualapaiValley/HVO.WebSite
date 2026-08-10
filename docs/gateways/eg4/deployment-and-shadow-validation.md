@@ -1,14 +1,14 @@
 # EG4 6500EX Deployment And Shadow Validation
 
-This runbook commissions the read-only EG4 6500EX battery gateway on `devpi5`. It does not enable MPPT, PV, AC, arbitrary PI30 commands, setting writes, or the battery-facing BMS RS485 connection.
+This runbook commissions read-only EG4 6500EX and MPPT100-48HV telemetry on `devpi5`. It never enables arbitrary PI30 commands, setting writes, Modbus writes, firmware operations, or the inverter battery-facing BMS RS485 connection.
 
 ## Safety Boundary
 
 - Connect only an inverter RS232/COM monitoring cable exposed as USB HID `0665:5161`.
-- Never map the CH340 `1a86:7523` MPPT/BMS cable or `/dev/ttyUSB0` into this container.
-- The runtime allowlists identity inquiries and `QPIGS`; it has no command endpoint.
+- Never map enumerated `/dev/ttyUSB0`; use the verified MPPT `/dev/serial/by-id/...` identity only.
+- The inverter runtime allowlists identity, `QPIGS`, `QPGS0`, `Q1`, and firmware-conditional `QPIGS2`. The MPPT runtime permits only unit-1 function-`0x03` registers 200-217. Neither has a command endpoint.
 - Keep SolarAssistant, SmartShunt, JK BMS, Davis, and TP-Link/Kasa unchanged during commissioning.
-- SmartShunt remains preferred for whole-bus electrical values. SolarAssistant remains preferred for PV, AC, load, and SOC according to the central composition policy.
+- SmartShunt remains preferred for whole-bus electrical values. SolarAssistant supplies the two direct internal tracker channels; the direct EG4 MPPT supplies the third array. JK BMS/SmartShunt remain authoritative for SOC.
 
 ## Verified Host Baseline
 
@@ -57,12 +57,12 @@ The container runs as root but receives only the explicitly mapped HID nodes; it
 1. Copy `deploy/pi-gateways/eg4/.env.example` to the ignored `.env` file.
 2. Provision an API key with only `ingest:power` and set `EG4_POWER_API_KEY` without committing or printing it.
 3. Keep `EG4_DEVICE_1_ENABLED=false` while only one HID exists.
-4. Set `EG4_MPPT_0_PORT` to the stable `/dev/serial/by-id` identity for the installed MPPT BMS cable. The cable is recorded for inventory only and is not mapped into the container or polled.
+4. Set `EG4_MPPT_0_PORT` to the verified stable `/dev/serial/by-id` identity. Keep `EG4_MPPT_0_ENABLED=false` until the website migration/API is deployed and the overlay has been reviewed; then set it true to map and poll only the fixed read profile.
 5. Keep the source and device IDs stable; list indexes are configuration positions, not identity.
 6. Keep `HVO_WEBSITE_PUBLIC_BASE_URL` on the HTTPS public website route.
 7. Leave `OTEL_COLLECTOR_ENDPOINT` empty unless collector reachability has been verified.
 
-The one-device base stack maps only `EG4_DEVICE_0_PORT`. Its dashboard also lists the installed MPPT as `Telemetry unavailable`; this is inventory, not a zero-valued observation. The MPPT BMS cable has no validated controller-monitoring protocol and remains inaccessible to the container. When `EG4_DEVICE_1_ENABLED=true`, `deploy-pi-gateway.sh` automatically adds `docker-compose.two-device.yml`; both stable HID nodes must then exist before container creation.
+The base stack maps only `EG4_DEVICE_0_PORT`. When `EG4_MPPT_0_ENABLED=true`, `deploy-pi-gateway.sh` adds `docker-compose.mppt.yml` and maps only the configured stable serial path. When `EG4_DEVICE_1_ENABLED=true`, it also adds `docker-compose.two-device.yml`; both stable HID nodes must then exist before container creation.
 
 The deployment intentionally builds the image natively through the remote `devpi5` Docker context. The current registry publishing script runs on x64 and does not publish EG4 until a multi-architecture publishing workflow is implemented.
 
@@ -96,7 +96,7 @@ docker compose \
 ./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 eg4
 ```
 
-When device 1 is enabled, include `docker-compose.two-device.yml` in manual Compose checks. Do not save rendered Compose output because service environment values include the API key.
+Include every enabled overlay in manual Compose checks. Do not save rendered Compose output because service environment values include the API key.
 
 If OTLP is configured, verify basic HTTP connectivity from the Pi before deployment. A 404 response at the collector root is acceptable; a DNS, connection, or timeout failure is not:
 
@@ -164,20 +164,24 @@ Record:
 - Healthy/degraded/offline transitions and any HID ownership conflict.
 - Outbox pending, retry-exhausted, permanent-failure, and last-sent state.
 - Charging, discharging, and idle samples, including a simultaneous zero-charge/zero-discharge frame when naturally observed.
+- External MPPT daylight samples, expected nighttime silence, temperature channels, and diagnostic-state history.
+- Direct SolarAssistant MPPT 1/2 power compared with the EG4 HID MPPT 1 and coarse MPPT 2 observations.
+- The three-array composed sum only when both SolarAssistant trackers and the external MPPT tracker are fresh and within timestamp skew.
 - Timestamp skew between each EG4 branch and the nearest SmartShunt whole-bus sample.
 - Direct branch sum compared with SmartShunt whole-bus net flow using the canonical sign: positive discharge, negative charge.
 
-EG4 branch values and SmartShunt whole-bus values are different physical measurements and are not expected to match exactly. Explain differences using update cadence, integer-amp EG4 resolution, wiring and conversion losses, MPPT charging, other DC loads, and standby consumption. MPPT residual analysis remains deferred because no safe controller-monitoring interface is configured.
+EG4 branch values and SmartShunt whole-bus values are different physical measurements and are not expected to match exactly. Explain differences using update cadence, integer-amp inverter resolution, wiring and conversion losses, MPPT charging, other DC loads, and standby consumption. Never add SolarAssistant's aggregate PV to individual tracker powers.
 
 ## Promotion Criteria
 
-- 24-72 hours without command/write traffic or unintended PV/AC ingest.
+- 24-72 hours without command/write traffic, fabricated nighttime zeroes, or duplicate PV aggregation.
 - Stable `/dev/hvo` aliases after reconnect/reboot and, when present, reordered two-device enumeration.
 - Supported model and firmware identity on every enabled inverter.
 - Healthy polling with explained transient failures only.
 - Durable outbox recovery with no growing normal-operation backlog or permanent failures.
 - Successful local SQL retention of distinct `eg4-6500ex-*` source/device rows.
 - Website comparison shows each inverter as an `Inverter branch`, never a whole-bus value.
+- MPPT history preserves three independent arrays and derives a sum only from the configured complete tracker set.
 - Branch-versus-bus differences are physically explainable at bounded timestamp skew.
 - SolarAssistant, SmartShunt, and JK BMS remain operational and independently deployable.
 

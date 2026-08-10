@@ -65,6 +65,27 @@ public sealed class PowerOutboxWriterTests
         _db.OutboxRecords.Count().Should().Be(1);
     }
 
+    [TestMethod]
+    public async Task MpptWriter_PreservesRepeatedHistoricalSamplesAndSameTimePayloadTypes()
+    {
+        var detailWriter = new PowerInventoryConfigurationWriter(_store);
+        var recordedAt = DateTime.Parse("2026-08-10T18:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var mppt = MakeMpptPayload(recordedAt);
+
+        (await _writer.EnqueueAsync(MakePayload("2026-08-10T18:00:00Z"), CancellationToken.None)).Should().BeTrue();
+        (await detailWriter.EnqueueMpptDetailAsync(mppt, CancellationToken.None)).Should().BeTrue();
+        (await detailWriter.EnqueueMpptDetailAsync(MakeMpptPayload(recordedAt.AddSeconds(30)), CancellationToken.None)).Should().BeTrue();
+
+        var rows = _db.OutboxRecords.OrderBy(r => r.RecordedAtUtc).ThenBy(r => r.PayloadType).ToArray();
+        rows.Should().HaveCount(3);
+        rows.Count(r => r.PayloadType == PowerOutboxPayloadTypes.MpptDetail).Should().Be(2);
+        rows.Where(r => r.RecordedAtUtc == recordedAt).Select(r => r.PayloadType).Should().BeEquivalentTo(
+            PowerOutboxPayloadTypes.PowerReading,
+            PowerOutboxPayloadTypes.MpptDetail);
+        rows.Where(r => r.PayloadType == PowerOutboxPayloadTypes.MpptDetail)
+            .Should().OnlyContain(r => r.PayloadVersion == PowerOutboxPayloadTypes.MpptDetailVersion);
+    }
+
     private static PowerReadingPayload MakePayload(string recordedAt) => new()
     {
         SourceId = "solarassistant-total",
@@ -72,5 +93,26 @@ public sealed class PowerOutboxWriterTests
         DeviceId = "total",
         RecordedAtUtc = DateTime.Parse(recordedAt, null, System.Globalization.DateTimeStyles.RoundtripKind),
         PvPowerW = 1200,
+    };
+
+    private static PowerMpptDetailPayload MakeMpptPayload(DateTime recordedAt) => new()
+    {
+        SourceId = "solarassistant-total",
+        SourceSystem = "solarassistant",
+        DeviceId = "inverter_1",
+        RecordedAtUtc = recordedAt,
+        Trackers =
+        [
+            new PowerMpptTrackerDetail
+            {
+                TrackerId = "mppt-1",
+                Name = "6500EX MPPT 1",
+                VoltageV = 121.4,
+                CurrentA = 5.05,
+                PowerW = 612.5,
+                Provenance = PowerObservationProvenance.Direct,
+                Confidence = "source-direct",
+            },
+        ],
     };
 }

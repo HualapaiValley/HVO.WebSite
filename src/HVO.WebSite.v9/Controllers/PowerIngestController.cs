@@ -40,6 +40,10 @@ public class PowerIngestController : ControllerBase
     private const int MaxEnergyCounters = 20;
     private const int MaxPvStrings = 8;
     private const int MaxInverterStatuses = 20;
+    private const int MaxInverterTemperatures = 20;
+    private const int MaxMpptTrackers = 32;
+    private const int MaxMpptTemperatures = 32;
+    private const int MaxMpptDiagnostics = 100;
     private const int MaxGatewayAlerts = 50;
     private const int MaxSnapshotStringLength = 256;
     private const int MaxSnapshotValueLength = 1024;
@@ -398,6 +402,55 @@ public class PowerIngestController : ControllerBase
         return CreatedAtAction(nameof(GetLatestInverterDetail), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
     }
 
+    [HttpPost("mppt-detail")]
+    [Authorize(Policy = "PowerIngest")]
+    [ProducesResponseType(typeof(PowerSnapshotIngestResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerSnapshotIngestResponse>> IngestMpptDetail(
+        [FromBody] PowerMpptDetailPayload request,
+        CancellationToken ct)
+    {
+        var sourceId = NormalizeSourceId(request.SourceId);
+        var recordedAt = NormalizeRecordedAt(request.RecordedAtUtc);
+        var validationResults = ValidateCommonSnapshot(sourceId, request.SourceSystem, request.DeviceId, recordedAt);
+        ValidateMpptDetail(validationResults, request);
+        if (validationResults.Count > 0)
+            return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+
+        if (await _db.PowerMpptDetailSnapshots.AnyAsync(
+            r => r.SourceId == sourceId && r.RecordedAt == recordedAt, ct))
+        {
+            return CreatedAtAction(nameof(GetLatestMpptDetail), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        _db.PowerMpptDetailSnapshots.Add(new PowerMpptDetailSnapshot
+        {
+            SourceId = sourceId,
+            SourceSystem = NormalizeSourceSystem(request.SourceSystem),
+            DeviceId = NormalizeOptional(request.DeviceId),
+            RecordedAt = recordedAt,
+            TrackerCount = request.Trackers.Count,
+            TemperatureCount = request.Temperatures.Count,
+            DiagnosticCount = request.Diagnostics.Count,
+            PayloadJson = JsonSerializer.Serialize(request, JsonOptions),
+            CreatedAt = DateTime.UtcNow,
+        });
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            return CreatedAtAction(nameof(GetLatestMpptDetail), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+
+        return CreatedAtAction(nameof(GetLatestMpptDetail), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
+    }
+
     [HttpPost("gateway-status")]
     [Authorize(Policy = "PowerIngest")]
     [ProducesResponseType(typeof(PowerSnapshotIngestResponse), StatusCodes.Status201Created)]
@@ -600,11 +653,66 @@ public class PowerIngestController : ControllerBase
             IsPresent = true,
             IsStale = DateTime.UtcNow - row.RecordedAt > TimeSpan.FromMinutes(staleAfterMinutes),
             PvStrings = payload.PvStrings,
+            Ac = payload.Ac,
             Load = payload.Load,
             Battery = payload.Battery,
+            Operating = payload.Operating,
             TemperatureC = payload.TemperatureC,
+            Temperatures = payload.Temperatures,
             Statuses = payload.Statuses,
         });
+    }
+
+    [HttpGet("mppt-detail/latest")]
+    [Authorize(Policy = "PowerRead")]
+    [ProducesResponseType(typeof(PowerMpptDetailSnapshotResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<PowerMpptDetailSnapshotResponse>> GetLatestMpptDetail(
+        [FromQuery][Required] string sourceId,
+        [FromQuery][Range(1, 10080)] int staleAfterMinutes = 1440,
+        CancellationToken ct = default)
+    {
+        var normalized = NormalizeSourceId(sourceId);
+        if (normalized.Length == 0)
+            return BadRequest(new ValidationProblemDetails(new Dictionary<string, string[]> { [nameof(sourceId)] = ["The sourceId field is required."] }));
+
+        var row = await _db.PowerMpptDetailSnapshots
+            .AsNoTracking()
+            .Where(r => r.SourceId == normalized)
+            .OrderByDescending(r => r.RecordedAt)
+            .FirstOrDefaultAsync(ct);
+        if (row is null)
+            return Ok(new PowerMpptDetailSnapshotResponse { SourceId = normalized, IsPresent = false, IsStale = true });
+
+        return Ok(ToMpptDetailResponse(row, staleAfterMinutes));
+    }
+
+    [HttpGet("mppt-detail/recent")]
+    [Authorize(Policy = "PowerRead")]
+    [ProducesResponseType(typeof(IReadOnlyList<PowerMpptDetailSnapshotResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public async Task<ActionResult<IReadOnlyList<PowerMpptDetailSnapshotResponse>>> GetRecentMpptDetail(
+        [FromQuery] string? sourceId,
+        [FromQuery][Range(1, 5000)] int limit = 2880,
+        CancellationToken ct = default)
+    {
+        var query = _db.PowerMpptDetailSnapshots.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(sourceId))
+        {
+            var normalized = NormalizeSourceId(sourceId);
+            query = query.Where(r => r.SourceId == normalized);
+        }
+
+        var rows = await query
+            .OrderByDescending(r => r.RecordedAt)
+            .Take(limit)
+            .ToListAsync(ct);
+        return Ok(rows.Select(row => ToMpptDetailResponse(row)).ToList());
     }
 
     [HttpGet("gateway-status/latest")]
@@ -701,7 +809,7 @@ public class PowerIngestController : ControllerBase
         double minimum,
         double maximum)
     {
-        if (value.HasValue && (value.Value < minimum || value.Value > maximum))
+        if (value.HasValue && (!double.IsFinite(value.Value) || value.Value < minimum || value.Value > maximum))
             results.Add(new ValidationResult($"The field {memberName} must be between {minimum} and {maximum}.", [memberName]));
     }
 
@@ -789,7 +897,11 @@ public class PowerIngestController : ControllerBase
     private static void ValidateInverterDetail(List<ValidationResult> results, PowerInverterDetailPayload request)
     {
         ValidateCount(results, nameof(request.PvStrings), request.PvStrings.Count, MaxPvStrings);
+        ValidateCount(results, nameof(request.Temperatures), request.Temperatures.Count, MaxInverterTemperatures);
         ValidateCount(results, nameof(request.Statuses), request.Statuses.Count, MaxInverterStatuses);
+        ValidateUniqueTrimmedValues(results, "PvStrings.StringId", request.PvStrings.Select(item => item.StringId));
+        ValidateUniqueTrimmedValues(results, "Temperatures.TemperatureId", request.Temperatures.Select(item => item.TemperatureId));
+        ValidateUniqueTrimmedValues(results, "Statuses.Key", request.Statuses.Select(item => item.Key));
         for (var i = 0; i < request.PvStrings.Count; i++)
         {
             var pv = request.PvStrings[i];
@@ -797,6 +909,15 @@ public class PowerIngestController : ControllerBase
             ValidateRange(results, $"PvStrings[{i}].PowerW", pv.PowerW, 0, 1_000_000);
             ValidateRange(results, $"PvStrings[{i}].VoltageV", pv.VoltageV, 0, 10_000);
             ValidateRange(results, $"PvStrings[{i}].CurrentA", pv.CurrentA, 0, 10_000);
+        }
+
+
+        if (request.Ac is not null)
+        {
+            ValidateRange(results, "Ac.InputVoltageV", request.Ac.InputVoltageV, 0, 1_000);
+            ValidateRange(results, "Ac.InputFrequencyHz", request.Ac.InputFrequencyHz, 0, 100);
+            ValidateRange(results, "Ac.OutputVoltageV", request.Ac.OutputVoltageV, 0, 1_000);
+            ValidateRange(results, "Ac.OutputFrequencyHz", request.Ac.OutputFrequencyHz, 0, 100);
         }
 
         if (request.Load is not null)
@@ -814,6 +935,22 @@ public class PowerIngestController : ControllerBase
         }
 
         ValidateRange(results, nameof(request.TemperatureC), request.TemperatureC, -100, 200);
+        if (request.Operating is not null)
+        {
+            ValidateMaxLength(results, "Operating.Mode", request.Operating.Mode, MaxSnapshotStringLength);
+            ValidateMaxLength(results, "Operating.FaultCode", request.Operating.FaultCode, MaxSnapshotStringLength);
+            ValidateRange(results, "Operating.LoadPercentage", request.Operating.LoadPercentage, 0, 1_000);
+            ValidateMaxLength(results, "Operating.StatusFlags", request.Operating.StatusFlags, MaxSnapshotValueLength);
+        }
+
+        for (var i = 0; i < request.Temperatures.Count; i++)
+        {
+            var temperature = request.Temperatures[i];
+            ValidateRequiredString(results, $"Temperatures[{i}].TemperatureId", temperature.TemperatureId, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"Temperatures[{i}].Name", temperature.Name, MaxSnapshotStringLength);
+            ValidateRange(results, $"Temperatures[{i}].TemperatureC", temperature.TemperatureC, -100, 200);
+        }
+
         for (var i = 0; i < request.Statuses.Count; i++)
         {
             var status = request.Statuses[i];
@@ -821,6 +958,101 @@ public class PowerIngestController : ControllerBase
             ValidateRequiredString(results, $"Statuses[{i}].Value", status.Value, MaxSnapshotValueLength);
             ValidateMaxLength(results, $"Statuses[{i}].SourceTopic", status.SourceTopic, MaxSnapshotStringLength);
         }
+    }
+
+    private static void ValidateMpptDetail(List<ValidationResult> results, PowerMpptDetailPayload request)
+    {
+        if (request.Trackers is null || request.Temperatures is null || request.Diagnostics is null)
+        {
+            if (request.Trackers is null)
+                results.Add(new ValidationResult("The Trackers field is required.", [nameof(request.Trackers)]));
+            if (request.Temperatures is null)
+                results.Add(new ValidationResult("The Temperatures field cannot be null.", [nameof(request.Temperatures)]));
+            if (request.Diagnostics is null)
+                results.Add(new ValidationResult("The Diagnostics field cannot be null.", [nameof(request.Diagnostics)]));
+            return;
+        }
+
+        if (request.Trackers.Count == 0)
+            results.Add(new ValidationResult("The Trackers field must contain at least one tracker.", [nameof(request.Trackers)]));
+        ValidateCount(results, nameof(request.Trackers), request.Trackers.Count, MaxMpptTrackers);
+        ValidateCount(results, nameof(request.Temperatures), request.Temperatures.Count, MaxMpptTemperatures);
+        ValidateCount(results, nameof(request.Diagnostics), request.Diagnostics.Count, MaxMpptDiagnostics);
+        ValidateUniqueTrimmedValues(results, "Trackers.TrackerId", request.Trackers.Select(item => item?.TrackerId));
+        ValidateUniqueTrimmedValues(results, "Temperatures.TemperatureId", request.Temperatures.Select(item => item?.TemperatureId));
+        ValidateUniqueTrimmedValues(results, "Diagnostics.Key", request.Diagnostics.Select(item => item?.Key));
+
+        for (var i = 0; i < request.Trackers.Count; i++)
+        {
+            var tracker = request.Trackers[i];
+            if (tracker is null)
+            {
+                results.Add(new ValidationResult($"The Trackers[{i}] field cannot be null.", [$"Trackers[{i}]"]));
+                continue;
+            }
+            ValidateRequiredString(results, $"Trackers[{i}].TrackerId", tracker.TrackerId, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"Trackers[{i}].Name", tracker.Name, MaxSnapshotStringLength);
+            ValidateRange(results, $"Trackers[{i}].VoltageV", tracker.VoltageV, 0, 10_000);
+            ValidateRange(results, $"Trackers[{i}].CurrentA", tracker.CurrentA, 0, 10_000);
+            ValidateRange(results, $"Trackers[{i}].PowerW", tracker.PowerW, 0, 1_000_000);
+            ValidateProvenance(results, $"Trackers[{i}].Provenance", tracker.Provenance);
+            ValidateMaxLength(results, $"Trackers[{i}].Confidence", tracker.Confidence, MaxSnapshotStringLength);
+        }
+
+        if (request.BatteryOutput is not null)
+        {
+            ValidateRange(results, "BatteryOutput.VoltageV", request.BatteryOutput.VoltageV, 0, 1_000);
+            ValidateRange(results, "BatteryOutput.CurrentA", request.BatteryOutput.CurrentA, -10_000, 0);
+            ValidateRange(results, "BatteryOutput.PowerW", request.BatteryOutput.PowerW, -1_000_000, 0);
+            ValidateProvenance(results, "BatteryOutput.Provenance", request.BatteryOutput.Provenance);
+            ValidateMaxLength(results, "BatteryOutput.Confidence", request.BatteryOutput.Confidence, MaxSnapshotStringLength);
+        }
+
+        for (var i = 0; i < request.Temperatures.Count; i++)
+        {
+            var temperature = request.Temperatures[i];
+            if (temperature is null)
+            {
+                results.Add(new ValidationResult($"The Temperatures[{i}] field cannot be null.", [$"Temperatures[{i}]"]));
+                continue;
+            }
+            ValidateRequiredString(results, $"Temperatures[{i}].TemperatureId", temperature.TemperatureId, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"Temperatures[{i}].Name", temperature.Name, MaxSnapshotStringLength);
+            ValidateRange(results, $"Temperatures[{i}].TemperatureC", temperature.TemperatureC, -100, 200);
+            ValidateMaxLength(results, $"Temperatures[{i}].Confidence", temperature.Confidence, MaxSnapshotStringLength);
+        }
+
+        for (var i = 0; i < request.Diagnostics.Count; i++)
+        {
+            var diagnostic = request.Diagnostics[i];
+            if (diagnostic is null)
+            {
+                results.Add(new ValidationResult($"The Diagnostics[{i}] field cannot be null.", [$"Diagnostics[{i}]"]));
+                continue;
+            }
+            ValidateRequiredString(results, $"Diagnostics[{i}].Key", diagnostic.Key, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"Diagnostics[{i}].Name", diagnostic.Name, MaxSnapshotStringLength);
+            ValidateRequiredString(results, $"Diagnostics[{i}].Value", diagnostic.Value, MaxSnapshotValueLength);
+        }
+    }
+
+    private static void ValidateProvenance(
+        List<ValidationResult> results,
+        string memberName,
+        PowerObservationProvenance provenance)
+    {
+        if (provenance == PowerObservationProvenance.Unknown || !Enum.IsDefined(provenance))
+            results.Add(new ValidationResult($"The field {memberName} has an invalid provenance value.", [memberName]));
+    }
+
+    private static void ValidateUniqueTrimmedValues(
+        List<ValidationResult> results,
+        string memberName,
+        IEnumerable<string?> values)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (values.Where(value => !string.IsNullOrWhiteSpace(value)).Any(value => !seen.Add(value!.Trim())))
+            results.Add(new ValidationResult($"The field {memberName} must contain unique trimmed values.", [memberName]));
     }
 
     private static void ValidateGatewayStatus(List<ValidationResult> results, GatewayStatusPayload request)
@@ -882,6 +1114,28 @@ public class PowerIngestController : ControllerBase
             .SelectMany(r => r.MemberNames.DefaultIfEmpty(string.Empty), (r, memberName) => new { MemberName = memberName, r.ErrorMessage })
             .GroupBy(x => x.MemberName)
             .ToDictionary(g => g.Key, g => g.Select(x => x.ErrorMessage ?? "Validation failed.").ToArray());
+
+    private static PowerMpptDetailSnapshotResponse ToMpptDetailResponse(
+        PowerMpptDetailSnapshot row,
+        int? staleAfterMinutes = null)
+    {
+        var recordedAtUtc = DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc);
+        var payload = JsonSerializer.Deserialize<PowerMpptDetailPayload>(row.PayloadJson, JsonOptions) ?? new PowerMpptDetailPayload();
+        return new PowerMpptDetailSnapshotResponse
+        {
+            Id = row.Id,
+            SourceId = row.SourceId,
+            SourceSystem = row.SourceSystem,
+            DeviceId = row.DeviceId,
+            RecordedAtUtc = recordedAtUtc,
+            IsPresent = true,
+            IsStale = staleAfterMinutes.HasValue && DateTime.UtcNow - recordedAtUtc > TimeSpan.FromMinutes(staleAfterMinutes.Value),
+            Trackers = payload.Trackers,
+            BatteryOutput = payload.BatteryOutput,
+            Temperatures = payload.Temperatures,
+            Diagnostics = payload.Diagnostics,
+        };
+    }
 
     private static string ComputeHash(string value)
     {

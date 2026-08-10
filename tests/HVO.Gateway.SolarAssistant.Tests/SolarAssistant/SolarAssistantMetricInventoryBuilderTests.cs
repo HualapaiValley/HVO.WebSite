@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Gateway.SolarAssistant.Configuration;
 using HVO.Gateway.SolarAssistant.SolarAssistant;
 
@@ -67,7 +68,11 @@ public sealed class SolarAssistantMetricInventoryBuilderTests
                 new SolarAssistantMetric { Topic = "inverter_1/load_power", Value = 550.0 },
                 new SolarAssistantMetric { Topic = "inverter_1/load_apparent_power", Value = 700.0 },
                 new SolarAssistantMetric { Topic = "inverter_1/battery_power", Value = -200.0 },
-                new SolarAssistantMetric { Topic = "inverter_1/temperature", Value = 31.2 },
+                new SolarAssistantMetric { Topic = "inverter_1/grid_voltage", Value = 0.0 },
+                new SolarAssistantMetric { Topic = "inverter_1/output_voltage", Value = 120.1 },
+                new SolarAssistantMetric { Topic = "inverter_1/load_percentage", Value = 14.0 },
+                new SolarAssistantMetric { Topic = "inverter_1/device_mode", Value = "Battery" },
+                new SolarAssistantMetric { Topic = "inverter_1/temperature", Value = 143.6, Unit = "°F" },
                 new SolarAssistantMetric { Topic = "inverter_1/status_1", Value = "normal" },
                 new SolarAssistantMetric { Topic = "inverter_1/serial_number", Value = "not-forwarded-here" },
             ],
@@ -79,9 +84,65 @@ public sealed class SolarAssistantMetricInventoryBuilderTests
         payload.PvStrings.Single().PowerW.Should().Be(600.0);
         payload.Load!.LoadApparentPowerVa.Should().Be(700.0);
         payload.Battery!.PowerW.Should().Be(-200.0);
-        payload.TemperatureC.Should().Be(31.2);
+        payload.Ac!.OutputVoltageV.Should().Be(120.1);
+        payload.Operating!.Mode.Should().Be("Battery");
+        payload.Operating.LoadPercentage.Should().Be(14);
+        payload.TemperatureC.Should().BeApproximately(62, 0.001);
+        payload.Temperatures.Should().ContainSingle().Which.TemperatureC.Should().BeApproximately(62, 0.001);
         payload.Statuses.Single().Key.Should().Be("inverter_1.status_1");
         payload.Statuses.Should().NotContain(s => s.Key.Contains("serial", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void MapMpptDetail_MapsAvailableTrackersAsDirectSourceMeasurements()
+    {
+        var recordedAt = new DateTime(2026, 8, 10, 18, 0, 0, DateTimeKind.Utc);
+
+        var payload = SolarAssistantEnergyInverterDetailMapper.MapMpptDetail(
+            [
+                new SolarAssistantMetric { Topic = "inverter_1/pv_power_1", Value = 612.5 },
+                new SolarAssistantMetric { Topic = "inverter_1/pv_voltage_1", Value = "121.4" },
+                new SolarAssistantMetric { Topic = "inverter_1/pv_current_1", Value = 5.05 },
+                new SolarAssistantMetric { Topic = "inverter_1/pv_voltage_2", Value = 118.2 },
+                new SolarAssistantMetric { Topic = "inverter_1/battery_power", Value = -200.0 },
+                new SolarAssistantMetric { Topic = "inverter_1/temperature", Value = 31.2 },
+            ],
+            new SolarAssistantOptions { TotalSourceId = "configured-source" },
+            recordedAt);
+
+        payload.SourceId.Should().Be("configured-source");
+        payload.SourceSystem.Should().Be("solarassistant");
+        payload.DeviceId.Should().Be("inverter_1");
+        payload.RecordedAtUtc.Should().Be(recordedAt);
+        payload.Trackers.Should().HaveCount(2);
+        payload.Trackers[0].Should().BeEquivalentTo(new PowerMpptTrackerDetail
+        {
+            TrackerId = "mppt-1",
+            Name = "6500EX MPPT 1",
+            VoltageV = 121.4,
+            CurrentA = 5.05,
+            PowerW = 612.5,
+            Provenance = PowerObservationProvenance.Direct,
+            Confidence = "source-direct",
+        });
+        payload.Trackers[1].TrackerId.Should().Be("mppt-2");
+        payload.Trackers[1].VoltageV.Should().Be(118.2);
+        payload.Trackers[1].CurrentA.Should().BeNull();
+        payload.Trackers[1].PowerW.Should().BeNull();
+        payload.BatteryOutput.Should().BeNull();
+        payload.Temperatures.Should().BeEmpty();
+        payload.Diagnostics.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public void MapMpptDetail_OmitsTrackerWhenAllMeasurementsAreAbsent()
+    {
+        var payload = SolarAssistantEnergyInverterDetailMapper.MapMpptDetail(
+            [new SolarAssistantMetric { Topic = "inverter_1/pv_power_1", Value = 0.0 }],
+            new SolarAssistantOptions(),
+            DateTime.UtcNow);
+
+        payload.Trackers.Should().ContainSingle(t => t.TrackerId == "mppt-1" && t.PowerW == 0.0);
     }
 
     [TestMethod]

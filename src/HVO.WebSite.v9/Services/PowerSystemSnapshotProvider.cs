@@ -1,3 +1,4 @@
+using System.Text.Json;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
 using HVO.Edge.Contracts.PowerSystem;
@@ -13,6 +14,8 @@ public sealed class PowerSystemSnapshotProvider(
     IOptions<PowerCompositionOptions> options,
     TimeProvider timeProvider) : IPowerSystemSnapshotProvider
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     public PowerSystemSnapshotProvider(HvoV9DbContext db)
         : this(db, Options.Create(new PowerCompositionOptions()), TimeProvider.System) { }
 
@@ -49,8 +52,25 @@ public sealed class PowerSystemSnapshotProvider(
                 .Where(r => latestBmsReadingIds.Contains(r.Id))
                 .ToArrayAsync(ct);
 
-        return readings.Length == 0 && bmsReadings.Length == 0
+        var latestMpptDetailIds = await db.PowerMpptDetailSnapshots
+            .AsNoTracking()
+            .Where(r => r.RecordedAt >= cutoffUtc && r.RecordedAt <= futureCutoffUtc)
+            .GroupBy(r => r.SourceId)
+            .Select(group => group.OrderByDescending(r => r.RecordedAt).ThenByDescending(r => r.Id)
+                .Select(r => r.Id).First())
+            .ToArrayAsync(ct);
+        var mpptDetailRows = latestMpptDetailIds.Length == 0
+            ? []
+            : await db.PowerMpptDetailSnapshots.AsNoTracking()
+                .Where(r => latestMpptDetailIds.Contains(r.Id))
+                .ToArrayAsync(ct);
+        var mpptDetails = mpptDetailRows
+            .Select(row => JsonSerializer.Deserialize<PowerMpptDetailPayload>(row.PayloadJson, JsonOptions))
+            .OfType<PowerMpptDetailPayload>()
+            .ToArray();
+
+        return readings.Length == 0 && bmsReadings.Length == 0 && mpptDetails.Length == 0
             ? null
-            : PowerSystemSnapshotComposer.Compose(readings, nowUtc, bmsReadings, options.Value);
+            : PowerSystemSnapshotComposer.Compose(readings, nowUtc, bmsReadings, options.Value, mpptDetails);
     }
 }

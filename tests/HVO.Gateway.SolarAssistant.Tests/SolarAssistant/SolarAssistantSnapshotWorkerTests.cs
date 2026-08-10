@@ -112,6 +112,36 @@ public sealed class SolarAssistantSnapshotWorkerTests
     }
 
     [TestMethod]
+    public async Task PollOnceAsync_QueuesMpptDetailForEverySnapshotEvenWhenValuesRepeat()
+    {
+        var client = _provider.GetRequiredService<FakeSolarAssistantClient>();
+        client.SetMetrics(
+        [
+            .. Metrics(1234, 567, 0, -100),
+            new SolarAssistantMetric { Topic = "inverter_1/pv_power_1", Value = 612.5 },
+            new SolarAssistantMetric { Topic = "inverter_1/pv_voltage_1", Value = 121.4 },
+            new SolarAssistantMetric { Topic = "inverter_1/pv_current_1", Value = 5.05 },
+        ]);
+        var worker = _provider.GetRequiredService<SolarAssistantSnapshotWorker>();
+
+        await worker.PollOnceAsync(CancellationToken.None);
+        await worker.PollOnceAsync(CancellationToken.None);
+
+        using var scope = _provider.CreateScope();
+        var rows = await scope.ServiceProvider.GetRequiredService<OutboxDbContext>().OutboxRecords
+            .Where(r => r.PayloadType == PowerOutboxPayloadTypes.MpptDetail)
+            .OrderBy(r => r.RecordedAtUtc)
+            .ToArrayAsync();
+        rows.Should().HaveCount(2);
+        rows.Select(r => r.RecordedAtUtc).Distinct().Should().HaveCount(2);
+        rows.Should().OnlyContain(r => r.SourceId == "solarassistant-total" && r.DeviceId == "inverter_1");
+        var payloads = rows.Select(r => JsonSerializer.Deserialize<PowerMpptDetailPayload>(
+            r.PayloadJson,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!).ToArray();
+        payloads.Should().OnlyContain(p => p.Trackers.Count == 1 && p.Trackers[0].PowerW == 612.5);
+    }
+
+    [TestMethod]
     public async Task PollOnceAsync_NoMetrics_HydratesLatestSnapshotFromOutbox()
     {
         var recordedAt = DateTime.Parse("2026-05-23T10:05:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);

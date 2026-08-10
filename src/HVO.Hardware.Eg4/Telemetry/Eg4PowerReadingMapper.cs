@@ -7,13 +7,17 @@ public static class Eg4PowerReadingMapper
     public static PowerReadingPayload Map(PowerBatteryObservation observation)
     {
         ArgumentNullException.ThrowIfNull(observation);
-        if (observation.Source != PowerMetricSource.Eg46500Ex || observation.Role != PowerMeasurementRole.InverterBranch)
-            throw new ArgumentException("Only validated 6500EX inverter-branch observations can be mapped.", nameof(observation));
+        var sourceSystem = observation.Source switch
+        {
+            PowerMetricSource.Eg46500Ex when observation.Role == PowerMeasurementRole.InverterBranch => "eg4-6500ex",
+            PowerMetricSource.Eg4Mppt10048Hv when observation.Role == PowerMeasurementRole.ChargeControllerBranch => "eg4-mppt100-48hv",
+            _ => throw new ArgumentException("Only validated EG4 battery observations can be mapped.", nameof(observation)),
+        };
 
         return new PowerReadingPayload
         {
             SourceId = observation.SourceId,
-            SourceSystem = "eg4-6500ex",
+            SourceSystem = sourceSystem,
             DeviceId = observation.DeviceId,
             RecordedAtUtc = observation.ObservedAtUtc,
             BatteryVoltageV = observation.VoltageV,

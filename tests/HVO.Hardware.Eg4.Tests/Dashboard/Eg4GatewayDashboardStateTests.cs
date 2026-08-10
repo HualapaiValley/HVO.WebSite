@@ -37,7 +37,7 @@ public sealed class Eg4GatewayDashboardStateTests
         first.OfflineCount.Should().Be(1);
         first.Devices.Single(device => device.SourceId == controllerA.SourceId).LastError.Should().Be("Transport Crc");
         first.Devices.Single(device => device.SourceId == inverter.SourceId).Role.Should().Be(HVO.Edge.Contracts.PowerSystem.PowerMeasurementRole.InverterBranch);
-        state.Publish(inverter, await simulator.ReadAsync(inverter, CancellationToken.None), "MKS2-6500", "79.02 / 61.00");
+        state.Publish(inverter, (await simulator.ReadAsync(inverter, CancellationToken.None)).BatteryObservation!, "MKS2-6500", "79.02 / 61.00");
         state.GetSnapshot().Devices.Single(device => device.SourceId == inverter.SourceId)
             .Should().Match<Eg4DashboardDevice>(device => device.Model == "MKS2-6500" && device.Firmware == "79.02 / 61.00");
 

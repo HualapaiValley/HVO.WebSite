@@ -202,6 +202,153 @@ public sealed class PowerSystemSnapshotComposerTests
         new PowerCompositionOptionsValidator().Validate(null, options).Failed.Should().BeTrue();
     }
 
+    [TestMethod]
+    public void Compose_DerivesPvAggregateFromAllThreeExpectedTrackers()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var options = PvOptions();
+
+        var snapshot = PowerSystemSnapshotComposer.Compose(
+            [SolarAssistant(now, pvPowerW: 9999)], now, options: options,
+            mpptDetails:
+            [
+                MpptDetail(now.AddSeconds(-2), "solarassistant-total", "solarassistant", ("mppt-1", 500), ("mppt-2", 600)),
+                MpptDetail(now.AddSeconds(-1), "eg4-6500ex-a", "eg4-6500ex", ("mppt-1", 510), ("mppt-2", 650)),
+                MpptDetail(now, "eg4-mppt100-48hv-a", "eg4-mppt100-48hv", ("mppt-1", 700)),
+            ]);
+
+        snapshot.Pv!.PowerW!.Value.Should().Be(1800);
+        snapshot.Pv.PowerW.Source.Should().Be(PowerMetricSource.Derived);
+        snapshot.Pv.PowerW.SourceId.Should().Be("derived-pv-tracker-sum");
+        snapshot.Pv.PowerW.Confidence.Should().Contain("3/3");
+        snapshot.Pv.ExpectedTrackerCount.Should().Be(3);
+        snapshot.Pv.ReportedTrackerCount.Should().Be(3);
+        snapshot.Pv.Trackers.Should().HaveCount(3);
+    }
+
+    [TestMethod]
+    public void Compose_UsesSolarAssistantFallbackWhenExpectedTrackerIsMissing()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+        var snapshot = PowerSystemSnapshotComposer.Compose(
+            [SolarAssistant(now, pvPowerW: 1900)], now, options: PvOptions(),
+            mpptDetails: [MpptDetail(now, "solarassistant-total", "solarassistant", ("mppt-1", 500), ("mppt-2", 600))]);
+
+        snapshot.Pv!.PowerW!.Value.Should().Be(1900);
+        snapshot.Pv.PowerW.Source.Should().Be(PowerMetricSource.SolarAssistant);
+        snapshot.Pv.Trackers.Should().HaveCount(2);
+        snapshot.Pv.ExpectedTrackerCount.Should().Be(3);
+        snapshot.Pv.ReportedTrackerCount.Should().Be(2);
+    }
+
+    [TestMethod]
+    public void Compose_ExcludesStaleAndFuturePvTrackers()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var options = PvOptions();
+        options.Eg4BranchFreshnessSeconds = 60;
+        options.MaxFutureClockSkewSeconds = 5;
+
+        var snapshot = PowerSystemSnapshotComposer.Compose(
+            [SolarAssistant(now, pvPowerW: 1900)], now, options: options,
+            mpptDetails:
+            [
+                MpptDetail(now.AddSeconds(-61), "stale", "eg4-6500ex", ("mppt-1", 500)),
+                MpptDetail(now.AddSeconds(6), "future", "eg4-mppt100-48hv", ("mppt-1", 700)),
+                MpptDetail(now, "solarassistant-total", "solarassistant", ("mppt-1", 600)),
+            ]);
+
+        snapshot.Pv!.Trackers.Should().ContainSingle()
+            .Which.TrackerId.Should().Be("solarassistant-total/mppt-1");
+        snapshot.Pv.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
+    }
+
+    [TestMethod]
+    public void Compose_DoesNotDerivePvAggregateWhenTrackersExceedSkewLimit()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var options = PvOptions();
+        options.MaxDerivationSkewSeconds = 5;
+
+        var snapshot = PowerSystemSnapshotComposer.Compose(
+            [SolarAssistant(now, pvPowerW: 1900)], now, options: options,
+            mpptDetails:
+            [
+                MpptDetail(now.AddSeconds(-10), "solarassistant-total", "solarassistant", ("mppt-1", 500), ("mppt-2", 600)),
+                MpptDetail(now, "eg4-mppt100-48hv-a", "eg4-mppt100-48hv", ("mppt-1", 700)),
+            ]);
+
+        snapshot.Pv!.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
+        snapshot.Pv.Trackers.Should().HaveCount(3);
+    }
+
+    [TestMethod]
+    public void Compose_DeduplicatesPhysicalTrackerAndRejectsDuplicateFromAggregate()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+        var snapshot = PowerSystemSnapshotComposer.Compose(
+            [SolarAssistant(now, pvPowerW: 1900)], now, options: PvOptions(),
+            mpptDetails:
+            [
+                MpptDetail(now, "solarassistant-total", "solarassistant", ("mppt-1", 500), ("MPPT-1", 500), ("mppt-2", 600)),
+                MpptDetail(now, "eg4-mppt100-48hv-a", "eg4-mppt100-48hv", ("mppt-1", 700)),
+            ]);
+
+        snapshot.Pv!.Trackers.Should().HaveCount(3);
+        snapshot.Pv.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
+    }
+
+    [TestMethod]
+    public void Compose_DoesNotDerivePvAggregateWhenExpectedTrackerPowerIsNull()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        var detail = MpptDetail(now, "solarassistant-total", "solarassistant", ("mppt-1", 500), ("mppt-2", 600));
+        var controller = MpptDetail(now, "eg4-mppt100-48hv-a", "eg4-mppt100-48hv", ("mppt-1", 700));
+        controller = new PowerMpptDetailPayload
+        {
+            SourceId = controller.SourceId,
+            SourceSystem = controller.SourceSystem,
+            DeviceId = controller.DeviceId,
+            RecordedAtUtc = controller.RecordedAtUtc,
+            Trackers = [new PowerMpptTrackerDetail { TrackerId = "mppt-1", Name = "mppt-1", PowerW = null }],
+        };
+
+        var snapshot = PowerSystemSnapshotComposer.Compose(
+            [SolarAssistant(now, pvPowerW: 1900)], now, options: PvOptions(), mpptDetails: [detail, controller]);
+
+        snapshot.Pv!.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
+        snapshot.Pv.Trackers.Should().HaveCount(3);
+    }
+
+    [TestMethod]
+    public void Compose_MapsTrackerSourcesProvenanceAndConfidence()
+    {
+        var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+        var snapshot = PowerSystemSnapshotComposer.Compose([], now, options: PvOptions(), mpptDetails:
+        [
+            MpptDetail(now, "solarassistant-total", "solarassistant", ("mppt-1", 500), ("mppt-2", 600)),
+            MpptDetail(now, "eg4-mppt100-48hv-a", "eg4-mppt100-48hv", ("mppt-1", 700)),
+        ]);
+
+        snapshot.Pv!.Trackers!.Single(tracker => tracker.TrackerId == "solarassistant-total/mppt-1").Source
+            .Should().Be(PowerMetricSource.SolarAssistant);
+        var controller = snapshot.Pv.Trackers!.Single(tracker => tracker.TrackerId == "eg4-mppt100-48hv-a/mppt-1");
+        controller.Source.Should().Be(PowerMetricSource.Eg4Mppt10048Hv);
+        controller.Provenance.Should().Be(PowerObservationProvenance.Direct);
+        controller.Confidence.Should().Be("independent");
+    }
+
+    [TestMethod]
+    public void PowerCompositionOptionsValidator_RequiresCompositeExpectedTrackerIds()
+    {
+        var options = new PowerCompositionOptions { ExpectedPvTrackerIds = ["not-composite"] };
+
+        new PowerCompositionOptionsValidator().Validate(null, options).Failed.Should().BeTrue();
+    }
+
     private static PowerReading SolarAssistant(
         DateTime recordedAt,
         double? pvPowerW = null,
@@ -228,6 +375,38 @@ public sealed class PowerSystemSnapshotComposerTests
             GridFrequencyHz = 60,
             OutputVoltageV = 120,
             OutputFrequencyHz = 60,
+        };
+
+    private static PowerCompositionOptions PvOptions() => new()
+    {
+        ExpectedPvTrackerIds =
+        [
+            "solarassistant-total/mppt-1",
+            "solarassistant-total/mppt-2",
+            "eg4-mppt100-48hv-a/mppt-1",
+        ],
+    };
+
+    private static PowerMpptDetailPayload MpptDetail(
+        DateTime recordedAt,
+        string sourceId,
+        string sourceSystem,
+        params (string TrackerId, double PowerW)[] trackers) => new()
+        {
+            SourceId = sourceId,
+            SourceSystem = sourceSystem,
+            DeviceId = sourceId,
+            RecordedAtUtc = recordedAt,
+            Trackers = trackers.Select(tracker => new PowerMpptTrackerDetail
+            {
+                TrackerId = tracker.TrackerId,
+                Name = tracker.TrackerId,
+                VoltageV = 120,
+                CurrentA = tracker.PowerW / 120,
+                PowerW = tracker.PowerW,
+                Provenance = PowerObservationProvenance.Direct,
+                Confidence = "independent",
+            }).ToArray(),
         };
 
     private static PowerReading SmartShunt(

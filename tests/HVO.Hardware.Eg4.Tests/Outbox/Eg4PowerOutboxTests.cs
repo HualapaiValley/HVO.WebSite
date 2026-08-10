@@ -37,6 +37,38 @@ public sealed class Eg4PowerOutboxTests
     }
 
     [TestMethod]
+    public async Task WriterAndForwarder_KeepReadingMpptAndInverterDetailsDistinctAndRouteDetailEndpoints()
+    {
+        await using var fixture = await OutboxFixture.CreateAsync();
+        var reading = Payload("eg4-a", "a", fixture.Now);
+        var mppt = new PowerMpptDetailPayload
+        {
+            SourceId = "eg4-a", SourceSystem = "eg4-6500ex", DeviceId = "a", RecordedAtUtc = fixture.Now,
+            Trackers = [new PowerMpptTrackerDetail { TrackerId = "mppt-1", Name = "MPPT 1", VoltageV = 320.9 }],
+        };
+        var inverter = new PowerInverterDetailPayload
+        {
+            SourceId = "eg4-a", SourceSystem = "eg4-6500ex", DeviceId = "a", RecordedAtUtc = fixture.Now,
+            TemperatureC = 57,
+        };
+
+        await fixture.Writer.EnqueueAsync(reading, CancellationToken.None);
+        await fixture.Writer.EnqueueMpptDetailAsync(mppt, CancellationToken.None);
+        await fixture.Writer.EnqueueInverterDetailAsync(inverter, CancellationToken.None);
+        (await fixture.Forwarder.SweepAsync(CancellationToken.None)).Should().BeTrue();
+
+        await using var db = fixture.CreateDb();
+        var records = await db.OutboxRecords.ToArrayAsync();
+        records.Should().HaveCount(3).And.OnlyContain(record => record.Status == EdgeOutboxStatus.Sent);
+        records.Select(record => record.PayloadType).Should().BeEquivalentTo(
+            Eg4OutboxPayloadTypes.Reading, Eg4OutboxPayloadTypes.MpptDetail, Eg4OutboxPayloadTypes.InverterDetail);
+        fixture.Handler.RequestUris.Should().Contain(uri => uri.EndsWith("/api/v1/power/readings", StringComparison.Ordinal));
+        fixture.Handler.RequestUris.Should().Contain(uri => uri.EndsWith("/api/v1/power/mppt-detail", StringComparison.Ordinal));
+        fixture.Handler.RequestUris.Should().Contain(uri => uri.EndsWith("/api/v1/power/inverter-detail", StringComparison.Ordinal));
+        fixture.Handler.RequestBodies.Should().NotContain(body => body.Contains("00000000000000", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     [DataRow(201, 1, 0)]
     [DataRow(500, 0, 1)]
     [DataRow(401, 0, 1)]
@@ -243,9 +275,13 @@ public sealed class Eg4PowerOutboxTests
     private sealed class StubHandler(HttpStatusCode status, string responseBody, Exception? exception) : HttpMessageHandler
     {
         public string? RequestBody { get; private set; }
+        public List<string> RequestUris { get; } = [];
+        public List<string> RequestBodies { get; } = [];
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             RequestBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            RequestUris.Add(request.RequestUri!.ToString());
+            RequestBodies.Add(RequestBody);
             if (exception is not null) throw exception;
             return new HttpResponseMessage(status)
             {
