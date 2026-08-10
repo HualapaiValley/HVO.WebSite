@@ -309,20 +309,9 @@ public sealed class PowerApiForwarder(
 
             try
             {
-                var data = JsonSerializer.SerializeToElement(payload, JsonOptions);
-                var cloudEvent = new Dictionary<string, object?>
-                {
-                    ["specversion"] = CloudEventsConstants.SpecVersion,
-                    ["type"] = EdgePayloadTypes.ToCloudEventType(payloadType),
-                    ["source"] = $"/gateways/eg4/{record.SourceId}",
-                    ["id"] = Guid.NewGuid().ToString("D"),
-                    ["time"] = record.RecordedAtUtc.ToString("O"),
-                    ["datacontenttype"] = CloudEventsConstants.JsonContentType,
-                    ["data"] = data,
-                };
                 using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
                 {
-                    Content = JsonContent.Create(cloudEvent, options: JsonOptions),
+                    Content = JsonContent.Create(payload, options: JsonOptions),
                 };
                 request.AddTraceContext();
                 using var response = await httpFactory.CreateClient("PowerApi").SendAsync(request, cancellationToken);
