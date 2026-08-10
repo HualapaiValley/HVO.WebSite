@@ -18,7 +18,10 @@
     border-radius: 1.5rem;
     box-shadow: var(--shell-card-shadow);
     color: var(--shell-card-foreground);
+    max-width: 100%;
+    min-width: 0;
     padding: clamp(1.25rem, 3vw, 2rem);
+    width: 100%;
 }
 
 .power-status-card--locked {
@@ -163,6 +166,7 @@
     border: 1px solid var(--power-cyan-border-soft);
     border-radius: 1rem;
     margin-top: 1.25rem;
+    min-width: 0;
     padding: 0.85rem;
 }
 

@@ -192,8 +192,8 @@ public sealed class MainSitePlaywrightTests
 
     private static async Task AssertThemedSurfaceAsync(ILocator locator, string label)
     {
-        var background = await locator.EvaluateAsync<string>("element => getComputedStyle(element).backgroundColor");
-        background.Should().NotBe("rgba(0, 0, 0, 0)", $"{label} should use a themed background").And.NotBe("transparent");
+        var backgroundImage = await locator.EvaluateAsync<string>("element => getComputedStyle(element).backgroundImage");
+        backgroundImage.Should().NotBe("none", $"{label} should use its themed gradient background");
     }
 
     private sealed class ScrollRegionMetrics
