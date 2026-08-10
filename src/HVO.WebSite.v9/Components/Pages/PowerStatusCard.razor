@@ -30,7 +30,7 @@
 
     <div class="power-status-card__footer">
         <span>Battery SOC <strong>@_viewModel.BatteryStateOfCharge</strong></span>
-        <span>Battery electrical source <strong>@_viewModel.BatterySource</strong></span>
+        <span>Battery power source <strong>@_viewModel.BatterySource</strong></span>
         <span>Battery SOC source <strong>@_viewModel.BatterySocSource</strong></span>
         <span>Battery banks <strong>@_viewModel.BatteryBankCount</strong></span>
         <span>Bank freshness <strong>@_viewModel.BatteryFreshnessState</strong></span>
@@ -51,7 +51,7 @@
         }
         else
         {
-            <div class="hvo-table-wrap">
+            <div class="hvo-table-wrap" role="region" aria-label="Scrollable battery source comparison" tabindex="0">
                 <table class="hvo-table" aria-label="Battery source observations">
                     <caption class="hvo-visually-hidden">Battery measurements by source, device, and physical role</caption>
                     <thead>

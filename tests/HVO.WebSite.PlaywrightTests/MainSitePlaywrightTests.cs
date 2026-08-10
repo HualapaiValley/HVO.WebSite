@@ -123,7 +123,14 @@ public sealed class MainSitePlaywrightTests
 
         await page.SetViewportSizeAsync(390, 844);
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Battery Source Comparison" })).ToBeVisibleAsync();
-        await Assertions.Expect(page.Locator(".hvo-table-wrap")).ToBeVisibleAsync();
+        var comparisonRegion = page.GetByRole(AriaRole.Region, new() { Name = "Scrollable battery source comparison" });
+        await Assertions.Expect(comparisonRegion).ToBeVisibleAsync();
+        await comparisonRegion.FocusAsync();
+        var regionMetrics = await comparisonRegion.EvaluateAsync<ScrollRegionMetrics>(
+            "element => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth, left: element.getBoundingClientRect().left, right: element.getBoundingClientRect().right })");
+        regionMetrics.ScrollWidth.Should().BeGreaterThan(regionMetrics.ClientWidth, "the wide comparison should scroll inside its mobile region");
+        regionMetrics.Left.Should().BeGreaterThanOrEqualTo(-1);
+        regionMetrics.Right.Should().BeLessThanOrEqualTo(391);
         await AssertNoPageOverflowAsync(page, "mobile battery comparison");
         await AssertNoBlazorErrorAsync(page);
     }
@@ -187,5 +194,13 @@ public sealed class MainSitePlaywrightTests
     {
         var background = await locator.EvaluateAsync<string>("element => getComputedStyle(element).backgroundColor");
         background.Should().NotBe("rgba(0, 0, 0, 0)", $"{label} should use a themed background").And.NotBe("transparent");
+    }
+
+    private sealed class ScrollRegionMetrics
+    {
+        public int ClientWidth { get; set; }
+        public int ScrollWidth { get; set; }
+        public double Left { get; set; }
+        public double Right { get; set; }
     }
 }

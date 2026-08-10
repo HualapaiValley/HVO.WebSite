@@ -155,9 +155,10 @@ public sealed class PowerStatusCardTests : BunitContext
         component.Markup.Should().Contain("-900 W");
         component.Markup.Should().Contain("Charging");
         component.Markup.Should().Contain("SmartShunt");
-        component.Markup.Should().Contain("Battery electrical source");
+        component.Markup.Should().Contain("Battery power source");
         component.Markup.Should().Contain("Battery SOC source");
         component.Markup.Should().Contain("Battery Source Comparison");
+        component.Find("[aria-label='Scrollable battery source comparison']").GetAttribute("tabindex").Should().Be("0");
         component.Find("table[aria-label='Battery source observations']").ClassList.Should().Contain("hvo-table");
         component.FindAll("tr[data-role='Inverter branch']").Should().HaveCount(2);
         component.Find("tr[data-source-id='eg4-inverter-a']").TextContent.Should().Contain("Inverter branch");
@@ -165,7 +166,7 @@ public sealed class PowerStatusCardTests : BunitContext
         component.Find("tr[data-source-id='smartshunt-main']").TextContent.Should().Contain("Preferred bus: voltage, current, power");
         component.Find("tr[data-source-id='solarassistant-total']").TextContent.Should().Contain("Preferred SOC");
         component.Find("tr[data-source-id='eg4-inverter-b'] .hvo-chip-danger").TextContent.Should().Contain("stale");
-        component.Find("tr[data-source-id='derived-6500ex-branch-sum']").TextContent.Should().Contain("Inputs: eg4-inverter-a, eg4-inverter-b");
+        component.Find("tr[data-source-id='derived-6500ex-branch-sum']").TextContent.Should().Contain("Inputs: eg4-inverter-a/inverter-a, eg4-inverter-b/inverter-b");
         component.Markup.Should().Contain("Aggregate branch comparison may include additional DC loads.");
         component.Markup.Should().Contain("bank-1a");
         component.Find("article.power-bank").ClassList.Should().Contain("power-bank--fresh");

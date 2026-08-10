@@ -64,7 +64,7 @@ public sealed record PowerStatusViewModel(
             BatteryPower: FormatSignedWatts(batteryPower?.Value),
             BatteryFlow: FormatFlow(snapshot.Battery?.FlowDirection?.Value),
             BatteryStateOfCharge: FormatPercent(snapshot.Battery?.StateOfChargePercent?.Value),
-            BatterySource: FormatSource(snapshot.Battery?.PowerW ?? snapshot.Battery?.CurrentA ?? snapshot.Battery?.VoltageV),
+            BatterySource: FormatSource(snapshot.Battery?.PowerW),
             BatterySocSource: FormatSource(snapshot.Battery?.StateOfChargePercent),
             GridPower: FormatSignedWatts(gridPower?.Value),
             GridFlow: FormatFlow(snapshot.Ac?.GridFlowDirection?.Value),
@@ -267,7 +267,11 @@ public sealed record PowerStatusViewModel(
         if (HasInvalidValues(observation))
             return ("Invalid values", "invalid");
 
-        var age = referenceUtc - observation.ObservedAtUtc;
+        var effectiveObservedAtUtc = observation.Provenance == PowerObservationProvenance.Derived
+            && observation.Inputs is { Count: > 0 }
+                ? observation.Inputs.Min(input => input.ObservedAtUtc)
+                : observation.ObservedAtUtc;
+        var age = referenceUtc - effectiveObservedAtUtc;
         if (age < TimeSpan.FromSeconds(-options.MaxFutureClockSkewSeconds))
             return ("Future timestamp", "invalid");
 
@@ -280,11 +284,12 @@ public sealed record PowerStatusViewModel(
             PowerMetricSource.SolarAssistant => options.SolarAssistantFreshnessSeconds,
             PowerMetricSource.JkBms => options.JkBmsFreshnessSeconds,
             PowerMetricSource.Eg46500Ex or PowerMetricSource.Eg4Mppt10048Hv => options.Eg4BranchFreshnessSeconds,
+            PowerMetricSource.Derived => options.Eg4BranchFreshnessSeconds,
             _ => options.SolarAssistantFreshnessSeconds,
         });
 
         var status = age > threshold ? "stale" : age >= threshold * 0.8 ? "warning" : "fresh";
-        return ($"{FormatRelativeAge(observation.ObservedAtUtc, referenceUtc)} ({status})", status);
+        return ($"{FormatRelativeAge(effectiveObservedAtUtc, referenceUtc)} ({status})", status);
     }
 
     private static IReadOnlyList<string> FormatSelectionLabels(
@@ -335,8 +340,9 @@ public sealed record PowerStatusViewModel(
         if (selected is null || observation.Source != selected.Source)
             return false;
 
-        if (!string.IsNullOrWhiteSpace(selected.SourceId))
-            return string.Equals(observation.SourceId, selected.SourceId, StringComparison.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(selected.SourceId)
+            && !string.Equals(observation.SourceId, selected.SourceId, StringComparison.OrdinalIgnoreCase))
+            return false;
 
         return string.IsNullOrWhiteSpace(selected.DeviceId)
             || string.Equals(observation.DeviceId, selected.DeviceId, StringComparison.OrdinalIgnoreCase);
@@ -376,8 +382,11 @@ public sealed record PowerStatusViewModel(
     {
         var confidence = string.IsNullOrWhiteSpace(observation.Confidence) ? null : observation.Confidence;
         var inputs = observation.Inputs?
-            .Select(input => input.SourceId)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .GroupBy(input => $"{input.SourceId}\0{input.DeviceId}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .Select(input => string.IsNullOrWhiteSpace(input.DeviceId)
+                ? input.SourceId
+                : $"{input.SourceId}/{input.DeviceId}")
             .ToArray() ?? [];
         if (inputs.Length > 0)
             return $"Inputs: {string.Join(", ", inputs)}";

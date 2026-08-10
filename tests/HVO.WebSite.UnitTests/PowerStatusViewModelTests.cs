@@ -165,6 +165,8 @@ public sealed class PowerStatusViewModelTests
             PowerMeasurementRole.ChargeControllerBranch, observedAt.AddSeconds(-181), voltage: 54.5, current: -10, power: -545);
         var mpptB = Observation("eg4-mppt-b", "controller-b", PowerMetricSource.Eg4Mppt10048Hv,
             PowerMeasurementRole.ChargeControllerBranch, observedAt.AddSeconds(-25), voltage: 54.4, current: -9, power: -490);
+        var batteryPack = Observation("jk-bms-1", "bank-1", PowerMetricSource.JkBms,
+            PowerMeasurementRole.BatteryPack, observedAt.AddSeconds(-15), voltage: 54.3, current: 5, power: 272, soc: 88);
         var derived = new PowerBatteryObservation(
             "derived-6500ex-branch-sum", "all-inverters", PowerMetricSource.Derived,
             PowerMeasurementRole.DerivedAggregate, "6500ex-branch-sum", observedAt.AddSeconds(-30),
@@ -181,14 +183,21 @@ public sealed class PowerStatusViewModelTests
                 VoltageV: Value(54.2d, PowerMetricSource.VictronSmartShunt, observedAt, "smartshunt-main", "smartshunt"),
                 CurrentA: Value(-20d, PowerMetricSource.VictronSmartShunt, observedAt, "smartshunt-main", "smartshunt"),
                 PowerW: Value(-1084d, PowerMetricSource.VictronSmartShunt, observedAt, "smartshunt-main", "smartshunt")),
+            BatteryBanks:
+            [
+                new PowerSystemBatteryBankSnapshot(
+                    "bank-1", observedAt.AddSeconds(-15), PowerMetricSource.JkBms,
+                    CurrentA: Value(-5d, PowerMetricSource.JkBms, observedAt),
+                    PowerW: Value(-272d, PowerMetricSource.JkBms, observedAt)),
+            ],
             Notes: ["Branch difference may include additional DC loads."],
-            BatteryObservations: [smartShunt, solarAssistant, inverterA, inverterB, mpptA, mpptB, derived]);
+            BatteryObservations: [smartShunt, solarAssistant, inverterA, inverterB, mpptA, mpptB, batteryPack, derived]);
 
         var model = PowerStatusViewModel.FromSnapshot(snapshot);
 
         model.BatterySource.Should().Be("SmartShunt (smartshunt-main)");
         model.BatterySocSource.Should().Be("SolarAssistant (solarassistant-total)");
-        model.BatteryObservations.Should().HaveCount(7);
+        model.BatteryObservations.Should().HaveCount(8);
         model.BatteryObservations.Count(row => row.Role == "Inverter branch").Should().Be(2);
         model.BatteryObservations.Count(row => row.Role == "Charge-controller branch").Should().Be(2);
         var bus = model.BatteryObservations.Single(row => row.SourceId == "smartshunt-main");
@@ -203,10 +212,14 @@ public sealed class PowerStatusViewModelTests
         dischargingBranch.SelectionLabels.Should().Equal("Comparison only");
         var staleController = model.BatteryObservations.Single(row => row.SourceId == "eg4-mppt-a");
         staleController.FreshnessStatus.Should().Be("stale");
+        var pack = model.BatteryObservations.Single(row => row.SourceId == "jk-bms-1");
+        pack.Flow.Should().Be("Discharging (out of battery)");
+        pack.Current.Should().Be("+5.0 A");
+        model.BatteryBanks.Should().ContainSingle().Which.Current.Should().Be("-5.0 A");
         var derivedRow = model.BatteryObservations.Single(row => row.SourceId == "derived-6500ex-branch-sum");
         derivedRow.Role.Should().Be("Derived aggregate");
         derivedRow.Provenance.Should().Be("Derived");
-        derivedRow.ProvenanceDetail.Should().Be("Inputs: eg4-inverter-a, eg4-inverter-b");
+        derivedRow.ProvenanceDetail.Should().Be("Inputs: eg4-inverter-a/inverter-a, eg4-inverter-b/inverter-b");
         model.BatteryObservationNotes.Should().Equal("Branch difference may include additional DC loads.");
     }
 
@@ -227,12 +240,17 @@ public sealed class PowerStatusViewModelTests
                 Observation("solarassistant-total", "inverter-total", PowerMetricSource.SolarAssistant,
                     PowerMeasurementRole.AggregateEstimate, observedAt, power: 500,
                     provenance: PowerObservationProvenance.SourceAggregate),
+                Observation("solarassistant-total", "inverter-other", PowerMetricSource.SolarAssistant,
+                    PowerMeasurementRole.AggregateEstimate, observedAt, power: 450,
+                    provenance: PowerObservationProvenance.SourceAggregate),
             ]);
 
         var model = PowerStatusViewModel.FromSnapshot(snapshot);
 
-        model.BatteryObservations.Single(row => row.SourceId == "solarassistant-total").SelectionLabels
+        model.BatteryObservations.Single(row => row.DeviceId == "inverter-total").SelectionLabels
             .Should().Equal("Fallback aggregate: power");
+        model.BatteryObservations.Single(row => row.DeviceId == "inverter-other").SelectionLabels
+            .Should().Equal("Comparison only");
         model.BatteryObservations.Single(row => row.SourceId == "smartshunt-main").SelectionLabels
             .Should().Equal("Fallback SOC (untrusted)");
     }
@@ -256,6 +274,26 @@ public sealed class PowerStatusViewModelTests
         model.BatteryObservations.Should().OnlyContain(row => row.FreshnessStatus == "invalid");
         model.BatteryObservations.Single(row => row.SourceId == "future").Freshness.Should().Be("Future timestamp");
         model.BatteryObservations.Single(row => row.SourceId == "invalid").Current.Should().Be("--");
+    }
+
+    [TestMethod]
+    public void FromSnapshot_UsesOldestDerivedInputForFreshness()
+    {
+        var observedAt = new DateTime(2026, 8, 9, 20, 0, 0, DateTimeKind.Utc);
+        var derived = new PowerBatteryObservation(
+            "derived-6500ex-branch-sum", "all-inverters", PowerMetricSource.Derived,
+            PowerMeasurementRole.DerivedAggregate, "6500ex-branch-sum", observedAt,
+            PowerW: -500, Provenance: PowerObservationProvenance.Derived,
+            Inputs:
+            [
+                new PowerObservationInput("eg4-inverter-a", observedAt, "inverter-a"),
+                new PowerObservationInput("eg4-inverter-b", observedAt.AddSeconds(-181), "inverter-b"),
+            ]);
+        var snapshot = new PowerSystemSnapshot(observedAt, BatteryObservations: [derived]);
+
+        var model = PowerStatusViewModel.FromSnapshot(snapshot);
+
+        model.BatteryObservations.Should().ContainSingle().Which.FreshnessStatus.Should().Be("stale");
     }
 
     private static PowerBatteryObservation Observation(
