@@ -28,6 +28,13 @@
         <small>Values describe this branch only, never the whole battery bus.</small>
     </div>
 
+    @if (Device.State == Eg4DashboardDeviceState.Unavailable && Device.Type == Eg4DeviceType.ChargeControllerMppt10048Hv)
+    {
+        <div class="hvo-callout hvo-callout-info" role="status">
+            Controller telemetry is unavailable. The documented BMS connector is not a validated controller-monitoring interface, so no numeric reading is reported.
+        </div>
+    }
+
     <dl class="eg4-device-card__identity">
         <div><dt>Device ID</dt><dd>@Device.DeviceId</dd></div>
         <div><dt>Model</dt><dd>@(Device.Model ?? "Unavailable")</dd></div>

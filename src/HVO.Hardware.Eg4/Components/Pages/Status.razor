@@ -21,6 +21,10 @@
             {
                 <span class="hvo-chip">@_snapshot.DisabledCount disabled</span>
             }
+            @if (_snapshot.UnavailableCount > 0)
+            {
+                <span class="hvo-chip hvo-chip-warning">@_snapshot.UnavailableCount telemetry unavailable</span>
+            }
         </div>
     </header>
 

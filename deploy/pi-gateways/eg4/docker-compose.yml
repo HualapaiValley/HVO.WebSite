@@ -34,14 +34,13 @@ services:
       Eg4__Devices__0__Port: ${EG4_DEVICE_0_PORT:-/dev/hvo/eg4-6500ex-a}
       Eg4__Devices__0__UnitId: "0"
       Eg4__Devices__0__PollIntervalSeconds: ${EG4_DEVICE_0_POLL_INTERVAL_SECONDS:-60}
-      Eg4__Devices__1__Type: Inverter6500Ex
-      Eg4__Devices__1__SourceId: ${EG4_DEVICE_1_SOURCE_ID:-eg4-6500ex-b}
-      Eg4__Devices__1__DeviceId: ${EG4_DEVICE_1_DEVICE_ID:-inverter-b}
-      Eg4__Devices__1__Alias: ${EG4_DEVICE_1_ALIAS:-6500EX Inverter B}
-      Eg4__Devices__1__Enabled: ${EG4_DEVICE_1_ENABLED:-false}
-      Eg4__Devices__1__Port: ${EG4_DEVICE_1_PORT:-/dev/hvo/eg4-6500ex-b}
-      Eg4__Devices__1__UnitId: "0"
-      Eg4__Devices__1__PollIntervalSeconds: ${EG4_DEVICE_1_POLL_INTERVAL_SECONDS:-60}
+      Eg4__Devices__1__Type: ChargeControllerMppt10048Hv
+      Eg4__Devices__1__SourceId: ${EG4_MPPT_0_SOURCE_ID:-eg4-mppt100-48hv-a}
+      Eg4__Devices__1__DeviceId: ${EG4_MPPT_0_DEVICE_ID:-controller-a}
+      Eg4__Devices__1__Alias: ${EG4_MPPT_0_ALIAS:-MPPT100-48HV Controller A}
+      Eg4__Devices__1__Enabled: "false"
+      Eg4__Devices__1__Port: ${EG4_MPPT_0_PORT:-/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0}
+      Eg4__Devices__1__UnitId: "1"
       Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-https://www.hualapaivalleyobservatory.org}/api/v1/power/readings"
       Outbox__ApiKey: ${EG4_POWER_API_KEY:-}
       Outbox__DbPath: /app/data/outbox.db

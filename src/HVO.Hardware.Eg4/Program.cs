@@ -158,7 +158,7 @@ app.MapGet("/diagnostics/status", async (HttpContext context, IEg4GatewayDashboa
         new GatewayIdentity("eg4", "EG4 Battery Gateway", GatewayDomain.Power, "eg4-fleet", RuntimeHost: Environment.MachineName),
         new GatewayRuntimeInfo(gatewayStartedAtUtc, now, now - gatewayStartedAtUtc, app.Environment.EnvironmentName),
         CreateHealthSnapshot(snapshot, options.Value, now),
-        new GatewayDeviceCounts(snapshot.ConfiguredCount - snapshot.DisabledCount, snapshot.OnlineCount, snapshot.DegradedCount, snapshot.OfflineCount),
+        new GatewayDeviceCounts(snapshot.ActiveCount, snapshot.OnlineCount, snapshot.DegradedCount, snapshot.OfflineCount),
         await EdgeOutboxDiagnosticsReader.ReadAsync(db, cancellationToken),
         GatewayTelemetry.CreateDiagnostics("hvo-eg4"),
         new Dictionary<string, string>
@@ -206,7 +206,7 @@ static GatewayHealthSnapshot CreateHealthSnapshot(Eg4GatewayDashboardSnapshot sn
         ? GatewaySampleState.Live
         : snapshot.DegradedCount > 0
             ? GatewaySampleState.Stale
-            : snapshot.ConfiguredCount == snapshot.DisabledCount
+            : snapshot.ActiveCount == 0
                 ? GatewaySampleState.Disabled
                 : GatewaySampleState.Error;
     return new GatewayHealthSnapshot(

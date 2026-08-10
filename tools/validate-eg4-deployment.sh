@@ -32,6 +32,10 @@ write_env() {
 		printf 'EG4_DEVICE_0_DEVICE_ID=inverter-%s\n' "${first}"
 		printf 'EG4_DEVICE_0_ALIAS=6500EX Inverter %s\n' "${first^^}"
 		printf 'EG4_DEVICE_0_PORT=/dev/hvo/eg4-6500ex-%s\n' "${first}"
+		printf 'EG4_MPPT_0_SOURCE_ID=eg4-mppt100-48hv-a\n'
+		printf 'EG4_MPPT_0_DEVICE_ID=controller-a\n'
+		printf 'EG4_MPPT_0_ALIAS=MPPT100-48HV Controller A\n'
+		printf 'EG4_MPPT_0_PORT=/dev/serial/by-id/usb-eg4-mppt-a\n'
 		printf 'EG4_DEVICE_1_ENABLED=%s\n' "${second_enabled}"
 		printf 'EG4_DEVICE_1_SOURCE_ID=eg4-6500ex-%s\n' "${second}"
 		printf 'EG4_DEVICE_1_DEVICE_ID=inverter-%s\n' "${second}"
@@ -62,7 +66,13 @@ jq -e '
 	.services["hvo-eg4"].environment.Eg4__Devices__0__DeviceId == "inverter-a" and
 	.services["hvo-eg4"].environment.Eg4__Devices__0__Port == "/dev/hvo/eg4-6500ex-a" and
 	.services["hvo-eg4"].environment.Eg4__Devices__0__UnitId == "0" and
+	.services["hvo-eg4"].environment.Eg4__Devices__1__Type == "ChargeControllerMppt10048Hv" and
+	.services["hvo-eg4"].environment.Eg4__Devices__1__SourceId == "eg4-mppt100-48hv-a" and
+	.services["hvo-eg4"].environment.Eg4__Devices__1__DeviceId == "controller-a" and
 	.services["hvo-eg4"].environment.Eg4__Devices__1__Enabled == "false" and
+	.services["hvo-eg4"].environment.Eg4__Devices__1__Port == "/dev/serial/by-id/usb-eg4-mppt-a" and
+	.services["hvo-eg4"].environment.Eg4__Devices__1__UnitId == "1" and
+	(.services["hvo-eg4"].environment | has("Eg4__Devices__2__SourceId") | not) and
 	.services["hvo-eg4"].environment.Outbox__DbPath == "/app/data/outbox.db" and
 	.services["hvo-eg4"].environment.Outbox__ApiEndpoint == "https://www.hualapaivalleyobservatory.org/api/v1/power/readings" and
 	.services["hvo-eg4"].restart == "unless-stopped" and
@@ -85,10 +95,16 @@ for specification in "${two_env}:a:b" "${reordered_env}:b:a"; do
 		.services["hvo-eg4"].environment.Eg4__Devices__0__DeviceId == ("inverter-" + $first) and
 		.services["hvo-eg4"].environment.Eg4__Devices__0__Port == ("/dev/hvo/eg4-6500ex-" + $first) and
 		.services["hvo-eg4"].environment.Eg4__Devices__0__Enabled == "true" and
-		.services["hvo-eg4"].environment.Eg4__Devices__1__SourceId == ("eg4-6500ex-" + $second) and
-		.services["hvo-eg4"].environment.Eg4__Devices__1__DeviceId == ("inverter-" + $second) and
-		.services["hvo-eg4"].environment.Eg4__Devices__1__Port == ("/dev/hvo/eg4-6500ex-" + $second) and
-		.services["hvo-eg4"].environment.Eg4__Devices__1__Enabled == "true"
+		.services["hvo-eg4"].environment.Eg4__Devices__1__Type == "ChargeControllerMppt10048Hv" and
+		.services["hvo-eg4"].environment.Eg4__Devices__1__SourceId == "eg4-mppt100-48hv-a" and
+		.services["hvo-eg4"].environment.Eg4__Devices__1__DeviceId == "controller-a" and
+		.services["hvo-eg4"].environment.Eg4__Devices__1__Port == "/dev/serial/by-id/usb-eg4-mppt-a" and
+		.services["hvo-eg4"].environment.Eg4__Devices__1__UnitId == "1" and
+		.services["hvo-eg4"].environment.Eg4__Devices__1__Enabled == "false" and
+		.services["hvo-eg4"].environment.Eg4__Devices__2__SourceId == ("eg4-6500ex-" + $second) and
+		.services["hvo-eg4"].environment.Eg4__Devices__2__DeviceId == ("inverter-" + $second) and
+		.services["hvo-eg4"].environment.Eg4__Devices__2__Port == ("/dev/hvo/eg4-6500ex-" + $second) and
+		.services["hvo-eg4"].environment.Eg4__Devices__2__Enabled == "true"
 	' <<<"${config}" >/dev/null || fail 'stable source/device/port identity changed after device reordering'
 done
 
