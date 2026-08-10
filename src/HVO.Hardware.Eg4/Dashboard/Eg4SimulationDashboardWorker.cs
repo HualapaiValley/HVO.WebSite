@@ -44,7 +44,11 @@ public sealed class Eg4SimulationDashboardWorker(
             {
                 var sample = await simulator.ReadAsync(device, cancellationToken);
                 if (sample.BatteryObservation is not null)
-                    publisher.Publish(device, sample.BatteryObservation);
+                    publisher.Publish(
+                        device,
+                        sample.BatteryObservation,
+                        mpptDetail: sample.MpptDetail,
+                        inverterDetail: sample.InverterDetail);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception exception)

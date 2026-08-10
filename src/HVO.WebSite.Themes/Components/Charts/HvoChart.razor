@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.JSInterop
 @inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
 
 <div style="height: @($"{Height}px"); position: relative;">
     <canvas id="@ChartId"></canvas>
@@ -91,6 +92,18 @@
             await RenderChartAsync();
         }
         catch (Exception) { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("hvoChart.destroy", ChartId);
+        }
+        catch (Exception exception) when (exception is JSDisconnectedException or JSException or InvalidOperationException)
+        {
+            // Disposal may run after the circuit or prerendering context is gone.
+        }
     }
 
     private async Task RenderChartAsync()

@@ -10,22 +10,88 @@
 
     <div class="eg4-device-card__role">
         <span>@RoleLabel</span>
-        <strong>Branch measurement</strong>
+        <strong>Battery-facing branch measurement</strong>
     </div>
 
     <dl class="eg4-device-card__metrics">
-        <div><dt>State</dt><dd>@PowerState</dd></div>
-        <div><dt>Voltage</dt><dd>@HvoFormat.Voltage(Device.VoltageV, 2)</dd></div>
-        <div><dt>Current</dt><dd>@HvoFormat.Current(Device.CurrentA)</dd></div>
-        <div><dt>Power</dt><dd>@HvoFormat.Power(Device.PowerW)</dd></div>
+        <div><dt>Battery state</dt><dd>@PowerState</dd></div>
+        <div><dt>Battery voltage</dt><dd>@HvoFormat.Voltage(Device.VoltageV, 2)</dd></div>
+        <div><dt>Battery current (+ charging)</dt><dd>@BatteryCurrent</dd></div>
+        <div><dt>Battery power (+ charging)</dt><dd>@BatteryPower</dd></div>
         <div><dt>SOC</dt><dd>@HvoFormat.Percent(Device.StateOfChargePercent)</dd></div>
         <div><dt>Freshness</dt><dd>@FreshnessLabel</dd></div>
     </dl>
 
+    @if (Device.MpptDetail?.Trackers is { Count: > 0 } trackers)
+    {
+        <section class="eg4-device-card__detail" aria-label="@($"{Device.Alias} PV inputs")">
+            <div class="eg4-device-card__detail-head">
+                <div>
+                    <span>PV input</span>
+                    <strong>@PvHeading</strong>
+                </div>
+                <strong class="hvo-mono">@HvoFormat.Power(PvSubtotalW)</strong>
+            </div>
+            <div class="eg4-device-card__tracker-grid">
+                @foreach (var tracker in trackers)
+                {
+                    <article data-tracker-id="@tracker.TrackerId">
+                        <strong>@tracker.Name</strong>
+                        <span class="hvo-mono">@HvoFormat.Power(tracker.PowerW)</span>
+                        <span>@HvoFormat.Voltage(tracker.VoltageV) / @HvoFormat.Current(tracker.CurrentA)</span>
+                        <small>@TrackerProvenance(tracker)</small>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+
+    @if (Device.InverterDetail is { } inverter)
+    {
+        <section class="eg4-device-card__detail" aria-label="@($"{Device.Alias} inverter detail")">
+            <div class="eg4-device-card__detail-head">
+                <div>
+                    <span>Inverter</span>
+                    <strong>AC, load, and operating state</strong>
+                </div>
+                <span class="hvo-chip">@(inverter.Operating?.Mode ?? "Unknown mode")</span>
+            </div>
+            <dl class="eg4-device-card__detail-facts">
+                <div><dt>AC input</dt><dd>@AcInput</dd></div>
+                <div><dt>AC output</dt><dd>@AcOutput</dd></div>
+                <div><dt>Load</dt><dd>@LoadPower</dd></div>
+                <div><dt>Apparent load</dt><dd>@ApparentLoad</dd></div>
+                <div><dt>Load percentage</dt><dd>@HvoFormat.Percent(inverter.Operating?.LoadPercentage)</dd></div>
+                <div><dt>Fault</dt><dd>@(inverter.Operating?.FaultCode ?? "--")</dd></div>
+            </dl>
+            @if (inverter.Temperatures.Count > 0)
+            {
+                <p class="eg4-device-card__detail-line">Temperatures: @string.Join("; ", inverter.Temperatures.Select(FormatTemperature))</p>
+            }
+        </section>
+    }
+
+    @if (Device.MpptDetail?.BatteryOutput is { } controllerOutput)
+    {
+        <section class="eg4-device-card__detail" aria-label="@($"{Device.Alias} battery output")">
+            <div class="eg4-device-card__detail-head">
+                <div>
+                    <span>Controller output</span>
+                    <strong>Battery charging contribution</strong>
+                </div>
+            </div>
+            <dl class="eg4-device-card__detail-facts">
+                <div><dt>Voltage</dt><dd>@HvoFormat.Voltage(controllerOutput.VoltageV)</dd></div>
+                <div><dt>Current (+ charging)</dt><dd>@BatteryFacingCurrent(controllerOutput.CurrentA)</dd></div>
+                <div><dt>Power (+ charging)</dt><dd>@BatteryFacingPower(controllerOutput.PowerW)</dd></div>
+            </dl>
+        </section>
+    }
+
     <div class="eg4-device-card__provenance" aria-label="Observation provenance">
         <span>Provenance</span>
         <strong>@ProvenanceLabel</strong>
-        <small>Values describe this branch only, never the whole battery bus.</small>
+        <small>Battery signs use + charging into the batteries and - discharge from the batteries. Values describe this branch only, never the whole battery bus.</small>
     </div>
 
     @if (Device.State == Eg4DashboardDeviceState.Unavailable && Device.Type == Eg4DeviceType.ChargeControllerMppt10048Hv)

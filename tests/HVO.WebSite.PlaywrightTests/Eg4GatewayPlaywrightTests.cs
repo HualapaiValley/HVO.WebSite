@@ -91,10 +91,20 @@ public sealed class Eg4GatewayPlaywrightTests
         await page.GotoAsync(BuildUrl("/"));
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "EG4 Battery Branches" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "EG4 Solar & Battery" })).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator("article.eg4-device-card")).ToHaveCountAsync(2);
         await Assertions.Expect(page.GetByText("Simulator Inverter A", new() { Exact = true })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByText("Simulator Inverter B", new() { Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Simulator Inverter A PV inputs" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Simulator Inverter A inverter detail" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("#eg4-pv-power-chart")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("#eg4-battery-power-chart")).ToBeVisibleAsync();
+        (await page.Locator("#eg4-pv-power-chart").EvaluateAsync<bool>(
+            "canvas => canvas.clientWidth > 0 && canvas.clientHeight > 0 && Boolean(window.Chart?.getChart(canvas.id))"))
+            .Should().BeTrue("Chart.js should create the live PV chart instance");
+        (await page.Locator("#eg4-battery-power-chart").EvaluateAsync<bool>(
+            "canvas => canvas.clientWidth > 0 && canvas.clientHeight > 0 && Boolean(window.Chart?.getChart(canvas.id))"))
+            .Should().BeTrue("Chart.js should create the live battery chart instance");
         var sourceOrder = await page.Locator("article.eg4-device-card").EvaluateAllAsync<string[]>(
             "cards => cards.map(card => card.getAttribute('data-source-id'))");
         sourceOrder.Should().Equal("eg4-sim-inverter-a", "eg4-sim-inverter-b");
@@ -106,6 +116,7 @@ public sealed class Eg4GatewayPlaywrightTests
         var requestedUrlSnapshot = requestedUrls.ToArray();
         await PlaywrightGatewayAssertions.AssertNoCdnResourcesAsync(requestedUrlSnapshot);
         await PlaywrightGatewayAssertions.AssertLocalThemeResourcesLoadedAsync(requestedUrlSnapshot);
+        requestedUrlSnapshot.Should().Contain(url => url.Contains("_content/HVO.WebSite.Themes/js/chart.min.js", StringComparison.OrdinalIgnoreCase));
         await PlaywrightGatewayAssertions.AssertNoLegacyClassesAsync(page, "EG4 dashboard");
         await PlaywrightGatewayAssertions.AssertNoBlazorErrorAsync(page);
     }

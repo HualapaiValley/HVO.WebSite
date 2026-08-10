@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HVO.Edge.Contracts.PowerSystem;
 using HVO.Hardware.Eg4.Configuration;
 using HVO.Hardware.Eg4.Dashboard;
 using HVO.Hardware.Eg4.Protocol;
@@ -142,6 +143,71 @@ public sealed class Eg4GatewayDashboardStateTests
         FluentActions.Invoking(() => state.Publish(configured, wrongSource)).Should().Throw<ArgumentException>();
         FluentActions.Invoking(() => state.Publish(configured, wrongRole)).Should().Throw<ArgumentException>();
         state.GetSnapshot().Devices.Should().OnlyContain(device => device.ObservedAtUtc == null);
+    }
+
+    [TestMethod]
+    public void Publisher_RetainsRichDetailHistoryAndPreservesItAcrossTransientFailure()
+    {
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 8, 10, 18, 0, 0, TimeSpan.Zero));
+        var configured = Device("inverter", Eg4DeviceType.Inverter6500Ex);
+        var state = new Eg4GatewayDashboardState(
+            Options.Create(new Eg4Options { Devices = [configured] }), time,
+            new UnavailableEg4OutboxDashboardProvider());
+        var observation = new PowerBatteryObservation(
+            configured.SourceId, configured.DeviceId, PowerMetricSource.Eg46500Ex,
+            PowerMeasurementRole.InverterBranch, "inverter-battery-branch", time.GetUtcNow().UtcDateTime,
+            VoltageV: 54, CurrentA: -20, PowerW: -1080);
+        var mppt = new PowerMpptDetailPayload
+        {
+            SourceId = configured.SourceId, DeviceId = configured.DeviceId, RecordedAtUtc = observation.ObservedAtUtc,
+            Trackers =
+            [
+                new PowerMpptTrackerDetail { TrackerId = "mppt-1", Name = "MPPT 1", PowerW = 1400 },
+                new PowerMpptTrackerDetail { TrackerId = "mppt-2", Name = "MPPT 2", PowerW = 1300 },
+            ],
+        };
+        var inverter = new PowerInverterDetailPayload
+        {
+            SourceId = configured.SourceId, DeviceId = configured.DeviceId, RecordedAtUtc = observation.ObservedAtUtc,
+            Ac = new PowerInverterAcDetail { OutputVoltageV = 120 },
+        };
+
+        state.Publish(configured, observation, mpptDetail: mppt, inverterDetail: inverter);
+        state.GetSnapshot().PvPowerW.Should().Be(2700);
+        state.PublishFailure(configured, new Eg4TransportException(Eg4TransportFailureKind.Crc, "CRC"));
+
+        var snapshot = state.GetSnapshot();
+        var device = snapshot.Devices.Single();
+        device.MpptDetail.Should().BeSameAs(mppt);
+        device.InverterDetail.Should().BeSameAs(inverter);
+        snapshot.PvPowerW.Should().BeNull("a degraded device must not contribute a current site subtotal");
+        snapshot.PowerHistory.Should().HaveCount(3);
+        snapshot.PowerHistory.Count(point => point.Kind == Eg4DashboardSeriesKind.Pv).Should().Be(2);
+        snapshot.PowerHistory.Single(point => point.Kind == Eg4DashboardSeriesKind.Battery).PowerW.Should().Be(-1080);
+        device.State.Should().Be(Eg4DashboardDeviceState.Degraded);
+    }
+
+    [TestMethod]
+    public void Publisher_HistoryRevisionContinuesAfterBoundedQueueReachesCapacity()
+    {
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 8, 10, 18, 0, 0, TimeSpan.Zero));
+        var configured = Device("inverter", Eg4DeviceType.Inverter6500Ex);
+        var state = new Eg4GatewayDashboardState(
+            Options.Create(new Eg4Options { Devices = [configured] }), time,
+            new UnavailableEg4OutboxDashboardProvider());
+
+        for (var index = 0; index < 2_001; index++)
+        {
+            var observedAt = time.GetUtcNow().UtcDateTime.AddSeconds(index);
+            state.Publish(configured, new PowerBatteryObservation(
+                configured.SourceId, configured.DeviceId, PowerMetricSource.Eg46500Ex,
+                PowerMeasurementRole.InverterBranch, "inverter-battery-branch", observedAt, PowerW: index));
+        }
+
+        var snapshot = state.GetSnapshot();
+        snapshot.PowerHistory.Should().HaveCount(2_000);
+        snapshot.HistoryRevision.Should().Be(2_001);
+        snapshot.PowerHistory.Last().PowerW.Should().Be(2_000);
     }
 
     [TestMethod]

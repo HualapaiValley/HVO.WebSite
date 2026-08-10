@@ -7,6 +7,14 @@ namespace HVO.Hardware.Eg4.Dashboard;
 
 public enum Eg4DashboardDeviceState { Waiting, Online, Degraded, Offline, Disabled, Unavailable }
 public enum Eg4DashboardHealthState { Healthy, Degraded, Offline, Misconfigured }
+public enum Eg4DashboardSeriesKind { Pv, Battery }
+
+public sealed record Eg4DashboardPowerPoint(
+    DateTime ObservedAtUtc,
+    string SeriesId,
+    string Label,
+    Eg4DashboardSeriesKind Kind,
+    double PowerW);
 
 public sealed record Eg4DashboardDevice(
     string SourceId,
@@ -25,7 +33,9 @@ public sealed record Eg4DashboardDevice(
     string? Model = null,
     string? Firmware = null,
     string? LastError = null,
-    bool IsStale = false);
+    bool IsStale = false,
+    PowerMpptDetailPayload? MpptDetail = null,
+    PowerInverterDetailPayload? InverterDetail = null);
 
 public sealed record Eg4OutboxDashboard(
     int PendingCount,
@@ -45,7 +55,9 @@ public sealed record Eg4OutboxDashboard(
 public sealed record Eg4GatewayDashboardSnapshot(
     IReadOnlyList<Eg4DashboardDevice> Devices,
     Eg4OutboxDashboard Outbox,
-    DateTime? RefreshedAtUtc)
+    DateTime? RefreshedAtUtc,
+    IReadOnlyList<Eg4DashboardPowerPoint>? History = null,
+    int HistoryRevision = 0)
 {
     public int ConfiguredCount => Devices.Count;
     public int OnlineCount => Devices.Count(device => device.State == Eg4DashboardDeviceState.Online);
@@ -53,6 +65,17 @@ public sealed record Eg4GatewayDashboardSnapshot(
     public int OfflineCount => Devices.Count(device => device.State == Eg4DashboardDeviceState.Offline);
     public int DisabledCount => Devices.Count(device => device.State == Eg4DashboardDeviceState.Disabled);
     public int UnavailableCount => Devices.Count(device => device.State == Eg4DashboardDeviceState.Unavailable);
+    public IReadOnlyList<Eg4DashboardPowerPoint> PowerHistory => History ?? [];
+    public int ExpectedPvTrackerCount => Devices
+        .Where(device => device.State is not Eg4DashboardDeviceState.Disabled and not Eg4DashboardDeviceState.Unavailable)
+        .Sum(device => device.Type == Eg4DeviceType.Inverter6500Ex ? 2 : 1);
+    public IReadOnlyList<PowerMpptTrackerDetail> PvTrackers => Devices
+        .Where(device => device.State == Eg4DashboardDeviceState.Online && !device.IsStale)
+        .SelectMany(device => device.MpptDetail?.Trackers ?? [])
+        .ToArray();
+    public double? PvPowerW => PvTrackers.Count == ExpectedPvTrackerCount && PvTrackers.All(tracker => tracker.PowerW.HasValue)
+        ? PvTrackers.Sum(tracker => tracker.PowerW!.Value)
+        : null;
     public int ActiveCount => Devices.Count(device => device.State is not Eg4DashboardDeviceState.Disabled and not Eg4DashboardDeviceState.Unavailable);
     public Eg4DashboardHealthState HealthState => ActiveCount switch
     {
@@ -72,7 +95,13 @@ public interface IEg4GatewayDashboardState
 
 public interface IEg4GatewayDashboardPublisher
 {
-    void Publish(Eg4DeviceOptions device, PowerBatteryObservation observation, string? model = null, string? firmware = null);
+    void Publish(
+        Eg4DeviceOptions device,
+        PowerBatteryObservation observation,
+        string? model = null,
+        string? firmware = null,
+        PowerMpptDetailPayload? mpptDetail = null,
+        PowerInverterDetailPayload? inverterDetail = null);
     void PublishFailure(Eg4DeviceOptions device, Exception exception);
 }
 
@@ -83,6 +112,8 @@ public sealed class Eg4GatewayDashboardState : IEg4GatewayDashboardState, IEg4Ga
     private readonly IEg4OutboxDashboardProvider _outboxProvider;
     private readonly object _stateLock = new();
     private readonly Dictionary<string, DeviceRuntime> _runtime = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Queue<Eg4DashboardPowerPoint> _history = new();
+    private int _historyRevision;
     private DateTime? _refreshedAtUtc;
 
     public Eg4GatewayDashboardState(
@@ -106,11 +137,22 @@ public sealed class Eg4GatewayDashboardState : IEg4GatewayDashboardState, IEg4Ga
                 .OrderBy(device => device.SourceId, StringComparer.OrdinalIgnoreCase)
                 .Select(device => CreateDeviceSnapshot(device, now))
                 .ToArray();
-            return new Eg4GatewayDashboardSnapshot(devices, _outboxProvider.GetSnapshot(), _refreshedAtUtc);
+            return new Eg4GatewayDashboardSnapshot(
+                devices,
+                _outboxProvider.GetSnapshot(),
+                _refreshedAtUtc,
+                _history.ToArray(),
+                _historyRevision);
         }
     }
 
-    public void Publish(Eg4DeviceOptions device, PowerBatteryObservation observation, string? model = null, string? firmware = null)
+    public void Publish(
+        Eg4DeviceOptions device,
+        PowerBatteryObservation observation,
+        string? model = null,
+        string? firmware = null,
+        PowerMpptDetailPayload? mpptDetail = null,
+        PowerInverterDetailPayload? inverterDetail = null)
     {
         ArgumentNullException.ThrowIfNull(device);
         ArgumentNullException.ThrowIfNull(observation);
@@ -121,9 +163,12 @@ public sealed class Eg4GatewayDashboardState : IEg4GatewayDashboardState, IEg4Ga
             !string.Equals(device.DeviceId, observation.DeviceId, StringComparison.OrdinalIgnoreCase) ||
             observation.Role != expectedRole)
             throw new ArgumentException("Published EG4 observation identity or measurement role does not match the configured device.", nameof(observation));
+        ValidateDetailIdentity(device, mpptDetail, nameof(mpptDetail));
+        ValidateDetailIdentity(device, inverterDetail, nameof(inverterDetail));
         lock (_stateLock)
         {
-            _runtime[device.SourceId] = new DeviceRuntime(observation, null, model, firmware);
+            _runtime[device.SourceId] = new DeviceRuntime(observation, mpptDetail, inverterDetail, null, model, firmware);
+            AppendHistory(observation, mpptDetail);
             _refreshedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
         }
         Changed?.Invoke();
@@ -136,7 +181,13 @@ public sealed class Eg4GatewayDashboardState : IEg4GatewayDashboardState, IEg4Ga
         lock (_stateLock)
         {
             _runtime.TryGetValue(device.SourceId, out var previous);
-            _runtime[device.SourceId] = new DeviceRuntime(previous?.Observation, SafeError(exception), previous?.Model, previous?.Firmware);
+            _runtime[device.SourceId] = new DeviceRuntime(
+                previous?.Observation,
+                previous?.MpptDetail,
+                previous?.InverterDetail,
+                SafeError(exception),
+                previous?.Model,
+                previous?.Firmware);
             _refreshedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
         }
         Changed?.Invoke();
@@ -178,7 +229,57 @@ public sealed class Eg4GatewayDashboardState : IEg4GatewayDashboardState, IEg4Ga
             runtime?.Model,
             runtime?.Firmware,
             LastError: runtime?.Error,
-            IsStale: isStale);
+            IsStale: isStale,
+            MpptDetail: runtime?.MpptDetail,
+            InverterDetail: runtime?.InverterDetail);
+    }
+
+    private void AppendHistory(PowerBatteryObservation observation, PowerMpptDetailPayload? mpptDetail)
+    {
+        var appended = false;
+        if (observation.PowerW.HasValue)
+        {
+            _history.Enqueue(new Eg4DashboardPowerPoint(
+                observation.ObservedAtUtc,
+                $"{observation.SourceId}/battery",
+                observation.Role == PowerMeasurementRole.InverterBranch ? "Inverter battery" : "Controller battery output",
+                Eg4DashboardSeriesKind.Battery,
+                observation.PowerW.Value));
+            appended = true;
+        }
+
+        foreach (var tracker in mpptDetail?.Trackers ?? [])
+        {
+            if (tracker.PowerW.HasValue)
+            {
+                _history.Enqueue(new Eg4DashboardPowerPoint(
+                    mpptDetail!.RecordedAtUtc,
+                    $"{mpptDetail.SourceId}/{tracker.TrackerId}",
+                    $"{tracker.Name} ({mpptDetail.SourceId})",
+                    Eg4DashboardSeriesKind.Pv,
+                    tracker.PowerW.Value));
+                appended = true;
+            }
+        }
+
+        while (_history.Count > 2_000)
+            _history.Dequeue();
+        if (appended)
+            _historyRevision++;
+    }
+
+    private static void ValidateDetailIdentity(Eg4DeviceOptions device, PowerMpptDetailPayload? detail, string parameterName)
+    {
+        if (detail is not null && (!string.Equals(device.SourceId, detail.SourceId, StringComparison.OrdinalIgnoreCase) ||
+                                   !string.Equals(device.DeviceId, detail.DeviceId, StringComparison.OrdinalIgnoreCase)))
+            throw new ArgumentException("Published EG4 MPPT detail identity does not match the configured device.", parameterName);
+    }
+
+    private static void ValidateDetailIdentity(Eg4DeviceOptions device, PowerInverterDetailPayload? detail, string parameterName)
+    {
+        if (detail is not null && (!string.Equals(device.SourceId, detail.SourceId, StringComparison.OrdinalIgnoreCase) ||
+                                   !string.Equals(device.DeviceId, detail.DeviceId, StringComparison.OrdinalIgnoreCase)))
+            throw new ArgumentException("Published EG4 inverter detail identity does not match the configured device.", parameterName);
     }
 
     private static string SafeError(Exception exception) => exception switch
@@ -188,5 +289,11 @@ public sealed class Eg4GatewayDashboardState : IEg4GatewayDashboardState, IEg4Ga
         _ => "Read failed",
     };
 
-    private sealed record DeviceRuntime(PowerBatteryObservation? Observation, string? Error, string? Model, string? Firmware);
+    private sealed record DeviceRuntime(
+        PowerBatteryObservation? Observation,
+        PowerMpptDetailPayload? MpptDetail,
+        PowerInverterDetailPayload? InverterDetail,
+        string? Error,
+        string? Model,
+        string? Firmware);
 }

@@ -1,4 +1,5 @@
 using HVO.Hardware.Eg4.Dashboard;
+using HVO.WebSite.Themes.Components.Charts;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
 
@@ -24,6 +25,17 @@ public partial class Status
         _ => "hvo-chip-danger",
     };
     private string HealthLabel => $"Gateway {_snapshot.HealthState.ToString().ToLowerInvariant()}";
+    private IReadOnlyList<DateTime> HistoryTimes => _snapshot.PowerHistory
+        .Select(point => HistoryBucket(point.ObservedAtUtc))
+        .Distinct()
+        .OrderBy(value => value)
+        .TakeLast(180)
+        .ToArray();
+    private IReadOnlyList<string> HistoryLabels => HistoryTimes
+        .Select(value => value.ToLocalTime().ToString("HH:mm"))
+        .ToArray();
+    private IReadOnlyList<HvoChartDataset> PvDatasets => BuildDatasets(Eg4DashboardSeriesKind.Pv, invertForBatteryView: false);
+    private IReadOnlyList<HvoChartDataset> BatteryDatasets => BuildDatasets(Eg4DashboardSeriesKind.Battery, invertForBatteryView: true);
 
     protected override async Task OnInitializedAsync()
     {
@@ -134,5 +146,45 @@ public partial class Status
         {
             _outboxMessage = exception.Message;
         }
+    }
+
+    private IReadOnlyList<HvoChartDataset> BuildDatasets(Eg4DashboardSeriesKind kind, bool invertForBatteryView)
+    {
+        var times = HistoryTimes;
+        var palette = new[]
+        {
+            "#69d3ff", // --hvo-series-1
+            "#ffb86c", // --hvo-series-2
+            "#ffd166", // --hvo-series-3
+            "#57d38d", // --hvo-series-4
+            "#9fb8d4", // --hvo-series-6
+        };
+        return _snapshot.PowerHistory
+            .Where(point => point.Kind == kind && times.Contains(HistoryBucket(point.ObservedAtUtc)))
+            .GroupBy(point => point.SeriesId, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .Select((group, index) =>
+            {
+                var values = group
+                    .GroupBy(point => HistoryBucket(point.ObservedAtUtc))
+                    .ToDictionary(bucket => bucket.Key, bucket => bucket.Last().PowerW);
+                var data = times.Select(time => values.TryGetValue(time, out var value)
+                    ? (double?)(invertForBatteryView ? -value : value)
+                    : null).ToArray();
+                return new HvoChartDataset(
+                    group.Last().Label,
+                    data,
+                    BorderColor: palette[index % palette.Length],
+                    BorderWidth: 2,
+                    PointRadius: 1,
+                    Tension: 0.2);
+            })
+            .ToArray();
+    }
+
+    private static DateTime HistoryBucket(DateTime value)
+    {
+        var utc = value.ToUniversalTime();
+        return new DateTime(utc.Year, utc.Month, utc.Day, utc.Hour, utc.Minute, 0, DateTimeKind.Utc);
     }
 }

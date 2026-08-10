@@ -1,3 +1,5 @@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
 <section class="power-status-card" aria-labelledby="power-status-heading">
     <div class="power-status-card__header">
         <div>
@@ -6,6 +8,74 @@
         </div>
         <span class="hvo-chip @SnapshotStateChipClass">@_viewModel.SnapshotState</span>
     </div>
+
+    <section class="power-inventory power-pv-inputs" aria-labelledby="power-pv-inputs-heading">
+        <div class="power-bank__header">
+            <h3 id="power-pv-inputs-heading">PV Inputs</h3>
+            <span>@_viewModel.PvCompleteness</span>
+        </div>
+        <p>Aggregate: @_viewModel.PvAggregateSource</p>
+        @if (_viewModel.PvTrackers.Count == 0)
+        {
+            <div class="hvo-state-empty" role="status">No independent PV tracker detail is available.</div>
+        }
+        else
+        {
+            <div class="power-pv-string-grid" aria-label="Canonical site PV inputs">
+                @foreach (var tracker in _viewModel.PvTrackers)
+                {
+                    <article data-tracker-id="@tracker.TrackerId">
+                        <strong>@tracker.Name</strong>
+                        <span class="hvo-mono">@tracker.Power</span>
+                        <span>@tracker.Voltage / @tracker.Current</span>
+                        <span>@tracker.Source; @tracker.Provenance; @tracker.Freshness</span>
+                        <small>@tracker.Confidence</small>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
+    @if (PvHistoryDatasets.Count > 0 || BatteryHistoryDatasets.Count > 0)
+    {
+        <section class="power-inventory" aria-labelledby="power-history-heading">
+            <div class="power-bank__header">
+                <h3 id="power-history-heading">Power History</h3>
+                <span>Last @_historyHours hour(s)</span>
+            </div>
+            <div class="power-history-grid">
+                @if (PvHistoryDatasets.Count > 0)
+                {
+                    <article class="power-history-chart">
+                        <h4>PV trackers and 5-minute subtotal</h4>
+                        <HvoChart ChartId="site-pv-history-chart"
+                                  Type="HvoChartType.Line"
+                                  Height="280"
+                                  EnableAnimations="false"
+                                  DataRevision="@HistoryRevision"
+                                  YAxisLabel="Watts"
+                                  Labels="@HistoryLabels"
+                                  Datasets="@PvHistoryDatasets" />
+                    </article>
+                }
+                @if (BatteryHistoryDatasets.Count > 0)
+                {
+                    <article class="power-history-chart">
+                        <h4>EG4 battery contributions</h4>
+                        <p>+ charging into batteries / - discharging to support load</p>
+                        <HvoChart ChartId="site-eg4-battery-history-chart"
+                                  Type="HvoChartType.Line"
+                                  Height="280"
+                                  EnableAnimations="false"
+                                  DataRevision="@HistoryRevision"
+                                  YAxisLabel="Battery-facing watts"
+                                  Labels="@HistoryLabels"
+                                  Datasets="@BatteryHistoryDatasets" />
+                    </article>
+                }
+            </div>
+        </section>
+    }
 
     <div class="power-status-card__grid">
         <article class="power-metric power-metric--solar">
@@ -19,7 +89,7 @@
         <article class="power-metric power-metric--battery">
             <span>Battery</span>
             <strong>@_viewModel.BatteryPower</strong>
-            <small>@_viewModel.BatteryFlow</small>
+            <small>@_viewModel.BatteryFlow; + charging / - discharging</small>
         </article>
         <article class="power-metric power-metric--grid">
             <span>Grid</span>
@@ -42,7 +112,7 @@
     <section class="power-inventory" aria-labelledby="battery-source-comparison-heading">
         <div class="power-bank__header">
             <h3 id="battery-source-comparison-heading">Battery Source Comparison</h3>
-            <span>@_viewModel.BatteryObservations.Count observation(s)</span>
+            <span>@_viewModel.BatteryObservations.Count observation(s); battery-facing signs</span>
         </div>
 
         @if (_viewModel.BatteryObservations.Count == 0)
@@ -116,6 +186,67 @@
                 }
             </div>
         }
+    </section>
+
+    <section class="power-inventory power-eg4-detail" aria-labelledby="power-eg4-detail-heading">
+        <div class="power-bank__header">
+            <h3 id="power-eg4-detail-heading">EG4 Equipment Detail</h3>
+            <span>@_eg4Equipment.State</span>
+        </div>
+        <div class="power-eg4-detail__grid">
+            <article>
+                <h4>6500EX Inverter</h4>
+                <dl>
+                    <div><dt>PV subtotal</dt><dd>@_eg4Equipment.InverterPvSubtotal</dd></div>
+                    <div><dt>AC input</dt><dd>@_eg4Equipment.AcInput</dd></div>
+                    <div><dt>AC output</dt><dd>@_eg4Equipment.AcOutput</dd></div>
+                    <div><dt>Load</dt><dd>@_eg4Equipment.Load</dd></div>
+                    <div><dt>Battery branch</dt><dd>@_eg4Equipment.InverterBattery</dd></div>
+                    <div><dt>Operating</dt><dd>@_eg4Equipment.OperatingState</dd></div>
+                </dl>
+                @if (_eg4Equipment.InverterTrackers.Count > 0)
+                {
+                    <div class="power-pv-string-grid" aria-label="Raw EG4 inverter PV trackers">
+                        @foreach (var tracker in _eg4Equipment.InverterTrackers)
+                        {
+                            <article><strong>@tracker.StringId</strong><span>@tracker.Power</span><span>@tracker.Voltage / @tracker.Current</span></article>
+                        }
+                    </div>
+                }
+                @if (_eg4Equipment.InverterTemperatures.Count > 0)
+                {
+                    <p>Temperatures: @string.Join("; ", _eg4Equipment.InverterTemperatures)</p>
+                }
+                @if (_eg4Equipment.InverterStatuses.Count > 0)
+                {
+                    <p>Status: @string.Join("; ", _eg4Equipment.InverterStatuses)</p>
+                }
+            </article>
+            <article>
+                <h4>MPPT100-48HV Controller</h4>
+                <dl>
+                    <div><dt>PV subtotal</dt><dd>@_eg4Equipment.ControllerPvSubtotal</dd></div>
+                    <div><dt>Battery output</dt><dd>@_eg4Equipment.ControllerBatteryOutput</dd></div>
+                </dl>
+                @if (_eg4Equipment.ControllerTrackers.Count > 0)
+                {
+                    <div class="power-pv-string-grid" aria-label="EG4 external controller PV trackers">
+                        @foreach (var tracker in _eg4Equipment.ControllerTrackers)
+                        {
+                            <article><strong>@tracker.StringId</strong><span>@tracker.Power</span><span>@tracker.Voltage / @tracker.Current</span></article>
+                        }
+                    </div>
+                }
+                @if (_eg4Equipment.ControllerTemperatures.Count > 0)
+                {
+                    <p>Temperatures: @string.Join("; ", _eg4Equipment.ControllerTemperatures)</p>
+                }
+                @if (_eg4Equipment.ControllerDiagnostics.Count > 0)
+                {
+                    <p>Diagnostics: @string.Join("; ", _eg4Equipment.ControllerDiagnostics)</p>
+                }
+            </article>
+        </div>
     </section>
 
     @if (_viewModel.BatteryBanks.Count > 0)

@@ -61,7 +61,7 @@ public sealed class PowerStatusViewModelTests
 
         model.PvPower.Should().Be("3098 W");
         model.LoadPower.Should().Be("474 W");
-        model.BatteryPower.Should().Be("+2700 W");
+        model.BatteryPower.Should().Be("-2700 W");
         model.BatteryFlow.Should().Be("Discharging");
         model.BatteryStateOfCharge.Should().Be("100%");
         model.BatterySource.Should().Be("SmartShunt");
@@ -205,6 +205,8 @@ public sealed class PowerStatusViewModelTests
         model.BatteryObservations.Count(row => row.Role == "Charge-controller branch").Should().Be(2);
         var bus = model.BatteryObservations.Single(row => row.SourceId == "smartshunt-main");
         bus.Flow.Should().Be("Charging (into battery)");
+        bus.Current.Should().Be("+20.0 A");
+        bus.Power.Should().Be("+1084 W");
         bus.SelectionLabels.Should().ContainSingle().Which.Should().Be("Preferred bus: voltage, current, power");
         bus.Provenance.Should().Be("Direct");
         var aggregate = model.BatteryObservations.Single(row => row.SourceId == "solarassistant-total");
@@ -219,7 +221,7 @@ public sealed class PowerStatusViewModelTests
         staleController.FreshnessStatus.Should().Be("stale");
         var pack = model.BatteryObservations.Single(row => row.SourceId == "jk-bms-1");
         pack.Flow.Should().Be("Discharging (out of battery)");
-        pack.Current.Should().Be("+5.0 A");
+        pack.Current.Should().Be("-5.0 A");
         model.BatteryBanks.Should().ContainSingle().Which.Current.Should().Be("-5.0 A");
         var derivedRow = model.BatteryObservations.Single(row => row.SourceId == "derived-6500ex-branch-sum");
         derivedRow.Role.Should().Be("Derived aggregate");
@@ -299,6 +301,32 @@ public sealed class PowerStatusViewModelTests
         var model = PowerStatusViewModel.FromSnapshot(snapshot);
 
         model.BatteryObservations.Should().ContainSingle().Which.FreshnessStatus.Should().Be("stale");
+    }
+
+    [TestMethod]
+    public void FromSnapshot_ProjectsIndependentPvInputsAndAggregateCompleteness()
+    {
+        var observedAt = new DateTime(2026, 8, 10, 18, 0, 0, DateTimeKind.Utc);
+        var snapshot = new PowerSystemSnapshot(
+            observedAt,
+            Pv: new PowerSystemPvSnapshot(
+                new SourcedValue<double>(3000, PowerMetricSource.Derived, observedAt, Confidence: "complete tracker set (3/3)"),
+                [
+                    new PowerSystemPvTrackerSnapshot("solarassistant-total/mppt-1", "MPPT 1", "solarassistant-total", "inverter", observedAt.AddSeconds(-5), PowerMetricSource.SolarAssistant, 330, 4, 1320, PowerObservationProvenance.Direct, "source-direct"),
+                    new PowerSystemPvTrackerSnapshot("solarassistant-total/mppt-2", "MPPT 2", "solarassistant-total", "inverter", observedAt.AddSeconds(-5), PowerMetricSource.SolarAssistant, 380, 3, 1140, PowerObservationProvenance.Direct, "source-direct"),
+                    new PowerSystemPvTrackerSnapshot("eg4-mppt100-48hv-a/mppt-1", "External MPPT", "eg4-mppt100-48hv-a", "controller", observedAt.AddSeconds(-10), PowerMetricSource.Eg4Mppt10048Hv, 400, 1.35, 540, PowerObservationProvenance.Direct, "direct registers"),
+                ],
+                ExpectedTrackerCount: 3,
+                ReportedTrackerCount: 3));
+
+        var model = PowerStatusViewModel.FromSnapshot(snapshot);
+
+        model.PvCompleteness.Should().Be("3 of 3 inputs");
+        model.PvAggregateSource.Should().Be("Derived; complete tracker set (3/3)");
+        model.PvTrackers.Should().HaveCount(3);
+        model.PvTrackers.Single(tracker => tracker.TrackerId == "eg4-mppt100-48hv-a/mppt-1")
+            .Should().Match<PowerStatusPvTrackerViewModel>(tracker =>
+                tracker.Power == "540 W" && tracker.Voltage == "400.00 V" && tracker.Current == "1.4 A" && tracker.Provenance == "Direct");
     }
 
     private static PowerBatteryObservation Observation(

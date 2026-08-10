@@ -39,6 +39,20 @@
     gap: var(--shell-card-gap);
 }
 
+.eg4-dashboard__chart-grid {
+    display: grid;
+    gap: var(--shell-card-gap);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.eg4-dashboard__chart-grid h3 {
+    margin: 0;
+}
+
+.eg4-dashboard__chart-grid .hvo-section-head > span {
+    color: var(--shell-pill-text);
+}
+
 .eg4-dashboard__facts {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -85,7 +99,8 @@
         flex-direction: column;
     }
 
-    .eg4-dashboard__operations-grid {
+    .eg4-dashboard__operations-grid,
+    .eg4-dashboard__chart-grid {
         grid-template-columns: 1fr;
     }
 }
