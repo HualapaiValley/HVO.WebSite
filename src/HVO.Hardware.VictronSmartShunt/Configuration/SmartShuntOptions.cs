@@ -17,6 +17,9 @@ public sealed class SmartShuntOptions
     [Required]
     public string DeviceId { get; set; } = "smartshunt-lifepo4";
 
+    [Required]
+    public string DisplayTimeZoneId { get; set; } = "America/Phoenix";
+
     public bool PublicOnly { get; set; } = true;
 
     public bool EnablePrivateEnrichment { get; set; }

@@ -25,6 +25,7 @@ services:
       SmartShunt__Adapter: ${SMARTSHUNT_ADAPTER:-hci0}
       SmartShunt__SourceId: ${SMARTSHUNT_SOURCE_ID:-smartshunt-main}
       SmartShunt__DeviceId: ${SMARTSHUNT_DEVICE_ID:-smartshunt-lifepo4}
+      SmartShunt__DisplayTimeZoneId: ${SMARTSHUNT_DISPLAY_TIME_ZONE_ID:-America/Phoenix}
       SmartShunt__PublicOnly: ${SMARTSHUNT_PUBLIC_ONLY:-true}
       SmartShunt__EnablePrivateEnrichment: ${SMARTSHUNT_ENABLE_PRIVATE_ENRICHMENT:-false}
       SmartShunt__SampleIntervalSeconds: ${SMARTSHUNT_SAMPLE_INTERVAL_SECONDS:-5}

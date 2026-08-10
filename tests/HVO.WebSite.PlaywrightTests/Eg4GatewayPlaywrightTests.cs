@@ -97,6 +97,7 @@ public sealed class Eg4GatewayPlaywrightTests
         await Assertions.Expect(page.GetByText("Simulator Inverter B", new() { Exact = true })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Simulator Inverter A PV inputs" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Simulator Inverter A inverter detail" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByText("Rolling in-memory history · America/Phoenix", new() { Exact = true })).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator("#eg4-pv-power-chart")).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator("#eg4-battery-power-chart")).ToBeVisibleAsync();
         (await page.Locator("#eg4-pv-power-chart").EvaluateAsync<bool>(

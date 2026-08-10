@@ -69,7 +69,7 @@
                     <p class="hvo-eyebrow">Live history</p>
                     <h2 id="eg4-power-trends-title">Power Trends</h2>
                 </div>
-                <span class="hvo-chip">Rolling in-memory history</span>
+                <span class="hvo-chip">Rolling in-memory history · @DisplayTimeZoneLabel</span>
             </div>
             <div class="eg4-dashboard__chart-grid">
                 @if (PvDatasets.Count > 0)
@@ -84,6 +84,7 @@
                                   Height="280"
                                   EnableAnimations="false"
                                   DataRevision="@_snapshot.HistoryRevision"
+                                  XAxisLabel="@($"Local time ({DisplayTimeZoneLabel})")"
                                   YAxisLabel="Watts"
                                   Labels="@HistoryLabels"
                                   Datasets="@PvDatasets" />
@@ -101,6 +102,7 @@
                                   Height="280"
                                   EnableAnimations="false"
                                   DataRevision="@_snapshot.HistoryRevision"
+                                  XAxisLabel="@($"Local time ({DisplayTimeZoneLabel})")"
                                   YAxisLabel="Battery-facing watts"
                                   Labels="@HistoryLabels"
                                   Datasets="@BatteryDatasets" />
@@ -123,7 +125,7 @@
                 <div><dt>Pending</dt><dd>@HvoFormat.Integer(_snapshot.Outbox.PendingCount)</dd></div>
                 <div><dt>Failed</dt><dd>@HvoFormat.Integer(_snapshot.Outbox.FailedCount)</dd></div>
                 <div><dt>Last batch</dt><dd>@HvoFormat.Integer(_snapshot.Outbox.LastBatchCount)</dd></div>
-                <div><dt>Last sent</dt><dd>@HvoFormat.Timestamp(_snapshot.Outbox.LastSentAtUtc, "MMM d, HH:mm:ss")</dd></div>
+                <div><dt>Last sent</dt><dd>@FormatTimestamp(_snapshot.Outbox.LastSentAtUtc)</dd></div>
                 <div><dt>Endpoint</dt><dd>@(_snapshot.Outbox.EndpointHost ?? "Not configured")</dd></div>
             </dl>
             <div class="eg4-dashboard__outbox-form">

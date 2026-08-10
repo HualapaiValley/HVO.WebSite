@@ -1,5 +1,6 @@
 using HVO.Hardware.Eg4.Dashboard;
 using HVO.WebSite.Themes.Components.Charts;
+using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
 
@@ -8,6 +9,7 @@ namespace HVO.Hardware.Eg4.Components.Pages;
 public partial class Status
 {
     [Inject] private IEg4GatewayDashboardState DashboardState { get; set; } = default!;
+    [Inject] private HvoDisplayTimeZone DisplayTimeZone { get; set; } = default!;
     [Inject] private ILogger<Status> Logger { get; set; } = default!;
     private Eg4GatewayDashboardSnapshot _snapshot = new([], new Eg4OutboxDashboard(0, 0, null, 0, "Collector not active", null, null, 50, 5, false, false), null);
     private CancellationTokenSource? _refreshCancellation;
@@ -32,8 +34,9 @@ public partial class Status
         .TakeLast(180)
         .ToArray();
     private IReadOnlyList<string> HistoryLabels => HistoryTimes
-        .Select(value => value.ToLocalTime().ToString("HH:mm"))
+        .Select(value => DisplayTimeZone.ConvertFromUtc(value).ToString("HH:mm"))
         .ToArray();
+    private string DisplayTimeZoneLabel => DisplayTimeZone.Label;
     private IReadOnlyList<HvoChartDataset> PvDatasets => BuildDatasets(Eg4DashboardSeriesKind.Pv, invertForBatteryView: false);
     private IReadOnlyList<HvoChartDataset> BatteryDatasets => BuildDatasets(Eg4DashboardSeriesKind.Battery, invertForBatteryView: true);
 
@@ -187,4 +190,8 @@ public partial class Status
         var utc = value.ToUniversalTime();
         return new DateTime(utc.Year, utc.Month, utc.Day, utc.Hour, utc.Minute, 0, DateTimeKind.Utc);
     }
+
+    private string FormatTimestamp(DateTime? value) => value.HasValue
+        ? $"{HvoFormat.Timestamp(value, DisplayTimeZone.TimeZone, "MMM d, HH:mm:ss")} {DisplayTimeZoneLabel}"
+        : "--";
 }

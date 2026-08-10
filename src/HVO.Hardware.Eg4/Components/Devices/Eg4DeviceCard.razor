@@ -105,7 +105,7 @@
         <div><dt>Device ID</dt><dd>@Device.DeviceId</dd></div>
         <div><dt>Model</dt><dd>@(Device.Model ?? "Unavailable")</dd></div>
         <div><dt>Firmware</dt><dd>@(Device.Firmware ?? "Unavailable")</dd></div>
-        <div><dt>Observed</dt><dd>@HvoFormat.Timestamp(Device.ObservedAtUtc, "MMM d, HH:mm:ss")</dd></div>
+        <div><dt>Observed</dt><dd>@ObservedTimestamp</dd></div>
     </dl>
 
     @if (!string.IsNullOrWhiteSpace(Device.LastError))

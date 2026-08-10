@@ -25,6 +25,7 @@ public sealed class SmartShuntGatewayPlaywrightTests
         await Assertions.Expect(page.Locator(".shell-brand-subtitle")).ToContainTextAsync("VICTRON SMARTSHUNT DASHBOARD");
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Overview" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Telemetry" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByText(new Regex("America/Phoenix"), new() { Exact = false }).First).ToBeVisibleAsync();
 
         await page.GetByRole(AriaRole.Link, new() { Name = "Telemetry" }).ClickAsync();
         await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
