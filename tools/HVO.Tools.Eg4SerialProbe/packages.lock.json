@@ -636,7 +636,7 @@
           "HVO.WebSite.Themes": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.10, )",
           "Microsoft.Extensions.Http.Resilience": "[10.8.0, )",
-          "MudBlazor": "[9.7.0, )",
+          "MudBlazor": "[9.8.0, )",
           "OpenTelemetry.Api": "[1.17.0, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.17.0, )",
           "System.IO.Ports": "[10.0.10, )"
@@ -645,7 +645,7 @@
       "hvo.website.themes": {
         "type": "Project",
         "dependencies": {
-          "MudBlazor": "[9.7.0, )"
+          "MudBlazor": "[9.8.0, )"
         }
       },
       "HVO.Enterprise.Telemetry": {
@@ -802,9 +802,9 @@
       },
       "MudBlazor": {
         "type": "CentralTransitive",
-        "requested": "[9.7.0, )",
-        "resolved": "9.7.0",
-        "contentHash": "uWOgNn9B556J/TL8KFoSqpA3YD2heqOpK5etcofwlj1RiEX1IDy0NmwYE9urlTUQ8zProEK5GqwTBnoObFPN3g==",
+        "requested": "[9.8.0, )",
+        "resolved": "9.8.0",
+        "contentHash": "JLJ81j6cn5RUTbgpYAtjRfB3bTNweX0q8lkMS6B9v1oGzZsjVTxDDnWahD+rOtzJWPU6D9svsymiETe4G8bSLw==",
         "dependencies": {
           "Microsoft.AspNetCore.Components": "10.0.1",
           "Microsoft.AspNetCore.Components.Web": "10.0.1",
