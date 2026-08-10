@@ -4,13 +4,13 @@ Minimal per-gateway Docker Compose deployments for Pi-class edge hosts.
 
 ## Website upstream policy
 
-Deployed Pi gateways should normally post to the Azure-hosted `HVO.WebSite` API, not to `hvo-docker`.
+Deployed Pi gateways should normally post to the public `HVO.WebSite` API, not directly to `hvo-docker`.
 
 Use `hvo-docker` as the upstream only when you are intentionally validating unpublished website/API changes, local infrastructure behavior, or end-to-end development flows before Azure is updated.
 
 Practical default:
 
-- Pi deployment: `HVO_WEBSITE_PUBLIC_BASE_URL=https://hvo-website.calmsand-72a6c5ac.westus.azurecontainerapps.io`
+- Pi deployment: `HVO_WEBSITE_PUBLIC_BASE_URL=https://www.hualapaivalleyobservatory.org`
 - Local development/integration override: `HVO_WEBSITE_PUBLIC_BASE_URL=http://<hvo-docker-or-dev-host>`
 
 ## API key source of truth
@@ -54,6 +54,7 @@ Important:
 ## Current targets
 
 - `deploy/pi-gateways/davis`
+- `deploy/pi-gateways/eg4`
 - `deploy/pi-gateways/jkbms`
 - `deploy/pi-gateways/solarassistant`
 - `deploy/pi-gateways/smartshunt`
@@ -69,6 +70,7 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 
 ```bash
 ./scripts/deploy-pi-gateway.sh --context devpi5 davis
+./scripts/deploy-pi-gateway.sh --context devpi5 eg4
 ./scripts/deploy-pi-gateway.sh --context devpi5 jkbms
 ./scripts/deploy-pi-gateway.sh --context devpi5 solarassistant
 ./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt
@@ -80,6 +82,8 @@ To deploy all gateway stacks from the current checkout:
 ```bash
 ./scripts/deploy-pi-gateway.sh --context devpi5 all
 ```
+
+The commissioning EG4 stack is intentionally excluded from `all`; deploy it explicitly after stable HID preflight.
 
 To verify deployed endpoints after rollout:
 
@@ -134,3 +138,12 @@ To verify deployed endpoints after rollout:
 - SolarAssistant UI: `http://<pi-host>:5300`
 - SmartShunt UI: `http://<pi-host>:5400`
 - TP-Link/Kasa local API: `http://<pi-host>:5500`
+- EG4 UI: `http://<pi-host>:5600`
+
+## EG4 deployment notes
+
+- Follow `docs/gateways/eg4/deployment-and-shadow-validation.md` before rollout.
+- Map only stable `/dev/hvo/eg4-6500ex-*` HID nodes; never map `/dev/hidrawN` or the MPPT/BMS `/dev/ttyUSB0` cable.
+- The base profile commissions one inverter. The second-device overlay is selected only when `EG4_DEVICE_1_ENABLED=true` and both stable nodes exist.
+- Production simulation is disabled. No command path, MPPT polling, PV ingest, or AC ingest is enabled.
+- Set `HVO_CHECK_EG4=true` when `check-deployments.sh` should require EG4 health.

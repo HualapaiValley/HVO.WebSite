@@ -58,6 +58,6 @@ done
 command -v az >/dev/null 2>&1 || fail 'Required command not found: az'
 
 run_query 'Gateway ingest requests' "AppRequests | where TimeGenerated > ago(${hours}h) | where Name has_any ('weather', 'bms', 'power', 'gateway-status', 'device-inventory', 'inverter-detail') | summarize Count=count(), Failed=countif(Success == false) by Name, ResultCode | order by Failed desc, Count desc"
-run_query 'Gateway trace severity' "AppTraces | where TimeGenerated > ago(${hours}h) | where Message has_any ('outbox', 'gateway', 'Davis', 'JkBms', 'SolarAssistant', 'SmartShunt', 'Kasa') | summarize Count=count() by SeverityLevel | order by SeverityLevel desc"
+run_query 'Gateway trace severity' "AppTraces | where TimeGenerated > ago(${hours}h) | where Message has_any ('outbox', 'gateway', 'Davis', 'EG4', 'Eg4', 'JkBms', 'SolarAssistant', 'SmartShunt', 'Kasa') | summarize Count=count() by SeverityLevel | order by SeverityLevel desc"
 run_query 'Outbox and SQLite errors' "AppTraces | where TimeGenerated > ago(${hours}h) | where Message has_any ('outbox', 'Outbox', 'SQLite', 'database is locked', 'FailureKind') | summarize Count=count(), Latest=max(TimeGenerated) by SeverityLevel, Message | order by Latest desc"
 run_query 'Gateway health/status signals' "AppTraces | where TimeGenerated > ago(${hours}h) | where Message has_any ('gateway health', 'gateway-status', 'health evaluation', 'poll failed', 'poll timeout') | summarize Count=count(), Latest=max(TimeGenerated) by SeverityLevel, Message | order by Latest desc"

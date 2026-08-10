@@ -8,7 +8,7 @@ action="summary"
 remote=false
 
 usage() {
-	printf 'Usage: %s [--context <docker-context>] [--remote] <summary|schema|archive> <davis|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
+	printf 'Usage: %s [--context <docker-context>] [--remote] <summary|schema|archive> <davis|eg4|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
 	printf '\n'
 	printf 'Inspects or archives gateway outbox.db files. Archive renames outbox.db* inside the Docker volume; it never deletes files.\n'
 }
@@ -21,6 +21,7 @@ fail() {
 volume_for_target() {
 	case "$1" in
 		davis) printf '%s\n' 'davis_davis-outbox' ;;
+		eg4) printf '%s\n' 'eg4_eg4-outbox' ;;
 		jkbms) printf '%s\n' 'jkbms_jkbms-outbox' ;;
 		solarassistant) printf '%s\n' 'solarassistant_solarassistant-outbox' ;;
 		smartshunt) printf '%s\n' 'smartshunt_smartshunt-outbox' ;;
@@ -32,6 +33,7 @@ volume_for_target() {
 service_for_target() {
 	case "$1" in
 		davis) printf '%s\n' 'hvo-davis' ;;
+		eg4) printf '%s\n' 'hvo-eg4' ;;
 		jkbms) printf '%s\n' 'hvo-jkbms' ;;
 		solarassistant) printf '%s\n' 'hvo-solarassistant' ;;
 		smartshunt) printf '%s\n' 'hvo-smartshunt' ;;
@@ -105,7 +107,7 @@ while (($# > 0)); do
 			action="$1"
 			shift
 			;;
-		davis|jkbms|solarassistant|smartshunt|tplinkkasa|tplink-kasa)
+		davis|eg4|jkbms|solarassistant|smartshunt|tplinkkasa|tplink-kasa)
 			target="$1"
 			shift
 			;;
