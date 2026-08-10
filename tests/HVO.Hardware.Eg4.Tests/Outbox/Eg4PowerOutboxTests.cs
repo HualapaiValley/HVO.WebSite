@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Hosting.Telemetry;
@@ -66,6 +67,13 @@ public sealed class Eg4PowerOutboxTests
         fixture.Handler.RequestUris.Should().Contain(uri => uri.EndsWith("/api/v1/power/mppt-detail", StringComparison.Ordinal));
         fixture.Handler.RequestUris.Should().Contain(uri => uri.EndsWith("/api/v1/power/inverter-detail", StringComparison.Ordinal));
         fixture.Handler.RequestBodies.Should().NotContain(body => body.Contains("00000000000000", StringComparison.Ordinal));
+        foreach (var index in Enumerable.Range(0, fixture.Handler.RequestUris.Count)
+                     .Where(index => fixture.Handler.RequestUris[index].EndsWith("-detail", StringComparison.Ordinal)))
+        {
+            using var document = JsonDocument.Parse(fixture.Handler.RequestBodies[index]);
+            document.RootElement.GetProperty("sourceId").GetString().Should().Be("eg4-a");
+            document.RootElement.TryGetProperty("specversion", out _).Should().BeFalse();
+        }
     }
 
     [TestMethod]

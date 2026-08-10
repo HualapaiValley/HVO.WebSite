@@ -316,23 +316,9 @@ public sealed class PowerApiForwarder : BackgroundService
             using var forwardActivity = _telemetry.StartForwardOperation();
             try
             {
-                // Wrap snapshot in CloudEvents envelope for standards-compliant delivery
-                var dataEl = JsonSerializer.SerializeToElement(payload, JsonOptions);
-                var cloudEvent = new Dictionary<string, object?>
-                {
-                    ["specversion"] = CloudEventsConstants.SpecVersion,
-                    ["type"] = EdgePayloadTypes.ToCloudEventType(payloadType),
-                    ["source"] = $"/gateways/solarassistant/{record.SourceId}",
-                    ["id"] = Guid.NewGuid().ToString("D"),
-                    ["time"] = record.RecordedAtUtc.ToString("O"),
-                    ["datacontenttype"] = CloudEventsConstants.JsonContentType,
-                    ["data"] = dataEl,
-                };
-                var cloudEventEl = JsonSerializer.SerializeToElement(cloudEvent, JsonOptions);
-
                 using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
                 {
-                    Content = JsonContent.Create(cloudEventEl, options: JsonOptions),
+                    Content = JsonContent.Create(payload, options: JsonOptions),
                 };
                 request.AddTraceContext();
 
