@@ -1,18 +1,11 @@
 /* Site-specific overrides for HVO.WebSite.v9. Extend the shared theme; never redefine --shell-* at :root. */
 
-/* ─── Power card unique design tokens ───────────────────────────────────────
-   These are genuinely v9-specific — no equivalent exists in the shared theme.
-   If the palette changes, update these tokens. ──────────────────────────── */
-:root {
-    /* The power status card has a distinctive teal gradient layer */
-    --power-card-teal: color-mix(in srgb, var(--shell-card-background) 82%, var(--hvo-accent-cyan) 18%);
-    /* Cyan-tinted card borders throughout the power section */
-    --power-cyan-border: color-mix(in srgb, var(--shell-card-border) 55%, var(--hvo-accent-cyan) 45%);
-    --power-cyan-border-soft: color-mix(in srgb, var(--shell-overlay-panel-border) 60%, var(--hvo-accent-cyan) 40%);
-}
-
 /* ─── Power Status Card ──────────────────────────────────────────────────── */
 .power-status-card {
+    /* Resolve derived colors inside the themed shell where their input tokens exist. */
+    --power-card-teal: color-mix(in srgb, var(--shell-card-background) 82%, var(--hvo-accent-cyan) 18%);
+    --power-cyan-border: color-mix(in srgb, var(--shell-card-border) 55%, var(--hvo-accent-cyan) 45%);
+    --power-cyan-border-soft: color-mix(in srgb, var(--shell-overlay-panel-border) 60%, var(--hvo-accent-cyan) 40%);
     background: linear-gradient(135deg, var(--shell-card-background), var(--power-card-teal));
     border: 1px solid var(--power-cyan-border);
     border-radius: 1.5rem;
