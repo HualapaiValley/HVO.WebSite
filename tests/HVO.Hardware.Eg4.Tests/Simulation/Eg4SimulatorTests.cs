@@ -11,6 +11,33 @@ namespace HVO.Hardware.Eg4.Tests.Simulation;
 public sealed class Eg4SimulatorTests
 {
     [TestMethod]
+    public async Task SeedIfUnscripted_PreservesExplicitScript()
+    {
+        var simulator = new Eg4FleetSimulator(new FakeTimeProvider());
+        var device = Device("seeded", Eg4DeviceType.Inverter6500Ex, 1);
+        await simulator.SetScriptAsync(device.SourceId, [new Eg4SimulationStep(new Eg4SimulatedTelemetry(PowerW: 100))]);
+
+        await simulator.SeedIfUnscriptedAsync(device.SourceId, new Eg4SimulatedTelemetry(PowerW: 200));
+
+        (await simulator.ReadAsync(device, CancellationToken.None)).BatteryObservation!.PowerW.Should().Be(100);
+    }
+
+    [TestMethod]
+    public async Task RichSimulation_ReturnsPvAndInverterDetail()
+    {
+        var simulator = new Eg4FleetSimulator(new FakeTimeProvider());
+        var device = Device("rich", Eg4DeviceType.Inverter6500Ex, 1);
+        await simulator.SetScriptAsync(device.SourceId,
+            [new Eg4SimulationStep(new Eg4SimulatedTelemetry(52.4, 8, 419.2, 80, IncludeRichDetail: true))]);
+
+        var sample = await simulator.ReadAsync(device, CancellationToken.None);
+
+        sample.MpptDetail!.Trackers.Should().HaveCount(2);
+        sample.InverterDetail!.Ac!.OutputVoltageV.Should().Be(120.1);
+        sample.InverterDetail.Load!.LoadPowerW.Should().Be(850);
+    }
+
+    [TestMethod]
     public async Task Fleet_SupportsSameTypeMixedTypesTransitionsAndIndependentFailure()
     {
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 8, 9, 12, 0, 0, TimeSpan.Zero));

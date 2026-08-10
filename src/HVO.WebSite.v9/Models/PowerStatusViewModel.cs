@@ -20,6 +20,9 @@ public sealed record PowerStatusViewModel(
     string BatteryBankCount,
     string BatteryAlarmState,
     string BatteryFreshnessState,
+    string PvCompleteness,
+    string PvAggregateSource,
+    IReadOnlyList<PowerStatusPvTrackerViewModel> PvTrackers,
     IReadOnlyList<PowerStatusBankViewModel> BatteryBanks,
     IReadOnlyList<PowerStatusBatteryObservationViewModel> BatteryObservations,
     IReadOnlyList<string> BatteryObservationNotes,
@@ -40,6 +43,9 @@ public sealed record PowerStatusViewModel(
         BatteryBankCount: "--",
         BatteryAlarmState: "Unknown",
         BatteryFreshnessState: "Unknown",
+        PvCompleteness: "No PV inputs",
+        PvAggregateSource: "No source",
+        PvTrackers: [],
         BatteryBanks: [],
         BatteryObservations: [],
         BatteryObservationNotes: [],
@@ -57,11 +63,12 @@ public sealed record PowerStatusViewModel(
 
         var batteryBanks = FormatBanks(snapshot.BatteryBanks, snapshot.ObservedAtUtc);
         var batteryObservations = FormatObservations(snapshot, options);
+        var pvTrackers = FormatPvTrackers(snapshot.Pv?.Trackers, snapshot.ObservedAtUtc);
 
         return new PowerStatusViewModel(
             PvPower: FormatWatts(snapshot.Pv?.PowerW?.Value),
             LoadPower: FormatWatts(snapshot.Ac?.LoadPowerW?.Value),
-            BatteryPower: FormatSignedWatts(batteryPower?.Value),
+            BatteryPower: FormatBatteryFacingWatts(batteryPower?.Value),
             BatteryFlow: FormatFlow(snapshot.Battery?.FlowDirection?.Value),
             BatteryStateOfCharge: FormatPercent(snapshot.Battery?.StateOfChargePercent?.Value),
             BatterySource: FormatSource(snapshot.Battery?.PowerW),
@@ -72,6 +79,9 @@ public sealed record PowerStatusViewModel(
             BatteryBankCount: FormatBankCount(snapshot.Battery?.BankCount?.Value),
             BatteryAlarmState: FormatAlarmState(snapshot.Battery?.HasAlarms?.Value),
             BatteryFreshnessState: FormatBankFreshnessState(batteryBanks),
+            PvCompleteness: FormatPvCompleteness(snapshot.Pv),
+            PvAggregateSource: FormatPvAggregateSource(snapshot.Pv?.PowerW),
+            PvTrackers: pvTrackers,
             BatteryBanks: batteryBanks,
             BatteryObservations: batteryObservations,
             BatteryObservationNotes: snapshot.Notes?
@@ -87,6 +97,12 @@ public sealed record PowerStatusViewModel(
 
     private static string FormatSignedWatts(double? value)
         => value.HasValue ? $"{value.Value:+0;-0;0} W" : "--";
+
+    private static string FormatBatteryFacingWatts(double? canonicalValue)
+        => canonicalValue.HasValue ? $"{-canonicalValue.Value:+0;-0;0} W" : "--";
+
+    private static string FormatBatteryFacingAmps(double? canonicalValue)
+        => canonicalValue.HasValue ? $"{-canonicalValue.Value:+0.0;-0.0;0.0} A" : "--";
 
     private static string FormatPercent(double? value)
         => value.HasValue ? $"{value.Value:0}%" : "--";
@@ -248,8 +264,8 @@ public sealed record PowerStatusViewModel(
             Role: FormatRole(observation.Role),
             MeasurementPoint: observation.MeasurementPoint,
             Voltage: HvoFormat.Voltage(FiniteOrNull(observation.VoltageV)),
-            Current: HvoFormat.SignedCurrent(FiniteOrNull(observation.CurrentA)),
-            Power: HvoFormat.SignedPower(FiniteOrNull(observation.PowerW)),
+            Current: FormatBatteryFacingAmps(FiniteOrNull(observation.CurrentA)),
+            Power: FormatBatteryFacingWatts(FiniteOrNull(observation.PowerW)),
             StateOfCharge: HvoFormat.Percent(FiniteOrNull(observation.StateOfChargePercent)),
             Flow: FormatCanonicalFlow(observation.CurrentA ?? observation.PowerW),
             Freshness: freshness.Label,
@@ -356,6 +372,38 @@ public sealed record PowerStatusViewModel(
             0 => "Idle",
             _ => "Unknown",
         };
+
+    private static IReadOnlyList<PowerStatusPvTrackerViewModel> FormatPvTrackers(
+        IReadOnlyList<PowerSystemPvTrackerSnapshot>? trackers,
+        DateTime observedAtUtc) => trackers?
+        .OrderBy(tracker => tracker.TrackerId, StringComparer.OrdinalIgnoreCase)
+        .Select(tracker => new PowerStatusPvTrackerViewModel(
+            TrackerId: tracker.TrackerId,
+            Name: tracker.Name,
+            Source: FormatSourceName(tracker.Source),
+            Power: FormatWatts(tracker.PowerW),
+            Voltage: FormatVolts(tracker.VoltageV),
+            Current: tracker.CurrentA.HasValue ? $"{tracker.CurrentA.Value:0.0} A" : "--",
+            Freshness: FormatRelativeAge(tracker.RecordedAtUtc, observedAtUtc),
+            Provenance: tracker.Provenance == PowerObservationProvenance.Direct ? "Direct" : "Derived",
+            Confidence: tracker.Confidence ?? "No confidence detail"))
+        .ToArray() ?? [];
+
+    private static string FormatPvCompleteness(PowerSystemPvSnapshot? pv) => pv switch
+    {
+        null => "No PV inputs",
+        { ExpectedTrackerCount: > 0 } => $"{pv.ReportedTrackerCount} of {pv.ExpectedTrackerCount} inputs",
+        { Trackers.Count: > 0 } => $"{pv.Trackers.Count} input(s)",
+        _ => "No independent inputs",
+    };
+
+    private static string FormatPvAggregateSource(SourcedValue<double>? aggregate)
+    {
+        if (aggregate is null)
+            return "No aggregate";
+        var source = FormatSourceName(aggregate.Source);
+        return string.IsNullOrWhiteSpace(aggregate.Confidence) ? source : $"{source}; {aggregate.Confidence}";
+    }
 
     private static string FormatRole(PowerMeasurementRole role)
         => role switch
@@ -464,6 +512,17 @@ public sealed record PowerStatusBatteryObservationViewModel(
     IReadOnlyList<string> SelectionLabels,
     string Provenance,
     string ProvenanceDetail);
+
+public sealed record PowerStatusPvTrackerViewModel(
+    string TrackerId,
+    string Name,
+    string Source,
+    string Power,
+    string Voltage,
+    string Current,
+    string Freshness,
+    string Provenance,
+    string Confidence);
 
 public sealed record PowerInventoryConfigurationViewModel(
     string State,
@@ -660,7 +719,7 @@ public sealed record PowerSolarAssistantDetailViewModel(
                 : $"Load {FormatWatts(inverterDetail.Load.LoadPowerW)}, apparent {FormatVa(inverterDetail.Load.LoadApparentPowerVa)}",
             InverterBatterySummary: inverterDetail.Battery is null
                 ? "No inverter battery detail received"
-                : $"Battery {FormatSignedWatts(inverterDetail.Battery.PowerW)}, {FormatVolts(inverterDetail.Battery.VoltageV)}",
+                : $"Battery {FormatBatteryFacingWatts(inverterDetail.Battery.PowerW)}, {FormatVolts(inverterDetail.Battery.VoltageV)} (+ charging)",
             TemperatureSummary: inverterDetail.TemperatureC.HasValue
                 ? $"{inverterDetail.TemperatureC.Value:0} C"
                 : "No temperature detail received",
@@ -678,6 +737,9 @@ public sealed record PowerSolarAssistantDetailViewModel(
     private static string FormatWatts(double? value) => value.HasValue ? $"{value.Value:0} W" : "--";
 
     private static string FormatSignedWatts(double? value) => value.HasValue ? $"{value.Value:+0;-0;0} W" : "--";
+
+    private static string FormatBatteryFacingWatts(double? canonicalValue) =>
+        canonicalValue.HasValue ? $"{-canonicalValue.Value:+0;-0;0} W" : "--";
 
     private static string FormatVa(double? value) => value.HasValue ? $"{value.Value:0} VA" : "--";
 

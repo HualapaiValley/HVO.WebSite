@@ -8,15 +8,20 @@
     <header class="eg4-dashboard__hero">
         <div>
             <p class="hvo-eyebrow">Read-only local diagnostics</p>
-            <h1>EG4 Battery Branches</h1>
-            <p>Independent inverter and charge-controller observations. Branch values are never presented as whole-bus totals.</p>
+            <h1>EG4 Solar &amp; Battery</h1>
+            <p>Independent inverter PV, AC, load, battery, and charge-controller observations. Branch values are never presented as whole-bus totals.</p>
         </div>
         <div class="hvo-chip-row" aria-label="Gateway device counts">
             <span class="hvo-chip @HealthChipClass">@HealthLabel</span>
             <span class="hvo-chip">@_snapshot.ConfiguredCount configured</span>
             <span class="hvo-chip hvo-chip-success">@_snapshot.OnlineCount online</span>
             <span class="hvo-chip hvo-chip-warning">@_snapshot.DegradedCount degraded</span>
-            <span class="hvo-chip hvo-chip-danger">@_snapshot.OfflineCount offline</span>
+             <span class="hvo-chip hvo-chip-danger">@_snapshot.OfflineCount offline</span>
+            @if (_snapshot.PvPowerW.HasValue)
+            {
+                <span class="hvo-chip hvo-chip-success">Site PV subtotal @HvoFormat.Power(_snapshot.PvPowerW)</span>
+                <span class="hvo-chip">@_snapshot.PvTrackers.Count PV tracker(s)</span>
+            }
             @if (_snapshot.DisabledCount > 0)
             {
                 <span class="hvo-chip">@_snapshot.DisabledCount disabled</span>
@@ -55,6 +60,55 @@
             </div>
         }
     </section>
+
+    @if (PvDatasets.Count > 0 || BatteryDatasets.Count > 0)
+    {
+        <section aria-labelledby="eg4-power-trends-title">
+            <div class="hvo-section-head">
+                <div>
+                    <p class="hvo-eyebrow">Live history</p>
+                    <h2 id="eg4-power-trends-title">Power Trends</h2>
+                </div>
+                <span class="hvo-chip">Rolling in-memory history</span>
+            </div>
+            <div class="eg4-dashboard__chart-grid">
+                @if (PvDatasets.Count > 0)
+                {
+                    <article class="hvo-card">
+                        <div class="hvo-section-head">
+                            <h3>PV power by tracker</h3>
+                            <strong class="hvo-mono">@HvoFormat.Power(_snapshot.PvPowerW)</strong>
+                        </div>
+                        <HvoChart ChartId="eg4-pv-power-chart"
+                                  Type="HvoChartType.Line"
+                                  Height="280"
+                                  EnableAnimations="false"
+                                  DataRevision="@_snapshot.HistoryRevision"
+                                  YAxisLabel="Watts"
+                                  Labels="@HistoryLabels"
+                                  Datasets="@PvDatasets" />
+                    </article>
+                }
+                @if (BatteryDatasets.Count > 0)
+                {
+                    <article class="hvo-card">
+                        <div class="hvo-section-head">
+                            <h3>Battery branch power</h3>
+                            <span>+ charging / - discharging</span>
+                        </div>
+                        <HvoChart ChartId="eg4-battery-power-chart"
+                                  Type="HvoChartType.Line"
+                                  Height="280"
+                                  EnableAnimations="false"
+                                  DataRevision="@_snapshot.HistoryRevision"
+                                  YAxisLabel="Battery-facing watts"
+                                  Labels="@HistoryLabels"
+                                  Datasets="@BatteryDatasets" />
+                    </article>
+                }
+            </div>
+        </section>
+    }
 
     <div class="eg4-dashboard__operations-grid">
         <section id="outbox" class="hvo-card" aria-labelledby="eg4-outbox-title">

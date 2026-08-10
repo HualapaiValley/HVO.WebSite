@@ -55,6 +55,8 @@ QPIGS provides direct AC input/output voltage and frequency, active/apparent loa
 
 Canonical battery current is `discharge - charge`: positive discharge and negative charge. Battery power is `voltage * canonical current`; both are derived. Inverter-reported battery capacity remains an observation and does not replace JK BMS or SmartShunt SOC authority.
 
+The gateway and main-site user interfaces intentionally present the opposite, battery-facing sign for readability: positive means energy entering the batteries and negative means battery discharge supporting the inverter/load. This is a display-only inversion; persisted payloads and composition retain the canonical convention above.
+
 ### QPGS0
 
 The 29-field response provides operating mode, fault code, output/load totals, status flags, output mode, charger priority, and both tracker voltage/current channels. MPPT 2 current is whole-ampere resolution on installed 79.71, so `voltage * current` is marked derived/coarse and is not preferred for the canonical three-array aggregate.

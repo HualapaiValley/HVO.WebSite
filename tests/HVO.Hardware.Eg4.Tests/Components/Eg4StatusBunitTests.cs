@@ -6,6 +6,7 @@ using HVO.Hardware.Eg4.Configuration;
 using HVO.Hardware.Eg4.Dashboard;
 using HVO.Hardware.Eg4.Protocol;
 using HVO.Hardware.Eg4.Simulation;
+using HVO.WebSite.Themes.Components.Charts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -56,8 +57,83 @@ public sealed class Eg4StatusBunitTests : BunitContext
         component.Markup.Should().Contain("Discharging").And.Contain("Charging").And.Contain("Idle");
         component.Markup.Should().Contain("Fresh").And.Contain("Stale").And.Contain("Never observed");
         component.Markup.Should().Contain("MKS2-6500").And.Contain("79.02 / 61.00").And.Contain("Unavailable");
-        component.Markup.Should().Contain("Simulated").And.Contain("Branch measurement").And.Contain("never the whole battery bus");
+        component.Markup.Should().Contain("Simulated").And.Contain("Battery-facing branch measurement").And.Contain("never the whole battery bus");
+        component.Find("[data-source-id='eg4-inverter-a']").TextContent.Should().Contain("-16.0 A").And.Contain("-840 W");
+        component.Find("[data-source-id='eg4-mppt-a']").TextContent.Should().Contain("+8.0 A").And.Contain("+420 W");
         component.Markup.Should().NotContain("/dev/serial").And.NotContain("0103");
+    }
+
+    [TestMethod]
+    public void RichTelemetry_RendersBothInverterTrackersSubtotalAcLoadAndControllerOutput()
+    {
+        var observedAt = new DateTime(2026, 8, 10, 18, 0, 0, DateTimeKind.Utc);
+        var inverter = Device("eg4-inverter-a", "Inverter A", Eg4DeviceType.Inverter6500Ex,
+            PowerMeasurementRole.InverterBranch, Eg4DashboardDeviceState.Online, -26, observedAt, false) with
+        {
+            MpptDetail = new PowerMpptDetailPayload
+            {
+                SourceId = "eg4-inverter-a", DeviceId = "inverter-a", RecordedAtUtc = observedAt,
+                Trackers =
+                [
+                    new PowerMpptTrackerDetail { TrackerId = "mppt-1", Name = "MPPT 1", VoltageV = 333, CurrentA = 4.1, PowerW = 1378, Provenance = PowerObservationProvenance.Direct },
+                    new PowerMpptTrackerDetail { TrackerId = "mppt-2", Name = "MPPT 2", VoltageV = 372.6, CurrentA = 3, PowerW = 1117.8, Provenance = PowerObservationProvenance.Derived },
+                ],
+            },
+            InverterDetail = new PowerInverterDetailPayload
+            {
+                SourceId = "eg4-inverter-a", DeviceId = "inverter-a", RecordedAtUtc = observedAt,
+                Ac = new PowerInverterAcDetail { InputVoltageV = 0, InputFrequencyHz = 0, OutputVoltageV = 120.1, OutputFrequencyHz = 59.9 },
+                Load = new PowerInverterLoadDetail { LoadPowerW = 1180, LoadApparentPowerVa = 1270 },
+                Operating = new PowerInverterOperatingDetail { Mode = "B", FaultCode = "00", LoadPercentage = 19 },
+                Temperatures = [new PowerInverterTemperatureDetail { TemperatureId = "inverter", Name = "Inverter", TemperatureC = 60 }],
+            },
+        };
+        var controller = Device("eg4-mppt-a", "Controller A", Eg4DeviceType.ChargeControllerMppt10048Hv,
+            PowerMeasurementRole.ChargeControllerBranch, Eg4DashboardDeviceState.Online, -9.1, observedAt, false) with
+        {
+            MpptDetail = new PowerMpptDetailPayload
+            {
+                SourceId = "eg4-mppt-a", DeviceId = "mppt-a", RecordedAtUtc = observedAt,
+                Trackers = [new PowerMpptTrackerDetail { TrackerId = "mppt-1", Name = "MPPT 1", VoltageV = 377.2, CurrentA = 2.8, PowerW = 1056, Provenance = PowerObservationProvenance.Direct }],
+                BatteryOutput = new PowerMpptBatteryOutputDetail { VoltageV = 54.3, CurrentA = -9.1, PowerW = -494.1 },
+            },
+        };
+        Services.AddSingleton<IEg4GatewayDashboardState>(new FakeDashboardState(Snapshot([inverter, controller])));
+
+        var component = Render<Status>();
+
+        component.WaitForAssertion(() => component.FindAll("[data-tracker-id]").Should().HaveCount(3));
+        var inverterCard = component.Find("[data-source-id='eg4-inverter-a']");
+        inverterCard.TextContent.Should().Contain("Inverter PV subtotal").And.Contain("2496 W")
+            .And.Contain("MPPT 1").And.Contain("MPPT 2").And.Contain("120.1 V / 59.9 Hz")
+            .And.Contain("1180 W").And.Contain("1270 VA").And.Contain("+1365 W");
+        var controllerCard = component.Find("[data-source-id='eg4-mppt-a']");
+        controllerCard.TextContent.Should().Contain("Controller PV").And.Contain("1056 W")
+            .And.Contain("Battery charging contribution").And.Contain("+9.1 A").And.Contain("+494 W");
+    }
+
+    [TestMethod]
+    public void PowerCharts_BucketIndependentDeviceTimestampsOntoSharedMinuteAxis()
+    {
+        var minute = new DateTime(2026, 8, 10, 18, 0, 0, DateTimeKind.Utc);
+        var snapshot = Snapshot([]) with
+        {
+            History =
+            [
+                new Eg4DashboardPowerPoint(minute.AddSeconds(10), "eg4-inverter-a/battery", "Inverter battery", Eg4DashboardSeriesKind.Battery, -1000),
+                new Eg4DashboardPowerPoint(minute.AddSeconds(45), "eg4-mppt-a/battery", "Controller battery", Eg4DashboardSeriesKind.Battery, -500),
+            ],
+            HistoryRevision = 2,
+        };
+        Services.AddSingleton<IEg4GatewayDashboardState>(new FakeDashboardState(snapshot));
+
+        var component = Render<Status>();
+
+        var chart = component.FindComponent<HvoChart>();
+        chart.Instance.Labels.Should().ContainSingle();
+        chart.Instance.Datasets.Should().HaveCount(2);
+        chart.Instance.Datasets.Should().OnlyContain(dataset => dataset.Data.Count == 1 && dataset.Data[0].HasValue);
+        chart.Instance.Datasets.Select(dataset => dataset.Data[0]).Should().BeEquivalentTo(new double?[] { 1000, 500 });
     }
 
     [TestMethod]

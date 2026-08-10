@@ -36,6 +36,9 @@ services:
       Seeding__PowerApiKey: "${Seeding__PowerApiKey}"
       Seeding__PowerReadApiKey: "${Seeding__PowerReadApiKey}"
       PowerStatus__SolarAssistantGatewayUrl: "${PowerStatus__SolarAssistantGatewayUrl:-http://devpi5:5300}"
+      PowerStatus__Eg4InverterSourceId: "${PowerStatus__Eg4InverterSourceId:-eg4-6500ex-a}"
+      PowerStatus__Eg4MpptSourceId: "${PowerStatus__Eg4MpptSourceId:-eg4-mppt100-48hv-a}"
+      PowerStatus__HistoryHours: "${PowerStatus__HistoryHours:-6}"
       OTEL_SERVICE_NAME: hvo-website
       OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_COLLECTOR_ENDPOINT:-}"
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf

@@ -71,4 +71,19 @@ public sealed class HvoChartTests : BunitContext
         act.Should().NotThrow();
         JSInterop.Invocations["hvoChart.render"].Should().ContainSingle();
     }
+
+    [TestMethod]
+    public async Task DisposeDestroysChartInstance()
+    {
+        JSInterop.SetupVoid("hvoChart.render", _ => true);
+        JSInterop.SetupVoid("hvoChart.destroy", _ => true).SetVoidResult();
+        var component = Render<HvoChart>(parameters => parameters
+            .Add(p => p.ChartId, "disposable-chart")
+            .Add(p => p.Datasets, [new HvoChartDataset("Power", [1.0])]));
+
+        await component.Instance.DisposeAsync();
+
+        JSInterop.Invocations["hvoChart.destroy"].Should().ContainSingle()
+            .Which.Arguments.Should().ContainSingle().Which.Should().Be("disposable-chart");
+    }
 }

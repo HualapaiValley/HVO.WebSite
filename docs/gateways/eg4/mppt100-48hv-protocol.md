@@ -64,6 +64,8 @@ Registers 218-299 are explicit reserved holes in the firmware descriptor table a
 
 Battery output power is derived as `battery voltage * canonical battery current`; it retains derived provenance. Register 205 is voltage-derived, clamped by controller logic, and capped while charging. JK BMS and SmartShunt remain authoritative SOC sources.
 
+User interfaces invert the canonical current and power only for display, so controller charging appears positive from the battery perspective. Persisted telemetry remains negative while charging and is not rewritten.
+
 ## Internal Validation
 
 The daylight captures establish:

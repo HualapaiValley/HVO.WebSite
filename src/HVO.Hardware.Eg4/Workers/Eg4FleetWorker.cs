@@ -4,6 +4,7 @@ using HVO.Hardware.Eg4.Configuration;
 using HVO.Hardware.Eg4.Dashboard;
 using HVO.Hardware.Eg4.Outbox;
 using HVO.Hardware.Eg4.Protocol;
+using HVO.Hardware.Eg4.Simulation;
 using HVO.Hardware.Eg4.Telemetry;
 using Microsoft.Extensions.Options;
 
@@ -29,6 +30,17 @@ public sealed class Eg4FleetWorker(
             return;
         }
 
+        if (telemetrySource is Eg4FleetSimulator simulator)
+        {
+            for (var index = 0; index < devices.Length; index++)
+            {
+                var currentA = 6d + index * 2;
+                await simulator.SeedIfUnscriptedAsync(devices[index].SourceId,
+                    new Eg4SimulatedTelemetry(52.4, currentA, 52.4 * currentA, 80 - index * 2, IncludeRichDetail: true),
+                    stoppingToken);
+            }
+        }
+
         logger.LogInformation("EG4 fleet worker starting for {DeviceCount} validated device(s)", devices.Length);
         await Task.WhenAll(devices.Select(device => PollDeviceLoopAsync(device, stoppingToken)));
     }
@@ -49,7 +61,11 @@ public sealed class Eg4FleetWorker(
                 return false;
             }
             var observation = sample.BatteryObservation;
-            dashboard.Publish(device, observation);
+            dashboard.Publish(
+                device,
+                observation,
+                mpptDetail: sample.MpptDetail,
+                inverterDetail: sample.InverterDetail);
             telemetry.RecordPoll(true, stopwatch.Elapsed.TotalSeconds,
                 device.SourceId, device.DeviceId, DeviceKind(device));
 

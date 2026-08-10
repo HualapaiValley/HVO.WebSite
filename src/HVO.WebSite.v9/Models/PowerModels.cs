@@ -123,6 +123,19 @@ public class PowerMpptDetailSnapshotResponse
     public IReadOnlyList<PowerMpptDiagnosticDetail> Diagnostics { get; init; } = [];
 }
 
+public sealed record PowerBatteryHistoryPoint(
+    DateTime RecordedAtUtc,
+    string SourceId,
+    string? DeviceId,
+    double? PowerW);
+
+public sealed record PowerTelemetryHistoryResponse(
+    IReadOnlyList<PowerMpptDetailSnapshotResponse> MpptDetails,
+    IReadOnlyList<PowerBatteryHistoryPoint> BatteryReadings)
+{
+    public static PowerTelemetryHistoryResponse Empty { get; } = new([], []);
+}
+
 public class GatewayStatusSnapshotResponse
 {
     public string SourceId { get; init; } = string.Empty;
