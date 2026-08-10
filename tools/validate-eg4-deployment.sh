@@ -95,7 +95,11 @@ for specification in "${two_env}:a:b" "${reordered_env}:b:a"; do
 		.services["hvo-eg4"].environment.Eg4__Devices__0__DeviceId == ("inverter-" + $first) and
 		.services["hvo-eg4"].environment.Eg4__Devices__0__Port == ("/dev/hvo/eg4-6500ex-" + $first) and
 		.services["hvo-eg4"].environment.Eg4__Devices__0__Enabled == "true" and
+		.services["hvo-eg4"].environment.Eg4__Devices__1__Type == "ChargeControllerMppt10048Hv" and
 		.services["hvo-eg4"].environment.Eg4__Devices__1__SourceId == "eg4-mppt100-48hv-a" and
+		.services["hvo-eg4"].environment.Eg4__Devices__1__DeviceId == "controller-a" and
+		.services["hvo-eg4"].environment.Eg4__Devices__1__Port == "/dev/serial/by-id/usb-eg4-mppt-a" and
+		.services["hvo-eg4"].environment.Eg4__Devices__1__UnitId == "1" and
 		.services["hvo-eg4"].environment.Eg4__Devices__1__Enabled == "false" and
 		.services["hvo-eg4"].environment.Eg4__Devices__2__SourceId == ("eg4-6500ex-" + $second) and
 		.services["hvo-eg4"].environment.Eg4__Devices__2__DeviceId == ("inverter-" + $second) and
