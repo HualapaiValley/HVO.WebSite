@@ -7,6 +7,7 @@ using HVO.Hardware.Eg4.Dashboard;
 using HVO.Hardware.Eg4.Protocol;
 using HVO.Hardware.Eg4.Simulation;
 using HVO.WebSite.Themes.Components.Charts;
+using HVO.WebSite.Themes.Components.Format;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -22,6 +23,7 @@ public sealed class Eg4StatusBunitTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddMudServices();
+        Services.AddSingleton(new HvoDisplayTimeZone("America/Phoenix"));
     }
 
     [TestMethod]
@@ -106,7 +108,8 @@ public sealed class Eg4StatusBunitTests : BunitContext
         var inverterCard = component.Find("[data-source-id='eg4-inverter-a']");
         inverterCard.TextContent.Should().Contain("Inverter PV subtotal").And.Contain("2496 W")
             .And.Contain("MPPT 1").And.Contain("MPPT 2").And.Contain("120.1 V / 59.9 Hz")
-            .And.Contain("1180 W").And.Contain("1270 VA").And.Contain("+1365 W");
+            .And.Contain("1180 W").And.Contain("1270 VA").And.Contain("+1365 W")
+            .And.Contain("Aug 10, 11:00:00 America/Phoenix");
         var controllerCard = component.Find("[data-source-id='eg4-mppt-a']");
         controllerCard.TextContent.Should().Contain("Controller PV").And.Contain("1056 W")
             .And.Contain("Battery charging contribution").And.Contain("+9.1 A").And.Contain("+494 W");
@@ -131,6 +134,8 @@ public sealed class Eg4StatusBunitTests : BunitContext
 
         var chart = component.FindComponent<HvoChart>();
         chart.Instance.Labels.Should().ContainSingle();
+        chart.Instance.Labels.Should().Equal("11:00");
+        chart.Instance.XAxisLabel.Should().Be("Local time (America/Phoenix)");
         chart.Instance.Datasets.Should().HaveCount(2);
         chart.Instance.Datasets.Should().OnlyContain(dataset => dataset.Data.Count == 1 && dataset.Data[0].HasValue);
         chart.Instance.Datasets.Select(dataset => dataset.Data[0]).Should().BeEquivalentTo(new double?[] { 1000, 500 });

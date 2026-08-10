@@ -2,11 +2,13 @@ using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using HVO.Hardware.VictronSmartShunt.Configuration;
+using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.VictronSmartShunt.Tests.Hosting;
 
@@ -62,7 +64,25 @@ public sealed class SmartShuntGatewayApiTests
         json.Should().NotContain("local-test-key");
     }
 
-    private sealed class SmartShuntGatewayApiFactory : WebApplicationFactory<SmartShuntOptions>
+    [TestMethod]
+    public void ValidDisplayTimeZoneOverride_ReachesInjectedResolver()
+    {
+        using var factory = new SmartShuntGatewayApiFactory("America/New_York");
+
+        factory.Services.GetRequiredService<HvoDisplayTimeZone>().Label.Should().Be("America/New_York");
+    }
+
+    [TestMethod]
+    public void InvalidDisplayTimeZone_FailsStartup()
+    {
+        using var factory = new SmartShuntGatewayApiFactory("not-a-time-zone");
+
+        var act = () => factory.Services.GetRequiredService<IOptions<SmartShuntOptions>>().Value;
+
+        act.Should().Throw<OptionsValidationException>();
+    }
+
+    private sealed class SmartShuntGatewayApiFactory(string displayTimeZoneId = "America/Phoenix") : WebApplicationFactory<SmartShuntOptions>
     {
         private readonly string outboxPath = Path.Combine(Path.GetTempPath(), "hvo-smartshunt-api-tests", Guid.NewGuid().ToString("N"), "outbox.db");
 
@@ -76,6 +96,7 @@ public sealed class SmartShuntGatewayApiTests
                     ["SmartShunt:Address"] = string.Empty,
                     ["SmartShunt:SourceId"] = "smartshunt-test-source",
                     ["SmartShunt:DeviceId"] = "smartshunt-test-device",
+                    ["SmartShunt:DisplayTimeZoneId"] = displayTimeZoneId,
                     ["Outbox:ApiEndpoint"] = "http://localhost:5001/api/v1/power/readings",
                     ["Outbox:ApiKey"] = "local-test-key",
                     ["Outbox:DbPath"] = outboxPath,

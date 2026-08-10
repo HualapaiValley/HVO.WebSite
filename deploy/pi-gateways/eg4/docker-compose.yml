@@ -26,6 +26,7 @@ services:
     environment:
       Eg4__SimulationEnabled: "false"
       Eg4__DefaultPollIntervalSeconds: ${EG4_DEFAULT_POLL_INTERVAL_SECONDS:-60}
+      Eg4__DisplayTimeZoneId: ${EG4_DISPLAY_TIME_ZONE_ID:-America/Phoenix}
       Eg4__Devices__0__Type: Inverter6500Ex
       Eg4__Devices__0__SourceId: ${EG4_DEVICE_0_SOURCE_ID:-eg4-6500ex-a}
       Eg4__Devices__0__DeviceId: ${EG4_DEVICE_0_DEVICE_ID:-inverter-a}

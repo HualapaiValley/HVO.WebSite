@@ -13,6 +13,7 @@ using HVO.Hardware.VictronSmartShunt.Telemetry;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
 using HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
 using HVO.Hardware.VictronSmartShunt.Workers;
+using HVO.WebSite.Themes.Components.Format;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Http.Resilience;
@@ -35,7 +36,11 @@ builder.Services
     .AddOptions<SmartShuntOptions>()
     .BindConfiguration(SmartShuntOptions.SectionName)
     .ValidateDataAnnotations()
+    .Validate(options => HvoDisplayTimeZone.IsValid(options.DisplayTimeZoneId),
+        "SmartShunt:DisplayTimeZoneId must identify an installed system time zone.")
     .ValidateOnStart();
+builder.Services.AddSingleton(provider => new HvoDisplayTimeZone(
+    provider.GetRequiredService<IOptions<SmartShuntOptions>>().Value.DisplayTimeZoneId));
 
 builder.Services
     .AddOptions<OutboxOptions>()

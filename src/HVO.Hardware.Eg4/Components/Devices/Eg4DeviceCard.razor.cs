@@ -9,6 +9,7 @@ namespace HVO.Hardware.Eg4.Components.Devices;
 
 public partial class Eg4DeviceCard
 {
+    [Inject] private HvoDisplayTimeZone DisplayTimeZone { get; set; } = default!;
     [Parameter, EditorRequired] public Eg4DashboardDevice Device { get; set; } = default!;
     private string TypeLabel => Device.Type == Eg4DeviceType.Inverter6500Ex ? "6500EX inverter" : "MPPT100-48HV controller";
     private string RoleLabel => Device.Role == PowerMeasurementRole.InverterBranch ? "Inverter branch" : "Charge-controller branch";
@@ -54,6 +55,9 @@ public partial class Eg4DeviceCard
         ? $"{value.ToString("F0", CultureInfo.InvariantCulture)} VA"
         : "--";
     private string FreshnessLabel => Device.ObservedAtUtc is null ? "Never observed" : Device.IsStale ? "Stale" : "Fresh";
+    private string ObservedTimestamp => Device.ObservedAtUtc.HasValue
+        ? $"{HvoFormat.Timestamp(Device.ObservedAtUtc, DisplayTimeZone.TimeZone, "MMM d, HH:mm:ss")} {DisplayTimeZone.Label}"
+        : "--";
     private string ProvenanceLabel => string.Equals(Device.Confidence, "simulated", StringComparison.OrdinalIgnoreCase)
         ? "Simulated"
         : Device.Provenance switch

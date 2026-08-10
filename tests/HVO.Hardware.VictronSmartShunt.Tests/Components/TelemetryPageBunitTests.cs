@@ -8,6 +8,7 @@ using HVO.Hardware.VictronSmartShunt.SmartShunt;
 using HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
 using HVO.Hardware.VictronSmartShunt.Telemetry;
 using HVO.Hardware.VictronSmartShunt.Workers;
+using HVO.WebSite.Themes.Components.Format;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -18,6 +19,11 @@ namespace HVO.Hardware.VictronSmartShunt.Tests.Components;
 [TestClass]
 public sealed class TelemetryPageBunitTests : BunitContext
 {
+    public TelemetryPageBunitTests()
+    {
+        Services.AddSingleton(new HvoDisplayTimeZone("America/Phoenix"));
+    }
+
     [TestMethod]
     public void RendersPrivateMetadataOverlay()
     {
@@ -45,6 +51,7 @@ public sealed class TelemetryPageBunitTests : BunitContext
         component.Markup.Should().Contain("v1.42");
         component.Markup.Should().Contain("HQ12345");
         component.Markup.Should().Contain("SmartShunt 500A");
+        component.Markup.Should().Contain("Jun 17, 05:01:00 America/Phoenix");
     }
 
     [TestMethod]

@@ -25,6 +25,7 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
     [Inject] protected IOptions<OutboxOptions> OutboxOptionsAccessor { get; set; } = default!;
     [Inject] protected IHttpClientFactory HttpClientFactory { get; set; } = default!;
     [Inject] protected ILogger<SmartShuntPageBase> Logger { get; set; } = default!;
+    [Inject] protected HvoDisplayTimeZone DisplayTimeZone { get; set; } = default!;
 
     protected int OutboxBatchSize { get; set; } = 50;
     protected int OutboxSweepIntervalSeconds { get; set; } = 5;
@@ -53,7 +54,7 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
             ? "smartshunt-badge-neutral"
             : "smartshunt-badge-warning";
     protected string PrivateEnrichmentStateText => Options.EnablePrivateEnrichment
-        ? (PrivateInfo?.RecordedAtUtc.HasValue == true ? $"Active ({HvoFormat.Timestamp(PrivateInfo.RecordedAtUtc, "MMM d, HH:mm:ss")})" : "Enabled, waiting for overlay")
+        ? (PrivateInfo?.RecordedAtUtc.HasValue == true ? $"Active ({FormatTimestamp(PrivateInfo.RecordedAtUtc)})" : "Enabled, waiting for overlay")
         : "Disabled by configuration";
 
     protected override void OnInitialized()
@@ -102,7 +103,9 @@ public abstract class SmartShuntPageBase : ComponentBase, IDisposable
     protected static string FormatPercent(double? p) => HvoFormat.Percent(p);
     protected static string FormatAh(double? a) => HvoFormat.EnergyAh(a);
     protected static string FormatTemperature(double? t) => HvoFormat.Temperature(t);
-    protected static string FormatTimestamp(DateTime? value) => HvoFormat.Timestamp(value, "MMM d, HH:mm:ss");
+    protected string FormatTimestamp(DateTime? value) => value.HasValue
+        ? $"{HvoFormat.Timestamp(value, DisplayTimeZone.TimeZone, "MMM d, HH:mm:ss")} {DisplayTimeZone.Label}"
+        : "--";
 
     protected static double ClampPercent(double? value, double min, double max)
     {

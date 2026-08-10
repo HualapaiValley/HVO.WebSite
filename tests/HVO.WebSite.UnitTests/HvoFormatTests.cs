@@ -8,6 +8,40 @@ namespace HVO.WebSite.UnitTests;
 public sealed class HvoFormatTests
 {
     [TestMethod]
+    public void DisplayTimeZone_ConvertsUtcAndExposesConfiguredLabel()
+    {
+        var displayTimeZone = new HvoDisplayTimeZone("America/Phoenix");
+
+        var local = displayTimeZone.ConvertFromUtc(new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Utc));
+
+        local.Should().Be(new DateTime(2026, 6, 17, 5, 0, 0));
+        displayTimeZone.ConvertFromUtc(new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Unspecified))
+            .Should().Be(new DateTime(2026, 6, 17, 5, 0, 0));
+        displayTimeZone.Label.Should().Be("America/Phoenix");
+        HvoDisplayTimeZone.IsValid("America/Phoenix").Should().BeTrue();
+    }
+
+    [TestMethod]
+    public void DisplayTimeZone_RejectsLocalDateTime()
+    {
+        var displayTimeZone = new HvoDisplayTimeZone("America/Phoenix");
+
+        var act = () => displayTimeZone.ConvertFromUtc(new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Local));
+
+        act.Should().Throw<ArgumentException>().WithParameterName("utc");
+    }
+
+    [TestMethod]
+    public void DisplayTimeZone_InvalidIdFallsBackToExplicitUtc()
+    {
+        var displayTimeZone = new HvoDisplayTimeZone("not-a-time-zone");
+
+        displayTimeZone.TimeZone.Should().Be(TimeZoneInfo.Utc);
+        displayTimeZone.Label.Should().Be("UTC");
+        HvoDisplayTimeZone.IsValid("not-a-time-zone").Should().BeFalse();
+    }
+
+    [TestMethod]
     public void Timestamp_ValidUtc_ReturnsLocalFormatted()
     {
         var result = HvoFormat.Timestamp(new DateTime(2026, 1, 15, 12, 0, 0, DateTimeKind.Utc));

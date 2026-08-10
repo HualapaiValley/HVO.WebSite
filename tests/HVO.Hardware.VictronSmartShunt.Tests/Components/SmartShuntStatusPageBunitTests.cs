@@ -8,6 +8,7 @@ using HVO.Hardware.VictronSmartShunt.SmartShunt;
 using HVO.Hardware.VictronSmartShunt.SmartShunt.Health;
 using HVO.Hardware.VictronSmartShunt.Telemetry;
 using HVO.Hardware.VictronSmartShunt.Workers;
+using HVO.WebSite.Themes.Components.Format;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -22,6 +23,7 @@ public sealed class SmartShuntStatusPageBunitTests : BunitContext
     public SmartShuntStatusPageBunitTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddSingleton(new HvoDisplayTimeZone("America/Phoenix"));
     }
 
     [TestMethod]
@@ -47,6 +49,7 @@ public sealed class SmartShuntStatusPageBunitTests : BunitContext
         component.Markup.Should().Contain("+ into / - out");
         component.Markup.Should().Contain("+125 W");
         component.Markup.Should().Contain("Charging - into battery");
+        component.Markup.Should().Contain("America/Phoenix");
     }
 
     [TestMethod]

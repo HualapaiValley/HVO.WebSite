@@ -22,6 +22,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     [Inject] private SmartShuntWorker Worker { get; set; } = default!;
     [Inject] private PowerApiForwarder Forwarder { get; set; } = default!;
     [Inject] private Microsoft.Extensions.Options.IOptions<SmartShuntOptions> OptionsAccessor { get; set; } = default!;
+    [Inject] private HvoDisplayTimeZone DisplayTimeZone { get; set; } = default!;
 
     private ShellFooterItem _footer1 = new("SmartShunt");
     private ShellFooterItem _footer2 = new("Victron battery monitor");
@@ -122,7 +123,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         };
     }
 
-    private static ShellFooterItem BuildSampleTimestampFooterItem(SmartShuntDeviceSnapshot? sample)
+    private ShellFooterItem BuildSampleTimestampFooterItem(SmartShuntDeviceSnapshot? sample)
     {
         if (sample is null)
             return new ShellFooterItem("Waiting for sample", ShellFooterIndicator.Warning);
@@ -131,7 +132,9 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
             ? ShellFooterIndicator.Online
             : ShellFooterIndicator.Warning;
 
-        return new ShellFooterItem(HvoFormat.FooterTimestamp(sample.RecordedAtUtc), indicator);
+        return new ShellFooterItem(
+            $"{HvoFormat.FooterTimestamp(sample.RecordedAtUtc, DisplayTimeZone.TimeZone)} {DisplayTimeZone.Label}",
+            indicator);
     }
 
     private ShellFooterItem BuildApiFooterItem()

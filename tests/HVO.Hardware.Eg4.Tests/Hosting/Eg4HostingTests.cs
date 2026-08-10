@@ -3,6 +3,7 @@ using HVO.Hardware.Eg4.Configuration;
 using HVO.Hardware.Eg4.Hosting;
 using HVO.Hardware.Eg4.Simulation;
 using HVO.Hardware.Eg4.Telemetry;
+using HVO.WebSite.Themes.Components.Format;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,7 +19,7 @@ public sealed class Eg4HostingTests
     public async Task TestingSimulation_ResolvesSameSimulatorThroughDiAndPreservesTimeProvider()
     {
         var fakeTime = new FakeTimeProvider();
-        var builder = CreateBuilder("Testing", simulationEnabled: true);
+        var builder = CreateBuilder("Testing", simulationEnabled: true, displayTimeZoneId: "America/New_York");
         builder.Services.AddSingleton<TimeProvider>(fakeTime);
         builder.Services.AddEg4GatewayCore(builder.Configuration, builder.Environment);
         using var host = builder.Build();
@@ -28,7 +29,19 @@ public sealed class Eg4HostingTests
         host.Services.GetRequiredService<TimeProvider>().Should().BeSameAs(fakeTime);
         host.Services.GetRequiredService<IEg4TelemetrySource>()
             .Should().BeSameAs(host.Services.GetRequiredService<Eg4FleetSimulator>());
+        host.Services.GetRequiredService<HvoDisplayTimeZone>().Label.Should().Be("America/New_York");
         await host.StopAsync();
+    }
+
+    [TestMethod]
+    public async Task InvalidDisplayTimeZone_FailsStartup()
+    {
+        var builder = CreateBuilder("Testing", simulationEnabled: true, displayTimeZoneId: "not-a-time-zone");
+        builder.Services.AddEg4GatewayCore(builder.Configuration, builder.Environment);
+        using var host = builder.Build();
+
+        await FluentActions.Awaiting(() => host.StartAsync())
+            .Should().ThrowAsync<OptionsValidationException>();
     }
 
     [TestMethod]
@@ -62,7 +75,10 @@ public sealed class Eg4HostingTests
         await host.StopAsync();
     }
 
-    private static HostApplicationBuilder CreateBuilder(string environment, bool simulationEnabled)
+    private static HostApplicationBuilder CreateBuilder(
+        string environment,
+        bool simulationEnabled,
+        string displayTimeZoneId = "America/Phoenix")
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
@@ -73,6 +89,7 @@ public sealed class Eg4HostingTests
         {
             ["Eg4:SimulationEnabled"] = simulationEnabled.ToString(),
             ["Eg4:DefaultPollIntervalSeconds"] = "60",
+            ["Eg4:DisplayTimeZoneId"] = displayTimeZoneId,
         });
         return builder;
     }
