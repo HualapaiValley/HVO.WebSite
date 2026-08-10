@@ -149,6 +149,12 @@ public sealed class PowerApiForwarder : BackgroundService
                     BuildPowerEndpoint("inverter-detail"),
                     now,
                     ct);
+                await ForwardSnapshotPayloadsAsync<PowerMpptDetailPayload>(
+                    store,
+                    PowerOutboxPayloadTypes.MpptDetail,
+                    BuildPowerEndpoint("mppt-detail"),
+                    now,
+                    ct);
                 await ForwardSnapshotPayloadsAsync<GatewayStatusPayload>(
                     store,
                     PowerOutboxPayloadTypes.GatewayStatus,
@@ -271,6 +277,12 @@ public sealed class PowerApiForwarder : BackgroundService
             BuildPowerEndpoint("inverter-detail"),
             now,
             ct);
+        await ForwardSnapshotPayloadsAsync<PowerMpptDetailPayload>(
+            store,
+            PowerOutboxPayloadTypes.MpptDetail,
+            BuildPowerEndpoint("mppt-detail"),
+            now,
+            ct);
         await ForwardSnapshotPayloadsAsync<GatewayStatusPayload>(
             store,
             PowerOutboxPayloadTypes.GatewayStatus,
@@ -383,6 +395,7 @@ public sealed class PowerApiForwarder : BackgroundService
         {
             const string error = "Outbox payload JSON is invalid.";
             record.Status = EdgeOutboxStatus.Failed;
+            record.FailureKind = EdgeOutboxFailureKind.Permanent;
             record.LastError = error;
             _lastError = error;
             _logger.LogError(ex, "Power outbox record {Id} has invalid JSON and was not forwarded", record.Id);

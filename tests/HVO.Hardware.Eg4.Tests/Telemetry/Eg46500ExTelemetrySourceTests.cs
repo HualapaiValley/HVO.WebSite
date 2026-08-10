@@ -19,7 +19,8 @@ public sealed class Eg46500ExTelemetrySourceTests
         var observedAt = new DateTimeOffset(2026, 8, 9, 18, 0, 0, TimeSpan.Zero);
         await using var source = new Eg46500ExTelemetrySource(factory, new FixedTimeProvider(observedAt));
 
-        var observation = await source.ReadAsync(Device(), CancellationToken.None);
+        var sample = await source.ReadSampleAsync(Device(), CancellationToken.None);
+        var observation = sample.BatteryObservation!;
 
         observation.SourceId.Should().Be("eg4-6500ex-a");
         observation.DeviceId.Should().Be("6500ex-a");
@@ -40,7 +41,39 @@ public sealed class Eg46500ExTelemetrySourceTests
             Eg46500ExInquiry.GeneralModelName,
             Eg46500ExInquiry.MainFirmware,
             Eg46500ExInquiry.SecondaryFirmware,
-            Eg46500ExInquiry.GeneralStatus);
+            Eg46500ExInquiry.GeneralStatus,
+            Eg46500ExInquiry.ParallelStatus,
+            Eg46500ExInquiry.ExtendedStatus);
+        sample.MpptDetail!.Trackers.Should().HaveCount(2);
+        sample.MpptDetail.Trackers[1].Provenance.Should().Be(PowerObservationProvenance.Derived);
+        sample.MpptDetail.Trackers[1].Confidence.Should().Contain("low-resolution/coarse");
+        sample.InverterDetail!.Temperatures.Select(value => value.TemperatureId).Should().Equal(
+            "scc-pwm", "inverter", "battery-channel", "transformer");
+        sample.InverterDetail.Statuses.Select(value => value.Key).Should().Contain(
+            "main-firmware", "secondary-firmware", "charge-stage", "fan-locked", "fan-pwm-percent",
+            "parallel-role", "parallel-warning-flags", "mppt-1-charge-power-w");
+    }
+
+    [TestMethod]
+    public async Task ReadAsync_Firmware7972UsesDirectQpigs2WithoutChangingOlderFirmwarePath()
+    {
+        var factory = new ScriptedFactory();
+        factory.AddSession([
+            .. IdentitySteps("VERFW:00079.72"),
+            Step(Eg46500ExInquiry.GeneralStatus, "(000.0 00.0 120.0 60.0 0000 0000 000 360 53.20 000 075 0030 01.0 300.0 00.00 00000 00010000 00 00 00300 010"),
+            Step(Eg46500ExInquiry.Pv2Status, "(03.1 327.3 01026"),
+        ]);
+        await using var source = new Eg46500ExTelemetrySource(factory, TimeProvider.System);
+
+        var tracker = (await source.ReadSampleAsync(Device(), CancellationToken.None)).MpptDetail!.Trackers[1];
+
+        tracker.VoltageV.Should().Be(327.3);
+        tracker.CurrentA.Should().Be(3.1);
+        tracker.PowerW.Should().Be(1026);
+        tracker.Provenance.Should().Be(PowerObservationProvenance.Direct);
+        tracker.Confidence.Should().Contain("79.72");
+        factory.Commands.Should().ContainInOrder(Eg46500ExInquiry.GeneralStatus, Eg46500ExInquiry.Pv2Status,
+            Eg46500ExInquiry.ParallelStatus, Eg46500ExInquiry.ExtendedStatus);
     }
 
     [TestMethod]
@@ -56,7 +89,7 @@ public sealed class Eg46500ExTelemetrySourceTests
         ]);
         await using var source = new Eg46500ExTelemetrySource(factory, TimeProvider.System);
 
-        var failure = await FluentActions.Awaiting(async () => await source.ReadAsync(Device(), CancellationToken.None))
+        var failure = await FluentActions.Awaiting(async () => await source.ReadSampleAsync(Device(), CancellationToken.None))
             .Should().ThrowAsync<Eg4TransportException>();
 
         failure.Which.Kind.Should().Be(Eg4TransportFailureKind.Protocol);
@@ -76,7 +109,7 @@ public sealed class Eg46500ExTelemetrySourceTests
         factory.AddSession(SuccessfulSession("(000.0 00.0 120.0 60.0 0000 0000 000 360 53.20 000 075 0030 00.0 000.0 00.00 00012 00010000 00 00 00000 010"));
         await using var source = new Eg46500ExTelemetrySource(factory, TimeProvider.System);
 
-        var observation = await source.ReadAsync(Device(), CancellationToken.None);
+        var observation = (await source.ReadSampleAsync(Device(), CancellationToken.None)).BatteryObservation!;
 
         observation.CurrentA.Should().Be(12);
         observation.PowerW.Should().BeApproximately(638.4, 0.001);
@@ -96,8 +129,8 @@ public sealed class Eg46500ExTelemetrySourceTests
         ]);
         await using var source = new Eg46500ExTelemetrySource(factory, TimeProvider.System);
 
-        var first = await source.ReadAsync(Device(), CancellationToken.None);
-        var second = await source.ReadAsync(Device(), CancellationToken.None);
+        var first = (await source.ReadSampleAsync(Device(), CancellationToken.None)).BatteryObservation!;
+        var second = (await source.ReadSampleAsync(Device(), CancellationToken.None)).BatteryObservation!;
 
         first.CurrentA.Should().Be(10);
         second.CurrentA.Should().Be(11);
@@ -114,10 +147,10 @@ public sealed class Eg46500ExTelemetrySourceTests
         using var cancellation = new CancellationTokenSource();
         await cancellation.CancelAsync();
 
-        await FluentActions.Awaiting(async () => await source.ReadAsync(Device(), cancellation.Token))
+        await FluentActions.Awaiting(async () => await source.ReadSampleAsync(Device(), cancellation.Token))
             .Should().ThrowAsync<OperationCanceledException>();
         var controller = Device(Eg4DeviceType.ChargeControllerMppt10048Hv);
-        await FluentActions.Awaiting(async () => await source.ReadAsync(controller, CancellationToken.None))
+        await FluentActions.Awaiting(async () => await source.ReadSampleAsync(controller, CancellationToken.None))
             .Should().ThrowAsync<InvalidOperationException>();
         factory.Created.Should().Be(0);
     }
@@ -137,17 +170,17 @@ public sealed class Eg46500ExTelemetrySourceTests
             Step(Eg46500ExInquiry.GeneralStatus, "(000.0 00.0 120.0 60.0 0000 0000 000 360 53.20 000 075 0030 00.0 000.0 00.00 00011 00010000 00 00 00000 010"),
         ]);
         await using var source = new Eg46500ExTelemetrySource(factory, TimeProvider.System);
-        var first = source.ReadAsync(Device(), CancellationToken.None).AsTask();
+        var first = source.ReadSampleAsync(Device(), CancellationToken.None).AsTask();
         await started.Task.WaitAsync(TimeSpan.FromSeconds(1));
         using var queuedCancellation = new CancellationTokenSource();
-        var queued = source.ReadAsync(Device(), queuedCancellation.Token).AsTask();
+        var queued = source.ReadSampleAsync(Device(), queuedCancellation.Token).AsTask();
 
         await queuedCancellation.CancelAsync();
         await FluentActions.Awaiting(() => queued).Should().ThrowAsync<OperationCanceledException>();
         factory.Commands.Count(command => command == Eg46500ExInquiry.GeneralStatus).Should().Be(1);
         release.SetResult();
-        (await first).CurrentA.Should().Be(10);
-        (await source.ReadAsync(Device(), CancellationToken.None)).CurrentA.Should().Be(11);
+        (await first).BatteryObservation!.CurrentA.Should().Be(10);
+        (await source.ReadSampleAsync(Device(), CancellationToken.None)).BatteryObservation!.CurrentA.Should().Be(11);
     }
 
     [TestMethod]
@@ -172,22 +205,22 @@ public sealed class Eg46500ExTelemetrySourceTests
                 Release: release),
         ]);
         var source = new Eg46500ExTelemetrySource(factory, TimeProvider.System);
-        var first = source.ReadAsync(Device(), CancellationToken.None).AsTask();
+        var first = source.ReadSampleAsync(Device(), CancellationToken.None).AsTask();
         await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
         var secondDevice = Device();
         secondDevice.Port = "/dev/hvo/eg4-6500ex-b";
         secondDevice.SourceId = "eg4-6500ex-b";
         secondDevice.DeviceId = "6500ex-b";
-        var second = source.ReadAsync(secondDevice, CancellationToken.None).AsTask();
+        var second = source.ReadSampleAsync(secondDevice, CancellationToken.None).AsTask();
         await secondStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         var dispose = source.DisposeAsync().AsTask();
         dispose.IsCompleted.Should().BeFalse();
         release.SetResult();
-        (await first).CurrentA.Should().Be(10);
-        (await second).CurrentA.Should().Be(20);
+        (await first).BatteryObservation!.CurrentA.Should().Be(10);
+        (await second).BatteryObservation!.CurrentA.Should().Be(20);
         await dispose;
-        await FluentActions.Awaiting(async () => await source.ReadAsync(Device(), CancellationToken.None))
+        await FluentActions.Awaiting(async () => await source.ReadSampleAsync(Device(), CancellationToken.None))
             .Should().ThrowAsync<ObjectDisposedException>();
     }
 
@@ -203,12 +236,12 @@ public sealed class Eg46500ExTelemetrySourceTests
 
     private static ScriptedStep[] SuccessfulSession(string status) => [.. IdentitySteps(), Step(Eg46500ExInquiry.GeneralStatus, status)];
 
-    private static ScriptedStep[] IdentitySteps() =>
+    private static ScriptedStep[] IdentitySteps(string mainFirmware = "VERFW:00079.71") =>
     [
         Step(Eg46500ExInquiry.ProtocolId, "(PI30"),
         Step(Eg46500ExInquiry.ModelName, "(MKS2-6500"),
         Step(Eg46500ExInquiry.GeneralModelName, "(045"),
-        Step(Eg46500ExInquiry.MainFirmware, "(VERFW:00079.71"),
+        Step(Eg46500ExInquiry.MainFirmware, $"({mainFirmware}"),
         Step(Eg46500ExInquiry.SecondaryFirmware, "(VERFW:00061.13"),
     ];
 
@@ -258,6 +291,10 @@ public sealed class Eg46500ExTelemetrySourceTests
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 owner._commands.Enqueue(inquiry);
+                if ((!steps.TryPeek(out var next) || next.Inquiry != inquiry) && inquiry == Eg46500ExInquiry.ParallelStatus)
+                    return FrameResponse("(0 00000000000000 B 00 000.0 00.00 120.0 60.00 0000 0000 000 53.2 000 075 000.0 000 00000 00000 000 00000000 0 0 000 000 000 00 000 000.0 00");
+                if ((!steps.TryPeek(out next) || next.Inquiry != inquiry) && inquiry == Eg46500ExInquiry.ExtendedStatus)
+                    return FrameResponse("(00001 22533 01 00 00 030 031 032 033 02 00 000 0035 0552 0000 00.00 11");
                 if (!steps.TryDequeue(out var step)) throw new InvalidOperationException("No scripted inquiry remains.");
                 if (step.Inquiry != inquiry) throw new InvalidOperationException($"Expected {step.Inquiry}, received {inquiry}.");
                 step.Started?.TrySetResult();

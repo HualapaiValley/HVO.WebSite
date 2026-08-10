@@ -104,9 +104,9 @@ public sealed class Eg4SimulatorTests
             [new Eg4SimulationStep(new Eg4SimulatedTelemetry(PowerW: 2))]).AsTask();
         replacement.IsCompleted.Should().BeFalse();
         time.Advance(TimeSpan.FromHours(1));
-        (await read).PowerW.Should().Be(1);
+        (await read).BatteryObservation!.PowerW.Should().Be(1);
         await replacement;
-        (await simulator.ReadAsync(device, CancellationToken.None)).PowerW.Should().Be(2);
+        (await simulator.ReadAsync(device, CancellationToken.None)).BatteryObservation!.PowerW.Should().Be(2);
 
         var factory = new ScriptedEg4RegisterTransportFactory(time);
         var request = new Eg4ReadRegistersRequest(1, Eg4RegisterTable.Input, 1, 1);

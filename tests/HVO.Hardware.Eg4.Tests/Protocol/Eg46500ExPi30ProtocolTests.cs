@@ -12,10 +12,61 @@ public sealed class Eg46500ExPi30ProtocolTests
     public void Encode_UsesCapturedQpigsCrcAndExposesOnlyInquiries()
     {
         Eg46500ExPi30Protocol.Encode(Eg46500ExInquiry.GeneralStatus).Should().Equal(0x51, 0x50, 0x49, 0x47, 0x53, 0xB7, 0xA9, 0x0D);
-        Enum.GetNames<Eg46500ExInquiry>().Should().HaveCount(6)
+        Eg46500ExPi30Protocol.Encode(Eg46500ExInquiry.Pv2Status).Should().Equal(0x51, 0x50, 0x49, 0x47, 0x53, 0x32, 0x68, 0x2D, 0x0D);
+        Enum.GetNames<Eg46500ExInquiry>().Should().HaveCount(9)
             .And.NotContain(name => name.Contains("Write", StringComparison.OrdinalIgnoreCase) || name.Contains("Set", StringComparison.OrdinalIgnoreCase));
         typeof(Eg46500ExPi30Protocol).GetMethods().Select(method => method.Name)
             .Should().NotContain(name => name.Contains("Write", StringComparison.OrdinalIgnoreCase) || name.Contains("Set", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void SanitizedLivePayloads_StrictlyDecodeQpigsQpgs0AndQ1WithoutExposingSerial()
+    {
+        using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory, "Fixtures", "6500ex", "status-2026-08-10-live-sanitized.json")));
+        var root = fixture.RootElement;
+
+        var general = Eg46500ExPi30Protocol.DecodeGeneralStatus(FrameResponse("(" + root.GetProperty("qpigs").GetString()));
+        var parallel = Eg46500ExPi30Protocol.DecodeParallelStatus(FrameResponse("(" + root.GetProperty("qpgs0").GetString()));
+        var extended = Eg46500ExPi30Protocol.DecodeExtendedStatus(FrameResponse("(" + root.GetProperty("q1").GetString()));
+
+        general.Pv1VoltageV.Should().Be(320.9);
+        general.Pv1CurrentA.Should().Be(1.7);
+        general.Pv1PowerW.Should().Be(549);
+        parallel.Pv2VoltageV.Should().Be(335.1);
+        parallel.Pv2CurrentA.Should().Be(1);
+        extended.SccPwmTemperatureC.Should().Be(57);
+        extended.InverterTemperatureC.Should().Be(57);
+        extended.BatteryChannelTemperatureC.Should().Be(47);
+        extended.TransformerTemperatureC.Should().Be(53);
+        extended.ParallelRole.Should().Be(2);
+        extended.FanLocked.Should().BeFalse();
+        extended.FanPwmPercent.Should().Be(35);
+        extended.Pv1ChargePowerW.Should().Be(552);
+        extended.ParallelWarningFlags.Should().Be("0000");
+        extended.ChargeStage.Should().Be("bulk");
+        parallel.ToString().Should().NotContain("00000000000000");
+    }
+
+    [TestMethod]
+    public void Qpigs2_DecodesOfficial7972ThreeFieldShape()
+    {
+        var status = Eg46500ExPi30Protocol.DecodePv2Status(FrameResponse("(03.1 327.3 01026"));
+
+        status.Should().Be(new Eg46500ExPv2Status(3.1, 327.3, 1026));
+    }
+
+    [TestMethod]
+    public void ParallelAndExtendedStatus_RejectWrongFieldCountsAndMalformedWidths()
+    {
+        FluentActions.Invoking(() => Eg46500ExPi30Protocol.DecodeParallelStatus(FrameResponse("(1 2")))
+            .Should().Throw<Eg4TransportException>().Which.Kind.Should().Be(Eg4TransportFailureKind.MalformedFrame);
+        FluentActions.Invoking(() => Eg46500ExPi30Protocol.DecodeExtendedStatus(FrameResponse("(1 2")))
+            .Should().Throw<Eg4TransportException>().Which.Kind.Should().Be(Eg4TransportFailureKind.MalformedFrame);
+        FluentActions.Invoking(() => Eg46500ExPi30Protocol.DecodePv2Status(FrameResponse("(1 2")))
+            .Should().Throw<Eg4TransportException>().Which.Kind.Should().Be(Eg4TransportFailureKind.MalformedFrame);
+        var seventeen = "00001 22533 01 00 00 057 057 047 053 02 00 000 0035 0552 0000 00.00 11";
+        Eg46500ExPi30Protocol.DecodeExtendedStatus(FrameResponse("(" + seventeen)).Fields.Should().HaveCount(17);
     }
 
     [TestMethod]

@@ -143,7 +143,8 @@ To verify deployed endpoints after rollout:
 ## EG4 deployment notes
 
 - Follow `docs/gateways/eg4/deployment-and-shadow-validation.md` before rollout.
-- Map only stable `/dev/hvo/eg4-6500ex-*` HID nodes; never map `/dev/hidrawN` or the MPPT/BMS `/dev/ttyUSB0` cable.
-- The base profile commissions one inverter and lists the installed MPPT as telemetry unavailable without mapping or polling its BMS cable. The second-device overlay is selected only when `EG4_DEVICE_1_ENABLED=true` and both stable inverter HID nodes exist.
-- Production simulation is disabled. No command path, MPPT polling, PV ingest, or AC ingest is enabled.
+- Map only stable `/dev/hvo/eg4-6500ex-*` HID nodes and the verified MPPT `/dev/serial/by-id/...` path; never map enumerated `/dev/hidrawN` or `/dev/ttyUSBN` names.
+- The MPPT serial device remains isolated by default. `EG4_MPPT_0_ENABLED=true` selects `docker-compose.mppt.yml`, which maps only that stable path and permits only the fixed unit-1 function-`0x03` read of registers 200-217.
+- The second-inverter overlay remains selected only when `EG4_DEVICE_1_ENABLED=true` and both stable inverter HID nodes exist.
+- Production simulation and all command/write paths are disabled. The gateway publishes battery branches, independent MPPT detail, and read-only inverter AC/load/temperature/status detail.
 - Set `HVO_CHECK_EG4=true` when `check-deployments.sh` should require EG4 health.

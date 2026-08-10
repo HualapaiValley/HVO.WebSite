@@ -132,12 +132,13 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         var payload = SolarAssistantPowerMapper.MapTotalSnapshot(metrics, _options, recordedAt);
         var energy = SolarAssistantEnergyInverterDetailMapper.MapEnergy(metrics, _options, recordedAt, _lastEnergy);
         var inverterDetail = SolarAssistantEnergyInverterDetailMapper.MapInverterDetail(metrics, _options, recordedAt);
+        var mpptDetail = SolarAssistantEnergyInverterDetailMapper.MapMpptDetail(metrics, _options, recordedAt);
 
         await using var scope = _scopeFactory.CreateAsyncScope();
         var writer = scope.ServiceProvider.GetRequiredService<PowerOutboxWriter>();
         var inserted = await writer.EnqueueAsync(payload, ct);
         await TryEnqueueInventoryConfigurationAsync(scope.ServiceProvider, metrics, recordedAt, ct);
-        await TryEnqueueEnergyInverterDetailAsync(scope.ServiceProvider, energy, inverterDetail, ct);
+        await TryEnqueueEnergyInverterDetailAsync(scope.ServiceProvider, energy, inverterDetail, mpptDetail, ct);
 
         Volatile.Write(ref _lastSnapshotAtTicks, recordedAt.Ticks);
         _lastSnapshot = payload;
@@ -189,17 +190,22 @@ public sealed class SolarAssistantSnapshotWorker : BackgroundService
         IServiceProvider serviceProvider,
         PowerEnergyPayload energy,
         PowerInverterDetailPayload inverterDetail,
+        PowerMpptDetailPayload mpptDetail,
         CancellationToken ct)
     {
         var writer = serviceProvider.GetRequiredService<PowerInventoryConfigurationWriter>();
         if (energy.Counters.Count > 0)
             await writer.EnqueueEnergyAsync(energy, ct);
 
-        if (inverterDetail.PvStrings.Count > 0 || inverterDetail.Load is not null || inverterDetail.Battery is not null ||
-            inverterDetail.TemperatureC is not null || inverterDetail.Statuses.Count > 0)
+        if (inverterDetail.PvStrings.Count > 0 || inverterDetail.Ac is not null || inverterDetail.Load is not null ||
+            inverterDetail.Battery is not null || inverterDetail.Operating is not null || inverterDetail.TemperatureC is not null ||
+            inverterDetail.Temperatures.Count > 0 || inverterDetail.Statuses.Count > 0)
         {
             await writer.EnqueueInverterDetailAsync(inverterDetail, ct);
         }
+
+        if (mpptDetail.Trackers.Count > 0)
+            await writer.EnqueueMpptDetailAsync(mpptDetail, ct);
     }
 
     private async Task<bool> TryHydrateLatestSnapshotAsync(CancellationToken ct)

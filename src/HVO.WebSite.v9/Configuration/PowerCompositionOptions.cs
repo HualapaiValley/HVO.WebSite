@@ -14,6 +14,7 @@ public sealed class PowerCompositionOptions
     public List<string> PreferredSmartShuntSourceIds { get; set; } = [];
     public List<string> PreferredSolarAssistantSourceIds { get; set; } = [];
     public List<string> EnabledMpptSourceIds { get; set; } = [];
+    public List<string> ExpectedPvTrackerIds { get; set; } = [];
 }
 
 public sealed class PowerCompositionOptionsValidator : IValidateOptions<PowerCompositionOptions>
@@ -33,6 +34,10 @@ public sealed class PowerCompositionOptionsValidator : IValidateOptions<PowerCom
         if (options.MaxFutureClockSkewSeconds is < 0 or > 300)
             failures.Add("PowerComposition:MaxFutureClockSkewSeconds must be between 0 and 300.");
         ValidateIds(options.EnabledMpptSourceIds, nameof(options.EnabledMpptSourceIds), failures);
+        ValidateIds(options.ExpectedPvTrackerIds, nameof(options.ExpectedPvTrackerIds), failures);
+        if ((options.ExpectedPvTrackerIds ?? []).Any(id =>
+            id.Count(character => character == '/') != 1 || id.StartsWith('/') || id.EndsWith('/')))
+            failures.Add("PowerComposition:ExpectedPvTrackerIds must use SourceId/TrackerId composite IDs.");
         ValidateIds(options.PreferredSmartShuntSourceIds, nameof(options.PreferredSmartShuntSourceIds), failures);
         ValidateIds(options.PreferredSolarAssistantSourceIds, nameof(options.PreferredSolarAssistantSourceIds), failures);
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);

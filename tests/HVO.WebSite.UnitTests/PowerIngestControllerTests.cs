@@ -488,9 +488,12 @@ public sealed class PowerIngestControllerTests
             DeviceId = "inverter_1",
             RecordedAtUtc = DateTime.UtcNow,
             PvStrings = [new PowerPvStringDetail { StringId = "1", PowerW = 600, VoltageV = 120, CurrentA = 5 }],
+            Ac = new PowerInverterAcDetail { InputVoltageV = 240, InputFrequencyHz = 60, OutputVoltageV = 120, OutputFrequencyHz = 60 },
             Load = new PowerInverterLoadDetail { LoadPowerW = 550, LoadApparentPowerVa = 700 },
             Battery = new PowerInverterBatteryDetail { PowerW = -200, VoltageV = 53.2 },
+            Operating = new PowerInverterOperatingDetail { Mode = "battery", FaultCode = "0", LoadPercentage = 42, StatusFlags = "normal" },
             TemperatureC = 31.2,
+            Temperatures = [new PowerInverterTemperatureDetail { TemperatureId = "transformer", Name = "Transformer", TemperatureC = 33.4 }],
             Statuses = [new PowerInverterStatusDetail { Key = "inverter_1.status_1", Value = "normal", SourceTopic = "inverter_1/status_1" }],
         };
 
@@ -501,8 +504,143 @@ public sealed class PowerIngestControllerTests
         var body = ((OkObjectResult)latest.Result!).Value.Should().BeOfType<PowerInverterDetailSnapshotResponse>().Subject;
         body.IsPresent.Should().BeTrue();
         body.PvStrings.Single().PowerW.Should().Be(600);
+        body.Ac!.InputVoltageV.Should().Be(240);
         body.Battery!.PowerW.Should().Be(-200);
+        body.Operating!.Mode.Should().Be("battery");
+        body.Temperatures.Single().TemperatureC.Should().Be(33.4);
         body.Statuses.Single().Value.Should().Be("normal");
+    }
+
+    [TestMethod]
+    public async Task IngestMpptDetail_RetainsDistinctTimestampsAndDeduplicatesSameSourceTimestamp()
+    {
+        var first = MakeMpptDetail(DateTime.UtcNow.AddMinutes(-1));
+        var second = MakeMpptDetail(first.RecordedAtUtc.AddSeconds(30));
+
+        var firstResult = await _ctrl.IngestMpptDetail(first, CancellationToken.None);
+        var secondResult = await _ctrl.IngestMpptDetail(second, CancellationToken.None);
+        var duplicateResult = await _ctrl.IngestMpptDetail(MakeMpptDetail(first.RecordedAtUtc), CancellationToken.None);
+
+        ((CreatedAtActionResult)firstResult.Result!).Value.Should().BeEquivalentTo(new { Inserted = true, Skipped = false });
+        ((CreatedAtActionResult)secondResult.Result!).Value.Should().BeEquivalentTo(new { Inserted = true, Skipped = false });
+        ((CreatedAtActionResult)duplicateResult.Result!).Value.Should().BeEquivalentTo(new { Inserted = false, Skipped = true });
+        _db.PowerMpptDetailSnapshots.Should().HaveCount(2);
+        var persisted = _db.PowerMpptDetailSnapshots.OrderBy(row => row.RecordedAt).First();
+        persisted.SourceSystem.Should().Be("eg4-mppt100-48hv");
+        persisted.DeviceId.Should().Be("mppt-a");
+        persisted.TrackerCount.Should().Be(1);
+        persisted.TemperatureCount.Should().Be(1);
+        persisted.DiagnosticCount.Should().Be(1);
+    }
+
+    [TestMethod]
+    public async Task MpptDetailLatestAndRecent_ReturnTypedNormalizedHistory()
+    {
+        var older = MakeMpptDetail(DateTime.UtcNow.AddMinutes(-2), sourceId: " mppt-a ");
+        var newer = MakeMpptDetail(DateTime.UtcNow.AddMinutes(-1), sourceId: " mppt-a ");
+        await _ctrl.IngestMpptDetail(older, CancellationToken.None);
+        await _ctrl.IngestMpptDetail(newer, CancellationToken.None);
+        await _ctrl.IngestMpptDetail(MakeMpptDetail(DateTime.UtcNow, sourceId: "mppt-b"), CancellationToken.None);
+
+        var latestResult = await _ctrl.GetLatestMpptDetail(" mppt-a ", staleAfterMinutes: 1440, CancellationToken.None);
+        var recentResult = await _ctrl.GetRecentMpptDetail(" mppt-a ", limit: 1, CancellationToken.None);
+
+        var latest = ((OkObjectResult)latestResult.Result!).Value.Should().BeOfType<PowerMpptDetailSnapshotResponse>().Subject;
+        latest.SourceId.Should().Be("mppt-a");
+        latest.RecordedAtUtc.Should().Be(newer.RecordedAtUtc);
+        latest.Trackers.Single().Name.Should().Be("Array A");
+        latest.BatteryOutput!.CurrentA.Should().Be(0);
+        latest.Diagnostics.Single().Value.Should().Be("bulk");
+
+        var recent = ((OkObjectResult)recentResult.Result!).Value
+            .Should().BeAssignableTo<IReadOnlyList<PowerMpptDetailSnapshotResponse>>().Subject;
+        recent.Should().ContainSingle();
+        recent[0].RecordedAtUtc.Should().Be(newer.RecordedAtUtc);
+    }
+
+    [TestMethod]
+    public async Task IngestMpptDetail_RejectsInvalidNestedValuesAndDuplicateTrimmedKeys()
+    {
+        var payload = new PowerMpptDetailPayload
+        {
+            SourceId = "mppt-a",
+            SourceSystem = "eg4-mppt100-48hv",
+            DeviceId = "mppt-a",
+            RecordedAtUtc = DateTime.UtcNow,
+            Trackers =
+            [
+                new PowerMpptTrackerDetail { TrackerId = "pv-1", Name = " ", PowerW = double.NaN, Provenance = (PowerObservationProvenance)999 },
+                new PowerMpptTrackerDetail { TrackerId = " PV-1 ", Name = "Array A", PowerW = 500, Provenance = PowerObservationProvenance.Direct },
+            ],
+            BatteryOutput = new PowerMpptBatteryOutputDetail { CurrentA = 1, PowerW = 1, Provenance = PowerObservationProvenance.Direct },
+            Temperatures = [new PowerMpptTemperatureDetail { TemperatureId = "controller", Name = "Controller", TemperatureC = 250 }],
+            Diagnostics =
+            [
+                new PowerMpptDiagnosticDetail { Key = "state", Name = "State", Value = "bulk" },
+                new PowerMpptDiagnosticDetail { Key = " STATE ", Name = "State duplicate", Value = "bulk" },
+            ],
+        };
+
+        var result = await _ctrl.IngestMpptDetail(payload, CancellationToken.None);
+
+        var badRequest = result.Result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        var problem = badRequest.Value.Should().BeOfType<ValidationProblemDetails>().Subject;
+        problem.Errors.Keys.Should().Contain(["Trackers.TrackerId", "Diagnostics.Key", "BatteryOutput.CurrentA", "BatteryOutput.PowerW"]);
+        _db.PowerMpptDetailSnapshots.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public async Task IngestMpptDetail_RejectsOversizedCollections()
+    {
+        var payload = new PowerMpptDetailPayload
+        {
+            SourceId = "mppt-a",
+            SourceSystem = "eg4-mppt100-48hv",
+            DeviceId = "mppt-a",
+            RecordedAtUtc = DateTime.UtcNow,
+            Trackers = Enumerable.Range(0, 33)
+                .Select(i => new PowerMpptTrackerDetail
+                {
+                    TrackerId = $"pv-{i}",
+                    Name = $"Array {i}",
+                    Provenance = PowerObservationProvenance.Direct,
+                })
+                .ToArray(),
+        };
+
+        var result = await _ctrl.IngestMpptDetail(payload, CancellationToken.None);
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+        _db.PowerMpptDetailSnapshots.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public async Task IngestMpptDetail_RejectsEmptyTrackersAndUnknownProvenance()
+    {
+        var empty = MakeMpptDetail(DateTime.UtcNow);
+        empty = new PowerMpptDetailPayload
+        {
+            SourceId = empty.SourceId,
+            SourceSystem = empty.SourceSystem,
+            DeviceId = empty.DeviceId,
+            RecordedAtUtc = empty.RecordedAtUtc,
+            Trackers = [],
+        };
+        var unknown = MakeMpptDetail(DateTime.UtcNow.AddSeconds(1));
+        unknown = new PowerMpptDetailPayload
+        {
+            SourceId = unknown.SourceId,
+            SourceSystem = unknown.SourceSystem,
+            DeviceId = unknown.DeviceId,
+            RecordedAtUtc = unknown.RecordedAtUtc,
+            Trackers = [new PowerMpptTrackerDetail { TrackerId = "mppt-1", Name = "Array A" }],
+        };
+
+        (await _ctrl.IngestMpptDetail(empty, CancellationToken.None)).Result
+            .Should().BeOfType<BadRequestObjectResult>();
+        (await _ctrl.IngestMpptDetail(unknown, CancellationToken.None)).Result
+            .Should().BeOfType<BadRequestObjectResult>();
+        _db.PowerMpptDetailSnapshots.Should().BeEmpty();
     }
 
     [TestMethod]
@@ -528,6 +666,28 @@ public sealed class PowerIngestControllerTests
         energy.Result.Should().BeOfType<BadRequestObjectResult>();
         inverter.Result.Should().BeOfType<BadRequestObjectResult>();
         _db.PowerEnergySnapshots.Should().BeEmpty();
+        _db.PowerInverterDetailSnapshots.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    public async Task IngestInverterDetail_RejectsNullCollectionEntriesWithoutThrowing()
+    {
+        var payload = new PowerInverterDetailPayload
+        {
+            SourceId = "solarassistant-total",
+            SourceSystem = "solarassistant",
+            DeviceId = "inverter_1",
+            RecordedAtUtc = DateTime.UtcNow,
+            PvStrings = [null!],
+            Temperatures = [null!],
+            Statuses = [null!],
+        };
+
+        var result = await _ctrl.IngestInverterDetail(payload, CancellationToken.None);
+
+        var badRequest = result.Result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        var problem = badRequest.Value.Should().BeOfType<ValidationProblemDetails>().Subject;
+        problem.Errors.Keys.Should().Contain(["PvStrings[0]", "Temperatures[0]", "Statuses[0]"]);
         _db.PowerInverterDetailSnapshots.Should().BeEmpty();
     }
 
@@ -666,6 +826,36 @@ public sealed class PowerIngestControllerTests
         OutputFrequencyHz = 60,
         LoadPercentage = 23,
         InverterMode = inverterMode,
+    };
+
+    private static PowerMpptDetailPayload MakeMpptDetail(DateTime recordedAt, string sourceId = "mppt-a") => new()
+    {
+        SourceId = sourceId,
+        SourceSystem = " EG4-MPPT100-48HV ",
+        DeviceId = " mppt-a ",
+        RecordedAtUtc = recordedAt,
+        Trackers =
+        [
+            new PowerMpptTrackerDetail
+            {
+                TrackerId = "pv-1",
+                Name = "Array A",
+                VoltageV = 350,
+                CurrentA = 2,
+                PowerW = 700,
+                Provenance = PowerObservationProvenance.Direct,
+                Confidence = "high",
+            },
+        ],
+        BatteryOutput = new PowerMpptBatteryOutputDetail
+        {
+            VoltageV = 54,
+            CurrentA = 0,
+            PowerW = 0,
+            Provenance = PowerObservationProvenance.Direct,
+        },
+        Temperatures = [new PowerMpptTemperatureDetail { TemperatureId = "controller", Name = "Controller", TemperatureC = 32 }],
+        Diagnostics = [new PowerMpptDiagnosticDetail { Key = "state", Name = "Charge state", Value = "bulk" }],
     };
 
     private static PowerReading MakeEntity(string sourceId, string recordedAt, double pvPowerW) =>

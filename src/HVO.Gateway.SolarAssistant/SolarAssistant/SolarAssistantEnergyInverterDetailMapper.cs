@@ -62,6 +62,20 @@ public static class SolarAssistantEnergyInverterDetailMapper
             CurrentA = ReadDouble(byTopic, "inverter_1/battery_current"),
             PowerW = ReadDouble(byTopic, "inverter_1/battery_power"),
         };
+        var ac = new PowerInverterAcDetail
+        {
+            InputVoltageV = ReadDouble(byTopic, "inverter_1/grid_voltage"),
+            InputFrequencyHz = ReadDouble(byTopic, "inverter_1/grid_frequency"),
+            OutputVoltageV = ReadDouble(byTopic, "inverter_1/output_voltage"),
+            OutputFrequencyHz = ReadDouble(byTopic, "inverter_1/output_frequency"),
+        };
+        var operating = new PowerInverterOperatingDetail
+        {
+            Mode = ReadString(byTopic, "inverter_1/device_mode"),
+            FaultCode = ReadString(byTopic, "inverter_1/fault_code"),
+            LoadPercentage = ReadDouble(byTopic, "inverter_1/load_percentage"),
+        };
+        var inverterTemperatureC = ReadTemperatureC(byTopic, "inverter_1/temperature");
 
         return new PowerInverterDetailPayload
         {
@@ -70,10 +84,42 @@ public static class SolarAssistantEnergyInverterDetailMapper
             DeviceId = "inverter_1",
             RecordedAtUtc = recordedAtUtc.ToUniversalTime(),
             PvStrings = pvStrings,
+            Ac = HasAnyValue(ac) ? ac : null,
             Load = HasAnyValue(load) ? load : null,
             Battery = HasAnyValue(battery) ? battery : null,
-            TemperatureC = ReadDouble(byTopic, "inverter_1/temperature"),
+            Operating = HasAnyValue(operating) ? operating : null,
+            TemperatureC = inverterTemperatureC,
+            Temperatures = inverterTemperatureC is null
+                ? []
+                : [new PowerInverterTemperatureDetail
+                {
+                    TemperatureId = "inverter",
+                    Name = "Inverter",
+                    TemperatureC = inverterTemperatureC,
+                }],
             Statuses = Statuses(byTopic),
+        };
+    }
+
+    public static PowerMpptDetailPayload MapMpptDetail(
+        IReadOnlyList<SolarAssistantMetric> metrics,
+        SolarAssistantOptions options,
+        DateTime recordedAtUtc)
+    {
+        var byTopic = ToTopicDictionary(metrics);
+        var trackers = new[]
+        {
+            MpptTracker(byTopic, "1"),
+            MpptTracker(byTopic, "2"),
+        }.Where(t => t is not null).Cast<PowerMpptTrackerDetail>().ToArray();
+
+        return new PowerMpptDetailPayload
+        {
+            SourceId = options.TotalSourceId,
+            SourceSystem = "solarassistant",
+            DeviceId = "inverter_1",
+            RecordedAtUtc = recordedAtUtc.ToUniversalTime(),
+            Trackers = trackers,
         };
     }
 
@@ -120,6 +166,24 @@ public static class SolarAssistantEnergyInverterDetailMapper
         return detail.PowerW is null && detail.VoltageV is null && detail.CurrentA is null ? null : detail;
     }
 
+    private static PowerMpptTrackerDetail? MpptTracker(
+        IReadOnlyDictionary<string, SolarAssistantMetric> byTopic,
+        string id)
+    {
+        var detail = new PowerMpptTrackerDetail
+        {
+            TrackerId = $"mppt-{id}",
+            Name = $"6500EX MPPT {id}",
+            PowerW = ReadDouble(byTopic, $"inverter_1/pv_power_{id}"),
+            VoltageV = ReadDouble(byTopic, $"inverter_1/pv_voltage_{id}"),
+            CurrentA = ReadDouble(byTopic, $"inverter_1/pv_current_{id}"),
+            Provenance = PowerObservationProvenance.Direct,
+            Confidence = "source-direct",
+        };
+
+        return detail.PowerW is null && detail.VoltageV is null && detail.CurrentA is null ? null : detail;
+    }
+
     private static IReadOnlyList<PowerInverterStatusDetail> Statuses(IReadOnlyDictionary<string, SolarAssistantMetric> byTopic) =>
         byTopic
             .Where(kvp => kvp.Key.StartsWith("inverter_1/status_", StringComparison.OrdinalIgnoreCase))
@@ -139,8 +203,27 @@ public static class SolarAssistantEnergyInverterDetailMapper
     private static bool HasAnyValue(PowerInverterBatteryDetail detail) =>
         detail.VoltageV is not null || detail.CurrentA is not null || detail.PowerW is not null;
 
+    private static bool HasAnyValue(PowerInverterAcDetail detail) =>
+        detail.InputVoltageV is not null || detail.InputFrequencyHz is not null ||
+        detail.OutputVoltageV is not null || detail.OutputFrequencyHz is not null;
+
+    private static bool HasAnyValue(PowerInverterOperatingDetail detail) =>
+        detail.Mode is not null || detail.FaultCode is not null || detail.LoadPercentage is not null;
+
     private static double? ReadDouble(IReadOnlyDictionary<string, SolarAssistantMetric> byTopic, string topic) =>
         byTopic.TryGetValue(topic, out var metric) ? ReadDouble(metric.Value) : null;
+
+    private static double? ReadTemperatureC(IReadOnlyDictionary<string, SolarAssistantMetric> byTopic, string topic)
+    {
+        if (!byTopic.TryGetValue(topic, out var metric)) return null;
+        var value = ReadDouble(metric.Value);
+        return value is not null && string.Equals(metric.Unit?.Trim(), "°F", StringComparison.OrdinalIgnoreCase)
+            ? (value.Value - 32) * 5 / 9
+            : value;
+    }
+
+    private static string? ReadString(IReadOnlyDictionary<string, SolarAssistantMetric> byTopic, string topic) =>
+        byTopic.TryGetValue(topic, out var metric) ? ReadString(metric) : null;
 
     private static double? ReadDouble(object? value) => value switch
     {

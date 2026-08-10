@@ -99,10 +99,28 @@ public class PowerInverterDetailSnapshotResponse
     public bool IsPresent { get; init; }
     public bool IsStale { get; init; }
     public IReadOnlyList<PowerPvStringDetail> PvStrings { get; init; } = [];
+    public PowerInverterAcDetail? Ac { get; init; }
     public PowerInverterLoadDetail? Load { get; init; }
     public PowerInverterBatteryDetail? Battery { get; init; }
+    public PowerInverterOperatingDetail? Operating { get; init; }
     public double? TemperatureC { get; init; }
+    public IReadOnlyList<PowerInverterTemperatureDetail> Temperatures { get; init; } = [];
     public IReadOnlyList<PowerInverterStatusDetail> Statuses { get; init; } = [];
+}
+
+public class PowerMpptDetailSnapshotResponse
+{
+    public long Id { get; init; }
+    public string SourceId { get; init; } = string.Empty;
+    public string? SourceSystem { get; init; }
+    public string? DeviceId { get; init; }
+    public DateTime RecordedAtUtc { get; init; }
+    public bool IsPresent { get; init; }
+    public bool IsStale { get; init; }
+    public IReadOnlyList<PowerMpptTrackerDetail> Trackers { get; init; } = [];
+    public PowerMpptBatteryOutputDetail? BatteryOutput { get; init; }
+    public IReadOnlyList<PowerMpptTemperatureDetail> Temperatures { get; init; } = [];
+    public IReadOnlyList<PowerMpptDiagnosticDetail> Diagnostics { get; init; } = [];
 }
 
 public class GatewayStatusSnapshotResponse

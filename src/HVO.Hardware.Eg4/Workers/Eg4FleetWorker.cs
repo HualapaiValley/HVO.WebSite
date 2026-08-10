@@ -38,10 +38,20 @@ public sealed class Eg4FleetWorker(
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var observation = await telemetrySource.ReadAsync(device, cancellationToken);
+            var sample = await telemetrySource.ReadAsync(device, cancellationToken);
+            if (!sample.IsAvailable || sample.BatteryObservation is null)
+            {
+                dashboard.PublishFailure(device, new Eg4TransportException(
+                    Eg4TransportFailureKind.Timeout,
+                    $"Device telemetry is unavailable ({sample.UnavailableReason ?? "no observation"})."));
+                telemetry.RecordPoll(false, stopwatch.Elapsed.TotalSeconds,
+                    device.SourceId, device.DeviceId, DeviceKind(device), "unavailable");
+                return false;
+            }
+            var observation = sample.BatteryObservation;
             dashboard.Publish(device, observation);
             telemetry.RecordPoll(true, stopwatch.Elapsed.TotalSeconds,
-                device.SourceId, device.DeviceId, "eg4-6500ex");
+                device.SourceId, device.DeviceId, DeviceKind(device));
 
             var enqueueAttempt = 0;
             while (true)
@@ -51,6 +61,10 @@ public sealed class Eg4FleetWorker(
                     await using var scope = scopeFactory.CreateAsyncScope();
                     var writer = scope.ServiceProvider.GetRequiredService<IEg4PowerOutboxWriter>();
                     await writer.EnqueueAsync(Eg4PowerReadingMapper.Map(observation), cancellationToken);
+                    if (sample.MpptDetail is not null)
+                        await writer.EnqueueMpptDetailAsync(sample.MpptDetail, cancellationToken);
+                    if (sample.InverterDetail is not null)
+                        await writer.EnqueueInverterDetailAsync(sample.InverterDetail, cancellationToken);
                     return true;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -72,7 +86,7 @@ public sealed class Eg4FleetWorker(
                 ? transport.Kind.ToString().ToLowerInvariant()
                 : "device_error";
             telemetry.RecordPoll(false, stopwatch.Elapsed.TotalSeconds,
-                device.SourceId, device.DeviceId, "eg4-6500ex", failureKind);
+                device.SourceId, device.DeviceId, DeviceKind(device), failureKind);
             logger.LogWarning("EG4 poll failed for source {SourceId} with {FailureKind}", device.SourceId, failureKind);
             return false;
         }
@@ -87,4 +101,8 @@ public sealed class Eg4FleetWorker(
             await Task.Delay(interval, timeProvider, cancellationToken);
         }
     }
+
+    private static string DeviceKind(Eg4DeviceOptions device) => device.Type == Eg4DeviceType.Inverter6500Ex
+        ? "eg4-6500ex"
+        : "eg4-mppt100-48hv";
 }

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "captureKind": "sanitized-live-register-capture",
+  "model": "EG4 MPPT100-48HV",
+  "serial": "9600 8N1",
+  "unitId": 1,
+  "startAddress": 200,
+  "registerCount": 18,
+  "registerWords": [2, 2, 543, 91, 0, 90, 4038, 4006, 12, 480, 40, 37, 40, 0, 0, 13, 91, 2],
+  "expected": {
+    "batteryVoltageV": 54.3,
+    "chargingCurrentMagnitudeA": 9.1,
+    "canonicalBatteryCurrentA": -9.1,
+    "canonicalDerivedBatteryPowerW": -494.13,
+    "pvVoltageV": 400.6,
+    "pvCurrentA": 1.2,
+    "pvPowerW": 480,
+    "controllerTemperatureC": 40,
+    "secondaryTemperatureC": 37
+  }
+}

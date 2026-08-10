@@ -233,6 +233,24 @@ public sealed class PowerApiForwarderTests
                 RecordedAtUtc = DateTime.Parse("2026-05-28T04:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
                 PvStrings = [new PowerPvStringDetail { StringId = "1", PowerW = 600 }],
             }, CancellationToken.None);
+            await writer.EnqueueMpptDetailAsync(new PowerMpptDetailPayload
+            {
+                SourceId = "solarassistant-total",
+                SourceSystem = "solarassistant",
+                DeviceId = "inverter_1",
+                RecordedAtUtc = DateTime.Parse("2026-05-28T04:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
+                Trackers =
+                [
+                    new PowerMpptTrackerDetail
+                    {
+                        TrackerId = "mppt-1",
+                        Name = "6500EX MPPT 1",
+                        PowerW = 600,
+                        Provenance = PowerObservationProvenance.Direct,
+                        Confidence = "source-direct",
+                    },
+                ],
+            }, CancellationToken.None);
             await writer.EnqueueGatewayStatusAsync(new GatewayStatusPayload
             {
                 SourceId = "solarassistant-total",
@@ -253,11 +271,78 @@ public sealed class PowerApiForwarderTests
             "https://hvo.example/api/v1/power/configuration",
             "https://hvo.example/api/v1/power/energy",
             "https://hvo.example/api/v1/power/inverter-detail",
+            "https://hvo.example/api/v1/power/mppt-detail",
             "https://hvo.example/api/v1/power/gateway-status",
         ]);
         using var verifyScope = _provider.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OutboxDbContext>();
         verifyDb.OutboxRecords.Should().OnlyContain(r => r.Status == EdgeOutboxStatus.Sent);
+    }
+
+    [TestMethod]
+    public async Task SweepAsync_MpptDetail_ForwardsCloudEventToDerivedEndpoint()
+    {
+        using (var scope = _provider.CreateScope())
+        {
+            var writer = new PowerInventoryConfigurationWriter(
+                scope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>());
+            await writer.EnqueueMpptDetailAsync(new PowerMpptDetailPayload
+            {
+                SourceId = "solarassistant-total",
+                SourceSystem = "solarassistant",
+                DeviceId = "inverter_1",
+                RecordedAtUtc = DateTime.Parse("2026-08-10T18:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
+                Trackers =
+                [
+                    new PowerMpptTrackerDetail
+                    {
+                        TrackerId = "mppt-1",
+                        Name = "6500EX MPPT 1",
+                        PowerW = 612.5,
+                        Provenance = PowerObservationProvenance.Direct,
+                        Confidence = "source-direct",
+                    },
+                ],
+            }, CancellationToken.None);
+        }
+
+        await _provider.GetRequiredService<PowerApiForwarder>().SweepAsync(CancellationToken.None);
+
+        _handler.Requests.Should().ContainSingle();
+        _handler.Requests[0].RequestUri!.ToString().Should().Be("https://hvo.example/api/v1/power/mppt-detail");
+        _handler.RequestBodies.Should().ContainSingle()
+            .Which.Should().Contain(EdgePayloadTypes.PowerMpptDetail)
+            .And.Contain("mppt-1")
+            .And.Contain("source-direct");
+        using var verifyScope = _provider.CreateScope();
+        verifyScope.ServiceProvider.GetRequiredService<OutboxDbContext>().OutboxRecords.Single().Status
+            .Should().Be(EdgeOutboxStatus.Sent);
+    }
+
+    [TestMethod]
+    public async Task SweepAsync_InvalidMpptDetail_MarksPermanentFailureWithoutPosting()
+    {
+        using (var scope = _provider.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<OutboxDbContext>().OutboxRecords.Add(new EdgeOutboxRecord
+            {
+                SourceId = "solarassistant-total",
+                DeviceId = "inverter_1",
+                PayloadType = PowerOutboxPayloadTypes.MpptDetail,
+                PayloadVersion = PowerOutboxPayloadTypes.MpptDetailVersion,
+                RecordedAtUtc = DateTime.Parse("2026-08-10T18:00:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind),
+                PayloadJson = "not-json",
+            });
+            await scope.ServiceProvider.GetRequiredService<OutboxDbContext>().SaveChangesAsync();
+        }
+
+        await _provider.GetRequiredService<PowerApiForwarder>().SweepAsync(CancellationToken.None);
+
+        using var verifyScope = _provider.CreateScope();
+        var row = verifyScope.ServiceProvider.GetRequiredService<OutboxDbContext>().OutboxRecords.Single();
+        row.Status.Should().Be(EdgeOutboxStatus.Failed);
+        row.FailureKind.Should().Be(EdgeOutboxFailureKind.Permanent);
+        _handler.Requests.Should().BeEmpty();
     }
 
     [TestMethod]
@@ -356,16 +441,20 @@ public sealed class PowerApiForwarderTests
     {
         public Func<HttpRequestMessage, HttpResponseMessage> Responder { get; set; }
         public List<HttpRequestMessage> Requests { get; } = [];
+        public List<string> RequestBodies { get; } = [];
 
         public CapturingHandler(Func<HttpRequestMessage, HttpResponseMessage> responder)
         {
             Responder = responder;
         }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(CloneRequest(request));
-            return Task.FromResult(Responder(request));
+            RequestBodies.Add(request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken));
+            return Responder(request);
         }
 
         private static HttpRequestMessage CloneRequest(HttpRequestMessage request)

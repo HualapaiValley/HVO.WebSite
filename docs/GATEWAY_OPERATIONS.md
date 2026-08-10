@@ -74,9 +74,9 @@ Central recovery and alert handling are documented in `docs/SHARED_INFRASTRUCTUR
 
 ## EG4 6500EX
 
-The EG4 gateway uses stable `/dev/hvo` USB HID mappings, a dedicated `eg4_eg4-outbox` volume, and local UI port 5600. Its `/health` result includes device connectivity and forwarding state. Detailed `/diagnostics/status`, `/diagnostics/devices`, and `/diagnostics/outbox` endpoints require the configured `X-Api-Key`.
+The EG4 gateway uses stable `/dev/hvo` USB HID mappings and, when explicitly enabled, a stable MPPT `/dev/serial/by-id/...` mapping. It has a dedicated `eg4_eg4-outbox` volume and local UI port 5600. Its `/health` result includes device connectivity and forwarding state. Detailed `/diagnostics/status`, `/diagnostics/devices`, and `/diagnostics/outbox` endpoints require the configured `X-Api-Key`.
 
-Use `docs/gateways/eg4/deployment-and-shadow-validation.md` for USB identity, secret-safe Compose validation, commissioning, comparison criteria, and volume-preserving rollback. The EG4 stack is read-only and battery-branch-only; do not connect the MPPT/BMS serial cable or enable command, PV, or AC collection.
+Use `docs/gateways/eg4/deployment-and-shadow-validation.md` for USB identity, secret-safe Compose validation, commissioning, comparison criteria, and volume-preserving rollback. The EG4 stack is read-only: never add PI30 setters or any Modbus function other than the fixed MPPT function-`0x03` inquiry.
 
 ## Schema Compatibility
 

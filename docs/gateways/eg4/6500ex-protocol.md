@@ -1,85 +1,98 @@
-# EG4 6500EX Battery Telemetry Protocol Evidence
+# EG4 6500EX Read-Only Telemetry Protocol
 
-Status: RS232/COM inquiry profile and direct USB HID transport validated for limited battery fields; BMS RS485 blocked.
+Status: battery, dual-MPPT, AC/load, temperature, operating-state, and firmware detail validated through allowlisted PI30 inquiries. BMS RS485 and all setters remain prohibited.
 
-Research date: 2026-08-09. Target: EG4 6500EX-48, observed firmware `79.02` / `61.00` and `79.71` / `61.13`, model `MKS2-6500`, general model `045`.
+Research dates: 2026-08-09 through 2026-08-10. Target: EG4 6500EX-48, model `MKS2-6500`, general model `045`; installed firmware `79.71/61.13`; official update `79.72/61.13` statically analyzed.
 
-## Scope Decision
+## Safety Boundary
 
-The gateway uses the inverter's RS232/COM monitoring interface. It does not connect to or transmit on the closed-loop BMS RS485 bus. Although a PI30 status response also contains PV and AC values, this epic decodes and publishes battery-side values only.
+- Use only the inverter RS232/COM monitoring interface, exposed on the installed unit as USB HID `0665:5161`.
+- Never connect this adapter to the closed-loop BMS RS485 bus.
+- One process owns the HID endpoint and sends one inquiry at a time with bounded timeout/reconnect behavior.
+- No arbitrary-command API exists. PI30 setters, date/time writes, resets, firmware operations, and command discovery are prohibited.
+- On reconnect, identity and the exact firmware tuple are revalidated before status polling.
 
-The BMS RS485 bus participates in battery charge/discharge control. EG4 publishes no safe request, serial format, framing, CRC definition, unit address, field map, or multi-master guidance for that bus. It must not be treated as Modbus or actively probed.
+## Evidence
 
-## Evidence Matrix
-
-| ID | Source | Applicability and claims | Limits |
+| ID | Source | Claims | Limits |
 |---|---|---|---|
-| E1 | [EG4 6500EX product archive](https://eg4electronics.com/categories/legacy-products/eg4-6500ex-48-all-in-one-off-grid-inverter/) and [manual v2.3.2](https://eg4electronics.com/wp-content/uploads/2024/05/EG4_6.5_Manual.pdf) | Direct model. BMS RJ45 pins: 1 RS232TX, 2 RS232RX, 3 RS485B, 5 RS485A, 6 CANH, 7 CANL, 8 GND. BMS communication controls charging voltage/current, cutoff, and charge/discharge state. | No BMS wire protocol or RS232 monitoring command protocol. |
-| E2 | [EG4 6500EX firmware archive](https://eg4electronics.com/documentation/6500ex-48-firmware-legacy/) | Direct model. Firmware notes establish CRC-sensitive BMS traffic and firmware-dependent receive timing/error handling. | Does not define framing, CRC algorithm, fields, or safe external requests. |
-| E3 | [HVO owner's public 6500EX capture](https://github.com/jblance/mpp-solar/discussions/284#discussioncomment-4489705), 2022-12-24 | Direct device capture: `QMN=MKS2-6500`, `QGMN=045`, firmware `79.02/61.00`; `QPIGS` returned battery 52.50 V, charge 0 A, SOC 83%, discharge 16 A. | RS232/USB PC-monitoring interface, not BMS RS485. Published payload omitted response CRC bytes. |
-| E4 | [PI30MAX protocol, 2021-02-17](https://github.com/jblance/mpp-solar/blob/master/docs/protocols/PI30MAX.Communication.Protocol20210217.pdf) | OEM-family document corroborated by E3. Defines 2400 8N1, ASCII inquiry plus adjusted CRC-CCITT/XMODEM and CR, and QPIGS field positions/scales. | Community-hosted copy; not an EG4 publication. Model applicability comes from E3/E5. |
-| E5 | [SolarAssistant 6500EX support](https://solar-assistant.io/help/inverters/eg4/6500EX-48) and [RS232 instructions](https://solar-assistant.io/help/inverters/eg4/6500EX-48/rs232) | Independent direct-model implementation. Uses the RS232/COM port and Voltronic driver; documents RJ45 pins 1 RX, 2 TX, 8 GND from its cable perspective. | Does not publish frames, parser, cadence, or field provenance. |
-| E6 | [Independent 6500EX SOC comparison](https://diysolarforum.com/threads/raw-data-vs-watchpower-battery-capacity-question.83721/) | Direct model. `QPIGS` SOC matched WatchPower; `QPGS0/1/2` SOC did not. | Community observation, one installation. Does not prove SOC is always genuine BMS SOC. |
-| E7 | [`mpp-solar` HID transport at `eafdd43`](https://github.com/jblance/mpp-solar/blob/eafdd4328c77f516cf82430c5bcb6fa042c45d3a/mppsolar/inout/hidrawio.py) | Maintained PI30 implementation opens `/dev/hidraw*`, writes inquiry frames in 8-byte HID reports, and reads until CR. | Community implementation; corroborated by H1 on the target device. |
-| H1 | HVO live capture, 2026-08-09, fixture `charging-2026-08-09-live-hid.json` | Target device enumerated as USB HID `0665:5161`; identity `PI30` / `MKS2-6500` / `045`; firmware `79.71` / `61.13`; byte-complete QPIGS response with valid CRC reported 54.40 V, 68 A charging, 0 A discharging, and 100% reported SOC. | One charging-state capture. Current fields are inverter-reported integer magnitudes. |
+| E1 | [Official manual](https://eg4electronics.com/wp-content/uploads/2024/05/EG4_6.5_Manual.pdf) | Exact model and physical communication interfaces. | Does not publish the PI30 command map. |
+| E2 | [PI30MAX protocol](https://github.com/jblance/mpp-solar/blob/master/docs/protocols/PI30MAX.Communication.Protocol20210217.pdf) | Inquiry framing, adjusted CRC, QPIGS, QPIGS2, and QPGS field definitions. | Community-hosted OEM-family document. |
+| E3 | [SolarAssistant 6500EX support](https://solar-assistant.io/help/inverters/eg4/6500EX-48) | Independent direct-model implementation; current documentation supports RS232 and Micro USB. | Does not publish its polling implementation. |
+| H1 | HVO HID capture, 2026-08-09 | Installed identity and exact CRC-valid QPIGS response. | One installed firmware tuple. |
+| H2 | HVO aligned HID capture, 2026-08-10 | QPIGS, QPGS0, and Q1 returned battery, AC/load, dual PV voltage/current, and four temperature channels. | QPGS0 PV currents are integer-resolution. |
+| H3 | Official `EG4-6500-firmware.zip` static analysis | ZIP SHA-256 `bcc42603a72479cb7165ab107567b0ee2dcbdd7c44ebee0199f6ae680f68f0`; `DSP7972.inv` SHA-256 `6eb3202ed579dbfdf484f1f6568f6e3514401ff65dec1fcb7a5fb548d7f4aa65`. Firmware 79.72 contains exact QPIGS2 command/dispatcher/handler entries. | Firmware was treated as data only; never executed or flashed. |
+| H4 | SolarAssistant REST metrics, 2026-08-10 | Existing authenticated read-only API at the SolarAssistant host reports direct `pv_power_1/2`, `pv_voltage_1/2`, and `pv_current_1/2`. | The inverter WiFi module at `192.168.1.122` had no listener on bounded likely TCP telemetry ports; it is not used by HVO. |
 
-## Validated RS232 Profile
+## Wire Profile
 
-| Property | Value | Evidence |
-|---|---|---|
-| Electrical interface | RS232/COM RJ45, not TTL and not BMS RS485 | E3, E5 |
-| Serial | 2400 baud, 8 data bits, no parity, 1 stop bit | E4, corroborated by E3 behavior |
-| Request | ASCII inquiry + two adjusted CRC bytes + `CR` | E3, E4 |
-| CRC | CRC-CCITT/XMODEM, polynomial `0x1021`, initial `0x0000`, high byte then low byte; bytes `00`, `0A`, `0D`, `28` incremented | E4 and known `QPIGS B7 A9 0D` vector |
-| Response | `(` + payload + adjusted CRC high/low + `CR` | E4 |
-| Negative response | `(NAK` with CRC and CR | E3, E4 |
-| Ownership | One port owner and one outstanding inquiry | Community operational evidence; conservative HVO rule |
-| Direct USB transport | Linux hidraw, USB `0665:5161`, 8-byte HID reports; all allowlisted inquiry frames fit one report | E7, H1 |
+| Property | Value |
+|---|---|
+| RS232 serial | 2400 baud, 8 data bits, no parity, 1 stop bit |
+| Request | ASCII inquiry + adjusted CRC high/low + `CR` |
+| CRC | CRC-CCITT/XMODEM, polynomial `0x1021`, initial `0x0000`; bytes `00`, `0A`, `0D`, `28` incremented |
+| Response | `(` + payload + adjusted CRC high/low + `CR` |
+| Negative response | `(NAK` + CRC + `CR` |
+| USB HID | Linux hidraw, 8-byte reports, USB `0665:5161` |
 
 ## Inquiry Allowlist
 
-| Inquiry | Purpose | Frequency |
+| Inquiry | Purpose | Firmware rule |
 |---|---|---|
-| `QPI`, `QMN`, `QGMN`, `QVFW`, `QVFW3` | Identity and firmware proof | Startup/manual proof only |
-| `QPIGS` | General status; HVO consumes battery fields only | One proof request; future production cadence no faster than 5 seconds pending live validation |
+| `QPI`, `QMN`, `QGMN`, `QVFW`, `QVFW3` | Identity and exact firmware proof | Startup/reconnect |
+| `QPIGS` | Battery branch, AC input/output, local load, temperature, direct MPPT 1 | All supported tuples |
+| `QPGS0` | Mode, fault, status, parallel totals, PV2 voltage and coarse integer current | All supported tuples |
+| `Q1` | SCC/inverter/battery-channel/transformer temperatures, fan, charge stage, diagnostics | All supported tuples |
+| `QPIGS2` | Direct MPPT 2 current, voltage, and power | Firmware `79.72/61.13` only |
 
-No arbitrary command API exists. All `P...` setting commands, `DAT`, resets, firmware operations, command discovery, and undocumented inquiries are prohibited.
+Installed firmware `79.71/61.13` does not respond to QPIGS2. Production never sends it to that tuple. Static C28 analysis found `QPIGS2` at word address `0x3EF3DA`, dispatch pointer `0x3EFA16`, and handler `0x3DC6AA` in official 79.72. Firmware 79.72 is allowlisted and conditionally enables the inquiry, but HVO does not flash firmware as part of this work.
 
-## Battery Field Map
+## Field Use
 
-QPIGS fields are one-based in this table.
+### QPIGS
 
-| Field | Meaning | Encoding | HVO interpretation | Confidence |
-|---:|---|---|---|---|
-| 9 | Battery voltage | Decimal volts | Direct inverter-reported value | High for field/scale |
-| 10 | Battery charging current | Unsigned integer amperes | Charging magnitude | High for field/scale |
-| 11 | Battery capacity | Integer percent | `ReportedStateOfChargePercent`; not asserted to be genuine BMS SOC on every battery mode | Medium |
-| 16 | Battery discharge current | Unsigned integer amperes | Discharging magnitude | High for field/scale |
+QPIGS provides direct AC input/output voltage and frequency, active/apparent load, load percentage, DC bus voltage, battery voltage, charge/discharge current magnitudes, inverter-reported battery capacity, inverter temperature, and MPPT 1 voltage/current/power.
 
-Canonical HVO current is derived as `discharge - charge`, so positive means discharge and negative means charge. Power is derived as `voltage * canonical current`; it is not a reported PI30 field. Both derived values must retain derived provenance.
+Canonical battery current is `discharge - charge`: positive discharge and negative charge. Battery power is `voltage * canonical current`; both are derived. Inverter-reported battery capacity remains an observation and does not replace JK BMS or SmartShunt SOC authority.
 
-## Sentinels And Failures
+### QPGS0
 
-No model-specific numeric sentinel is validated. Zero is a valid current. `NAK`, timeout, CRC failure, missing CR, wrong field count, or numeric parse failure makes the current observation unavailable; none is converted to zero. Previous good values must remain distinguishable from current communication health.
+The 29-field response provides operating mode, fault code, output/load totals, status flags, output mode, charger priority, and both tracker voltage/current channels. MPPT 2 current is whole-ampere resolution on installed 79.71, so `voltage * current` is marked derived/coarse and is not preferred for the canonical three-array aggregate.
 
-## Fixture Provenance
+The device serial field is parsed only to validate field shape and is never forwarded, logged, or committed in fixtures.
 
-`tests/HVO.Hardware.Eg4.Tests/Fixtures/6500ex/discharging-2022-public-capture.json` preserves the public E3 payload and expected battery values. Its frame is explicitly reconstructed because the published capture omitted response CRC bytes. It is not represented as a byte-perfect hardware capture.
+### Q1
 
-`tests/HVO.Hardware.Eg4.Tests/Fixtures/6500ex/charging-2026-08-09-live-hid.json` preserves H1's exact QPIGS request and response, including captured CRC bytes and the expected canonical `-68 A` / `-3699.2 W` charging result. The public discharging fixture proves a zero charging-current field, and H1 proves a zero discharging-current field. Their combination exhausts the idle parser case, so a separately timed zero/zero hardware capture is useful shadow-run evidence but is not a production-parser blocker.
+The 17-field base plus optional 10-field extension provides:
 
-## DevPi5 Inventory
+- SCC PWM, inverter, battery-channel, and transformer temperatures;
+- parallel role, fan-lock state, fan PWM percentage;
+- MPPT 1/SCC charge power and parallel-warning flags;
+- charge stage (`none`, `bulk`, `absorb`, or `float`);
+- equalization configuration/status extension values retained only in the raw decoder when needed.
 
-Read-only inventory on 2026-08-09 found both expected USB devices. The MPPT BMS cable is the CH341 serial adapter at USB path `1-2`; it remains excluded from 6500EX traffic. The inverter monitoring cable is a separate Cypress/STMicroelectronics HID device `0665:5161` at USB path `1-1`, exposed as `/dev/hidraw0`. The owner confirmed both endpoints, and bounded identity inquiries proved that the HID device is the 6500EX.
+The Q1 timing fields are not firmware identity. Firmware comes only from QVFW/QVFW3.
 
-No process owned the HID node during proof. Five allowlisted identity inquiries were sent before one QPIGS request. An immediate second HID session timed out before writing its first identity inquiry; after a conservative cooldown, the complete identity and status sequence succeeded. Production reconnect handling must reopen, repeat identity validation, and retain bounded timeout/backoff behavior.
+## Canonical Three-Array Policy
 
-## Explicit Blockers
+SolarAssistant already provides direct high-resolution metrics for both 6500EX trackers. HVO therefore composes site PV from exactly:
 
-- BMS RS485 remains unsupported: protocol identity, serial settings, role, framing, CRC, addressing, telemetry, and safe cadence are unknown.
-- QPIGS SOC is reported by the inverter; genuine closed-loop BMS provenance is not guaranteed by current evidence.
-- Battery alarms and battery/cell temperatures have no validated RS232 field map.
-- Numeric sentinels remain unknown; zero is a valid current magnitude.
-- Firmware layouts other than the exact captured `79.02/61.00` and `79.71/61.13` tuples are unsupported.
-- A simultaneous zero/zero idle byte capture is unavailable and should be recorded during the shadow run; both individual zero field encodings are validated.
-- No PV or AC value from QPIGS is in HVO scope.
+1. `solarassistant-total/mppt-1`
+2. `solarassistant-total/mppt-2`
+3. `eg4-mppt100-48hv-a/mppt-1`
+
+The aggregate is derived only when all three powers are fresh and timestamps are within the configured skew. Otherwise the existing SolarAssistant aggregate remains the fallback. The coarse HID MPPT 2 estimate is retained in raw EG4 detail history for comparison but excluded from the canonical list and sum, preventing double-counting.
+
+## Failures And History
+
+Zero current is valid. Timeout, NAK, CRC failure, missing CR, wrong field count, identity mismatch, unsupported firmware, or parse failure makes the current observation unavailable; none is converted to zero.
+
+Every successful sample emits a battery branch, MPPT detail, and typed inverter detail. Inverter detail includes AC input/output, active/apparent load, battery branch, mode/fault/load/status flags, four temperatures, PV channels, firmware, fan, and charge-stage diagnostics. Distinct MPPT timestamps are retained for historical queries.
+
+## Supported Firmware
+
+- `79.02/61.00`: historical/public exact-model evidence.
+- `79.71/61.13`: installed and live validated; uses QPIGS/QPGS0/Q1.
+- `79.72/61.13`: official package statically validated; additionally uses QPIGS2.
+
+Any other tuple is rejected before status polling.

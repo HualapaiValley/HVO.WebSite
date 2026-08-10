@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HVO.Hardware.Eg4.Configuration;
 using HVO.Hardware.Eg4.Hosting;
 using HVO.Hardware.Eg4.Simulation;
 using HVO.Hardware.Eg4.Telemetry;
@@ -54,7 +55,10 @@ public sealed class Eg4HostingTests
         await host.StartAsync();
 
         host.Services.GetService<Eg4FleetSimulator>().Should().BeNull();
-        host.Services.GetRequiredService<IEg4TelemetrySource>().Should().BeOfType<Eg46500ExTelemetrySource>();
+        var source = host.Services.GetRequiredService<IEg4TelemetrySource>();
+        source.Should().BeOfType<Eg4TelemetrySourceRouter>();
+        source.Supports(Eg4DeviceType.Inverter6500Ex).Should().BeTrue();
+        source.Supports(Eg4DeviceType.ChargeControllerMppt10048Hv).Should().BeTrue();
         await host.StopAsync();
     }
 

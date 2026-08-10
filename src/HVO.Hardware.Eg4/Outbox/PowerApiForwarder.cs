@@ -112,7 +112,9 @@ public sealed class PowerApiForwarder(
             cancellationToken);
         await RefreshCountsAsync(store, cancellationToken);
         telemetry.SetOutboxState(_pendingCount, _failedCount);
-        if (pending.Count == 0 || IsPlaceholderConfig) return false;
+        if (IsPlaceholderConfig) return false;
+        if (pending.Count == 0)
+            return await ForwardDetailsAsync(store, now, cancellationToken);
 
         store.MarkAttempt(pending, now);
         var ready = new List<(EdgeOutboxRecord Record, PowerReadingPayload Payload)>();
@@ -209,7 +211,8 @@ public sealed class PowerApiForwarder(
         await store.SaveChangesAsync(cancellationToken);
         await RefreshCountsAsync(store, cancellationToken);
         telemetry.SetOutboxState(_pendingCount, _failedCount);
-        return sentCount > 0;
+        var detailSent = await ForwardDetailsAsync(store, now, cancellationToken);
+        return sentCount > 0 || detailSent;
     }
 
     internal async Task RequeueRetryExhaustedAsync(CancellationToken cancellationToken)
@@ -232,8 +235,12 @@ public sealed class PowerApiForwarder(
 
     private async Task RefreshCountsAsync(EdgeOutboxStore<OutboxDbContext> store, CancellationToken cancellationToken)
     {
-        _pendingCount = await store.CountPendingAsync(Eg4OutboxPayloadTypes.Reading, cancellationToken);
-        _failedCount = await store.CountFailedAsync(Eg4OutboxPayloadTypes.Reading, cancellationToken);
+        _pendingCount = await store.CountPendingAsync(Eg4OutboxPayloadTypes.Reading, cancellationToken) +
+            await store.CountPendingAsync(Eg4OutboxPayloadTypes.MpptDetail, cancellationToken) +
+            await store.CountPendingAsync(Eg4OutboxPayloadTypes.InverterDetail, cancellationToken);
+        _failedCount = await store.CountFailedAsync(Eg4OutboxPayloadTypes.Reading, cancellationToken) +
+            await store.CountFailedAsync(Eg4OutboxPayloadTypes.MpptDetail, cancellationToken) +
+            await store.CountFailedAsync(Eg4OutboxPayloadTypes.InverterDetail, cancellationToken);
         _permanentFailedCount = await store.CountFailedAsync(EdgeOutboxFailureKind.Permanent, cancellationToken);
         _retryExhaustedCount = await store.CountFailedAsync(EdgeOutboxFailureKind.RetryExhausted, cancellationToken);
     }
@@ -257,6 +264,101 @@ public sealed class PowerApiForwarder(
             payload = null!;
             return false;
         }
+    }
+
+    private async Task<bool> ForwardDetailsAsync(
+        EdgeOutboxStore<OutboxDbContext> store,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var mppt = await ForwardDetailAsync<PowerMpptDetailPayload>(
+            store, Eg4OutboxPayloadTypes.MpptDetail, BuildPowerEndpoint("mppt-detail"), now, cancellationToken);
+        var inverter = await ForwardDetailAsync<PowerInverterDetailPayload>(
+            store, Eg4OutboxPayloadTypes.InverterDetail, BuildPowerEndpoint("inverter-detail"), now, cancellationToken);
+        await RefreshCountsAsync(store, cancellationToken);
+        telemetry.SetOutboxState(_pendingCount, _failedCount);
+        return mppt || inverter;
+    }
+
+    private async Task<bool> ForwardDetailAsync<TPayload>(
+        EdgeOutboxStore<OutboxDbContext> store,
+        string payloadType,
+        string endpoint,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var pending = await store.GetReadyBatchAsync(
+            payloadType, now, runtimeSettings.EffectiveBatchSize(_options.BatchSize), cancellationToken);
+        if (pending.Count == 0) return false;
+        store.MarkAttempt(pending, now);
+        var sent = false;
+        foreach (var record in pending)
+        {
+            TPayload payload;
+            try
+            {
+                payload = JsonSerializer.Deserialize<TPayload>(record.PayloadJson, JsonOptions)
+                    ?? throw new JsonException("Payload deserialized to null.");
+            }
+            catch (JsonException exception)
+            {
+                store.MarkFailed(record, "Outbox payload JSON is invalid", EdgeOutboxFailureKind.Permanent);
+                logger.LogError(exception, "EG4 detail outbox record {RecordId} contains invalid JSON", record.Id);
+                continue;
+            }
+
+            try
+            {
+                var data = JsonSerializer.SerializeToElement(payload, JsonOptions);
+                var cloudEvent = new Dictionary<string, object?>
+                {
+                    ["specversion"] = CloudEventsConstants.SpecVersion,
+                    ["type"] = EdgePayloadTypes.ToCloudEventType(payloadType),
+                    ["source"] = $"/gateways/eg4/{record.SourceId}",
+                    ["id"] = Guid.NewGuid().ToString("D"),
+                    ["time"] = record.RecordedAtUtc.ToString("O"),
+                    ["datacontenttype"] = CloudEventsConstants.JsonContentType,
+                    ["data"] = data,
+                };
+                using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = JsonContent.Create(cloudEvent, options: JsonOptions),
+                };
+                request.AddTraceContext();
+                using var response = await httpFactory.CreateClient("PowerApi").SendAsync(request, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    store.MarkSent(record, now);
+                    sent = true;
+                }
+                else if ((int)response.StatusCode == 400)
+                    store.MarkFailed(record, "HTTP 400", EdgeOutboxFailureKind.Permanent);
+                else
+                    store.ScheduleRetry(record, $"HTTP {(int)response.StatusCode}", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+            }
+            catch (HttpRequestException)
+            {
+                store.ScheduleRetry(record, "HTTP request failed", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                store.ScheduleRetry(record, "Request timed out", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                store.ScheduleRetry(record, "Transient forwarding pipeline failure", now, _options.MaxRetryAttempts, _options.MaxBackoffSeconds);
+            }
+        }
+        await store.SaveChangesAsync(cancellationToken);
+        return sent;
+    }
+
+    private string BuildPowerEndpoint(string leaf)
+    {
+        var endpoint = _options.ApiEndpoint.TrimEnd('/');
+        if (endpoint.EndsWith("/readings", StringComparison.OrdinalIgnoreCase))
+            endpoint = endpoint[..^"/readings".Length];
+        return $"{endpoint}/{leaf}";
     }
 
     private int MarkBatchResult(

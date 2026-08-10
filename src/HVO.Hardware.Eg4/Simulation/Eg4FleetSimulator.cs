@@ -52,7 +52,7 @@ public sealed class Eg4FleetSimulator(TimeProvider timeProvider) : IEg4Telemetry
         finally { gate.Release(); }
     }
 
-    public async ValueTask<PowerBatteryObservation> ReadAsync(
+    public async ValueTask<Eg4TelemetrySample> ReadAsync(
         Eg4DeviceOptions device,
         CancellationToken cancellationToken)
     {
@@ -73,7 +73,7 @@ public sealed class Eg4FleetSimulator(TimeProvider timeProvider) : IEg4Telemetry
                 throw new Eg4TransportException(failure, $"Scripted {failure} failure for '{device.SourceId}'.");
             var telemetry = step.Telemetry ?? _current.GetValueOrDefault(device.SourceId, new Eg4SimulatedTelemetry());
             _current[device.SourceId] = telemetry;
-            return CreateObservation(device, telemetry, timeProvider.GetUtcNow().UtcDateTime);
+            return Eg4TelemetrySample.Available(CreateObservation(device, telemetry, timeProvider.GetUtcNow().UtcDateTime));
         }
         finally { gate.Release(); }
     }
@@ -88,7 +88,7 @@ public sealed class Eg4FleetSimulator(TimeProvider timeProvider) : IEg4Telemetry
             throw new ArgumentException("A fleet cannot contain null devices.", nameof(devices));
         var tasks = fleet.Where(device => device.Enabled).Select(async device =>
         {
-            try { return new Eg4FleetSimulationResult(device, await ReadAsync(device, cancellationToken), null); }
+            try { return new Eg4FleetSimulationResult(device, (await ReadAsync(device, cancellationToken)).BatteryObservation, null); }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception ex) { return new Eg4FleetSimulationResult(device, null, ex); }
         });

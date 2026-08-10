@@ -73,6 +73,48 @@ public sealed class Eg4FleetWorkerTests
         onlineDashboard.GetSnapshot().Devices.Single().State.Should().Be(Eg4DashboardDeviceState.Online);
     }
 
+    [TestMethod]
+    public async Task PollOnce_EnqueuesOptionalDetailsButUnavailableSampleEnqueuesNothing()
+    {
+        var device = Device();
+        var observation = Observation(device, -10);
+        var richSample = Eg4TelemetrySample.Available(
+            observation,
+            new PowerMpptDetailPayload
+            {
+                SourceId = device.SourceId, DeviceId = device.DeviceId, SourceSystem = "eg4-6500ex", RecordedAtUtc = observation.ObservedAtUtc,
+            },
+            new PowerInverterDetailPayload
+            {
+                SourceId = device.SourceId, DeviceId = device.DeviceId, SourceSystem = "eg4-6500ex", RecordedAtUtc = observation.ObservedAtUtc,
+            });
+        var writer = new FakeWriter();
+        using var telemetry = new GatewayTelemetry(new("eg4-test", "battery-gateway"));
+        using var services = Services(writer);
+        var dashboard = Dashboard(device);
+        var richWorker = new Eg4FleetWorker(
+            new FakeSource(richSample), services.GetRequiredService<IServiceScopeFactory>(),
+            Options.Create(new Eg4Options { Devices = [device] }), dashboard, telemetry,
+            TimeProvider.System, NullLogger<Eg4FleetWorker>.Instance);
+
+        (await richWorker.PollOnceAsync(device, CancellationToken.None)).Should().BeTrue();
+        writer.Payloads.Should().ContainSingle();
+        writer.MpptDetails.Should().ContainSingle();
+        writer.InverterDetails.Should().ContainSingle();
+
+        var unavailableWriter = new FakeWriter();
+        using var unavailableServices = Services(unavailableWriter);
+        var unavailableWorker = new Eg4FleetWorker(
+            new FakeSource(Eg4TelemetrySample.Unavailable("timeout")),
+            unavailableServices.GetRequiredService<IServiceScopeFactory>(),
+            Options.Create(new Eg4Options { Devices = [device] }), Dashboard(device), telemetry,
+            TimeProvider.System, NullLogger<Eg4FleetWorker>.Instance);
+        (await unavailableWorker.PollOnceAsync(device, CancellationToken.None)).Should().BeFalse();
+        unavailableWriter.Payloads.Should().BeEmpty();
+        unavailableWriter.MpptDetails.Should().BeEmpty();
+        unavailableWriter.InverterDetails.Should().BeEmpty();
+    }
+
     private static ServiceProvider Services(FakeWriter writer)
     {
         var services = new ServiceCollection();
@@ -111,15 +153,17 @@ public sealed class Eg4FleetWorkerTests
     private sealed class FakeSource : IEg4TelemetrySource
     {
         private readonly PowerBatteryObservation? _observation;
+        private readonly Eg4TelemetrySample? _sample;
         private readonly Exception? _error;
         public FakeSource(PowerBatteryObservation observation) => _observation = observation;
+        public FakeSource(Eg4TelemetrySample sample) => _sample = sample;
         public FakeSource(Exception error) => _error = error;
         public bool Supports(Eg4DeviceType deviceType) => deviceType == Eg4DeviceType.Inverter6500Ex;
-        public ValueTask<PowerBatteryObservation> ReadAsync(Eg4DeviceOptions device, CancellationToken cancellationToken)
+        public ValueTask<Eg4TelemetrySample> ReadAsync(Eg4DeviceOptions device, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (_error is not null) throw _error;
-            return ValueTask.FromResult(_observation!);
+            return ValueTask.FromResult(_sample ?? Eg4TelemetrySample.Available(_observation!));
         }
     }
 
@@ -127,6 +171,8 @@ public sealed class Eg4FleetWorkerTests
     {
         private int _remainingFailures = failuresBeforeSuccess;
         public List<PowerReadingPayload> Payloads { get; } = [];
+        public List<PowerMpptDetailPayload> MpptDetails { get; } = [];
+        public List<PowerInverterDetailPayload> InverterDetails { get; } = [];
         public int Attempts { get; private set; }
         public Task<bool> EnqueueAsync(PowerReadingPayload payload, CancellationToken cancellationToken)
         {
@@ -134,6 +180,16 @@ public sealed class Eg4FleetWorkerTests
             if (error is not null) throw error;
             if (_remainingFailures-- > 0) throw new IOException("transient disk failure");
             Payloads.Add(payload);
+            return Task.FromResult(true);
+        }
+        public Task<bool> EnqueueMpptDetailAsync(PowerMpptDetailPayload payload, CancellationToken cancellationToken)
+        {
+            MpptDetails.Add(payload);
+            return Task.FromResult(true);
+        }
+        public Task<bool> EnqueueInverterDetailAsync(PowerInverterDetailPayload payload, CancellationToken cancellationToken)
+        {
+            InverterDetails.Add(payload);
             return Task.FromResult(true);
         }
     }

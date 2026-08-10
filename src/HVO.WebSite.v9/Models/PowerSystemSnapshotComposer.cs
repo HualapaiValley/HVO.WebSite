@@ -14,7 +14,8 @@ public static class PowerSystemSnapshotComposer
         IReadOnlyList<PowerReading> readings,
         DateTime observedAtUtc,
         IReadOnlyList<BmsReading>? bmsReadings = null,
-        PowerCompositionOptions? options = null)
+        PowerCompositionOptions? options = null,
+        IReadOnlyList<PowerMpptDetailPayload>? mpptDetails = null)
     {
         options ??= new PowerCompositionOptions();
         var latestStreams = readings
@@ -40,7 +41,7 @@ public static class PowerSystemSnapshotComposer
         return new PowerSystemSnapshot(
             ObservedAtUtc: observedAtUtc,
             Ac: ComposeAc(latestSolarAssistant),
-            Pv: ComposePv(latestSolarAssistant),
+            Pv: ComposePv(latestSolarAssistant, mpptDetails ?? [], observedAtUtc, options),
             Battery: ComposeBattery(latestSolarAssistant, canonicalSmartShunt, batteryBanks),
             BatteryBanks: batteryBanks.Count > 0 ? batteryBanks : null,
             Notes: notes,
@@ -177,14 +178,103 @@ public static class PowerSystemSnapshotComposer
             ChargerSourcePriority: Sourced(solarAssistant.ChargerSourcePriority, PowerMetricSource.SolarAssistant, solarAssistant));
     }
 
-    private static PowerSystemPvSnapshot? ComposePv(PowerReading? solarAssistant)
+    private static PowerSystemPvSnapshot? ComposePv(
+        PowerReading? solarAssistant,
+        IReadOnlyList<PowerMpptDetailPayload> mpptDetails,
+        DateTime observedAtUtc,
+        PowerCompositionOptions options)
     {
-        if (solarAssistant?.PvPowerW is null)
+        var freshDetails = mpptDetails
+            .Where(detail => IsFresh(detail.RecordedAtUtc, observedAtUtc,
+                FreshnessFor(detail.SourceSystem, options), options))
+            .ToArray();
+        var trackerCandidates = freshDetails
+            .SelectMany(detail => detail.Trackers.Select(tracker => new
+            {
+                StableId = $"{detail.SourceId}/{tracker.TrackerId}",
+                Detail = detail,
+                Tracker = tracker,
+            }))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Detail.SourceId) &&
+                !string.IsNullOrWhiteSpace(item.Tracker.TrackerId))
+            .ToArray();
+        var expectedIds = options.ExpectedPvTrackerIds ?? [];
+        var visibleCandidates = expectedIds.Count == 0
+            ? trackerCandidates
+            : trackerCandidates.Where(item => expectedIds.Contains(item.StableId, StringComparer.OrdinalIgnoreCase)).ToArray();
+        var groupedTrackers = visibleCandidates
+            .GroupBy(item => item.StableId, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var trackers = groupedTrackers
+            .Select(group => group
+                .OrderByDescending(item => item.Detail.RecordedAtUtc)
+                .Select(item => new PowerSystemPvTrackerSnapshot(
+                    TrackerId: item.StableId,
+                    Name: item.Tracker.Name,
+                    SourceId: item.Detail.SourceId,
+                    DeviceId: item.Detail.DeviceId,
+                    RecordedAtUtc: DateTime.SpecifyKind(item.Detail.RecordedAtUtc, DateTimeKind.Utc),
+                    Source: PvSourceFor(item.Detail.SourceSystem),
+                    VoltageV: item.Tracker.VoltageV,
+                    CurrentA: item.Tracker.CurrentA,
+                    PowerW: item.Tracker.PowerW,
+                    Provenance: item.Tracker.Provenance,
+                    Confidence: item.Tracker.Confidence))
+                .First())
+            .OrderBy(tracker => tracker.TrackerId, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var expectedCandidates = expectedIds
+            .Select(expectedId => trackerCandidates.Where(item =>
+                string.Equals(item.StableId, expectedId, StringComparison.OrdinalIgnoreCase)).ToArray())
+            .ToArray();
+        var completeTrackers = expectedCandidates
+            .Where(matches => matches.Length == 1 && matches[0].Tracker.PowerW.HasValue)
+            .Select(matches => matches[0])
+            .ToArray();
+        var canDerive = expectedIds.Count > 0 && completeTrackers.Length == expectedIds.Count &&
+            WithinSkew(completeTrackers.Select(item => item.Detail.RecordedAtUtc), options);
+        SourcedValue<double>? power = null;
+        if (canDerive)
+        {
+            var recordedAt = completeTrackers.Max(item => item.Detail.RecordedAtUtc);
+            power = new SourcedValue<double>(
+                completeTrackers.Sum(item => item.Tracker.PowerW!.Value),
+                PowerMetricSource.Derived,
+                DateTime.SpecifyKind(recordedAt, DateTimeKind.Utc),
+                "derived-pv-tracker-sum",
+                Confidence: $"complete tracker set ({completeTrackers.Length}/{expectedIds.Count})");
+        }
+        else if (solarAssistant?.PvPowerW is not null)
+        {
+            power = Sourced(solarAssistant.PvPowerW, PowerMetricSource.SolarAssistant, solarAssistant);
+        }
+
+        if (power is null && trackers.Length == 0 && expectedIds.Count == 0)
             return null;
 
         return new PowerSystemPvSnapshot(
-            PowerW: Sourced(solarAssistant.PvPowerW, PowerMetricSource.SolarAssistant, solarAssistant));
+            PowerW: power,
+            Trackers: trackers.Length > 0 ? trackers : null,
+            ExpectedTrackerCount: expectedIds.Count,
+            ReportedTrackerCount: expectedIds.Count == 0
+                ? trackers.Length
+                : expectedCandidates.Count(matches => matches.Length > 0));
     }
+
+    private static bool WithinSkew(IEnumerable<DateTime> timestamps, PowerCompositionOptions options)
+    {
+        var times = timestamps.Select(timestamp => DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)).ToArray();
+        return times.Length > 0 && times.Max() - times.Min() <= TimeSpan.FromSeconds(options.MaxDerivationSkewSeconds);
+    }
+
+    private static PowerMetricSource PvSourceFor(string? sourceSystem)
+        => sourceSystem?.Trim().ToLowerInvariant() switch
+        {
+            SolarAssistantSystem => PowerMetricSource.SolarAssistant,
+            PowerSourceSystems.Eg46500Ex => PowerMetricSource.Eg46500Ex,
+            PowerSourceSystems.Eg4Mppt10048Hv => PowerMetricSource.Eg4Mppt10048Hv,
+            _ => PowerMetricSource.Unknown,
+        };
 
     private static PowerSystemBatterySnapshot? ComposeBattery(
         PowerReading? solarAssistant,

@@ -9,18 +9,17 @@ namespace HVO.Hardware.Eg4.Tests.Configuration;
 public sealed class Eg4OptionsValidatorTests
 {
     [TestMethod]
-    public void Validate_MultipleSameTypeAndSharedPortWithDistinctUnits_IsValid()
+    public void Validate_MultipleControllersOnStablePortsAtUnitOne_IsValid()
     {
         var options = new Eg4Options
         {
             Devices =
             [
-                Device("a", 1, Eg4DeviceType.ChargeControllerMppt10048Hv),
-                Device("b", 2, Eg4DeviceType.ChargeControllerMppt10048Hv),
+                Device("a", 1, Eg4DeviceType.ChargeControllerMppt10048Hv, "/dev/serial/by-id/usb-eg4-a"),
+                Device("b", 1, Eg4DeviceType.ChargeControllerMppt10048Hv, "/dev/serial/by-id/usb-eg4-b"),
             ],
         };
 
-        options.Devices.ForEach(device => device.Enabled = false);
         new Eg4OptionsValidator(Environment("Production")).Validate(null, options).Succeeded.Should().BeTrue();
     }
 
@@ -103,14 +102,14 @@ public sealed class Eg4OptionsValidatorTests
     }
 
     [TestMethod]
-    public void Validate_RejectsEnabledMpptUntilMonitoringInterfaceIsValidated()
+    public void Validate_MpptRequiresValidatedStablePathAndUnitOne()
     {
-        var controller = Device("controller", 1, Eg4DeviceType.ChargeControllerMppt10048Hv);
+        var controller = Device("controller", 2, Eg4DeviceType.ChargeControllerMppt10048Hv);
 
         var result = new Eg4OptionsValidator(Environment("Production"))
             .Validate(null, new Eg4Options { Devices = [controller] });
 
-        result.Failures.Should().ContainSingle(message => message.Contains("no validated monitoring interface", StringComparison.Ordinal));
+        result.Failures.Should().ContainSingle(message => message.Contains("must be 1", StringComparison.Ordinal));
     }
 
     [TestMethod]

@@ -36,8 +36,6 @@ public sealed class Eg4OptionsValidator(IHostEnvironment environment) : IValidat
 
             if (!Enum.IsDefined(device.Type) || device.Type == Eg4DeviceType.Unknown)
                 failures.Add($"Device '{device.Alias}' has an unsupported Type.");
-            if (device.Enabled && device.Type == Eg4DeviceType.ChargeControllerMppt10048Hv)
-                failures.Add($"Device '{device.Alias}' cannot be enabled because MPPT controller telemetry has no validated monitoring interface.");
             var stableSerialPort = IsStablePath(device.Port, StablePortPrefix);
             var stableHidrawPort = IsStablePath(device.Port, StableHidrawPrefix);
             if (device.Type == Eg4DeviceType.Inverter6500Ex)
@@ -53,8 +51,8 @@ public sealed class Eg4OptionsValidator(IHostEnvironment environment) : IValidat
             {
                 if (!stableSerialPort)
                     failures.Add($"Device '{device.Alias}' Port must be a stable /dev/serial/by-id path.");
-                if (device.UnitId is < 1 or > 247)
-                    failures.Add($"Device '{device.Alias}' UnitId must be between 1 and 247.");
+                if (device.UnitId != 1)
+                    failures.Add($"Device '{device.Alias}' UnitId must be 1 for the validated MPPT100-48HV mapping.");
                 if (!endpoints.Add($"modbus:{device.Port}:{device.UnitId}"))
                     failures.Add($"Port/unit combination '{device.Port}'/{device.UnitId} is configured more than once.");
             }

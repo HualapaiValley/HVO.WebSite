@@ -638,7 +638,8 @@
           "Microsoft.Extensions.Http.Resilience": "[10.8.0, )",
           "MudBlazor": "[9.7.0, )",
           "OpenTelemetry.Api": "[1.17.0, )",
-          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.17.0, )"
+          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.17.0, )",
+          "System.IO.Ports": "[10.0.10, )"
         }
       },
       "hvo.website.themes": {

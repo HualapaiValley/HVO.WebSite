@@ -20,12 +20,22 @@ public sealed class PowerSystemSnapshotTests
         var snapshot = new PowerSystemSnapshot(
             ObservedAtUtc: recordedAtUtc,
             Pv: new PowerSystemPvSnapshot(
-                PowerW: new SourcedValue<double>(1234.5, PowerMetricSource.SolarAssistant, recordedAtUtc, "solarassistant-total")),
+                PowerW: new SourcedValue<double>(1234.5, PowerMetricSource.SolarAssistant, recordedAtUtc, "solarassistant-total"),
+                Trackers:
+                [
+                    new PowerSystemPvTrackerSnapshot(
+                        "solarassistant-total/mppt-1", "6500EX MPPT 1", "solarassistant-total", "inverter_1",
+                        recordedAtUtc, PowerMetricSource.SolarAssistant, 336.5, 2.7, 934,
+                        PowerObservationProvenance.Direct, "source-direct"),
+                ],
+                ExpectedTrackerCount: 3,
+                ReportedTrackerCount: 1),
             Battery: new PowerSystemBatterySnapshot(
                 StateOfChargePercent: new SourcedValue<double>(89, PowerMetricSource.JkBms, recordedAtUtc, "jkbms", Confidence: "preferred"),
                 PowerW: new SourcedValue<double>(420, PowerMetricSource.VictronSmartShunt, recordedAtUtc, "smartshunt-lifepo4")));
 
         snapshot.Pv!.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
+        snapshot.Pv.Trackers.Should().ContainSingle().Which.Provenance.Should().Be(PowerObservationProvenance.Direct);
         snapshot.Battery!.StateOfChargePercent!.Source.Should().Be(PowerMetricSource.JkBms);
         snapshot.Battery.PowerW!.Source.Should().Be(PowerMetricSource.VictronSmartShunt);
     }
