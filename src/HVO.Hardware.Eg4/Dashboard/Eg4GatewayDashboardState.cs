@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.Eg4.Dashboard;
 
-public enum Eg4DashboardDeviceState { Waiting, Online, Degraded, Offline, Disabled }
+public enum Eg4DashboardDeviceState { Waiting, Online, Degraded, Offline, Disabled, Unavailable }
 public enum Eg4DashboardHealthState { Healthy, Degraded, Offline, Misconfigured }
 
 public sealed record Eg4DashboardDevice(
@@ -52,7 +52,9 @@ public sealed record Eg4GatewayDashboardSnapshot(
     public int DegradedCount => Devices.Count(device => device.State is Eg4DashboardDeviceState.Waiting or Eg4DashboardDeviceState.Degraded);
     public int OfflineCount => Devices.Count(device => device.State == Eg4DashboardDeviceState.Offline);
     public int DisabledCount => Devices.Count(device => device.State == Eg4DashboardDeviceState.Disabled);
-    public Eg4DashboardHealthState HealthState => Devices.Count(device => device.State != Eg4DashboardDeviceState.Disabled) switch
+    public int UnavailableCount => Devices.Count(device => device.State == Eg4DashboardDeviceState.Unavailable);
+    public int ActiveCount => Devices.Count(device => device.State is not Eg4DashboardDeviceState.Disabled and not Eg4DashboardDeviceState.Unavailable);
+    public Eg4DashboardHealthState HealthState => ActiveCount switch
     {
         0 => Eg4DashboardHealthState.Misconfigured,
         _ when OfflineCount == 0 && DegradedCount == 0 => Eg4DashboardHealthState.Healthy,
@@ -151,7 +153,9 @@ public sealed class Eg4GatewayDashboardState : IEg4GatewayDashboardState, IEg4Ga
         var hasTelemetry = observation is not null &&
             (observation.VoltageV.HasValue || observation.CurrentA.HasValue || observation.PowerW.HasValue || observation.StateOfChargePercent.HasValue);
         var state = !device.Enabled
-            ? Eg4DashboardDeviceState.Disabled
+            ? device.Type == Eg4DeviceType.ChargeControllerMppt10048Hv
+                ? Eg4DashboardDeviceState.Unavailable
+                : Eg4DashboardDeviceState.Disabled
             : observation is null
                 ? runtime?.Error is null ? Eg4DashboardDeviceState.Waiting : Eg4DashboardDeviceState.Offline
                 : runtime?.Error is not null || isStale || !hasTelemetry

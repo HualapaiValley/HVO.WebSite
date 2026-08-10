@@ -57,11 +57,12 @@ The container runs as root but receives only the explicitly mapped HID nodes; it
 1. Copy `deploy/pi-gateways/eg4/.env.example` to the ignored `.env` file.
 2. Provision an API key with only `ingest:power` and set `EG4_POWER_API_KEY` without committing or printing it.
 3. Keep `EG4_DEVICE_1_ENABLED=false` while only one HID exists.
-4. Keep the source and device IDs stable; list indexes are configuration positions, not identity.
-5. Keep `HVO_WEBSITE_PUBLIC_BASE_URL` on the HTTPS public website route.
-6. Leave `OTEL_COLLECTOR_ENDPOINT` empty unless collector reachability has been verified.
+4. Set `EG4_MPPT_0_PORT` to the stable `/dev/serial/by-id` identity for the installed MPPT BMS cable. The cable is recorded for inventory only and is not mapped into the container or polled.
+5. Keep the source and device IDs stable; list indexes are configuration positions, not identity.
+6. Keep `HVO_WEBSITE_PUBLIC_BASE_URL` on the HTTPS public website route.
+7. Leave `OTEL_COLLECTOR_ENDPOINT` empty unless collector reachability has been verified.
 
-The one-device base stack maps only `EG4_DEVICE_0_PORT`. When `EG4_DEVICE_1_ENABLED=true`, `deploy-pi-gateway.sh` automatically adds `docker-compose.two-device.yml`; both stable HID nodes must then exist before container creation.
+The one-device base stack maps only `EG4_DEVICE_0_PORT`. Its dashboard also lists the installed MPPT as `Telemetry unavailable`; this is inventory, not a zero-valued observation. The MPPT BMS cable has no validated controller-monitoring protocol and remains inaccessible to the container. When `EG4_DEVICE_1_ENABLED=true`, `deploy-pi-gateway.sh` automatically adds `docker-compose.two-device.yml`; both stable HID nodes must then exist before container creation.
 
 The deployment intentionally builds the image natively through the remote `devpi5` Docker context. The current registry publishing script runs on x64 and does not publish EG4 until a multi-architecture publishing workflow is implemented.
 
@@ -80,7 +81,7 @@ ssh devpi5 curl --fail https://www.hualapaivalleyobservatory.org/health/live
 ssh devpi5 'test "$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" https://www.hualapaivalleyobservatory.org/api/v1/power/readings)" = 405'
 ```
 
-Confirm port 5600 is unclaimed and both configured `/dev/hvo` nodes resolve to the intended physical devices. Confirm cable isolation, grounding, and USB power suitability physically; software inventory cannot prove them.
+Confirm port 5600 is unclaimed and every enabled `/dev/hvo` node resolves to the intended physical device. Confirm cable isolation, grounding, and USB power suitability physically; software inventory cannot prove them.
 
 Docker Compose gives shell environment variables precedence over `--env-file`. The deploy script refuses EG4 shell overrides by default and reports variable names only. Unset stale variables. Use `--allow-env-overrides` only after intentionally verifying every override.
 

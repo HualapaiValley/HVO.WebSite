@@ -10,13 +10,19 @@ public partial class Eg4DeviceCard
     [Parameter, EditorRequired] public Eg4DashboardDevice Device { get; set; } = default!;
     private string TypeLabel => Device.Type == Eg4DeviceType.Inverter6500Ex ? "6500EX inverter" : "MPPT100-48HV controller";
     private string RoleLabel => Device.Role == PowerMeasurementRole.InverterBranch ? "Inverter branch" : "Charge-controller branch";
-    private string StateLabel => Device.State == Eg4DashboardDeviceState.Disabled ? "Disabled" : Device.State.ToString();
+    private string StateLabel => Device.State switch
+    {
+        Eg4DashboardDeviceState.Disabled => "Disabled",
+        Eg4DashboardDeviceState.Unavailable => "Telemetry unavailable",
+        _ => Device.State.ToString(),
+    };
     private string StateChipClass => Device.State switch
     {
         Eg4DashboardDeviceState.Online => "hvo-chip-success",
         Eg4DashboardDeviceState.Waiting => "hvo-chip-warning",
         Eg4DashboardDeviceState.Degraded => "hvo-chip-warning",
         Eg4DashboardDeviceState.Offline => "hvo-chip-danger",
+        Eg4DashboardDeviceState.Unavailable => "hvo-chip-warning",
         _ => string.Empty,
     };
     private string PowerState => Device.CurrentA switch

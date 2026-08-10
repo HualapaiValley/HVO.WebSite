@@ -3,3 +3,12 @@ services:
     devices:
       - "${EG4_DEVICE_0_PORT:-/dev/hvo/eg4-6500ex-a}:${EG4_DEVICE_0_PORT:-/dev/hvo/eg4-6500ex-a}:rw"
       - "${EG4_DEVICE_1_PORT:-/dev/hvo/eg4-6500ex-b}:${EG4_DEVICE_1_PORT:-/dev/hvo/eg4-6500ex-b}:rw"
+    environment:
+      Eg4__Devices__2__Type: Inverter6500Ex
+      Eg4__Devices__2__SourceId: ${EG4_DEVICE_1_SOURCE_ID:-eg4-6500ex-b}
+      Eg4__Devices__2__DeviceId: ${EG4_DEVICE_1_DEVICE_ID:-inverter-b}
+      Eg4__Devices__2__Alias: ${EG4_DEVICE_1_ALIAS:-6500EX Inverter B}
+      Eg4__Devices__2__Enabled: "true"
+      Eg4__Devices__2__Port: ${EG4_DEVICE_1_PORT:-/dev/hvo/eg4-6500ex-b}
+      Eg4__Devices__2__UnitId: "0"
+      Eg4__Devices__2__PollIntervalSeconds: ${EG4_DEVICE_1_POLL_INTERVAL_SECONDS:-60}

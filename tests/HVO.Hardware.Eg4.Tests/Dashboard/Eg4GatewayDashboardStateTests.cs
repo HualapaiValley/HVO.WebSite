@@ -48,6 +48,31 @@ public sealed class Eg4GatewayDashboardStateTests
     }
 
     [TestMethod]
+    public async Task DisabledMppt_IsUnavailableWithoutDegradingActiveFleetHealth()
+    {
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 8, 9, 15, 0, 0, TimeSpan.Zero));
+        var inverter = Device("inverter", Eg4DeviceType.Inverter6500Ex);
+        var controller = Device("controller", Eg4DeviceType.ChargeControllerMppt10048Hv);
+        controller.Enabled = false;
+        var options = Options.Create(new Eg4Options { Devices = [inverter, controller] });
+        var state = new Eg4GatewayDashboardState(options, time, new UnavailableEg4OutboxDashboardProvider());
+        var simulator = new Eg4FleetSimulator(time);
+        await simulator.SetScriptAsync(inverter.SourceId, [new Eg4SimulationStep(new Eg4SimulatedTelemetry(52, 5, 260, 80))]);
+        await new Eg4SimulationDashboardWorker(simulator, options, state, time,
+            NullLogger<Eg4SimulationDashboardWorker>.Instance).PublishOnceAsync(CancellationToken.None);
+
+        var snapshot = state.GetSnapshot();
+
+        snapshot.ActiveCount.Should().Be(1);
+        snapshot.UnavailableCount.Should().Be(1);
+        snapshot.DisabledCount.Should().Be(0);
+        snapshot.HealthState.Should().Be(Eg4DashboardHealthState.Healthy);
+        snapshot.Devices.Single(device => device.SourceId == controller.SourceId).Should().Match<Eg4DashboardDevice>(device =>
+            device.State == Eg4DashboardDeviceState.Unavailable &&
+            device.VoltageV == null && device.CurrentA == null && device.PowerW == null && device.StateOfChargePercent == null);
+    }
+
+    [TestMethod]
     public async Task Publisher_RedactsUnexpectedErrorsAndWorkerHonorsCancellation()
     {
         var time = new FakeTimeProvider();

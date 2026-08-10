@@ -61,6 +61,29 @@ public sealed class Eg4StatusBunitTests : BunitContext
     }
 
     [TestMethod]
+    public void UnavailableMppt_RendersReasonWithoutSyntheticZeroReading()
+    {
+        var controller = new Eg4DashboardDevice(
+            "eg4-mppt100-48hv-a",
+            "controller-a",
+            "MPPT100-48HV Controller A",
+            Eg4DeviceType.ChargeControllerMppt10048Hv,
+            PowerMeasurementRole.ChargeControllerBranch,
+            Eg4DashboardDeviceState.Unavailable);
+        Services.AddSingleton<IEg4GatewayDashboardState>(new FakeDashboardState(Snapshot([controller])));
+
+        var component = Render<Status>();
+
+        component.WaitForAssertion(() => component.Markup.Should().Contain("1 telemetry unavailable"));
+        var card = component.Find("[data-source-id='eg4-mppt100-48hv-a']");
+        card.TextContent.Should().Contain("Telemetry unavailable")
+            .And.Contain("not a validated controller-monitoring interface")
+            .And.Contain("no numeric reading is reported")
+            .And.Contain("Never observed");
+        card.TextContent.Should().NotContain("Idle").And.NotContain("0 W").And.NotContain("0.0 A");
+    }
+
+    [TestMethod]
     public void OutboxRuntimeControls_ApplyAndResetThroughStateContract()
     {
         var state = new FakeDashboardState(Snapshot([]));

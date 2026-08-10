@@ -144,6 +144,6 @@ To verify deployed endpoints after rollout:
 
 - Follow `docs/gateways/eg4/deployment-and-shadow-validation.md` before rollout.
 - Map only stable `/dev/hvo/eg4-6500ex-*` HID nodes; never map `/dev/hidrawN` or the MPPT/BMS `/dev/ttyUSB0` cable.
-- The base profile commissions one inverter. The second-device overlay is selected only when `EG4_DEVICE_1_ENABLED=true` and both stable nodes exist.
+- The base profile commissions one inverter and lists the installed MPPT as telemetry unavailable without mapping or polling its BMS cable. The second-device overlay is selected only when `EG4_DEVICE_1_ENABLED=true` and both stable inverter HID nodes exist.
 - Production simulation is disabled. No command path, MPPT polling, PV ingest, or AC ingest is enabled.
 - Set `HVO_CHECK_EG4=true` when `check-deployments.sh` should require EG4 health.
