@@ -7,10 +7,11 @@ docker_context="${HVO_PI_DOCKER_CONTEXT:-devpi5}"
 dry_run=false
 pull_images=false
 build_images=true
+allow_env_overrides=false
 target=""
 
 usage() {
-	printf 'Usage: %s [--dry-run] [--context <docker-context>] [--pull] [--no-build] <all|davis|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
+	printf 'Usage: %s [--dry-run] [--context <docker-context>] [--pull] [--no-build] [--allow-env-overrides] <all|davis|eg4|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
 	printf '\n'
 	printf 'Deploys one or more Pi gateway compose stacks using an existing Docker context.\n'
 }
@@ -53,13 +54,45 @@ warn_shell_env_overrides() {
 
 		if [[ -v "${env_name}" ]]; then
 			printf 'Warning: shell environment variable %s is set and will override the .env file used by docker compose --env-file.\n' "${env_name}" >&2
+			override_env_names+=("${env_name}")
 		fi
 	done
+}
+
+read_env_value() {
+	local env_file="$1"
+	local name="$2"
+	local key value
+
+	if [[ -v "${name}" ]]; then
+		printf '%s\n' "${!name}"
+		return
+	fi
+
+	while IFS='=' read -r key value; do
+		if [[ "${key}" == "${name}" ]]; then
+			value="${value%$'\r'}"
+			value="${value#\"}"
+			value="${value%\"}"
+			value="${value#\'}"
+			value="${value%\'}"
+			printf '%s\n' "${value}"
+			return
+		fi
+	done < "${env_file}"
+}
+
+is_true() {
+	case "${1,,}" in
+		1|true|yes|on) return 0 ;;
+		*) return 1 ;;
+	esac
 }
 
 compose_dir_for_target() {
 	case "$1" in
 		davis) printf '%s\n' 'deploy/pi-gateways/davis' ;;
+		eg4) printf '%s\n' 'deploy/pi-gateways/eg4' ;;
 		jkbms) printf '%s\n' 'deploy/pi-gateways/jkbms' ;;
 		solarassistant) printf '%s\n' 'deploy/pi-gateways/solarassistant' ;;
 		smartshunt) printf '%s\n' 'deploy/pi-gateways/smartshunt' ;;
@@ -70,21 +103,41 @@ compose_dir_for_target() {
 
 deploy_target() {
 	local gateway="$1"
-	local compose_dir compose_file env_file
+	local compose_dir compose_file env_file two_device_file
 	compose_dir="$(compose_dir_for_target "${gateway}")"
 	compose_file="${repo_root}/${compose_dir}/docker-compose.yml"
-	env_file="${repo_root}/${compose_dir}/.env"
+	env_file="${HVO_PI_GATEWAY_ENV_FILE:-${repo_root}/${compose_dir}/.env}"
+	two_device_file="${repo_root}/${compose_dir}/docker-compose.two-device.yml"
 
 	[[ -f "${compose_file}" ]] || fail "Compose file not found: ${compose_file}"
 	[[ -f "${env_file}" ]] || fail "Environment file not found: ${env_file}"
 
 	printf 'Deploying %s with Docker context %s\n' "${gateway}" "${docker_context}"
 
-	local compose_args=(--context "${docker_context}" compose --env-file "${env_file}" -f "${compose_file}")
+	local compose_files=("${compose_file}")
 	local up_args=(up -d --wait --wait-timeout 120)
 	local seen_env_names=()
+	local override_env_names=()
 
 	warn_shell_env_overrides "${compose_file}"
+	if [[ "${gateway}" == eg4 && -f "${two_device_file}" ]]; then
+		warn_shell_env_overrides "${two_device_file}"
+		if is_true "$(read_env_value "${env_file}" EG4_DEVICE_1_ENABLED)"; then
+			compose_files+=("${two_device_file}")
+			printf 'Enabling the EG4 two-device Compose overlay.\n'
+		fi
+	fi
+	if [[ "${gateway}" == eg4 && "${allow_env_overrides}" == false && ${#override_env_names[@]} -gt 0 ]]; then
+		fail "EG4 deployment refuses shell environment overrides (${override_env_names[*]}). Unset them or pass --allow-env-overrides after verifying docker compose config."
+	fi
+
+	local compose_args=(--context "${docker_context}" compose --env-file "${env_file}")
+	if [[ "${gateway}" == eg4 ]]; then
+		compose_args+=(--project-name eg4)
+	fi
+	for file in "${compose_files[@]}"; do
+		compose_args+=(-f "${file}")
+	done
 
 	if [[ "${build_images}" == true ]]; then
 		up_args+=(--build)
@@ -122,11 +175,15 @@ while (($# > 0)); do
 			build_images=false
 			shift
 			;;
+		--allow-env-overrides)
+			allow_env_overrides=true
+			shift
+			;;
 		-h|--help)
 			usage
 			exit 0
 			;;
-		all|davis|jkbms|solarassistant|smartshunt|tplinkkasa|tplink-kasa)
+		all|davis|eg4|jkbms|solarassistant|smartshunt|tplinkkasa|tplink-kasa)
 			[[ -z "${target}" ]] || fail 'Only one target can be specified.'
 			target="$1"
 			shift
@@ -141,6 +198,10 @@ done
 	usage
 	exit 1
 }
+
+if [[ "${target}" == all && -n "${HVO_PI_GATEWAY_ENV_FILE:-}" ]]; then
+	fail 'HVO_PI_GATEWAY_ENV_FILE can only be used with a single gateway target.'
+fi
 
 command -v docker >/dev/null 2>&1 || fail 'Required command not found: docker'
 

@@ -1,0 +1,7 @@
+# EG4 6500EX USB HID adapters expose no serial number. Match the fixed physical
+# USB topology as well as VID/PID. Verify KERNELS values with udevadm before use.
+SUBSYSTEM=="hidraw", KERNELS=="1-1", ATTRS{idVendor}=="0665", ATTRS{idProduct}=="5161", OWNER="root", GROUP="root", MODE="0600", SYMLINK+="hvo/eg4-6500ex-a"
+
+# Add a second rule only after the second inverter's physical USB path is known.
+# Replace USB_PATH_B; do not install this commented example unchanged.
+# SUBSYSTEM=="hidraw", KERNELS=="USB_PATH_B", ATTRS{idVendor}=="0665", ATTRS{idProduct}=="5161", OWNER="root", GROUP="root", MODE="0600", SYMLINK+="hvo/eg4-6500ex-b"

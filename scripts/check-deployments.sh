@@ -29,6 +29,9 @@ check_url 'jkbms /health' "http://${pi_host}:5200/health"
 check_url 'solarassistant /health' "http://${pi_host}:5300/health"
 check_url 'smartshunt /health' "http://${pi_host}:5400/health"
 check_url 'tplink-kasa /health' "http://${pi_host}:5500/health"
+if [[ "${HVO_CHECK_EG4:-false}" == true ]]; then
+	check_url 'eg4 /health' "http://${pi_host}:${EG4_HTTP_PORT:-5600}/health"
+fi
 check_url 'loki /ready' "${observability_base_url}:3100/ready"
 check_url 'prometheus /-/ready' "${observability_base_url}:9090/-/ready"
 check_url 'grafana /api/health' "${observability_base_url}:3000/api/health"

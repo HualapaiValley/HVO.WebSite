@@ -46,6 +46,7 @@ Use the Pi Docker context:
 ```bash
 ./scripts/outbox-maintenance.sh --remote --context devpi5 summary smartshunt
 ./scripts/outbox-maintenance.sh --remote --context devpi5 schema tplinkkasa
+./scripts/outbox-maintenance.sh --remote --context devpi5 summary eg4
 ```
 
 ## Safe Re-Baselining
@@ -70,6 +71,12 @@ docker --context devpi5 logs --since 30m <container>
 Do not enter Docker's log storage directory or delete driver files. Do not run broad Docker volume cleanup: `/app/data` volumes contain SQLite outboxes and device registries. A prolonged OTLP outage may exhaust the 5,000-event application queue; newer central log records are then dropped while bounded local Docker logs remain available.
 
 Central recovery and alert handling are documented in `docs/SHARED_INFRASTRUCTURE.md`. `HvoLogExporterSendFailures` indicates retrying, while `HvoLogRecordsDropped` indicates confirmed data loss and requires incident review.
+
+## EG4 6500EX
+
+The EG4 gateway uses stable `/dev/hvo` USB HID mappings, a dedicated `eg4_eg4-outbox` volume, and local UI port 5600. Its `/health` result includes device connectivity and forwarding state. Detailed `/diagnostics/status`, `/diagnostics/devices`, and `/diagnostics/outbox` endpoints require the configured `X-Api-Key`.
+
+Use `docs/gateways/eg4/deployment-and-shadow-validation.md` for USB identity, secret-safe Compose validation, commissioning, comparison criteria, and volume-preserving rollback. The EG4 stack is read-only and battery-branch-only; do not connect the MPPT/BMS serial cable or enable command, PV, or AC collection.
 
 ## Schema Compatibility
 
