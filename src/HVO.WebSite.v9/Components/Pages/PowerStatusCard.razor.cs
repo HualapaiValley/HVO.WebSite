@@ -1,4 +1,5 @@
 using HVO.WebSite.v9.Models;
+using HVO.WebSite.v9.Configuration;
 using HVO.WebSite.v9.Services;
 using Microsoft.AspNetCore.Components;
 
@@ -22,10 +23,27 @@ public partial class PowerStatusCard : ComponentBase
         _         => ""
     };
 
+    private static string FreshnessChipClass(string status) => status switch
+    {
+        "fresh" => "hvo-chip-success",
+        "warning" => "hvo-chip-warning",
+        "stale" or "invalid" => "hvo-chip-danger",
+        _ => "",
+    };
+
+    private static string SelectionChipClass(string label)
+        => label.StartsWith("Preferred", StringComparison.Ordinal) ? "hvo-chip-success"
+            : label.StartsWith("Fallback", StringComparison.Ordinal)
+                || label.StartsWith("Selected", StringComparison.Ordinal) ? "hvo-chip-warning"
+            : "";
+
     protected override async Task OnInitializedAsync()
     {
         var snapshot = await SnapshotProvider.GetLatestAsync();
-        _viewModel = PowerStatusViewModel.FromSnapshot(snapshot);
+        var compositionOptions = Configuration
+            .GetSection(PowerCompositionOptions.SectionName)
+            .Get<PowerCompositionOptions>() ?? new PowerCompositionOptions();
+        _viewModel = PowerStatusViewModel.FromSnapshot(snapshot, compositionOptions);
         var (inventory, configuration, energy, inverterDetail, gatewayStatus) = await InventoryConfigurationProvider.GetLatestCentralAsync();
         _inventoryConfiguration = PowerInventoryConfigurationViewModel.FromSnapshots(inventory, configuration);
         _gatewayStatus = PowerGatewayStatusViewModel.FromSnapshot(gatewayStatus);
