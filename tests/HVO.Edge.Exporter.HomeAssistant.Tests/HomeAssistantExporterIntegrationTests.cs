@@ -108,6 +108,7 @@ public sealed class HomeAssistantExporterIntegrationTests
 
     private static HomeAssistantExporterOptions CreateOptions(string websocketBase) => new()
     {
+        Enabled = true,
         Endpoint = $"{websocketBase}/api/websocket",
         CentralIngestEndpoint = Required("HVO_HA_TEST_INGEST_URL") + "/",
         AllowInsecureCentralIngest = true,

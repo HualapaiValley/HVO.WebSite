@@ -1,5 +1,6 @@
 using FluentAssertions;
 using HVO.DataModels.Data;
+using HVO.DataModels.Models.V9;
 using HVO.WebSite.v9;
 using HVO.WebSite.v9.Middleware;
 using HVO.WebSite.v9.Services;
@@ -132,6 +133,28 @@ public sealed class ApiKeySeedServiceTests
                 ["Seeding:HomeAssistantExporterSources:1"] = "govee:sensor-1"
             })
             .Build();
+        await using (var setupScope = services.CreateAsyncScope())
+        {
+            var setupDb = setupScope.ServiceProvider.GetRequiredService<HvoV9DbContext>();
+            var expiredKey = new ApiKey
+            {
+                Id = Guid.NewGuid(),
+                KeyHash = new string('e', 64),
+                Name = "Expired source owner",
+                Type = ApiKeyType.System,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow.AddDays(-2),
+                ExpiresAt = DateTime.UtcNow.AddDays(-1)
+            };
+            expiredKey.Claims.Add(new ApiKeyClaim
+            {
+                ApiKeyId = expiredKey.Id,
+                ClaimType = "source",
+                ClaimValue = "kasa:plug-1"
+            });
+            setupDb.ApiKeys.Add(expiredKey);
+            await setupDb.SaveChangesAsync();
+        }
         var seeder = new ApiKeySeedService(services, configuration, NullLogger<ApiKeySeedService>.Instance);
 
         await seeder.StartAsync(CancellationToken.None);

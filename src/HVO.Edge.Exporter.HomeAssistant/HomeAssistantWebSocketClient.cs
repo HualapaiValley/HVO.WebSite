@@ -51,8 +51,24 @@ internal sealed class HomeAssistantWebSocketClient(
         var buffered = new Dictionary<string, HomeAssistantState>(StringComparer.Ordinal);
 
         await SendCommandAsync(socket, new { id = 1, type = "subscribe_events", event_type = "state_changed" }, cancellationToken);
-        using (var subscribed = await ReceiveResultAsync(socket, 1, cancellationToken))
+        using (var subscriptionTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
+            subscriptionTimeout.CancelAfter(TimeSpan.FromSeconds(options.CommandTimeoutSeconds));
+            var subscribed = false;
+            while (!subscribed)
+            {
+                using var message = await ReceiveAsync(socket, subscriptionTimeout.Token);
+                var root = message.RootElement;
+                if (root.TryGetProperty("id", out var id) && id.GetInt32() == 1 && root.GetProperty("type").GetString() == "result")
+                {
+                    EnsureSuccess(root);
+                    subscribed = true;
+                }
+                else if (TryParseEvent(root, out var changed) && mappedEntityIds.Contains(changed.EntityId))
+                {
+                    buffered[changed.EntityId] = changed;
+                }
+            }
         }
         await SendCommandAsync(socket, new { id = 2, type = "config/entity_registry/list_for_display" }, cancellationToken);
         using (var registryTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
@@ -122,19 +138,6 @@ internal sealed class HomeAssistantWebSocketClient(
             if (!string.Equals(platform, mapping.ExpectedPlatform, StringComparison.Ordinal))
                 throw new InvalidOperationException($"Configured Home Assistant entity {binding.EntityId} has an unexpected platform.");
         }
-    }
-
-    private async Task<JsonDocument> ReceiveResultAsync(ClientWebSocket socket, int expectedId, CancellationToken cancellationToken)
-    {
-        var message = await ReceiveCommandAsync(socket, cancellationToken);
-        var root = message.RootElement;
-        if (!root.TryGetProperty("id", out var id) || id.GetInt32() != expectedId || root.GetProperty("type").GetString() != "result")
-        {
-            message.Dispose();
-            throw new InvalidOperationException("Home Assistant returned an unexpected WebSocket command response.");
-        }
-        EnsureSuccess(root);
-        return message;
     }
 
     private static void EnsureSuccess(JsonElement root)

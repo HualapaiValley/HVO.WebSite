@@ -38,11 +38,7 @@ internal sealed class HomeAssistantExporterDiagnosticsProvider(
             alerts.Add(new GatewayHealthAlert("outbox-failed", GatewayAlertSeverity.Warning, $"{outbox.FailedCount} outbox record(s) require attention."));
         if (!string.IsNullOrWhiteSpace(outbox.LastError))
             alerts.Add(new GatewayHealthAlert("outbox-forwarding", GatewayAlertSeverity.Warning, "Central forwarding is currently degraded."));
-        var healthState = !snapshot.Connected
-            ? GatewayHealthState.Critical
-            : alerts.Any(static alert => alert.Severity == GatewayAlertSeverity.Warning)
-                ? GatewayHealthState.Warning
-                : GatewayHealthState.Healthy;
+        var healthState = GetHealthState(snapshot.Connected, alerts);
         return new EdgeDiagnosticsSnapshot(
             new GatewayHealthSnapshot(
                 healthState,
@@ -56,5 +52,14 @@ internal sealed class HomeAssistantExporterDiagnosticsProvider(
                 snapshot.Connected ? options.Value.Mappings.Count : 0,
                 0,
                 snapshot.Connected ? 0 : options.Value.Mappings.Count));
+    }
+
+    internal static GatewayHealthState GetHealthState(bool connected, IReadOnlyList<GatewayHealthAlert> alerts)
+    {
+        if (!connected || alerts.Any(static alert => alert.Severity == GatewayAlertSeverity.Critical))
+            return GatewayHealthState.Critical;
+        return alerts.Any(static alert => alert.Severity == GatewayAlertSeverity.Warning)
+            ? GatewayHealthState.Warning
+            : GatewayHealthState.Healthy;
     }
 }

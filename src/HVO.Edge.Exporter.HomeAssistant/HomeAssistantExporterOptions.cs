@@ -5,7 +5,7 @@ namespace HVO.Edge.Exporter.HomeAssistant;
 public sealed class HomeAssistantExporterOptions
 {
     public const string SectionName = "HomeAssistant:Exporter";
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; set; }
     public string? Endpoint { get; set; }
     public string AccessTokenSecret { get; set; } = "home-assistant-token";
     public string? CentralIngestEndpoint { get; set; }

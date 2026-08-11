@@ -4,6 +4,7 @@ internal static class TestOptions
 {
     public static HomeAssistantExporterOptions Create() => new()
     {
+        Enabled = true,
         Endpoint = "ws://home-assistant.test/api/websocket",
         CentralIngestEndpoint = "https://ingest.test/",
         Mappings = [

@@ -6,6 +6,12 @@ namespace HVO.Edge.Exporter.HomeAssistant.Tests;
 public sealed class HomeAssistantExporterOptionsTests
 {
     [TestMethod]
+    public void Defaults_ToDisabledSafeState()
+    {
+        new HomeAssistantExporterOptions().Enabled.Should().BeFalse();
+    }
+
+    [TestMethod]
     public void Validate_AcceptsExplicitTplinkAndGoveeMappings()
     {
         var result = new HomeAssistantExporterOptionsValidator().Validate(null, TestOptions.Create());

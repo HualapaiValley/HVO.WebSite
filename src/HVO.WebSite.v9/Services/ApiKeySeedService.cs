@@ -182,7 +182,8 @@ public sealed class ApiKeySeedService : IHostedService
             claim => claim.ClaimType == IngestSourceAuthority.SourceClaimType
                 && sources.Contains(claim.ClaimValue)
                 && claim.ApiKeyId != apiKey.Id
-                && claim.ApiKey.IsActive,
+                && claim.ApiKey.IsActive
+                && (!claim.ApiKey.ExpiresAt.HasValue || claim.ApiKey.ExpiresAt > DateTime.UtcNow),
             cancellationToken);
         if (conflictingSource is not null)
             throw new InvalidOperationException("A configured Home Assistant exporter source is already reserved by another active API key.");
