@@ -1,0 +1,8 @@
+dashboards:
+  hvo-kasa:
+    mode: yaml
+    filename: hvo/dashboards/hvo-kasa.yaml
+    title: HVO Power
+    icon: mdi:power-plug
+    show_in_sidebar: true
+    require_admin: true

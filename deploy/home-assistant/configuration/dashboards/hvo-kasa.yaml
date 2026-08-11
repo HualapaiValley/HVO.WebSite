@@ -1,0 +1,714 @@
+views:
+  - title: Overview
+    path: overview
+    icon: mdi:view-dashboard-outline
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: Control Room Infrastructure
+        cards:
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_starlink_router_current_consumption
+            name: Starlink Router
+            icon: mdi:satellite-uplink
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_control_room_router_current_consumption
+            name: Control Room Router
+            icon: mdi:router-network
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_control_room_network_switch_current_consumption
+            name: Network Switch
+            icon: mdi:switch
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_control_room_deco_wifi_current_consumption
+            name: Control Room WiFi
+            icon: mdi:wifi
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_hvo_proxmox_2_current_consumption
+            name: HVO Proxmox 2
+            icon: mdi:server
+          - type: tile
+            entity: sensor.tpra_smart_switch_hvo_proxmox_01_current_consumption
+            name: HVO Proxmox 1
+            icon: mdi:server
+
+      - type: grid
+        title: Observatory Status
+        cards:
+          - type: tile
+            entity: switch.tp_link_smart_plug_37ec_observatory_roof_master
+            name: Roof Master
+            icon: mdi:weather-sunset-up
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: switch.tp_link_smart_plug_35b6_observatory_roof_controller
+            name: Roof Controller
+            icon: mdi:garage-variant
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: switch.tp_link_smart_plug_35b6_observatory_camera
+            name: Observatory Camera
+            icon: mdi:cctv
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tp_link_power_strip_0628_current_consumption
+            name: Telescope 1 Total
+            icon: mdi:telescope
+          - type: tile
+            entity: sensor.tp_link_power_strip_0628_telescope01_pc_current_consumption
+            name: Telescope 1 PC
+            icon: mdi:desktop-tower-monitor
+          - type: tile
+            entity: sensor.tp_link_power_strip_0628_telescope01_camera_6200mm_current_consumption
+            name: Telescope 1 Camera
+            icon: mdi:camera-iris
+
+      - type: grid
+        title: Workshop and Utilities
+        cards:
+          - type: tile
+            entity: sensor.workshop_power_strip_plug_1_current_consumption
+            name: Workshop Total
+            icon: mdi:flash
+          - type: tile
+            entity: sensor.workshop_power_strip_plug_1_workshop_mr_cool_ac_current_consumption
+            name: Workshop Mr Cool
+            icon: mdi:air-conditioner
+          - type: tile
+            entity: sensor.tpra_smart_switch_securitycamera07_current_consumption
+            name: Workshop Security Camera
+            icon: mdi:cctv
+          - type: tile
+            entity: sensor.tpra_smart_switch_workshop_deco_current_consumption
+            name: Workshop WiFi
+            icon: mdi:wifi
+          - type: tile
+            entity: sensor.power_room_heater_current_consumption
+            name: Power Room Heater
+            icon: mdi:radiator
+          - type: tile
+            entity: sensor.tp_link_power_strip_d65c_observatory_refrigerator_current_consumption
+            name: Observatory Refrigerator
+            icon: mdi:fridge-outline
+
+  - title: Observatory
+    path: observatory
+    icon: mdi:telescope
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: Roof and Cameras - Status Only
+        cards:
+          - type: tile
+            entity: switch.tp_link_smart_plug_37ec_observatory_roof_master
+            name: Roof Master
+            icon: mdi:weather-sunset-up
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: switch.tp_link_smart_plug_35b6_observatory_roof_controller
+            name: Roof Controller
+            icon: mdi:garage-variant
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: switch.tp_link_smart_plug_35b6_observatory_camera
+            name: Observatory Camera
+            icon: mdi:cctv
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: switch.n_roof_allskycamera_n_roof_allsky_camera
+            name: North Roof All-Sky Camera
+            icon: mdi:camera-iris
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: switch.n_roof_allskycamera_n_roof_security_camera
+            name: North Roof Security Camera
+            icon: mdi:cctv
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: switch.north_roof_light_n_roof_wifi
+            name: North Roof WiFi
+            icon: mdi:wifi
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+
+      - type: grid
+        title: Telescope 1 - Status Only
+        cards:
+          - type: tile
+            entity: sensor.tp_link_power_strip_0628_current_consumption
+            name: Telescope 1 Total Power
+            icon: mdi:flash
+          - type: tile
+            entity: switch.tp_link_power_strip_0628_telescope01_pc
+            name: Telescope 1 PC
+            icon: mdi:desktop-tower-monitor
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tp_link_power_strip_0628_telescope01_pc_current_consumption
+            name: Telescope 1 PC Power
+            icon: mdi:flash
+          - type: tile
+            entity: switch.tp_link_power_strip_0628_telescope_01_mx_focuser
+            name: Mount and Focuser
+            icon: mdi:telescope
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tp_link_power_strip_0628_telescope_01_mx_focuser_current_consumption
+            name: Mount and Focuser Power
+            icon: mdi:flash
+          - type: tile
+            entity: switch.tp_link_power_strip_0628_telescope01_camera_6200mm
+            name: Camera 6200MM
+            icon: mdi:camera-iris
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tp_link_power_strip_0628_telescope01_camera_6200mm_current_consumption
+            name: Camera 6200MM Power
+            icon: mdi:flash
+          - type: tile
+            entity: switch.tp_link_power_strip_0628_telescope_01_flatman
+            name: Flatman
+            icon: mdi:circle-opacity
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tp_link_power_strip_0628_telescope_01_flatman_current_consumption
+            name: Flatman Power
+            icon: mdi:flash
+
+      - type: grid
+        title: Lights and Appliances
+        cards:
+          - type: tile
+            entity: switch.tp_link_smart_plug_37ec_observatory_light
+            name: Observatory Light
+            icon: mdi:lightbulb
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Observatory Light?
+                text: Confirm the observatory is clear before changing this light.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: switch.north_roof_light_north_roof_light
+            name: North Roof Light
+            icon: mdi:lightbulb
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change North Roof Light?
+                text: Confirm no imaging session is active before changing this light.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: switch.south_roof_light_south_roof_light
+            name: South Roof Light
+            icon: mdi:lightbulb
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change South Roof Light?
+                text: Confirm no imaging session is active before changing this light.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: light.observatory_bathroom_light
+            name: Observatory Bathroom Light
+            icon: mdi:lightbulb
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Bathroom Light?
+                text: Confirm this light action.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: switch.tp_link_power_strip_d65c_observatory_refrigerator
+            name: Observatory Refrigerator
+            icon: mdi:fridge-outline
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Refrigerator Power?
+                text: This action can affect stored food and equipment. Confirm the change.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tp_link_power_strip_d65c_observatory_refrigerator_current_consumption
+            name: Refrigerator Power
+            icon: mdi:flash
+          - type: tile
+            entity: switch.tp_link_power_strip_d65c_observatory_coffee_maker
+            name: Observatory Coffee Maker
+            icon: mdi:coffee-maker
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Coffee Maker Power?
+                text: Confirm the appliance is safe to energize remotely.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tp_link_power_strip_d65c_observatory_coffee_maker_current_consumption
+            name: Coffee Maker Power
+            icon: mdi:flash
+
+  - title: Infrastructure
+    path: infrastructure
+    icon: mdi:server-network
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: Control Room - Status Only
+        cards:
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_current_consumption
+            name: Control Room Strip Total
+            icon: mdi:flash
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_starlink_router_current_consumption
+            name: Starlink Router
+            icon: mdi:satellite-uplink
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_control_room_router_current_consumption
+            name: Control Room Router
+            icon: mdi:router-network
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_hvo_proxmox_2_current_consumption
+            name: HVO Proxmox 2
+            icon: mdi:server
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_control_room_network_switch_current_consumption
+            name: Control Room Network Switch
+            icon: mdi:switch
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_control_room_deco_wifi_current_consumption
+            name: Control Room WiFi
+            icon: mdi:wifi
+          - type: tile
+            entity: switch.tp_link_smart_plug_97de_kvm_hvo_proxmox_01
+            name: Proxmox 1 KVM
+            icon: mdi:console-network
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: none
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+
+      - type: grid
+        title: Workshop Infrastructure - Status Only
+        cards:
+          - type: tile
+            entity: sensor.tpra_smart_switch_current_consumption
+            name: Workshop Infrastructure Total
+            icon: mdi:flash
+          - type: tile
+            entity: sensor.tpra_smart_switch_hvo_proxmox_01_current_consumption
+            name: HVO Proxmox 1
+            icon: mdi:server
+          - type: tile
+            entity: sensor.tpra_smart_switch_securitycamera07_current_consumption
+            name: Security Camera 07
+            icon: mdi:cctv
+          - type: tile
+            entity: sensor.tpra_smart_switch_workshop_deco_current_consumption
+            name: Workshop WiFi
+            icon: mdi:wifi
+
+      - type: grid
+        title: Electrical Detail
+        cards:
+          - type: entities
+            title: Control Room Supply
+            entities:
+              - entity: sensor.tp_link_power_strip_4540_voltage
+                name: Voltage
+              - entity: sensor.tp_link_power_strip_4540_current
+                name: Current
+              - entity: sensor.tp_link_power_strip_4540_today_s_consumption
+                name: Energy Today
+              - entity: sensor.tp_link_power_strip_4540_this_month_s_consumption
+                name: Energy This Month
+              - entity: sensor.tp_link_power_strip_4540_total_consumption
+                name: Total Energy
+          - type: entities
+            title: Workshop Infrastructure Supply
+            entities:
+              - entity: sensor.tpra_smart_switch_voltage
+                name: Voltage
+              - entity: sensor.tpra_smart_switch_current
+                name: Current
+              - entity: sensor.tpra_smart_switch_today_s_consumption
+                name: Energy Today
+              - entity: sensor.tpra_smart_switch_this_month_s_consumption
+                name: Energy This Month
+              - entity: sensor.tpra_smart_switch_total_consumption
+                name: Total Energy
+
+  - title: Workshop
+    path: workshop
+    icon: mdi:tools
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: Workshop Loads
+        cards:
+          - type: tile
+            entity: sensor.workshop_power_strip_plug_1_current_consumption
+            name: Workshop Strip Total
+            icon: mdi:flash
+          - type: tile
+            entity: switch.workshop_power_strip_plug_1_workshop_mr_cool_ac
+            name: Workshop Mr Cool AC
+            icon: mdi:air-conditioner
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Workshop Mr Cool Power?
+                text: Confirm the HVAC equipment is safe to switch remotely.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.workshop_power_strip_plug_1_workshop_mr_cool_ac_current_consumption
+            name: Workshop Mr Cool Power
+            icon: mdi:flash
+          - type: tile
+            entity: switch.workshop_power_strip_plug_1_workshop_water_cooler
+            name: Workshop Water Cooler
+            icon: mdi:water-cooler
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Water Cooler Power?
+                text: Confirm this appliance power action.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.workshop_power_strip_plug_1_workshop_water_cooler_current_consumption
+            name: Water Cooler Power
+            icon: mdi:flash
+          - type: tile
+            entity: switch.tpra_smart_switch_workshop_amazon_echo
+            name: Workshop Amazon Echo
+            icon: mdi:speaker-wireless
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Amazon Echo Power?
+                text: Confirm this device power action.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tpra_smart_switch_workshop_amazon_echo_current_consumption
+            name: Amazon Echo Power
+            icon: mdi:flash
+
+      - type: grid
+        title: Workshop General Outlets
+        cards:
+          - type: tile
+            entity: switch.tpra_smart_switch_workshop_wall_plug_1
+            name: Workshop Wall Plug 1
+            icon: mdi:power-socket-us
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Workshop Wall Plug 1?
+                text: Confirm connected equipment is safe to switch remotely.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tpra_smart_switch_workshop_wall_plug_1_current_consumption
+            name: Wall Plug 1 Power
+            icon: mdi:flash
+          - type: tile
+            entity: switch.tpra_smart_switch_workshop_wall_plug_2
+            name: Workshop Wall Plug 2
+            icon: mdi:power-socket-us
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Workshop Wall Plug 2?
+                text: Confirm connected equipment is safe to switch remotely.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tpra_smart_switch_workshop_wall_plug_2_current_consumption
+            name: Wall Plug 2 Power
+            icon: mdi:flash
+
+      - type: grid
+        title: Workshop Electrical Detail
+        cards:
+          - type: entities
+            title: Workshop Main Strip
+            entities:
+              - entity: sensor.workshop_power_strip_plug_1_voltage
+                name: Voltage
+              - entity: sensor.workshop_power_strip_plug_1_current
+                name: Current
+              - entity: sensor.workshop_power_strip_plug_1_today_s_consumption
+                name: Energy Today
+              - entity: sensor.workshop_power_strip_plug_1_this_month_s_consumption
+                name: Energy This Month
+              - entity: sensor.workshop_power_strip_plug_1_total_consumption
+                name: Total Energy
+
+  - title: Container and Utilities
+    path: utilities
+    icon: mdi:home-lightning-bolt-outline
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: Container
+        cards:
+          - type: tile
+            entity: switch.container_inside_light
+            name: Container Inside Light
+            icon: mdi:lightbulb
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Container Light?
+                text: Confirm this light action.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: switch.container_mr_cool
+            name: Container Mr Cool Plug
+            icon: mdi:air-conditioner
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Container Mr Cool Plug?
+                text: This is the TP-Link plug, not the offline SmartHVAC controller. Confirm the power action.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+
+      - type: grid
+        title: Power Room
+        cards:
+          - type: tile
+            entity: switch.power_room_heater
+            name: Power Room Heater
+            icon: mdi:radiator
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Power Room Heater?
+                text: Confirm the power room temperature and fire-safety conditions before switching.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.power_room_heater_current_consumption
+            name: Heater Power
+            icon: mdi:flash
+          - type: entities
+            title: Heater Electrical Detail
+            entities:
+              - entity: sensor.power_room_heater_voltage
+                name: Voltage
+              - entity: sensor.power_room_heater_current
+                name: Current
+              - entity: sensor.power_room_heater_today_s_consumption
+                name: Energy Today
+              - entity: sensor.power_room_heater_this_month_s_consumption
+                name: Energy This Month
+              - entity: sensor.power_room_heater_total_consumption
+                name: Total Energy
+
+      - type: grid
+        title: Observatory Counter
+        cards:
+          - type: tile
+            entity: switch.tp_link_power_strip_d65c_observatory_counter_top_2
+            name: Counter Top 2
+            icon: mdi:power-socket-us
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Counter Top 2 Power?
+                text: Confirm connected equipment is safe to switch remotely.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tp_link_power_strip_d65c_observatory_counter_top_2_current_consumption
+            name: Counter Top 2 Power
+            icon: mdi:flash
+          - type: tile
+            entity: switch.tp_link_power_strip_d65c_observatory_counter_top_3
+            name: Counter Top 3
+            icon: mdi:power-socket-us
+            tap_action:
+              action: none
+            icon_tap_action:
+              action: toggle
+              confirmation:
+                title: Change Counter Top 3 Power?
+                text: Confirm connected equipment is safe to switch remotely.
+            hold_action:
+              action: none
+            double_tap_action:
+              action: none
+          - type: tile
+            entity: sensor.tp_link_power_strip_d65c_observatory_counter_top_3_current_consumption
+            name: Counter Top 3 Power
+            icon: mdi:flash
