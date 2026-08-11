@@ -1,0 +1,75 @@
+{
+  "Edge": {
+    "Runtime": {
+      "ServiceName": "hvo-eg4",
+      "GatewayId": "eg4",
+      "GatewayType": "eg4-direct",
+      "Domain": "Power",
+      "SourceId": "eg4-fleet",
+      "SiteId": "hvo",
+      "DisplayName": "EG4 Direct Collector",
+      "DiagnosticsApiKeySecret": "diagnostics-api-key"
+    }
+  },
+  "Eg4": {
+    "DefaultPollIntervalSeconds": 60,
+    "SimulationEnabled": false,
+    "CentralIngestEndpoint": "https://www.hualapaivalleyobservatory.org/",
+    "CentralApiKeySecret": "central-ingest-api-key",
+    "RetryExhaustedRequeueMinutes": 15,
+    "Devices": [
+      {
+        "Type": "Inverter6500Ex",
+        "SourceId": "eg4-6500ex-a",
+        "DeviceId": "inverter-a",
+        "Alias": "6500EX Inverter A",
+        "Enabled": true,
+        "Port": "/dev/hvo/eg4-6500ex-a",
+        "UnitId": 0,
+        "PollIntervalSeconds": 60
+      },
+      {
+        "Type": "ChargeControllerMppt10048Hv",
+        "SourceId": "eg4-mppt100-48hv-a",
+        "DeviceId": "controller-a",
+        "Alias": "MPPT100-48HV Controller A",
+        "Enabled": false,
+        "Port": "/dev/serial/by-id/REPLACE_WITH_MPPT_ADAPTER",
+        "UnitId": 1,
+        "PollIntervalSeconds": 60
+      },
+      {
+        "Type": "Inverter6500Ex",
+        "SourceId": "eg4-6500ex-b",
+        "DeviceId": "inverter-b",
+        "Alias": "6500EX Inverter B",
+        "Enabled": false,
+        "Port": "/dev/hvo/eg4-6500ex-b",
+        "UnitId": 0,
+        "PollIntervalSeconds": 60
+      }
+    ]
+  },
+  "HomeAssistant": {
+    "Mqtt": {
+      "Enabled": true,
+      "Host": "192.168.1.113",
+      "Port": 1883,
+      "UsernameSecret": "mqtt-username",
+      "PasswordSecret": "mqtt-password",
+      "DiscoveryPrefix": "homeassistant",
+      "TopicPrefix": "hvo"
+    }
+  },
+  "Outbox": {
+    "DatabasePath": "/app/data/outbox.db",
+    "PayloadType": "com.hvo.eg4.observation.v1",
+    "PayloadVersion": "1",
+    "BatchSize": 50,
+    "SweepIntervalSeconds": 5,
+    "MaxRetryAttempts": 10,
+    "MaxBackoffSeconds": 300,
+    "SentRetentionDays": 7,
+    "FailedRetentionDays": 30
+  }
+}

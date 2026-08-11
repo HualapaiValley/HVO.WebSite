@@ -15,7 +15,11 @@ internal static class IngestSourceAuthority
         CancellationToken cancellationToken)
     {
         var sourceClaims = principal.FindAll(SourceClaimType).Select(static claim => claim.Value).ToHashSet(StringComparer.Ordinal);
-        var requested = sources.Where(static source => !string.IsNullOrWhiteSpace(source.SourceId)).Distinct().ToArray();
+        var requested = sources
+            .Where(static source => !string.IsNullOrWhiteSpace(source.SourceId))
+            .Select(static source => (SourceId: source.SourceId!.Trim(), SourceSystem: source.SourceSystem?.Trim()))
+            .Distinct()
+            .ToArray();
         foreach (var source in requested)
         {
             var reservedSource = source.SourceId!.StartsWith("kasa:", StringComparison.Ordinal)

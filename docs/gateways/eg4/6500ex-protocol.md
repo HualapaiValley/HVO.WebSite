@@ -55,11 +55,11 @@ QPIGS provides direct AC input/output voltage and frequency, active/apparent loa
 
 Canonical battery current is `discharge - charge`: positive discharge and negative charge. Battery power is `voltage * canonical current`; both are derived. Inverter-reported battery capacity remains an observation and does not replace JK BMS or SmartShunt SOC authority.
 
-The gateway and main-site user interfaces intentionally present the opposite, battery-facing sign for readability: positive means energy entering the batteries and negative means battery discharge supporting the inverter/load. This is a display-only inversion; persisted payloads and composition retain the canonical convention above.
+The headless collector publishes the same canonical sign to history and Home Assistant: positive means discharge and negative means charge. Any future battery-facing display inversion must use a separately named derived presentation value and must not alter canonical entities or payloads.
 
 ### QPGS0
 
-The 29-field response provides operating mode, fault code, output/load totals, status flags, output mode, charger priority, and both tracker voltage/current channels. MPPT 2 current is whole-ampere resolution on installed 79.71, so `voltage * current` is marked derived/coarse and is not preferred for the canonical three-array aggregate.
+The 29-field response provides operating mode, fault code, output/load totals, status flags, output mode, charger priority, and both tracker voltage/current channels. MPPT 2 current is whole-ampere resolution on installed 79.71, so `voltage * current` is retained as derived/coarse detail rather than silently treated as a higher-resolution measurement.
 
 The device serial field is parsed only to validate field shape and is never forwarded, logged, or committed in fixtures.
 
@@ -75,15 +75,15 @@ The 17-field base plus optional 10-field extension provides:
 
 The Q1 timing fields are not firmware identity. Firmware comes only from QVFW/QVFW3.
 
-## Canonical Three-Array Policy
+## Migration And Composition Boundary
 
-SolarAssistant already provides direct high-resolution metrics for both 6500EX trackers. HVO therefore composes site PV from exactly:
+The prior website composition policy used SolarAssistant tracker values plus the external direct MPPT tracker. That is transitional migration behavior, not an EG4 collector dependency.
 
 1. `solarassistant-total/mppt-1`
 2. `solarassistant-total/mppt-2`
 3. `eg4-mppt100-48hv-a/mppt-1`
 
-The aggregate is derived only when all three powers are fresh and timestamps are within the configured skew. Otherwise the existing SolarAssistant aggregate remains the fallback. The coarse HID MPPT 2 estimate is retained in raw EG4 detail history for comparison but excluded from the canonical list and sum, preventing double-counting.
+The vNext direct collector independently persists its validated 6500EX and MPPT100 observations and publishes current state to HA without reading SolarAssistant REST or MQTT. SolarAssistant may be compared during shadow validation. Any final multi-tracker composition and retirement policy is applied centrally during issue #330 and must prevent double-counting.
 
 ## Failures And History
 

@@ -11,14 +11,9 @@ public sealed class Eg4OptionsValidatorTests
     [TestMethod]
     public void Validate_MultipleControllersOnStablePortsAtUnitOne_IsValid()
     {
-        var options = new Eg4Options
-        {
-            Devices =
-            [
+        var options = ValidOptions(
                 Device("a", 1, Eg4DeviceType.ChargeControllerMppt10048Hv, "/dev/serial/by-id/usb-eg4-a"),
-                Device("b", 1, Eg4DeviceType.ChargeControllerMppt10048Hv, "/dev/serial/by-id/usb-eg4-b"),
-            ],
-        };
+                Device("b", 1, Eg4DeviceType.ChargeControllerMppt10048Hv, "/dev/serial/by-id/usb-eg4-b"));
 
         new Eg4OptionsValidator(Environment("Production")).Validate(null, options).Succeeded.Should().BeTrue();
     }
@@ -42,7 +37,7 @@ public sealed class Eg4OptionsValidatorTests
         var duplicate = Device("dup", 0, port: "/dev/hvo/eg4-east");
         duplicate.SourceId = "EG4-EAST";
         duplicate.Enabled = false;
-        var options = new Eg4Options { Devices = [Device("east", 0, port: "/dev/hvo/eg4-east"), duplicate] };
+        var options = ValidOptions(Device("east", 0, port: "/dev/hvo/eg4-east"), duplicate);
 
         var result = new Eg4OptionsValidator(Environment("Production")).Validate(null, options);
 
@@ -60,7 +55,7 @@ public sealed class Eg4OptionsValidatorTests
         device.PollIntervalSeconds = 5;
 
         var result = new Eg4OptionsValidator(Environment("Production"))
-            .Validate(null, new Eg4Options { Devices = [device] });
+            .Validate(null, ValidOptions(device));
 
         result.Failures.Should().HaveCount(4);
     }
@@ -68,7 +63,8 @@ public sealed class Eg4OptionsValidatorTests
     [TestMethod]
     public void Validate_SimulationOnlyAllowsTestingOrDevelopment()
     {
-        var options = new Eg4Options { SimulationEnabled = true };
+        var options = ValidOptions();
+        options.SimulationEnabled = true;
 
         new Eg4OptionsValidator(Environment("Testing")).Validate(null, options).Succeeded.Should().BeTrue();
         new Eg4OptionsValidator(Environment("Development")).Validate(null, options).Succeeded.Should().BeTrue();
@@ -82,7 +78,7 @@ public sealed class Eg4OptionsValidatorTests
         var noPort = Device("no-port", 0);
         noPort.Port = null!;
         var result = new Eg4OptionsValidator(Environment("Production"))
-            .Validate(null, new Eg4Options { Devices = [null!, noPort] });
+            .Validate(null, ValidOptions(null!, noPort));
 
         result.Failures.Should().Contain(message => message.Contains("null entries", StringComparison.Ordinal));
         result.Failures.Should().Contain(message => message.Contains("stable /dev/hvo HID", StringComparison.Ordinal));
@@ -95,9 +91,9 @@ public sealed class Eg4OptionsValidatorTests
         var invalidUnit = Device("unit", 1, port: "/dev/hvo/eg4-6500ex-b");
 
         new Eg4OptionsValidator(Environment("Production"))
-            .Validate(null, new Eg4Options { Devices = [valid] }).Succeeded.Should().BeTrue();
+            .Validate(null, ValidOptions(valid)).Succeeded.Should().BeTrue();
         var result = new Eg4OptionsValidator(Environment("Production"))
-            .Validate(null, new Eg4Options { Devices = [invalidUnit] });
+            .Validate(null, ValidOptions(invalidUnit));
         result.Failures.Should().ContainSingle(message => message.Contains("PI30 does not use Modbus", StringComparison.Ordinal));
     }
 
@@ -107,7 +103,7 @@ public sealed class Eg4OptionsValidatorTests
         var controller = Device("controller", 2, Eg4DeviceType.ChargeControllerMppt10048Hv);
 
         var result = new Eg4OptionsValidator(Environment("Production"))
-            .Validate(null, new Eg4Options { Devices = [controller] });
+            .Validate(null, ValidOptions(controller));
 
         result.Failures.Should().ContainSingle(message => message.Contains("must be 1", StringComparison.Ordinal));
     }
@@ -120,7 +116,7 @@ public sealed class Eg4OptionsValidatorTests
         device.DeviceId = new string('d', 65);
 
         var result = new Eg4OptionsValidator(Environment("Production"))
-            .Validate(null, new Eg4Options { Devices = [device] });
+            .Validate(null, ValidOptions(device));
 
         result.Failures.Should().Contain(message => message.Contains("SourceId of 1-64", StringComparison.Ordinal));
         result.Failures.Should().Contain(message => message.Contains("DeviceId of 1-64", StringComparison.Ordinal));
@@ -138,6 +134,12 @@ public sealed class Eg4OptionsValidatorTests
         Alias = alias,
         Port = port,
         UnitId = unitId,
+    };
+
+    private static Eg4Options ValidOptions(params Eg4DeviceOptions[] devices) => new()
+    {
+        CentralIngestEndpoint = "https://central.test/",
+        Devices = [.. devices]
     };
 
     private static TestEnvironment Environment(string name) => new() { EnvironmentName = name };

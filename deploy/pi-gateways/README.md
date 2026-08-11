@@ -142,14 +142,16 @@ To verify deployed endpoints after rollout:
 - SolarAssistant UI: `http://<pi-host>:5300`
 - SmartShunt UI: `http://<pi-host>:5400`
 - TP-Link/Kasa local API: `http://<pi-host>:5500`
-- EG4 UI: `http://<pi-host>:5600`
+- EG4 headless health and protected diagnostics: `http://<pi-host>:5600`
 - Home Assistant exporter diagnostics: `http://<pi-host>:5700`
 
 ## EG4 deployment notes
 
 - Follow `docs/gateways/eg4/deployment-and-shadow-validation.md` before rollout.
+- Copy `gateway.json.example` to ignored `gateway.json`; mount diagnostics, central-ingest, and MQTT credentials as files in the ignored `secrets` directory.
 - Map only stable `/dev/hvo/eg4-6500ex-*` HID nodes and the verified MPPT `/dev/serial/by-id/...` path; never map enumerated `/dev/hidrawN` or `/dev/ttyUSBN` names.
 - The MPPT serial device remains isolated by default. `EG4_MPPT_0_ENABLED=true` selects `docker-compose.mppt.yml`, which maps only that stable path and permits only the fixed unit-1 function-`0x03` read of registers 200-217.
 - The second-inverter overlay remains selected only when `EG4_DEVICE_1_ENABLED=true` and both stable inverter HID nodes exist.
 - Production simulation and all command/write paths are disabled. The gateway publishes battery branches, independent MPPT detail, and read-only inverter AC/load/temperature/status detail.
+- Direct current state is projected to Home Assistant through MQTT Discovery. MQTT is not the canonical historical-delivery path.
 - Set `HVO_CHECK_EG4=true` when `check-deployments.sh` should require EG4 health.

@@ -1,9 +1,14 @@
+using HVO.Edge.Hosting.Configuration;
+using HVO.Edge.Hosting.Diagnostics;
+using HVO.Edge.Outbox;
 using HVO.Hardware.Eg4.Configuration;
-using HVO.Hardware.Eg4.Dashboard;
+using HVO.Hardware.Eg4.Diagnostics;
+using HVO.Hardware.Eg4.HomeAssistant;
+using HVO.Hardware.Eg4.Outbox;
 using HVO.Hardware.Eg4.Protocol;
 using HVO.Hardware.Eg4.Simulation;
 using HVO.Hardware.Eg4.Telemetry;
-using HVO.WebSite.Themes.Components.Format;
+using HVO.Hardware.Eg4.Workers;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -11,7 +16,7 @@ namespace HVO.Hardware.Eg4.Hosting;
 
 public static class Eg4ServiceCollectionExtensions
 {
-    public static IServiceCollection AddEg4GatewayCore(
+    public static IServiceCollection AddEg4Collector(
         this IServiceCollection services,
         IConfiguration configuration,
         IHostEnvironment environment)
@@ -19,17 +24,9 @@ public static class Eg4ServiceCollectionExtensions
         services.AddOptions<Eg4Options>()
             .Bind(configuration.GetSection(Eg4Options.SectionName))
             .ValidateDataAnnotations()
-            .Validate(options => HvoDisplayTimeZone.IsValid(options.DisplayTimeZoneId),
-                "Eg4:DisplayTimeZoneId must identify an installed system time zone.")
             .ValidateOnStart();
-        services.AddSingleton<IValidateOptions<Eg4Options>, Eg4OptionsValidator>();
-        services.AddSingleton(provider => new HvoDisplayTimeZone(
-            provider.GetRequiredService<IOptions<Eg4Options>>().Value.DisplayTimeZoneId));
+        services.AddSingleton<IValidateOptions<Eg4Options>>(_ => new Eg4OptionsValidator(environment));
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton<IEg4OutboxDashboardProvider, UnavailableEg4OutboxDashboardProvider>();
-        services.AddSingleton<Eg4GatewayDashboardState>();
-        services.AddSingleton<IEg4GatewayDashboardState>(provider => provider.GetRequiredService<Eg4GatewayDashboardState>());
-        services.AddSingleton<IEg4GatewayDashboardPublisher>(provider => provider.GetRequiredService<Eg4GatewayDashboardState>());
 
         if (configuration.GetValue<bool>($"{Eg4Options.SectionName}:SimulationEnabled"))
         {
@@ -56,6 +53,38 @@ public static class Eg4ServiceCollectionExtensions
             services.AddSingleton<IEg4TelemetrySource, Eg4TelemetrySourceRouter>();
         }
 
+        services.AddSingleton<Eg4CentralIngestCredential>();
+        services.AddHostedService<Eg4CollectorInitializer>();
+        services.AddScoped<IEg4PowerOutboxWriter, PowerOutboxWriter>();
+        services.AddSingleton<IEdgeOutboxBatchSender, Eg4OutboxBatchSender>();
+        services.AddHostedService<Eg4RetryRequeueWorker>();
+        services.AddSingleton<Eg4RuntimeState>();
+        services.AddSingleton<Eg4HomeAssistantProjection>();
+        services.RemoveAll<IEdgeDiagnosticsSnapshotProvider>();
+        services.AddSingleton<IEdgeDiagnosticsSnapshotProvider, Eg4DiagnosticsSnapshotProvider>();
+        services.AddHostedService<Eg4FleetWorker>();
         return services;
     }
+}
+
+internal sealed class Eg4CollectorInitializer(
+    IOptions<Eg4Options> options,
+    IOptions<EdgeOutboxOptions> outboxOptions,
+    SecretFileResolver secretResolver,
+    Eg4CentralIngestCredential credential) : IHostedLifecycleService
+{
+    public Task StartingAsync(CancellationToken cancellationToken)
+    {
+        if (outboxOptions.Value.PayloadType != HVO.Edge.Contracts.EdgePayloadTypes.Eg4Observation
+            || outboxOptions.Value.PayloadVersion != "1")
+            throw new InvalidOperationException("EG4 requires Outbox:PayloadType com.hvo.eg4.observation.v1 and PayloadVersion 1.");
+        credential.ApiKey = secretResolver.ReadRequired(options.Value.CentralApiKeySecret, "Eg4:CentralApiKeySecret");
+        return Task.CompletedTask;
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

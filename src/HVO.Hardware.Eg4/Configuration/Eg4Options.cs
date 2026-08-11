@@ -9,10 +9,12 @@ public sealed class Eg4Options
     [Range(10, 3600)]
     public int DefaultPollIntervalSeconds { get; set; } = 60;
 
-    [Required]
-    public string DisplayTimeZoneId { get; set; } = "America/Phoenix";
-
     public bool SimulationEnabled { get; set; }
+    public string? CentralIngestEndpoint { get; set; }
+    public string CentralApiKeySecret { get; set; } = "central-ingest-api-key";
+    public bool AllowInsecureCentralIngest { get; set; }
+    [Range(1, 1440)]
+    public int RetryExhaustedRequeueMinutes { get; set; } = 15;
     public List<Eg4DeviceOptions> Devices { get; set; } = [];
 }
 
