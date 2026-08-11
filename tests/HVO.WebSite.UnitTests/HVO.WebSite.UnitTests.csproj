@@ -31,4 +31,10 @@
     <ProjectReference Include="../../src/HVO.WebSite.Themes/HVO.WebSite.Themes.csproj" />
     <ProjectReference Include="../../src/HVO.Staging/HVO.Staging.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../deploy/home-assistant/configuration/dashboards/hvo-kasa.yaml"
+          Link="Fixtures/HomeAssistant/hvo-kasa.yaml"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
