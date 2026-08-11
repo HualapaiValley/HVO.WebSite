@@ -68,7 +68,7 @@ jq -e '
 	.services["hvo-eg4"].ports[0].published == "5600" and
 	.services["hvo-eg4"].ports[0].target == 8080 and
 	.services["hvo-eg4"].devices == [{"source":"/dev/hvo/eg4-6500ex-a","target":"/dev/hvo/eg4-6500ex-a","permissions":"rw"}] and
-	(.services["hvo-eg4"].environment | keys | all(startswith("Eg4__") or startswith("Outbox__") or contains("API_KEY") | not)) and
+	([.services["hvo-eg4"].environment | keys[] | select(startswith("Eg4__") or startswith("Outbox__") or contains("API_KEY"))] | length) == 0 and
 	.services["hvo-eg4"].restart == "unless-stopped" and
 	.services["hvo-eg4"].logging.driver == "local" and
 	.services["hvo-eg4"].logging.options["max-size"] == "10m" and

@@ -57,21 +57,26 @@ public sealed class Eg4PowerOutboxTests
     }
 
     [TestMethod]
-    public async Task Sender_RoutesReadingAndBothDetailsBeforeAcknowledgingBundle()
+    public async Task Sender_BoundsDeliveryToThreeBatchRequestsPerSweep()
     {
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Created)
         {
-            Content = new StringContent("{\"inserted\":1,\"skipped\":0,\"failed\":[]}", Encoding.UTF8, "application/json")
+            Content = new StringContent("{\"inserted\":2,\"skipped\":0,\"failed\":[]}", Encoding.UTF8, "application/json")
         });
         var sender = Sender(handler);
 
-        var outcomes = await sender.SendAsync([Record(Bundle())], CancellationToken.None);
+        var outcomes = await sender.SendAsync([
+            Record(Bundle(), 42),
+            Record(Bundle("eg4-b", "b", RecordedAt.AddSeconds(1)), 43)
+        ], CancellationToken.None);
 
-        outcomes.Should().ContainSingle().Which.Status.Should().Be(EdgeOutboxSendStatus.Sent);
+        outcomes.Should().HaveCount(2).And.OnlyContain(outcome => outcome.Status == EdgeOutboxSendStatus.Sent);
         handler.Paths.Should().Equal(
             "/api/v1/power/readings",
-            "/api/v1/power/mppt-detail",
-            "/api/v1/power/inverter-detail");
+            "/api/v1/power/mppt-detail/batch",
+            "/api/v1/power/inverter-detail/batch");
+        handler.Bodies.Should().HaveCount(3);
+        handler.Bodies.Should().OnlyContain(body => BatchLength(body) == 2);
         handler.ApiKeys.Should().OnlyContain(static key => key == "central-key");
     }
 
@@ -87,6 +92,33 @@ public sealed class Eg4PowerOutboxTests
         var outcomes = await sender.SendAsync([Record(Bundle() with { MpptDetail = null, InverterDetail = null })], CancellationToken.None);
 
         outcomes.Should().ContainSingle().Which.Status.Should().Be(expected);
+    }
+
+    [TestMethod]
+    public async Task Sender_ForwardsDetailsOnlyForReadingsAcceptedByCentralIngest()
+    {
+        var rejectedAt = RecordedAt.AddSeconds(1);
+        var handler = new StubHandler(request => new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = new StringContent(
+                request.RequestUri!.AbsolutePath.EndsWith("/readings", StringComparison.Ordinal)
+                    ? $"{{\"inserted\":1,\"skipped\":0,\"failed\":[{{\"sourceId\":\"eg4-b\",\"recordedAtUtc\":\"{rejectedAt:O}\",\"error\":\"rejected\"}}]}}"
+                    : "{\"inserted\":1,\"skipped\":0,\"failed\":[]}",
+                Encoding.UTF8,
+                "application/json")
+        });
+
+        var outcomes = await Sender(handler).SendAsync([
+            Record(Bundle(), 42),
+            Record(Bundle("eg4-b", "b", rejectedAt), 43)
+        ], CancellationToken.None);
+
+        outcomes.Single(outcome => outcome.RecordId == 42).Status.Should().Be(EdgeOutboxSendStatus.Sent);
+        outcomes.Single(outcome => outcome.RecordId == 43).Status.Should().Be(EdgeOutboxSendStatus.PermanentFailure);
+        handler.Bodies.Should().HaveCount(3);
+        BatchLength(handler.Bodies[0]).Should().Be(2);
+        BatchLength(handler.Bodies[1]).Should().Be(1);
+        BatchLength(handler.Bodies[2]).Should().Be(1);
     }
 
     [TestMethod]
@@ -112,9 +144,15 @@ public sealed class Eg4PowerOutboxTests
         new Eg4CentralIngestCredential { ApiKey = "central-key" },
         Options.Create(new Eg4Options { CentralIngestEndpoint = "https://central.test/" }));
 
-    private static EdgeOutboxRecord Record(Eg4ObservationBundle bundle) => new()
+    private static int BatchLength(string json)
     {
-        Id = 42,
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.GetArrayLength();
+    }
+
+    private static EdgeOutboxRecord Record(Eg4ObservationBundle bundle, long id = 42) => new()
+    {
+        Id = id,
         SourceId = bundle.Reading.SourceId!,
         DeviceId = bundle.Reading.DeviceId,
         RecordedAtUtc = bundle.Reading.RecordedAtUtc,
@@ -123,31 +161,34 @@ public sealed class Eg4PowerOutboxTests
         PayloadJson = JsonSerializer.Serialize(bundle, JsonOptions)
     };
 
-    private static Eg4ObservationBundle Bundle() => new(
+    private static Eg4ObservationBundle Bundle(
+        string sourceId = "eg4-a",
+        string deviceId = "a",
+        DateTime? recordedAt = null) => new(
         new PowerReadingPayload
         {
-            SourceId = "eg4-a",
+            SourceId = sourceId,
             SourceSystem = "eg4-6500ex",
-            DeviceId = "a",
-            RecordedAtUtc = RecordedAt,
+            DeviceId = deviceId,
+            RecordedAtUtc = recordedAt ?? RecordedAt,
             BatteryVoltageV = 54.4,
             BatteryCurrentA = -10,
             BatteryPowerW = -544
         },
         new PowerMpptDetailPayload
         {
-            SourceId = "eg4-a",
+            SourceId = sourceId,
             SourceSystem = "eg4-6500ex",
-            DeviceId = "a",
-            RecordedAtUtc = RecordedAt,
+            DeviceId = deviceId,
+            RecordedAtUtc = recordedAt ?? RecordedAt,
             Trackers = [new() { TrackerId = "mppt-1", Name = "MPPT 1", PowerW = 800 }]
         },
         new PowerInverterDetailPayload
         {
-            SourceId = "eg4-a",
+            SourceId = sourceId,
             SourceSystem = "eg4-6500ex",
-            DeviceId = "a",
-            RecordedAtUtc = RecordedAt,
+            DeviceId = deviceId,
+            RecordedAtUtc = recordedAt ?? RecordedAt,
             TemperatureC = 50
         });
 
@@ -155,11 +196,13 @@ public sealed class Eg4PowerOutboxTests
     {
         public List<string> Paths { get; } = [];
         public List<string?> ApiKeys { get; } = [];
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        public List<string> Bodies { get; } = [];
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Paths.Add(request.RequestUri!.AbsolutePath);
             ApiKeys.Add(request.Headers.GetValues("X-Api-Key").SingleOrDefault());
-            return Task.FromResult(response(request));
+            Bodies.Add(await request.Content!.ReadAsStringAsync(cancellationToken));
+            return response(request);
         }
     }
 
