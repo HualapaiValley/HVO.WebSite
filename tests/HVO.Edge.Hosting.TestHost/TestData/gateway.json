@@ -1,0 +1,14 @@
+{
+  "Edge": {
+    "Runtime": {
+      "ServiceName": "hvo-edge-test-host",
+      "GatewayId": "hvo-edge-test",
+      "GatewayType": "headless-test",
+      "Domain": "Observatory",
+      "SourceId": "hvo-edge-test",
+      "SiteId": "hvo",
+      "DisplayName": "Mounted Headless Test Host",
+      "DiagnosticsApiKeySecret": "diagnostics-api-key"
+    }
+  }
+}

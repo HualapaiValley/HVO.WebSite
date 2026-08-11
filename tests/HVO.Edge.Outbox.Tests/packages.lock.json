@@ -261,7 +261,8 @@
         "dependencies": {
           "HVO.Edge.Contracts": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.10, )",
-          "Microsoft.EntityFrameworkCore.Relational": "[10.0.10, )"
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.10, )",
+          "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.10, )"
         }
       },
       "Microsoft.EntityFrameworkCore": {
