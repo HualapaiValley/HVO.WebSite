@@ -142,12 +142,9 @@ public sealed class HomeAssistantMqttWorkerTests
     [TestMethod]
     public async Task DevicePublishFailure_DoesNotPreventOtherDevicePublishing()
     {
-        var failed = false;
         var session = new FakeMqttSession
         {
-            FailPublish = message => !failed
-                && message.Topic.Contains("bad_device", StringComparison.Ordinal)
-                && (failed = true)
+            FailPublish = message => message.Topic.Contains("bad_x2ddevice", StringComparison.Ordinal)
         };
         await using var harness = TestSupport.Worker(session);
         var badKey = TestSupport.Key with { DeviceId = "bad-device" };
@@ -161,6 +158,10 @@ public sealed class HomeAssistantMqttWorkerTests
             message.Topic == TestSupport.Topics.Discovery(goodKey)));
         session.Messages.Should().Contain(message =>
             message.Topic == TestSupport.Topics.DeviceAvailability(goodKey));
+        session.Messages.Should().Contain(message =>
+            message.Topic == TestSupport.Topics.GatewayAvailability(goodKey) && message.Payload == "offline");
+        session.Messages.Should().NotContain(message =>
+            message.Topic == TestSupport.Topics.GatewayAvailability(goodKey) && message.Payload == "online");
     }
 
     private static int DiscoveryCount(FakeMqttSession session) => session.Messages.Count(message =>

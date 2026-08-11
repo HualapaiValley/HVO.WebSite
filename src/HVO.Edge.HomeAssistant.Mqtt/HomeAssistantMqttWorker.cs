@@ -144,9 +144,12 @@ internal sealed class HomeAssistantMqttWorker(
             }
         }
 
-        await PublishAsync(credential.Settings!.WillTopic, "online", cancellationToken);
         if (hadDeviceFailure)
+        {
+            await PublishAsync(credential.Settings!.WillTopic, "offline", cancellationToken);
             throw new InvalidOperationException("One or more Home Assistant MQTT devices could not be published.");
+        }
+        await PublishAsync(credential.Settings!.WillTopic, "online", cancellationToken);
     }
 
     private async Task RemoveDeviceAsync(HomeAssistantDeviceDefinition definition, CancellationToken cancellationToken)
