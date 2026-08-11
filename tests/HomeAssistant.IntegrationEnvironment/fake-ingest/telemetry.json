@@ -1,0 +1,17 @@
+{
+  "scenarioName": "Central ingest",
+  "requiredScenarioState": "Started",
+  "request": {
+    "method": "POST",
+    "urlPath": "/api/telemetry"
+  },
+  "response": {
+    "status": 202,
+    "jsonBody": {
+      "accepted": true
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}

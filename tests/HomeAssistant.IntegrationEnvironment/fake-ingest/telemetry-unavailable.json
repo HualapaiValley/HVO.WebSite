@@ -1,0 +1,17 @@
+{
+  "scenarioName": "Central ingest",
+  "requiredScenarioState": "Unavailable",
+  "request": {
+    "method": "POST",
+    "urlPath": "/api/telemetry"
+  },
+  "response": {
+    "status": 503,
+    "jsonBody": {
+      "accepted": false
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}
