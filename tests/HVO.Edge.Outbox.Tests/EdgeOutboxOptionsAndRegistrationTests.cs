@@ -60,12 +60,13 @@ public sealed class EdgeOutboxOptionsAndRegistrationTests
                 ["Outbox:PayloadVersion"] = "2",
             });
             var hostedServices = provider.GetServices<IHostedService>().ToList();
+            var initializer = hostedServices.OfType<EdgeOutboxInitializer>().Single();
+            var forwarder = hostedServices.OfType<EdgeOutboxForwarder>().Single();
 
-            hostedServices[0].Should().BeOfType<EdgeOutboxInitializer>();
-            hostedServices[1].Should().BeOfType<EdgeOutboxForwarder>();
+            hostedServices.IndexOf(initializer).Should().BeLessThan(hostedServices.IndexOf(forwarder));
             Directory.Exists(Path.GetDirectoryName(databasePath)).Should().BeFalse();
 
-            await ((IHostedLifecycleService)hostedServices[0]).StartingAsync(CancellationToken.None);
+            await initializer.StartingAsync(CancellationToken.None);
 
             File.Exists(databasePath).Should().BeTrue();
             await using var scope = provider.CreateAsyncScope();

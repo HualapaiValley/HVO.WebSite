@@ -211,10 +211,20 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
 
     private static string NormalizeError(string error)
     {
-        var normalized = SensitiveErrorPattern.Replace(error.Trim(), "$1=[REDACTED]");
-        return normalized.Length <= MaxLastErrorLength
-            ? normalized
-            : normalized[..MaxLastErrorLength];
+        try
+        {
+            var candidate = error.Trim();
+            if (candidate.Length > MaxLastErrorLength * 4)
+                candidate = candidate[..(MaxLastErrorLength * 4)];
+            var normalized = SensitiveErrorPattern.Replace(candidate, "$1=[REDACTED]");
+            return normalized.Length <= MaxLastErrorLength
+                ? normalized
+                : normalized[..MaxLastErrorLength];
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return "Outbox forwarding error could not be safely normalized.";
+        }
     }
 
     private static bool IsUniqueConstraintViolation(Exception exception)

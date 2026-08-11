@@ -62,6 +62,19 @@ public sealed class HeadlessRuntimeTests
     }
 
     [TestMethod]
+    public async Task OutboxSettings_RejectEmptyRequestBody()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", "test-diagnostics-key");
+
+        var response = await client.PutAsync("/diagnostics/outbox/settings", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Request body is required.");
+    }
+
+    [TestMethod]
     public async Task OtlpOutage_DoesNotStopAcquisitionOrOutbox()
     {
         await using var factory = CreateFactory(new Dictionary<string, string?>

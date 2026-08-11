@@ -72,10 +72,13 @@ public static class EdgeDiagnosticsEndpointRouteBuilderExtensions
     }
 
     private static IResult UpdateOutboxSettings(
-        OutboxSettingsUpdate update,
+        OutboxSettingsUpdate? update,
         RuntimeOutboxSettings runtime,
         IOptions<EdgeOutboxOptions> configured)
     {
+        if (update is null)
+            return Results.BadRequest(new { error = "Request body is required." });
+
         try
         {
             if (update.Reset == true)
