@@ -1,24 +1,22 @@
 using System.Reflection;
-using System.Text.Json;
 using FluentAssertions;
-using HVO.Edge.Outbox;
-using HVO.Enterprise.Telemetry.Abstractions;
-using HVO.Enterprise.Telemetry.HealthChecks;
+using HVO.Edge.Contracts;
+using HVO.Edge.HomeAssistant.Mqtt;
+using HVO.Edge.Hosting;
+using HVO.Edge.Hosting.Telemetry;
 using HVO.Hardware.JkBms.Bms;
 using HVO.Hardware.JkBms.Configuration;
+using HVO.Hardware.JkBms.HomeAssistant;
 using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Protocol.Transport;
-using HVO.Hardware.JkBms.Telemetry;
 using HVO.Hardware.JkBms.Tests.Fakes;
 using HVO.Hardware.JkBms.Workers;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Linux.Bluetooth;
 
 namespace HVO.Hardware.JkBms.Tests.Workers;
 
@@ -26,269 +24,198 @@ namespace HVO.Hardware.JkBms.Tests.Workers;
 public sealed class BmsPollerWorkerTests
 {
     [TestMethod]
-    public void Constructor_FiltersDisabledAndInvalidDevices()
+    public void Constructor_CreatesIndependentStateForEachEnabledDevice()
     {
         using var fixture = WorkerFixture.Create(new JkBmsOptions
         {
             HciAdapter = "hci0",
-            DefaultPollIntervalSeconds = 120,
+            CentralIngestEndpoint = "https://central.test/api/v1/bms/readings",
             Devices =
             [
-                new BmsDeviceConfig { Address = "AA:BB:CC:DD:EE:01", Alias = "bank-1", Enabled = true, HciAdapter = "hci1", PollIntervalSeconds = 30 },
-                new BmsDeviceConfig { Address = "AA:BB:CC:DD:EE:02", Alias = "bank-2", Enabled = false },
-                new BmsDeviceConfig { Address = "", Alias = "missing-address", Enabled = true },
-                new BmsDeviceConfig { Address = "AA:BB:CC:DD:EE:03", Alias = "", Enabled = true },
-                new BmsDeviceConfig { Address = "AA:BB:CC:DD:EE:04", Alias = "bank-4", Enabled = true },
+                Device("01", "a", hci: "hci1"),
+                Device("02", "b"),
+                Device("03", "disabled", enabled: false),
             ],
         });
 
         fixture.Worker.DeviceStates.Should().HaveCount(2);
-        fixture.Worker.DeviceStates.Select(d => d.Address).Should().Equal("AA:BB:CC:DD:EE:01", "AA:BB:CC:DD:EE:04");
-        fixture.Worker.DeviceStates[0].AdapterName.Should().Be("hci1");
-        fixture.Worker.DeviceStates[0].PollIntervalSeconds.Should().Be(30);
-        fixture.Worker.DeviceStates[1].AdapterName.Should().Be("hci0");
-        fixture.Worker.DeviceStates[1].PollIntervalSeconds.Should().Be(120);
+        fixture.Worker.DeviceStates.Select(state => state.DeviceId).Should().Equal("a", "b");
+        fixture.Worker.DeviceStates.Select(state => state.AdapterName).Should().Equal("hci1", "hci0");
+        fixture.Worker.DeviceStates[0].Should().NotBeSameAs(fixture.Worker.DeviceStates[1]);
     }
 
     [TestMethod]
-    public async Task SuccessfulPoll_MapsCellInfoPacketToReading()
+    public async Task SuccessfulPoll_PublishesCurrentStateAndOneDurableIngressBundle()
     {
         using var fixture = WorkerFixture.Create();
-        var state = DeviceState();
-        var packet = CellPacket(totalVoltageMv: 52_000, currentMa: -1_500, socPercent: 82, alarmBitmask: 0);
+        var state = fixture.Worker.DeviceStates.Single();
+        var packet = CellPacket();
 
-        await fixture.InvokeEnqueueOutboxAsync(state, packet);
+        await fixture.InvokeSuccessfulPollAsync(state, packet);
 
-        var row = fixture.Db.OutboxRecords.Single();
-        var record = JsonSerializer.Deserialize<BmsIngressRecord>(row.PayloadJson)!;
-        record.Reading.Should().NotBeNull();
-        record.Reading!.DeviceAddress.Should().Be(state.Address);
-        record.Reading.DeviceAlias.Should().Be(state.Alias);
-        record.Reading.TotalVoltageMv.Should().Be(52_000);
-        record.Reading.CurrentMa.Should().Be(-1_500);
-        record.Reading.StateOfChargePercent.Should().Be(82);
-        record.Reading.CellCount.Should().Be(4);
-        record.Reading.CellVoltagesMv.Should().Equal(3301, 3302, 3303, 3304);
+        fixture.Writer.Records.Should().ContainSingle();
+        fixture.Writer.Records[0].Reading.CurrentMa.Should().Be(-1500);
+        fixture.Writer.Records[0].Reading.CellVoltagesMv.Should().Equal(3301, 3302, 3303, 3304);
+        fixture.Mqtt.States.Should().ContainSingle().Which.Available.Should().BeTrue();
+        fixture.Mqtt.States[0].ComponentValues["battery_net_current"].GetDouble().Should().Be(-1.5);
     }
 
     [TestMethod]
-    public async Task ConfigSnapshot_EnqueuedOnlyWhenHashChanges()
+    public async Task ExecuteAsync_OneDeviceConnectionFailureDoesNotInterruptHealthySession()
     {
-        using var fixture = WorkerFixture.Create();
-        var state = DeviceState();
-        state.LatestSettings = SettingsPacket.Parse(JkBmsProtocol.GetData(TestFrameBuilder.BuildSettingsFrame(cellCount: 16, nominalCapacityMah: 100_000)));
+        var failed = Device("01", "failed");
+        var healthy = Device("02", "healthy");
+        var transportFactory = new FakeBmsTransportFactory(address =>
+            string.Equals(address, healthy.Address, StringComparison.OrdinalIgnoreCase)
+                ? new FakeBmsTransport(address, frameSequence:
+                [
+                    TestFrameBuilder.BuildDeviceInfoFrame(serialNumber: "HEALTHY"),
+                    TestFrameBuilder.BuildCellInfoFrame(cellCount: 4),
+                ])
+                : new FakeBmsTransport(address));
+        using var fixture = WorkerFixture.Create(
+            new JkBmsOptions
+            {
+                CentralIngestEndpoint = "https://central.test/api/v1/bms/readings",
+                Devices = [failed, healthy],
+            },
+            transportFactory,
+            new AddressAwareCoordinator(failed.Address));
 
-        await fixture.InvokeEnqueueOutboxAsync(state, CellPacket(recordedAtUtc: Utc(2026, 6, 17, 12, 0, 0)));
-        await fixture.InvokeEnqueueOutboxAsync(state, CellPacket(recordedAtUtc: Utc(2026, 6, 17, 12, 1, 0)));
-        state.LatestSettings = SettingsPacket.Parse(JkBmsProtocol.GetData(TestFrameBuilder.BuildSettingsFrame(cellCount: 15, nominalCapacityMah: 100_000)));
-        await fixture.InvokeEnqueueOutboxAsync(state, CellPacket(recordedAtUtc: Utc(2026, 6, 17, 12, 2, 0)));
+        await fixture.Worker.StartAsync(CancellationToken.None);
+        await fixture.Writer.FirstWrite.WaitAsync(TimeSpan.FromSeconds(2));
+        await fixture.Worker.StopAsync(CancellationToken.None);
 
-        fixture.Db.OutboxRecords.Count(r => r.PayloadType == BmsOutboxPayloadTypes.Reading).Should().Be(3);
-        fixture.Db.OutboxRecords.Count(r => r.PayloadType == BmsOutboxPayloadTypes.Config).Should().Be(2);
-        state.LastSentConfigHash.Should().NotBeNullOrWhiteSpace();
+        fixture.Writer.Records.Should().ContainSingle(record => record.Reading.DeviceAddress == healthy.Address);
+        fixture.Worker.DeviceStates.Single(state => state.DeviceId == "failed").SessionRequestFailureCount.Should().BeGreaterThan(0);
+        fixture.Worker.DeviceStates.Single(state => state.DeviceId == "healthy").LastPollAt.Should().NotBeNull();
     }
 
-    [TestMethod]
-    public async Task DeviceInfoSnapshot_EnqueuedOnlyWhenHashChanges()
+    private static BmsDeviceConfig Device(string suffix, string id, string? hci = null, bool enabled = true) => new()
     {
-        using var fixture = WorkerFixture.Create();
-        var state = DeviceState();
-        state.LatestDeviceInfo = DeviceInfoPacket.Parse(JkBmsProtocol.GetData(TestFrameBuilder.BuildDeviceInfoFrame(serialNumber: "SN-1")));
-
-        await fixture.InvokeEnqueueOutboxAsync(state, CellPacket(recordedAtUtc: Utc(2026, 6, 17, 12, 0, 0)));
-        await fixture.InvokeEnqueueOutboxAsync(state, CellPacket(recordedAtUtc: Utc(2026, 6, 17, 12, 1, 0)));
-        state.LatestDeviceInfo = DeviceInfoPacket.Parse(JkBmsProtocol.GetData(TestFrameBuilder.BuildDeviceInfoFrame(serialNumber: "SN-2")));
-        await fixture.InvokeEnqueueOutboxAsync(state, CellPacket(recordedAtUtc: Utc(2026, 6, 17, 12, 2, 0)));
-
-        fixture.Db.OutboxRecords.Count(r => r.PayloadType == BmsOutboxPayloadTypes.Reading).Should().Be(3);
-        fixture.Db.OutboxRecords.Count(r => r.PayloadType == BmsOutboxPayloadTypes.DeviceInfo).Should().Be(2);
-        state.LastSentDeviceInfoHash.Should().NotBeNullOrWhiteSpace();
-    }
-
-    [TestMethod]
-    public async Task AlarmHandler_CalledOnlyWhenPacketHasAlarms()
-    {
-        using var fixture = WorkerFixture.Create();
-        var state = DeviceState();
-        await using var client = new JkBmsClient(new FakeBmsTransport(state.Address), NullLogger<JkBmsClient>.Instance);
-
-        await fixture.InvokeSuccessfulPollAsync(state, client, CellPacket(recordedAtUtc: Utc(2026, 6, 17, 12, 0, 0), alarmBitmask: 0));
-        await fixture.InvokeSuccessfulPollAsync(state, client, CellPacket(recordedAtUtc: Utc(2026, 6, 17, 12, 1, 0), alarmBitmask: 0x0001));
-
-        fixture.AlarmHandler.Readings.Should().ContainSingle();
-        fixture.AlarmHandler.Readings[0].AlarmBitmask.Should().Be(0x0001);
-    }
-
-    private static DevicePollState DeviceState() => new()
-    {
-        Address = "AA:BB:CC:DD:EE:01",
-        Alias = "bank-1",
-        AdapterName = "hci0",
-        PollIntervalSeconds = 60,
-        NextPollAt = DateTime.UtcNow,
+        Address = $"AA:BB:CC:DD:EE:{suffix}",
+        DeviceId = id,
+        Alias = $"Bank {id}",
+        HciAdapter = hci,
+        Enabled = enabled,
     };
 
-    private static CellInfoPacket CellPacket(
-        DateTime? recordedAtUtc = null,
-        uint totalVoltageMv = 51_000,
-        int currentMa = 2_500,
-        byte socPercent = 80,
-        uint alarmBitmask = 0)
+    private static CellInfoPacket CellPacket()
     {
         var packet = CellInfoPacket.Parse(JkBmsProtocol.GetData(TestFrameBuilder.BuildCellInfoFrame(
             cellCount: 4,
             cellVoltagesMv: [3301, 3302, 3303, 3304],
-            totalVoltageMv: totalVoltageMv,
-            currentMa: currentMa,
-            socPercent: socPercent,
-            alarmBitmask: alarmBitmask)));
+            totalVoltageMv: 52_000,
+            currentMa: -1_500,
+            socPercent: 82)));
         typeof(CellInfoPacket).GetProperty(nameof(CellInfoPacket.RecordedAtUtc))!
-            .SetValue(packet, recordedAtUtc ?? Utc(2026, 6, 17, 12, 0, 0));
+            .SetValue(packet, new DateTime(2026, 8, 11, 12, 0, 0, DateTimeKind.Utc));
         return packet;
     }
 
-    private static DateTime Utc(int year, int month, int day, int hour, int minute, int second) =>
-        new(year, month, day, hour, minute, second, DateTimeKind.Utc);
-
     private sealed class WorkerFixture : IDisposable
     {
-        private readonly SqliteConnection _connection;
-        private readonly ServiceProvider _provider;
+        private readonly ServiceProvider services;
+        private readonly GatewayTelemetry telemetry;
 
-        private WorkerFixture(SqliteConnection connection, ServiceProvider provider, CapturingAlarmHandler alarmHandler)
+        private WorkerFixture(
+            ServiceProvider services,
+            GatewayTelemetry telemetry,
+            BmsPollerWorker worker,
+            FakeWriter writer,
+            FakeMqttProjection mqtt)
         {
-            _connection = connection;
-            _provider = provider;
-            AlarmHandler = alarmHandler;
-            Db = provider.GetRequiredService<OutboxDbContext>();
-            Worker = provider.GetRequiredService<BmsPollerWorker>();
+            this.services = services;
+            this.telemetry = telemetry;
+            Worker = worker;
+            Writer = writer;
+            Mqtt = mqtt;
         }
 
-        public OutboxDbContext Db { get; }
         public BmsPollerWorker Worker { get; }
-        public CapturingAlarmHandler AlarmHandler { get; }
+        public FakeWriter Writer { get; }
+        public FakeMqttProjection Mqtt { get; }
 
-        public static WorkerFixture Create(JkBmsOptions? options = null)
+        public static WorkerFixture Create(
+            JkBmsOptions? configured = null,
+            IBmsTransportFactory? transportFactory = null,
+            IBluetoothAdapterCoordinator? coordinator = null)
         {
-            var connection = new SqliteConnection("Data Source=:memory:");
-            connection.Open();
-            var alarmHandler = new CapturingAlarmHandler();
-            var services = new ServiceCollection();
-            services.AddLogging();
-            services.AddDbContext<OutboxDbContext>(builder => builder.UseSqlite(connection));
-            services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
-            services.AddScoped<BmsOutboxWriter>();
-            services.AddSingleton<IBmsAlarmHandler>(alarmHandler);
-            services.AddSingleton<IBluetoothAdapterCoordinator>(new FakeBluetoothAdapterCoordinator());
-            services.AddSingleton<IBmsTransportFactory>(FakeBmsTransportFactory.AlwaysSucceed());
-            services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
-            services.AddSingleton(new BmsTelemetry());
-            services.AddSingleton<ITelemetryService>(new NoOpTelemetryService());
-            services.AddSingleton<IOptions<JkBmsOptions>>(Options.Create(options ?? new JkBmsOptions
+            var options = Options.Create(configured ?? new JkBmsOptions
             {
-                Devices = [new BmsDeviceConfig { Address = "AA:BB:CC:DD:EE:01", Alias = "bank-1" }],
-            }));
-            services.AddSingleton(sp => new BmsPollerWorker(
-                sp.GetRequiredService<IBmsTransportFactory>(),
-                sp.GetRequiredService<IBluetoothAdapterCoordinator>(),
-                sp.GetRequiredService<ILoggerFactory>(),
-                sp.GetRequiredService<IServiceScopeFactory>(),
-                sp.GetRequiredService<IBmsAlarmHandler>(),
-                sp.GetRequiredService<IOptions<JkBmsOptions>>(),
-                sp.GetRequiredService<BmsTelemetry>(),
-                sp.GetRequiredService<ITelemetryService>(),
-                NullLogger<BmsPollerWorker>.Instance));
-            var provider = services.BuildServiceProvider();
-            provider.GetRequiredService<OutboxDbContext>().Database.EnsureCreated();
-            return new WorkerFixture(connection, provider, alarmHandler);
+                CentralIngestEndpoint = "https://central.test/api/v1/bms/readings",
+                Devices = [Device("01", "a")],
+            });
+            var writer = new FakeWriter();
+            var mqtt = new FakeMqttProjection();
+            var services = new ServiceCollection()
+                .AddSingleton<IBmsOutboxWriter>(writer)
+                .BuildServiceProvider();
+            var telemetry = new GatewayTelemetry(new("jkbms-test", "jk-bms-direct"));
+            var worker = new BmsPollerWorker(
+                transportFactory ?? FakeBmsTransportFactory.AlwaysSucceed(),
+                coordinator ?? new FakeBluetoothAdapterCoordinator(),
+                NullLoggerFactory.Instance,
+                services.GetRequiredService<IServiceScopeFactory>(),
+                options,
+                new JkBmsHomeAssistantProjection(mqtt, Identity(), options),
+                telemetry,
+                TimeProvider.System,
+                NullLogger<BmsPollerWorker>.Instance);
+            return new(services, telemetry, worker, writer, mqtt);
         }
 
-        public async Task InvokeEnqueueOutboxAsync(DevicePollState state, CellInfoPacket packet)
+        public async Task InvokeSuccessfulPollAsync(DevicePollState state, CellInfoPacket packet)
         {
-            var method = typeof(BmsPollerWorker).GetMethod("EnqueueOutboxAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
-            var task = (Task<BmsDeviceReading>)method.Invoke(Worker, [state, packet, CancellationToken.None])!;
-            await task;
-        }
-
-        public async Task InvokeSuccessfulPollAsync(DevicePollState state, JkBmsClient client, CellInfoPacket packet)
-        {
+            await using var client = new JkBmsClient(new FakeBmsTransport(state.Address), NullLogger<JkBmsClient>.Instance);
             var method = typeof(BmsPollerWorker).GetMethod("OnSuccessfulPollAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
-            var task = (Task)method.Invoke(Worker, [state, client, packet, CancellationToken.None])!;
-            await task;
+            await (Task)method.Invoke(Worker, [state, client, packet, CancellationToken.None])!;
         }
 
         public void Dispose()
         {
-            Db.Dispose();
-            _provider.Dispose();
-            _connection.Dispose();
+            telemetry.Dispose();
+            services.Dispose();
         }
     }
 
-    private sealed class CapturingAlarmHandler : IBmsAlarmHandler
+    private sealed class FakeWriter : IBmsOutboxWriter
     {
-        public List<BmsDeviceReading> Readings { get; } = [];
-
-        public Task HandleAsync(BmsDeviceReading reading, CancellationToken ct)
+        public List<BmsIngressRecord> Records { get; } = [];
+        public Task FirstWrite => firstWrite.Task;
+        private readonly TaskCompletionSource firstWrite = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<bool> EnqueueAsync(string sourceId, string deviceId, DateTime recordedAtUtc, BmsIngressRecord record, CancellationToken cancellationToken)
         {
-            Readings.Add(reading);
-            return Task.CompletedTask;
+            Records.Add(record);
+            firstWrite.TrySetResult();
+            return Task.FromResult(true);
         }
     }
 
-    private sealed class NoOpTelemetryService : ITelemetryService
+    private sealed class AddressAwareCoordinator(string failedAddress) : IBluetoothAdapterCoordinator
     {
-        public bool IsEnabled => false;
-        public ITelemetryStatistics Statistics { get; } = new NoOpTelemetryStatistics();
-
-        public IOperationScope StartOperation(string operationName) => new NoOpOperationScope(operationName);
-        public void TrackException(Exception exception) { }
-        public void TrackEvent(string eventName) { }
-        public void RecordMetric(string metricName, double value) { }
-        public void Start() { }
-        public void Shutdown() { }
+        public async Task ConnectAsync(
+            string adapterName,
+            string address,
+            Func<Device, CancellationToken, Task> connectAsync,
+            CancellationToken ct)
+        {
+            if (string.Equals(address, failedAddress, StringComparison.OrdinalIgnoreCase))
+                throw new TimeoutException("isolated connect failure");
+            await connectAsync(null!, ct);
+        }
     }
 
-    private sealed class NoOpOperationScope(string name) : IOperationScope
+    private sealed class FakeMqttProjection : IHomeAssistantMqttProjection
     {
-        public string Name { get; } = name;
-        public string CorrelationId { get; } = string.Empty;
-        public System.Diagnostics.Activity? Activity => null;
-        public TimeSpan Elapsed => TimeSpan.Zero;
-
-        public IOperationScope WithTag(string key, object? value) => this;
-        public IOperationScope WithTags(IEnumerable<KeyValuePair<string, object?>> tags) => this;
-        public IOperationScope WithProperty(string key, Func<object?> valueFactory) => this;
-        public IOperationScope Fail(Exception exception) => this;
-        public IOperationScope Succeed() => this;
-        public IOperationScope WithResult(object? result) => this;
-        public IOperationScope CreateChild(string name) => new NoOpOperationScope(name);
-        public void RecordException(Exception exception) { }
-        public void Dispose() { }
+        public List<HomeAssistantCurrentState> States { get; } = [];
+        public void UpsertDevice(HomeAssistantDeviceDefinition definition) { }
+        public bool PublishCurrentState(HomeAssistantCurrentState state) { States.Add(state); return true; }
+        public bool RemoveDevice(HomeAssistantDeviceKey key) => false;
+        public HomeAssistantMqttStatus GetStatus() => new(false, false, 0, null, null, null);
     }
 
-    private sealed class NoOpTelemetryStatistics : ITelemetryStatistics
-    {
-        public DateTimeOffset StartTime { get; } = DateTimeOffset.UtcNow;
-        public long ActivitiesCreated => 0;
-        public long ActivitiesCompleted => 0;
-        public long ActiveActivities => 0;
-        public long ExceptionsTracked => 0;
-        public long EventsRecorded => 0;
-        public long MetricsRecorded => 0;
-        public int QueueDepth => 0;
-        public int MaxQueueDepth => 0;
-        public long ItemsEnqueued => 0;
-        public long ItemsProcessed => 0;
-        public long ItemsDropped => 0;
-        public long ProcessingErrors => 0;
-        public double AverageProcessingTimeMs => 0;
-        public long CorrelationIdsGenerated => 0;
-        public double CurrentErrorRate => 0;
-        public double CurrentThroughput => 0;
-        public IReadOnlyDictionary<string, ActivitySourceStatistics> PerSourceStatistics { get; } = new Dictionary<string, ActivitySourceStatistics>();
-
-        public TelemetryStatisticsSnapshot GetSnapshot() => new() { Timestamp = DateTimeOffset.UtcNow, StartTime = StartTime };
-        public void Reset() { }
-    }
+    private static EdgeRuntimeIdentity Identity() => new(
+        "hvo-jkbms", "1", "test", "jkbms", "jk-bms-direct", GatewayDomain.Power,
+        "jkbms-fleet", "hvo", null, "Testing", "test", "JK BMS");
 }

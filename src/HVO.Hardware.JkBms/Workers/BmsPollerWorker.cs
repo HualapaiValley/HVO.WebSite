@@ -1,14 +1,14 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using HVO.Enterprise.Telemetry.Abstractions;
+using HVO.Edge.Hosting.Telemetry;
 using HVO.Hardware.JkBms.Bms;
 using HVO.Hardware.JkBms.Configuration;
 using HVO.Hardware.JkBms.Outbox;
+using HVO.Hardware.JkBms.HomeAssistant;
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Protocol.Transport;
-using HVO.Hardware.JkBms.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -18,11 +18,10 @@ namespace HVO.Hardware.JkBms.Workers;
 
 /// <summary>
 /// Per-device mutable state tracked by the poller worker.
-/// Written only by the worker's single event loop; read by Blazor UI components
-/// (single writer, multiple readers — no locking needed for individual field reads).
+/// Written by one device session and read by diagnostics.
 ///
 /// Mutable fields are marked <c>volatile</c> so that writes by the worker thread are
-/// immediately visible to Blazor circuit threads reading them, satisfying the C# memory
+/// immediately visible to diagnostics threads reading them, satisfying the C# memory
 /// model without a full lock. <c>volatile</c> is sufficient here because each field is
 /// written atomically (reference swap or 32-bit value) and reads never need to be
 /// consistent across multiple fields simultaneously.
@@ -31,10 +30,11 @@ public sealed class DevicePollState
 {
     public string Address { get; init; } = string.Empty;
     public string Alias { get; init; } = string.Empty;
+    public string DeviceId { get; init; } = string.Empty;
     public string AdapterName { get; init; } = string.Empty;
     public int PollIntervalSeconds { get; init; }
 
-    // These fields are read by Blazor UI threads while the worker loop writes them.
+    // These fields are read by diagnostics while the worker loop writes them.
     // volatile is used where the type allows it (reference types, int).
     // For DateTime (a 64-bit struct), we store ticks as a long and use Volatile.Read/Write,
     // which provides the same acquire/release semantics as the volatile keyword.
@@ -212,8 +212,7 @@ public sealed class DevicePollState
 /// - Each session owns its BLE connection, poll schedule, reconnect/backoff state, and
 ///   serial command lane for that specific BMS.
 /// - Per-device exponential backoff on consecutive errors (capped at ~10 min).
-/// - Raises <see cref="DeviceStateChanged"/> after each successful or failed poll so the
-///   Blazor status page can refresh in real-time.
+/// - Isolates each device in its own long-lived reconnecting session.
 /// </summary>
 public sealed class BmsPollerWorker : BackgroundService
 {
@@ -221,47 +220,44 @@ public sealed class BmsPollerWorker : BackgroundService
     private readonly IBmsTransportFactory _transportFactory;
     private readonly IBluetoothAdapterCoordinator _adapterCoordinator;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly IBmsAlarmHandler _alarmHandler;
     private readonly JkBmsOptions _options;
-    private readonly BmsTelemetry _telemetry;
-    private readonly ITelemetryService _telemetryService;
+    private readonly JkBmsHomeAssistantProjection _homeAssistant;
+    private readonly GatewayTelemetry _telemetry;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<BmsPollerWorker> _logger;
 
     private readonly List<DevicePollState> _devices;
     private readonly List<JkBmsDevice> _sessions;
 
-    // ── Public state (Blazor status page reads these) ─────────────────────────
+    // ── Public diagnostics state ─────────────────────────────────────────────
 
     /// <summary>
-    /// Device states for the status page. The list is created once at startup; individual
+    /// Device states for diagnostics. The list is created once at startup; individual
     /// <see cref="DevicePollState"/> entries are updated in place by the worker event loop.
     /// UI consumers read the current state without locking — reads of individual fields are
     /// safe because the worker is the sole writer.
     /// </summary>
     public IReadOnlyList<DevicePollState> DeviceStates => _devices;
 
-    /// <summary>Raised after each poll attempt (success or failure). Subscribers update the UI.</summary>
-    public event Action? DeviceStateChanged;
-
     public BmsPollerWorker(
         IBmsTransportFactory transportFactory,
         IBluetoothAdapterCoordinator adapterCoordinator,
         ILoggerFactory loggerFactory,
         IServiceScopeFactory scopeFactory,
-        IBmsAlarmHandler alarmHandler,
         IOptions<JkBmsOptions> options,
-        BmsTelemetry telemetry,
-        ITelemetryService telemetryService,
+        JkBmsHomeAssistantProjection homeAssistant,
+        GatewayTelemetry telemetry,
+        TimeProvider timeProvider,
         ILogger<BmsPollerWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _transportFactory = transportFactory;
         _adapterCoordinator = adapterCoordinator;
         _loggerFactory = loggerFactory;
-        _alarmHandler = alarmHandler;
         _options = options.Value;
+        _homeAssistant = homeAssistant;
         _telemetry = telemetry;
-        _telemetryService = telemetryService;
+        _timeProvider = timeProvider;
         _logger = logger;
 
         var configuredDevices = _options.Devices
@@ -292,6 +288,7 @@ public sealed class BmsPollerWorker : BackgroundService
             {
                 Address = d.Address,
                 Alias = d.Alias,
+                DeviceId = d.DeviceId,
                 AdapterName = string.IsNullOrWhiteSpace(d.HciAdapter) ? _options.HciAdapter : d.HciAdapter,
                 PollIntervalSeconds = d.PollIntervalSeconds > 0
                     ? d.PollIntervalSeconds
@@ -317,9 +314,10 @@ public sealed class BmsPollerWorker : BackgroundService
                     _adapterCoordinator,
                     _loggerFactory,
                     _telemetry,
-                    _telemetryService,
+                    _timeProvider,
                     OnSuccessfulPollAsync,
-                    RaiseDeviceStateChanged,
+                    failedAt => _homeAssistant.PublishUnavailable(d, failedAt),
+                    static () => { },
                     _loggerFactory.CreateLogger<JkBmsDevice>());
             })
             .ToList();
@@ -333,7 +331,7 @@ public sealed class BmsPollerWorker : BackgroundService
 
         try
         {
-            var sessionTasks = _sessions.Select(s => s.RunAsync(stoppingToken)).ToArray();
+            var sessionTasks = _sessions.Select(session => SuperviseSessionAsync(session, stoppingToken)).ToArray();
             await Task.WhenAll(sessionTasks);
         }
         finally
@@ -345,32 +343,69 @@ public sealed class BmsPollerWorker : BackgroundService
         _logger.LogInformation("BmsPollerWorker stopped.");
     }
 
+    private async Task SuperviseSessionAsync(JkBmsDevice session, CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await session.RunAsync(stoppingToken);
+                return;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Unexpected JK BMS session failure for {Address}; healthy device sessions remain active",
+                    session.Address);
+                await Task.Delay(TimeSpan.FromSeconds(5), _timeProvider, stoppingToken);
+            }
+        }
+    }
+
     private async Task OnSuccessfulPollAsync(
         DevicePollState device,
         JkBmsClient client,
         CellInfoPacket packet,
         CancellationToken ct)
     {
-        var reading = await EnqueueOutboxAsync(device, packet, ct);
+        var reading = MapToReading(device, packet);
+        _homeAssistant.Publish(
+            _options.Devices.Single(config => string.Equals(config.Address, device.Address, StringComparison.OrdinalIgnoreCase)),
+            reading);
 
-        if (packet.HasAlarms)
+        var attempt = 0;
+        while (true)
         {
-            // Reuse the BmsDeviceReading already built inside EnqueueOutboxAsync
-            // rather than calling MapToReading a second time.
-            await _alarmHandler.HandleAsync(reading, ct);
+            try
+            {
+                await EnqueueOutboxAsync(device, packet, reading, ct);
+                return;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception exception)
+            {
+                attempt++;
+                _logger.LogWarning(exception,
+                    "JK BMS observation enqueue attempt {Attempt} failed for {DeviceId}; the same observation will be retried",
+                    attempt,
+                    device.DeviceId);
+                var delaySeconds = Math.Min(1 << Math.Min(attempt - 1, 5), 30);
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), _timeProvider, ct);
+            }
         }
     }
 
-    private void RaiseDeviceStateChanged()
+    private async Task EnqueueOutboxAsync(
+        DevicePollState device,
+        CellInfoPacket packet,
+        BmsDeviceReading reading,
+        CancellationToken ct)
     {
-        var handler = DeviceStateChanged;
-        handler?.Invoke();
-    }
-
-    private async Task<BmsDeviceReading> EnqueueOutboxAsync(DevicePollState device, CellInfoPacket packet, CancellationToken ct)
-    {
-        var reading = MapToReading(device, packet);
-
         // Build config/deviceInfo snapshots only when they have changed.
         // Track pending hashes separately — only commit them to device state AFTER the
         // outbox record is successfully persisted to avoid skipping snapshots on retry.
@@ -408,35 +443,21 @@ public sealed class BmsPollerWorker : BackgroundService
         };
 
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var writer = scope.ServiceProvider.GetRequiredService<BmsOutboxWriter>();
+        var writer = scope.ServiceProvider.GetRequiredService<IBmsOutboxWriter>();
 
-        var readingEnqueued = await writer.EnqueueReadingAsync(
+        await writer.EnqueueAsync(
             device.Address,
-            device.Alias,
+            device.DeviceId,
             packet.RecordedAtUtc,
             record,
             ct);
 
-        if (readingEnqueued)
-        {
-            if (configPayload is not null)
-            {
-                var configEnqueued = await writer.EnqueueConfigAsync(device.Address, device.Alias, configPayload, ct);
-                if (configEnqueued && pendingConfigHash is not null)
-                    device.LastSentConfigHash = pendingConfigHash;
-            }
-
-            if (infoPayload is not null)
-            {
-                var infoEnqueued = await writer.EnqueueDeviceInfoAsync(device.Address, device.Alias, infoPayload, ct);
-                if (infoEnqueued && pendingInfoHash is not null)
-                    device.LastSentDeviceInfoHash = pendingInfoHash;
-            }
-        }
-
-        // Return the reading so callers (e.g. the alarm path) can reuse it without
-        // calling MapToReading a second time.
-        return reading;
+        // A duplicate means this exact observation is already durable, so its embedded
+        // snapshots are durable as well and should not be repeated on every later poll.
+        if (configPayload is not null && pendingConfigHash is not null)
+            device.LastSentConfigHash = pendingConfigHash;
+        if (infoPayload is not null && pendingInfoHash is not null)
+            device.LastSentDeviceInfoHash = pendingInfoHash;
     }
 
     private static BmsDeviceReading MapToReading(DevicePollState device, CellInfoPacket packet) =>

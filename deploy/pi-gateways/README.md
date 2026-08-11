@@ -117,8 +117,11 @@ To verify deployed endpoints after rollout:
 ## JK BMS deployment notes
 
 - The JK BMS container needs `privileged: true` and the host D-Bus mount `/run/dbus/system_bus_socket` so BlueZ access works from Docker on the Pi.
-- The Pi deployment passes the configured JK device list through environment variables using `JkBms__Devices__<index>__...` keys.
+- Copy `gateway.json.example` to ignored `gateway.json`; mount diagnostics, central-ingest, and optional MQTT credentials as files in the ignored `secrets` directory.
+- The Compose project, service name, and `jkbms-outbox` volume are unchanged so the production outbox remains attached during cutover.
 - Use `JKBMS_HCI_ADAPTER=hci0` as the default unless a specific Pi host proves another adapter is more stable.
+- The deployment preflight validates the mounted vNext identity/outbox contract and required secrets before container recreation.
+- Follow `docs/gateways/jkbms/deployment-and-endurance.md`; never run the physical endurance check as part of routine PR validation.
 
 ## Recommended workflow
 
@@ -138,7 +141,7 @@ To verify deployed endpoints after rollout:
 ## Current local ports
 
 - Davis UI: `http://<pi-host>:5100`
-- JK BMS UI: `http://<pi-host>:5200`
+- JK BMS headless health and protected diagnostics: `http://<pi-host>:5200`
 - SolarAssistant UI: `http://<pi-host>:5300`
 - SmartShunt UI: `http://<pi-host>:5400`
 - TP-Link/Kasa local API: `http://<pi-host>:5500`

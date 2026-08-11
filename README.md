@@ -35,8 +35,8 @@ Davis Vantage Pro 2 console (TCP)
                                                                │
 JK BMS devices (Bluetooth LE)                                  ▼
         │                                              HVO.WebSite.v9
- HVO.Hardware.JkBms                                  ├─ Blazor SSR dashboard
-    ├─ Blazor SSR UI (status, devices, device detail)  ├─ REST API (API-key auth)
+ HVO.Hardware.JkBms                                  ├─ Headless health/diagnostics API
+    ├─ MQTT Discovery/current state                    ├─ REST API (API-key auth)
     ├─ SQLite outbox (durable, idempotent, with retry)  ├─ Azure SQL (EF Core)
     └─ POST /api/v1/bms/readings  ──────────────────────┤ Role-based auth (Entra ID)
                                                          └─ Health probes + OpenAPI

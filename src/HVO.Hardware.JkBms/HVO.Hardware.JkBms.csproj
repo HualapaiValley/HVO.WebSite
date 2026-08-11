@@ -5,7 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>HVO.Hardware.JkBms</RootNamespace>
     <AssemblyName>HVO.Hardware.JkBms</AssemblyName>
-    <UserSecretsId>hvo-hardware-jkbms</UserSecretsId>
     <!--
       NU1903 suppression — GHSA-xrw6-gwf8-vvr9 (CVE-2026-39959, High):
       Tmds.DBus < 0.92.0 is vulnerable to malicious D-Bus peers. This is a transitive
@@ -18,23 +17,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="HVO.Enterprise.Telemetry" />
-    <PackageReference Include="HVO.Enterprise.Telemetry.OpenTelemetry" />
-    <PackageReference Include="MudBlazor" />
-    <PackageReference Include="OpenTelemetry.Api" />
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="Linux.Bluetooth" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
-    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\HVO.Edge.Contracts\HVO.Edge.Contracts.csproj" />
+    <ProjectReference Include="..\HVO.Edge.HomeAssistant.Mqtt\HVO.Edge.HomeAssistant.Mqtt.csproj" />
     <ProjectReference Include="..\HVO.Edge.Hosting\HVO.Edge.Hosting.csproj" />
     <ProjectReference Include="..\HVO.Edge.Outbox\HVO.Edge.Outbox.csproj" />
-    <ProjectReference Include="..\HVO.WebSite.Themes\HVO.WebSite.Themes.csproj" />
   </ItemGroup>
 </Project>

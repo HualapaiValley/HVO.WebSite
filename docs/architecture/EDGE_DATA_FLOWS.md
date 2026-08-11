@@ -72,7 +72,7 @@ flowchart LR
 ```mermaid
 flowchart LR
     BMS[JK BMS units] -->|Bluetooth LE| COL[JK headless collector]
-    COL -->|current pack, cells, alarms| MQTT[Local Mosquitto]
+    COL -->|bounded current pack, health, alarms| MQTT[Local Mosquitto]
     MQTT --> HA[Home Assistant]
     COL -->|readings, config, device info| OUT[(JK SQLite outbox)]
     OUT -->|BMS ingest HTTPS| API[Central Website API]
@@ -80,7 +80,7 @@ flowchart LR
     HA -. excluded from HA exporter .-> X[No second writer]
 ```
 
-**Migration status:** target headless port is issue #328. The direct collector remains the canonical writer.
+**Migration status:** the issue #328 headless port is implemented. Production cutover still requires the documented bounded endurance check; the direct collector remains the only canonical writer throughout cutover.
 
 ## EG4 6500EX And MPPT100
 

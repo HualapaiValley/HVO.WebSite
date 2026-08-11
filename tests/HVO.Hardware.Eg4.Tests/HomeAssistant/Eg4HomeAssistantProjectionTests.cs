@@ -64,6 +64,18 @@ public sealed class Eg4HomeAssistantProjectionTests
         state.ComponentValues.Should().NotContainKey("temperature");
     }
 
+    [TestMethod]
+    public void Constructor_RejectsMissingSiteIdentityEvenWhenMqttIsDisabled()
+    {
+        var act = () => new Eg4HomeAssistantProjection(
+            new FakeProjection(),
+            Identity(siteId: null),
+            Options.Create(new Eg4Options { Devices = [Device("a", Eg4DeviceType.Inverter6500Ex)] }));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Edge:Runtime:SiteId*");
+    }
+
     private static Eg4DeviceOptions Device(string id, Eg4DeviceType type) => new()
     {
         Type = type,
@@ -74,9 +86,9 @@ public sealed class Eg4HomeAssistantProjectionTests
         UnitId = type == Eg4DeviceType.Inverter6500Ex ? (byte)0 : (byte)1
     };
 
-    private static EdgeRuntimeIdentity Identity() => new(
+    private static EdgeRuntimeIdentity Identity(string? siteId = "hvo") => new(
         "hvo-eg4", "1", "test", "eg4", "eg4-direct", GatewayDomain.Power,
-        "eg4-fleet", "hvo", null, "Testing", "test", "EG4");
+        "eg4-fleet", siteId, null, "Testing", "test", "EG4");
 
     private sealed class FakeProjection : IHomeAssistantMqttProjection
     {
