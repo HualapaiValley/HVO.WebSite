@@ -4,6 +4,12 @@ namespace HVO.Edge.Hosting.Telemetry;
 
 public static class GatewayTelemetryResource
 {
+    public static IReadOnlyList<KeyValuePair<string, object>> Create(EdgeRuntimeIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        return identity.CreateResourceAttributes();
+    }
+
     public static IReadOnlyList<KeyValuePair<string, object>> Create(
         string defaultServiceName,
         GatewayTelemetryIdentity identity,

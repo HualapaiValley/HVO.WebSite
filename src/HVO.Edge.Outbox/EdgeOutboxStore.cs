@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace HVO.Edge.Outbox;
 
@@ -6,6 +7,10 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
     where TContext : EdgeOutboxDbContext
 {
     private const int MaxLastErrorLength = 1024;
+    private static readonly Regex SensitiveErrorPattern = new(
+        @"(?i)(authorization\s*:\s*bearer|bearer|api[-_ ]?key|access[-_ ]?token|password|token)\s*[=:]?\s*[^\s&,;]+",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        TimeSpan.FromMilliseconds(100));
 
     private readonly TContext _db = db;
 
@@ -116,12 +121,12 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
     {
         record.Status = EdgeOutboxStatus.Failed;
         record.FailureKind = kind;
-        record.LastError = error;
+        record.LastError = NormalizeError(error);
     }
 
     public void ScheduleRetry(EdgeOutboxRecord record, string error, DateTime nowUtc, int maxRetryAttempts, int maxBackoffSeconds)
     {
-        record.LastError = error;
+        record.LastError = NormalizeError(error);
         if (record.AttemptCount >= maxRetryAttempts)
         {
             record.Status = EdgeOutboxStatus.Failed;
@@ -202,6 +207,24 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
         return updated.Length <= MaxLastErrorLength
             ? updated
             : updated[^MaxLastErrorLength..];
+    }
+
+    private static string NormalizeError(string error)
+    {
+        try
+        {
+            var candidate = error.Trim();
+            if (candidate.Length > MaxLastErrorLength * 4)
+                candidate = candidate[..(MaxLastErrorLength * 4)];
+            var normalized = SensitiveErrorPattern.Replace(candidate, "$1=[REDACTED]");
+            return normalized.Length <= MaxLastErrorLength
+                ? normalized
+                : normalized[..MaxLastErrorLength];
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return "Outbox forwarding error could not be safely normalized.";
+        }
     }
 
     private static bool IsUniqueConstraintViolation(Exception exception)

@@ -4,6 +4,11 @@ This document defines shared HVO gateway behavior that should be common across D
 
 Status: Current standard. Use this as the baseline for current gateways and future gateway work.
 
+Headless vNext executables also follow
+`docs/architecture/EDGE_VNEXT_RUNTIME.md`, including `AddHvoEdgeRuntime`, mounted
+configuration under `/app/config`, durable data under `/app/data`, secret files
+under `/run/secrets`, and the shared protected diagnostics route group.
+
 ## Goals
 
 - Keep gateway behavior consistent across device types.
@@ -272,6 +277,13 @@ Open future work is tracked in `docs/FUTURE_WORK.md`.
 
 ## Implementation Rules For New Gateways
 
+- Use the headless `AddHvoEdgeRuntime` composition and
+  `MapHvoEdgeRuntimeEndpoints`; do not add Razor, Blazor, MudBlazor, Themes, or
+  static assets.
+- Mount non-secret configuration read-only at `/app/config/gateway.json`, data
+  read-write at `/app/data`, and secret files read-only under `/run/secrets`.
+- Register device workers after the shared runtime so validation and SQLite
+  initialization complete first.
 - Start with the shared outbox unless there is a documented blocker.
 - Use common status/failure/health semantics even when a gateway needs custom payloads.
 - Add gateway-specific metrics only after mapping common metrics first.
