@@ -29,6 +29,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+"$repo_root/tools/validate-home-assistant-managed-config.sh"
 docker compose -p "$project_name" -f "$compose_file" up -d --wait
 ha_address="$(docker compose -p "$project_name" -f "$compose_file" port home-assistant 8123)"
 broker_address="$(docker compose -p "$project_name" -f "$compose_file" port mosquitto 1883)"

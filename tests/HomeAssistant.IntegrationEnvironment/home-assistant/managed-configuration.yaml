@@ -1,0 +1,7 @@
+default_config:
+
+homeassistant:
+  name: HVO Managed Configuration Test
+  packages: !include_dir_named hvo/packages
+
+lovelace: !include hvo/lovelace.yaml

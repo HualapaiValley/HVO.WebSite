@@ -117,8 +117,31 @@ public sealed class HomeAssistantKasaDashboardTests
         dashboard.Should().NotContain("password");
     }
 
+    [TestMethod]
+    public void ManagedConfiguration_UsesSupportedIncludesAndContainsNoSecretValues()
+    {
+        var configurationRoot = Path.Combine(AppContext.BaseDirectory, "Fixtures", "HomeAssistant", "Configuration");
+        var lovelace = File.ReadAllText(Path.Combine(configurationRoot, "lovelace.yaml"));
+        var package = File.ReadAllText(Path.Combine(configurationRoot, "packages", "hvo.yaml"));
+        var proxy = File.ReadAllText(Path.Combine(configurationRoot, "esphome", "hvo-bluetooth-proxy.yaml"));
+        var managedConfiguration = Directory.GetFiles(configurationRoot, "*.yaml", SearchOption.AllDirectories)
+            .Select(File.ReadAllText)
+            .ToArray();
+
+        lovelace.Should().Contain("filename: hvo/dashboards/hvo-kasa.yaml");
+        package.Should().Contain("template: !include ../templates/hvo.yaml");
+        package.Should().Contain("automation: !include ../automations/hvo.yaml");
+        proxy.Should().Contain("bluetooth_proxy:");
+        proxy.Should().Contain("active: true");
+        proxy.Should().Contain("key: !secret hvo_bluetooth_proxy_api_encryption_key");
+        proxy.Should().Contain("password: !secret wifi_password");
+        managedConfiguration.Should().OnlyContain(content => !content.Contains(".storage", StringComparison.Ordinal));
+        managedConfiguration.Should().OnlyContain(content => !content.Contains("http://", StringComparison.Ordinal));
+        managedConfiguration.Should().OnlyContain(content => !content.Contains("https://", StringComparison.Ordinal));
+    }
+
     private static string[] ReadDashboardLines() =>
-        File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Fixtures", "HomeAssistant", "hvo-kasa.yaml"));
+        File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Fixtures", "HomeAssistant", "Configuration", "dashboards", "hvo-kasa.yaml"));
 
     private static string[] GetEntityDeclarations(IEnumerable<string> lines) =>
         lines

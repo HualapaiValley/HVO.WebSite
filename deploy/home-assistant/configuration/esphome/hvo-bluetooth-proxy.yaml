@@ -1,0 +1,36 @@
+substitutions:
+  name: hvo-bluetooth-proxy
+  friendly_name: HVO Bluetooth Proxy
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: !secret hvo_bluetooth_proxy_api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret hvo_bluetooth_proxy_ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: HVO Bluetooth Proxy Fallback
+    password: !secret hvo_bluetooth_proxy_fallback_password
+
+captive_portal:
+
+esp32_ble_tracker:
+
+bluetooth_proxy:
+  active: true
