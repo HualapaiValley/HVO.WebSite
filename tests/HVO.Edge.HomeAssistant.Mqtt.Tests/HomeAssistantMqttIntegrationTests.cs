@@ -10,6 +10,7 @@ namespace HVO.Edge.HomeAssistant.Mqtt.Tests;
 
 [TestClass]
 [TestCategory("Integration")]
+[TestCategory("HomeAssistantIntegration")]
 public sealed class HomeAssistantMqttIntegrationTests
 {
     [TestMethod]

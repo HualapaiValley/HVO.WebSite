@@ -3,12 +3,14 @@
   "requiredScenarioState": "Started",
   "request": {
     "method": "POST",
-    "urlPath": "/api/telemetry"
+    "urlPathPattern": "/api/(telemetry|v1/power/readings|v1/weather/raw/batch)"
   },
   "response": {
-    "status": 202,
+    "status": 201,
     "jsonBody": {
-      "accepted": true
+      "inserted": 1,
+      "skipped": 0,
+      "failed": []
     },
     "headers": {
       "Content-Type": "application/json"

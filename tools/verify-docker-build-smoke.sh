@@ -29,9 +29,9 @@ chmod +x "${fake_docker}"
 		bash "${repo_root}/tools/docker-build-smoke.sh"
 )
 
-[[ "$(grep -c '^build ' "${log_file}")" == 7 ]] || { printf 'Expected seven Docker smoke builds.\n' >&2; exit 1; }
-[[ "$(grep -c '^image rm --force ' "${log_file}")" == 7 ]] || { printf 'Expected every smoke image to be removed.\n' >&2; exit 1; }
-[[ "$(grep -c '^builder prune --all --force$' "${log_file}")" == 9 ]] || { printf 'Expected cache cleanup before, between, and after builds.\n' >&2; exit 1; }
+[[ "$(grep -c '^build ' "${log_file}")" == 8 ]] || { printf 'Expected eight Docker smoke builds.\n' >&2; exit 1; }
+[[ "$(grep -c '^image rm --force ' "${log_file}")" == 8 ]] || { printf 'Expected every smoke image to be removed.\n' >&2; exit 1; }
+[[ "$(grep -c '^builder prune --all --force$' "${log_file}")" == 10 ]] || { printf 'Expected cache cleanup before, between, and after builds.\n' >&2; exit 1; }
 
 : > "${log_file}"
 (
@@ -40,7 +40,7 @@ chmod +x "${fake_docker}"
 		DOCKER_SMOKE_RUN_KEY=cache-test DOCKER_SMOKE_CACHE_MODE=persistent \
 		bash "${repo_root}/tools/docker-build-smoke.sh"
 )
-[[ "$(grep -c '^build ' "${log_file}")" == 7 ]] || { printf 'Expected seven persistent-cache Docker smoke builds.\n' >&2; exit 1; }
+[[ "$(grep -c '^build ' "${log_file}")" == 8 ]] || { printf 'Expected eight persistent-cache Docker smoke builds.\n' >&2; exit 1; }
 [[ "$(grep -c '^builder prune --force --max-used-space 30GB$' "${log_file}")" == 2 ]] || {
 	printf 'Expected bounded persistent cache pruning before and after the smoke suite.\n' >&2
 	exit 1
@@ -97,4 +97,4 @@ remove_failure_status="$?"
 set -e
 [[ "${remove_failure_status}" == 1 ]] || { printf 'Expected image cleanup failure to fail a successful smoke suite.\n' >&2; exit 1; }
 
-printf 'Verified bounded Docker smoke build cleanup for all seven images.\n'
+printf 'Verified bounded Docker smoke build cleanup for all eight images.\n'

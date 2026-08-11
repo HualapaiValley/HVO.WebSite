@@ -1,0 +1,36 @@
+{
+  "Edge": {
+    "Runtime": {
+      "ServiceName": "hvo-home-assistant-exporter",
+      "GatewayId": "home-assistant-exporter",
+      "GatewayType": "home-assistant-exporter",
+      "Domain": "Observatory",
+      "SourceId": "home-assistant",
+      "SiteId": "hvo",
+      "DisplayName": "Home Assistant Telemetry Exporter",
+      "DiagnosticsApiKeySecret": "diagnostics-api-key"
+    }
+  },
+  "HomeAssistant": {
+    "Exporter": {
+      "Enabled": false,
+      "Endpoint": "ws://192.168.1.113:8123/api/websocket",
+      "AccessTokenSecret": "home-assistant-token",
+      "CentralIngestEndpoint": "https://www.hualapaivalleyobservatory.org/",
+      "CentralApiKeySecret": "central-ingest-api-key",
+      "RetryExhaustedRequeueMinutes": 15,
+      "Mappings": []
+    }
+  },
+  "Outbox": {
+    "DatabasePath": "/app/data/outbox.db",
+    "PayloadType": "com.hvo.homeassistant.observation.v1",
+    "PayloadVersion": "1",
+    "BatchSize": 50,
+    "SweepIntervalSeconds": 5,
+    "MaxRetryAttempts": 10,
+    "MaxBackoffSeconds": 300,
+    "SentRetentionDays": 7,
+    "FailedRetentionDays": 30
+  }
+}

@@ -46,6 +46,9 @@ public static class EdgePayloadTypes
     // ── Gateway status (all gateways) ────────────────────────────────────
     public const string GatewayStatus = "com.hvo.gateway.status.v1";
 
+    // ── Home Assistant exporter ───────────────────────────────────────────
+    public const string HomeAssistantObservation = "com.hvo.homeassistant.observation.v1";
+
     /// <summary>
     /// Legacy payload type identifiers used in existing outbox records.
     /// New code should prefer the CloudEvents-style constants above.

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
+using HVO.WebSite.v9.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace HVO.WebSite.v9.Services;
@@ -76,6 +77,8 @@ public sealed class ApiKeySeedService : IHostedService
             name: "Power API — read",
             scopes: [ApiScopes.PowerRead],
             cancellationToken);
+
+        await SeedHomeAssistantExporterKeyAsync(db, cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -125,6 +128,76 @@ public sealed class ApiKeySeedService : IHostedService
 
         _logger.LogInformation("Seeded API key '{Name}' (id={Id}) with scopes: {Scopes}",
             name, apiKey.Id, string.Join(", ", scopes));
+    }
+
+    private async Task SeedHomeAssistantExporterKeyAsync(HvoV9DbContext db, CancellationToken cancellationToken)
+    {
+        const string configurationKeyName = "Seeding:HomeAssistantExporterApiKey";
+        var rawKey = _configuration[configurationKeyName];
+        if (string.IsNullOrWhiteSpace(rawKey))
+        {
+            _logger.LogDebug("{ConfigurationKeyName} is not configured — skipping Home Assistant exporter API key seed", configurationKeyName);
+            return;
+        }
+
+        var sources = _configuration.GetSection("Seeding:HomeAssistantExporterSources").Get<string[]>() ?? [];
+        sources = sources.Select(static source => source.Trim()).Where(static source => source.Length > 0).Distinct(StringComparer.Ordinal).ToArray();
+        if (sources.Length == 0 || sources.Any(static source => source.Length > 64
+            || !(source.StartsWith("kasa:", StringComparison.Ordinal) || source.StartsWith("govee:", StringComparison.Ordinal))))
+            throw new InvalidOperationException("Seeding:HomeAssistantExporterSources must contain reserved kasa:/govee: source IDs no longer than 64 characters.");
+
+        var keyHash = ComputeSha256Hex(rawKey);
+        var apiKey = await db.ApiKeys.Include(static key => key.Claims).SingleOrDefaultAsync(key => key.KeyHash == keyHash, cancellationToken);
+        if (apiKey is null)
+        {
+            apiKey = new ApiKey
+            {
+                Id = Guid.NewGuid(),
+                KeyHash = keyHash,
+                Name = "Home Assistant exporter — ingest",
+                Type = ApiKeyType.System,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.ApiKeys.Add(apiKey);
+        }
+
+        var requiredClaims = new[]
+        {
+            (Type: "scope", Value: ApiScopes.PowerIngest),
+            (Type: "scope", Value: ApiScopes.WeatherIngest)
+        }.Concat(sources.Select(static source => (Type: IngestSourceAuthority.SourceClaimType, Value: source)));
+        var configuredSources = sources.ToHashSet(StringComparer.Ordinal);
+        var staleSourceClaims = apiKey.Claims
+            .Where(claim => claim.ClaimType == IngestSourceAuthority.SourceClaimType
+                && !configuredSources.Contains(claim.ClaimValue))
+            .ToArray();
+        if (staleSourceClaims.Length > 0)
+        {
+            db.ApiKeyClaims.RemoveRange(staleSourceClaims);
+            foreach (var claim in staleSourceClaims)
+                apiKey.Claims.Remove(claim);
+        }
+        var conflictingSource = await db.ApiKeyClaims.AsNoTracking().FirstOrDefaultAsync(
+            claim => claim.ClaimType == IngestSourceAuthority.SourceClaimType
+                && sources.Contains(claim.ClaimValue)
+                && claim.ApiKeyId != apiKey.Id
+                && claim.ApiKey.IsActive,
+            cancellationToken);
+        if (conflictingSource is not null)
+            throw new InvalidOperationException("A configured Home Assistant exporter source is already reserved by another active API key.");
+        foreach (var claim in requiredClaims.Where(required => !apiKey.Claims.Any(
+            existing => existing.ClaimType == required.Type && existing.ClaimValue == required.Value)))
+        {
+            apiKey.Claims.Add(new ApiKeyClaim
+            {
+                ApiKeyId = apiKey.Id,
+                ClaimType = claim.Type,
+                ClaimValue = claim.Value
+            });
+        }
+        await db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Ensured Home Assistant exporter API key with {SourceCount} source claim(s)", sources.Length);
     }
 
     private static string ComputeSha256Hex(string input)

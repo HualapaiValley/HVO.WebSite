@@ -12,6 +12,10 @@ public class IngestWeatherRawRequest
     [MaxLength(64)]
     public required string StationId { get; init; }
 
+    /// <summary>Acquisition authority that produced the observation.</summary>
+    [MaxLength(64)]
+    public string? SourceSystem { get; init; }
+
     /// <summary>UTC timestamp of the observation. Defaults to server time if omitted.</summary>
     public DateTime? RecordedAt { get; init; }
 

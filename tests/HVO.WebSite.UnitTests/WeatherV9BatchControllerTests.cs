@@ -10,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
+using System.Security.Claims;
+using HVO.WebSite.v9.Infrastructure;
 
 namespace HVO.WebSite.UnitTests;
 
@@ -81,6 +83,30 @@ public class WeatherV9BatchControllerTests
         body.Failed.Should().BeEmpty();
 
         db.WeatherRaw.Count().Should().Be(3);
+    }
+
+    [TestMethod]
+    public async Task IngestRawBatch_HomeAssistantSourceRequiresExactSourceClaim()
+    {
+        using var db = CreateDb();
+        var ctrl = CreateController(db);
+        var request = new IngestWeatherRawRequest
+        {
+            StationId = "govee:sensor-1",
+            SourceSystem = null,
+            RecordedAt = DateTime.Parse("2026-04-29T01:00:00Z").ToUniversalTime(),
+            TemperatureF = 68,
+            HumidityPercent = 40
+        };
+
+        var denied = await ctrl.IngestRawBatch(ToJsonElement(new[] { request }), CancellationToken.None);
+        denied.Result.Should().BeOfType<ForbidResult>();
+
+        ctrl.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity([
+            new Claim(IngestSourceAuthority.SourceClaimType, "govee:sensor-1")
+        ], "test"));
+        var accepted = await ctrl.IngestRawBatch(ToJsonElement(new[] { request }), CancellationToken.None);
+        accepted.Result.Should().BeOfType<CreatedAtActionResult>();
     }
 
     // -------------------------------------------------------------------------

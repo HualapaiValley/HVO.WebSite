@@ -24,6 +24,8 @@ Recommended website secret names in `hvoobs-kv`:
 - `Seeding--PowerApiKey`
 - `Seeding--WeatherReadApiKey`
 - `Seeding--PowerReadApiKey`
+- `Seeding--HomeAssistantExporterApiKey`
+- `Seeding--HomeAssistantExporterSources--0` (repeat the numeric suffix for each reserved `kasa:`/`govee:` source)
 
 Reason:
 
@@ -55,6 +57,7 @@ Important:
 
 - `deploy/pi-gateways/davis`
 - `deploy/pi-gateways/eg4`
+- `deploy/pi-gateways/home-assistant-exporter`
 - `deploy/pi-gateways/jkbms`
 - `deploy/pi-gateways/solarassistant`
 - `deploy/pi-gateways/smartshunt`
@@ -71,6 +74,7 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 ```bash
 ./scripts/deploy-pi-gateway.sh --context devpi5 davis
 ./scripts/deploy-pi-gateway.sh --context devpi5 eg4
+./scripts/deploy-pi-gateway.sh --context devpi5 ha-exporter
 ./scripts/deploy-pi-gateway.sh --context devpi5 jkbms
 ./scripts/deploy-pi-gateway.sh --context devpi5 solarassistant
 ./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt
@@ -83,7 +87,7 @@ To deploy all gateway stacks from the current checkout:
 ./scripts/deploy-pi-gateway.sh --context devpi5 all
 ```
 
-The commissioning EG4 stack is intentionally excluded from `all`; deploy it explicitly after stable HID preflight.
+The commissioning EG4 and Home Assistant exporter stacks are intentionally excluded from `all`; deploy them explicitly after source-authority preflight.
 
 To verify deployed endpoints after rollout:
 
@@ -139,6 +143,7 @@ To verify deployed endpoints after rollout:
 - SmartShunt UI: `http://<pi-host>:5400`
 - TP-Link/Kasa local API: `http://<pi-host>:5500`
 - EG4 UI: `http://<pi-host>:5600`
+- Home Assistant exporter diagnostics: `http://<pi-host>:5700`
 
 ## EG4 deployment notes
 

@@ -11,7 +11,7 @@ allow_env_overrides=false
 target=""
 
 usage() {
-	printf 'Usage: %s [--dry-run] [--context <docker-context>] [--pull] [--no-build] [--allow-env-overrides] <all|davis|eg4|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
+	printf 'Usage: %s [--dry-run] [--context <docker-context>] [--pull] [--no-build] [--allow-env-overrides] <all|davis|eg4|ha-exporter|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
 	printf '\n'
 	printf 'Deploys one or more Pi gateway compose stacks using an existing Docker context.\n'
 }
@@ -93,6 +93,7 @@ compose_dir_for_target() {
 	case "$1" in
 		davis) printf '%s\n' 'deploy/pi-gateways/davis' ;;
 		eg4) printf '%s\n' 'deploy/pi-gateways/eg4' ;;
+		ha-exporter|home-assistant-exporter) printf '%s\n' 'deploy/pi-gateways/home-assistant-exporter' ;;
 		jkbms) printf '%s\n' 'deploy/pi-gateways/jkbms' ;;
 		solarassistant) printf '%s\n' 'deploy/pi-gateways/solarassistant' ;;
 		smartshunt) printf '%s\n' 'deploy/pi-gateways/smartshunt' ;;
@@ -191,7 +192,7 @@ while (($# > 0)); do
 			usage
 			exit 0
 			;;
-		all|davis|eg4|jkbms|solarassistant|smartshunt|tplinkkasa|tplink-kasa)
+		all|davis|eg4|ha-exporter|home-assistant-exporter|jkbms|solarassistant|smartshunt|tplinkkasa|tplink-kasa)
 			[[ -z "${target}" ]] || fail 'Only one target can be specified.'
 			target="$1"
 			shift

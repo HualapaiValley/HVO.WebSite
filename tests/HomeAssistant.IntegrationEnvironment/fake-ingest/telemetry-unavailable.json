@@ -3,7 +3,7 @@
   "requiredScenarioState": "Unavailable",
   "request": {
     "method": "POST",
-    "urlPath": "/api/telemetry"
+    "urlPathPattern": "/api/(telemetry|v1/power/readings|v1/weather/raw/batch)"
   },
   "response": {
     "status": 503,

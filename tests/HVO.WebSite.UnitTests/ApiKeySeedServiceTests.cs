@@ -116,4 +116,37 @@ public sealed class ApiKeySeedServiceTests
 
         seededCount.Should().Be(1);
     }
+
+    [TestMethod]
+    public async Task StartAsync_SeedsHomeAssistantExporterScopesAndSourceClaimsIdempotently()
+    {
+        var dbName = $"{nameof(StartAsync_SeedsHomeAssistantExporterScopesAndSourceClaimsIdempotently)}-{Guid.NewGuid():N}";
+        var services = new ServiceCollection()
+            .AddDbContext<HvoV9DbContext>(options => options.UseInMemoryDatabase(dbName))
+            .BuildServiceProvider();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Seeding:HomeAssistantExporterApiKey"] = "ha-exporter-test-key",
+                ["Seeding:HomeAssistantExporterSources:0"] = "kasa:plug-1",
+                ["Seeding:HomeAssistantExporterSources:1"] = "govee:sensor-1"
+            })
+            .Build();
+        var seeder = new ApiKeySeedService(services, configuration, NullLogger<ApiKeySeedService>.Instance);
+
+        await seeder.StartAsync(CancellationToken.None);
+        configuration["Seeding:HomeAssistantExporterSources:1"] = "govee:sensor-2";
+        await seeder.StartAsync(CancellationToken.None);
+
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<HvoV9DbContext>();
+        var keyHash = ApiKeyAuthMiddleware.HashKey("ha-exporter-test-key");
+        var apiKey = await db.ApiKeys.Include(key => key.Claims).SingleAsync(key => key.KeyHash == keyHash);
+        apiKey.Claims.Should().HaveCount(4);
+        apiKey.Claims.Should().Contain(claim => claim.ClaimType == "scope" && claim.ClaimValue == ApiScopes.PowerIngest);
+        apiKey.Claims.Should().Contain(claim => claim.ClaimType == "scope" && claim.ClaimValue == ApiScopes.WeatherIngest);
+        apiKey.Claims.Should().Contain(claim => claim.ClaimType == "source" && claim.ClaimValue == "kasa:plug-1");
+        apiKey.Claims.Should().Contain(claim => claim.ClaimType == "source" && claim.ClaimValue == "govee:sensor-2");
+        apiKey.Claims.Should().NotContain(claim => claim.ClaimType == "source" && claim.ClaimValue == "govee:sensor-1");
+    }
 }
