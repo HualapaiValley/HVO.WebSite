@@ -50,6 +50,18 @@ public sealed class JkBmsHomeAssistantProjectionTests
         mqtt.States[2].ComponentValues.Should().BeEmpty();
     }
 
+    [TestMethod]
+    public void Constructor_RejectsMissingSiteIdentityEvenWhenMqttIsDisabled()
+    {
+        var act = () => new JkBmsHomeAssistantProjection(
+            new FakeProjection(),
+            Identity(siteId: null),
+            Options.Create(new JkBmsOptions { Devices = [Device("a")] }));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Edge:Runtime:SiteId*");
+    }
+
     private static BmsDeviceConfig Device(string id) => new()
     {
         Address = $"AA:BB:CC:DD:EE:{(id == "a" ? "01" : "02")}",
@@ -67,9 +79,9 @@ public sealed class JkBmsHomeAssistantProjectionTests
         StateOfChargePercent = 80,
     };
 
-    private static EdgeRuntimeIdentity Identity() => new(
+    private static EdgeRuntimeIdentity Identity(string? siteId = "hvo") => new(
         "hvo-jkbms", "1", "test", "jkbms", "jk-bms-direct", GatewayDomain.Power,
-        "jkbms-fleet", "hvo", null, "Testing", "test", "JK BMS");
+        "jkbms-fleet", siteId, null, "Testing", "test", "JK BMS");
 
     private sealed class FakeProjection : IHomeAssistantMqttProjection
     {

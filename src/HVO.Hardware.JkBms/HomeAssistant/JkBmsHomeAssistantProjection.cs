@@ -12,6 +12,7 @@ public sealed class JkBmsHomeAssistantProjection
     private const string Measurement = "measurement";
     private readonly IHomeAssistantMqttProjection projection;
     private readonly EdgeRuntimeIdentity identity;
+    private readonly string siteId;
 
     public JkBmsHomeAssistantProjection(
         IHomeAssistantMqttProjection projection,
@@ -20,6 +21,8 @@ public sealed class JkBmsHomeAssistantProjection
     {
         this.projection = projection;
         this.identity = identity;
+        siteId = identity.SiteId
+            ?? throw new InvalidOperationException("Edge:Runtime:SiteId is required for JK BMS Home Assistant identity.");
         foreach (var device in (options.Value.Devices ?? []).Where(static device => device.Enabled))
             projection.UpsertDevice(CreateDefinition(device));
     }
@@ -75,5 +78,5 @@ public sealed class JkBmsHomeAssistantProjection
         model: "JK BMS");
 
     private HomeAssistantDeviceKey Key(BmsDeviceConfig device) =>
-        new(identity.SiteId!, identity.GatewayId, device.DeviceId);
+        new(siteId, identity.GatewayId, device.DeviceId);
 }

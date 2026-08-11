@@ -12,6 +12,7 @@ internal sealed class Eg4HomeAssistantProjection
     private const string Measurement = "measurement";
     private readonly IHomeAssistantMqttProjection projection;
     private readonly EdgeRuntimeIdentity identity;
+    private readonly string siteId;
 
     public Eg4HomeAssistantProjection(
         IHomeAssistantMqttProjection projection,
@@ -20,6 +21,8 @@ internal sealed class Eg4HomeAssistantProjection
     {
         this.projection = projection;
         this.identity = identity;
+        siteId = identity.SiteId
+            ?? throw new InvalidOperationException("Edge:Runtime:SiteId is required for EG4 Home Assistant identity.");
         foreach (var device in (options.Value.Devices ?? []).Where(static device => device.Enabled))
             projection.UpsertDevice(CreateDefinition(device));
     }
@@ -76,7 +79,7 @@ internal sealed class Eg4HomeAssistantProjection
     }
 
     private HomeAssistantDeviceKey Key(Eg4DeviceOptions device) =>
-        new(identity.SiteId!, identity.GatewayId, device.DeviceId);
+        new(siteId, identity.GatewayId, device.DeviceId);
 
     private static void Add(Dictionary<string, JsonElement> values, string componentId, double? value)
     {
