@@ -74,6 +74,9 @@
     <PackageVersion Include="System.Text.Json" Version="10.0.9" />
     <PackageVersion Include="System.IO.Ports" Version="10.0.10" />
 
+    <!-- MQTT -->
+    <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
+
     <!-- Hardware / BLE -->
     <PackageVersion Include="InTheHand.BluetoothLE" Version="4.0.44" />
     <PackageVersion Include="Linux.Bluetooth" Version="5.67.1" />

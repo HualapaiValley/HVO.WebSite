@@ -10,6 +10,7 @@ port and cutover issues.
 HVO.Edge.Contracts
   <- HVO.Edge.Outbox
   <- HVO.Edge.Hosting
+  <- HVO.Edge.HomeAssistant.Mqtt
   <- vNext device executable
 ```
 
@@ -21,6 +22,9 @@ HVO.Edge.Contracts
 - `HVO.Edge.Hosting` owns mounted configuration, secret-file resolution, one
   runtime identity, structured logging, standard OpenTelemetry, resilient HTTP,
   health, and protected diagnostics endpoints.
+- `HVO.Edge.HomeAssistant.Mqtt` owns the optional, in-memory Home Assistant
+  discovery/current-state projection and its broker worker. It references
+  Hosting for runtime identity and secret resolution, but has no outbox API.
 - Device executables own only protocol acquisition, mapping, and an
   `IEdgeOutboxBatchSender` adapter for their typed central-ingest contract.
 
@@ -113,6 +117,43 @@ Public endpoints:
 The API key is loaded from the secret file named by
 `Edge:Runtime:DiagnosticsApiKeySecret`. Diagnostic responses expose no secret,
 secret path, configuration path, or SQLite path.
+
+## Home Assistant MQTT Contract
+
+Device executables opt in with `AddHvoHomeAssistantMqtt(configuration)` after
+registering the edge runtime, then call the synchronous
+`IHomeAssistantMqttProjection` methods from acquisition code. Definitions and
+current state are held only in memory. State updates are latest-observation-wins;
+an update with an equal or older `ObservedAtUtc` is rejected and historical
+outbox records are never accepted by this API.
+
+`HomeAssistant:Mqtt` is disabled by default. When enabled it requires broker
+host/port, `UsernameSecret` and `PasswordSecret` file names, discovery/topic
+prefixes, and initial/maximum reconnect delays bounded to 1-300 seconds. The
+secret files are resolved under `Edge:Paths:SecretsDirectory` during startup.
+Status and logs never include credential values.
+
+IDs encode configured site, gateway, device, and component UTF-8 bytes into a
+collision-safe MQTT/HA identifier and length-prefix compound IDs so distinct
+configured identities cannot collapse to one entity or MQTT client. Topic
+conventions are:
+
+```text
+homeassistant/device/{site_gateway_device}/config
+hvo/{site}/{gateway}/availability
+hvo/{site}/{gateway}/{device}/availability
+hvo/{site}/{gateway}/{device}/state
+```
+
+All discovery, state, availability, and removal tombstone messages are retained
+at QoS 1. The gateway availability topic is also the retained LWT. On connection
+the worker publishes each device's discovery, current state, and availability,
+then marks the gateway online. `homeassistant/status=online` triggers one
+coalesced snapshot republish. Device removal publishes offline followed by empty
+retained discovery/state/availability tombstones. MQTT failures and reconnects
+remain inside the hosted worker and cannot block acquisition or outbox delivery.
+Command entities, command topics, and command handling are intentionally outside
+issue #321.
 
 ## Device Authority
 
