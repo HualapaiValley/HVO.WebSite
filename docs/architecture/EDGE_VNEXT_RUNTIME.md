@@ -170,6 +170,9 @@ issue #321.
 No migration may run two acquisition authorities or two central writers for the
 same physical observation.
 
+See [Edge Data Flows](EDGE_DATA_FLOWS.md) for the per-source acquisition,
+MQTT presentation, outbox, canonical ingest, and migration diagrams.
+
 ## Testing Pattern
 
 Every vNext executable exposes `public partial class Program` and uses

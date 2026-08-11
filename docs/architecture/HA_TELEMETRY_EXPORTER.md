@@ -2,6 +2,8 @@
 
 `HVO.Edge.Exporter.HomeAssistant` exports approved Home Assistant-owned current state to canonical HVO history. It uses Home Assistant's documented `/api/websocket` API and never reads Recorder.
 
+See [Edge Data Flows](EDGE_DATA_FLOWS.md) for the complete per-source diagrams and authority matrix.
+
 ## Authority
 
 - Configuration is an explicit allowlist of physical Kasa and Govee sources.
