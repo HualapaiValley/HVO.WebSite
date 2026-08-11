@@ -67,8 +67,8 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 
 ## Common workflow
 
-1. Copy `.env.example` to `.env` in the gateway folder.
-2. Fill the required host, credential, and API key values.
+1. Copy `.env.example` to `.env` and `gateway.json.example` to `gateway.json` where provided.
+2. Fill mounted gateway configuration and create the required files under the configured secrets directory.
 3. Deploy with the Pi Docker context:
 
 ```bash

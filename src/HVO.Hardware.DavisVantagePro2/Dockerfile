@@ -7,14 +7,16 @@ WORKDIR /src
 COPY ["Directory.Build.props", "."]
 COPY ["Directory.Packages.props", "."]
 COPY ["NuGet.config", "."]
-COPY ["src/HVO.Staging/packages.lock.json", "src/HVO.Staging/"]
-COPY ["src/HVO.WebSite.Themes/packages.lock.json", "src/HVO.WebSite.Themes/"]
+COPY ["src/HVO.Edge.Contracts/packages.lock.json", "src/HVO.Edge.Contracts/"]
 COPY ["src/HVO.Edge.Hosting/packages.lock.json", "src/HVO.Edge.Hosting/"]
+COPY ["src/HVO.Edge.HomeAssistant.Mqtt/packages.lock.json", "src/HVO.Edge.HomeAssistant.Mqtt/"]
+COPY ["src/HVO.Edge.Outbox/packages.lock.json", "src/HVO.Edge.Outbox/"]
 COPY ["src/HVO.Hardware.DavisVantagePro2/packages.lock.json", "src/HVO.Hardware.DavisVantagePro2/"]
 COPY ["src/HVO.Hardware.DavisVantagePro2/HVO.Hardware.DavisVantagePro2.csproj", "src/HVO.Hardware.DavisVantagePro2/"]
-COPY ["src/HVO.Staging/HVO.Staging.csproj", "src/HVO.Staging/"]
-COPY ["src/HVO.WebSite.Themes/HVO.WebSite.Themes.csproj", "src/HVO.WebSite.Themes/"]
+COPY ["src/HVO.Edge.Contracts/HVO.Edge.Contracts.csproj", "src/HVO.Edge.Contracts/"]
 COPY ["src/HVO.Edge.Hosting/HVO.Edge.Hosting.csproj", "src/HVO.Edge.Hosting/"]
+COPY ["src/HVO.Edge.HomeAssistant.Mqtt/HVO.Edge.HomeAssistant.Mqtt.csproj", "src/HVO.Edge.HomeAssistant.Mqtt/"]
+COPY ["src/HVO.Edge.Outbox/HVO.Edge.Outbox.csproj", "src/HVO.Edge.Outbox/"]
 COPY . .
 RUN dotnet restore "src/HVO.Hardware.DavisVantagePro2/HVO.Hardware.DavisVantagePro2.csproj" --locked-mode
 WORKDIR "/src/src/HVO.Hardware.DavisVantagePro2"
@@ -29,7 +31,7 @@ WORKDIR /app
 COPY --from=publish /app/publish .
 VOLUME /app/data
 ENV ASPNETCORE_URLS=http://+:8080 \
-    OUTBOX__DBPATH=/app/data/outbox.db
+    OUTBOX__DATABASEPATH=/app/data/outbox.db
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl --fail http://localhost:8080/health || exit 1
 ENTRYPOINT ["dotnet", "HVO.Hardware.DavisVantagePro2.dll"]

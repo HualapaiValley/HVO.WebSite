@@ -96,10 +96,19 @@ public sealed class StationInfoSnapshotEntity
     }
 }
 
+public sealed class DavisArchiveCursorEntity
+{
+    public string StationId { get; set; } = string.Empty;
+    public DateTime ConsoleRecordedAtLocal { get; set; }
+    public DateTime RecordedAtUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
+}
+
 public sealed class DavisLocalDbContext(DbContextOptions<DavisLocalDbContext> options) : DbContext(options)
 {
     public DbSet<StationSettingsSnapshotEntity> StationSettingsSnapshots => Set<StationSettingsSnapshotEntity>();
     public DbSet<StationInfoSnapshotEntity> StationInfoSnapshots => Set<StationInfoSnapshotEntity>();
+    public DbSet<DavisArchiveCursorEntity> ArchiveCursors => Set<DavisArchiveCursorEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -124,6 +133,15 @@ public sealed class DavisLocalDbContext(DbContextOptions<DavisLocalDbContext> op
             e.Property(r => r.HardwareName).IsRequired();
             e.Property(r => r.FirmwareVersion).IsRequired();
             e.Property(r => r.FirmwareDate).IsRequired();
+        });
+
+        modelBuilder.Entity<DavisArchiveCursorEntity>(e =>
+        {
+            e.HasKey(r => r.StationId);
+            e.Property(r => r.StationId).HasMaxLength(64);
+            e.Property(r => r.ConsoleRecordedAtLocal).IsRequired();
+            e.Property(r => r.RecordedAtUtc).IsRequired();
+            e.Property(r => r.UpdatedAtUtc).IsRequired();
         });
     }
 }

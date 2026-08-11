@@ -1162,6 +1162,134 @@ namespace HVO.DataModels.Migrations.V9
                     b.ToTable("SiteConfiguration", "v9");
                 });
 
+            modelBuilder.Entity("HVO.DataModels.Models.V9.WeatherArchive", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("ArchiveIntervalMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<double?>("BarometricPressureInHg")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("ConsoleRecordedAtLocal")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DownloadRecordType")
+                        .HasColumnType("int");
+
+                    b.Property<double?>("EtInches")
+                        .HasColumnType("float");
+
+                    b.Property<string>("ExtraHumiditiesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExtraTemperaturesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ForecastRule")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ForecastString")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<double?>("HighSolarRadiationWm2")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("HighTemperatureF")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("HighUvIndex")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("HumidityPercent")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("InsideHumidityPercent")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("InsideTemperatureF")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("LeafTemp1F")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("LeafTemp2F")
+                        .HasColumnType("float");
+
+                    b.Property<string>("LeafWetnessJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double?>("LowTemperatureF")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("RainRateInchesPerHour")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("RainfallInches")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SoilMoisturesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SoilTemperaturesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double?>("SolarRadiationWm2")
+                        .HasColumnType("float");
+
+                    b.Property<string>("StationId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<double?>("TemperatureF")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("UvIndex")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("WindDirectionDegrees")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("WindGustDirectionDegrees")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("WindGustMph")
+                        .HasColumnType("float");
+
+                    b.Property<int>("WindSamples")
+                        .HasColumnType("int");
+
+                    b.Property<double?>("WindSpeedMph")
+                        .HasColumnType("float");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordedAtUtc");
+
+                    b.HasIndex("StationId", "RecordedAtUtc")
+                        .IsUnique();
+
+                    b.ToTable("WeatherArchive", "v9");
+                });
+
             modelBuilder.Entity("HVO.DataModels.Models.V9.WeatherHourly", b =>
                 {
                     b.Property<long>("Id")

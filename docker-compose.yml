@@ -92,25 +92,15 @@ services:
     ports:
       - "5100:8080"
     environment:
-      # Station TCP address (network-connected console)
-      Station__Host: ${DAVIS_STATION_HOST:-192.168.0.121}
-      Station__Port: ${DAVIS_STATION_PORT:-22222}
-      Station__ArchiveCatchupMode: "Disabled"
-      Station__ArchiveCatchupLookbackHours: "12"
-      # Defaults to the in-stack website service. Set HVO_WEBSITE_PUBLIC_BASE_URL
-      # in .env when you explicitly want local collectors to post to the deployed site.
-      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/weather/raw"
-      Outbox__ApiKey: ${DAVIS_API_KEY}
-      # Persist the outbox SQLite DB across restarts
-      Outbox__DbPath: /app/data/outbox.db
       DOTNET_ENVIRONMENT: Production
       # OTel — send traces/metrics/logs to the global collector
       OTEL_SERVICE_NAME: hvo-davis
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
+      - "${DAVIS_CONFIG_FILE:-./deploy/pi-gateways/davis/gateway.json}:/app/config/gateway.json:ro"
+      - "${DAVIS_SECRETS_DIRECTORY:-./deploy/pi-gateways/davis/secrets}:/run/secrets:ro"
       - davis-outbox:/app/data
-      - davis-data-protection:/root/.aspnet/DataProtection-Keys
     restart: unless-stopped
     logging: *hvo-local-logging
     ulimits: *hvo-no-core
@@ -270,6 +260,5 @@ volumes:
   smartshunt-outbox:
   kasa-registry:
   data-protection:
-  davis-data-protection:
   jkbms-data-protection:
   smartshunt-data-protection:

@@ -24,6 +24,25 @@ public sealed class EdgeOutboxForwarderTests
     }
 
     [TestMethod]
+    public async Task Forwarder_SelectsConfiguredMixedPayloadTypesInTimestampOrder()
+    {
+        var received = new TaskCompletionSource<IReadOnlyList<EdgeOutboxRecord>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sender = new DelegateSender((records, _) =>
+        {
+            received.TrySetResult(records);
+            return Task.FromResult<IReadOnlyList<EdgeOutboxSendOutcome>>(
+                records.Select(record => new EdgeOutboxSendOutcome(record.Id, EdgeOutboxSendStatus.Sent)).ToArray());
+        });
+        await using var fixture = await ForwarderFixture.CreateAsync(sender, ["test.live", "test.archive"]);
+
+        await fixture.Forwarder.StartAsync(CancellationToken.None);
+        var records = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        records.Select(record => record.PayloadType).Should().Equal("test.archive", "test.live");
+        await fixture.Forwarder.StopAsync(CancellationToken.None);
+    }
+
+    [TestMethod]
     public async Task Forwarder_SchedulesTransientFailureForRetry()
     {
         await RunOutcomeTestAsync(
@@ -168,11 +187,13 @@ public sealed class EdgeOutboxForwarderTests
 
         public EdgeOutboxForwarder Forwarder { get; }
 
-        public static async Task<ForwarderFixture> CreateAsync(IEdgeOutboxBatchSender sender)
+        public static async Task<ForwarderFixture> CreateAsync(
+            IEdgeOutboxBatchSender sender,
+            IReadOnlyList<string>? payloadTypes = null)
         {
             var root = Path.Combine(Path.GetTempPath(), $"hvo-edge-forwarder-{Guid.NewGuid():N}");
             Directory.CreateDirectory(root);
-            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            var values = new Dictionary<string, string?>
             {
                 ["Outbox:DatabasePath"] = Path.Combine(root, "outbox.db"),
                 ["Outbox:PayloadType"] = "test.reading",
@@ -180,7 +201,14 @@ public sealed class EdgeOutboxForwarderTests
                 ["Outbox:SweepIntervalSeconds"] = "1",
                 ["Outbox:SentRetentionDays"] = "0",
                 ["Outbox:FailedRetentionDays"] = "0",
-            }).Build();
+            };
+            if (payloadTypes is not null)
+            {
+                values.Remove("Outbox:PayloadType");
+                for (var index = 0; index < payloadTypes.Count; index++)
+                    values[$"Outbox:PayloadTypes:{index}"] = payloadTypes[index];
+            }
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
             var services = new ServiceCollection();
             services.AddLogging();
             services.AddSingleton(sender);
@@ -194,10 +222,19 @@ public sealed class EdgeOutboxForwarderTests
                 var store = scope.ServiceProvider.GetRequiredService<EdgeOutboxStore<DefaultEdgeOutboxDbContext>>();
                 await store.EnqueueAsync(new EdgeOutboxMessage(
                     "source-1",
-                    DateTime.UtcNow.AddMinutes(-1),
-                    "test.reading",
+                    DateTime.UtcNow.AddMinutes(payloadTypes is null ? -1 : -2),
+                    payloadTypes?.Last() ?? "test.reading",
                     "1",
                     "{\"value\":42}"), CancellationToken.None);
+                if (payloadTypes is not null)
+                {
+                    await store.EnqueueAsync(new EdgeOutboxMessage(
+                        "source-1",
+                        DateTime.UtcNow.AddMinutes(-1),
+                        payloadTypes.First(),
+                        "1",
+                        "{\"value\":41}"), CancellationToken.None);
+                }
             }
 
             return new ForwarderFixture(provider, root, hosted.OfType<EdgeOutboxForwarder>().Single());

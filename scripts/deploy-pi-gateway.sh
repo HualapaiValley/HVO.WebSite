@@ -136,7 +136,7 @@ deploy_target() {
 			printf 'Enabling the EG4 MPPT read-only Compose overlay.\n'
 		fi
 	fi
-	if [[ "${gateway}" =~ ^(eg4|jkbms)$ && "${allow_env_overrides}" == false && ${#override_env_names[@]} -gt 0 ]]; then
+	if [[ "${gateway}" =~ ^(davis|eg4|jkbms)$ && "${allow_env_overrides}" == false && ${#override_env_names[@]} -gt 0 ]]; then
 		fail "${gateway} deployment refuses shell environment overrides (${override_env_names[*]}). Unset them or pass --allow-env-overrides after verifying docker compose config."
 	fi
 	if [[ "${gateway}" == eg4 ]]; then
@@ -172,6 +172,37 @@ deploy_target() {
 		for secret_name in diagnostics-api-key central-ingest-api-key mqtt-username mqtt-password; do
 			[[ -s "${eg4_secrets_path}/${secret_name}" ]] || fail "EG4 required secret file is missing or empty: ${secret_name}"
 		done
+	fi
+	if [[ "${gateway}" == davis ]]; then
+		local davis_config_setting davis_config_path davis_secrets_setting davis_secrets_path
+		davis_config_setting="$(read_env_value "${env_file}" DAVIS_CONFIG_FILE)"
+		davis_config_path="${davis_config_setting:-./gateway.json}"
+		[[ "${davis_config_path}" = /* ]] || davis_config_path="${repo_root}/${compose_dir}/${davis_config_path#./}"
+		[[ -f "${davis_config_path}" ]] || fail "Davis mounted configuration not found: ${davis_config_path}"
+		jq -e . "${davis_config_path}" >/dev/null || fail "Davis mounted configuration is not valid JSON: ${davis_config_path}"
+		jq -e '
+			(.Edge.Runtime.GatewayId == "davis")
+			and (.Edge.Runtime.SiteId | type == "string" and length > 0)
+			and (.Edge.Runtime.SourceId == .Station.StationId)
+			and (.Station.Host | type == "string" and length > 0)
+			and (.Station.ArchiveCatchupMode != "Disabled")
+			and (.Station.LegacyArchiveConsoleUtcOffsetHours | type == "number" and . >= -12 and . <= 14)
+			and (.Station.LocalDatabasePath == "/app/data/davis-local.db")
+			and (.Outbox.DatabasePath == "/app/data/outbox.db")
+			and ((.Outbox.PayloadTypes | sort) == (["com.hvo.weather.archive.v1", "com.hvo.weather.raw.v1"] | sort))' \
+			"${davis_config_path}" >/dev/null || fail "Davis gateway.json does not satisfy the vNext deployment contract."
+
+		davis_secrets_setting="$(read_env_value "${env_file}" DAVIS_SECRETS_DIRECTORY)"
+		davis_secrets_path="${davis_secrets_setting:-./secrets}"
+		[[ "${davis_secrets_path}" = /* ]] || davis_secrets_path="${repo_root}/${compose_dir}/${davis_secrets_path#./}"
+		for secret_name in diagnostics-api-key central-ingest-api-key; do
+			[[ -s "${davis_secrets_path}/${secret_name}" ]] || fail "Davis required secret file is missing or empty: ${secret_name}"
+		done
+		if jq -e '.HomeAssistant.Mqtt.Enabled == true' "${davis_config_path}" >/dev/null; then
+			for secret_name in mqtt-username mqtt-password; do
+				[[ -s "${davis_secrets_path}/${secret_name}" ]] || fail "Davis required MQTT secret file is missing or empty: ${secret_name}"
+			done
+		fi
 	fi
 	if [[ "${gateway}" == jkbms ]]; then
 		local jkbms_config_setting jkbms_config_path jkbms_secrets_setting jkbms_secrets_path

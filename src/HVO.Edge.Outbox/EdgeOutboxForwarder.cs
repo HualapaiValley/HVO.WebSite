@@ -65,7 +65,7 @@ public sealed class EdgeOutboxForwarder(
         var store = scope.ServiceProvider.GetRequiredService<EdgeOutboxStore<DefaultEdgeOutboxDbContext>>();
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var records = await store.GetReadyBatchAsync(
-            _options.PayloadType,
+            _options.EffectivePayloadTypes,
             now,
             runtimeSettings.EffectiveBatchSize(_options.BatchSize),
             cancellationToken).ConfigureAwait(false);

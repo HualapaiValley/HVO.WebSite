@@ -169,7 +169,7 @@ New collectors and gateways should use the local SQLite outbox + website API pat
 
 ## Davis Collector
 
-`HVO.Hardware.DavisVantagePro2` connects to the Davis Vantage Pro 2 console through the WeatherLink IP TCP bridge. It implements Davis protocol commands, LOOP packet parsing, archive catch-up support, gateway-owned local station persistence, shared SQLite outbox storage, and a rich Blazor local admin UI.
+`HVO.Hardware.DavisVantagePro2` is a headless vNext collector that connects to the Davis Vantage Pro 2 console through the WeatherLink IP TCP bridge. It implements Davis protocol commands, LOOP packet parsing, durable archive continuity, gateway-owned local station persistence, shared SQLite outbox storage, protected diagnostics, and bounded Home Assistant MQTT current-state projection.
 
 Current responsibilities:
 
@@ -177,12 +177,12 @@ Current responsibilities:
 |----------------|---------------|
 | TCP protocol | Implemented in `DavisConsoleClient` and related protocol classes |
 | Weather polling | Implemented in `WeatherStationWorker` |
-| Archive handling | Implemented with configurable catch-up mode |
+| Archive handling | Full available-console bootstrap when no cursor exists, then overlapped DMPAFT top-off on startup, reconnect, and periodically between finite LOOP batches |
 | Local outbox | SQLite durable queue |
-| Forwarding | Posts weather batches to the website API |
-| Local UI | Mature hardware admin shell and weather/status pages |
+| Forwarding | Partitions typed live and complete archive batches to separate website endpoints |
+| Local UI | None; standard protected diagnostics only |
 
-The Davis UI is currently the best baseline for future hardware admin shells.
+The collector preserves the deployed `davis-outbox` volume across the vNext migration; legacy schema and payload identifiers are upgraded before shared outbox initialization.
 
 ## JK BMS Collector
 
