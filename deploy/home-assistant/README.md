@@ -51,10 +51,14 @@ HVO_HOME_ASSISTANT_URL=http://192.168.1.113 \
 ./scripts/deploy-home-assistant-dashboard.sh --apply
 ```
 
-The script creates a timestamped copy of `configuration.yaml` in `/config`
-before adding the single `lovelace: !include hvo/lovelace.yaml` declaration. If
-HA validation fails, it restores the prior main configuration and exits without
-restarting Core.
+The script creates a timestamped host-side copy under
+`/mnt/data/supervisor/homeassistant` before adding the single
+`lovelace: !include hvo/lovelace.yaml` declaration. Home Assistant Core sees the
+same directory as `/config`. The backup is removed after a successful restart;
+if HA validation fails, the script restores the prior main configuration and
+exits without restarting Core. If another top-level `lovelace:` key already
+exists, deployment stops and requires a manual merge instead of creating a
+duplicate YAML key.
 
 After deployment, run the focused live Playwright test with:
 

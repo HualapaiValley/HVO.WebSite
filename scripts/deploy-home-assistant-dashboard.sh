@@ -95,7 +95,7 @@ guest_exec "cp '$main_config' '$main_config_backup'" >/dev/null
 deploy_file "$lovelace_file" "$guest_config_root/hvo/lovelace.yaml"
 deploy_file "$dashboard_file" "$guest_config_root/hvo/dashboards/hvo-kasa.yaml"
 
-guest_exec "grep -q '^lovelace: !include hvo/lovelace.yaml$' '$main_config' || printf '\nlovelace: !include hvo/lovelace.yaml\n' >> '$main_config'" >/dev/null
+guest_exec "if grep -q '^lovelace: !include hvo/lovelace.yaml$' '$main_config'; then exit 0; elif grep -q '^lovelace:' '$main_config'; then printf 'configuration.yaml already has a different top-level lovelace key; merge hvo/lovelace.yaml manually.\n' >&2; exit 1; else printf '\nlovelace: !include hvo/lovelace.yaml\n' >> '$main_config'; fi" >/dev/null
 
 validation="$(curl -fsS -X POST \
     -H "Authorization: Bearer ${HOME_ASSISTANT_TOKEN}" \
@@ -110,15 +110,16 @@ if [[ "$(jq -r '.result' <<<"$validation")" != "valid" ]]; then
 fi
 
 set +e
-curl -fs -X POST \
+restart_error="$(curl -fsS -X POST \
     -H "Authorization: Bearer ${HOME_ASSISTANT_TOKEN}" \
     -H "Content-Type: application/json" \
-    "$ha_url/api/services/homeassistant/restart" >/dev/null
+    "$ha_url/api/services/homeassistant/restart" 2>&1 >/dev/null)"
 restart_status=$?
 set -e
 
 # Core may close the request socket as the restart begins.
 if (( restart_status != 0 && restart_status != 52 )); then
+    printf '%s\n' "$restart_error" >&2
     printf 'Home Assistant restart request failed with curl status %d.\n' "$restart_status" >&2
     exit 1
 fi

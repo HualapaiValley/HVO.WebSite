@@ -83,16 +83,27 @@ public sealed class HomeAssistantKasaDashboardTests
     [TestMethod]
     public void ParentAndCriticalInfrastructureControls_AreNotExposed()
     {
-        var entityDeclarations = ReadDashboardLines()
-            .Select(line => line.Trim())
-            .Where(line => line.StartsWith("entity: ", StringComparison.Ordinal))
-            .ToArray();
+        var entityDeclarations = GetEntityDeclarations(ReadDashboardLines());
 
         foreach (var entityId in ProhibitedControlEntities)
         {
             entityDeclarations.Should().NotContain($"entity: {entityId}",
                 "parent and critical infrastructure controls are status-only on this dashboard");
         }
+    }
+
+    [TestMethod]
+    public void EntityDeclarations_IncludeCardsAndEntityRows()
+    {
+        var declarations = GetEntityDeclarations(
+        [
+            "    entity: switch.card_entity",
+            "      - entity: switch.entity_row"
+        ]);
+
+        declarations.Should().BeEquivalentTo(
+            "entity: switch.card_entity",
+            "entity: switch.entity_row");
     }
 
     [TestMethod]
@@ -108,6 +119,12 @@ public sealed class HomeAssistantKasaDashboardTests
 
     private static string[] ReadDashboardLines() =>
         File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Fixtures", "HomeAssistant", "hvo-kasa.yaml"));
+
+    private static string[] GetEntityDeclarations(IEnumerable<string> lines) =>
+        lines
+            .Select(line => line.Trim().TrimStart('-').TrimStart())
+            .Where(line => line.StartsWith("entity: ", StringComparison.Ordinal))
+            .ToArray();
 
     private static IReadOnlyList<string[]> GetCards(string[] lines, string entityId)
     {
