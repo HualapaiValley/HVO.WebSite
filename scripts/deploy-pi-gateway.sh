@@ -136,8 +136,8 @@ deploy_target() {
 			printf 'Enabling the EG4 MPPT read-only Compose overlay.\n'
 		fi
 	fi
-	if [[ "${gateway}" == eg4 && "${allow_env_overrides}" == false && ${#override_env_names[@]} -gt 0 ]]; then
-		fail "EG4 deployment refuses shell environment overrides (${override_env_names[*]}). Unset them or pass --allow-env-overrides after verifying docker compose config."
+	if [[ "${gateway}" =~ ^(eg4|jkbms)$ && "${allow_env_overrides}" == false && ${#override_env_names[@]} -gt 0 ]]; then
+		fail "${gateway} deployment refuses shell environment overrides (${override_env_names[*]}). Unset them or pass --allow-env-overrides after verifying docker compose config."
 	fi
 	if [[ "${gateway}" == eg4 ]]; then
 		local eg4_config_setting eg4_config_path eg4_secrets_setting eg4_secrets_path
@@ -172,6 +172,36 @@ deploy_target() {
 		for secret_name in diagnostics-api-key central-ingest-api-key mqtt-username mqtt-password; do
 			[[ -s "${eg4_secrets_path}/${secret_name}" ]] || fail "EG4 required secret file is missing or empty: ${secret_name}"
 		done
+	fi
+	if [[ "${gateway}" == jkbms ]]; then
+		local jkbms_config_setting jkbms_config_path jkbms_secrets_setting jkbms_secrets_path
+		jkbms_config_setting="$(read_env_value "${env_file}" JKBMS_CONFIG_FILE)"
+		jkbms_config_path="${jkbms_config_setting:-./gateway.json}"
+		[[ "${jkbms_config_path}" = /* ]] || jkbms_config_path="${repo_root}/${compose_dir}/${jkbms_config_path#./}"
+		[[ -f "${jkbms_config_path}" ]] || fail "JK BMS mounted configuration not found: ${jkbms_config_path}"
+		jq -e . "${jkbms_config_path}" >/dev/null || fail "JK BMS mounted configuration is not valid JSON: ${jkbms_config_path}"
+		jq -e '
+			(.Edge.Runtime.GatewayId == "jkbms")
+			and (.Outbox.DatabasePath == "/app/data/outbox.db")
+			and (.Outbox.PayloadType == "com.hvo.bms.reading.v1")
+			and ([.JkBms.Devices[] | select(.Enabled == true)] | length > 0)
+			and all(.JkBms.Devices[] | select(.Enabled == true);
+				(.Address | type == "string" and length > 0)
+				and (.DeviceId | type == "string" and length > 0)
+				and (.Alias | type == "string" and length > 0))' \
+			"${jkbms_config_path}" >/dev/null || fail "JK BMS gateway.json does not satisfy the vNext deployment contract."
+
+		jkbms_secrets_setting="$(read_env_value "${env_file}" JKBMS_SECRETS_DIRECTORY)"
+		jkbms_secrets_path="${jkbms_secrets_setting:-./secrets}"
+		[[ "${jkbms_secrets_path}" = /* ]] || jkbms_secrets_path="${repo_root}/${compose_dir}/${jkbms_secrets_path#./}"
+		for secret_name in diagnostics-api-key central-ingest-api-key; do
+			[[ -s "${jkbms_secrets_path}/${secret_name}" ]] || fail "JK BMS required secret file is missing or empty: ${secret_name}"
+		done
+		if jq -e '.HomeAssistant.Mqtt.Enabled == true' "${jkbms_config_path}" >/dev/null; then
+			for secret_name in mqtt-username mqtt-password; do
+				[[ -s "${jkbms_secrets_path}/${secret_name}" ]] || fail "JK BMS required MQTT secret file is missing or empty: ${secret_name}"
+			done
+		fi
 	fi
 
 	local compose_args=(--context "${docker_context}" compose --env-file "${env_file}")
