@@ -52,9 +52,9 @@
       },
       "MudBlazor": {
         "type": "Direct",
-        "requested": "[9.7.0, )",
-        "resolved": "9.7.0",
-        "contentHash": "uWOgNn9B556J/TL8KFoSqpA3YD2heqOpK5etcofwlj1RiEX1IDy0NmwYE9urlTUQ8zProEK5GqwTBnoObFPN3g=="
+        "requested": "[9.8.0, )",
+        "resolved": "9.8.0",
+        "contentHash": "JLJ81j6cn5RUTbgpYAtjRfB3bTNweX0q8lkMS6B9v1oGzZsjVTxDDnWahD+rOtzJWPU6D9svsymiETe4G8bSLw=="
       },
       "OpenTelemetry.Api": {
         "type": "Direct",
@@ -319,7 +319,7 @@
       "hvo.website.themes": {
         "type": "Project",
         "dependencies": {
-          "MudBlazor": "[9.7.0, )"
+          "MudBlazor": "[9.8.0, )"
         }
       },
       "Microsoft.EntityFrameworkCore": {
