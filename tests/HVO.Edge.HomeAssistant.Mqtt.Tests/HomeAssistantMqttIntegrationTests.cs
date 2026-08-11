@@ -51,7 +51,7 @@ public sealed class HomeAssistantMqttIntegrationTests
         await ClearRetainedAsync(TestSupport.Topics.Discovery(TestSupport.Key));
         await RestartAsync("home-assistant");
         var restartedHaAddress = (await RunComposeAsync("port", "home-assistant", "8123")).Trim();
-        using var restartedHttp = CreateHaClient($"http://{restartedHaAddress}", haToken);
+        using var restartedHttp = CreateHaClient($"http://127.0.0.1:{PublishedPort(restartedHaAddress)}", haToken);
         await WaitForHaAsync(restartedHttp);
         var discovery = await WaitForRetainedAsync(TestSupport.Topics.Discovery(TestSupport.Key));
         discovery.Should().Contain(HomeAssistantMqttIdentity.EntityUniqueId(TestSupport.Key, "voltage"));
@@ -150,7 +150,7 @@ public sealed class HomeAssistantMqttIntegrationTests
         await TestSupport.WaitUntilAsync(() => !projection.GetStatus().Connected, TimeSpan.FromSeconds(30));
         await RunComposeAsync("start", "mosquitto");
         var brokerAddress = (await RunComposeAsync("port", "mosquitto", "1883")).Trim();
-        options.Port = int.Parse(brokerAddress[(brokerAddress.LastIndexOf(':') + 1)..], System.Globalization.CultureInfo.InvariantCulture);
+        options.Port = PublishedPort(brokerAddress);
         credential.Settings = credential.Settings! with { Port = options.Port };
         await TestSupport.WaitUntilAsync(() => projection.GetStatus().Connected, TimeSpan.FromSeconds(30));
     }
@@ -210,6 +210,9 @@ public sealed class HomeAssistantMqttIntegrationTests
 
     private static string Required(string name) =>
         Environment.GetEnvironmentVariable(name) ?? throw new InvalidOperationException($"{name} is required.");
+
+    private static int PublishedPort(string address) =>
+        int.Parse(address[(address.LastIndexOf(':') + 1)..], System.Globalization.CultureInfo.InvariantCulture);
 
     private sealed class CapturedLogger : ILogger<HomeAssistantMqttWorker>
     {

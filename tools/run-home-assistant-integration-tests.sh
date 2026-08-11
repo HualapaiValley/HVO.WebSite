@@ -33,8 +33,11 @@ docker compose -p "$project_name" -f "$compose_file" up -d --wait
 ha_address="$(docker compose -p "$project_name" -f "$compose_file" port home-assistant 8123)"
 broker_address="$(docker compose -p "$project_name" -f "$compose_file" port mosquitto 1883)"
 ingest_address="$(docker compose -p "$project_name" -f "$compose_file" port fake-ingest 8080)"
-ha_url="http://$ha_address"
-ingest_url="http://$ingest_address"
+ha_port="${ha_address##*:}"
+broker_port="${broker_address##*:}"
+ingest_port="${ingest_address##*:}"
+ha_url="http://127.0.0.1:$ha_port"
+ingest_url="http://127.0.0.1:$ingest_port"
 client_id="$ha_url/"
 docker compose -p "$project_name" -f "$compose_file" exec -T home-assistant \
     python -m homeassistant --script check_config --config /config
@@ -100,7 +103,7 @@ set_ingest_state "available"
 HVO_HA_TEST_URL="$ha_url" \
 HVO_HA_TEST_TOKEN="$access_token" \
 HVO_HA_TEST_BROKER_HOST="127.0.0.1" \
-HVO_HA_TEST_BROKER_PORT="${broker_address##*:}" \
+HVO_HA_TEST_BROKER_PORT="$broker_port" \
 HVO_HA_TEST_COMPOSE_FILE="$compose_file" \
 HVO_HA_TEST_COMPOSE_PROJECT="$project_name" \
 dotnet test "$repo_root/HVO.WebSite.sln" \
@@ -109,6 +112,7 @@ dotnet test "$repo_root/HVO.WebSite.sln" \
     --results-directory "$repo_root/TestResults"
 
 ha_address="$(docker compose -p "$project_name" -f "$compose_file" port home-assistant 8123)"
-ha_url="http://$ha_address"
+ha_port="${ha_address##*:}"
+ha_url="http://127.0.0.1:$ha_port"
 curl -fsS -X POST "$ha_url/auth/revoke" \
     -H 'Content-Type: application/x-www-form-urlencoded' --data-urlencode "token=$refresh_token" >/dev/null
