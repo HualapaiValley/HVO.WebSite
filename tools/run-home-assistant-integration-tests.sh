@@ -94,11 +94,11 @@ ingest_status() {
     curl -sS -o /dev/null -w '%{http_code}' -X POST \
         "$ingest_url/api/telemetry" -H 'Content-Type: application/json' --data '{"test":true}'
 }
-[[ "$(ingest_status)" == "202" ]]
+[[ "$(ingest_status)" == "201" ]]
 set_ingest_state "unavailable"
 [[ "$(ingest_status)" == "503" ]]
 set_ingest_state "available"
-[[ "$(ingest_status)" == "202" ]]
+[[ "$(ingest_status)" == "201" ]]
 
 HVO_HA_TEST_URL="$ha_url" \
 HVO_HA_TEST_TOKEN="$access_token" \
@@ -107,9 +107,29 @@ HVO_HA_TEST_BROKER_PORT="$broker_port" \
 HVO_HA_TEST_COMPOSE_FILE="$compose_file" \
 HVO_HA_TEST_COMPOSE_PROJECT="$project_name" \
 dotnet test "$repo_root/HVO.WebSite.sln" \
-    -c Debug --nologo -v minimal --filter "TestCategory=Integration" \
+    -c Debug --nologo -v minimal --filter "TestCategory=Integration&TestCategory!=HomeAssistantIntegration" \
     --logger trx --collect:"XPlat Code Coverage" \
     --results-directory "$repo_root/TestResults"
+
+for project in \
+    "$repo_root/tests/HVO.Edge.HomeAssistant.Mqtt.Tests/HVO.Edge.HomeAssistant.Mqtt.Tests.csproj" \
+    "$repo_root/tests/HVO.Edge.Exporter.HomeAssistant.Tests/HVO.Edge.Exporter.HomeAssistant.Tests.csproj"; do
+    HVO_HA_TEST_URL="$ha_url" \
+    HVO_HA_TEST_TOKEN="$access_token" \
+    HVO_HA_TEST_INGEST_URL="$ingest_url" \
+    HVO_HA_TEST_BROKER_HOST="127.0.0.1" \
+    HVO_HA_TEST_BROKER_PORT="$broker_port" \
+    HVO_HA_TEST_COMPOSE_FILE="$compose_file" \
+    HVO_HA_TEST_COMPOSE_PROJECT="$project_name" \
+    dotnet test "$project" -c Debug --nologo -v minimal \
+        --filter "TestCategory=HomeAssistantIntegration" \
+        --logger trx --collect:"XPlat Code Coverage" \
+        --results-directory "$repo_root/TestResults"
+
+    ha_address="$(docker compose -p "$project_name" -f "$compose_file" port home-assistant 8123)"
+    ha_port="${ha_address##*:}"
+    ha_url="http://127.0.0.1:$ha_port"
+done
 
 ha_address="$(docker compose -p "$project_name" -f "$compose_file" port home-assistant 8123)"
 ha_port="${ha_address##*:}"

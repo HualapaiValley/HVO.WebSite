@@ -212,6 +212,10 @@ public class WeatherIngestController : ControllerBase
                 new WeatherRawBatchResponse { Inserted = 0, Skipped = 0, Failed = deserErrors });
         }
 
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, requests.Select(static request => ((string?)request.StationId, request.SourceSystem)), ct))
+            return Forbid();
+
         // Resolve timestamps up-front (null RecordedAt → server time)
         var resolved = requests.Select(r => (Request: r, RecordedAt: r.RecordedAt?.ToUniversalTime() ?? DateTime.UtcNow)).ToList();
 

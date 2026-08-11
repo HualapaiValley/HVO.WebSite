@@ -154,6 +154,10 @@ public class PowerIngestController : ControllerBase
                 new PowerReadingBatchResponse { Inserted = 0, Skipped = 0, Failed = [] });
         }
 
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, requests.Select(static request => (request.SourceId, request.SourceSystem)), ct))
+            return Forbid();
+
         var result = await _readingIngestService.IngestReadingsAsync(requests, ct);
         if (result.PersistenceFailed)
         {
