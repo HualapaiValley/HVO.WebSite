@@ -1,7 +1,8 @@
 using System.Diagnostics;
 using HVO.Edge.Hosting.Telemetry;
 using HVO.Hardware.Eg4.Configuration;
-using HVO.Hardware.Eg4.Dashboard;
+using HVO.Hardware.Eg4.Diagnostics;
+using HVO.Hardware.Eg4.HomeAssistant;
 using HVO.Hardware.Eg4.Outbox;
 using HVO.Hardware.Eg4.Protocol;
 using HVO.Hardware.Eg4.Simulation;
@@ -10,11 +11,12 @@ using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.Eg4.Workers;
 
-public sealed class Eg4FleetWorker(
+internal sealed class Eg4FleetWorker(
     IEg4TelemetrySource telemetrySource,
     IServiceScopeFactory scopeFactory,
     IOptions<Eg4Options> options,
-    IEg4GatewayDashboardPublisher dashboard,
+    Eg4RuntimeState runtimeState,
+    Eg4HomeAssistantProjection homeAssistant,
     GatewayTelemetry telemetry,
     TimeProvider timeProvider,
     ILogger<Eg4FleetWorker> logger) : BackgroundService
@@ -26,7 +28,7 @@ public sealed class Eg4FleetWorker(
             .ToArray();
         if (devices.Length == 0)
         {
-            logger.LogWarning("No enabled validated EG4 6500EX devices are configured; collection is disabled.");
+            logger.LogWarning("No enabled validated EG4 devices are configured; collection is disabled.");
             return;
         }
 
@@ -53,19 +55,16 @@ public sealed class Eg4FleetWorker(
             var sample = await telemetrySource.ReadAsync(device, cancellationToken);
             if (!sample.IsAvailable || sample.BatteryObservation is null)
             {
-                dashboard.PublishFailure(device, new Eg4TransportException(
-                    Eg4TransportFailureKind.Timeout,
-                    $"Device telemetry is unavailable ({sample.UnavailableReason ?? "no observation"})."));
+                var attemptedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+                runtimeState.RecordFailure(device, attemptedAtUtc, "unavailable");
+                homeAssistant.PublishUnavailable(device, attemptedAtUtc);
                 telemetry.RecordPoll(false, stopwatch.Elapsed.TotalSeconds,
                     device.SourceId, device.DeviceId, DeviceKind(device), "unavailable");
                 return false;
             }
             var observation = sample.BatteryObservation;
-            dashboard.Publish(
-                device,
-                observation,
-                mpptDetail: sample.MpptDetail,
-                inverterDetail: sample.InverterDetail);
+            runtimeState.RecordSuccess(device, observation, timeProvider.GetUtcNow().UtcDateTime);
+            homeAssistant.Publish(device, sample);
             telemetry.RecordPoll(true, stopwatch.Elapsed.TotalSeconds,
                 device.SourceId, device.DeviceId, DeviceKind(device));
 
@@ -76,11 +75,10 @@ public sealed class Eg4FleetWorker(
                 {
                     await using var scope = scopeFactory.CreateAsyncScope();
                     var writer = scope.ServiceProvider.GetRequiredService<IEg4PowerOutboxWriter>();
-                    await writer.EnqueueAsync(Eg4PowerReadingMapper.Map(observation), cancellationToken);
-                    if (sample.MpptDetail is not null)
-                        await writer.EnqueueMpptDetailAsync(sample.MpptDetail, cancellationToken);
-                    if (sample.InverterDetail is not null)
-                        await writer.EnqueueInverterDetailAsync(sample.InverterDetail, cancellationToken);
+                    await writer.EnqueueAsync(new Eg4ObservationBundle(
+                        Eg4PowerReadingMapper.Map(observation),
+                        sample.MpptDetail,
+                        sample.InverterDetail), cancellationToken);
                     return true;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -97,10 +95,12 @@ public sealed class Eg4FleetWorker(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception exception)
         {
-            dashboard.PublishFailure(device, exception);
             var failureKind = exception is Eg4TransportException transport
                 ? transport.Kind.ToString().ToLowerInvariant()
                 : "device_error";
+            var attemptedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+            runtimeState.RecordFailure(device, attemptedAtUtc, failureKind);
+            homeAssistant.PublishUnavailable(device, attemptedAtUtc);
             telemetry.RecordPoll(false, stopwatch.Elapsed.TotalSeconds,
                 device.SourceId, device.DeviceId, DeviceKind(device), failureKind);
             logger.LogWarning("EG4 poll failed for source {SourceId} with {FailureKind}", device.SourceId, failureKind);

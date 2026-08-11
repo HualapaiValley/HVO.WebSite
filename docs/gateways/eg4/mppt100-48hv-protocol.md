@@ -64,7 +64,7 @@ Registers 218-299 are explicit reserved holes in the firmware descriptor table a
 
 Battery output power is derived as `battery voltage * canonical battery current`; it retains derived provenance. Register 205 is voltage-derived, clamped by controller logic, and capped while charging. JK BMS and SmartShunt remain authoritative SOC sources.
 
-User interfaces invert the canonical current and power only for display, so controller charging appears positive from the battery perspective. Persisted telemetry remains negative while charging and is not rewritten.
+The headless collector preserves canonical current and power in both persisted telemetry and Home Assistant entities. Controller charging remains negative and is not rewritten.
 
 ## Internal Validation
 
@@ -87,3 +87,5 @@ Each successful sample emits:
 - raw diagnostics including `controllerEstimatedSocPercent`.
 
 Distinct timestamps are retained in `v9.PowerMpptDetailSnapshot`. Repeated equal values are not suppressed, which preserves chartable history.
+
+The direct EG4 collector is the acquisition and delivery owner for this stream. It does not read SolarAssistant REST or MQTT and does not depend on SolarAssistant availability.

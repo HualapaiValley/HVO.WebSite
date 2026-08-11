@@ -372,6 +372,9 @@ public class PowerIngestController : ControllerBase
         ValidateInverterDetail(validationResults, request);
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, [(request.SourceId, request.SourceSystem)], ct))
+            return Forbid();
 
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
         var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
@@ -423,6 +426,9 @@ public class PowerIngestController : ControllerBase
         ValidateMpptDetail(validationResults, request);
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, [(request.SourceId, request.SourceSystem)], ct))
+            return Forbid();
 
         if (await _db.PowerMpptDetailSnapshots.AnyAsync(
             r => r.SourceId == sourceId && r.RecordedAt == recordedAt, ct))

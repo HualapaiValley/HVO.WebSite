@@ -49,6 +49,9 @@ public static class EdgePayloadTypes
     // ── Home Assistant exporter ───────────────────────────────────────────
     public const string HomeAssistantObservation = "com.hvo.homeassistant.observation.v1";
 
+    // -- EG4 direct collector ---------------------------------------------
+    public const string Eg4Observation = "com.hvo.eg4.observation.v1";
+
     /// <summary>
     /// Legacy payload type identifiers used in existing outbox records.
     /// New code should prefer the CloudEvents-style constants above.

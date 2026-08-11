@@ -139,6 +139,40 @@ deploy_target() {
 	if [[ "${gateway}" == eg4 && "${allow_env_overrides}" == false && ${#override_env_names[@]} -gt 0 ]]; then
 		fail "EG4 deployment refuses shell environment overrides (${override_env_names[*]}). Unset them or pass --allow-env-overrides after verifying docker compose config."
 	fi
+	if [[ "${gateway}" == eg4 ]]; then
+		local eg4_config_setting eg4_config_path eg4_secrets_setting eg4_secrets_path
+		eg4_config_setting="$(read_env_value "${env_file}" EG4_CONFIG_FILE)"
+		eg4_config_path="${eg4_config_setting:-./gateway.json}"
+		[[ "${eg4_config_path}" = /* ]] || eg4_config_path="${repo_root}/${compose_dir}/${eg4_config_path#./}"
+		[[ -f "${eg4_config_path}" ]] || fail "EG4 mounted configuration not found: ${eg4_config_path}"
+		jq -e . "${eg4_config_path}" >/dev/null || fail "EG4 mounted configuration is not valid JSON: ${eg4_config_path}"
+
+		local first_port second_port mppt_port expected_inverters expected_mppt
+		first_port="$(read_env_value "${env_file}" EG4_DEVICE_0_PORT)"
+		first_port="${first_port:-/dev/hvo/eg4-6500ex-a}"
+		second_port="$(read_env_value "${env_file}" EG4_DEVICE_1_PORT)"
+		second_port="${second_port:-/dev/hvo/eg4-6500ex-b}"
+		mppt_port="$(read_env_value "${env_file}" EG4_MPPT_0_PORT)"
+		expected_inverters=1
+		expected_mppt=0
+		is_true "$(read_env_value "${env_file}" EG4_DEVICE_1_ENABLED)" && expected_inverters=2
+		is_true "$(read_env_value "${env_file}" EG4_MPPT_0_ENABLED)" && expected_mppt=1
+		jq -e --arg first_port "${first_port}" --arg second_port "${second_port}" --arg mppt_port "${mppt_port}" \
+			--argjson expected_inverters "${expected_inverters}" --argjson expected_mppt "${expected_mppt}" \
+			'([.Eg4.Devices[] | select(.Enabled == true and .Type == "Inverter6500Ex")] | length) == $expected_inverters
+			and ([.Eg4.Devices[] | select(.Enabled == true and .Type == "ChargeControllerMppt10048Hv")] | length) == $expected_mppt
+			and any(.Eg4.Devices[]; .Enabled == true and .Type == "Inverter6500Ex" and .Port == $first_port)
+			and ($expected_inverters == 1 or any(.Eg4.Devices[]; .Enabled == true and .Type == "Inverter6500Ex" and .Port == $second_port))
+			and ($expected_mppt == 0 or any(.Eg4.Devices[]; .Enabled == true and .Type == "ChargeControllerMppt10048Hv" and .Port == $mppt_port))' \
+			"${eg4_config_path}" >/dev/null || fail "EG4 gateway.json enabled devices do not match the selected Compose device mappings."
+
+		eg4_secrets_setting="$(read_env_value "${env_file}" EG4_SECRETS_DIRECTORY)"
+		eg4_secrets_path="${eg4_secrets_setting:-./secrets}"
+		[[ "${eg4_secrets_path}" = /* ]] || eg4_secrets_path="${repo_root}/${compose_dir}/${eg4_secrets_path#./}"
+		for secret_name in diagnostics-api-key central-ingest-api-key mqtt-username mqtt-password; do
+			[[ -s "${eg4_secrets_path}/${secret_name}" ]] || fail "EG4 required secret file is missing or empty: ${secret_name}"
+		done
+	fi
 
 	local compose_args=(--context "${docker_context}" compose --env-file "${env_file}")
 	if [[ "${gateway}" == eg4 ]]; then

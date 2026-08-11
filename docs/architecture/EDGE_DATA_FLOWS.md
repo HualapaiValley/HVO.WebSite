@@ -86,7 +86,7 @@ flowchart LR
 
 **Authority:** Direct EG4 collector.
 
-**Historical data:** inverter power, AC/load status, battery observations, internal MPPT details, external MPPT details, temperatures, configuration, inventory, and gateway status.
+**Historical data:** inverter power, AC/load status, battery observations, internal MPPT details, external MPPT details, temperatures, and validated device diagnostics.
 
 **HA presentation:** selected current inverter, battery, MPPT, and availability state projected through MQTT.
 

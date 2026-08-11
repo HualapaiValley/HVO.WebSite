@@ -1,14 +1,14 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using FluentAssertions;
+using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
-using HVO.Edge.Hosting.Telemetry;
 using HVO.Edge.Outbox;
 using HVO.Hardware.Eg4.Configuration;
 using HVO.Hardware.Eg4.Outbox;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -17,294 +17,154 @@ namespace HVO.Hardware.Eg4.Tests.Outbox;
 [TestClass]
 public sealed class Eg4PowerOutboxTests
 {
-    [TestMethod]
-    public async Task Writer_DeduplicatesPerSourceAndPreservesDifferentDevicesAtSameTime()
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
-        await using var fixture = await OutboxFixture.CreateAsync();
-        var time = new DateTime(2026, 8, 9, 19, 0, 0, DateTimeKind.Utc);
-        var first = Payload("eg4-a", "a", time);
-        var second = Payload("eg4-b", "b", time);
-
-        (await fixture.Writer.EnqueueAsync(first, CancellationToken.None)).Should().BeTrue();
-        (await fixture.Writer.EnqueueAsync(first, CancellationToken.None)).Should().BeFalse();
-        (await fixture.Writer.EnqueueAsync(second, CancellationToken.None)).Should().BeTrue();
-
-        await using var db = fixture.CreateDb();
-        var records = await db.OutboxRecords.OrderBy(record => record.SourceId).ToListAsync();
-        records.Should().HaveCount(2);
-        records.Select(record => record.SourceId).Should().Equal("eg4-a", "eg4-b");
-        records.Should().OnlyContain(record =>
-            (record.DeviceId == "a" || record.DeviceId == "b") && record.PayloadType == Eg4OutboxPayloadTypes.Reading);
-    }
+        Converters = { new JsonStringEnumConverter() }
+    };
+    private static readonly DateTime RecordedAt = new(2026, 8, 9, 19, 0, 0, DateTimeKind.Utc);
 
     [TestMethod]
-    public async Task WriterAndForwarder_KeepReadingMpptAndInverterDetailsDistinctAndRouteDetailEndpoints()
+    public async Task Writer_PersistsOneCompleteBundleAndDeduplicatesSourceTimestamp()
     {
-        await using var fixture = await OutboxFixture.CreateAsync();
-        var reading = Payload("eg4-a", "a", fixture.Now);
-        var mppt = new PowerMpptDetailPayload
+        var path = Path.Combine(Path.GetTempPath(), $"eg4-outbox-{Guid.NewGuid():N}.db");
+        try
         {
-            SourceId = "eg4-a", SourceSystem = "eg4-6500ex", DeviceId = "a", RecordedAtUtc = fixture.Now,
-            Trackers = [new PowerMpptTrackerDetail { TrackerId = "mppt-1", Name = "MPPT 1", VoltageV = 320.9 }],
-        };
-        var inverter = new PowerInverterDetailPayload
-        {
-            SourceId = "eg4-a", SourceSystem = "eg4-6500ex", DeviceId = "a", RecordedAtUtc = fixture.Now,
-            TemperatureC = 57,
-        };
+            var dbOptions = new DbContextOptionsBuilder<DefaultEdgeOutboxDbContext>()
+                .UseSqlite($"Data Source={path}").Options;
+            await using var db = new DefaultEdgeOutboxDbContext(dbOptions);
+            await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(db, EdgePayloadTypes.Eg4Observation, "1");
+            var writer = new PowerOutboxWriter(
+                new EdgeOutboxStore<DefaultEdgeOutboxDbContext>(db),
+                NullLogger<PowerOutboxWriter>.Instance);
+            var bundle = Bundle();
 
-        await fixture.Writer.EnqueueAsync(reading, CancellationToken.None);
-        await fixture.Writer.EnqueueMpptDetailAsync(mppt, CancellationToken.None);
-        await fixture.Writer.EnqueueInverterDetailAsync(inverter, CancellationToken.None);
-        (await fixture.Forwarder.SweepAsync(CancellationToken.None)).Should().BeTrue();
+            (await writer.EnqueueAsync(bundle, CancellationToken.None)).Should().BeTrue();
+            (await writer.EnqueueAsync(bundle, CancellationToken.None)).Should().BeFalse();
 
-        await using var db = fixture.CreateDb();
-        var records = await db.OutboxRecords.ToArrayAsync();
-        records.Should().HaveCount(3).And.OnlyContain(record => record.Status == EdgeOutboxStatus.Sent);
-        records.Select(record => record.PayloadType).Should().BeEquivalentTo(
-            Eg4OutboxPayloadTypes.Reading, Eg4OutboxPayloadTypes.MpptDetail, Eg4OutboxPayloadTypes.InverterDetail);
-        fixture.Handler.RequestUris.Should().Contain(uri => uri.EndsWith("/api/v1/power/readings", StringComparison.Ordinal));
-        fixture.Handler.RequestUris.Should().Contain(uri => uri.EndsWith("/api/v1/power/mppt-detail", StringComparison.Ordinal));
-        fixture.Handler.RequestUris.Should().Contain(uri => uri.EndsWith("/api/v1/power/inverter-detail", StringComparison.Ordinal));
-        fixture.Handler.RequestBodies.Should().NotContain(body => body.Contains("00000000000000", StringComparison.Ordinal));
-        foreach (var index in Enumerable.Range(0, fixture.Handler.RequestUris.Count)
-                     .Where(index => fixture.Handler.RequestUris[index].EndsWith("-detail", StringComparison.Ordinal)))
-        {
-            using var document = JsonDocument.Parse(fixture.Handler.RequestBodies[index]);
-            document.RootElement.GetProperty("sourceId").GetString().Should().Be("eg4-a");
-            document.RootElement.TryGetProperty("specversion", out _).Should().BeFalse();
-        }
-    }
-
-    [TestMethod]
-    [DataRow(201, 1, 0)]
-    [DataRow(500, 0, 1)]
-    [DataRow(401, 0, 1)]
-    [DataRow(400, 0, 0)]
-    public async Task Forwarder_ClassifiesSuccessTransientAndPermanentResponses(int statusCode, int sent, int pending)
-    {
-        await using var fixture = await OutboxFixture.CreateAsync((HttpStatusCode)statusCode);
-        await fixture.Writer.EnqueueAsync(Payload("eg4-a", "a", fixture.Now), CancellationToken.None);
-
-        (await fixture.Forwarder.SweepAsync(CancellationToken.None)).Should().Be(statusCode == 201);
-
-        await using var db = fixture.CreateDb();
-        (await db.OutboxRecords.CountAsync(record => record.Status == EdgeOutboxStatus.Sent)).Should().Be(sent);
-        (await db.OutboxRecords.CountAsync(record => record.Status == EdgeOutboxStatus.Pending)).Should().Be(pending);
-        (await db.OutboxRecords.CountAsync(record => record.Status == EdgeOutboxStatus.Failed)).Should().Be(statusCode == 400 ? 1 : 0);
-        if (statusCode == 201)
-            fixture.Handler.RequestBody.Should().Contain("com.hvo.power.reading.v1").And.Contain("eg4-6500ex");
-    }
-
-    [TestMethod]
-    public async Task Forwarder_RetriesIncompleteSuccessfulResponseInsteadOfAcknowledgingRecords()
-    {
-        await using var fixture = await OutboxFixture.CreateAsync(HttpStatusCode.Created, "{}");
-        await fixture.Writer.EnqueueAsync(Payload("eg4-a", "a", fixture.Now), CancellationToken.None);
-
-        (await fixture.Forwarder.SweepAsync(CancellationToken.None)).Should().BeFalse();
-
-        await using var db = fixture.CreateDb();
-        var record = await db.OutboxRecords.SingleAsync();
-        record.Status.Should().Be(EdgeOutboxStatus.Pending);
-        record.AttemptCount.Should().Be(1);
-        record.LastError.Should().Be("Power API response was invalid");
-    }
-
-    [TestMethod]
-    public async Task Forwarder_AppliesPartialValidationFailureOnlyToMatchingSourceAndTime()
-    {
-        const string response = "{\"inserted\":1,\"skipped\":0,\"failed\":[{\"sourceId\":\"eg4-b\",\"recordedAtUtc\":\"2026-08-09T19:00:00Z\"}]}";
-        await using var fixture = await OutboxFixture.CreateAsync(HttpStatusCode.Created, response);
-        await fixture.Writer.EnqueueAsync(Payload("eg4-a", "a", fixture.Now), CancellationToken.None);
-        await fixture.Writer.EnqueueAsync(Payload("eg4-b", "b", fixture.Now), CancellationToken.None);
-
-        (await fixture.Forwarder.SweepAsync(CancellationToken.None)).Should().BeTrue();
-
-        await using var db = fixture.CreateDb();
-        (await db.OutboxRecords.SingleAsync(record => record.SourceId == "eg4-a")).Status.Should().Be(EdgeOutboxStatus.Sent);
-        var rejected = await db.OutboxRecords.SingleAsync(record => record.SourceId == "eg4-b");
-        rejected.Status.Should().Be(EdgeOutboxStatus.Failed);
-        rejected.FailureKind.Should().Be(EdgeOutboxFailureKind.Permanent);
-    }
-
-    [TestMethod]
-    public async Task Forwarder_PersistsRetryWhenPipelineThrowsNonHttpResilienceException()
-    {
-        await using var fixture = await OutboxFixture.CreateAsync(
-            handlerException: new InvalidOperationException("simulated open circuit"));
-        await fixture.Writer.EnqueueAsync(Payload("eg4-a", "a", fixture.Now), CancellationToken.None);
-
-        (await fixture.Forwarder.SweepAsync(CancellationToken.None)).Should().BeFalse();
-
-        await using var db = fixture.CreateDb();
-        var record = await db.OutboxRecords.SingleAsync();
-        record.Status.Should().Be(EdgeOutboxStatus.Pending);
-        record.AttemptCount.Should().Be(1);
-        record.LastError.Should().Be("Transient forwarding pipeline failure");
-    }
-
-    [TestMethod]
-    public async Task Forwarder_RequeuesRetryExhaustedRecordsWithoutNewTelemetry()
-    {
-        await using var fixture = await OutboxFixture.CreateAsync();
-        await fixture.Writer.EnqueueAsync(Payload("eg4-a", "a", fixture.Now), CancellationToken.None);
-        await using (var db = fixture.CreateDb())
-        {
             var record = await db.OutboxRecords.SingleAsync();
-            record.Status = EdgeOutboxStatus.Failed;
-            record.FailureKind = EdgeOutboxFailureKind.RetryExhausted;
-            record.AttemptCount = 3;
-            await db.SaveChangesAsync();
+            record.PayloadType.Should().Be(EdgePayloadTypes.Eg4Observation);
+            record.SourceId.Should().Be("eg4-a");
+            var persisted = JsonSerializer.Deserialize<Eg4ObservationBundle>(record.PayloadJson, JsonOptions);
+            persisted.Should().NotBeNull();
+            persisted!.Reading.BatteryCurrentA.Should().Be(-10);
+            persisted.MpptDetail.Should().NotBeNull();
+            persisted.InverterDetail.Should().NotBeNull();
         }
-
-        await fixture.Forwarder.RequeueRetryExhaustedAsync(CancellationToken.None);
-
-        await using var verification = fixture.CreateDb();
-        var requeued = await verification.OutboxRecords.SingleAsync();
-        requeued.Status.Should().Be(EdgeOutboxStatus.Pending);
-        requeued.FailureKind.Should().Be(EdgeOutboxFailureKind.None);
-        requeued.AttemptCount.Should().Be(0);
+        finally
+        {
+            try { File.Delete(path); } catch (IOException) { }
+        }
     }
 
     [TestMethod]
-    public async Task Forwarder_CompactsExpiredSentAndFailedRecords()
+    public async Task Sender_RoutesReadingAndBothDetailsBeforeAcknowledgingBundle()
     {
-        await using var fixture = await OutboxFixture.CreateAsync();
-        await fixture.Writer.EnqueueAsync(Payload("eg4-sent", "sent", fixture.Now), CancellationToken.None);
-        await fixture.Writer.EnqueueAsync(Payload("eg4-failed", "failed", fixture.Now.AddSeconds(1)), CancellationToken.None);
-        await using (var db = fixture.CreateDb())
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Created)
         {
-            var records = await db.OutboxRecords.OrderBy(record => record.SourceId).ToArrayAsync();
-            var failed = records.Single(record => record.SourceId == "eg4-failed");
-            failed.Status = EdgeOutboxStatus.Failed;
-            failed.FailureKind = EdgeOutboxFailureKind.Permanent;
-            failed.LastAttemptedAtUtc = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            var sent = records.Single(record => record.SourceId == "eg4-sent");
-            sent.Status = EdgeOutboxStatus.Sent;
-            sent.SentAtUtc = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            await db.SaveChangesAsync();
-        }
+            Content = new StringContent("{\"inserted\":1,\"skipped\":0,\"failed\":[]}", Encoding.UTF8, "application/json")
+        });
+        var sender = Sender(handler);
 
-        await fixture.Forwarder.CompactAsync(CancellationToken.None);
+        var outcomes = await sender.SendAsync([Record(Bundle())], CancellationToken.None);
 
-        await using var verification = fixture.CreateDb();
-        (await verification.OutboxRecords.CountAsync()).Should().Be(0);
+        outcomes.Should().ContainSingle().Which.Status.Should().Be(EdgeOutboxSendStatus.Sent);
+        handler.Paths.Should().Equal(
+            "/api/v1/power/readings",
+            "/api/v1/power/mppt-detail",
+            "/api/v1/power/inverter-detail");
+        handler.ApiKeys.Should().OnlyContain(static key => key == "central-key");
     }
 
-    private static PowerReadingPayload Payload(string source, string device, DateTime time) => new()
+    [TestMethod]
+    [DataRow(HttpStatusCode.BadRequest, EdgeOutboxSendStatus.PermanentFailure)]
+    [DataRow(HttpStatusCode.Unauthorized, EdgeOutboxSendStatus.PermanentFailure)]
+    [DataRow(HttpStatusCode.TooManyRequests, EdgeOutboxSendStatus.TransientFailure)]
+    [DataRow(HttpStatusCode.ServiceUnavailable, EdgeOutboxSendStatus.TransientFailure)]
+    public async Task Sender_ClassifiesCentralFailures(HttpStatusCode status, EdgeOutboxSendStatus expected)
     {
-        SourceId = source,
-        SourceSystem = "eg4-6500ex",
-        DeviceId = device,
-        RecordedAtUtc = time,
-        BatteryVoltageV = 54.4,
-        BatteryCurrentA = -10,
-        BatteryPowerW = -544,
+        var sender = Sender(new StubHandler(_ => new HttpResponseMessage(status)));
+
+        var outcomes = await sender.SendAsync([Record(Bundle() with { MpptDetail = null, InverterDetail = null })], CancellationToken.None);
+
+        outcomes.Should().ContainSingle().Which.Status.Should().Be(expected);
+    }
+
+    [TestMethod]
+    public async Task Sender_RejectsMalformedBundleAndRetriesIncompleteSuccessBody()
+    {
+        var malformed = Record(Bundle());
+        malformed.PayloadJson = "{";
+        var malformedOutcome = await Sender(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Created)))
+            .SendAsync([malformed], CancellationToken.None);
+        malformedOutcome.Single().Status.Should().Be(EdgeOutboxSendStatus.PermanentFailure);
+
+        var incomplete = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = new StringContent("{}", Encoding.UTF8, "application/json")
+        });
+        var incompleteOutcome = await Sender(incomplete)
+            .SendAsync([Record(Bundle() with { MpptDetail = null, InverterDetail = null })], CancellationToken.None);
+        incompleteOutcome.Single().Status.Should().Be(EdgeOutboxSendStatus.TransientFailure);
+    }
+
+    private static Eg4OutboxBatchSender Sender(StubHandler handler) => new(
+        new StubHttpClientFactory(handler),
+        new Eg4CentralIngestCredential { ApiKey = "central-key" },
+        Options.Create(new Eg4Options { CentralIngestEndpoint = "https://central.test/" }));
+
+    private static EdgeOutboxRecord Record(Eg4ObservationBundle bundle) => new()
+    {
+        Id = 42,
+        SourceId = bundle.Reading.SourceId!,
+        DeviceId = bundle.Reading.DeviceId,
+        RecordedAtUtc = bundle.Reading.RecordedAtUtc,
+        PayloadType = EdgePayloadTypes.Eg4Observation,
+        PayloadVersion = "1",
+        PayloadJson = JsonSerializer.Serialize(bundle, JsonOptions)
     };
 
-    private sealed class OutboxFixture : IAsyncDisposable
+    private static Eg4ObservationBundle Bundle() => new(
+        new PowerReadingPayload
+        {
+            SourceId = "eg4-a",
+            SourceSystem = "eg4-6500ex",
+            DeviceId = "a",
+            RecordedAtUtc = RecordedAt,
+            BatteryVoltageV = 54.4,
+            BatteryCurrentA = -10,
+            BatteryPowerW = -544
+        },
+        new PowerMpptDetailPayload
+        {
+            SourceId = "eg4-a",
+            SourceSystem = "eg4-6500ex",
+            DeviceId = "a",
+            RecordedAtUtc = RecordedAt,
+            Trackers = [new() { TrackerId = "mppt-1", Name = "MPPT 1", PowerW = 800 }]
+        },
+        new PowerInverterDetailPayload
+        {
+            SourceId = "eg4-a",
+            SourceSystem = "eg4-6500ex",
+            DeviceId = "a",
+            RecordedAtUtc = RecordedAt,
+            TemperatureC = 50
+        });
+
+    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> response) : HttpMessageHandler
     {
-        private readonly string _path;
-        private readonly ServiceProvider _services;
-        private readonly IServiceScope _writerScope;
-        private readonly GatewayTelemetry _telemetry;
-        public DateTime Now { get; } = new(2026, 8, 9, 19, 0, 0, DateTimeKind.Utc);
-        public PowerOutboxWriter Writer { get; }
-        public PowerApiForwarder Forwarder { get; }
-        public StubHandler Handler { get; }
-
-        private OutboxFixture(string path, ServiceProvider services, IServiceScope writerScope, GatewayTelemetry telemetry, PowerOutboxWriter writer, PowerApiForwarder forwarder, StubHandler handler)
+        public List<string> Paths { get; } = [];
+        public List<string?> ApiKeys { get; } = [];
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            _path = path;
-            _services = services;
-            _writerScope = writerScope;
-            _telemetry = telemetry;
-            Writer = writer;
-            Forwarder = forwarder;
-            Handler = handler;
-        }
-
-        public static async Task<OutboxFixture> CreateAsync(
-            HttpStatusCode status = HttpStatusCode.Created,
-            string responseBody = "{\"inserted\":1,\"skipped\":0,\"failed\":[]}",
-            Exception? handlerException = null)
-        {
-            var path = Path.Combine(Path.GetTempPath(), $"eg4-outbox-{Guid.NewGuid():N}.db");
-            var services = new ServiceCollection();
-            services.AddLogging();
-            services.AddDbContext<OutboxDbContext>(options => options.UseSqlite($"Data Source={path}"));
-            services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
-            var provider = services.BuildServiceProvider();
-            await using (var scope = provider.CreateAsyncScope())
-            {
-                await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
-                    scope.ServiceProvider.GetRequiredService<OutboxDbContext>(),
-                    Eg4OutboxPayloadTypes.Reading,
-                    Eg4OutboxPayloadTypes.ReadingVersion);
-            }
-            var writerScope = provider.CreateScope();
-            var writer = new PowerOutboxWriter(
-                writerScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>(),
-                NullLogger<PowerOutboxWriter>.Instance);
-            var handler = new StubHandler(status, responseBody, handlerException);
-            var telemetry = new GatewayTelemetry(new("eg4-test", "battery-gateway"));
-            var options = Options.Create(new OutboxOptions
-            {
-                ApiEndpoint = "https://example.invalid/api/v1/power/readings",
-                ApiKey = "test-key",
-                MaxRetryAttempts = 3,
-                MaxBackoffSeconds = 30,
-            });
-            var forwarder = new PowerApiForwarder(
-                provider.GetRequiredService<IServiceScopeFactory>(),
-                new StubHttpClientFactory(handler),
-                options,
-                new RuntimeOutboxSettings(),
-                telemetry,
-                new FixedTimeProvider(new DateTimeOffset(2026, 8, 9, 19, 0, 0, TimeSpan.Zero)),
-                NullLogger<PowerApiForwarder>.Instance);
-            return new OutboxFixture(path, provider, writerScope, telemetry, writer, forwarder, handler);
-        }
-
-        public OutboxDbContext CreateDb() => new(new DbContextOptionsBuilder<OutboxDbContext>()
-            .UseSqlite($"Data Source={_path}").Options);
-
-        public async ValueTask DisposeAsync()
-        {
-            Forwarder.Dispose();
-            _writerScope.Dispose();
-            _telemetry.Dispose();
-            await _services.DisposeAsync();
-            try { File.Delete(_path); } catch (IOException) { }
-        }
-    }
-
-    private sealed class StubHandler(HttpStatusCode status, string responseBody, Exception? exception) : HttpMessageHandler
-    {
-        public string? RequestBody { get; private set; }
-        public List<string> RequestUris { get; } = [];
-        public List<string> RequestBodies { get; } = [];
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            RequestBody = await request.Content!.ReadAsStringAsync(cancellationToken);
-            RequestUris.Add(request.RequestUri!.ToString());
-            RequestBodies.Add(RequestBody);
-            if (exception is not null) throw exception;
-            return new HttpResponseMessage(status)
-            {
-                Content = new StringContent(responseBody, Encoding.UTF8, "application/json"),
-            };
+            Paths.Add(request.RequestUri!.AbsolutePath);
+            ApiKeys.Add(request.Headers.GetValues("X-Api-Key").SingleOrDefault());
+            return Task.FromResult(response(request));
         }
     }
 
     private sealed class StubHttpClientFactory(StubHandler handler) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
-    }
-
-    private sealed class FixedTimeProvider(DateTimeOffset value) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => value;
     }
 }
