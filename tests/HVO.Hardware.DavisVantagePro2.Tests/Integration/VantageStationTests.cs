@@ -4,6 +4,7 @@ using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using HVO.Hardware.DavisVantagePro2.Station;
 using HVO.Hardware.DavisVantagePro2.Station.Models;
 using HVO.Hardware.DavisVantagePro2.Tests.Fakes;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Globalization;
 using System.Text;
@@ -29,13 +30,15 @@ namespace HVO.Hardware.DavisVantagePro2.Tests.Integration;
 [TestCategory("Integration")]
 public class VantageStationTests
 {
-    private static (DavisConsoleClient client, VantageStation station) CreatePair(int port)
+    private static (DavisConsoleClient client, VantageStation station) CreatePair(
+        int port,
+        ILogger<VantageStation>? stationLogger = null)
     {
         var client = new DavisConsoleClient(
             "127.0.0.1", port, TimeSpan.FromSeconds(1),
             NullLogger<DavisConsoleClient>.Instance);
         var station = new VantageStation(
-            client, NullLogger<VantageStation>.Instance, maxTries: 1);
+            client, stationLogger ?? NullLogger<VantageStation>.Instance, maxTries: 1);
         return (client, station);
     }
 
@@ -2155,5 +2158,67 @@ public class VantageStationTests
 
         client.Dispose();
         await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_CancelledBetweenPages_SendsEscapeAndKeepsSession()
+    {
+        var since = new DateTime(2026, 8, 11, 7, 45, 0, DateTimeKind.Local);
+        var stale = Enumerable.Range(0, DavisProtocol.ArchiveRecordsPerPage)
+            .Select(index => PacketBuilder.BuildArchiveDataBytes(dateTime: since.AddDays(-1).AddMinutes(index * 5)))
+            .ToArray();
+        var page = PacketBuilder.BuildArchivePage(0, stale);
+        using var cancellation = new CancellationTokenSource();
+        var logger = new CallbackLogger<VantageStation>(message =>
+        {
+            if (message.Contains("skipping stale circular-buffer record", StringComparison.Ordinal))
+                cancellation.Cancel();
+        });
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(2))
+            .Step(1, page)
+            .Step(1, [])
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(0))
+            .Start();
+
+        var (client, station) = CreatePair(server.Port, logger);
+        await client.OpenAsync(CancellationToken.None);
+
+        var cancelled = async () =>
+        {
+            await foreach (var _ in station.GetArchiveSinceAsync(since, ct: cancellation.Token))
+            {
+            }
+        };
+        await cancelled.Should().ThrowAsync<OperationCanceledException>();
+
+        var nextBatch = new List<ArchiveRecord>();
+        await foreach (var record in station.GetArchiveSinceAsync(since))
+            nextBatch.Add(record);
+
+        server.ReceivedSteps[5].Should().Equal([DavisProtocol.Escape]);
+        nextBatch.Should().BeEmpty();
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    private sealed class CallbackLogger<T>(Action<string> callback) : ILogger<T>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) => callback(formatter(state, exception));
     }
 }

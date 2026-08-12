@@ -322,6 +322,9 @@ public sealed class VantageStation : IDavisStation, IAsyncDisposable
         await EnterCommandScopeAsync(ct);
         var records = new List<ArchiveRecord>(Math.Min(maxRecords, 250));
         bool completed = false;
+        bool pageReadInFlight = false;
+        int nextUnreadPage = 0;
+        int nPages = 0;
         try
         {
             bool explicitFullArchiveRequest = since == DateTime.MinValue;
@@ -333,7 +336,7 @@ public sealed class VantageStation : IDavisStation, IAsyncDisposable
 
             // Read page/index response
             byte[] resp = await _client.GetDataWithCrc16Async(DavisProtocol.DmpaftResponseBytes, ct, maxTries: _maxTries);
-            int nPages = BinaryPrimitives.ReadUInt16LittleEndian(resp[0..]);
+            nPages = BinaryPrimitives.ReadUInt16LittleEndian(resp[0..]);
             int startIndex = BinaryPrimitives.ReadUInt16LittleEndian(resp[2..]);
             _logger.LogDebug("DMPAFT: {Pages} pages, start index {Idx}", nPages, startIndex);
 
@@ -365,11 +368,15 @@ public sealed class VantageStation : IDavisStation, IAsyncDisposable
             DateTime lastGoodTs = since;
             bool reachedRequestedWindow = since == DateTime.MinValue;
 
-            for (int page = 0; page < nPages && !ct.IsCancellationRequested; page++)
+            for (int page = 0; page < nPages; page++)
             {
+                ct.ThrowIfCancellationRequested();
+                pageReadInFlight = true;
                 byte[] pageData = await _client.GetDataWithCrc16Async(
                     DavisProtocol.ArchivePageBytes, ct,
                     prompt: [DavisProtocol.Ack], maxTries: _maxTries);
+                pageReadInFlight = false;
+                nextUnreadPage = page + 1;
 
                 for (int idx = startIndex; idx < DavisProtocol.ArchiveRecordsPerPage; idx++)
                 {
@@ -419,6 +426,23 @@ public sealed class VantageStation : IDavisStation, IAsyncDisposable
             }
             completed = true;
             return records;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            if (!pageReadInFlight)
+            {
+                try
+                {
+                    await CancelArchiveDownloadAsync(nextUnreadPage, nPages, CancellationToken.None);
+                    completed = true;
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogDebug(exception, "DMPAFT cancellation cleanup failed; the console session will be reset");
+                }
+            }
+
+            throw;
         }
         finally
         {
