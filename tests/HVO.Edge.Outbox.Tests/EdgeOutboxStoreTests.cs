@@ -57,6 +57,39 @@ public sealed class EdgeOutboxStoreTests
     }
 
     [TestMethod]
+    public async Task EnqueueAsync_ConcurrentFileBackedDuplicates_InsertExactlyOnce()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"hvo-outbox-{Guid.NewGuid():N}.db");
+        try
+        {
+            var options = new DbContextOptionsBuilder<TestOutboxDbContext>()
+                .UseSqlite($"Data Source={databasePath};Default Timeout=30")
+                .Options;
+            await using (var initializer = new TestOutboxDbContext(options))
+                await initializer.Database.EnsureCreatedAsync();
+
+            var attempts = Enumerable.Range(0, 8).Select(async _ =>
+            {
+                await using var context = new TestOutboxDbContext(options);
+                return await new EdgeOutboxStore<TestOutboxDbContext>(context)
+                    .EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
+            });
+
+            var results = await Task.WhenAll(attempts);
+            results.Should().ContainSingle(inserted => inserted);
+            await using var verification = new TestOutboxDbContext(options);
+            (await verification.OutboxRecords.CountAsync()).Should().Be(1);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(databasePath);
+            File.Delete($"{databasePath}-shm");
+            File.Delete($"{databasePath}-wal");
+        }
+    }
+
+    [TestMethod]
     public async Task GetReadyBatchAsync_IsolatesPayloadTypes()
     {
         await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);

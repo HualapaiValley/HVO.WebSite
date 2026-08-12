@@ -274,7 +274,7 @@ deploy_target() {
 			(.Edge.Runtime.GatewayId == "davis")
 			and (.Edge.Runtime.SiteId | type == "string" and length > 0)
 			and (.Edge.Runtime.SourceId == .Station.StationId)
-			and (.Station.ArchiveCatchupMode != "Disabled")
+			and (.Station.ArchiveCatchupMode == "Disabled")
 			and (.Station.LegacyArchiveConsoleUtcOffsetHours | type == "number" and . >= -12 and . <= 14)
 			and (.Station.LocalDatabasePath == "/app/data/davis-local.db")
 			and (.Outbox.DatabasePath == "/app/data/outbox.db")

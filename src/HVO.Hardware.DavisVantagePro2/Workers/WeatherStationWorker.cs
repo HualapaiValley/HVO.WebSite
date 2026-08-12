@@ -22,6 +22,7 @@ public sealed class WeatherStationWorker(
     ILogger<WeatherStationWorker> logger) : BackgroundService
 {
     private const int LoopBatchSize = 30;
+    private const int ArchiveTopOffBatchSize = 25;
     private readonly StationOptions configuration = options.Value;
     private readonly SemaphoreSlim archiveGate = new(1, 1);
     private DateTime nextArchiveTopOffAtUtc = DateTime.MinValue;
@@ -43,7 +44,6 @@ public sealed class WeatherStationWorker(
                 reconnectAttempts = 0;
                 state.Connected();
                 await RefreshPersistedStationMetadataAsync(stoppingToken);
-                await TryRunArchiveTopOffAsync(stoppingToken);
                 await PollLoopAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -182,17 +182,16 @@ public sealed class WeatherStationWorker(
             }
             else
             {
-                var overlap = TimeSpan.FromSeconds(
-                    Math.Max(60, station.ArchiveIntervalSeconds) * configuration.ArchiveOverlapIntervals);
-                sinceLocal = cursor.ConsoleRecordedAtLocal - overlap;
+                sinceLocal = cursor.ConsoleRecordedAtLocal;
                 logger.LogInformation(
-                    "Davis archive top-off from {SinceLocal} with {Overlap} overlap; cursor UTC is {CursorUtc}",
-                    sinceLocal, overlap, cursor.RecordedAtUtc);
+                    "Davis archive top-off after console cursor {SinceLocal}; cursor UTC is {CursorUtc}",
+                    sinceLocal, cursor.RecordedAtUtc);
             }
 
             var count = 0;
             await foreach (var record in station.GetArchiveSinceAsync(
                 sinceLocal,
+                maxRecords: ArchiveTopOffBatchSize,
                 fallbackOnEmpty: true,
                 cancellationToken: cancellationToken))
             {

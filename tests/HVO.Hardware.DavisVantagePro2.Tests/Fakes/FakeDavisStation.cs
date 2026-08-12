@@ -12,6 +12,7 @@ internal sealed class FakeDavisStation : IDavisStation
     public int ArchiveIntervalSeconds { get; set; } = 300;
     public TimeSpan ConsoleUtcOffset { get; set; } = TimeSpan.FromHours(-7);
     public List<DateTime> ArchiveRequests { get; } = [];
+    public List<int> ArchiveRequestLimits { get; } = [];
     public List<string> Calls { get; } = [];
     public int ConnectCount { get; private set; }
     public int DisconnectCount { get; private set; }
@@ -88,6 +89,7 @@ internal sealed class FakeDavisStation : IDavisStation
     {
         Calls.Add("archive");
         ArchiveRequests.Add(since);
+        ArchiveRequestLimits.Add(maxRecords);
         if (ArchiveException is not null)
         {
             var exception = ArchiveException;

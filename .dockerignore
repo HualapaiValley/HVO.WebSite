@@ -14,6 +14,10 @@
 .env
 *.env
 .env.*
+.env-handoff/
+**/secrets/
+**/secrets.yaml
+**/.storage/
 
 ## Git
 .git/
@@ -24,6 +28,12 @@
 
 ## Test projects
 tests/
+TestResults/
+**/TestResults/
+**/*.dmp
+
+## Agent dependencies
+.opencode/node_modules/
 
 ## IDE
 .vs/

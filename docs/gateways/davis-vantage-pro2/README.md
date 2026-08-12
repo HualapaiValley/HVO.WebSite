@@ -14,6 +14,7 @@
 | [hvo-implementation.md](hvo-implementation.md) | HVO code structure, classes, public methods, design decisions, and implementation caveats. | HVO developers maintaining the gateway. |
 | [hvo-api-contracts.md](hvo-api-contracts.md) | HVO local APIs, outbox payloads, central ingest mappings, and candidate contract decisions. | HVO developers designing local/cloud contracts. |
 | [validation-notes.md](validation-notes.md) | Evidence, open questions, live validation checklist, and unresolved research items. | HVO developers validating hardware behavior. |
+| [cutover-and-rollback.md](cutover-and-rollback.md) | Production authority, one-owner cutover, archive recovery, validation, and rollback. | HVO operators and deployment reviewers. |
 
 ## References
 

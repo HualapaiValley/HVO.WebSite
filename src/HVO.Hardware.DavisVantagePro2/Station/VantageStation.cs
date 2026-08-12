@@ -305,10 +305,26 @@ public sealed class VantageStation : IDavisStation, IAsyncDisposable
         bool fallbackOnEmpty = false,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
+        var records = await ReadArchiveBatchAsync(since, maxRecords, fallbackOnEmpty, ct);
+        foreach (var record in records)
+        {
+            ct.ThrowIfCancellationRequested();
+            yield return record;
+        }
+    }
+
+    private async Task<IReadOnlyList<ArchiveRecord>> ReadArchiveBatchAsync(
+        DateTime since,
+        int maxRecords,
+        bool fallbackOnEmpty,
+        CancellationToken ct)
+    {
         await EnterCommandScopeAsync(ct);
-        int yielded = 0;
+        var records = new List<ArchiveRecord>(Math.Min(maxRecords, 250));
+        bool completed = false;
         try
         {
+            bool explicitFullArchiveRequest = since == DateTime.MinValue;
             await _client.SendDataAsync(Encoding.ASCII.GetBytes($"{DavisProtocol.CmdDmpaft}\n"), ct);
 
             // Encode date/time stamp for DMPAFT
@@ -336,7 +352,18 @@ public sealed class VantageStation : IDavisStation, IAsyncDisposable
                 _logger.LogDebug("DMPAFT full archive: {Pages} pages, start index {Idx}", nPages, startIndex);
             }
 
+            if (!explicitFullArchiveRequest && nPages == DavisProtocol.FullArchivePageCount)
+            {
+                _logger.LogInformation(
+                    "DMPAFT returned the full circular buffer for cursor {Since}; cancelling to preserve live LOOP acquisition",
+                    since);
+                await CancelArchiveDownloadAsync(0, nPages, ct);
+                completed = true;
+                return records;
+            }
+
             DateTime lastGoodTs = since;
+            bool reachedRequestedWindow = since == DateTime.MinValue;
 
             for (int page = 0; page < nPages && !ct.IsCancellationRequested; page++)
             {
@@ -354,28 +381,65 @@ public sealed class VantageStation : IDavisStation, IAsyncDisposable
                     if (rec is null)
                     {
                         _logger.LogDebug("DMPAFT: empty record at page {P} index {I}", page, idx);
-                        yield break;
+                        await CancelArchiveDownloadAsync(page + 1, nPages, ct);
+                        completed = true;
+                        return records;
                     }
 
+                    if (!reachedRequestedWindow && rec.DateTimeLocal < since)
+                    {
+                        _logger.LogDebug(
+                            "DMPAFT: skipping stale circular-buffer record at {RecordTime}; requested {Since}",
+                            rec.DateTimeLocal,
+                            since);
+                        continue;
+                    }
+
+                    reachedRequestedWindow = true;
                     if (lastGoodTs != DateTime.MinValue && rec.DateTimeLocal <= lastGoodTs.AddSeconds(-7200))
                     {
                         _logger.LogDebug("DMPAFT: timestamp declining, done");
-                        yield break;
+                        await CancelArchiveDownloadAsync(page + 1, nPages, ct);
+                        completed = true;
+                        return records;
                     }
 
                     lastGoodTs = rec.DateTimeLocal;
-                    yield return rec;
+                    records.Add(rec);
 
-                    if (++yielded >= maxRecords)
+                    if (records.Count >= maxRecords)
                     {
                         _logger.LogDebug("DMPAFT: maxRecords {Max} reached, stopping early", maxRecords);
-                        yield break;
+                        await CancelArchiveDownloadAsync(page + 1, nPages, ct);
+                        completed = true;
+                        return records;
                     }
                 }
                 startIndex = 0; // Only the first page uses the returned start index
             }
+            completed = true;
+            return records;
         }
-        finally { _lock.Release(); }
+        finally
+        {
+            try
+            {
+                SetConsoleMode(completed ? ConsoleSessionMode.Command : ConsoleSessionMode.Unknown);
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+    }
+
+    private async Task CancelArchiveDownloadAsync(int nextPage, int pageCount, CancellationToken ct)
+    {
+        if (nextPage >= pageCount)
+            return;
+
+        _logger.LogDebug("DMPAFT: cancelling with {RemainingPages} unread page(s)", pageCount - nextPage);
+        await _client.WriteAsync([DavisProtocol.Escape], ct);
     }
 
     // ── Station interrogation — READ ──────────────────────────────────────────

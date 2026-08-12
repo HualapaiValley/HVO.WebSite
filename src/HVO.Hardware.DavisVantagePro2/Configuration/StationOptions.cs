@@ -16,8 +16,8 @@ public sealed class StationOptions
     [Range(4, 60)]
     public int SocketTimeoutSeconds { get; set; } = 8;
 
-    /// <summary>Controls whether startup archive catchup is disabled, conditional, or always runs.</summary>
-    public ArchiveCatchupMode ArchiveCatchupMode { get; set; } = ArchiveCatchupMode.Enabled;
+    /// <summary>Controls whether periodic archive catchup is disabled, conditional, or always runs.</summary>
+    public ArchiveCatchupMode ArchiveCatchupMode { get; set; } = ArchiveCatchupMode.Disabled;
 
     [Range(1, 12)]
     public int ArchiveOverlapIntervals { get; set; } = 2;

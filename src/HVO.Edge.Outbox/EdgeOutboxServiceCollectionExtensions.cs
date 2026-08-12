@@ -1,4 +1,4 @@
-using System.Data.Common;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,9 +26,10 @@ public static class EdgeOutboxServiceCollectionExtensions
         services.AddDbContext<DefaultEdgeOutboxDbContext>((provider, builder) =>
         {
             var path = provider.GetRequiredService<IOptions<EdgeOutboxOptions>>().Value.DatabasePath;
-            var connectionString = new DbConnectionStringBuilder
+            var connectionString = new SqliteConnectionStringBuilder
             {
-                ["Data Source"] = path,
+                DataSource = path,
+                DefaultTimeout = 30,
             };
             builder.UseSqlite(connectionString.ConnectionString);
         });

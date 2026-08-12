@@ -8,8 +8,8 @@ namespace HVO.Hardware.DavisVantagePro2.Tests.Fakes;
 ///
 /// Script a sequence of interactions with <see cref="Step"/> — each step reads
 /// a fixed number of bytes from the client then sends a pre-configured response.
-/// The server processes all steps in order for the first accepted connection,
-/// then holds the connection open until disposed.
+/// The server processes all steps in order across accepted connections,
+/// then holds the final connection open until disposed.
 ///
 /// Usage:
 /// <code>
@@ -80,40 +80,54 @@ public sealed class FakeDavisServer : IAsyncDisposable
     {
         try
         {
-            using TcpClient client = await _listener.AcceptTcpClientAsync(ct);
-            using NetworkStream stream = client.GetStream();
-
             var discard = new byte[4096];
-
-            foreach (var (receiveCount, chunks) in _steps)
+            int stepIndex = 0;
+            while (stepIndex < _steps.Count)
             {
-                // Drain the expected bytes from the client (content not inspected)
-                int received = 0;
-                byte[] captured = new byte[receiveCount];
-                while (received < receiveCount)
+                using TcpClient client = await _listener.AcceptTcpClientAsync(ct);
+                using NetworkStream stream = client.GetStream();
+                bool disconnected = false;
+
+                while (stepIndex < _steps.Count && !disconnected)
                 {
-                    int n = await stream.ReadAsync(
-                        discard.AsMemory(0, Math.Min(discard.Length, receiveCount - received)), ct);
-                    if (n == 0) return; // client disconnected prematurely
-                    Array.Copy(discard, 0, captured, received, n);
-                    received += n;
+                    var (receiveCount, chunks) = _steps[stepIndex];
+                    int received = 0;
+                    byte[] captured = new byte[receiveCount];
+                    while (received < receiveCount)
+                    {
+                        int n = await stream.ReadAsync(
+                            discard.AsMemory(0, Math.Min(discard.Length, receiveCount - received)), ct);
+                        if (n == 0)
+                        {
+                            disconnected = true;
+                            break;
+                        }
+                        Array.Copy(discard, 0, captured, received, n);
+                        received += n;
+                    }
+
+                    if (disconnected)
+                        break;
+
+                    _receivedSteps.Add(captured);
+
+                    foreach (var (response, delayMs) in chunks)
+                    {
+                        if (delayMs > 0)
+                            await Task.Delay(delayMs, ct);
+
+                        if (response.Length > 0)
+                            await stream.WriteAsync(response, ct);
+                    }
+                    stepIndex++;
                 }
 
-                _receivedSteps.Add(captured);
-
-                foreach (var (response, delayMs) in chunks)
+                if (stepIndex == _steps.Count)
                 {
-                    if (delayMs > 0)
-                        await Task.Delay(delayMs, ct);
-
-                    if (response.Length > 0)
-                        await stream.WriteAsync(response, ct);
+                    // Keep the final socket alive so close-time flushes do not receive a spurious RST.
+                    await Task.Delay(Timeout.Infinite, ct);
                 }
             }
-
-            // Keep the socket alive until the test disposes the server so that
-            // the client does not receive a spurious RST when it flushes on close.
-            await Task.Delay(Timeout.Infinite, ct);
         }
         catch (OperationCanceledException) { }
         catch (Exception) { /* swallow — the test will surface timeout / assertion failures */ }

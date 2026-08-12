@@ -29,6 +29,7 @@ public sealed class WeatherStationWorkerTests
 
         count.Should().Be(1);
         station.ArchiveRequests.Should().Equal(DateTime.MinValue);
+        station.ArchiveRequestLimits.Should().Equal(25);
         events.Should().Equal("enqueue:archive", "cursor:advance");
         cursor.Current!.ConsoleRecordedAtLocal.Should().Be(new DateTime(2026, 8, 11, 5, 0, 0));
     }
@@ -64,7 +65,7 @@ public sealed class WeatherStationWorkerTests
     }
 
     [TestMethod]
-    public async Task ReconnectAndPeriodicTopOff_UseCursorOverlapBetweenFiniteLoopBatches()
+    public async Task ReconnectAndPeriodicTopOff_UseExactCursorBetweenFiniteLoopBatches()
     {
         var station = StationWithArchive(ArchiveAt(5, 5));
         station.ArchiveIntervalSeconds = 300;
@@ -89,9 +90,9 @@ public sealed class WeatherStationWorkerTests
 
         periodicRan.Should().BeTrue();
         station.ArchiveRequests.Should().HaveCount(3);
-        station.ArchiveRequests[0].Should().Be(new DateTime(2026, 8, 11, 4, 50, 0));
-        station.ArchiveRequests[1].Should().Be(new DateTime(2026, 8, 11, 4, 55, 0));
-        station.ArchiveRequests[2].Should().Be(new DateTime(2026, 8, 11, 5, 0, 0));
+        station.ArchiveRequests[0].Should().Be(new DateTime(2026, 8, 11, 5, 0, 0));
+        station.ArchiveRequests[1].Should().Be(new DateTime(2026, 8, 11, 5, 5, 0));
+        station.ArchiveRequests[2].Should().Be(new DateTime(2026, 8, 11, 5, 10, 0));
         station.Calls.Should().ContainInOrder("loop1", "loop2", "archive");
     }
 
@@ -135,6 +136,29 @@ public sealed class WeatherStationWorkerTests
 
         station.ConnectCount.Should().Be(1);
         station.DisconnectCount.Should().Be(0);
+        fixture.Worker.ExecuteTask.Should().NotBeNull();
+        fixture.Worker.ExecuteTask!.IsCompleted.Should().BeFalse();
+        await fixture.Worker.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [TestMethod]
+    public async Task ArchiveFailureThenReconnect_DefersArchiveRetryAndResumesLiveCollection()
+    {
+        var station = new FakeDavisStation
+        {
+            ArchiveException = new IOException("DMPAFT unavailable"),
+            Loop1Exception = new IOException("station disconnected"),
+            ClearLoop1ExceptionAfterThrow = true,
+            Loop2Packets = [new Loop2Packet { RecordedAtUtc = DateTime.UtcNow }],
+        };
+        var writer = new RecordingWriter([], true);
+        await using var fixture = CreateFixture(station, new RecordingCursorStore([]), writer);
+
+        await fixture.Worker.StartAsync(CancellationToken.None);
+        await writer.LiveEnqueued.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        station.ConnectCount.Should().Be(2);
+        station.ArchiveRequests.Should().HaveCount(1);
         fixture.Worker.ExecuteTask.Should().NotBeNull();
         fixture.Worker.ExecuteTask!.IsCompleted.Should().BeFalse();
         await fixture.Worker.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));

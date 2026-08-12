@@ -7,6 +7,7 @@ internal static class DavisProtocol
     public const byte Ack = 0x06;
     public const byte Nak = 0x21; // '!'
     public const byte Cancel = 0x18; // Ctrl-X
+    public const byte Escape = 0x1B; // Cancel an in-progress archive download
     public const byte Cr = 0x0D;
     public const byte Lf = 0x0A;
     public const byte Dash16 = 0xFF; // 1-byte null/dash sentinel
@@ -51,6 +52,7 @@ internal static class DavisProtocol
     public const int ArchivePageBytes = 267; // 1 page byte + 5 records × 52 + 4 unused bytes + 2 CRC
     public const int ArchiveRecordBytes = 52;
     public const int ArchiveRecordsPerPage = 5;
+    public const int FullArchivePageCount = 513;
     public const int DmpaftResponseBytes = 6;  // 2 pages + 2 start index + 2 CRC
 
     // LOOP2 packet type
