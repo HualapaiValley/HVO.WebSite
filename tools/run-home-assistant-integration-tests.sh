@@ -113,7 +113,8 @@ dotnet test "$repo_root/HVO.WebSite.sln" \
 
 for project in \
     "$repo_root/tests/HVO.Edge.HomeAssistant.Mqtt.Tests/HVO.Edge.HomeAssistant.Mqtt.Tests.csproj" \
-    "$repo_root/tests/HVO.Edge.Exporter.HomeAssistant.Tests/HVO.Edge.Exporter.HomeAssistant.Tests.csproj"; do
+    "$repo_root/tests/HVO.Edge.Exporter.HomeAssistant.Tests/HVO.Edge.Exporter.HomeAssistant.Tests.csproj" \
+    "$repo_root/tests/HVO.Tools.HomeAssistantEntityMigration.Tests/HVO.Tools.HomeAssistantEntityMigration.Tests.csproj"; do
     HVO_HA_TEST_URL="$ha_url" \
     HVO_HA_TEST_TOKEN="$access_token" \
     HVO_HA_TEST_INGEST_URL="$ingest_url" \

@@ -4,6 +4,9 @@ This directory contains source-controlled Home Assistant configuration for the
 observatory instance. It intentionally excludes `.storage`, secrets, generated
 state, and acquisition logic.
 
+The Davis entity registry migration procedure is documented in
+`docs/home-assistant/davis-readable-id-migration.md`.
+
 ## Kasa power dashboard
 
 `configuration/dashboards/hvo-kasa.yaml` provides the first HVO presentation
