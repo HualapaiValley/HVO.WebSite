@@ -36,7 +36,7 @@ public sealed class Eg4HomeAssistantProjectionTests
         mqtt.Definitions.Single(definition => definition.Key.DeviceId == "controller").Entities
             .Should().Contain(entity => entity.ComponentId == "pv_mppt_1_power")
             .And.Contain(entity => entity.ComponentId == "controller_secondary_temperature")
-            .And.Contain(entity => entity.ComponentId == "controller_fault" && entity.Name == "Controller diagnostic 201")
+            .And.Contain(entity => entity.ComponentId == "controller_diagnostic_201" && entity.Name == "Controller diagnostic 201")
             .And.NotContain(entity => entity.ComponentId == "load_power")
             .And.NotContain(entity => entity.ComponentId == "pv_mppt_2_power");
     }
@@ -206,7 +206,7 @@ public sealed class Eg4HomeAssistantProjectionTests
         values["controller_temperature"].GetDouble().Should().Be(40);
         values["controller_secondary_temperature"].GetDouble().Should().Be(37);
         values["controller_status"].GetString().Should().Be("2");
-        values["controller_fault"].GetString().Should().Be("0");
+        values["controller_diagnostic_201"].GetString().Should().Be("0");
         values["charge_state"].GetString().Should().Be("3");
         values["controller_estimated_soc"].GetDouble().Should().Be(90);
         values["controller_diagnostic_217"].GetString().Should().Be("2");

@@ -112,7 +112,7 @@ internal sealed class Eg4HomeAssistantProjection
             entities.Add(new HomeAssistantSensorDefinition("controller_temperature", "Controller temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("controller_secondary_temperature", "Controller secondary temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("controller_status", "Controller status", entityCategory: "diagnostic"));
-            entities.Add(new HomeAssistantSensorDefinition("controller_fault", "Controller diagnostic 201", entityCategory: "diagnostic"));
+            entities.Add(new HomeAssistantSensorDefinition("controller_diagnostic_201", "Controller diagnostic 201", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("charge_state", "Charge state", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("controller_estimated_soc", "Controller estimated state of charge", "%", stateClass: Measurement, entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("controller_diagnostic_206", "Controller diagnostic 206", entityCategory: "diagnostic"));
@@ -197,7 +197,7 @@ internal sealed class Eg4HomeAssistantProjection
         AddControllerTemperature(values, "controller_temperature", detail, "controller");
         AddControllerTemperature(values, "controller_secondary_temperature", detail, "controller-secondary");
         Add(values, "controller_status", Diagnostic(detail, "r200"));
-        Add(values, "controller_fault", Diagnostic(detail, "r201"));
+        Add(values, "controller_diagnostic_201", Diagnostic(detail, "r201"));
         Add(values, "charge_state", Diagnostic(detail, "r204"));
         Add(values, "controller_estimated_soc", ParseDouble(Diagnostic(detail, "controllerEstimatedSocPercent")));
         Add(values, "controller_diagnostic_206", Diagnostic(detail, "r206"));

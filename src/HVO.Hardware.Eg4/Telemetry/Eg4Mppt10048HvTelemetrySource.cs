@@ -115,7 +115,7 @@ public sealed class Eg4Mppt10048HvTelemetrySource(
         var fields = new (int Offset, string Key, string Name)[]
         {
             (0, "r200", "Controller status"),
-            (1, "r201", "Controller fault"),
+            (1, "r201", "Controller diagnostic 201"),
             (4, "r204", "Charge state"),
             (5, "controllerEstimatedSocPercent", "Controller estimated SOC percent"),
             (6, "r206", "Controller diagnostic 206"),
