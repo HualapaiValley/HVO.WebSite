@@ -20,6 +20,9 @@ Templates and automations are intentionally empty until issue #331 defines
 stable entities and reviewed safety behavior. This establishes their supported
 source-controlled include paths without enabling speculative automation.
 
+The Davis entity registry migration procedure is documented in
+`docs/home-assistant/davis-readable-id-migration.md`.
+
 ## Kasa power dashboard
 
 `configuration/dashboards/hvo-kasa.yaml` provides the first HVO presentation

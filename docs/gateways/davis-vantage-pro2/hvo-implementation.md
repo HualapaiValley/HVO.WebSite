@@ -201,11 +201,11 @@ These methods exist in HVO code and should be treated as local-only unless a lat
 ## Worker Flow
 
 1. `WeatherStationWorker` connects with `VantageStation.ConnectAsync`.
-2. Optional startup archive catchup runs through `GetArchiveSinceAsync`.
-3. Each live batch refreshes LOOP1 with `GetLoop1Async`.
-4. The worker streams 30 LOOP2 packets with `StreamLoop2Async`.
-5. Each LOOP2 packet is merged with the cached LOOP1 packet using `VantageStation.MergePackets`.
-6. The merged reading is stored in the local outbox.
+2. Each live batch refreshes LOOP1 with `GetLoop1Async`.
+3. The worker streams 30 LOOP2 packets with `StreamLoop2Async`.
+4. Each LOOP2 packet is merged with the cached LOOP1 packet using `VantageStation.MergePackets`.
+5. The merged reading is stored in the local outbox.
+6. When explicitly enabled, periodic archive top-off runs between completed live batches.
 7. Failures increment consecutive error counters; repeated failures trigger reconnect with exponential backoff.
 
 ## Operation Flowcharts
@@ -344,7 +344,12 @@ Archive catchup notes:
 - `WeatherStationWorker` uses `_archiveCatchupGate` so only one catchup runs at a time.
 - `GetArchiveSinceAsync` holds the station semaphore while downloading pages.
 - Archive records are interval records and are written as archive outbox entries.
-- Startup/top-off catchup calls `GetArchiveSinceAsync` with `fallbackOnEmpty` enabled so zero-page responses for older timestamps retry with a full-archive request.
+- Each top-off requests records after the exact durable console cursor and accepts at most 25 records so downstream persistence completes within the live freshness budget before LOOP polling resumes.
+- This WeatherLink/console currently returns the documented 513-page full circular buffer for cursor-based requests. v1 cancels that response with `<ESC>` before requesting page one so live LOOP acquisition remains stable; bounded recovery is deferred to #346.
+- Production v1 leaves `ArchiveCatchupMode` disabled until #346 is complete. Existing archive data and the durable cursor are preserved; live LOOP acquisition and canonical raw forwarding continue.
+- Circular-buffer responses can begin before the requested window; stale leading records are skipped until the requested window is reached.
+- A bounded archive exit uses the protocol-defined `<ESC>` byte; a 513-page cursor response is cancelled before page one.
+- Dormant periodic catch-up calls `GetArchiveSinceAsync` with `fallbackOnEmpty`; v1 cancels any resulting 513-page response before page one.
 - Long archive downloads can interrupt live LOOP polling because the Davis console only supports one active protocol session at a time.
 
 ## Implementation Caveats And Debt
@@ -355,11 +360,11 @@ Archive catchup notes:
 | Parser intentionally does not vary temperature/wind/barometer by console display settings. | Expected to be protocol-compliant; local UI/API presentation converts from normalized values using cached display settings. | Change console display units and confirm raw LOOP/archive bytes remain protocol-unit encoded. |
 | Rain fields have different reset/window semantics. | Mapping them into one central `RainfallInches` field would be wrong. | Keep daily/rate/storm/rolling/archive interval fields separate. |
 | Archive and live records are different shapes. | A single weather payload/table can lose semantics. | Decide whether archive records get a separate central contract/table. |
-| `DMPAFT` fallback on zero pages is enabled for startup/top-off catchup. | If a requested timestamp predates the circular buffer and firmware returns zero pages, HVO retries with a full-archive request to recover oldest available records. | Live-validate this edge case on real hardware. |
+| `DMPAFT` can return zero pages or the 513-page full circular buffer for a cursor request. | Full-buffer scans interrupt live LOOP acquisition on the deployed adapter. | v1 cancels cursor-triggered full-buffer responses and leaves catch-up disabled; bounded recovery is deferred to #346. |
 
 ## Implementation Readiness Assessment
 
-Current assessment: HVO has a good practical Davis implementation for live telemetry, archive catchup, core settings, diagnostics, and many write paths. It should not yet be described as a complete Davis protocol implementation until the official PDF is checked command-by-command and risky writes have read-back/safety design plus explicit live-validation decisions.
+Current assessment: HVO has a good practical Davis implementation for live telemetry, core settings, diagnostics, and many write paths. Archive catch-up is disabled pending #346. It should not yet be described as a complete Davis protocol implementation until the official PDF is checked command-by-command and risky writes have read-back/safety design plus explicit live-validation decisions.
 
 | Area | Current HVO status | Readiness | Next action |
 |------|--------------------|-----------|-------------|

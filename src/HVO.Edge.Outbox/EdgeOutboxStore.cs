@@ -26,6 +26,19 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
         if (recordedAt == default)
             throw new InvalidOperationException("Outbox message must include RecordedAtUtc.");
 
+        if (_db.Database.IsSqlite())
+        {
+            var inserted = await _db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT OR IGNORE INTO OutboxRecords
+                    (SourceId, DeviceId, PayloadType, PayloadVersion, RecordedAtUtc, Payload,
+                     Status, AttemptCount, NextRetryAtUtc, FailureKind, CreatedAtUtc)
+                VALUES
+                    ({sourceId}, {NormalizeOptional(message.DeviceId)}, {payloadType}, {payloadVersion}, {recordedAt}, {payloadJson},
+                     {(int)EdgeOutboxStatus.Pending}, {0}, {DateTime.MinValue}, {(int)EdgeOutboxFailureKind.None}, {DateTime.UtcNow})
+                """, ct);
+            return inserted == 1;
+        }
+
         var record = new EdgeOutboxRecord
         {
             SourceId = sourceId,
@@ -36,15 +49,13 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
             PayloadJson = payloadJson,
             CreatedAtUtc = DateTime.UtcNow,
         };
-
         _db.OutboxRecords.Add(record);
-
         try
         {
             await _db.SaveChangesAsync(ct);
             return true;
         }
-        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
         {
             _db.Entry(record).State = EntityState.Detached;
             return false;
@@ -262,15 +273,12 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
             var typeName = current.GetType().FullName;
             if (typeName == "Microsoft.Data.Sqlite.SqliteException")
             {
-                var sqliteErrorCode = current.GetType().GetProperty("SqliteErrorCode")?.GetValue(current) as int?;
-                if (sqliteErrorCode == 19)
-                    return true;
-
-                if (current.Message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase))
+                var errorCode = current.GetType().GetProperty("SqliteErrorCode")?.GetValue(current) as int?;
+                if (errorCode == 19 || current.Message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase))
                     return true;
             }
 
-            if (typeName == "Microsoft.Data.SqlClient.SqlException" || typeName == "System.Data.SqlClient.SqlException")
+            if (typeName is "Microsoft.Data.SqlClient.SqlException" or "System.Data.SqlClient.SqlException")
             {
                 foreach (var error in (System.Collections.IEnumerable)current.GetType().GetProperty("Errors")!.GetValue(current)!)
                 {

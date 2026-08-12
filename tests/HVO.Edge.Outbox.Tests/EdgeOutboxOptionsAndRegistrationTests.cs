@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -89,6 +90,11 @@ public sealed class EdgeOutboxOptionsAndRegistrationTests
             var db = scope.ServiceProvider.GetRequiredService<DefaultEdgeOutboxDbContext>();
             (await db.Database.CanConnectAsync()).Should().BeTrue();
             (await EdgeOutboxSchemaValidator.ValidateAsync(db)).IsCompatible.Should().BeTrue();
+            await using var independent = new SqliteConnection($"Data Source={databasePath}");
+            await independent.OpenAsync();
+            await using var journalMode = independent.CreateCommand();
+            journalMode.CommandText = "PRAGMA journal_mode";
+            (await journalMode.ExecuteScalarAsync()).Should().Be("wal");
             scope.ServiceProvider.GetRequiredService<EdgeOutboxStore<DefaultEdgeOutboxDbContext>>().Should().NotBeNull();
             scope.ServiceProvider.GetRequiredService<EdgeOutboxDiagnostics>().Should().NotBeNull();
             provider.GetRequiredService<RuntimeOutboxSettings>().Should().NotBeNull();

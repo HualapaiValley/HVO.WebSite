@@ -59,7 +59,7 @@ flowchart LR
     HA -. excluded from HA exporter .-> X[No second writer]
 ```
 
-**Migration status:** target headless port is issue #327. The direct collector remains the only canonical writer before and after migration.
+**Migration status:** the Davis slice of issue #330 is cut over to the headless collector. The legacy collector is stopped, the vNext collector is the sole WeatherLink owner and canonical writer, and the verified legacy image/volume backup remains available for ordered rollback. See [Davis vNext Cutover And Rollback](../gateways/davis-vantage-pro2/cutover-and-rollback.md).
 
 ## JK BMS
 

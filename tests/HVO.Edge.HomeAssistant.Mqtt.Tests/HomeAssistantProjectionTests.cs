@@ -51,6 +51,29 @@ public sealed class HomeAssistantProjectionTests
     }
 
     [TestMethod]
+    public void DiscoveryTemplate_ReferencesSerializedStateComponentKey()
+    {
+        var definition = TestSupport.Device(
+            TestSupport.Key,
+            new HomeAssistantSensorDefinition("outside_temperature", "Outside temperature"));
+        var projection = new HomeAssistantMqttProjection(TestSupport.Identity(), Options.Create(TestSupport.Options()));
+        projection.UpsertDevice(definition);
+        projection.PublishCurrentState(new(
+            TestSupport.Key,
+            DateTimeOffset.UtcNow,
+            new Dictionary<string, JsonElement>
+            {
+                ["outside_temperature"] = JsonSerializer.SerializeToElement(72.5)
+            }));
+        using var discovery = JsonDocument.Parse(HomeAssistantDiscoverySerializer.Serialize(definition, TestSupport.Topics));
+
+        var stateKey = projection.Snapshot().Devices.Single().State!.ComponentValues.Keys.Single();
+        discovery.RootElement.GetProperty("components").GetProperty(stateKey)
+            .GetProperty("value_template").GetString().Should()
+            .Be($"{{{{ value_json.components.get(\"{stateKey}\") }}}}");
+    }
+
+    [TestMethod]
     public void DeviceIdentity_MustMatchConfiguredSiteAndGateway()
     {
         var projection = new HomeAssistantMqttProjection(TestSupport.Identity(), Options.Create(TestSupport.Options()));

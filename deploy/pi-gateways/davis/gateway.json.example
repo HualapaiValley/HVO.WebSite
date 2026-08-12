@@ -15,7 +15,7 @@
   "Station": {
     "Port": 22222,
     "SocketTimeoutSeconds": 8,
-    "ArchiveCatchupMode": "Enabled",
+    "ArchiveCatchupMode": "Disabled",
     "ArchiveOverlapIntervals": 2,
     "MaxConsecutiveErrors": 5,
     "StationId": "hvo-davis-01",
