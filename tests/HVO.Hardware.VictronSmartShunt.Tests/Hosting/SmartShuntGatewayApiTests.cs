@@ -29,7 +29,10 @@ public sealed class SmartShuntGatewayApiTests
             var response = await client.GetAsync("/diagnostics/status");
             response.StatusCode.Should().Be(HttpStatusCode.OK);
             var json = await response.Content.ReadAsStringAsync();
-            json.Should().Contain("\"gatewayId\":\"smartshunt\"").And.NotContain("central-key").And.NotContain(root);
+            json.Should().Contain("\"gatewayId\":\"smartshunt\"")
+                .And.Contain("\"state\":3")
+                .And.NotContain("central-key")
+                .And.NotContain(root);
         }
         finally { try { Directory.Delete(root, true); } catch (IOException) { } }
     }

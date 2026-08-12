@@ -152,7 +152,11 @@ compose_dir_for_target() {
 
 preflight_smartshunt_contract() {
 	local env_file="${1}"
-	local compose_dir="deploy/pi-gateways/smartshunt"
+	local compose_dir="${2}"
+	local -n resolved_config_path="${3}"
+	local -n resolved_secrets_path="${4}"
+	local -n resolved_remote_config="${5}"
+	local -n resolved_remote_secrets="${6}"
 	local config_setting config_path secrets_setting secrets_path remote_config remote_secrets
 	[[ -f "${env_file}" ]] || fail "Environment file not found: ${env_file}"
 	config_setting="$(read_env_value "${env_file}" SMARTSHUNT_CONFIG_FILE)"
@@ -177,6 +181,10 @@ preflight_smartshunt_contract() {
 	remote_config="$(read_env_value "${env_file}" SMARTSHUNT_REMOTE_CONFIG_FILE)"
 	remote_secrets="$(read_env_value "${env_file}" SMARTSHUNT_REMOTE_SECRETS_DIRECTORY)"
 	[[ -n "${remote_config}" && -n "${remote_secrets}" ]] || fail "SmartShunt remote config and secrets paths are required."
+	resolved_config_path="${config_path}"
+	resolved_secrets_path="${secrets_path}"
+	resolved_remote_config="${remote_config}"
+	resolved_remote_secrets="${remote_secrets}"
 }
 
 deploy_target() {
@@ -328,34 +336,9 @@ deploy_target() {
 		sync_remote_mounts jkbms "${jkbms_config_path}" "${jkbms_secrets_path}" "${jkbms_remote_config}" "${jkbms_remote_secrets}"
 	fi
 	if [[ "${gateway}" == smartshunt ]]; then
-		local smartshunt_config_setting smartshunt_config_path smartshunt_secrets_setting smartshunt_secrets_path smartshunt_remote_config smartshunt_remote_secrets
-		smartshunt_config_setting="$(read_env_value "${env_file}" SMARTSHUNT_CONFIG_FILE)"
-		smartshunt_config_path="${smartshunt_config_setting:-./gateway.json}"
-		[[ "${smartshunt_config_path}" = /* ]] || smartshunt_config_path="${repo_root}/${compose_dir}/${smartshunt_config_path#./}"
-		[[ -f "${smartshunt_config_path}" ]] || fail "SmartShunt mounted configuration not found: ${smartshunt_config_path}"
-		jq -e '
-			(.Edge.Runtime.GatewayId == "smartshunt")
-			and (.Edge.Runtime.GatewayType == "victron-smartshunt-public-gatt")
-			and (.Edge.Runtime.SourceId == .SmartShunt.SourceId)
-			and (.SmartShunt.Address | test("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$"))
-			and (.Outbox.DatabasePath == "/app/data/outbox.db")
-			and (.Outbox.PayloadType == "com.hvo.smartshunt.observation.v1")' \
-			"${smartshunt_config_path}" >/dev/null || fail "SmartShunt gateway.json does not satisfy the vNext deployment contract."
-		smartshunt_secrets_setting="$(read_env_value "${env_file}" SMARTSHUNT_SECRETS_DIRECTORY)"
-		smartshunt_secrets_path="${smartshunt_secrets_setting:-./secrets}"
-		[[ "${smartshunt_secrets_path}" = /* ]] || smartshunt_secrets_path="${repo_root}/${compose_dir}/${smartshunt_secrets_path#./}"
-		for secret_name in diagnostics-api-key central-ingest-api-key; do
-			[[ -s "${smartshunt_secrets_path}/${secret_name}" ]] || fail "SmartShunt required secret file is missing or empty: ${secret_name}"
-		done
-		if jq -e '.HomeAssistant.Mqtt.Enabled == true' "${smartshunt_config_path}" >/dev/null; then
-			for secret_name in mqtt-username mqtt-password; do
-				[[ -s "${smartshunt_secrets_path}/${secret_name}" ]] || fail "SmartShunt required MQTT secret file is missing or empty: ${secret_name}"
-			done
-		fi
-		smartshunt_remote_config="$(read_env_value "${env_file}" SMARTSHUNT_REMOTE_CONFIG_FILE)"
-		[[ -n "${smartshunt_remote_config}" ]] || fail "SMARTSHUNT_REMOTE_CONFIG_FILE is required."
-		smartshunt_remote_secrets="$(read_env_value "${env_file}" SMARTSHUNT_REMOTE_SECRETS_DIRECTORY)"
-		[[ -n "${smartshunt_remote_secrets}" ]] || fail "SMARTSHUNT_REMOTE_SECRETS_DIRECTORY is required."
+		local smartshunt_config_path smartshunt_secrets_path smartshunt_remote_config smartshunt_remote_secrets
+		preflight_smartshunt_contract "${env_file}" "${compose_dir}" \
+			smartshunt_config_path smartshunt_secrets_path smartshunt_remote_config smartshunt_remote_secrets
 		sync_remote_mounts smartshunt "${smartshunt_config_path}" "${smartshunt_secrets_path}" "${smartshunt_remote_config}" "${smartshunt_remote_secrets}"
 	fi
 
@@ -435,7 +418,12 @@ command -v docker >/dev/null 2>&1 || fail 'Required command not found: docker'
 
 if [[ "${target}" == all ]]; then
 	# Fail the newly migrated SmartShunt contract before any earlier stack can be changed.
-	preflight_smartshunt_contract "${repo_root}/deploy/pi-gateways/smartshunt/.env"
+	smartshunt_preflight_config=""
+	smartshunt_preflight_secrets=""
+	smartshunt_preflight_remote_config=""
+	smartshunt_preflight_remote_secrets=""
+	preflight_smartshunt_contract "${repo_root}/deploy/pi-gateways/smartshunt/.env" "deploy/pi-gateways/smartshunt" \
+		smartshunt_preflight_config smartshunt_preflight_secrets smartshunt_preflight_remote_config smartshunt_preflight_remote_secrets
 	for gateway in davis jkbms solarassistant smartshunt tplinkkasa; do
 		deploy_target "${gateway}"
 	done

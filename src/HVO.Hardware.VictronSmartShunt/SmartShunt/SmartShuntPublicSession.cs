@@ -127,7 +127,7 @@ public sealed class SmartShuntPublicSession : BackgroundService, ISmartShuntSess
             {
                 try
                 {
-                    await characteristic.StopNotifyAsync().WaitAsync(operationTimeout);
+                    await characteristic.StopNotifyAsync().WaitAsync(operationTimeout, ct);
                 }
                 catch (Exception ex)
                 {

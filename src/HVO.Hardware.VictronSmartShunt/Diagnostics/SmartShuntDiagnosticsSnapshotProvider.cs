@@ -29,8 +29,9 @@ internal sealed class SmartShuntDiagnosticsSnapshotProvider(
         if (outbox.FailedCount > 0 || !string.IsNullOrWhiteSpace(outbox.LastError)) alerts.Add(new("outbox-forwarding", GatewayAlertSeverity.Warning, "Central forwarding is degraded."));
         var mqttStatus = mqtt.GetStatus();
         if (mqttStatus.Enabled && !mqttStatus.Connected) alerts.Add(new("home-assistant-mqtt", GatewayAlertSeverity.Warning, "Home Assistant MQTT presentation is disconnected."));
-        var state = !outbox.Schema.IsCompatible || worker.LastSnapshotAtUtc is null && !string.IsNullOrWhiteSpace(worker.LastError)
-            ? GatewayHealthState.Critical : alerts.Count > 0 ? GatewayHealthState.Warning : GatewayHealthState.Healthy;
+        var state = alerts.Any(static alert => alert.Severity == GatewayAlertSeverity.Critical)
+            ? GatewayHealthState.Critical
+            : alerts.Count > 0 ? GatewayHealthState.Warning : GatewayHealthState.Healthy;
         return new(new GatewayHealthSnapshot(state, now, alerts,
             fresh ? GatewaySampleState.Live : worker.LastSnapshotAtUtc is null ? GatewaySampleState.Waiting : GatewaySampleState.Stale,
             outbox.FailedCount > 0 ? "degraded" : "healthy", outbox.PendingCount > 0 ? "pending" : "synced"),

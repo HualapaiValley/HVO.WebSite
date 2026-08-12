@@ -51,5 +51,7 @@ invalid_output="$(env -i PATH="${PATH}" HOME="${HOME}" HVO_PI_GATEWAY_ENV_FILE="
 invalid_status=$?
 set -e
 [[ "${invalid_status}" -ne 0 && "${invalid_output}" != *'[dry-run] ssh'* ]] || fail 'invalid contract reached remote mutation'
+[[ "$(grep -c 'preflight_smartshunt_contract "${env_file}"' "${repo_root}/scripts/deploy-pi-gateway.sh")" -eq 1 ]] ||
+	fail 'SmartShunt per-target deployment must call the single authoritative contract preflight'
 
 printf 'SmartShunt deployment artifacts and secret-safe preflight validated.\n'
