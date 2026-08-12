@@ -157,9 +157,9 @@ The observatory instance currently has 15 loaded TP-Link parent entries and 57
 registered parent/child devices. Kasa remains an HA-owned source; central-writer
 cutover is handled separately by issue #330.
 
-### ESPHome Bluetooth proxy and Govee H5179
+### Bluetooth proxy and Govee sensors
 
-1. Place a supported ESP32 development board near the H5179. The proxy must
+1. Place a supported ESP32 development board near the Govee sensors. The proxy must
    receive its BLE advertisements reliably from the intended permanent location.
 2. In ESPHome Device Builder, create `home-dev-bluetooth-proxy`, select the actual
    board, and use `configuration/esphome/hvo-bluetooth-proxy.yaml` as the
@@ -179,31 +179,48 @@ cutover is handled separately by issue #330.
 5. Add the discovered proxy through the native ESPHome integration and verify it
    remains available after both ESP32 and HA restarts.
 6. Wait for Home Assistant's supported Govee Bluetooth integration to discover
-   the H5179 through the proxy. The H5179 Wi-Fi address is not used by this path.
+   each sensor through the proxy. H5074 and H5075 require active scan responses;
+   the proxy does not pair with or establish GATT connections to them. An H5179
+   Wi-Fi address is not used by this path.
 7. Confirm temperature and humidity entities have stable values and entity
    registry platform `govee_ble`. Record their entity IDs before enabling an
    explicit `govee:` exporter mapping.
 8. Do not enable the exporter source until any prior canonical writer is stopped,
    drained, and its source reservation is transferred.
 
-The previously observed H5074 is a separate historical device observation; the
-owner-confirmed commissioning target for this issue is H5179.
+The observatory currently has native `govee_ble` entries for H5074 `8D05` and
+H5075 `48D9`. Each exposes stable temperature, humidity, battery, and signal
+strength entities. The canonical measurement IDs are:
+
+- `sensor.h5074_8d05_temperature`
+- `sensor.h5074_8d05_humidity`
+- `sensor.h5075_48d9_temperature`
+- `sensor.h5075_48d9_humidity`
+
+Both integrations recovered after Home Assistant and proxy restarts. H5179 did
+not advertise during the commissioning window and remains a later target when
+present and within RF range.
 
 The ESP32-D0WDQ6 at `192.168.2.196` is commissioned as `Home Dev Bluetooth Proxy`
 for transport validation on the HOME network. Its encrypted native API, remote
 scanner registration, advertisement forwarding, three connection slots, HA
-restart recovery, and ESP32 restart recovery have been verified. This does not
-satisfy H5179 commissioning: move the proxy into reliable RF range on HVO Wi-Fi,
-confirm the `govee_ble` temperature and humidity entities, and then remove or
-rotate its HOME Wi-Fi fallback credential.
+restart recovery, and ESP32 restart recovery have been verified. Move this
+tracked proxy into reliable HVO RF range and then remove or rotate its HOME
+Wi-Fi fallback credential before treating the proxy deployment as permanent.
 
-The temporary `Home Dev Temporary iBeacon Monitor` integration provides passive
-transport monitoring without pairing, sending commands, or consuming a proxy
-connection slot. It allowlists only the selected beacon UUID. The beacon rotates
-BLE addresses, so HA may show transient address-specific entities until its
-iBeacon coordinator consolidates the address family. Remove the integration from
-**Settings > Devices & services** after validation; removing it also removes its
-temporary devices and entities.
+Commissioning used a temporary Linux ESPHome-compatible bridge on the isolated
+Pi USB controller `hci1`. It was pinned and locally constrained to zero GATT
+connection slots; JK BMS and SmartShunt remained on `hci0`. This proved native
+Govee transport and restart recovery but is not tracked production architecture.
+Do not reproduce or promote the temporary bridge without separate review.
+
+The earlier `Home Dev Temporary iBeacon Monitor` was removed after native Govee
+commissioning; no iBeacon duplicate of H5074 should remain.
+
+The temporary bridge also exposes SmartShunt Instant Readout advertisements to
+HA. Keep the native Victron integration and HA exporter mapping disabled while
+the direct collector owns `smartshunt-main`. Issue #352 governs any future
+exactly-one-writer migration.
 
 ## Recovery notes
 
