@@ -59,6 +59,7 @@ public sealed class EntityMigrationRunnerTests
         await runner.ApplyAsync(CancellationToken.None);
 
         client.BackupRequests.Should().Be(1);
+        client.ListRequests.Should().Be(2, "apply should plan once and list once more for final verification");
         client.Renames.Should().Equal((resolved[0].SourceEntityId, resolved[0].TargetEntityId));
         client.Entities.Should().OnlyContain(entity =>
             resolved.Single(expected => expected.UniqueId == entity.UniqueId).TargetEntityId == entity.EntityId);

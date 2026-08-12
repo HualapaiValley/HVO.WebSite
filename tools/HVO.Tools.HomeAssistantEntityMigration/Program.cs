@@ -1,20 +1,23 @@
 using HVO.Tools.HomeAssistantEntityMigration;
 
-if (args.Length is < 1 or > 3 || args[0] is not ("--check" or "--apply" or "--rollback"))
+var mode = args.ElementAtOrDefault(0);
+var validArguments = mode switch
 {
-    Console.Error.WriteLine("Usage: HVO.Tools.HomeAssistantEntityMigration --check|--apply [manifest-path|backup-path] [manifest-path]");
+    "--check" or "--apply" => args.Length is 1 or 2,
+    "--rollback" => args.Length is 2 or 3,
+    _ => false
+};
+if (!validArguments)
+{
+    Console.Error.WriteLine("Usage:");
+    Console.Error.WriteLine("  HVO.Tools.HomeAssistantEntityMigration --check|--apply [manifest-path]");
+    Console.Error.WriteLine("  HVO.Tools.HomeAssistantEntityMigration --rollback <backup-path> [manifest-path]");
     return 2;
 }
 
-var mode = args[0];
 var defaultManifest = Path.Combine(AppContext.BaseDirectory, "davis-readable-ids.json");
 var manifestPath = mode == "--rollback" ? args.ElementAtOrDefault(2) ?? defaultManifest : args.ElementAtOrDefault(1) ?? defaultManifest;
 var rollbackPath = mode == "--rollback" ? args.ElementAtOrDefault(1) : null;
-if (mode == "--rollback" && rollbackPath is null)
-{
-    Console.Error.WriteLine("--rollback requires a backup path.");
-    return 2;
-}
 
 var token = Environment.GetEnvironmentVariable("HOME_ASSISTANT_TOKEN");
 if (string.IsNullOrWhiteSpace(token))

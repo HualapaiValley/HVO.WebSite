@@ -20,11 +20,10 @@ internal sealed class EntityMigrationRunner(
 
     public async Task ApplyAsync(CancellationToken cancellationToken)
     {
-        await BuildPlanAsync(cancellationToken);
+        var plan = await BuildPlanAsync(cancellationToken);
         var homeAssistantBackupId = await client.CreateBackupAsync(
             $"Before {manifest.MigrationId}",
             cancellationToken);
-        var plan = await BuildPlanAsync(cancellationToken);
         await WriteBackupAsync(plan, homeAssistantBackupId, cancellationToken);
         var pending = plan.Where(item => item.CurrentEntityId == item.Expected.SourceEntityId).ToArray();
         EnsureNoBlockingReferences(plan);
