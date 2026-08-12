@@ -65,6 +65,7 @@ jobs:
         run: |
           bash tools/validate-observability-policy.sh
           bash tools/validate-eg4-deployment.sh
+          bash tools/validate-smartshunt-deployment.sh
           bash tools/verify-alert-rules.sh
 
       - name: Verify bounded logging and outage recovery

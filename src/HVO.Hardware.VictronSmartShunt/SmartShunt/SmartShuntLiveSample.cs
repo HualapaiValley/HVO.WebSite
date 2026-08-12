@@ -12,6 +12,4 @@ public sealed class SmartShuntLiveSample
     public double? TemperatureC { get; init; }
     public double? RemainingMinutes { get; init; }
     public bool PublicSessionActive { get; init; }
-    public bool PrivateEnrichmentActive { get; init; }
-    public string DataPath { get; init; } = "public";
 }

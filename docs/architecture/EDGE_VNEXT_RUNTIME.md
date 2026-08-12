@@ -92,7 +92,7 @@ forwarder. The device-specific sender returns one outcome per local record:
 
 - `Sent` for accepted or idempotently skipped observations;
 - `TransientFailure` for retryable transport/service failures;
-- `PermanentFailure` for invalid payload, auth, or unsupported-contract errors.
+- `PermanentFailure` for invalid payload or unsupported-contract errors. HTTP 401/403 are transient so corrected credential or source-authority configuration can recover without losing durable records.
 
 The shared worker owns attempts, exponential retry, retry exhaustion,
 dead-letter state, cancellation-aware sweeps, and daily retention compaction.
@@ -162,7 +162,7 @@ issue #321.
 | EG4 6500EX and MPPT100 | Direct EG4 collector |
 | JK BMS | Direct JK collector |
 | Davis Vantage Pro 2 | Direct Davis collector |
-| SmartShunt | Exactly one path selected by issue #326 |
+| SmartShunt | Paired direct public-GATT SmartShunt collector |
 | Kasa | Home Assistant Core, exported through the HA exporter |
 | Govee | Home Assistant through an ESPHome Bluetooth proxy |
 | SolarAssistant | No HVO vNext collector or canonical writer |

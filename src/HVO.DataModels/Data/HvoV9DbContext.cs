@@ -66,6 +66,8 @@ public class HvoV9DbContext : DbContext
 
     public DbSet<PowerMpptDetailSnapshot> PowerMpptDetailSnapshots { get; set; }
 
+    public DbSet<SmartShuntDetailSnapshot> SmartShuntDetailSnapshots { get; set; }
+
     public DbSet<GatewayStatusSnapshot> GatewayStatusSnapshots { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -327,6 +329,16 @@ public class HvoV9DbContext : DbContext
             entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
             entity.Property(e => e.SourceId).IsRequired();
             entity.Property(e => e.PayloadJson).IsRequired();
+        });
+
+        modelBuilder.Entity<SmartShuntDetailSnapshot>(entity =>
+        {
+            entity.ToTable("SmartShuntDetailSnapshot");
+            entity.HasIndex(e => e.RecordedAt);
+            entity.HasIndex(e => new { e.SourceId, e.RecordedAt }).IsUnique();
+            entity.Property(e => e.RecordedAt).HasColumnType("datetime2");
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
+            entity.Property(e => e.SourceId).IsRequired();
         });
 
         modelBuilder.Entity<GatewayStatusSnapshot>(entity =>

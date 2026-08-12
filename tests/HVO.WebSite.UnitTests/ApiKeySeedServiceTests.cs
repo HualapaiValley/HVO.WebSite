@@ -15,6 +15,48 @@ namespace HVO.WebSite.UnitTests;
 public sealed class ApiKeySeedServiceTests
 {
     [TestMethod]
+    public async Task StartAsync_SeedsDedicatedSmartShuntOwnerWithExactSourceClaim()
+    {
+        var database = $"seed-smartshunt-{Guid.NewGuid():N}";
+        var services = new ServiceCollection().AddDbContext<HvoV9DbContext>(options => options.UseInMemoryDatabase(database)).BuildServiceProvider();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Seeding:SmartShuntApiKey"] = "smartshunt-key",
+            ["Seeding:SmartShuntSourceId"] = "smartshunt-main"
+        }).Build();
+        await new ApiKeySeedService(services, configuration, NullLogger<ApiKeySeedService>.Instance).StartAsync(CancellationToken.None);
+        await using var scope = services.CreateAsyncScope();
+        var key = await scope.ServiceProvider.GetRequiredService<HvoV9DbContext>().ApiKeys.Include(item => item.Claims).SingleAsync();
+        key.Claims.Should().Contain(item => item.ClaimType == "scope" && item.ClaimValue == ApiScopes.PowerIngest);
+        key.Claims.Should().Contain(item => item.ClaimType == "source" && item.ClaimValue == "smartshunt-main");
+    }
+
+    [TestMethod]
+    public async Task StartAsync_ReplacesStaleSmartShuntSourceReservation()
+    {
+        var database = $"seed-smartshunt-rotation-{Guid.NewGuid():N}";
+        var services = new ServiceCollection().AddDbContext<HvoV9DbContext>(options => options.UseInMemoryDatabase(database)).BuildServiceProvider();
+        var first = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Seeding:SmartShuntApiKey"] = "smartshunt-key",
+            ["Seeding:SmartShuntSourceId"] = "smartshunt-old"
+        }).Build();
+        await new ApiKeySeedService(services, first, NullLogger<ApiKeySeedService>.Instance).StartAsync(CancellationToken.None);
+        var second = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Seeding:SmartShuntApiKey"] = "smartshunt-key",
+            ["Seeding:SmartShuntSourceId"] = "smartshunt-main"
+        }).Build();
+
+        await new ApiKeySeedService(services, second, NullLogger<ApiKeySeedService>.Instance).StartAsync(CancellationToken.None);
+
+        await using var scope = services.CreateAsyncScope();
+        var key = await scope.ServiceProvider.GetRequiredService<HvoV9DbContext>().ApiKeys.Include(item => item.Claims).SingleAsync();
+        key.Claims.Where(item => item.ClaimType == "source").Select(item => item.ClaimValue)
+            .Should().Equal("smartshunt-main");
+    }
+
+    [TestMethod]
     public async Task StartAsync_SeedsWeatherReadApiKey_WhenConfigured()
     {
         var dbName = $"{nameof(StartAsync_SeedsWeatherReadApiKey_WhenConfigured)}-{Guid.NewGuid():N}";

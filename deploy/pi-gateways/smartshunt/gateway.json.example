@@ -1,0 +1,50 @@
+{
+  "Edge": {
+    "Runtime": {
+      "ServiceName": "hvo-smartshunt",
+      "GatewayId": "smartshunt",
+      "GatewayType": "victron-smartshunt-public-gatt",
+      "Domain": "Power",
+      "SourceId": "smartshunt-main",
+      "SiteId": "hvo",
+      "DisplayName": "Victron SmartShunt Direct Collector",
+      "DiagnosticsApiKeySecret": "diagnostics-api-key"
+    }
+  },
+  "SmartShunt": {
+    "Address": "AA:BB:CC:DD:EE:FF",
+    "Adapter": "hci0",
+    "SourceId": "smartshunt-main",
+    "DeviceId": "smartshunt-lifepo4",
+    "CentralIngestBaseEndpoint": "https://www.hualapaivalleyobservatory.org/",
+    "CentralApiKeySecret": "central-ingest-api-key",
+    "SampleIntervalSeconds": 5,
+    "SnapshotIntervalSeconds": 15,
+    "PublicKeepAliveIntervalSeconds": 10,
+    "ConnectionTimeoutSeconds": 20,
+    "SampleStaleAfterSeconds": 60,
+    "RetryExhaustedRequeueMinutes": 15
+  },
+  "HomeAssistant": {
+    "Mqtt": {
+      "Enabled": true,
+      "Host": "192.168.1.113",
+      "Port": 1883,
+      "UsernameSecret": "mqtt-username",
+      "PasswordSecret": "mqtt-password",
+      "DiscoveryPrefix": "homeassistant",
+      "TopicPrefix": "hvo"
+    }
+  },
+  "Outbox": {
+    "DatabasePath": "/app/data/outbox.db",
+    "PayloadType": "com.hvo.smartshunt.observation.v1",
+    "PayloadVersion": "1",
+    "BatchSize": 50,
+    "SweepIntervalSeconds": 5,
+    "MaxRetryAttempts": 10,
+    "MaxBackoffSeconds": 300,
+    "SentRetentionDays": 7,
+    "FailedRetentionDays": 30
+  }
+}

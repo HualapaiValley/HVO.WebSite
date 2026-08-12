@@ -1158,6 +1158,11 @@
         "resolved": "8.0.0",
         "contentHash": "7mu9v0QDv66ar3DpGSZHg9NuNcxDaaAcnMULuZlaTpP9+hwXhrxNGsF5GmLkSHxFdb5bBc1TzeujsRgTrPWi+Q=="
       },
+      "Tmds.DBus": {
+        "type": "Transitive",
+        "resolved": "0.20.0",
+        "contentHash": "zbWoimlpWKBIyc9JqNr26f0pnJ7W5M78XCks0J02qXEQykWzIgzR3ZCIO7yZyeqww+Oz2Jh+62GnkErNLyIG9w=="
+      },
       "hvo.datamodels": {
         "type": "Project",
         "dependencies": {
@@ -1168,6 +1173,13 @@
       },
       "hvo.edge.contracts": {
         "type": "Project"
+      },
+      "hvo.edge.homeassistant.mqtt": {
+        "type": "Project",
+        "dependencies": {
+          "HVO.Edge.Hosting": "[1.0.0, )",
+          "MQTTnet": "[5.2.0.1603, )"
+        }
       },
       "hvo.edge.hosting": {
         "type": "Project",
@@ -1191,6 +1203,16 @@
           "Microsoft.EntityFrameworkCore": "[10.0.10, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.10, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.10, )"
+        }
+      },
+      "hvo.hardware.victronsmartshunt": {
+        "type": "Project",
+        "dependencies": {
+          "HVO.Edge.Contracts": "[1.0.0, )",
+          "HVO.Edge.HomeAssistant.Mqtt": "[1.0.0, )",
+          "HVO.Edge.Hosting": "[1.0.0, )",
+          "HVO.Edge.Outbox": "[1.0.0, )",
+          "Linux.Bluetooth": "[5.67.1, )"
         }
       },
       "hvo.staging": {
@@ -1352,6 +1374,15 @@
         "requested": "[1.0.0, )",
         "resolved": "1.0.0",
         "contentHash": "tZpl6bFpbwQKx4+lC9e0FW5ehrmovOdfI0ff/X55BhrddP4O5WC72SxCGf6skKruhTRJGnPhhe3bU/ss8BALaw=="
+      },
+      "Linux.Bluetooth": {
+        "type": "CentralTransitive",
+        "requested": "[5.67.1, )",
+        "resolved": "5.67.1",
+        "contentHash": "DkSxrPTWGn6Wx0d+/HfCsy/F82Ttfb9DLnWVqBDem46zftrm75UDx0seP6Ii0EljjWTu9Dwgb9T3QzzdSQr5Ow==",
+        "dependencies": {
+          "Tmds.DBus": "0.20.0"
+        }
       },
       "Microsoft.AspNetCore.OpenApi": {
         "type": "CentralTransitive",
@@ -1522,6 +1553,12 @@
         "requested": "[2.7.5, )",
         "resolved": "2.7.5",
         "contentHash": "0FA67RSnRM4tcBKqiqVu/HPdZ9+QOKbmeRjxRUGTCjPU4C0bmUhd97Dso7Yild5P7nOV6GxJ2xrK0Kv/O9xp0w=="
+      },
+      "MQTTnet": {
+        "type": "CentralTransitive",
+        "requested": "[5.2.0.1603, )",
+        "resolved": "5.2.0.1603",
+        "contentHash": "iNuWVo/568aRo2ExEN2qkC4J5b07ckKqt+9Uok2kIbbK7PMBsXvYiKVENPHmOBWFB5ExhlNQb/qQ8M9/IYRTdQ=="
       },
       "MudBlazor": {
         "type": "CentralTransitive",
