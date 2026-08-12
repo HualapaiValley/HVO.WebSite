@@ -187,6 +187,21 @@ EG4 branch values and SmartShunt whole-bus values are different physical measure
 
 Direct EG4 is the target authority, but source-claim transfer and retirement of overlapping writers remain the controlled cutover in issue #330.
 
+## Production Cutover Evidence
+
+Issue #354 cut production over to the headless vNext collector on 2026-08-12:
+
+- The previous image and quiescent outbox state were recorded before replacement.
+- The complete `eg4_eg4-outbox` volume was archived to a checksum-verified, tar-readable backup without deleting or recreating the named volume.
+- The quiescent checkpoint contained 13,728 sent records and no pending or failed records.
+- The vNext collector resumed with both the 6500EX and MPPT100-48HV online, retained stable source/device identities, and continued central forwarding through the same outbox.
+- A bounded container restart recovered both devices, MQTT availability, and deterministic Home Assistant entity IDs.
+- Home Assistant power entities use watts, `device_class: power`, and `state_class: measurement`. Battery current and power retain the canonical EG4 sign convention: positive discharge and negative charge.
+- The 6500EX MQTT device exposes aggregate PV, both MPPT channels, AC input/output, active/apparent load, operating mode, load percentage, fault/status fields, four temperature channels, firmware, charge/fan/parallel state, and output/charger diagnostics.
+- The MPPT100-48HV MQTT device exposes aggregate and tracker PV, battery output, both controller temperatures, controller-estimated SOC, and the validated read-only diagnostic-register values. Opaque registers remain named diagnostics and are not presented as decoded alarms.
+
+These are instantaneous measurements and operational state. Do not derive durable cumulative energy history inside the gateway from sampled watts. Home Assistant energy helpers may integrate power for presentation, while source-native monotonic energy counters remain preferred whenever a device provides trustworthy reset semantics.
+
 ## Rollback
 
 Rollback affects only EG4:

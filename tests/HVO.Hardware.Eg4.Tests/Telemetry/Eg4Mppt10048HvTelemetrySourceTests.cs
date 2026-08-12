@@ -35,6 +35,7 @@ public sealed class Eg4Mppt10048HvTelemetrySourceTests
         sample.MpptDetail.Temperatures.Select(value => value.TemperatureC).Should().Equal(40, 37);
         sample.MpptDetail.Diagnostics.Select(value => value.Key).Should().Equal(
             "r200", "r201", "r204", "controllerEstimatedSocPercent", "r206", "r212", "r215", "r216", "r217");
+        sample.MpptDetail.Diagnostics.Single(value => value.Key == "r201").Name.Should().Be("Controller diagnostic 201");
     }
 
     [TestMethod]
