@@ -102,7 +102,13 @@ rollback() {
     guest_exec "cp '$backup_root/configuration.yaml' '$main_config' && rm -rf '$guest_config_root/hvo' && if [ -f '$backup_root/had-hvo' ]; then cp -a '$backup_root/hvo' '$guest_config_root/hvo'; fi" >/dev/null || true
     deployment_started=0
 }
-trap rollback ERR INT TERM
+cancel() {
+    trap - ERR INT TERM
+    rollback
+    exit 130
+}
+trap rollback ERR
+trap cancel INT TERM
 
 guest_exec "mkdir -p '$backup_root' && cp '$main_config' '$backup_root/configuration.yaml' && if [ -d '$guest_config_root/hvo' ]; then cp -a '$guest_config_root/hvo' '$backup_root/hvo' && touch '$backup_root/had-hvo'; fi" >/dev/null
 deployment_started=1

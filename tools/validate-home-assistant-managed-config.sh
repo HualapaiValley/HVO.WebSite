@@ -9,7 +9,12 @@ validation_root="$(mktemp -d)"
 container_name="hvo-ha-config-validation-$$"
 
 cleanup() {
+    docker exec "$container_name" rm -rf /config/.storage >/dev/null 2>&1 || true
     docker rm -f "$container_name" >/dev/null 2>&1 || true
+    if [[ -n "${image:-}" ]]; then
+        docker run --rm --entrypoint rm -v "$validation_root:/validation" "$image" \
+            -rf /validation/.storage >/dev/null 2>&1 || true
+    fi
     rm -rf "$validation_root"
 }
 trap cleanup EXIT

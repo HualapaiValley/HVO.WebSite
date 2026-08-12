@@ -118,7 +118,7 @@ public sealed class HomeAssistantKasaDashboardTests
     }
 
     [TestMethod]
-    public void ManagedConfiguration_UsesSupportedIncludesAndContainsNoSecretValues()
+    public void ManagedConfiguration_UsesSupportedIncludesAndNoExternalResources()
     {
         var configurationRoot = Path.Combine(AppContext.BaseDirectory, "Fixtures", "HomeAssistant", "Configuration");
         var lovelace = File.ReadAllText(Path.Combine(configurationRoot, "lovelace.yaml"));
