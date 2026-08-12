@@ -110,7 +110,8 @@ Minute and hourly aggregate entities exist for weather and BMS, but the website 
 | `GET /api/v1/weather/raw/recent` | `read:weather` | Recent raw weather readings |
 | `GET /api/v1/weather/hourly/recent` | `read:weather` | Recent hourly weather aggregates |
 | `POST /api/v1/bms/readings` | `ingest:bms` | Batch BMS readings with related cell/config/info/alarm data |
-| `POST /api/v1/power/readings` | `ingest:power` | Batch power readings from SolarAssistant, SmartShunt, and TPLink/Kasa energy sources |
+| `POST /api/v1/power/readings` | `ingest:power` | Batch power readings from general power sources |
+| `POST /api/v1/power/smartshunt-observations/batch` | `ingest:power` + exact `source` claim | Atomic SmartShunt summary and public-GATT detail observations |
 | `POST /api/v1/power/device-inventory` | `ingest:power` | Power/gateway inventory snapshot ingest |
 | `POST /api/v1/power/configuration` | `ingest:power` | Power/gateway configuration snapshot ingest |
 | `POST /api/v1/power/energy` | `ingest:power` | Power energy-counter snapshot ingest |

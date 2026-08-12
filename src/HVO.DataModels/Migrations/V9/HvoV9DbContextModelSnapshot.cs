@@ -1162,6 +1162,55 @@ namespace HVO.DataModels.Migrations.V9
                     b.ToTable("SiteConfiguration", "v9");
                 });
 
+            modelBuilder.Entity("HVO.DataModels.Models.V9.SmartShuntDetailSnapshot", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<double?>("ConsumedAh")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeviceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double?>("RemainingMinutes")
+                        .HasColumnType("float");
+
+                    b.Property<string>("SourceId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("SourceSystem")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<double?>("StarterVoltageV")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("TemperatureC")
+                        .HasColumnType("float");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordedAt");
+
+                    b.HasIndex("SourceId", "RecordedAt")
+                        .IsUnique();
+
+                    b.ToTable("SmartShuntDetailSnapshot", "v9");
+                });
+
             modelBuilder.Entity("HVO.DataModels.Models.V9.WeatherArchive", b =>
                 {
                     b.Property<long>("Id")

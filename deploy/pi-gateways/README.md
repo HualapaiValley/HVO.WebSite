@@ -22,6 +22,8 @@ Recommended website secret names in `hvoobs-kv`:
 - `Seeding--DavisApiKey`
 - `Seeding--BmsApiKey`
 - `Seeding--PowerApiKey`
+- `Seeding--SmartShuntApiKey`
+- `Seeding--SmartShuntSourceId`
 - `Seeding--WeatherReadApiKey`
 - `Seeding--PowerReadApiKey`
 - `Seeding--HomeAssistantExporterApiKey`
@@ -124,6 +126,15 @@ To verify deployed endpoints after rollout:
 - The deployment preflight validates the mounted vNext identity/outbox contract and required secrets before container recreation.
 - Follow `docs/gateways/jkbms/deployment-and-endurance.md`; never run the physical endurance check as part of routine PR validation.
 
+## SmartShunt deployment notes
+
+- The paired direct public-GATT collector is the sole acquisition authority and central writer. Home Assistant receives only the collector's read-only MQTT projection; do not enable an HA/ESPHome acquisition or exporter mapping for this device.
+- Copy `gateway.json.example` to ignored `gateway.json`; mount diagnostics, central-ingest, and optional MQTT credentials as separate files in the ignored `secrets` directory.
+- Root Compose also requires those mounted files. It overrides only `SmartShunt:CentralIngestBaseEndpoint`, defaulting safely to `http://hvo-website:8080/`; the API key remains exclusively in `secrets/central-ingest-api-key`.
+- The Compose project, service name, and `smartshunt-outbox` volume remain unchanged, preserving queued legacy summaries during migration to the shared outbox schema.
+- The deployment preflight validates direct authority, source identity, the public-GATT MAC address, shared outbox path/type, and required secret files before SSH synchronization and recreation.
+- Follow `docs/gateways/victron-smartshunt.md` for exactly-one-owner cutover, rollback, and the optional bounded `TestCategory=Live` check.
+
 ## Recommended workflow
 
 1. Develop website/API changes in the repo devcontainer on `hvo-dev` and validate them against `hvo-docker` when needed.
@@ -144,7 +155,7 @@ To verify deployed endpoints after rollout:
 - Davis UI: `http://<pi-host>:5100`
 - JK BMS headless health and protected diagnostics: `http://<pi-host>:5200`
 - SolarAssistant UI: `http://<pi-host>:5300`
-- SmartShunt UI: `http://<pi-host>:5400`
+- SmartShunt headless health and protected diagnostics: `http://<pi-host>:5400`
 - TP-Link/Kasa local API: `http://<pi-host>:5500`
 - EG4 headless health and protected diagnostics: `http://<pi-host>:5600`
 - Home Assistant exporter diagnostics: `http://<pi-host>:5700`

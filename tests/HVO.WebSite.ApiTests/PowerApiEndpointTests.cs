@@ -26,6 +26,8 @@ public sealed class PowerApiEndpointTests
     private const string ReadPlaintext = "test-power-read-key-xyz789";
     private const string ApiReadPlaintext = "test-api-read-key-xyz789";
     private const string InvalidPlaintext = "totally-invalid-power-key";
+    private const string SmartShuntPlaintext = "test-smartshunt-owner-key";
+    private const string SmartShuntSource = "smartshunt-api-test";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() }
@@ -73,6 +75,14 @@ public sealed class PowerApiEndpointTests
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
                 Claims = [new ApiKeyClaim { ClaimType = "scope", ClaimValue = ApiScopes.ApiRead }]
+            },
+            new ApiKey
+            {
+                Id = Guid.NewGuid(), Name = "SmartShunt owner", KeyHash = ApiKeyAuthMiddleware.HashKey(SmartShuntPlaintext),
+                Type = ApiKeyType.System, IsActive = true, CreatedAt = DateTime.UtcNow,
+                Claims = [
+                    new ApiKeyClaim { ClaimType = "scope", ClaimValue = ApiScopes.PowerIngest },
+                    new ApiKeyClaim { ClaimType = "source", ClaimValue = SmartShuntSource }]
             });
 
         await db.SaveChangesAsync();
@@ -401,6 +411,53 @@ public sealed class PowerApiEndpointTests
         var forbiddenRead = await _client.GetAsync($"/api/v1/power/mppt-detail/latest?sourceId={sourceId}");
         forbiddenRead.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
+
+    [TestMethod]
+    public async Task SmartShuntObservationBatch_OwnerAtomicallyPersistsAndSkipsSummaryAndDetail()
+    {
+        var payload = SmartShuntPayload(DateTime.UtcNow);
+        _client.DefaultRequestHeaders.Add("X-Api-Key", SmartShuntPlaintext);
+        var first = await _client.PostAsJsonAsync("/api/v1/power/smartshunt-observations/batch", new[] { payload });
+        var retry = await _client.PostAsJsonAsync("/api/v1/power/smartshunt-observations/batch", new[] { payload });
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await first.Content.ReadFromJsonAsync<PowerReadingBatchResponse>())!.Inserted.Should().Be(1);
+        (await retry.Content.ReadFromJsonAsync<PowerReadingBatchResponse>())!.Skipped.Should().Be(1);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HvoV9DbContext>();
+        db.PowerReadings.Count(row => row.SourceId == SmartShuntSource).Should().Be(1);
+        db.SmartShuntDetailSnapshots.Count(row => row.SourceId == SmartShuntSource).Should().Be(1);
+    }
+
+    [TestMethod]
+    public async Task SmartShuntObservationBatch_BroadPowerKeyCannotCompeteForReservedSource()
+    {
+        _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+        var response = await _client.PostAsJsonAsync("/api/v1/power/smartshunt-observations/batch", new[] { SmartShuntPayload(DateTime.UtcNow.AddSeconds(1)) });
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [TestMethod]
+    public async Task SmartShuntObservationBatch_MixedMalformedNullAndValidHasExactAccounting()
+    {
+        var valid = JsonSerializer.SerializeToElement(SmartShuntPayload(DateTime.UtcNow.AddSeconds(2)), JsonOptions);
+        using var malformedDocument = JsonDocument.Parse("{\"summary\":null,\"detail\":null}");
+        using var nullDocument = JsonDocument.Parse("null");
+        var json = $"[{valid.GetRawText()},{malformedDocument.RootElement.GetRawText()},{nullDocument.RootElement.GetRawText()}]";
+        _client.DefaultRequestHeaders.Add("X-Api-Key", SmartShuntPlaintext);
+        using var response = await _client.PostAsync("/api/v1/power/smartshunt-observations/batch", new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<PowerReadingBatchResponse>();
+        body!.Inserted.Should().Be(1);
+        body.Skipped.Should().Be(0);
+        body.Failed.Should().HaveCount(2);
+        (body.Inserted + body.Skipped + body.Failed.Count).Should().Be(3);
+    }
+
+    private static SmartShuntObservationPayload SmartShuntPayload(DateTime recordedAt) => new(
+        new PowerReadingPayload { SourceId = SmartShuntSource, SourceSystem = "victron-smartshunt", DeviceId = "battery", RecordedAtUtc = recordedAt,
+            BatteryVoltageV = 52, BatteryCurrentA = -5, BatteryPowerW = -260, SystemPowerW = -260, BatteryStateOfChargePercent = 80 },
+        new SmartShuntDetailPayload { SourceId = SmartShuntSource, SourceSystem = "victron-smartshunt", DeviceId = "battery", RecordedAtUtc = recordedAt,
+            ConsumedAh = -20, RemainingMinutes = 90, StarterVoltageV = 12.5, TemperatureC = 25 });
 
     private static PowerReadingPayload ValidPayload(
         string sourceId,

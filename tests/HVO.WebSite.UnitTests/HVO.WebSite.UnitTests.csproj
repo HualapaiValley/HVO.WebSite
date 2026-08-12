@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/HVO.Hardware.VictronSmartShunt/HVO.Hardware.VictronSmartShunt.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="MSTest" />
     <PackageReference Include="Moq" />

@@ -46,6 +46,8 @@ public sealed class ApiKeySeedService : IHostedService
             scopes: [ApiScopes.WeatherIngest],
             cancellationToken);
 
+        await SeedSmartShuntKeyAsync(db, cancellationToken);
+
         await SeedSystemKeyAsync(
             db,
             configurationKeyName: "Seeding:BmsApiKey",
@@ -199,6 +201,46 @@ public sealed class ApiKeySeedService : IHostedService
         }
         await db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Ensured Home Assistant exporter API key with {SourceCount} source claim(s)", sources.Length);
+    }
+
+    private async Task SeedSmartShuntKeyAsync(HvoV9DbContext db, CancellationToken cancellationToken)
+    {
+        const string keyName = "Seeding:SmartShuntApiKey";
+        const string sourceName = "Seeding:SmartShuntSourceId";
+        var rawKey = _configuration[keyName];
+        if (string.IsNullOrWhiteSpace(rawKey))
+        {
+            _logger.LogDebug("{ConfigurationKeyName} is not configured - skipping SmartShunt API key seed", keyName);
+            return;
+        }
+        var sourceId = _configuration[sourceName]?.Trim();
+        if (string.IsNullOrWhiteSpace(sourceId) || sourceId.Length > 64)
+            throw new InvalidOperationException($"{sourceName} must be a source ID of 1-64 characters when {keyName} is configured.");
+
+        var keyHash = ComputeSha256Hex(rawKey);
+        var apiKey = await db.ApiKeys.Include(static key => key.Claims).SingleOrDefaultAsync(key => key.KeyHash == keyHash, cancellationToken);
+        if (apiKey is null)
+        {
+            apiKey = new ApiKey { Id = Guid.NewGuid(), KeyHash = keyHash, Name = "Victron SmartShunt - ingest", Type = ApiKeyType.System, IsActive = true, CreatedAt = DateTime.UtcNow };
+            db.ApiKeys.Add(apiKey);
+        }
+        var conflict = await db.ApiKeyClaims.AsNoTracking().AnyAsync(claim => claim.ClaimType == IngestSourceAuthority.SourceClaimType
+            && claim.ClaimValue == sourceId && claim.ApiKeyId != apiKey.Id && claim.ApiKey.IsActive
+            && (!claim.ApiKey.ExpiresAt.HasValue || claim.ApiKey.ExpiresAt > DateTime.UtcNow), cancellationToken);
+        if (conflict) throw new InvalidOperationException("The configured SmartShunt source is already reserved by another active API key.");
+        var staleSourceClaims = apiKey.Claims
+            .Where(claim => claim.ClaimType == IngestSourceAuthority.SourceClaimType && claim.ClaimValue != sourceId)
+            .ToArray();
+        if (staleSourceClaims.Length > 0)
+        {
+            db.ApiKeyClaims.RemoveRange(staleSourceClaims);
+            foreach (var claim in staleSourceClaims)
+                apiKey.Claims.Remove(claim);
+        }
+        var required = new[] { (Type: "scope", Value: ApiScopes.PowerIngest), (Type: IngestSourceAuthority.SourceClaimType, Value: sourceId) };
+        foreach (var claim in required.Where(requiredClaim => !apiKey.Claims.Any(claim => claim.ClaimType == requiredClaim.Type && claim.ClaimValue == requiredClaim.Value)))
+            apiKey.Claims.Add(new ApiKeyClaim { ApiKeyId = apiKey.Id, ClaimType = claim.Type, ClaimValue = claim.Value });
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     private static string ComputeSha256Hex(string input)

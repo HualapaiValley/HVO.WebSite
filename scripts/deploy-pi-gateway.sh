@@ -45,12 +45,14 @@ sync_remote_mounts() {
 	local local_secrets="$3"
 	local remote_config="$4"
 	local remote_secrets="$5"
-	local ssh_target remote_root
+	local ssh_target remote_root staging_root staging_config staging_secrets
 	command -v ssh >/dev/null 2>&1 || fail 'Required command not found: ssh'
 	command -v scp >/dev/null 2>&1 || fail 'Required command not found: scp'
 
 	[[ "${remote_config}" = /* ]] || fail "${gateway} remote configuration path must be absolute."
 	[[ "${remote_secrets}" = /* ]] || fail "${gateway} remote secrets path must be absolute."
+	[[ "${remote_config}" =~ ^/[A-Za-z0-9._/-]+$ ]] || fail "${gateway} remote configuration path contains unsupported characters."
+	[[ "${remote_secrets}" =~ ^/[A-Za-z0-9._/-]+$ ]] || fail "${gateway} remote secrets path contains unsupported characters."
 	remote_root="$(dirname "${remote_config}")"
 	[[ "${remote_secrets}" == "${remote_root}/secrets" ]] || fail "${gateway} remote secrets directory must be ${remote_root}/secrets."
 	if [[ "${dry_run}" == true ]]; then
@@ -58,15 +60,24 @@ sync_remote_mounts() {
 	else
 		ssh_target="$(docker_context_ssh_target "${docker_context}")"
 	fi
+	staging_root="${remote_root}/.staging.$$.${gateway}"
+	staging_config="${staging_root}/gateway.json"
+	staging_secrets="${staging_root}/secrets"
 
-	run_cmd ssh "${ssh_target}" mkdir -p "${remote_root}" "${remote_secrets}"
-	run_cmd scp "${local_config}" "${ssh_target}:${remote_config}"
+	run_cmd ssh "${ssh_target}" install -d -m 700 "${remote_root}" "${staging_root}" "${staging_secrets}"
+	run_cmd scp "${local_config}" "${ssh_target}:${staging_config}"
+	run_cmd scp "${repo_root}/scripts/activate-remote-gateway-config.sh" "${ssh_target}:${staging_root}/activate.sh"
 	if [[ "${dry_run}" == true ]]; then
-		printf '[dry-run] scp %q %q\n' "${local_secrets}/." "${ssh_target}:${remote_secrets}/"
+		printf '[dry-run] scp %q %q\n' "${local_secrets}/." "${ssh_target}:${staging_secrets}/"
 	else
-		scp -r "${local_secrets}/." "${ssh_target}:${remote_secrets}/"
+		scp -r "${local_secrets}/." "${ssh_target}:${staging_secrets}/"
 	fi
-	run_cmd ssh "${ssh_target}" chmod -R go-rwx "${remote_root}"
+	run_cmd ssh "${ssh_target}" chmod 600 "${staging_config}" "${staging_root}/activate.sh"
+	run_cmd ssh "${ssh_target}" find "${staging_secrets}" -type f -exec chmod 600 {} +
+	# The uploaded script performs same-filesystem activation and restores the previous
+	# active files if either staged rename fails.
+	run_cmd ssh "${ssh_target}" sh "${staging_root}/activate.sh" \
+		"${remote_root}" "${staging_root}" "${remote_config}" "${remote_secrets}"
 }
 
 warn_shell_env_overrides() {
@@ -139,6 +150,43 @@ compose_dir_for_target() {
 	esac
 }
 
+preflight_smartshunt_contract() {
+	local env_file="${1}"
+	local compose_dir="${2}"
+	local -n resolved_config_path="${3}"
+	local -n resolved_secrets_path="${4}"
+	local -n resolved_remote_config="${5}"
+	local -n resolved_remote_secrets="${6}"
+	local config_setting config_path secrets_setting secrets_path remote_config remote_secrets
+	[[ -f "${env_file}" ]] || fail "Environment file not found: ${env_file}"
+	config_setting="$(read_env_value "${env_file}" SMARTSHUNT_CONFIG_FILE)"
+	config_path="${config_setting:-./gateway.json}"
+	[[ "${config_path}" = /* ]] || config_path="${repo_root}/${compose_dir}/${config_path#./}"
+	[[ -f "${config_path}" ]] || fail "SmartShunt mounted configuration not found: ${config_path}"
+	jq -e '
+		(.Edge.Runtime.GatewayId == "smartshunt") and
+		(.Edge.Runtime.GatewayType == "victron-smartshunt-public-gatt") and
+		(.Edge.Runtime.SourceId == .SmartShunt.SourceId) and
+		(.SmartShunt.Address | test("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")) and
+		(.Outbox.DatabasePath == "/app/data/outbox.db") and
+		(.Outbox.PayloadType == "com.hvo.smartshunt.observation.v1")' "${config_path}" >/dev/null ||
+		fail "SmartShunt gateway.json does not satisfy the vNext deployment contract."
+	secrets_setting="$(read_env_value "${env_file}" SMARTSHUNT_SECRETS_DIRECTORY)"
+	secrets_path="${secrets_setting:-./secrets}"
+	[[ "${secrets_path}" = /* ]] || secrets_path="${repo_root}/${compose_dir}/${secrets_path#./}"
+	for secret_name in diagnostics-api-key central-ingest-api-key; do [[ -s "${secrets_path}/${secret_name}" ]] || fail "SmartShunt required secret file is missing or empty: ${secret_name}"; done
+	if jq -e '.HomeAssistant.Mqtt.Enabled == true' "${config_path}" >/dev/null; then
+		for secret_name in mqtt-username mqtt-password; do [[ -s "${secrets_path}/${secret_name}" ]] || fail "SmartShunt required MQTT secret file is missing or empty: ${secret_name}"; done
+	fi
+	remote_config="$(read_env_value "${env_file}" SMARTSHUNT_REMOTE_CONFIG_FILE)"
+	remote_secrets="$(read_env_value "${env_file}" SMARTSHUNT_REMOTE_SECRETS_DIRECTORY)"
+	[[ -n "${remote_config}" && -n "${remote_secrets}" ]] || fail "SmartShunt remote config and secrets paths are required."
+	resolved_config_path="${config_path}"
+	resolved_secrets_path="${secrets_path}"
+	resolved_remote_config="${remote_config}"
+	resolved_remote_secrets="${remote_secrets}"
+}
+
 deploy_target() {
 	local gateway="$1"
 	local compose_dir compose_file env_file two_device_file mppt_file
@@ -173,7 +221,7 @@ deploy_target() {
 			printf 'Enabling the EG4 MPPT read-only Compose overlay.\n'
 		fi
 	fi
-	if [[ "${gateway}" =~ ^(davis|eg4|jkbms)$ && "${allow_env_overrides}" == false && ${#override_env_names[@]} -gt 0 ]]; then
+	if [[ "${gateway}" =~ ^(davis|eg4|jkbms|smartshunt)$ && "${allow_env_overrides}" == false && ${#override_env_names[@]} -gt 0 ]]; then
 		fail "${gateway} deployment refuses shell environment overrides (${override_env_names[*]}). Unset them or pass --allow-env-overrides after verifying docker compose config."
 	fi
 	if [[ "${gateway}" == eg4 ]]; then
@@ -287,6 +335,12 @@ deploy_target() {
 		[[ -n "${jkbms_remote_secrets}" ]] || fail "JKBMS_REMOTE_SECRETS_DIRECTORY is required in the JK BMS .env file."
 		sync_remote_mounts jkbms "${jkbms_config_path}" "${jkbms_secrets_path}" "${jkbms_remote_config}" "${jkbms_remote_secrets}"
 	fi
+	if [[ "${gateway}" == smartshunt ]]; then
+		local smartshunt_config_path smartshunt_secrets_path smartshunt_remote_config smartshunt_remote_secrets
+		preflight_smartshunt_contract "${env_file}" "${compose_dir}" \
+			smartshunt_config_path smartshunt_secrets_path smartshunt_remote_config smartshunt_remote_secrets
+		sync_remote_mounts smartshunt "${smartshunt_config_path}" "${smartshunt_secrets_path}" "${smartshunt_remote_config}" "${smartshunt_remote_secrets}"
+	fi
 
 	local compose_args=(--context "${docker_context}" compose --env-file "${env_file}")
 	if [[ "${gateway}" == eg4 ]]; then
@@ -363,6 +417,13 @@ fi
 command -v docker >/dev/null 2>&1 || fail 'Required command not found: docker'
 
 if [[ "${target}" == all ]]; then
+	# Fail the newly migrated SmartShunt contract before any earlier stack can be changed.
+	smartshunt_preflight_config=""
+	smartshunt_preflight_secrets=""
+	smartshunt_preflight_remote_config=""
+	smartshunt_preflight_remote_secrets=""
+	preflight_smartshunt_contract "${repo_root}/deploy/pi-gateways/smartshunt/.env" "deploy/pi-gateways/smartshunt" \
+		smartshunt_preflight_config smartshunt_preflight_secrets smartshunt_preflight_remote_config smartshunt_preflight_remote_secrets
 	for gateway in davis jkbms solarassistant smartshunt tplinkkasa; do
 		deploy_target "${gateway}"
 	done
