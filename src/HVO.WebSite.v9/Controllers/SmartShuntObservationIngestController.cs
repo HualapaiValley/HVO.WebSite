@@ -85,8 +85,6 @@ public sealed class SmartShuntObservationIngestController(
 
         if (toInsert.Count > 0)
         {
-            await using var transaction = db.Database.IsRelational()
-                ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
             try
             {
                 foreach (var payload in toInsert)
@@ -96,11 +94,9 @@ public sealed class SmartShuntObservationIngestController(
                     if (!details.Contains(key)) db.SmartShuntDetailSnapshots.Add(MapDetail(payload.Detail));
                 }
                 await db.SaveChangesAsync(cancellationToken);
-                if (transaction is not null) await transaction.CommitAsync(cancellationToken);
             }
             catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
             {
-                if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
                 db.ChangeTracker.Clear();
                 var reconciledSummaries = await db.PowerReadings.AsNoTracking()
                     .Where(row => sourceIds.Contains(row.SourceId) && timestamps.Contains(row.RecordedAt))
@@ -124,7 +120,6 @@ public sealed class SmartShuntObservationIngestController(
             }
             catch (DbUpdateException exception)
             {
-                if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
                 logger.LogError(exception, "SmartShunt observation transaction failed");
                 return Problem(title: "SmartShunt Batch Ingest Failed", detail: "No partial observation was committed. Retry is safe.", statusCode: 500);
             }
