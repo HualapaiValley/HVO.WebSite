@@ -13,7 +13,6 @@
     }
   },
   "Station": {
-    "Host": "REPLACE_WITH_DAVIS_CONSOLE_HOST",
     "Port": 22222,
     "SocketTimeoutSeconds": 8,
     "ArchiveCatchupMode": "Enabled",

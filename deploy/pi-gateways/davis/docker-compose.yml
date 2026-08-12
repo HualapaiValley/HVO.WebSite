@@ -17,13 +17,14 @@ services:
     ports:
       - "${DAVIS_HTTP_PORT:-5100}:8080"
     environment:
+      Station__Host: ${DAVIS_STATION_HOST:?DAVIS_STATION_HOST is required}
       DOTNET_ENVIRONMENT: Production
       OTEL_SERVICE_NAME: hvo-davis
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
-      - "${DAVIS_CONFIG_FILE:-./gateway.json}:/app/config/gateway.json:ro"
-      - "${DAVIS_SECRETS_DIRECTORY:-./secrets}:/run/secrets:ro"
+      - "${DAVIS_REMOTE_CONFIG_FILE:?DAVIS_REMOTE_CONFIG_FILE is required}:/app/config/gateway.json:ro"
+      - "${DAVIS_REMOTE_SECRETS_DIRECTORY:?DAVIS_REMOTE_SECRETS_DIRECTORY is required}:/run/secrets:ro"
       - davis-outbox:/app/data
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]

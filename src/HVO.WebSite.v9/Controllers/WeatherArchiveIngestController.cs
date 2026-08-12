@@ -24,23 +24,34 @@ public sealed class WeatherArchiveIngestController(
     [Authorize(Policy = "WeatherIngest")]
     [ProducesResponseType(typeof(WeatherArchiveBatchResponse), StatusCodes.Status201Created)]
     public async Task<ActionResult<WeatherArchiveBatchResponse>> IngestBatch(
-        [FromBody] IReadOnlyList<DavisWeatherArchivePayload>? batch,
+        [FromBody] JsonElement batch,
         CancellationToken cancellationToken)
     {
-        if (batch is null || batch.Count == 0)
+        if (batch.ValueKind != JsonValueKind.Array)
+            return ValidationProblem(detail: "Request body must be a JSON array.");
+        var elements = batch.EnumerateArray().Select(static item => item.Clone()).ToArray();
+        if (elements.Length == 0)
             return ValidationProblem(detail: "Batch must contain at least one record.");
-        if (batch.Count > WeatherIngestController.MaxBatchSize)
-            return ValidationProblem(detail: $"Batch size {batch.Count} exceeds the maximum of {WeatherIngestController.MaxBatchSize} records.");
-        if (!await IngestSourceAuthority.CanWriteAllAsync(
-            db, User, batch.Select(static item => ((string?)item?.StationId, (string?)"davis-vantage-pro2")), cancellationToken))
-            return Forbid();
+        if (elements.Length > WeatherIngestController.MaxBatchSize)
+            return ValidationProblem(detail: $"Batch size {elements.Length} exceeds the maximum of {WeatherIngestController.MaxBatchSize} records.");
 
         var failures = new List<WeatherArchiveBatchFailure>();
-        var valid = new List<DavisWeatherArchivePayload>(batch.Count);
+        var valid = new List<DavisWeatherArchivePayload>(elements.Length);
         var seen = new HashSet<(string StationId, DateTime RecordedAtUtc)>();
         var skipped = 0;
-        foreach (var item in batch)
+        foreach (var element in elements)
         {
+            DavisWeatherArchivePayload? item;
+            try
+            {
+                item = element.Deserialize<DavisWeatherArchivePayload>(JsonSerializerOptions.Web);
+            }
+            catch (JsonException exception)
+            {
+                failures.Add(new(string.Empty, default, $"Invalid archive payload: {exception.Message}"));
+                continue;
+            }
+
             var validation = new List<ValidationResult>();
             if (item is null || !Validator.TryValidateObject(item, new ValidationContext(item), validation, true)
                 || item.RecordedAtUtc.Kind != DateTimeKind.Utc
@@ -63,6 +74,10 @@ public sealed class WeatherArchiveIngestController(
             }
             valid.Add(item);
         }
+
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            db, User, valid.Select(static item => ((string?)item.StationId, (string?)"davis-vantage-pro2")), cancellationToken))
+            return Forbid();
 
         var stationIds = valid.Select(static item => item.StationId).Distinct().ToArray();
         var timestamps = valid.Select(static item => item.RecordedAtUtc).Distinct().ToArray();

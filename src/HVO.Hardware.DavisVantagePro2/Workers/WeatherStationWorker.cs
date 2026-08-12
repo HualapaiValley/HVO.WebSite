@@ -25,6 +25,7 @@ public sealed class WeatherStationWorker(
     private readonly StationOptions configuration = options.Value;
     private readonly SemaphoreSlim archiveGate = new(1, 1);
     private DateTime nextArchiveTopOffAtUtc = DateTime.MinValue;
+    private Loop2Packet? loop1Cache;
 
     public Loop2Packet? LatestReading => state.LatestReading;
     public DateTime? LastReadingAt => state.LastReadingAtUtc;
@@ -86,12 +87,11 @@ public sealed class WeatherStationWorker(
 
     private async Task PollLoopAsync(CancellationToken cancellationToken)
     {
-        Loop2Packet? loop1 = null;
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                loop1 = await PollLoopBatchAsync(cancellationToken);
+                await PollLoopBatchAsync(cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -100,7 +100,7 @@ public sealed class WeatherStationWorker(
             catch (Exception exception)
             {
                 state.Failed(exception.Message);
-                if (loop1 is null || state.ConsecutiveErrors >= configuration.MaxConsecutiveErrors)
+                if (loop1Cache is null || state.ConsecutiveErrors >= configuration.MaxConsecutiveErrors)
                     throw;
                 logger.LogWarning(exception, "Davis LOOP stream failed ({ConsecutiveErrors} consecutive)", state.ConsecutiveErrors);
             }
@@ -111,7 +111,20 @@ public sealed class WeatherStationWorker(
 
     internal async Task<Loop2Packet> PollLoopBatchAsync(CancellationToken cancellationToken)
     {
-        var loop1 = await station.GetLoop1Async(cancellationToken);
+        try
+        {
+            loop1Cache = await station.GetLoop1Async(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (loop1Cache is not null)
+        {
+            logger.LogWarning(exception, "Davis LOOP1 refresh failed; merging fresh LOOP2 packets with cached LOOP1 fields");
+        }
+
+        var loop1 = loop1Cache ?? throw new InvalidOperationException("Davis LOOP1 data is unavailable.");
         await foreach (var loop2 in station.StreamLoop2Async(LoopBatchSize, cancellationToken))
         {
             var reading = VantageStation.MergePackets(loop1, loop2);

@@ -39,6 +39,8 @@ write_profile() {
 		printf 'EG4_HTTP_PORT=5600\n'
 		printf 'EG4_CONFIG_FILE=%s\n' "${config}"
 		printf 'EG4_SECRETS_DIRECTORY=%s\n' "${secrets_dir}"
+		printf 'EG4_REMOTE_CONFIG_FILE=/home/roys/.local/share/hvo-edge/eg4/gateway.json\n'
+		printf 'EG4_REMOTE_SECRETS_DIRECTORY=/home/roys/.local/share/hvo-edge/eg4/secrets\n'
 		printf 'EG4_DEVICE_0_PORT=/dev/hvo/eg4-6500ex-a\n'
 		printf 'EG4_MPPT_0_ENABLED=%s\n' "${mppt_enabled}"
 		printf 'EG4_MPPT_0_PORT=/dev/serial/by-id/usb-eg4-mppt-a\n'

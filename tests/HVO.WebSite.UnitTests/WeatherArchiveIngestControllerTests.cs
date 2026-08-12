@@ -24,8 +24,9 @@ public sealed class WeatherArchiveIngestControllerTests
         };
         var payload = CompletePayload();
 
-        var first = await controller.IngestBatch([payload], CancellationToken.None);
-        var second = await controller.IngestBatch([payload], CancellationToken.None);
+        var batch = JsonSerializer.SerializeToElement(new[] { payload }, JsonSerializerOptions.Web);
+        var first = await controller.IngestBatch(batch, CancellationToken.None);
+        var second = await controller.IngestBatch(batch, CancellationToken.None);
 
         ((ObjectResult)first.Result!).StatusCode.Should().Be(StatusCodes.Status201Created);
         ((WeatherArchiveBatchResponse)((ObjectResult)first.Result!).Value!).Inserted.Should().Be(1);
@@ -53,7 +54,9 @@ public sealed class WeatherArchiveIngestControllerTests
         };
         var oversized = CompletePayload() with { ForecastString = new string('x', 513) };
 
-        var result = await controller.IngestBatch([null!, oversized], CancellationToken.None);
+        var result = await controller.IngestBatch(
+            JsonSerializer.SerializeToElement(new DavisWeatherArchivePayload?[] { null, oversized }, JsonSerializerOptions.Web),
+            CancellationToken.None);
 
         var response = ((ObjectResult)result.Result!).Value.Should()
             .BeOfType<WeatherArchiveBatchResponse>().Subject;

@@ -92,6 +92,7 @@ services:
     ports:
       - "5100:8080"
     environment:
+      Station__Host: ${DAVIS_STATION_HOST}
       DOTNET_ENVIRONMENT: Production
       # OTel — send traces/metrics/logs to the global collector
       OTEL_SERVICE_NAME: hvo-davis

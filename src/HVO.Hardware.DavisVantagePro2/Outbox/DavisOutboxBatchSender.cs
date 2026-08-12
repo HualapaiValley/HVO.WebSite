@@ -136,7 +136,9 @@ internal sealed class DavisOutboxBatchSender(
     {
         var code = (int)statusCode;
         if (code is >= 200 and < 300) return EdgeOutboxSendStatus.Sent;
-        if (statusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests || code >= 500) return EdgeOutboxSendStatus.TransientFailure;
+        if (statusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+            or HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests || code >= 500)
+            return EdgeOutboxSendStatus.TransientFailure;
         return EdgeOutboxSendStatus.PermanentFailure;
     }
 

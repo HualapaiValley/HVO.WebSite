@@ -16,6 +16,7 @@ internal sealed class FakeDavisStation : IDavisStation
     public int ConnectCount { get; private set; }
     public int DisconnectCount { get; private set; }
     public Exception? Loop1Exception { get; set; }
+    public bool ClearLoop1ExceptionAfterThrow { get; set; }
     public Exception? ArchiveException { get; set; }
     public bool BlockSubsequentConnects { get; set; }
     public bool BlockConnects { get; set; }
@@ -58,7 +59,12 @@ internal sealed class FakeDavisStation : IDavisStation
     public Task<Loop2Packet> GetLoop1Async(CancellationToken cancellationToken = default)
     {
         Calls.Add("loop1");
-        return Loop1Exception is null ? Task.FromResult(Loop1) : Task.FromException<Loop2Packet>(Loop1Exception);
+        if (Loop1Exception is null)
+            return Task.FromResult(Loop1);
+        var exception = Loop1Exception;
+        if (ClearLoop1ExceptionAfterThrow)
+            Loop1Exception = null;
+        return Task.FromException<Loop2Packet>(exception);
     }
 
     public async IAsyncEnumerable<Loop2Packet> StreamLoop2Async(

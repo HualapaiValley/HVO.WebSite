@@ -140,6 +140,29 @@ public sealed class WeatherStationWorkerTests
         await fixture.Worker.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
     }
 
+    [TestMethod]
+    public async Task Loop1RefreshFailure_ContinuesStreamingWithCachedLoop1Fields()
+    {
+        var firstAt = new DateTime(2026, 8, 11, 12, 0, 0, DateTimeKind.Utc);
+        var station = new FakeDavisStation
+        {
+            Loop1 = new Loop2Packet { RecordedAtUtc = firstAt, ConsoleBatteryVoltage = 4.6 },
+            Loop2Packets = [new Loop2Packet { RecordedAtUtc = firstAt.AddSeconds(2), OutsideTemperatureF = 80 }],
+        };
+        var writer = new RecordingWriter([], true);
+        await using var fixture = CreateFixture(station, new RecordingCursorStore([]), writer);
+
+        await fixture.Worker.PollLoopBatchAsync(CancellationToken.None);
+        station.Loop1Exception = new IOException("LOOP1 unavailable");
+        station.Loop2Packets = [new Loop2Packet { RecordedAtUtc = firstAt.AddSeconds(4), OutsideTemperatureF = 81 }];
+        await fixture.Worker.PollLoopBatchAsync(CancellationToken.None);
+
+        writer.LivePayloads.Should().HaveCount(2);
+        writer.LivePayloads[1].TemperatureF.Should().Be(81);
+        writer.LivePayloads[1].ConsoleBatteryVoltage.Should().Be(4.6);
+        station.DisconnectCount.Should().Be(0);
+    }
+
     private static FakeDavisStation StationWithArchive(params ArchiveRecord[] records)
     {
         var station = new FakeDavisStation();
@@ -204,9 +227,11 @@ public sealed class WeatherStationWorkerTests
     private sealed class RecordingWriter(List<string> events, bool archiveInserted, bool failArchive = false) : IDavisOutboxWriter
     {
         public TaskCompletionSource LiveEnqueued { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<DavisWeatherLivePayload> LivePayloads { get; } = [];
         public Task<bool> EnqueueRawAsync(DavisWeatherLivePayload payload, CancellationToken cancellationToken)
         {
             events.Add("enqueue:live");
+            LivePayloads.Add(payload);
             LiveEnqueued.TrySetResult();
             return Task.FromResult(true);
         }

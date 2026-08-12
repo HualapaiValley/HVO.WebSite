@@ -64,6 +64,21 @@ public sealed class DavisOutboxBatchSenderTests
     }
 
     [TestMethod]
+    [DataRow(HttpStatusCode.Unauthorized)]
+    [DataRow(HttpStatusCode.Forbidden)]
+    public async Task SendAsync_AuthenticationFailuresRemainRecoverable(HttpStatusCode statusCode)
+    {
+        using var client = new HttpClient(new StubHandler(_ => Task.FromResult(new HttpResponseMessage(statusCode))));
+        var at = new DateTime(2026, 8, 11, 12, 0, 0, DateTimeKind.Utc);
+
+        var outcomes = await CreateSender(client).SendAsync([
+            Record(1, DavisOutboxPayloadTypes.Raw, at, new DavisWeatherLivePayload { StationId = "station-1", RecordedAtUtc = at }),
+        ], CancellationToken.None);
+
+        outcomes.Should().ContainSingle().Which.Status.Should().Be(EdgeOutboxSendStatus.TransientFailure);
+    }
+
+    [TestMethod]
     public void ArchiveContract_RoundTripsEveryParsedField()
     {
         var expected = CompleteArchive(new DateTime(2026, 8, 11, 12, 0, 0, DateTimeKind.Utc));
