@@ -19,7 +19,7 @@ public sealed class EdgeOutboxInitializer(
         var db = scope.ServiceProvider.GetRequiredService<DefaultEdgeOutboxDbContext>();
         await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
             db,
-            configured.PayloadType,
+            configured.EffectivePayloadTypes[0],
             configured.PayloadVersion,
             cancellationToken).ConfigureAwait(false);
     }

@@ -29,7 +29,7 @@ Observatory dashboard and monitoring system built with ASP.NET Core and Blazor S
 Davis Vantage Pro 2 console (TCP)
         │
  HVO.Hardware.DavisVantagePro2
-   ├─ Blazor SSR UI (status, archive, calibration, settings, …)
+    ├─ Headless health/diagnostics + MQTT current state
    ├─ SQLite outbox (durable, idempotent, with retry)
    └─ POST /api/v1/weather/raw  ──────────────────────────────┐
                                                                │

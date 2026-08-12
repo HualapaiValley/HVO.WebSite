@@ -16,6 +16,8 @@ public class HvoV9DbContext : DbContext
 
     public DbSet<WeatherHourly> WeatherHourly { get; set; }
 
+    public DbSet<WeatherArchive> WeatherArchive { get; set; }
+
     public DbSet<ImageMetadata> ImageMetadata { get; set; }
 
     public DbSet<AlertLog> AlertLog { get; set; }
@@ -91,6 +93,21 @@ public class HvoV9DbContext : DbContext
             entity.HasIndex(e => e.PeriodStart).IsUnique();
             entity.HasIndex(e => new { e.StationId, e.PeriodStart });
             entity.Property(e => e.PeriodStart).HasColumnType("datetime2");
+        });
+
+        modelBuilder.Entity<WeatherArchive>(entity =>
+        {
+            entity.HasIndex(e => e.RecordedAtUtc);
+            entity.HasIndex(e => new { e.StationId, e.RecordedAtUtc }).IsUnique();
+            entity.Property(e => e.RecordedAtUtc).HasColumnType("datetime2");
+            entity.Property(e => e.ConsoleRecordedAtLocal).HasColumnType("datetime2");
+            entity.Property(e => e.CreatedAtUtc).HasColumnType("datetime2");
+            entity.Property(e => e.StationId).IsRequired();
+            entity.Property(e => e.LeafWetnessJson).IsRequired();
+            entity.Property(e => e.SoilTemperaturesJson).IsRequired();
+            entity.Property(e => e.ExtraHumiditiesJson).IsRequired();
+            entity.Property(e => e.ExtraTemperaturesJson).IsRequired();
+            entity.Property(e => e.SoilMoisturesJson).IsRequired();
         });
 
         modelBuilder.Entity<ImageMetadata>(entity =>

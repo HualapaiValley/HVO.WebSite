@@ -17,6 +17,8 @@ public sealed class EdgeOutboxOptionsAndRegistrationTests
 
         options.DatabasePath.Should().Be("/app/data/outbox.db");
         options.PayloadType.Should().Be("edge.telemetry");
+        options.PayloadTypes.Should().BeEmpty();
+        options.EffectivePayloadTypes.Should().Equal("edge.telemetry");
         options.PayloadVersion.Should().Be("1");
         options.BatchSize.Should().Be(50);
         options.SweepIntervalSeconds.Should().Be(5);
@@ -24,6 +26,20 @@ public sealed class EdgeOutboxOptionsAndRegistrationTests
         options.MaxBackoffSeconds.Should().Be(300);
         options.SentRetentionDays.Should().Be(7);
         options.FailedRetentionDays.Should().Be(30);
+    }
+
+    [TestMethod]
+    public void Options_AcceptBoundedPayloadTypeListWithoutChangingSingleTypeCompatibility()
+    {
+        using var provider = CreateProvider(new Dictionary<string, string?>
+        {
+            ["Outbox:DatabasePath"] = Path.Combine(Path.GetTempPath(), "outbox.db"),
+            ["Outbox:PayloadTypes:0"] = "weather.live",
+            ["Outbox:PayloadTypes:1"] = "weather.archive",
+        });
+
+        provider.GetRequiredService<IOptions<EdgeOutboxOptions>>().Value.EffectivePayloadTypes
+            .Should().Equal("weather.live", "weather.archive");
     }
 
     [TestMethod]

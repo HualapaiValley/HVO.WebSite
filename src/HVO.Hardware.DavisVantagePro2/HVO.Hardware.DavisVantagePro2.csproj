@@ -5,27 +5,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>HVO.Hardware.DavisVantagePro2</RootNamespace>
     <AssemblyName>HVO.Hardware.DavisVantagePro2</AssemblyName>
-    <UserSecretsId>hvo-hardware-davisvp2</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="HVO.Enterprise.Telemetry" />
-    <PackageReference Include="HVO.Enterprise.Telemetry.OpenTelemetry" />
-    <PackageReference Include="MudBlazor" />
-    <PackageReference Include="OpenTelemetry.Api" />
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
-    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\HVO.Edge.Contracts\HVO.Edge.Contracts.csproj" />
+    <ProjectReference Include="..\HVO.Edge.HomeAssistant.Mqtt\HVO.Edge.HomeAssistant.Mqtt.csproj" />
     <ProjectReference Include="..\HVO.Edge.Hosting\HVO.Edge.Hosting.csproj" />
     <ProjectReference Include="..\HVO.Edge.Outbox\HVO.Edge.Outbox.csproj" />
-    <ProjectReference Include="..\HVO.Staging\HVO.Staging.csproj" />
-    <ProjectReference Include="..\HVO.WebSite.Themes\HVO.WebSite.Themes.csproj" />
   </ItemGroup>
 </Project>

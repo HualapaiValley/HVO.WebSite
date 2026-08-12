@@ -67,9 +67,10 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 
 ## Common workflow
 
-1. Copy `.env.example` to `.env` in the gateway folder.
-2. Fill the required host, credential, and API key values.
-3. Deploy with the Pi Docker context:
+1. Copy `.env.example` to `.env` and `gateway.json.example` to `gateway.json` where provided.
+2. Keep device endpoints such as `DAVIS_STATION_HOST` in `.env`; fill mounted gateway configuration and create the required files under the configured local secrets directory.
+3. Set the absolute `*_REMOTE_CONFIG_FILE` and `*_REMOTE_SECRETS_DIRECTORY` paths from `.env.example`. For SSH Docker contexts, the deploy script copies the local files to those daemon-host paths with owner-only permissions before Compose starts the container.
+4. Deploy with the Pi Docker context:
 
 ```bash
 ./scripts/deploy-pi-gateway.sh --context devpi5 davis

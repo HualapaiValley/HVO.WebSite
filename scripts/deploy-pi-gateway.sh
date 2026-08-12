@@ -32,6 +32,43 @@ run_cmd() {
 	"$@"
 }
 
+docker_context_ssh_target() {
+	local context_host
+	context_host="$(docker context inspect "$1" --format '{{ (index .Endpoints "docker").Host }}')"
+	[[ "${context_host}" == ssh://* ]] || fail "Docker context '$1' must use an ssh:// endpoint to synchronize mounted configuration."
+	printf '%s\n' "${context_host#ssh://}"
+}
+
+sync_remote_mounts() {
+	local gateway="$1"
+	local local_config="$2"
+	local local_secrets="$3"
+	local remote_config="$4"
+	local remote_secrets="$5"
+	local ssh_target remote_root
+	command -v ssh >/dev/null 2>&1 || fail 'Required command not found: ssh'
+	command -v scp >/dev/null 2>&1 || fail 'Required command not found: scp'
+
+	[[ "${remote_config}" = /* ]] || fail "${gateway} remote configuration path must be absolute."
+	[[ "${remote_secrets}" = /* ]] || fail "${gateway} remote secrets path must be absolute."
+	remote_root="$(dirname "${remote_config}")"
+	[[ "${remote_secrets}" == "${remote_root}/secrets" ]] || fail "${gateway} remote secrets directory must be ${remote_root}/secrets."
+	if [[ "${dry_run}" == true ]]; then
+		ssh_target="docker-context-${docker_context}"
+	else
+		ssh_target="$(docker_context_ssh_target "${docker_context}")"
+	fi
+
+	run_cmd ssh "${ssh_target}" mkdir -p "${remote_root}" "${remote_secrets}"
+	run_cmd scp "${local_config}" "${ssh_target}:${remote_config}"
+	if [[ "${dry_run}" == true ]]; then
+		printf '[dry-run] scp %q %q\n' "${local_secrets}/." "${ssh_target}:${remote_secrets}/"
+	else
+		scp -r "${local_secrets}/." "${ssh_target}:${remote_secrets}/"
+	fi
+	run_cmd ssh "${ssh_target}" chmod -R go-rwx "${remote_root}"
+}
+
 warn_shell_env_overrides() {
 	local compose_file="$1"
 	local env_names=()
@@ -136,11 +173,11 @@ deploy_target() {
 			printf 'Enabling the EG4 MPPT read-only Compose overlay.\n'
 		fi
 	fi
-	if [[ "${gateway}" =~ ^(eg4|jkbms)$ && "${allow_env_overrides}" == false && ${#override_env_names[@]} -gt 0 ]]; then
+	if [[ "${gateway}" =~ ^(davis|eg4|jkbms)$ && "${allow_env_overrides}" == false && ${#override_env_names[@]} -gt 0 ]]; then
 		fail "${gateway} deployment refuses shell environment overrides (${override_env_names[*]}). Unset them or pass --allow-env-overrides after verifying docker compose config."
 	fi
 	if [[ "${gateway}" == eg4 ]]; then
-		local eg4_config_setting eg4_config_path eg4_secrets_setting eg4_secrets_path
+		local eg4_config_setting eg4_config_path eg4_secrets_setting eg4_secrets_path eg4_remote_config eg4_remote_secrets
 		eg4_config_setting="$(read_env_value "${env_file}" EG4_CONFIG_FILE)"
 		eg4_config_path="${eg4_config_setting:-./gateway.json}"
 		[[ "${eg4_config_path}" = /* ]] || eg4_config_path="${repo_root}/${compose_dir}/${eg4_config_path#./}"
@@ -172,9 +209,51 @@ deploy_target() {
 		for secret_name in diagnostics-api-key central-ingest-api-key mqtt-username mqtt-password; do
 			[[ -s "${eg4_secrets_path}/${secret_name}" ]] || fail "EG4 required secret file is missing or empty: ${secret_name}"
 		done
+		eg4_remote_config="$(read_env_value "${env_file}" EG4_REMOTE_CONFIG_FILE)"
+		[[ -n "${eg4_remote_config}" ]] || fail "EG4_REMOTE_CONFIG_FILE is required in the EG4 .env file."
+		eg4_remote_secrets="$(read_env_value "${env_file}" EG4_REMOTE_SECRETS_DIRECTORY)"
+		[[ -n "${eg4_remote_secrets}" ]] || fail "EG4_REMOTE_SECRETS_DIRECTORY is required in the EG4 .env file."
+		sync_remote_mounts eg4 "${eg4_config_path}" "${eg4_secrets_path}" "${eg4_remote_config}" "${eg4_remote_secrets}"
+	fi
+	if [[ "${gateway}" == davis ]]; then
+		local davis_config_setting davis_config_path davis_secrets_setting davis_secrets_path davis_station_host davis_remote_config davis_remote_secrets
+		davis_config_setting="$(read_env_value "${env_file}" DAVIS_CONFIG_FILE)"
+		davis_config_path="${davis_config_setting:-./gateway.json}"
+		[[ "${davis_config_path}" = /* ]] || davis_config_path="${repo_root}/${compose_dir}/${davis_config_path#./}"
+		[[ -f "${davis_config_path}" ]] || fail "Davis mounted configuration not found: ${davis_config_path}"
+		jq -e . "${davis_config_path}" >/dev/null || fail "Davis mounted configuration is not valid JSON: ${davis_config_path}"
+		jq -e '
+			(.Edge.Runtime.GatewayId == "davis")
+			and (.Edge.Runtime.SiteId | type == "string" and length > 0)
+			and (.Edge.Runtime.SourceId == .Station.StationId)
+			and (.Station.ArchiveCatchupMode != "Disabled")
+			and (.Station.LegacyArchiveConsoleUtcOffsetHours | type == "number" and . >= -12 and . <= 14)
+			and (.Station.LocalDatabasePath == "/app/data/davis-local.db")
+			and (.Outbox.DatabasePath == "/app/data/outbox.db")
+			and ((.Outbox.PayloadTypes | sort) == (["com.hvo.weather.archive.v1", "com.hvo.weather.raw.v1"] | sort))' \
+			"${davis_config_path}" >/dev/null || fail "Davis gateway.json does not satisfy the vNext deployment contract."
+
+		davis_secrets_setting="$(read_env_value "${env_file}" DAVIS_SECRETS_DIRECTORY)"
+		davis_secrets_path="${davis_secrets_setting:-./secrets}"
+		[[ "${davis_secrets_path}" = /* ]] || davis_secrets_path="${repo_root}/${compose_dir}/${davis_secrets_path#./}"
+		for secret_name in diagnostics-api-key central-ingest-api-key; do
+			[[ -s "${davis_secrets_path}/${secret_name}" ]] || fail "Davis required secret file is missing or empty: ${secret_name}"
+		done
+		if jq -e '.HomeAssistant.Mqtt.Enabled == true' "${davis_config_path}" >/dev/null; then
+			for secret_name in mqtt-username mqtt-password; do
+				[[ -s "${davis_secrets_path}/${secret_name}" ]] || fail "Davis required MQTT secret file is missing or empty: ${secret_name}"
+			 done
+		fi
+		davis_station_host="$(read_env_value "${env_file}" DAVIS_STATION_HOST)"
+		[[ -n "${davis_station_host}" ]] || fail "DAVIS_STATION_HOST is required in the Davis .env file."
+		davis_remote_config="$(read_env_value "${env_file}" DAVIS_REMOTE_CONFIG_FILE)"
+		[[ -n "${davis_remote_config}" ]] || fail "DAVIS_REMOTE_CONFIG_FILE is required in the Davis .env file."
+		davis_remote_secrets="$(read_env_value "${env_file}" DAVIS_REMOTE_SECRETS_DIRECTORY)"
+		[[ -n "${davis_remote_secrets}" ]] || fail "DAVIS_REMOTE_SECRETS_DIRECTORY is required in the Davis .env file."
+		sync_remote_mounts davis "${davis_config_path}" "${davis_secrets_path}" "${davis_remote_config}" "${davis_remote_secrets}"
 	fi
 	if [[ "${gateway}" == jkbms ]]; then
-		local jkbms_config_setting jkbms_config_path jkbms_secrets_setting jkbms_secrets_path
+		local jkbms_config_setting jkbms_config_path jkbms_secrets_setting jkbms_secrets_path jkbms_remote_config jkbms_remote_secrets
 		jkbms_config_setting="$(read_env_value "${env_file}" JKBMS_CONFIG_FILE)"
 		jkbms_config_path="${jkbms_config_setting:-./gateway.json}"
 		[[ "${jkbms_config_path}" = /* ]] || jkbms_config_path="${repo_root}/${compose_dir}/${jkbms_config_path#./}"
@@ -202,6 +281,11 @@ deploy_target() {
 				[[ -s "${jkbms_secrets_path}/${secret_name}" ]] || fail "JK BMS required MQTT secret file is missing or empty: ${secret_name}"
 			done
 		fi
+		jkbms_remote_config="$(read_env_value "${env_file}" JKBMS_REMOTE_CONFIG_FILE)"
+		[[ -n "${jkbms_remote_config}" ]] || fail "JKBMS_REMOTE_CONFIG_FILE is required in the JK BMS .env file."
+		jkbms_remote_secrets="$(read_env_value "${env_file}" JKBMS_REMOTE_SECRETS_DIRECTORY)"
+		[[ -n "${jkbms_remote_secrets}" ]] || fail "JKBMS_REMOTE_SECRETS_DIRECTORY is required in the JK BMS .env file."
+		sync_remote_mounts jkbms "${jkbms_config_path}" "${jkbms_secrets_path}" "${jkbms_remote_config}" "${jkbms_remote_secrets}"
 	fi
 
 	local compose_args=(--context "${docker_context}" compose --env-file "${env_file}")

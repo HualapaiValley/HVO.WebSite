@@ -4,7 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace HVO.Hardware.DavisVantagePro2.Outbox;
 
-public sealed class StationInfoSnapshotStore(IServiceScopeFactory scopeFactory)
+public interface IStationInfoSnapshotStore
+{
+    Task<StoredStationInfoSnapshot?> GetAsync(CancellationToken cancellationToken = default);
+    Task<StoredStationInfoSnapshot> SaveAsync(StationInfo stationInfo, CancellationToken cancellationToken = default);
+}
+
+public sealed class StationInfoSnapshotStore(IServiceScopeFactory scopeFactory) : IStationInfoSnapshotStore
 {
     private const int SnapshotId = 1;
 

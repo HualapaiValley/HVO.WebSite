@@ -1,10 +1,18 @@
 using Microsoft.EntityFrameworkCore;
+using HVO.Edge.Outbox;
+using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace HVO.Hardware.DavisVantagePro2.Outbox;
 
 public static class DavisLegacyOutboxMigrator
 {
-    public static async Task MigrateAsync(OutboxDbContext db, string stationId, CancellationToken ct = default)
+    public static async Task MigrateAsync(
+        EdgeOutboxDbContext db,
+        string stationId,
+        TimeSpan? consoleUtcOffset = null,
+        CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(db);
         var sourceId = string.IsNullOrWhiteSpace(stationId) ? "davis-vantage-pro2" : stationId.Trim();
@@ -14,6 +22,8 @@ public static class DavisLegacyOutboxMigrator
         var columns = await GetOutboxColumnsAsync(db, ct).ConfigureAwait(false);
         if (columns.Count == 0)
             return;
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
         await db.Database.ExecuteSqlRawAsync("DROP INDEX IF EXISTS IX_OutboxRecords_RecordedAtUtc", ct).ConfigureAwait(false);
         await db.Database.ExecuteSqlRawAsync("DROP INDEX IF EXISTS IX_OutboxRecords_SourceId_RecordedAtUtc", ct).ConfigureAwait(false);
@@ -71,11 +81,99 @@ public static class DavisLegacyOutboxMigrator
                 ct).ConfigureAwait(false);
         }
 
+        await db.Database.ExecuteSqlRawAsync(
+            "UPDATE OutboxRecords SET PayloadType = {0} WHERE PayloadType = {1}",
+            [DavisOutboxPayloadTypes.Raw, HVO.Edge.Contracts.EdgePayloadTypes.Legacy.WeatherRaw],
+            ct).ConfigureAwait(false);
+        await db.Database.ExecuteSqlRawAsync(
+            "UPDATE OutboxRecords SET PayloadType = {0} WHERE PayloadType = {1}",
+            [DavisOutboxPayloadTypes.Archive, HVO.Edge.Contracts.EdgePayloadTypes.Legacy.WeatherArchive],
+            ct).ConfigureAwait(false);
+
         if (columns.Contains("IsArchiveRecord"))
             await RebuildSharedTableAsync(db, columns, ct).ConfigureAwait(false);
+
+        await MigrateArchivePayloadsAsync(db, consoleUtcOffset ?? TimeSpan.Zero, ct).ConfigureAwait(false);
+        await transaction.CommitAsync(ct).ConfigureAwait(false);
     }
 
-    private static async Task RebuildSharedTableAsync(OutboxDbContext db, IReadOnlySet<string> columns, CancellationToken ct)
+    private static async Task MigrateArchivePayloadsAsync(
+        EdgeOutboxDbContext db,
+        TimeSpan consoleUtcOffset,
+        CancellationToken ct)
+    {
+        var updates = new List<(long Id, string Payload)>();
+        await using (var command = db.Database.GetDbConnection().CreateCommand())
+        {
+            command.CommandText = "SELECT Id, Payload FROM OutboxRecords WHERE PayloadType = $payloadType";
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "$payloadType";
+            parameter.Value = DavisOutboxPayloadTypes.Archive;
+            command.Parameters.Add(parameter);
+            if (command.Connection!.State != System.Data.ConnectionState.Open)
+                await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+            await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                var json = reader.GetString(1);
+                JsonObject? payload;
+                try
+                {
+                    payload = JsonNode.Parse(json)?.AsObject();
+                }
+                catch (JsonException)
+                {
+                    continue;
+                }
+                if (payload is null)
+                    continue;
+
+                var changed = false;
+                if (!HasProperty(payload, "recordedAtUtc") || !HasProperty(payload, "consoleRecordedAtLocal"))
+                {
+                    var recordedAtText = ReadString(payload, "recordedAtUtc") ?? ReadString(payload, "recordedAt");
+                    if (!DateTime.TryParse(recordedAtText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var recordedAt))
+                        continue;
+                    var utc = recordedAt.ToUniversalTime();
+                    if (!HasProperty(payload, "recordedAtUtc"))
+                        payload["recordedAtUtc"] = utc;
+                    if (!HasProperty(payload, "consoleRecordedAtLocal"))
+                    {
+                        payload["consoleRecordedAtLocal"] = DateTime.SpecifyKind(
+                            new DateTimeOffset(utc, TimeSpan.Zero).ToOffset(consoleUtcOffset).DateTime,
+                            DateTimeKind.Unspecified);
+                    }
+                    changed = true;
+                }
+                if (!HasProperty(payload, "downloadRecordType"))
+                {
+                    payload["downloadRecordType"] = 0;
+                    changed = true;
+                }
+                if (changed)
+                    updates.Add((reader.GetInt64(0), payload.ToJsonString(JsonSerializerOptions.Web)));
+            }
+        }
+
+        foreach (var update in updates)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "UPDATE OutboxRecords SET Payload = {0} WHERE Id = {1}",
+                [update.Payload, update.Id],
+                ct).ConfigureAwait(false);
+        }
+    }
+
+    private static bool HasProperty(JsonObject payload, string name) =>
+        payload.Any(property => string.Equals(property.Key, name, StringComparison.OrdinalIgnoreCase));
+
+    private static string? ReadString(JsonObject payload, string name)
+    {
+        var value = payload.FirstOrDefault(property => string.Equals(property.Key, name, StringComparison.OrdinalIgnoreCase)).Value;
+        return value is JsonValue jsonValue && jsonValue.TryGetValue<string>(out var text) ? text : null;
+    }
+
+    private static async Task RebuildSharedTableAsync(EdgeOutboxDbContext db, IReadOnlySet<string> columns, CancellationToken ct)
     {
         var failureKindSelect = columns.Contains("FailureKind") ? "FailureKind" : "0";
         await db.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS OutboxRecords_shared", ct).ConfigureAwait(false);
@@ -130,7 +228,7 @@ public static class DavisLegacyOutboxMigrator
         await db.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_OutboxRecords_Status ON OutboxRecords (Status)", ct).ConfigureAwait(false);
     }
 
-    private static async Task<HashSet<string>> GetOutboxColumnsAsync(OutboxDbContext db, CancellationToken ct)
+    private static async Task<HashSet<string>> GetOutboxColumnsAsync(EdgeOutboxDbContext db, CancellationToken ct)
     {
         var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         await using var command = db.Database.GetDbConnection().CreateCommand();

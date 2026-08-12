@@ -10,7 +10,6 @@ This document describes HVO local APIs, outbox payloads, and central/cloud contr
 | `StationOptions.Port` | int | Yes | No | App config | `22222` | TCP port. |
 | `StationOptions.SocketTimeoutSeconds` | int | Yes | No | App config | code-defined | Network timeout. |
 | `StationOptions.ArchiveCatchupMode` | enum | Yes | No | App config/UI candidate | code-defined | Disabled/Enabled/Force. |
-| `StationOptions.ArchiveCatchupLookbackHours` | int | Yes | No | App config/UI candidate | code-defined | Startup catchup range. |
 | `StationOptions.StationId` | string | Yes | No | App config | code-defined | Sent downstream. |
 | `OutboxOptions.ApiEndpoint` | string | Yes for forwarding | No | App config | placeholder | Website weather endpoint. |
 | `OutboxOptions.ApiKey` | string | Yes for forwarding | Yes | Secret only | placeholder | Do not display/log. |

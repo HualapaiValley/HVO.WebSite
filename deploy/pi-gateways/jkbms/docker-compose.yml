@@ -24,8 +24,8 @@ services:
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
-      - "${JKBMS_CONFIG_FILE:-./gateway.json}:/app/config/gateway.json:ro"
-      - "${JKBMS_SECRETS_DIRECTORY:-./secrets}:/run/secrets:ro"
+      - "${JKBMS_REMOTE_CONFIG_FILE:?JKBMS_REMOTE_CONFIG_FILE is required}:/app/config/gateway.json:ro"
+      - "${JKBMS_REMOTE_SECRETS_DIRECTORY:?JKBMS_REMOTE_SECRETS_DIRECTORY is required}:/run/secrets:ro"
       - jkbms-outbox:/app/data
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health/live"]
