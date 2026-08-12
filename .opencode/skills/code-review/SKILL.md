@@ -329,7 +329,7 @@ The most common P0 in this codebase is a Blazor circuit crash caused by a null `
 - `docker-compose.yml` has `restart: unless-stopped`
 - Health check endpoint reflects actual device connectivity, not just process liveness
 - **Shell env overrides `--env-file`** in Docker Compose — always verify with `docker compose config | grep <var>` before deploying; stale shell vars are a recurring source of wrong IPs
-- After changing any device IP or credential in `.env`, run `./scripts/sync-env-gist.sh` so the next devcontainer restart bootstraps from the correct gist
+- Pull credentials from `hvo-central-kv` with `./scripts/sync-secrets-from-keyvault.sh --apply`; after changing non-secret `.env` bootstrap settings, run `./scripts/sync-env-gist.sh` to refresh the private cache
 
 ### EF Core
 - All queries use async methods: `ToListAsync`, `FirstOrDefaultAsync`, `SaveChangesAsync`

@@ -13,6 +13,7 @@ mode="$1"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dashboard_file="$repo_root/deploy/home-assistant/configuration/dashboards/hvo-kasa.yaml"
 lovelace_file="$repo_root/deploy/home-assistant/configuration/lovelace.yaml"
+configuration_root="$repo_root/deploy/home-assistant/configuration"
 ha_url="${HVO_HOME_ASSISTANT_URL:-http://192.168.1.113}"
 proxmox_host="${HVO_PROXMOX_HOST:-root@192.168.1.240}"
 ha_vmid="${HVO_HOME_ASSISTANT_VMID:-101}"
@@ -50,12 +51,13 @@ if (( missing != 0 )); then
     exit 1
 fi
 
-if rg -n 'https?://' "$dashboard_file" "$lovelace_file" >/dev/null; then
+if rg -n 'https?://|\.storage' "$configuration_root" --glob '*.yaml' >/dev/null; then
     printf 'Home Assistant configuration must not contain external resources.\n' >&2
     exit 1
 fi
 
 printf 'Validated %d dashboard entity references.\n' "${#referenced_entities[@]}"
+"$repo_root/tools/validate-home-assistant-managed-config.sh"
 
 if [[ "$mode" == "--check" ]]; then
     exit 0
@@ -89,13 +91,35 @@ deploy_file() {
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 main_config="$guest_config_root/configuration.yaml"
-main_config_backup="$guest_config_root/configuration.yaml.hvo-$timestamp.bak"
+backup_root="$guest_config_root/.hvo-deploy-$timestamp"
+deployment_started=0
 
-guest_exec "cp '$main_config' '$main_config_backup'" >/dev/null
+rollback() {
+    if (( deployment_started == 0 )); then
+        return
+    fi
+
+    guest_exec "cp '$backup_root/configuration.yaml' '$main_config' && rm -rf '$guest_config_root/hvo' && if [ -f '$backup_root/had-hvo' ]; then cp -a '$backup_root/hvo' '$guest_config_root/hvo'; fi" >/dev/null || true
+    deployment_started=0
+}
+cancel() {
+    trap - ERR INT TERM
+    rollback
+    exit 130
+}
+trap rollback ERR
+trap cancel INT TERM
+
+guest_exec "mkdir -p '$backup_root' && cp '$main_config' '$backup_root/configuration.yaml' && if [ -d '$guest_config_root/hvo' ]; then cp -a '$guest_config_root/hvo' '$backup_root/hvo' && touch '$backup_root/had-hvo'; fi" >/dev/null
+deployment_started=1
 deploy_file "$lovelace_file" "$guest_config_root/hvo/lovelace.yaml"
 deploy_file "$dashboard_file" "$guest_config_root/hvo/dashboards/hvo-kasa.yaml"
+deploy_file "$configuration_root/packages/hvo.yaml" "$guest_config_root/hvo/packages/hvo.yaml"
+deploy_file "$configuration_root/templates/hvo.yaml" "$guest_config_root/hvo/templates/hvo.yaml"
+deploy_file "$configuration_root/automations/hvo.yaml" "$guest_config_root/hvo/automations/hvo.yaml"
 
 guest_exec "if grep -q '^lovelace: !include hvo/lovelace.yaml$' '$main_config'; then exit 0; elif grep -q '^lovelace:' '$main_config'; then printf 'configuration.yaml already has a different top-level lovelace key; merge hvo/lovelace.yaml manually.\n' >&2; exit 1; else printf '\nlovelace: !include hvo/lovelace.yaml\n' >> '$main_config'; fi" >/dev/null
+guest_exec "if grep -q '^  packages: !include_dir_named hvo/packages$' '$main_config'; then exit 0; elif grep -q '^homeassistant:' '$main_config'; then printf 'configuration.yaml already has a homeassistant key without the HVO package include; merge hvo/packages manually.\n' >&2; exit 1; else printf '\nhomeassistant:\n  packages: !include_dir_named hvo/packages\n' >> '$main_config'; fi" >/dev/null
 
 validation="$(curl -fsS -X POST \
     -H "Authorization: Bearer ${HOME_ASSISTANT_TOKEN}" \
@@ -103,8 +127,8 @@ validation="$(curl -fsS -X POST \
     "$ha_url/api/config/core/check_config")"
 
 if [[ "$(jq -r '.result' <<<"$validation")" != "valid" ]]; then
-    guest_exec "cp '$main_config_backup' '$main_config'" >/dev/null
-    printf 'Home Assistant configuration validation failed; configuration.yaml was restored.\n' >&2
+    rollback
+    printf 'Home Assistant configuration validation failed; all managed files were restored.\n' >&2
     jq . <<<"$validation" >&2
     exit 1
 fi
@@ -119,6 +143,7 @@ set -e
 
 # Core may close the request socket as the restart begins.
 if (( restart_status != 0 && restart_status != 52 )); then
+    rollback
     printf '%s\n' "$restart_error" >&2
     printf 'Home Assistant restart request failed with curl status %d.\n' "$restart_status" >&2
     exit 1
@@ -130,12 +155,14 @@ for _ in {1..60}; do
     if curl -fsS \
         -H "Authorization: Bearer ${HOME_ASSISTANT_TOKEN}" \
         "$ha_url/api/" >/dev/null 2>&1; then
-        guest_exec "rm -f '$main_config_backup'" >/dev/null
-        printf 'HVO Power dashboard deployed at %s/hvo-kasa/overview.\n' "$ha_url"
+        guest_exec "rm -rf '$backup_root'" >/dev/null
+        deployment_started=0
+        printf 'HVO managed configuration deployed; dashboard is at %s/hvo-kasa/overview.\n' "$ha_url"
         exit 0
     fi
     sleep 2
 done
 
-printf 'Home Assistant did not become ready within 120 seconds.\n' >&2
+rollback
+printf 'Home Assistant did not become ready within 120 seconds; managed files were restored.\n' >&2
 exit 1

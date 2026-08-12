@@ -1,0 +1,41 @@
+substitutions:
+  name: home-dev-bluetooth-proxy
+  friendly_name: Home Dev Bluetooth Proxy
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: !secret hvo_bluetooth_proxy_api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret hvo_bluetooth_proxy_ota_password
+
+wifi:
+  networks:
+    - ssid: !secret hvo_wifi_ssid
+      password: !secret hvo_wifi_password
+      priority: 2
+    - ssid: !secret home_wifi_ssid
+      password: !secret home_wifi_password
+      priority: 1
+  ap:
+    ssid: Home Dev BT Proxy Fallback
+    password: !secret hvo_bluetooth_proxy_fallback_password
+
+captive_portal:
+
+esp32_ble_tracker:
+
+bluetooth_proxy:
+  active: true

@@ -117,8 +117,38 @@ public sealed class HomeAssistantKasaDashboardTests
         dashboard.Should().NotContain("password");
     }
 
+    [TestMethod]
+    public void ManagedConfiguration_UsesSupportedIncludesAndNoExternalResources()
+    {
+        var configurationRoot = Path.Combine(AppContext.BaseDirectory, "Fixtures", "HomeAssistant", "Configuration");
+        var lovelace = File.ReadAllText(Path.Combine(configurationRoot, "lovelace.yaml"));
+        var package = File.ReadAllText(Path.Combine(configurationRoot, "packages", "hvo.yaml"));
+        var proxy = File.ReadAllText(Path.Combine(configurationRoot, "esphome", "hvo-bluetooth-proxy.yaml"));
+        var managedConfiguration = Directory.GetFiles(configurationRoot, "*.yaml", SearchOption.AllDirectories)
+            .Select(File.ReadAllText)
+            .ToArray();
+
+        lovelace.Should().Contain("filename: hvo/dashboards/hvo-kasa.yaml");
+        package.Should().Contain("template: !include ../templates/hvo.yaml");
+        package.Should().Contain("automation: !include ../automations/hvo.yaml");
+        proxy.Should().Contain("bluetooth_proxy:");
+        proxy.Should().Contain("active: true");
+        proxy.Should().Contain("name: home-dev-bluetooth-proxy");
+        proxy.Should().Contain("friendly_name: Home Dev Bluetooth Proxy");
+        proxy.Should().Contain("key: !secret hvo_bluetooth_proxy_api_encryption_key");
+        proxy.Should().Contain("ssid: !secret hvo_wifi_ssid");
+        proxy.Should().Contain("password: !secret hvo_wifi_password");
+        proxy.Should().Contain("priority: 2");
+        proxy.Should().Contain("ssid: !secret home_wifi_ssid");
+        proxy.Should().Contain("password: !secret home_wifi_password");
+        proxy.Should().Contain("priority: 1");
+        managedConfiguration.Should().OnlyContain(content => !content.Contains(".storage", StringComparison.Ordinal));
+        managedConfiguration.Should().OnlyContain(content => !content.Contains("http://", StringComparison.Ordinal));
+        managedConfiguration.Should().OnlyContain(content => !content.Contains("https://", StringComparison.Ordinal));
+    }
+
     private static string[] ReadDashboardLines() =>
-        File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Fixtures", "HomeAssistant", "hvo-kasa.yaml"));
+        File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Fixtures", "HomeAssistant", "Configuration", "dashboards", "hvo-kasa.yaml"));
 
     private static string[] GetEntityDeclarations(IEnumerable<string> lines) =>
         lines

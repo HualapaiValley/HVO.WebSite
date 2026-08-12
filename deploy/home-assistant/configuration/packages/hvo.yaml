@@ -1,0 +1,2 @@
+template: !include ../templates/hvo.yaml
+automation: !include ../automations/hvo.yaml

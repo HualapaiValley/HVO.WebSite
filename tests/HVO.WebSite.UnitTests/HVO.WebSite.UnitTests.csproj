@@ -34,8 +34,23 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../../deploy/home-assistant/configuration/dashboards/hvo-kasa.yaml"
-          Link="Fixtures/HomeAssistant/hvo-kasa.yaml"
+    <None Include="../../deploy/home-assistant/configuration/lovelace.yaml"
+          Link="Fixtures/HomeAssistant/Configuration/lovelace.yaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../deploy/home-assistant/configuration/dashboards/*.yaml"
+          Link="Fixtures/HomeAssistant/Configuration/dashboards/%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../deploy/home-assistant/configuration/packages/*.yaml"
+          Link="Fixtures/HomeAssistant/Configuration/packages/%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../deploy/home-assistant/configuration/templates/*.yaml"
+          Link="Fixtures/HomeAssistant/Configuration/templates/%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../deploy/home-assistant/configuration/automations/*.yaml"
+          Link="Fixtures/HomeAssistant/Configuration/automations/%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../deploy/home-assistant/configuration/esphome/hvo-bluetooth-proxy.yaml"
+          Link="Fixtures/HomeAssistant/Configuration/esphome/hvo-bluetooth-proxy.yaml"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
