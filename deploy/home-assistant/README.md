@@ -162,8 +162,15 @@ cutover is handled separately by issue #330.
    board, and use `configuration/esphome/hvo-bluetooth-proxy.yaml` as the
    reviewed definition. Change `esp32.board` if the selected hardware is not an
    `esp32dev` board.
-3. Add the five values listed in `secrets.yaml.example` through the ESPHome
-   secrets editor. Use generated unique API, OTA, and fallback credentials.
+3. Add the values listed in `secrets.yaml.example` through the ESPHome secrets
+   editor. Use generated unique API, OTA, and fallback credentials. The reviewed
+   definition prefers HVO Wi-Fi and retains HOME Wi-Fi only as a commissioning
+   fallback; remove or rotate the HOME credential after permanent placement.
+   Keep the management credentials in `hvo-central-kv` as
+   `HomeAssistant--EspHomeProxyApiEncryptionKey`,
+   `HomeAssistant--EspHomeProxyOtaPassword`, and
+   `HomeAssistant--EspHomeProxyFallbackPassword`. Wi-Fi values remain in the
+   ignored deployment environment and must not be committed.
 4. Install the first image over USB. Subsequent reviewed updates may use OTA.
 5. Add the discovered proxy through the native ESPHome integration and verify it
    remains available after both ESP32 and HA restarts.
@@ -177,6 +184,14 @@ cutover is handled separately by issue #330.
 
 The previously observed H5074 is a separate historical device observation; the
 owner-confirmed commissioning target for this issue is H5179.
+
+The ESP32-D0WDQ6 at `192.168.2.196` is commissioned as `HVO Bluetooth Proxy`
+for transport validation on the HOME network. Its encrypted native API, remote
+scanner registration, advertisement forwarding, three connection slots, HA
+restart recovery, and ESP32 restart recovery have been verified. This does not
+satisfy H5179 commissioning: move the proxy into reliable RF range on HVO Wi-Fi,
+confirm the `govee_ble` temperature and humidity entities, and then remove or
+rotate its HOME Wi-Fi fallback credential.
 
 ## Recovery notes
 

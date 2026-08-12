@@ -134,7 +134,12 @@ public sealed class HomeAssistantKasaDashboardTests
         proxy.Should().Contain("bluetooth_proxy:");
         proxy.Should().Contain("active: true");
         proxy.Should().Contain("key: !secret hvo_bluetooth_proxy_api_encryption_key");
-        proxy.Should().Contain("password: !secret wifi_password");
+        proxy.Should().Contain("ssid: !secret hvo_wifi_ssid");
+        proxy.Should().Contain("password: !secret hvo_wifi_password");
+        proxy.Should().Contain("priority: 2");
+        proxy.Should().Contain("ssid: !secret home_wifi_ssid");
+        proxy.Should().Contain("password: !secret home_wifi_password");
+        proxy.Should().Contain("priority: 1");
         managedConfiguration.Should().OnlyContain(content => !content.Contains(".storage", StringComparison.Ordinal));
         managedConfiguration.Should().OnlyContain(content => !content.Contains("http://", StringComparison.Ordinal));
         managedConfiguration.Should().OnlyContain(content => !content.Contains("https://", StringComparison.Ordinal));
