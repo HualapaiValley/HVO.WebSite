@@ -10,7 +10,8 @@ dry_run=false
 usage() {
 	printf 'Usage: %s [--dry-run]\n' "$(basename "$0")"
 	printf '\n'
-	printf 'Syncs %s to the private gist used by the devcontainer bootstrap.\n' "${env_file}"
+	printf 'Caches %s in the private gist used by the devcontainer bootstrap.\n' "${env_file}"
+	printf 'Azure Key Vault hvo-central-kv remains the authoritative secret source.\n'
 	printf 'Default gist id: %s\n' "${gist_id}"
 }
 
@@ -55,6 +56,11 @@ while (($# > 0)); do
 done
 
 [[ -f "${env_file}" ]] || fail "Expected environment file at ${env_file}"
+
+if [[ "${dry_run}" == false ]]; then
+	"${repo_root}/scripts/sync-secrets-from-keyvault.sh" --check || \
+		fail 'Local credentials drift from hvo-central-kv. Run sync-secrets-from-keyvault.sh --apply first.'
+fi
 
 require_command jq
 require_command curl

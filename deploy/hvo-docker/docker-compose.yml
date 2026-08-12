@@ -26,7 +26,7 @@ services:
       EnableHttpsRedirect: "${EnableHttpsRedirect:-false}"
       HealthChecks__ExposeDetailed: "${HealthChecks__ExposeDetailed:-false}"
       ConnectionStrings__HualapaiValleyObservatory: "${ConnectionStrings__HualapaiValleyObservatory}"
-      KeyVault__Uri: "${KeyVault__Uri:-https://obs-infra-kv.vault.azure.net/}"
+      KeyVault__Uri: "${KeyVault__Uri:-https://hvo-central-kv.vault.azure.net/}"
       AZURE_CLIENT_ID: "${AZURE_CLIENT_ID}"
       AZURE_CLIENT_SECRET: "${AZURE_CLIENT_SECRET}"
       AZURE_TENANT_ID: "${AZURE_TENANT_ID}"

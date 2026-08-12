@@ -130,6 +130,7 @@ The deployable images are published independently to the self-hosted registry on
 Use the repo script to build, tag, push, and verify one image at a time:
 
 ```bash
+./scripts/sync-secrets-from-keyvault.sh --apply
 ./scripts/sync-env-gist.sh
 ./scripts/publish-image.sh website
 ./scripts/publish-image.sh davis
@@ -139,7 +140,9 @@ Use the repo script to build, tag, push, and verify one image at a time:
 ./scripts/publish-image.sh tplinkkasa
 ```
 
-See [docs/CONTAINER_PUBLISHING.md](docs/CONTAINER_PUBLISHING.md) for the self-hosted registry inventory, the version-variable workflow, the gist sync requirement, and the commands used to inspect published tags.
+See [docs/CONTAINER_PUBLISHING.md](docs/CONTAINER_PUBLISHING.md) for the
+self-hosted registry inventory, the Key Vault synchronization and versioning
+workflow, and the commands used to inspect published tags.
 
 ---
 

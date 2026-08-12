@@ -17,7 +17,7 @@ Practical default:
 
 Gateway API keys should be stored in Azure Key Vault and loaded by the website at startup through its configured Key Vault provider.
 
-Recommended website secret names in `hvoobs-kv`:
+Required website secret names in `hvo-central-kv`:
 
 - `Seeding--DavisApiKey`
 - `Seeding--BmsApiKey`
@@ -144,7 +144,7 @@ To verify deployed endpoints after rollout:
 
 ## Azure rollout sequence
 
-1. Confirm the website Container App can read secrets from `https://hvoobs-kv.vault.azure.net/`.
+1. Confirm the website Container App can read secrets from `https://hvo-central-kv.vault.azure.net/`.
 2. Store the raw API keys in Key Vault using the secret names listed above.
 3. Restart or roll a new website revision so startup seeding runs again.
 4. Verify the keys against the live Azure website API.

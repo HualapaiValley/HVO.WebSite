@@ -283,6 +283,15 @@ else
 	echo "No Azure service principal in .env — add AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID to enable auto-login."
 fi
 
+# The private gist is only a bootstrap cache. Once Azure authentication is
+# available, refresh allowlisted credentials from the authoritative vault.
+if az account show --output none >/dev/null 2>&1; then
+	echo "Synchronizing credentials from hvo-central-kv..."
+	/workspaces/HVO.WebSite/scripts/sync-secrets-from-keyvault.sh --apply
+else
+	echo "Warning: Azure is not authenticated — credentials remain at their bootstrap-cache versions."
+fi
+
 # Generate HTTPS developer certificate
 echo "Generating HTTPS developer certificate..."
 dotnet dev-certs https --clean

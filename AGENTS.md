@@ -67,7 +67,7 @@ tests/
 | CI | GitHub Actions |
 | Hosting | Self-hosted Docker (hvo-docker for website + registry + SQL Server; devpi5 for gateways) |
 | Registry | Self-hosted Docker Registry (registry:2 on hvo-docker, exposed as registry.hualapaivalleyobservatory.org) |
-| Secrets | Azure Key Vault (obs-infra-kv) — only Azure resource besides the Tailscale proxy VM |
+| Secrets | Azure Key Vault (`hvo-central-kv`) — primary source of truth |
 
 ---
 
@@ -471,7 +471,7 @@ Check for:
 
 - `deploy/pi-gateways/<gateway>/docker-compose.yml` updated if the container's environment variables, ports, or volume mounts changed
 - `deploy/pi-gateways/<gateway>/.env.example` updated if new required variables were added
-- Root `.env` and gist synced (`./scripts/sync-env-gist.sh`) when any gateway IP or credential changed
+- Pull credentials from `hvo-central-kv` with `./scripts/sync-secrets-from-keyvault.sh --apply`; the private gist is only a devcontainer bootstrap cache
 - Deployment tested: `./scripts/deploy-pi-gateway.sh --context devpi5 <gateway>` followed by `./scripts/check-deployments.sh`
 
 ---
