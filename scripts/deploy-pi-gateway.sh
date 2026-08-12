@@ -53,7 +53,11 @@ sync_remote_mounts() {
 	[[ "${remote_secrets}" = /* ]] || fail "${gateway} remote secrets path must be absolute."
 	remote_root="$(dirname "${remote_config}")"
 	[[ "${remote_secrets}" == "${remote_root}/secrets" ]] || fail "${gateway} remote secrets directory must be ${remote_root}/secrets."
-	ssh_target="$(docker_context_ssh_target "${docker_context}")"
+	if [[ "${dry_run}" == true ]]; then
+		ssh_target="docker-context-${docker_context}"
+	else
+		ssh_target="$(docker_context_ssh_target "${docker_context}")"
+	fi
 
 	run_cmd ssh "${ssh_target}" mkdir -p "${remote_root}" "${remote_secrets}"
 	run_cmd scp "${local_config}" "${ssh_target}:${remote_config}"
