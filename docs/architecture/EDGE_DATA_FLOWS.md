@@ -102,7 +102,7 @@ flowchart LR
     HA -. excluded from HA exporter .-> X[No second writer]
 ```
 
-**Migration status:** target headless port is issue #324. Direct EG4 observations do not automatically replace JK BMS or SmartShunt authority for measurements taken at different physical points.
+**Migration status:** issue #354 cut production over to the headless collector while preserving the existing named outbox and direct-device authority. Home Assistant receives signed battery current/power, aggregate and per-tracker PV measurements, inverter AC/load/operating status, controller temperatures, and read-only diagnostics through MQTT Discovery. Direct EG4 observations do not replace JK BMS or SmartShunt authority for measurements taken at different physical points.
 
 ## Victron SmartShunt
 
