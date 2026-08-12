@@ -1,10 +1,14 @@
+using System.Text.Json;
 using FluentAssertions;
+using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
+using HVO.Edge.HomeAssistant.Mqtt;
+using HVO.Edge.Hosting;
 using HVO.Edge.Hosting.Telemetry;
 using HVO.Hardware.Eg4.Configuration;
-using HVO.Hardware.Eg4.Dashboard;
+using HVO.Hardware.Eg4.Diagnostics;
+using HVO.Hardware.Eg4.HomeAssistant;
 using HVO.Hardware.Eg4.Outbox;
-using HVO.Hardware.Eg4.Protocol;
 using HVO.Hardware.Eg4.Telemetry;
 using HVO.Hardware.Eg4.Workers;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,115 +21,82 @@ namespace HVO.Hardware.Eg4.Tests.Workers;
 public sealed class Eg4FleetWorkerTests
 {
     [TestMethod]
-    public async Task PollOnce_PublishesAndEnqueuesBatteryOnlyPayload()
+    public async Task PollOnce_PublishesCanonicalCurrentStateAndOneDurableBundle()
     {
         var device = Device();
-        var source = new FakeSource(Observation(device, -20));
+        var observation = Observation(device, -20);
+        var detail = new PowerInverterDetailPayload
+        {
+            SourceId = device.SourceId,
+            DeviceId = device.DeviceId,
+            SourceSystem = "eg4-6500ex",
+            RecordedAtUtc = observation.ObservedAtUtc,
+            Load = new PowerInverterLoadDetail { LoadPowerW = 900 }
+        };
         var writer = new FakeWriter();
-        using var telemetry = new GatewayTelemetry(new("eg4-test", "battery-gateway"));
+        var mqtt = new FakeMqttProjection();
+        var options = Options.Create(new Eg4Options { Devices = [device] });
+        var runtime = new Eg4RuntimeState(options);
+        using var telemetry = new GatewayTelemetry(new("eg4-test", "eg4-direct"));
         using var services = Services(writer);
-        var dashboard = Dashboard(device);
         var worker = new Eg4FleetWorker(
-            source,
+            new FakeSource(Eg4TelemetrySample.Available(observation, inverterDetail: detail)),
             services.GetRequiredService<IServiceScopeFactory>(),
-            Options.Create(new Eg4Options { Devices = [device] }),
-            dashboard,
+            options,
+            runtime,
+            new Eg4HomeAssistantProjection(mqtt, Identity(), options),
             telemetry,
             TimeProvider.System,
             NullLogger<Eg4FleetWorker>.Instance);
 
         (await worker.PollOnceAsync(device, CancellationToken.None)).Should().BeTrue();
 
-        writer.Payloads.Should().ContainSingle();
-        writer.Payloads[0].SourceSystem.Should().Be("eg4-6500ex");
-        writer.Payloads[0].BatteryCurrentA.Should().Be(-20);
-        writer.Payloads[0].PvPowerW.Should().BeNull();
-        dashboard.GetSnapshot().Devices.Should().ContainSingle().Which.State.Should().Be(Eg4DashboardDeviceState.Online);
+        writer.Bundles.Should().ContainSingle();
+        writer.Bundles[0].Reading.BatteryCurrentA.Should().Be(-20);
+        writer.Bundles[0].Reading.BatteryPowerW.Should().Be(-1080);
+        writer.Bundles[0].InverterDetail.Should().BeSameAs(detail);
+        mqtt.Definitions.Should().ContainSingle();
+        mqtt.States.Should().ContainSingle();
+        mqtt.States[0].Available.Should().BeTrue();
+        mqtt.States[0].ComponentValues["battery_net_current"].GetDouble().Should().Be(-20);
+        runtime.Snapshot().Single().FailureCategory.Should().BeNull();
     }
 
     [TestMethod]
-    public async Task PollOnce_IsolatesDeviceFailureAndDoesNotMisreportOutboxFailureAsHardwareFailure()
+    public async Task PollOnce_UnavailableMarksOnlyCurrentStateAndEnqueuesNothing()
     {
         var device = Device();
-        var failingSource = new FakeSource(new Eg4TransportException(Eg4TransportFailureKind.Disconnected, "raw /dev/hidraw0 detail"));
-        using var telemetry = new GatewayTelemetry(new("eg4-test", "battery-gateway"));
-        using var services = Services(new FakeWriter());
-        var failedDashboard = Dashboard(device);
-        var failedWorker = new Eg4FleetWorker(
-            failingSource, services.GetRequiredService<IServiceScopeFactory>(),
-            Options.Create(new Eg4Options { Devices = [device] }), failedDashboard,
-            telemetry, TimeProvider.System, NullLogger<Eg4FleetWorker>.Instance);
-
-        (await failedWorker.PollOnceAsync(device, CancellationToken.None)).Should().BeFalse();
-        var failed = failedDashboard.GetSnapshot().Devices.Single();
-        failed.State.Should().Be(Eg4DashboardDeviceState.Offline);
-        failed.LastError.Should().Be("Transport Disconnected").And.NotContain("/dev/");
-
-        var recoveringWriter = new FakeWriter(failuresBeforeSuccess: 1);
-        using var enqueueServices = Services(recoveringWriter);
-        var onlineDashboard = Dashboard(device);
-        var onlineWorker = new Eg4FleetWorker(
-            new FakeSource(Observation(device, 10)), enqueueServices.GetRequiredService<IServiceScopeFactory>(),
-            Options.Create(new Eg4Options { Devices = [device] }), onlineDashboard,
-            telemetry, TimeProvider.System, NullLogger<Eg4FleetWorker>.Instance);
-        (await onlineWorker.PollOnceAsync(device, CancellationToken.None)).Should().BeTrue();
-        recoveringWriter.Attempts.Should().Be(2);
-        onlineDashboard.GetSnapshot().Devices.Single().State.Should().Be(Eg4DashboardDeviceState.Online);
-    }
-
-    [TestMethod]
-    public async Task PollOnce_EnqueuesOptionalDetailsButUnavailableSampleEnqueuesNothing()
-    {
-        var device = Device();
-        var observation = Observation(device, -10);
-        var richSample = Eg4TelemetrySample.Available(
-            observation,
-            new PowerMpptDetailPayload
-            {
-                SourceId = device.SourceId, DeviceId = device.DeviceId, SourceSystem = "eg4-6500ex", RecordedAtUtc = observation.ObservedAtUtc,
-            },
-            new PowerInverterDetailPayload
-            {
-                SourceId = device.SourceId, DeviceId = device.DeviceId, SourceSystem = "eg4-6500ex", RecordedAtUtc = observation.ObservedAtUtc,
-            });
         var writer = new FakeWriter();
-        using var telemetry = new GatewayTelemetry(new("eg4-test", "battery-gateway"));
+        var mqtt = new FakeMqttProjection();
+        var options = Options.Create(new Eg4Options { Devices = [device] });
+        var runtime = new Eg4RuntimeState(options);
+        using var telemetry = new GatewayTelemetry(new("eg4-test", "eg4-direct"));
         using var services = Services(writer);
-        var dashboard = Dashboard(device);
-        var richWorker = new Eg4FleetWorker(
-            new FakeSource(richSample), services.GetRequiredService<IServiceScopeFactory>(),
-            Options.Create(new Eg4Options { Devices = [device] }), dashboard, telemetry,
-            TimeProvider.System, NullLogger<Eg4FleetWorker>.Instance);
+        var worker = new Eg4FleetWorker(
+            new FakeSource(Eg4TelemetrySample.Unavailable("nighttime silence")),
+            services.GetRequiredService<IServiceScopeFactory>(),
+            options,
+            runtime,
+            new Eg4HomeAssistantProjection(mqtt, Identity(), options),
+            telemetry,
+            TimeProvider.System,
+            NullLogger<Eg4FleetWorker>.Instance);
 
-        (await richWorker.PollOnceAsync(device, CancellationToken.None)).Should().BeTrue();
-        writer.Payloads.Should().ContainSingle();
-        writer.MpptDetails.Should().ContainSingle();
-        writer.InverterDetails.Should().ContainSingle();
+        (await worker.PollOnceAsync(device, CancellationToken.None)).Should().BeFalse();
 
-        var unavailableWriter = new FakeWriter();
-        using var unavailableServices = Services(unavailableWriter);
-        var unavailableWorker = new Eg4FleetWorker(
-            new FakeSource(Eg4TelemetrySample.Unavailable("timeout")),
-            unavailableServices.GetRequiredService<IServiceScopeFactory>(),
-            Options.Create(new Eg4Options { Devices = [device] }), Dashboard(device), telemetry,
-            TimeProvider.System, NullLogger<Eg4FleetWorker>.Instance);
-        (await unavailableWorker.PollOnceAsync(device, CancellationToken.None)).Should().BeFalse();
-        unavailableWriter.Payloads.Should().BeEmpty();
-        unavailableWriter.MpptDetails.Should().BeEmpty();
-        unavailableWriter.InverterDetails.Should().BeEmpty();
+        writer.Bundles.Should().BeEmpty();
+        mqtt.States.Should().ContainSingle().Which.Available.Should().BeFalse();
+        mqtt.States[0].ComponentValues.Should().BeEmpty();
+        runtime.Snapshot().Single().FailureCategory.Should().Be("unavailable");
     }
 
-    private static ServiceProvider Services(FakeWriter writer)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<IEg4PowerOutboxWriter>(writer);
-        return services.BuildServiceProvider();
-    }
+    private static ServiceProvider Services(FakeWriter writer) => new ServiceCollection()
+        .AddSingleton<IEg4PowerOutboxWriter>(writer)
+        .BuildServiceProvider();
 
-    private static Eg4GatewayDashboardState Dashboard(Eg4DeviceOptions device) => new(
-        Options.Create(new Eg4Options { Devices = [device] }),
-        TimeProvider.System,
-        new UnavailableEg4OutboxDashboardProvider());
+    private static EdgeRuntimeIdentity Identity() => new(
+        "hvo-eg4", "1", "test", "eg4", "eg4-direct", GatewayDomain.Power,
+        "eg4-fleet", "hvo", null, "Testing", "test", "EG4");
 
     private static Eg4DeviceOptions Device() => new()
     {
@@ -134,7 +105,7 @@ public sealed class Eg4FleetWorkerTests
         DeviceId = "a",
         Alias = "Inverter A",
         Port = "/dev/hvo/eg4-a",
-        UnitId = 0,
+        UnitId = 0
     };
 
     private static PowerBatteryObservation Observation(Eg4DeviceOptions device, double current) => new(
@@ -150,47 +121,30 @@ public sealed class Eg4FleetWorkerTests
         80,
         PowerObservationProvenance.Derived);
 
-    private sealed class FakeSource : IEg4TelemetrySource
+    private sealed class FakeSource(Eg4TelemetrySample sample) : IEg4TelemetrySource
     {
-        private readonly PowerBatteryObservation? _observation;
-        private readonly Eg4TelemetrySample? _sample;
-        private readonly Exception? _error;
-        public FakeSource(PowerBatteryObservation observation) => _observation = observation;
-        public FakeSource(Eg4TelemetrySample sample) => _sample = sample;
-        public FakeSource(Exception error) => _error = error;
-        public bool Supports(Eg4DeviceType deviceType) => deviceType == Eg4DeviceType.Inverter6500Ex;
-        public ValueTask<Eg4TelemetrySample> ReadAsync(Eg4DeviceOptions device, CancellationToken cancellationToken)
+        public bool Supports(Eg4DeviceType deviceType) => true;
+        public ValueTask<Eg4TelemetrySample> ReadAsync(Eg4DeviceOptions device, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(sample);
+    }
+
+    private sealed class FakeWriter : IEg4PowerOutboxWriter
+    {
+        public List<Eg4ObservationBundle> Bundles { get; } = [];
+        public Task<bool> EnqueueAsync(Eg4ObservationBundle bundle, CancellationToken cancellationToken)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (_error is not null) throw _error;
-            return ValueTask.FromResult(_sample ?? Eg4TelemetrySample.Available(_observation!));
+            Bundles.Add(bundle);
+            return Task.FromResult(true);
         }
     }
 
-    private sealed class FakeWriter(Exception? error = null, int failuresBeforeSuccess = 0) : IEg4PowerOutboxWriter
+    private sealed class FakeMqttProjection : IHomeAssistantMqttProjection
     {
-        private int _remainingFailures = failuresBeforeSuccess;
-        public List<PowerReadingPayload> Payloads { get; } = [];
-        public List<PowerMpptDetailPayload> MpptDetails { get; } = [];
-        public List<PowerInverterDetailPayload> InverterDetails { get; } = [];
-        public int Attempts { get; private set; }
-        public Task<bool> EnqueueAsync(PowerReadingPayload payload, CancellationToken cancellationToken)
-        {
-            Attempts++;
-            if (error is not null) throw error;
-            if (_remainingFailures-- > 0) throw new IOException("transient disk failure");
-            Payloads.Add(payload);
-            return Task.FromResult(true);
-        }
-        public Task<bool> EnqueueMpptDetailAsync(PowerMpptDetailPayload payload, CancellationToken cancellationToken)
-        {
-            MpptDetails.Add(payload);
-            return Task.FromResult(true);
-        }
-        public Task<bool> EnqueueInverterDetailAsync(PowerInverterDetailPayload payload, CancellationToken cancellationToken)
-        {
-            InverterDetails.Add(payload);
-            return Task.FromResult(true);
-        }
+        public List<HomeAssistantDeviceDefinition> Definitions { get; } = [];
+        public List<HomeAssistantCurrentState> States { get; } = [];
+        public void UpsertDevice(HomeAssistantDeviceDefinition definition) => Definitions.Add(definition);
+        public bool PublishCurrentState(HomeAssistantCurrentState state) { States.Add(state); return true; }
+        public bool RemoveDevice(HomeAssistantDeviceKey key) => false;
+        public HomeAssistantMqttStatus GetStatus() => new(false, false, Definitions.Count, null, null, null);
     }
 }

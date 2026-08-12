@@ -2,16 +2,20 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
 WORKDIR /src
 COPY ["Directory.Build.props", "."]
 COPY ["Directory.Packages.props", "."]
 COPY ["NuGet.config", "."]
-COPY ["src/HVO.WebSite.Themes/packages.lock.json", "src/HVO.WebSite.Themes/"]
+COPY ["src/HVO.Edge.Contracts/packages.lock.json", "src/HVO.Edge.Contracts/"]
 COPY ["src/HVO.Edge.Hosting/packages.lock.json", "src/HVO.Edge.Hosting/"]
+COPY ["src/HVO.Edge.HomeAssistant.Mqtt/packages.lock.json", "src/HVO.Edge.HomeAssistant.Mqtt/"]
+COPY ["src/HVO.Edge.Outbox/packages.lock.json", "src/HVO.Edge.Outbox/"]
 COPY ["src/HVO.Hardware.JkBms/packages.lock.json", "src/HVO.Hardware.JkBms/"]
-COPY ["src/HVO.WebSite.Themes/HVO.WebSite.Themes.csproj", "src/HVO.WebSite.Themes/"]
+COPY ["src/HVO.Edge.Contracts/HVO.Edge.Contracts.csproj", "src/HVO.Edge.Contracts/"]
 COPY ["src/HVO.Edge.Hosting/HVO.Edge.Hosting.csproj", "src/HVO.Edge.Hosting/"]
+COPY ["src/HVO.Edge.HomeAssistant.Mqtt/HVO.Edge.HomeAssistant.Mqtt.csproj", "src/HVO.Edge.HomeAssistant.Mqtt/"]
+COPY ["src/HVO.Edge.Outbox/HVO.Edge.Outbox.csproj", "src/HVO.Edge.Outbox/"]
 COPY ["src/HVO.Hardware.JkBms/HVO.Hardware.JkBms.csproj", "src/HVO.Hardware.JkBms/"]
 COPY . .
 RUN dotnet restore "src/HVO.Hardware.JkBms/HVO.Hardware.JkBms.csproj" --locked-mode
@@ -27,7 +31,7 @@ WORKDIR /app
 COPY --from=publish /app/publish .
 VOLUME /app/data
 ENV ASPNETCORE_URLS=http://+:8080 \
-    OUTBOX__DBPATH=/app/data/outbox.db
+    OUTBOX__DATABASEPATH=/app/data/outbox.db
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl --fail http://localhost:8080/health || exit 1
+    CMD curl --fail http://localhost:8080/health/live || exit 1
 ENTRYPOINT ["dotnet", "HVO.Hardware.JkBms.dll"]

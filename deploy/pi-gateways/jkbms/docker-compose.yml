@@ -1,3 +1,5 @@
+name: jkbms
+
 x-hvo-local-logging: &hvo-local-logging
   driver: local
   options:
@@ -7,11 +9,6 @@ x-hvo-local-logging: &hvo-local-logging
     mode: non-blocking
     max-buffer-size: "4m"
 
-x-hvo-no-core: &hvo-no-core
-  core:
-    soft: 0
-    hard: 0
-
 services:
   hvo-jkbms:
     build:
@@ -19,76 +16,29 @@ services:
       dockerfile: src/HVO.Hardware.JkBms/Dockerfile
     privileged: true
     ports:
-      - "5200:8080"
+      - "${JKBMS_HTTP_PORT:-5200}:8080"
     environment:
-      JkBms__HciAdapter: ${JKBMS_HCI_ADAPTER:-hci0}
-      JkBms__ConnectTimeoutSeconds: ${JKBMS_CONNECT_TIMEOUT_SECONDS:-20}
-      JkBms__ExchangeTimeoutSeconds: ${JKBMS_EXCHANGE_TIMEOUT_SECONDS:-10}
-      JkBms__DefaultPollIntervalSeconds: ${JKBMS_DEFAULT_POLL_INTERVAL_SECONDS:-30}
-      JkBms__DisplayTimeZoneId: ${JKBMS_DISPLAY_TIME_ZONE_ID:-America/Phoenix}
-      JkBms__Devices__0__Address: ${JKBMS_DEVICE_0_ADDRESS:-}
-      JkBms__Devices__0__Alias: ${JKBMS_DEVICE_0_ALIAS:-}
-      JkBms__Devices__0__HciAdapter: ${JKBMS_DEVICE_0_ADAPTER:-}
-      JkBms__Devices__0__Enabled: ${JKBMS_DEVICE_0_ENABLED:-true}
-      JkBms__Devices__1__Address: ${JKBMS_DEVICE_1_ADDRESS:-}
-      JkBms__Devices__1__Alias: ${JKBMS_DEVICE_1_ALIAS:-}
-      JkBms__Devices__1__HciAdapter: ${JKBMS_DEVICE_1_ADAPTER:-}
-      JkBms__Devices__1__Enabled: ${JKBMS_DEVICE_1_ENABLED:-true}
-      JkBms__Devices__2__Address: ${JKBMS_DEVICE_2_ADDRESS:-}
-      JkBms__Devices__2__Alias: ${JKBMS_DEVICE_2_ALIAS:-}
-      JkBms__Devices__2__HciAdapter: ${JKBMS_DEVICE_2_ADAPTER:-}
-      JkBms__Devices__2__Enabled: ${JKBMS_DEVICE_2_ENABLED:-true}
-      JkBms__Devices__3__Address: ${JKBMS_DEVICE_3_ADDRESS:-}
-      JkBms__Devices__3__Alias: ${JKBMS_DEVICE_3_ALIAS:-}
-      JkBms__Devices__3__HciAdapter: ${JKBMS_DEVICE_3_ADAPTER:-}
-      JkBms__Devices__3__Enabled: ${JKBMS_DEVICE_3_ENABLED:-true}
-      JkBms__Devices__4__Address: ${JKBMS_DEVICE_4_ADDRESS:-}
-      JkBms__Devices__4__Alias: ${JKBMS_DEVICE_4_ALIAS:-}
-      JkBms__Devices__4__HciAdapter: ${JKBMS_DEVICE_4_ADAPTER:-}
-      JkBms__Devices__4__Enabled: ${JKBMS_DEVICE_4_ENABLED:-true}
-      JkBms__Devices__5__Address: ${JKBMS_DEVICE_5_ADDRESS:-}
-      JkBms__Devices__5__Alias: ${JKBMS_DEVICE_5_ALIAS:-}
-      JkBms__Devices__5__HciAdapter: ${JKBMS_DEVICE_5_ADAPTER:-}
-      JkBms__Devices__5__Enabled: ${JKBMS_DEVICE_5_ENABLED:-true}
-      JkBms__Devices__6__Address: ${JKBMS_DEVICE_6_ADDRESS:-}
-      JkBms__Devices__6__Alias: ${JKBMS_DEVICE_6_ALIAS:-}
-      JkBms__Devices__6__HciAdapter: ${JKBMS_DEVICE_6_ADAPTER:-}
-      JkBms__Devices__6__Enabled: ${JKBMS_DEVICE_6_ENABLED:-true}
-      JkBms__Devices__7__Address: ${JKBMS_DEVICE_7_ADDRESS:-}
-      JkBms__Devices__7__Alias: ${JKBMS_DEVICE_7_ALIAS:-}
-      JkBms__Devices__7__HciAdapter: ${JKBMS_DEVICE_7_ADAPTER:-}
-      JkBms__Devices__7__Enabled: ${JKBMS_DEVICE_7_ENABLED:-true}
-      JkBms__Devices__8__Address: ${JKBMS_DEVICE_8_ADDRESS:-}
-      JkBms__Devices__8__Alias: ${JKBMS_DEVICE_8_ALIAS:-}
-      JkBms__Devices__8__HciAdapter: ${JKBMS_DEVICE_8_ADAPTER:-}
-      JkBms__Devices__8__Enabled: ${JKBMS_DEVICE_8_ENABLED:-true}
-      JkBms__Devices__9__Address: ${JKBMS_DEVICE_9_ADDRESS:-}
-      JkBms__Devices__9__Alias: ${JKBMS_DEVICE_9_ALIAS:-}
-      JkBms__Devices__9__HciAdapter: ${JKBMS_DEVICE_9_ADAPTER:-}
-      JkBms__Devices__9__Enabled: ${JKBMS_DEVICE_9_ENABLED:-true}
-      JkBms__Devices__10__Address: ${JKBMS_DEVICE_10_ADDRESS:-}
-      JkBms__Devices__10__Alias: ${JKBMS_DEVICE_10_ALIAS:-}
-      JkBms__Devices__10__HciAdapter: ${JKBMS_DEVICE_10_ADAPTER:-}
-      JkBms__Devices__10__Enabled: ${JKBMS_DEVICE_10_ENABLED:-true}
-      JkBms__Devices__11__Address: ${JKBMS_DEVICE_11_ADDRESS:-}
-      JkBms__Devices__11__Alias: ${JKBMS_DEVICE_11_ALIAS:-}
-      JkBms__Devices__11__HciAdapter: ${JKBMS_DEVICE_11_ADAPTER:-}
-      JkBms__Devices__11__Enabled: ${JKBMS_DEVICE_11_ENABLED:-true}
-      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL}/api/v1/bms/readings"
-      Outbox__ApiKey: ${BMS_API_KEY}
-      Outbox__DbPath: /app/data/outbox.db
       DOTNET_ENVIRONMENT: Production
       OTEL_SERVICE_NAME: hvo-jkbms
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      - "${JKBMS_REMOTE_CONFIG_FILE:?JKBMS_REMOTE_CONFIG_FILE is required}:/app/config/gateway.json:ro"
+      - "${JKBMS_REMOTE_SECRETS_DIRECTORY:?JKBMS_REMOTE_SECRETS_DIRECTORY is required}:/run/secrets:ro"
       - jkbms-outbox:/app/data
-      - jkbms-data-protection:/root/.aspnet/DataProtection-Keys
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
     restart: unless-stopped
     logging: *hvo-local-logging
-    ulimits: *hvo-no-core
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
 
 volumes:
   jkbms-outbox:
-  jkbms-data-protection:

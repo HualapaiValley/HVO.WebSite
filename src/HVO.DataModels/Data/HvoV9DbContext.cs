@@ -16,6 +16,8 @@ public class HvoV9DbContext : DbContext
 
     public DbSet<WeatherHourly> WeatherHourly { get; set; }
 
+    public DbSet<WeatherArchive> WeatherArchive { get; set; }
+
     public DbSet<ImageMetadata> ImageMetadata { get; set; }
 
     public DbSet<AlertLog> AlertLog { get; set; }
@@ -64,6 +66,8 @@ public class HvoV9DbContext : DbContext
 
     public DbSet<PowerMpptDetailSnapshot> PowerMpptDetailSnapshots { get; set; }
 
+    public DbSet<SmartShuntDetailSnapshot> SmartShuntDetailSnapshots { get; set; }
+
     public DbSet<GatewayStatusSnapshot> GatewayStatusSnapshots { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -91,6 +95,21 @@ public class HvoV9DbContext : DbContext
             entity.HasIndex(e => e.PeriodStart).IsUnique();
             entity.HasIndex(e => new { e.StationId, e.PeriodStart });
             entity.Property(e => e.PeriodStart).HasColumnType("datetime2");
+        });
+
+        modelBuilder.Entity<WeatherArchive>(entity =>
+        {
+            entity.HasIndex(e => e.RecordedAtUtc);
+            entity.HasIndex(e => new { e.StationId, e.RecordedAtUtc }).IsUnique();
+            entity.Property(e => e.RecordedAtUtc).HasColumnType("datetime2");
+            entity.Property(e => e.ConsoleRecordedAtLocal).HasColumnType("datetime2");
+            entity.Property(e => e.CreatedAtUtc).HasColumnType("datetime2");
+            entity.Property(e => e.StationId).IsRequired();
+            entity.Property(e => e.LeafWetnessJson).IsRequired();
+            entity.Property(e => e.SoilTemperaturesJson).IsRequired();
+            entity.Property(e => e.ExtraHumiditiesJson).IsRequired();
+            entity.Property(e => e.ExtraTemperaturesJson).IsRequired();
+            entity.Property(e => e.SoilMoisturesJson).IsRequired();
         });
 
         modelBuilder.Entity<ImageMetadata>(entity =>
@@ -310,6 +329,16 @@ public class HvoV9DbContext : DbContext
             entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
             entity.Property(e => e.SourceId).IsRequired();
             entity.Property(e => e.PayloadJson).IsRequired();
+        });
+
+        modelBuilder.Entity<SmartShuntDetailSnapshot>(entity =>
+        {
+            entity.ToTable("SmartShuntDetailSnapshot");
+            entity.HasIndex(e => e.RecordedAt);
+            entity.HasIndex(e => new { e.SourceId, e.RecordedAt }).IsUnique();
+            entity.Property(e => e.RecordedAt).HasColumnType("datetime2");
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
+            entity.Property(e => e.SourceId).IsRequired();
         });
 
         modelBuilder.Entity<GatewayStatusSnapshot>(entity =>

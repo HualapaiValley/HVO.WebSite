@@ -1,476 +1,326 @@
-using System.Diagnostics;
-using System.Text.Json;
-using HVO.Enterprise.Telemetry.Abstractions;
+using HVO.Edge.Contracts.Weather;
 using HVO.Hardware.DavisVantagePro2.Configuration;
+using HVO.Hardware.DavisVantagePro2.HomeAssistant;
 using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Protocol;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using HVO.Hardware.DavisVantagePro2.Station;
-using HVO.Hardware.DavisVantagePro2.Telemetry;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.DavisVantagePro2.Workers;
 
-/// <summary>
-/// Background service that continuously streams LOOP2 packets from the Davis console
-/// and writes each reading to the SQLite outbox.
-///
-/// Uses the LPS 2 command to stream packets at the console's native ~2-second cadence,
-/// keeping the TCP connection live. LOOP1-only fields (battery, forecast, sunrise/sunset)
-/// are refreshed once per batch via a single LPS 1 1 request before each stream batch.
-///
-/// On startup, optionally runs DMPAFT to catch up archive records missed while offline.
-/// </summary>
 public sealed class WeatherStationWorker(
-    VantageStation station,
+    IDavisStation station,
     IServiceScopeFactory scopeFactory,
+    IDavisArchiveCursorStore cursorStore,
+    IStationSettingsSnapshotStore settingsStore,
+    IStationInfoSnapshotStore infoStore,
+    IDavisHomeAssistantProjection homeAssistant,
+    DavisRuntimeState state,
     IOptions<StationOptions> options,
-    DavisTelemetry telemetry,
-    ITelemetryService telemetryService,
+    TimeProvider timeProvider,
     ILogger<WeatherStationWorker> logger) : BackgroundService
 {
-    private readonly StationOptions _options = options.Value;
-    private readonly SemaphoreSlim _archiveCatchupGate = new(1, 1);
+    private const int LoopBatchSize = 30;
+    private readonly StationOptions configuration = options.Value;
+    private readonly SemaphoreSlim archiveGate = new(1, 1);
+    private DateTime nextArchiveTopOffAtUtc = DateTime.MinValue;
+    private Loop2Packet? loop1Cache;
 
-    // Expose the latest reading and fire an event so subscribers update immediately
-    public Loop2Packet? LatestReading { get; private set; }
-    public DateTime? LastReadingAt { get; private set; }
-    public int ConsecutiveErrors { get; private set; }
-    public string? LastError { get; private set; }
-    public ArchiveCatchupMode ArchiveCatchupMode => _options.ArchiveCatchupMode;
-    public int ArchiveCatchupLookbackHours => _options.ArchiveCatchupLookbackHours;
-
-    /// <summary>
-    /// Raised on the worker thread each time a new reading is available.
-    /// Subscribers (e.g. Blazor status page) should marshal to the UI thread via InvokeAsync.
-    /// </summary>
-    public event Action<Loop2Packet>? ReadingUpdated;
-
-    /// <summary>
-    /// Raised when the worker's health state changes: connected, disconnected, or error count updated.
-    /// Lets the status page refresh the health section even when readings have stopped flowing.
-    /// </summary>
-    public event Action? WorkerStateChanged;
+    public Loop2Packet? LatestReading => state.LatestReading;
+    public DateTime? LastReadingAt => state.LastReadingAtUtc;
+    public int ConsecutiveErrors => state.ConsecutiveErrors;
+    public string? LastError => state.LastError;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("WeatherStationWorker starting. Connecting to {Host}:{Port}",
-            _options.Host, _options.Port);
-
-        int reconnectAttempts = 0;
-
+        var reconnectAttempts = 0;
         while (!stoppingToken.IsCancellationRequested)
         {
-            var reconnect = reconnectAttempts > 0;
-            var connectStarted = Stopwatch.GetTimestamp();
             try
             {
-                try
-                {
-                    await station.ConnectAsync(stoppingToken);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                    telemetry.RecordConnect(
-                        Stopwatch.GetElapsedTime(connectStarted).TotalSeconds,
-                        succeeded: false,
-                        reconnect: reconnect,
-                        failureKind: "station_error");
-                    throw;
-                }
-
-                telemetry.RecordConnect(
-                    Stopwatch.GetElapsedTime(connectStarted).TotalSeconds,
-                    succeeded: true,
-                    reconnect: reconnect);
-                reconnectAttempts = 0; // Successful connect — reset backoff
-                ConsecutiveErrors = 0;
-                LastError = null;
-                logger.LogInformation("Connected to Davis console at {Host}:{Port}",
-                    _options.Host, _options.Port);
-                WorkerStateChanged?.Invoke();
-
-                await RunStartupArchiveCatchupIfNeededAsync(stoppingToken);
-
+                await station.ConnectAsync(stoppingToken);
+                reconnectAttempts = 0;
+                state.Connected();
+                await RefreshPersistedStationMetadataAsync(stoppingToken);
+                await TryRunArchiveTopOffAsync(stoppingToken);
                 await PollLoopAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
+                state.Failed(exception.Message);
+                homeAssistant.PublishUnavailable(timeProvider.GetUtcNow());
                 reconnectAttempts++;
-                LastError = ex.Message;
-                WorkerStateChanged?.Invoke();
-                // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (capped)
-                var delaySeconds = (int)Math.Min(30, Math.Pow(2, reconnectAttempts - 1));
-                logger.LogError(ex, "Station error (reconnect attempt: {N}). Retrying in {Delay}s…",
-                    reconnectAttempts, delaySeconds);
-                try { await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken); }
-                catch (OperationCanceledException) { break; }
-            }
-        }
-
-        logger.LogInformation("WeatherStationWorker stopped");
-    }
-
-    private async Task PollLoopAsync(CancellationToken ct)
-    {
-        // Number of LOOP2 packets per LPS 2 command (~60 s at the console's native 2 s/packet
-        // cadence). After each batch the console returns to command mode; LOOP1 is refreshed
-        // and the next LPS command is issued immediately to keep the TCP connection live.
-        const int BatchSize = 30;
-
-        Loop2Packet? loop1Cache = null;
-
-        while (!ct.IsCancellationRequested)
-        {
-            var batchStarted = Stopwatch.GetTimestamp();
-            // Each batch is a separate trace span so App Insights shows one span per ~60 s window.
-            using var batchScope = telemetryService.StartOperation("WeatherStation.PollBatch");
-            batchScope.WithTag("batch_size", BatchSize);
-            int packetCount = 0;
-
-            // Refresh LOOP1-only fields (battery, forecast, sunrise/sunset, monthly totals)
-            // once per batch. Keeps the LOOP2 stream alive while limiting LOOP1 overhead.
-            try
-            {
-                loop1Cache = await station.GetLoop1Async(ct);
-                ConsecutiveErrors = 0;
-            }
-            catch (OperationCanceledException ex) when (ct.IsCancellationRequested)
-            {
-                batchScope.Fail(ex);
-                throw;
-            }
-            catch (Exception ex)
-            {
-                ConsecutiveErrors++;
-                LastError = ex.Message;
-                WorkerStateChanged?.Invoke();
-                logger.LogWarning(ex, "LOOP1 refresh failed ({N} consecutive)", ConsecutiveErrors);
-                if (loop1Cache is null || ConsecutiveErrors >= _options.MaxConsecutiveErrors)
+                var delay = TimeSpan.FromSeconds(Math.Min(30, Math.Pow(2, reconnectAttempts - 1)));
+                logger.LogWarning(exception, "Davis station connection failed; retrying in {Delay}", delay);
+                try
                 {
-                    batchScope.RecordException(ex);
-                    batchScope.Fail(ex);
-                    throw; // No cached data or too many failures — trigger reconnect
+                    await station.DisconnectAsync();
+                    await Task.Delay(delay, timeProvider, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
                 }
             }
-
-            // Stream LOOP2 packets. The console sends one every ~2 s; no sleep needed.
-            try
-            {
-                await foreach (var loop2 in station.StreamLoop2Async(BatchSize, ct))
-                {
-                    Loop2Packet reading = VantageStation.MergePackets(loop1Cache!, loop2);
-                    LatestReading = reading;
-                    LastReadingAt = DateTime.UtcNow;
-                    ConsecutiveErrors = 0;
-                    ReadingUpdated?.Invoke(reading);
-                    telemetry.RecordLegacyPacket();
-                    packetCount++;
-
-                    await WriteToOutboxAsync(reading, ct);
-                    logger.LogDebug("LOOP2: {T:F1}°F, {H:F0}%RH, {P:F3} inHg",
-                        reading.OutsideTemperatureF, reading.OutsideHumidityPercent, reading.BarometricPressureInHg);
-                }
-                telemetry.RecordPoll(true, Stopwatch.GetElapsedTime(batchStarted).TotalSeconds);
-                batchScope.WithTag("packets_received", packetCount).Succeed();
-            }
-            catch (OperationCanceledException ex) when (ct.IsCancellationRequested)
-            {
-                batchScope.Fail(ex);
-                throw;
-            }
-            catch (Exception ex)
-            {
-                ConsecutiveErrors++;
-                LastError = ex.Message;
-                WorkerStateChanged?.Invoke();
-                logger.LogWarning(ex, "LOOP2 stream failed ({N} consecutive)", ConsecutiveErrors);
-                telemetry.RecordPoll(false, Stopwatch.GetElapsedTime(batchStarted).TotalSeconds, "stream_error");
-                batchScope.RecordException(ex);
-                if (ConsecutiveErrors >= _options.MaxConsecutiveErrors)
-                {
-                    batchScope.Fail(ex);
-                    throw; // Trigger reconnect
-                }
-                batchScope.Fail(ex);
-            }
         }
     }
 
-    public async Task<ArchiveCatchupStatus> GetArchiveCatchupStatusAsync(CancellationToken ct = default)
+    private async Task RefreshPersistedStationMetadataAsync(CancellationToken cancellationToken)
     {
-        DateTime nowUtc = DateTime.UtcNow;
-        DateTime? latestPersistedAtUtc = await GetLatestPersistedArchiveRecordAtUtcAsync(ct);
-        DateTimeOffset? latestPersistedAtLocal = latestPersistedAtUtc.HasValue
-            ? new DateTimeOffset(latestPersistedAtUtc.Value, TimeSpan.Zero).ToOffset(station.ConsoleUtcOffset)
-            : null;
-        TimeSpan? lag = latestPersistedAtUtc.HasValue ? nowUtc - latestPersistedAtUtc.Value : null;
-        bool shouldRunOnStartup = ShouldRunArchiveCatchup(ArchiveCatchupMode, latestPersistedAtUtc, nowUtc);
-
-        return new ArchiveCatchupStatus(
-            ArchiveCatchupMode,
-            ArchiveCatchupLookbackHours,
-            latestPersistedAtUtc,
-            latestPersistedAtLocal,
-            lag,
-            shouldRunOnStartup);
-    }
-
-    public async Task<int> RunArchiveTopOffAsync(CancellationToken ct = default) =>
-        await CatchUpArchiveAsync(ArchiveCatchupMode.Force, ct);
-
-    private async Task RunStartupArchiveCatchupIfNeededAsync(CancellationToken ct)
-    {
-        if (ArchiveCatchupMode == ArchiveCatchupMode.Disabled)
-        {
-            logger.LogInformation("Startup archive catchup is disabled");
-            return;
-        }
-
-        DateTime nowUtc = DateTime.UtcNow;
-        DateTime? latestPersistedAtUtc = await GetLatestPersistedArchiveRecordAtUtcAsync(ct);
-
-        if (!ShouldRunArchiveCatchup(ArchiveCatchupMode, latestPersistedAtUtc, nowUtc))
-        {
-            logger.LogInformation(
-                "Skipping startup archive catchup. Latest persisted outbox record at {LatestPersistedAtUtc} is within the {LookbackHours} hour lookback window",
-                latestPersistedAtUtc,
-                ArchiveCatchupLookbackHours);
-            return;
-        }
-
-        await CatchUpArchiveAsync(ArchiveCatchupMode, ct, latestPersistedAtUtc, nowUtc);
-    }
-
-    private async Task<int> CatchUpArchiveAsync(
-        ArchiveCatchupMode mode,
-        CancellationToken ct,
-        DateTime? latestPersistedAtUtc = null,
-        DateTime? evaluationUtc = null)
-    {
-        await _archiveCatchupGate.WaitAsync(ct);
+        var settings = await station.GetStationSettingsAsync(cancellationToken);
+        station.ApplyStationSettings(settings);
+        await settingsStore.SaveAsync(settings, cancellationToken);
         try
         {
-            latestPersistedAtUtc ??= await GetLatestPersistedArchiveRecordAtUtcAsync(ct);
-            DateTime nowUtc = evaluationUtc ?? DateTime.UtcNow;
-            DateTime since = DetermineArchiveCatchupStartLocal(mode, latestPersistedAtUtc, nowUtc);
+            await infoStore.SaveAsync(await station.GetStationInfoAsync(cancellationToken), cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Davis station information refresh failed; collection will continue");
+        }
+    }
 
-            using var scope = telemetryService.StartOperation("WeatherStation.ArchiveCatchup");
-            logger.LogInformation(
-                "DMPAFT catchup starting in mode {Mode} since {Since}",
-                mode,
-                since == DateTime.MinValue ? "beginning" : since.ToString("g"));
-
-            int count = 0;
+    private async Task PollLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
             try
             {
-                await foreach (var rec in station.GetArchiveSinceAsync(since, fallbackOnEmpty: true, ct: ct))
-                {
-                    await WriteArchiveToOutboxAsync(rec, ct);
-                    count++;
-                }
+                await PollLoopBatchAsync(cancellationToken);
             }
-            catch (OperationCanceledException ex) { scope.Fail(ex); throw; }
-            catch (Exception ex) { scope.RecordException(ex); scope.Fail(ex); throw; }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                state.Failed(exception.Message);
+                if (loop1Cache is null || state.ConsecutiveErrors >= configuration.MaxConsecutiveErrors)
+                    throw;
+                logger.LogWarning(exception, "Davis LOOP stream failed ({ConsecutiveErrors} consecutive)", state.ConsecutiveErrors);
+            }
 
-            scope.WithTag("records_caught_up", count).Succeed();
-            logger.LogInformation("DMPAFT catchup complete: {Count} records", count);
+            await RunPeriodicArchiveTopOffIfDueAsync(cancellationToken);
+        }
+    }
+
+    internal async Task<Loop2Packet> PollLoopBatchAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            loop1Cache = await station.GetLoop1Async(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (loop1Cache is not null)
+        {
+            logger.LogWarning(exception, "Davis LOOP1 refresh failed; merging fresh LOOP2 packets with cached LOOP1 fields");
+        }
+
+        var loop1 = loop1Cache ?? throw new InvalidOperationException("Davis LOOP1 data is unavailable.");
+        await foreach (var loop2 in station.StreamLoop2Async(LoopBatchSize, cancellationToken))
+        {
+            var reading = VantageStation.MergePackets(loop1, loop2);
+            await EnqueueLiveAsync(reading, cancellationToken);
+            state.Observed(reading, timeProvider.GetUtcNow().UtcDateTime);
+            homeAssistant.Publish(reading);
+        }
+        return loop1;
+    }
+
+    internal async Task<bool> RunPeriodicArchiveTopOffIfDueAsync(CancellationToken cancellationToken)
+    {
+        if (configuration.ArchiveCatchupMode == ArchiveCatchupMode.Disabled
+            || timeProvider.GetUtcNow().UtcDateTime < nextArchiveTopOffAtUtc)
+            return false;
+
+        await TryRunArchiveTopOffAsync(cancellationToken);
+        return true;
+    }
+
+    private async Task TryRunArchiveTopOffAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RunArchiveTopOffAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            var attemptedAt = timeProvider.GetUtcNow().UtcDateTime;
+            state.ArchiveTopOffFailed(attemptedAt, exception.Message);
+            nextArchiveTopOffAtUtc = attemptedAt.AddSeconds(Math.Max(60, station.ArchiveIntervalSeconds));
+            logger.LogWarning(exception, "Davis archive top-off failed; live LOOP collection will continue");
+        }
+    }
+
+    public async Task<int> RunArchiveTopOffAsync(CancellationToken cancellationToken = default)
+    {
+        if (configuration.ArchiveCatchupMode == ArchiveCatchupMode.Disabled)
+            return 0;
+        await archiveGate.WaitAsync(cancellationToken);
+        try
+        {
+            var cursor = await cursorStore.GetAsync(configuration.StationId, cancellationToken);
+            DateTime sinceLocal;
+            if (cursor is null)
+            {
+                sinceLocal = DateTime.MinValue;
+                logger.LogInformation(
+                    "No Davis archive cursor exists for {StationId}; requesting the full available console archive",
+                    configuration.StationId);
+            }
+            else
+            {
+                var overlap = TimeSpan.FromSeconds(
+                    Math.Max(60, station.ArchiveIntervalSeconds) * configuration.ArchiveOverlapIntervals);
+                sinceLocal = cursor.ConsoleRecordedAtLocal - overlap;
+                logger.LogInformation(
+                    "Davis archive top-off from {SinceLocal} with {Overlap} overlap; cursor UTC is {CursorUtc}",
+                    sinceLocal, overlap, cursor.RecordedAtUtc);
+            }
+
+            var count = 0;
+            await foreach (var record in station.GetArchiveSinceAsync(
+                sinceLocal,
+                fallbackOnEmpty: true,
+                cancellationToken: cancellationToken))
+            {
+                var local = DateTime.SpecifyKind(record.DateTimeLocal, DateTimeKind.Unspecified);
+                var utc = new DateTimeOffset(local, station.ConsoleUtcOffset).UtcDateTime;
+                await using var scope = scopeFactory.CreateAsyncScope();
+                var writer = scope.ServiceProvider.GetRequiredService<IDavisOutboxWriter>();
+                await writer.EnqueueArchiveAsync(MapArchive(record, local, utc), cancellationToken);
+                await cursorStore.AdvanceAsync(configuration.StationId, local, utc, cancellationToken);
+                count++;
+            }
+            state.ArchiveTopOffCompleted(timeProvider.GetUtcNow().UtcDateTime, count);
+            nextArchiveTopOffAtUtc = timeProvider.GetUtcNow().UtcDateTime.AddSeconds(
+                Math.Max(60, station.ArchiveIntervalSeconds));
             return count;
         }
         finally
         {
-            _archiveCatchupGate.Release();
+            archiveGate.Release();
         }
     }
 
-    private async Task<DateTime?> GetLatestPersistedArchiveRecordAtUtcAsync(CancellationToken ct)
+    private async Task EnqueueLiveAsync(Loop2Packet reading, CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-
-        return await db.OutboxRecords
-            .Where(r => r.PayloadType == DavisOutboxPayloadTypes.Archive)
-            .OrderByDescending(r => r.RecordedAtUtc)
-            .Select(r => (DateTime?)r.RecordedAtUtc)
-            .FirstOrDefaultAsync(ct);
+        await scope.ServiceProvider.GetRequiredService<IDavisOutboxWriter>()
+            .EnqueueRawAsync(MapLive(reading), cancellationToken);
     }
 
-    private bool ShouldRunArchiveCatchup(ArchiveCatchupMode mode, DateTime? latestPersistedAtUtc, DateTime nowUtc)
+    private DavisWeatherLivePayload MapLive(Loop2Packet reading) => new()
     {
-        return mode switch
-        {
-            ArchiveCatchupMode.Disabled => false,
-            ArchiveCatchupMode.Force => true,
-            ArchiveCatchupMode.Enabled => !latestPersistedAtUtc.HasValue
-                || (nowUtc - latestPersistedAtUtc.Value) >= TimeSpan.FromHours(ArchiveCatchupLookbackHours),
-            _ => false,
-        };
-    }
+        StationId = configuration.StationId,
+        RecordedAtUtc = DateTime.SpecifyKind(reading.RecordedAtUtc, DateTimeKind.Utc),
+        TemperatureF = reading.OutsideTemperatureF,
+        InsideTemperatureF = reading.InsideTemperatureF,
+        DewPointF = reading.DewPointF,
+        HeatIndexF = reading.HeatIndexF,
+        WindChillF = reading.WindChillF,
+        ThswF = reading.ThswF,
+        HumidityPercent = reading.OutsideHumidityPercent,
+        InsideHumidityPercent = reading.InsideHumidityPercent,
+        BarometricPressureInHg = reading.BarometricPressureInHg,
+        PressureRawInHg = reading.PressureRawInHg,
+        AltimeterInHg = reading.AltimeterInHg,
+        BarometricTrend = reading.BarometricTrend,
+        WindSpeedMph = reading.WindSpeedMph,
+        WindDirectionDegrees = Degrees(reading.WindDirectionDegrees),
+        WindSpeed10MinAvgMph = reading.WindSpeed10MinAvgMph,
+        WindSpeed2MinAvgMph = reading.WindSpeed2MinAvgMph,
+        WindGust10MinMph = reading.WindGust10MinMph,
+        WindGust10MinDirectionDegrees = Degrees(reading.WindGust10MinDirectionDegrees),
+        RainRateInchesPerHour = reading.RainRateInchesPerHour,
+        DailyRainInches = reading.DailyRainInches,
+        Rain15MinInches = reading.Rain15MinInches,
+        HourRainInches = reading.HourRainInches,
+        Rain24HourInches = reading.Rain24HourInches,
+        StormRainInches = reading.StormRainInches,
+        StormStartDate = reading.StormStartDate,
+        MonthlyRainInches = reading.MonthlyRainInches,
+        YearlyRainInches = reading.YearlyRainInches,
+        SolarRadiationWm2 = reading.SolarRadiationWm2,
+        UvIndex = reading.UvIndex,
+        DailyEtInches = reading.DailyEtInches,
+        MonthlyEtInches = reading.MonthlyEtInches,
+        YearlyEtInches = reading.YearlyEtInches,
+        ConsoleBatteryVoltage = reading.ConsoleBatteryVoltage,
+        TransmitterBatteryStatus = reading.TransmitterBatteryStatus ?? 0,
+        ForecastRule = reading.ForecastRule,
+        ForecastString = reading.ForecastString,
+        SunriseTime = reading.SunriseDisplay,
+        SunsetTime = reading.SunsetDisplay,
+    };
 
-    private DateTime DetermineArchiveCatchupStartLocal(ArchiveCatchupMode mode, DateTime? latestPersistedAtUtc, DateTime nowUtc)
+    private DavisWeatherArchivePayload MapArchive(ArchiveRecord record, DateTime local, DateTime utc) => new()
     {
-        if (mode == ArchiveCatchupMode.Enabled)
-        {
-            return new DateTimeOffset(nowUtc, TimeSpan.Zero)
-                .ToOffset(station.ConsoleUtcOffset)
-                .DateTime
-                .AddHours(-ArchiveCatchupLookbackHours);
-        }
+        StationId = configuration.StationId,
+        RecordedAtUtc = utc,
+        ConsoleRecordedAtLocal = local,
+        ArchiveIntervalMinutes = record.ArchiveIntervalMinutes,
+        TemperatureF = record.OutsideTemperatureF,
+        HighTemperatureF = record.HighOutsideTemperatureF,
+        LowTemperatureF = record.LowOutsideTemperatureF,
+        InsideTemperatureF = record.InsideTemperatureF,
+        HumidityPercent = record.OutsideHumidityPercent,
+        InsideHumidityPercent = record.InsideHumidityPercent,
+        BarometricPressureInHg = record.BarometricPressureInHg,
+        WindSpeedMph = record.WindSpeedMph,
+        WindGustMph = record.WindGustMph,
+        WindDirectionDegrees = record.WindDirectionDegrees,
+        WindGustDirectionDegrees = record.WindGustDirectionDegrees,
+        WindSamples = record.WindSamples,
+        RainfallInches = record.RainInches,
+        RainRateInchesPerHour = record.RainRateInchesPerHour,
+        SolarRadiationWm2 = record.SolarRadiationWm2,
+        HighSolarRadiationWm2 = record.HighSolarRadiationWm2,
+        UvIndex = record.UvIndex,
+        HighUvIndex = record.HighUvIndex,
+        EtInches = record.EtInches,
+        ForecastRule = record.ForecastRule,
+        ForecastString = record.ForecastRule.HasValue ? DavisForecastTable.GetForecastString(record.ForecastRule.Value) : null,
+        DownloadRecordType = record.DownloadRecordType,
+        LeafTemp1F = record.LeafTemp1F,
+        LeafTemp2F = record.LeafTemp2F,
+        LeafWetnessScaled = record.LeafWetnessScaled,
+        SoilTemperaturesF = record.SoilTemperaturesF,
+        ExtraHumiditiesPercent = record.ExtraHumiditiesPercent,
+        ExtraTemperaturesF = record.ExtraTemperaturesF,
+        SoilMoisturesCb = record.SoilMoisturesCb,
+    };
 
-        if (!latestPersistedAtUtc.HasValue)
-        {
-            return DateTime.MinValue;
-        }
-
-        TimeSpan overlap = TimeSpan.FromSeconds(Math.Max(60, station.ArchiveIntervalSeconds));
-        DateTime lastRecordedAtLocal = new DateTimeOffset(latestPersistedAtUtc.Value, TimeSpan.Zero)
-            .ToOffset(station.ConsoleUtcOffset)
-            .DateTime;
-
-        DateTime catchupStart = lastRecordedAtLocal - overlap;
-
-        logger.LogInformation(
-            "Archive catchup anchored to latest persisted archive record at {RecordedAtUtc}; requesting from {CatchupStartLocal} console time with {OverlapMinutes} minute overlap",
-            latestPersistedAtUtc.Value,
-            catchupStart,
-            overlap.TotalMinutes);
-
-        return catchupStart;
-    }
-
-    private async Task WriteToOutboxAsync(Loop2Packet reading, CancellationToken ct)
-    {
-        var payload = new
-        {
-            StationId = _options.StationId,
-            RecordedAt = reading.RecordedAtUtc,
-            // Temperature
-            TemperatureF = reading.OutsideTemperatureF,
-            InsideTemperatureF = reading.InsideTemperatureF,
-            DewPointF = reading.DewPointF,
-            HeatIndexF = reading.HeatIndexF,
-            WindChillF = reading.WindChillF,
-            ThswF = reading.ThswF,
-            // Humidity
-            HumidityPercent = reading.OutsideHumidityPercent,
-            InsideHumidityPercent = reading.InsideHumidityPercent,
-            // Barometer
-            BarometricPressureInHg = reading.BarometricPressureInHg,
-            PressureRawInHg = reading.PressureRawInHg,
-            AltimeterInHg = reading.AltimeterInHg,
-            BarometricTrend = reading.BarometricTrend,
-            // Wind
-            WindSpeedMph = reading.WindSpeedMph,
-            WindDirectionDegrees = reading.WindDirectionDegrees.HasValue
-                ? (int?)(int)reading.WindDirectionDegrees.Value : null,
-            WindSpeed10MinAvgMph = reading.WindSpeed10MinAvgMph,
-            WindSpeed2MinAvgMph = reading.WindSpeed2MinAvgMph,
-            WindGust10MinMph = reading.WindGust10MinMph,
-            WindGust10MinDirectionDegrees = reading.WindGust10MinDirectionDegrees.HasValue
-                ? (int?)(int)reading.WindGust10MinDirectionDegrees.Value : null,
-            // Rain
-            RainRateInchesPerHour = reading.RainRateInchesPerHour,
-            DailyRainInches = reading.DailyRainInches,
-            Rain15MinInches = reading.Rain15MinInches,
-            HourRainInches = reading.HourRainInches,
-            Rain24HourInches = reading.Rain24HourInches,
-            StormRainInches = reading.StormRainInches,
-            StormStartDate = reading.StormStartDate,
-            MonthlyRainInches = reading.MonthlyRainInches,
-            YearlyRainInches = reading.YearlyRainInches,
-            // Solar / UV / ET
-            SolarRadiationWm2 = reading.SolarRadiationWm2,
-            UvIndex = reading.UvIndex,
-            DailyEtInches = reading.DailyEtInches,
-            MonthlyEtInches = reading.MonthlyEtInches,
-            YearlyEtInches = reading.YearlyEtInches,
-            // Console status (LOOP1-sourced)
-            ConsoleBatteryVoltage = reading.ConsoleBatteryVoltage,
-            TransmitterBatteryStatus = reading.TransmitterBatteryStatus,
-            ForecastRule = reading.ForecastRule,
-            ForecastString = reading.ForecastString,
-            SunriseTime = reading.SunriseDisplay,
-            SunsetTime = reading.SunsetDisplay,
-        };
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var writer = scope.ServiceProvider.GetRequiredService<DavisOutboxWriter>();
-        await writer.EnqueueRawAsync(_options.StationId, reading.RecordedAtUtc, JsonSerializer.Serialize(payload), ct);
-    }
-
-    private async Task WriteArchiveToOutboxAsync(ArchiveRecord rec, CancellationToken ct)
-    {
-        // Convert the console's local time to UTC using the timezone configured in EEPROM.
-        // Strip DateTimeKind.Local first: the console clock is not the host OS timezone,
-        // and DateTimeOffset rejects a Local DateTime whose offset doesn't match the host offset.
-        var consoleLocal = DateTime.SpecifyKind(rec.DateTimeLocal, DateTimeKind.Unspecified);
-        var recordedAtUtc = new DateTimeOffset(consoleLocal, station.ConsoleUtcOffset).UtcDateTime;
-        var payload = new
-        {
-            StationId = _options.StationId,
-            RecordedAt = recordedAtUtc,
-            ArchiveIntervalMinutes = rec.ArchiveIntervalMinutes,
-            // Temperature
-            TemperatureF = rec.OutsideTemperatureF,
-            HighTemperatureF = rec.HighOutsideTemperatureF,
-            LowTemperatureF = rec.LowOutsideTemperatureF,
-            InsideTemperatureF = rec.InsideTemperatureF,
-            // Humidity
-            HumidityPercent = rec.OutsideHumidityPercent,
-            InsideHumidityPercent = rec.InsideHumidityPercent,
-            // Barometer
-            BarometricPressureInHg = rec.BarometricPressureInHg,
-            // Wind
-            WindSpeedMph = rec.WindSpeedMph,
-            WindGustMph = rec.WindGustMph,
-            WindDirectionDegrees = rec.WindDirectionDegrees.HasValue
-                ? (int?)(int)rec.WindDirectionDegrees.Value : null,
-            WindGustDirectionDegrees = rec.WindGustDirectionDegrees.HasValue
-                ? (int?)(int)rec.WindGustDirectionDegrees.Value : null,
-            WindSamples = rec.WindSamples,
-            // Rain
-            RainfallInches = rec.RainInches,
-            RainRateInchesPerHour = rec.RainRateInchesPerHour,
-            // Solar / UV / ET
-            SolarRadiationWm2 = rec.SolarRadiationWm2,
-            HighSolarRadiationWm2 = rec.HighSolarRadiationWm2,
-            UvIndex = rec.UvIndex,
-            HighUvIndex = rec.HighUvIndex,
-            EtInches = rec.EtInches,
-            // Forecast
-            ForecastRule = rec.ForecastRule,
-            ForecastString = rec.ForecastRule.HasValue
-                ? DavisForecastTable.GetForecastString(rec.ForecastRule.Value) : null,
-            // Extra sensors (rec_B layout: bytes 34–51)
-            LeafTemp1F = rec.LeafTemp1F,
-            LeafTemp2F = rec.LeafTemp2F,
-            LeafWetnessScaled = rec.LeafWetnessScaled,
-            SoilTemperaturesF = rec.SoilTemperaturesF,
-            ExtraHumiditiesPercent = rec.ExtraHumiditiesPercent,
-            ExtraTemperaturesF = rec.ExtraTemperaturesF,
-            SoilMoisturesCb = rec.SoilMoisturesCb,
-        };
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var writer = scope.ServiceProvider.GetRequiredService<DavisOutboxWriter>();
-        await writer.EnqueueArchiveAsync(_options.StationId, recordedAtUtc, JsonSerializer.Serialize(payload), ct);
-    }
+    private static int? Degrees(double? value) => value.HasValue ? (int)value.Value : null;
 }
 
-public sealed record ArchiveCatchupStatus(
-    ArchiveCatchupMode StartupMode,
-    int LookbackHours,
-    DateTime? LatestPersistedAtUtc,
-    DateTimeOffset? LatestPersistedAtLocal,
-    TimeSpan? SyncLag,
-    bool ShouldRunOnStartup);
+public sealed class DavisRuntimeState
+{
+    private readonly object sync = new();
+    public Loop2Packet? LatestReading { get; private set; }
+    public DateTime? LastReadingAtUtc { get; private set; }
+    public DateTime? LastArchiveTopOffAtUtc { get; private set; }
+    public int LastArchiveTopOffCount { get; private set; }
+    public string? LastArchiveError { get; private set; }
+    public int ConsecutiveErrors { get; private set; }
+    public string? LastError { get; private set; }
+    public bool IsConnected { get; private set; }
+
+    public void Connected() { lock (sync) { IsConnected = true; ConsecutiveErrors = 0; LastError = null; } }
+    public void Observed(Loop2Packet reading, DateTime receivedAtUtc) { lock (sync) { IsConnected = true; LatestReading = reading; LastReadingAtUtc = receivedAtUtc; ConsecutiveErrors = 0; LastError = null; } }
+    public void Failed(string error) { lock (sync) { IsConnected = false; ConsecutiveErrors++; LastError = error; } }
+    public void ArchiveTopOffCompleted(DateTime atUtc, int count) { lock (sync) { LastArchiveTopOffAtUtc = atUtc; LastArchiveTopOffCount = count; LastArchiveError = null; } }
+    public void ArchiveTopOffFailed(DateTime atUtc, string error) { lock (sync) { LastArchiveTopOffAtUtc = atUtc; LastArchiveError = error; } }
+}

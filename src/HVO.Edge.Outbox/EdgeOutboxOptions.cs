@@ -5,6 +5,7 @@ namespace HVO.Edge.Outbox;
 
 public sealed class EdgeOutboxOptions
 {
+    public const int MaxPayloadTypes = 8;
     public const string SectionName = "Outbox";
 
     [Required]
@@ -12,6 +13,8 @@ public sealed class EdgeOutboxOptions
 
     [Required]
     public string PayloadType { get; set; } = "edge.telemetry";
+
+    public List<string> PayloadTypes { get; set; } = [];
 
     [Required]
     public string PayloadVersion { get; set; } = "1";
@@ -33,6 +36,10 @@ public sealed class EdgeOutboxOptions
 
     [Range(0, 3650)]
     public int FailedRetentionDays { get; set; } = 30;
+
+    public IReadOnlyList<string> EffectivePayloadTypes => PayloadTypes.Count == 0
+        ? [PayloadType]
+        : PayloadTypes;
 }
 
 internal sealed class EdgeOutboxOptionsValidator : IValidateOptions<EdgeOutboxOptions>
@@ -48,8 +55,20 @@ internal sealed class EdgeOutboxOptionsValidator : IValidateOptions<EdgeOutboxOp
         if (string.IsNullOrWhiteSpace(Path.GetFileName(options.DatabasePath)))
             return ValidateOptionsResult.Fail("Outbox:DatabasePath must identify a database file.");
 
-        if (string.IsNullOrWhiteSpace(options.PayloadType))
+        if (options.PayloadTypes.Count == 0 && string.IsNullOrWhiteSpace(options.PayloadType))
             return ValidateOptionsResult.Fail("Outbox:PayloadType is required.");
+
+        if (options.PayloadTypes.Count > EdgeOutboxOptions.MaxPayloadTypes)
+            return ValidateOptionsResult.Fail($"Outbox:PayloadTypes supports at most {EdgeOutboxOptions.MaxPayloadTypes} entries.");
+
+        if (options.PayloadTypes.Any(string.IsNullOrWhiteSpace))
+            return ValidateOptionsResult.Fail("Outbox:PayloadTypes cannot contain empty entries.");
+
+        if (options.PayloadTypes.Any(static value => value != value.Trim()))
+            return ValidateOptionsResult.Fail("Outbox:PayloadTypes entries must be trimmed.");
+
+        if (options.PayloadTypes.Select(static value => value.Trim()).Distinct(StringComparer.Ordinal).Count() != options.PayloadTypes.Count)
+            return ValidateOptionsResult.Fail("Outbox:PayloadTypes entries must be unique.");
 
         if (string.IsNullOrWhiteSpace(options.PayloadVersion))
             return ValidateOptionsResult.Fail("Outbox:PayloadVersion is required.");

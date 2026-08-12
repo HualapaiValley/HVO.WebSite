@@ -42,12 +42,17 @@ public static class EdgePayloadTypes
 
     // ── SmartShunt (Victron) ─────────────────────────────────────────────
     public const string SmartShuntReading = "com.hvo.smartshunt.reading.v1";
+    public const string SmartShuntObservation = "com.hvo.smartshunt.observation.v1";
+    public const string SmartShuntDetail = "com.hvo.smartshunt.detail.v1";
 
     // ── Gateway status (all gateways) ────────────────────────────────────
     public const string GatewayStatus = "com.hvo.gateway.status.v1";
 
     // ── Home Assistant exporter ───────────────────────────────────────────
     public const string HomeAssistantObservation = "com.hvo.homeassistant.observation.v1";
+
+    // -- EG4 direct collector ---------------------------------------------
+    public const string Eg4Observation = "com.hvo.eg4.observation.v1";
 
     /// <summary>
     /// Legacy payload type identifiers used in existing outbox records.

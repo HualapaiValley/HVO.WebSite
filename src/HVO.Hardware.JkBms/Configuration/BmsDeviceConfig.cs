@@ -22,6 +22,10 @@ public sealed class BmsDeviceConfig
     [Required]
     public string Alias { get; set; } = string.Empty;
 
+    /// <summary>Stable non-secret identity used for Home Assistant entities.</summary>
+    [Required]
+    public string DeviceId { get; set; } = string.Empty;
+
     /// <summary>
     /// Per-device poll interval override (seconds).
     /// If zero or not set, the global <see cref="JkBmsOptions.DefaultPollIntervalSeconds"/> is used.

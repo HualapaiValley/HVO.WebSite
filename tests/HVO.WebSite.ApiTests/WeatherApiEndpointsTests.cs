@@ -3,6 +3,8 @@ using HVO.Core.Results;
 using HVO.DataModels.Data;
 using HVO.DataModels.Models;
 using HVO.DataModels.Models.V9;
+using HVO.Edge.Contracts.Weather;
+using HVO.WebSite.v9.Controllers;
 using HVO.WebSite.v9;
 using HVO.WebSite.v9.Middleware;
 using HVO.WebSite.v9.Models;
@@ -110,6 +112,32 @@ public sealed class WeatherApiEndpointsTests
         payload.Should().NotBeNull();
         payload!.MachineName.Should().Be("api-test-host");
         payload.Data.Should().NotBeNull();
+    }
+
+    [TestMethod]
+    public async Task ArchiveBatch_ReturnsPerRecordFailuresInsteadOfApiControllerShortCircuit()
+    {
+        using var factory = new TestWebApplicationFactory();
+        await factory.SeedApiKeysAsync();
+        using var client = CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+        var at = new DateTime(2026, 8, 12, 1, 0, 0, DateTimeKind.Utc);
+        var valid = new DavisWeatherArchivePayload
+        {
+            StationId = "hvo-davis-01",
+            RecordedAtUtc = at,
+            ConsoleRecordedAtLocal = DateTime.SpecifyKind(at.AddHours(-7), DateTimeKind.Unspecified),
+            ArchiveIntervalMinutes = 5,
+        };
+        var invalid = valid with { RecordedAtUtc = at.AddMinutes(5), ArchiveIntervalMinutes = 0 };
+
+        var response = await client.PostAsJsonAsync("/api/v1/weather/archive/batch", new[] { valid, invalid });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var result = await response.Content.ReadFromJsonAsync<WeatherArchiveBatchResponse>();
+        result.Should().NotBeNull();
+        result!.Inserted.Should().Be(1);
+        result.Failed.Should().ContainSingle();
     }
 
     private static HttpClient CreateClient(TestWebApplicationFactory factory) => factory.CreateClient(

@@ -33,7 +33,6 @@ public sealed class SmartShuntPublicProtocolTests
         sample.TemperatureC.Should().Be(26);
         sample.RemainingMinutes.Should().BeNull();
         sample.PublicSessionActive.Should().BeTrue();
-        sample.DataPath.Should().Be("public");
     }
 
     [TestMethod]

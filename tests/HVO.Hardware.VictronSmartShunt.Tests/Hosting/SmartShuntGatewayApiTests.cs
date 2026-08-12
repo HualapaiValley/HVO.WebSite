@@ -1,122 +1,63 @@
 using System.Net;
-using System.Text.Json;
 using FluentAssertions;
-using HVO.Hardware.VictronSmartShunt.Configuration;
-using HVO.WebSite.Themes.Components.Format;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.VictronSmartShunt.Tests.Hosting;
 
 [TestClass]
+[DoNotParallelize]
 public sealed class SmartShuntGatewayApiTests
 {
     [TestMethod]
-    [DataRow(null)]
-    [DataRow("wrong-key")]
-    public async Task DiagnosticsEndpoints_RejectMissingOrInvalidApiKey(string? apiKey)
+    public async Task StandardHeadlessEndpoints_StartWithoutHardwareAndProtectDiagnostics()
     {
-        await using var factory = new SmartShuntGatewayApiFactory();
-        using var client = factory.CreateClient();
-        if (apiKey is not null)
+        var root = Path.Combine(Path.GetTempPath(), $"smartshunt-api-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(root, "config"));
+        Directory.CreateDirectory(Path.Combine(root, "data"));
+        Directory.CreateDirectory(Path.Combine(root, "secrets"));
+        await File.WriteAllTextAsync(Path.Combine(root, "secrets", "diagnostics-api-key"), "diagnostic-key");
+        await File.WriteAllTextAsync(Path.Combine(root, "secrets", "central-ingest-api-key"), "central-key");
+        try
         {
-            client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
+            using var environment = new EnvironmentScope(Configuration(root));
+            await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+            using var client = factory.CreateClient();
+            (await client.GetAsync("/health/live")).StatusCode.Should().Be(HttpStatusCode.OK);
+            (await client.GetAsync("/diagnostics/status")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            client.DefaultRequestHeaders.Add("X-Api-Key", "diagnostic-key");
+            var response = await client.GetAsync("/diagnostics/status");
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            var json = await response.Content.ReadAsStringAsync();
+            json.Should().Contain("\"gatewayId\":\"smartshunt\"")
+                .And.Contain("\"state\":3")
+                .And.NotContain("central-key")
+                .And.NotContain(root);
         }
-
-        using var response = await client.GetAsync("/diagnostics/status");
-
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        finally { try { Directory.Delete(root, true); } catch (IOException) { } }
     }
 
-    [TestMethod]
-    public async Task DiagnosticsStatus_ReturnsStandardShapeWithValidKey()
+    private static Dictionary<string, string?> Configuration(string root) => new()
     {
-        await using var factory = new SmartShuntGatewayApiFactory();
-        using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Api-Key", "local-test-key");
+        ["HVO_EDGE_CONFIG_FILE"] = Path.Combine(root, "config", "gateway.json"),
+        ["Edge__Paths__ConfigurationFile"] = Path.Combine(root, "config", "gateway.json"),
+        ["Edge__Paths__ConfigDirectory"] = Path.Combine(root, "config"),
+        ["Edge__Paths__DataDirectory"] = Path.Combine(root, "data"),
+        ["Edge__Paths__SecretsDirectory"] = Path.Combine(root, "secrets"),
+        ["Edge__Runtime__ServiceName"] = "hvo-smartshunt", ["Edge__Runtime__GatewayId"] = "smartshunt",
+        ["Edge__Runtime__GatewayType"] = "victron-smartshunt-public-gatt", ["Edge__Runtime__Domain"] = "Power",
+        ["Edge__Runtime__SourceId"] = "smartshunt-main", ["Edge__Runtime__SiteId"] = "hvo",
+        ["Edge__Runtime__DiagnosticsApiKeySecret"] = "diagnostics-api-key",
+        ["SmartShunt__Address"] = "AA:BB:CC:DD:EE:FF", ["SmartShunt__CentralIngestBaseEndpoint"] = "http://127.0.0.1/",
+        ["SmartShunt__AllowInsecureCentralIngest"] = "true", ["SmartShunt__CentralApiKeySecret"] = "central-ingest-api-key",
+        ["HomeAssistant__Mqtt__Enabled"] = "false", ["Outbox__DatabasePath"] = Path.Combine(root, "data", "outbox.db"),
+        ["Outbox__PayloadType"] = "com.hvo.smartshunt.observation.v1", ["Outbox__PayloadVersion"] = "1", ["Outbox__MaxBackoffSeconds"] = "10",
+    };
 
-        using var response = await client.GetAsync("/diagnostics/status");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var json = await response.Content.ReadAsStringAsync();
-        using var document = JsonDocument.Parse(json);
-        document.RootElement.GetProperty("contractVersion").GetString().Should().Be("1.0");
-        document.RootElement.GetProperty("identity").GetProperty("gatewayId").GetString().Should().Be("smartshunt");
-        document.RootElement.TryGetProperty("health", out _).Should().BeTrue();
-        document.RootElement.TryGetProperty("outbox", out _).Should().BeTrue();
-    }
-
-    [TestMethod]
-    public async Task DiagnosticsStatus_DoesNotExposeApiKey()
+    private sealed class EnvironmentScope : IDisposable
     {
-        await using var factory = new SmartShuntGatewayApiFactory();
-        using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Api-Key", "local-test-key");
-
-        using var response = await client.GetAsync("/diagnostics/status");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var json = await response.Content.ReadAsStringAsync();
-        json.Should().NotContain("local-test-key");
-    }
-
-    [TestMethod]
-    public void ValidDisplayTimeZoneOverride_ReachesInjectedResolver()
-    {
-        using var factory = new SmartShuntGatewayApiFactory("America/New_York");
-
-        factory.Services.GetRequiredService<HvoDisplayTimeZone>().Label.Should().Be("America/New_York");
-    }
-
-    [TestMethod]
-    public void InvalidDisplayTimeZone_FailsStartup()
-    {
-        using var factory = new SmartShuntGatewayApiFactory("not-a-time-zone");
-
-        var act = () => factory.Services.GetRequiredService<IOptions<SmartShuntOptions>>().Value;
-
-        act.Should().Throw<OptionsValidationException>();
-    }
-
-    private sealed class SmartShuntGatewayApiFactory(string displayTimeZoneId = "America/Phoenix") : WebApplicationFactory<SmartShuntOptions>
-    {
-        private readonly string outboxPath = Path.Combine(Path.GetTempPath(), "hvo-smartshunt-api-tests", Guid.NewGuid().ToString("N"), "outbox.db");
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, configuration) =>
-            {
-                configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["SmartShunt:Address"] = string.Empty,
-                    ["SmartShunt:SourceId"] = "smartshunt-test-source",
-                    ["SmartShunt:DeviceId"] = "smartshunt-test-device",
-                    ["SmartShunt:DisplayTimeZoneId"] = displayTimeZoneId,
-                    ["Outbox:ApiEndpoint"] = "http://localhost:5001/api/v1/power/readings",
-                    ["Outbox:ApiKey"] = "local-test-key",
-                    ["Outbox:DbPath"] = outboxPath,
-                });
-            });
-        }
-
-        protected override IHost CreateHost(IHostBuilder builder)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(outboxPath)!);
-            builder.ConfigureServices(services =>
-            {
-                foreach (var hostedService in services.Where(service => service.ServiceType == typeof(IHostedService)
-                    && service.ImplementationFactory is not null).ToArray())
-                {
-                    services.Remove(hostedService);
-                }
-            });
-
-            return base.CreateHost(builder);
-        }
+        private readonly Dictionary<string, string?> previous = [];
+        public EnvironmentScope(IReadOnlyDictionary<string, string?> values) { foreach (var item in values) { previous[item.Key] = Environment.GetEnvironmentVariable(item.Key); Environment.SetEnvironmentVariable(item.Key, item.Value); } }
+        public void Dispose() { foreach (var item in previous) Environment.SetEnvironmentVariable(item.Key, item.Value); }
     }
 }

@@ -17,7 +17,7 @@ namespace HVO.Hardware.DavisVantagePro2.Station;
 /// The worker that polls LOOP packets must release the lock between batches
 /// so admin commands can interleave.
 /// </summary>
-public sealed class VantageStation : IAsyncDisposable
+public sealed class VantageStation : IDavisStation, IAsyncDisposable
 {
     private enum ConsoleSessionMode
     {

@@ -29,14 +29,14 @@ Observatory dashboard and monitoring system built with ASP.NET Core and Blazor S
 Davis Vantage Pro 2 console (TCP)
         │
  HVO.Hardware.DavisVantagePro2
-   ├─ Blazor SSR UI (status, archive, calibration, settings, …)
+    ├─ Headless health/diagnostics + MQTT current state
    ├─ SQLite outbox (durable, idempotent, with retry)
    └─ POST /api/v1/weather/raw  ──────────────────────────────┐
                                                                │
 JK BMS devices (Bluetooth LE)                                  ▼
         │                                              HVO.WebSite.v9
- HVO.Hardware.JkBms                                  ├─ Blazor SSR dashboard
-    ├─ Blazor SSR UI (status, devices, device detail)  ├─ REST API (API-key auth)
+ HVO.Hardware.JkBms                                  ├─ Headless health/diagnostics API
+    ├─ MQTT Discovery/current state                    ├─ REST API (API-key auth)
     ├─ SQLite outbox (durable, idempotent, with retry)  ├─ Azure SQL (EF Core)
     └─ POST /api/v1/bms/readings  ──────────────────────┤ Role-based auth (Entra ID)
                                                          └─ Health probes + OpenAPI

@@ -45,8 +45,6 @@ public static class SmartShuntPublicProtocol
             TemperatureC = ReadValue("temperature"),
             RemainingMinutes = ReadValue("remaining_time"),
             PublicSessionActive = true,
-            PrivateEnrichmentActive = false,
-            DataPath = "public",
         };
     }
 

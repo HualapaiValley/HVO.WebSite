@@ -72,7 +72,7 @@ flowchart LR
 ```mermaid
 flowchart LR
     BMS[JK BMS units] -->|Bluetooth LE| COL[JK headless collector]
-    COL -->|current pack, cells, alarms| MQTT[Local Mosquitto]
+    COL -->|bounded current pack, health, alarms| MQTT[Local Mosquitto]
     MQTT --> HA[Home Assistant]
     COL -->|readings, config, device info| OUT[(JK SQLite outbox)]
     OUT -->|BMS ingest HTTPS| API[Central Website API]
@@ -80,13 +80,13 @@ flowchart LR
     HA -. excluded from HA exporter .-> X[No second writer]
 ```
 
-**Migration status:** target headless port is issue #328. The direct collector remains the canonical writer.
+**Migration status:** the issue #328 headless port is implemented. Production cutover still requires the documented bounded endurance check; the direct collector remains the only canonical writer throughout cutover.
 
 ## EG4 6500EX And MPPT100
 
 **Authority:** Direct EG4 collector.
 
-**Historical data:** inverter power, AC/load status, battery observations, internal MPPT details, external MPPT details, temperatures, configuration, inventory, and gateway status.
+**Historical data:** inverter power, AC/load status, battery observations, internal MPPT details, external MPPT details, temperatures, and validated device diagnostics.
 
 **HA presentation:** selected current inverter, battery, MPPT, and availability state projected through MQTT.
 
@@ -106,7 +106,7 @@ flowchart LR
 
 ## Victron SmartShunt
 
-**Authority:** Exactly one acquisition path must be selected by issue #326.
+**Authority:** Paired direct public-GATT SmartShunt collector. HA/ESPHome had no validated evidence for the required field set and is not an acquisition or enrichment path.
 
 **Historical data:** bus voltage, current, power, state of charge, consumed amp-hours, remaining time, and device status supported by the selected read-only path.
 
@@ -114,22 +114,16 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    SHUNT[Victron SmartShunt] -->|option A: direct read-only path| COL[SmartShunt headless collector]
+    SHUNT[Victron SmartShunt] -->|paired public GATT, sole owner| COL[SmartShunt headless collector]
     COL -->|current battery-monitor state| MQTT[Local Mosquitto]
     MQTT --> HA[Home Assistant]
-    COL -->|typed power observations| OUT[(SmartShunt SQLite outbox)]
+    COL -->|typed summary and detail| OUT[(SmartShunt SQLite outbox)]
     OUT -->|power ingest HTTPS| API[Central Website API]
     API --> DB[(Canonical SQL database)]
-
-    SHUNT -. option B: HA-owned integration .-> HAE[Home Assistant entities]
-    HAE -. if selected .-> EXP[HA WebSocket exporter]
-    EXP -.-> EOUT[(HA exporter SQLite outbox)]
-    EOUT -.-> API
-    COL -.-> RULE[Choose exactly one canonical writer]
-    EXP -.-> RULE
+    HA -. excluded from HA exporter .-> X[No second writer]
 ```
 
-**Migration status:** issue #326 must select the authoritative path before deployment. The two paths must never run as simultaneous canonical writers.
+**Migration status:** issue #326 selected and implemented the direct authority. Production cutover must stop the legacy process before vNext starts; rollback must stop vNext before restoring the legacy process.
 
 ## SolarAssistant
 
@@ -203,7 +197,7 @@ The Bluetooth proxy does not use MQTT for this path. Home Assistant owns the Gov
 | Davis | Direct HVO collector | Davis collector | Davis SQLite | Collector -> MQTT -> HA |
 | JK BMS | Direct HVO collector | JK collector | JK SQLite | Collector -> MQTT -> HA |
 | EG4 | Direct HVO collector | EG4 collector | EG4 SQLite | Collector -> MQTT -> HA |
-| SmartShunt | Issue #326 selection | Selected direct collector or HA exporter | Selected path's SQLite | Collector -> MQTT -> HA when HVO-owned; native HA entity when HA-owned |
+| SmartShunt | Direct HVO public-GATT collector | SmartShunt collector | SmartShunt SQLite | Collector -> MQTT -> HA |
 | SolarAssistant | Transitional legacy gateway | None in target vNext | Transitional SolarAssistant SQLite | Transitional only |
 | Kasa | Home Assistant | HA WebSocket exporter | Exporter SQLite | Native HA integration |
 | Govee | Home Assistant | HA WebSocket exporter | Exporter SQLite | Native HA integration through BT proxy |

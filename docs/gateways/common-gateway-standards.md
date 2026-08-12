@@ -66,7 +66,7 @@ Gateway storage and API contracts should treat timestamps as instants first and 
 - Do not use server/container `ToLocalTime()` for operator display. In a deployed container this reflects the host/container timezone, which may not be the observatory, browser, gateway, or device timezone.
 - Browser UIs may render UTC timestamps in the viewer's local timezone when the view is clearly user-local. Gateway/operator status pages should prefer a configured gateway display timezone so a headless wall display and remote browser see the same site-relative time.
 - Gateways that read a device timezone, such as Davis, should use the device timezone for protocol-local values and convert source-local timestamps to UTC before storage or forwarding.
-- Gateways whose devices do not have a reliable local-time concept, such as JK BMS, SmartShunt, SolarAssistant, and live Kasa polling, should use a configured gateway display timezone for local UI labels while continuing to store and forward UTC.
+- UI-bearing gateways whose devices do not have a reliable local-time concept, such as SmartShunt, SolarAssistant, and live Kasa polling, should use a configured gateway display timezone for local UI labels while continuing to store and forward UTC. Headless vNext collectors such as JK BMS expose UTC diagnostics only.
 - Multi-device gateways may allow a per-device display timezone override. This is presentation metadata only; it must not change `RecordedAtUtc`, `ObservedAtUtc`, idempotency keys, or stale-age calculations.
 
 Recommended configuration shape:
@@ -270,7 +270,7 @@ Current implementation status:
 - SolarAssistant uses the shared outbox plus typed power, inventory, configuration, energy, inverter detail, and gateway-status streams.
 - TPLink Kasa uses the shared outbox for energy and inventory payloads.
 - SmartShunt uses the shared outbox for battery monitor power readings.
-- JK BMS uses the shared outbox for BMS readings/config/device-info and per-record permanent-failure isolation.
+- JK BMS uses one canonical shared-outbox record per poll, with changed config/device-info embedded in the BMS reading contract and strict per-record outcome accounting.
 - Davis uses the shared outbox for weather raw/archive telemetry, with station settings/info split into gateway-owned local persistence.
 
 Open future work is tracked in `docs/FUTURE_WORK.md`.

@@ -70,6 +70,34 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<EdgeOutboxRecord>> GetReadyBatchAsync(
+        IReadOnlyCollection<string> payloadTypes,
+        DateTime nowUtc,
+        int batchSize,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(payloadTypes);
+        var normalizedPayloadTypes = payloadTypes
+            .Select(payloadType => NormalizeRequired(payloadType, nameof(payloadTypes)))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (normalizedPayloadTypes.Length == 0)
+            throw new ArgumentException("At least one payload type is required.", nameof(payloadTypes));
+        if (normalizedPayloadTypes.Length > EdgeOutboxOptions.MaxPayloadTypes)
+            throw new ArgumentOutOfRangeException(nameof(payloadTypes), "Too many payload types were requested.");
+        if (batchSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(batchSize), batchSize, "Batch size must be positive.");
+
+        return await _db.OutboxRecords
+            .Where(r => normalizedPayloadTypes.Contains(r.PayloadType)
+                && r.Status == EdgeOutboxStatus.Pending
+                && r.NextRetryAtUtc <= nowUtc)
+            .OrderBy(r => r.RecordedAtUtc)
+            .ThenBy(r => r.Id)
+            .Take(batchSize)
+            .ToListAsync(ct);
+    }
+
     public Task<int> CountPendingAsync(CancellationToken ct) =>
         _db.OutboxRecords.CountAsync(r => r.Status == EdgeOutboxStatus.Pending, ct);
 

@@ -67,6 +67,7 @@ public class WeatherRawBatchResponse
 /// <summary>Describes a single record that failed validation within a batch ingest.</summary>
 public class WeatherRawBatchFailure
 {
+    public string StationId { get; init; } = string.Empty;
     public DateTime RecordedAt { get; init; }
     public string Error { get; init; } = string.Empty;
 }

@@ -15,6 +15,18 @@ public sealed class Eg4OptionsValidator(IHostEnvironment environment) : IValidat
 
         if (options.SimulationEnabled && !environment.IsEnvironment("Testing") && !environment.IsDevelopment())
             failures.Add($"EG4 simulation is not allowed in the {environment.EnvironmentName} environment.");
+        if (!Uri.TryCreate(options.CentralIngestEndpoint, UriKind.Absolute, out var ingest)
+            || ingest.Scheme is not ("http" or "https")
+            || !string.IsNullOrEmpty(ingest.UserInfo)
+            || !string.IsNullOrEmpty(ingest.Query)
+            || !string.IsNullOrEmpty(ingest.Fragment))
+            failures.Add("Eg4:CentralIngestEndpoint must be an absolute HTTP(S) URI without credentials, query, or fragment.");
+        else if (ingest.Scheme != "https" && !options.AllowInsecureCentralIngest)
+            failures.Add("Eg4:CentralIngestEndpoint must use HTTPS unless insecure ingest is explicitly enabled for testing.");
+        if (string.IsNullOrWhiteSpace(options.CentralApiKeySecret))
+            failures.Add("Eg4:CentralApiKeySecret is required.");
+        if (options.RetryExhaustedRequeueMinutes is < 1 or > 1440)
+            failures.Add("Eg4:RetryExhaustedRequeueMinutes must be between 1 and 1440.");
 
         ValidateDevices(options.Devices ?? [], failures);
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);

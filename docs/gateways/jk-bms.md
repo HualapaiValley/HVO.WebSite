@@ -2,8 +2,8 @@
 
 ## Status
 
-- Phase 0 status: seeded from current parser/protocol code and session lifecycle notes.
-- Last updated: 2026-05-28
+- Runtime status: headless vNext port implemented by issue #328; production cutover pending bounded endurance validation.
+- Last updated: 2026-08-11
 - Confidence: medium for implemented read paths; lower for settings-query/write paths.
 - Primary references: `src/HVO.Hardware.JkBms`, `docs/JKBMS_SESSION_LIFECYCLE.md`, code reference to `https://github.com/syssi/esphome-jk-bms`.
 
@@ -20,7 +20,7 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 | HVO deployment target | Pi gateway container, compose file `deploy/pi-gateways/jkbms/docker-compose.yml` |
 | Native UI exists | Vendor mobile app |
 | Native UI is primary | For vendor writes/settings until HVO paths are proven |
-| HVO UI responsibility | Level 2 operational dashboard |
+| HVO presentation responsibility | Standard protected diagnostics plus bounded HA MQTT current state; no local UI |
 | HVO safety classification | Telemetry-only currently; write/control paths are unapproved high-risk |
 
 ## Communication Summary
@@ -35,7 +35,7 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 | Implementation write characteristic | FFE1 for targeted old-module devices; FFE2 produced no response in current implementation notes |
 | Authentication | BLE pairing/connection only in current implementation; no app passcode write path used |
 | Polling model | Connect sessions and poll cell-info per configured interval |
-| Reconnect model | Session lifecycle refactor target: connect sequentially per adapter, keep healthy sessions polling, reconnect failed sessions |
+| Reconnect model | Coordinate connection attempts per adapter, keep healthy persistent sessions polling, and reconnect failed sessions independently |
 
 ## References
 
@@ -143,35 +143,28 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 | `JkBms.ExchangeTimeoutSeconds` | int | Yes | No | App config | 10 | 1-60. |
 | `JkBms.DefaultPollIntervalSeconds` | int | Yes | No | App config | 60 | 10-3600. |
 | `JkBms.HciAdapter` | string | Yes | No | App config | hci0 | Shared BLE contention risk. |
-| `JkBms.Devices[]` | list | Yes | No | App config | empty | Address, alias, adapter/poll overrides. |
-| Outbox API endpoint/key | string | Forwarding only | API key secret | App config/secret | placeholder | Preserve remote `.env`. |
+| `JkBms.Devices[]` | list | Yes | No | Mounted config | empty | Address, stable DeviceId, alias, adapter/poll overrides. |
+| `JkBms.CentralIngestEndpoint` | URI | Yes | No | Mounted config | none | Absolute HTTPS BMS readings endpoint. |
+| `JkBms.CentralApiKeySecret` | file name | Yes | Yes | Mounted config/secret file | `central-ingest-api-key` | Resolved under `/run/secrets`. |
+| `JkBms.RetryExhaustedRequeueMinutes` | int | Yes | No | Mounted config | 15 | Requeues transient retry-exhausted rows. |
+| `Outbox.*` | object | Yes | No | Mounted config | shared defaults | Must use `/app/data/outbox.db` and `com.hvo.bms.reading.v1`. |
 
-## Local UI Plan
+## Local Diagnostics And Presentation
 
-Current pages:
+The vNext collector intentionally has no Razor, Blazor, or static UI. Operators use:
 
-- status
-- devices
-- device detail
+- `/health/live`, `/health`, and `/health/ready` for health checks;
+- protected `/diagnostics/status` and `/diagnostics/outbox` for runtime/outbox state;
+- Home Assistant MQTT Discovery for a bounded ten-entity current-state view per bank.
 
-Needed before local completeness:
-
-- explicit per-bank connection/session state
-- per-bank last poll age/staleness
-- settings snapshot completeness and age
-- device info snapshot age
-- alarm bit decode table
-- BLE adapter contention visibility
-- local-only secret redaction for setup passcode if ever displayed from raw frames
+Diagnostics expose stable device IDs and categorized health without Bluetooth addresses,
+secret values, or mounted filesystem paths.
 
 ## Outbox / Cloud Candidate Streams
 
 | Stream | Payload type | Cadence | Idempotency key | Cloud treatment | Notes |
 |--------|--------------|---------|-----------------|-----------------|-------|
-| bms.reading | per-bank reading | poll interval | device address + recordedAt | Central BMS readings | Existing. |
-| bms.config | per-bank settings snapshot | on change/connect | device + hash/recordedAt | Central config snapshot | Existing subset. |
-| bms.device-info | per-bank device metadata | on change/connect | device + hash/recordedAt | Central device info | Existing subset, excludes passcodes. |
-| gateway.status | gateway runtime/health | low frequency | gateway + recordedAt | Central gateway cards | Needed. |
+| com.hvo.bms.reading.v1 | Per-bank reading with changed config/device-info embedded | poll interval | device address + recordedAt | Central BMS readings/config/info/alarms | Single shared-outbox payload lane; excludes passcodes. |
 
 ## Known Issues And Quirks
 
@@ -193,6 +186,6 @@ Needed before local completeness:
 
 | Question | Why it matters | Status |
 |----------|----------------|--------|
-| Is there a safe explicit settings-query command? | Needed for reliable local config UI | Open |
+| Is there a safe explicit settings-query command? | Needed for reliable configuration snapshots | Open |
 | Which BMS reading fields should become central storage? | Avoid losing diagnostic value | Open |
 | Can JK and SmartShunt share `hci0` reliably with revised sessions? | Deployment stability | Open |
