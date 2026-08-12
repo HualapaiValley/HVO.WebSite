@@ -20,7 +20,8 @@ public abstract record HomeAssistantEntityDefinition
         string? deviceClass,
         string? icon,
         string? entityCategory,
-        bool enabledByDefault)
+        bool enabledByDefault,
+        string? defaultEntityId)
     {
         ComponentId = componentId;
         Name = name;
@@ -29,6 +30,7 @@ public abstract record HomeAssistantEntityDefinition
         Icon = icon;
         EntityCategory = entityCategory;
         EnabledByDefault = enabledByDefault;
+        DefaultEntityId = defaultEntityId;
     }
 
     public string ComponentId { get; }
@@ -38,6 +40,7 @@ public abstract record HomeAssistantEntityDefinition
     public string? Icon { get; }
     public string? EntityCategory { get; }
     public bool EnabledByDefault { get; }
+    public string? DefaultEntityId { get; }
 }
 
 public sealed record HomeAssistantSensorDefinition : HomeAssistantEntityDefinition
@@ -50,8 +53,9 @@ public sealed record HomeAssistantSensorDefinition : HomeAssistantEntityDefiniti
         string? stateClass = null,
         string? icon = null,
         string? entityCategory = null,
-        bool enabledByDefault = true)
-        : base(componentId, name, HomeAssistantEntityPlatform.Sensor, deviceClass, icon, entityCategory, enabledByDefault)
+        bool enabledByDefault = true,
+        string? defaultEntityId = null)
+        : base(componentId, name, HomeAssistantEntityPlatform.Sensor, deviceClass, icon, entityCategory, enabledByDefault, defaultEntityId)
     {
         UnitOfMeasurement = unitOfMeasurement;
         StateClass = stateClass;
@@ -69,8 +73,9 @@ public sealed record HomeAssistantBinarySensorDefinition : HomeAssistantEntityDe
         string? deviceClass = null,
         string? icon = null,
         string? entityCategory = null,
-        bool enabledByDefault = true)
-        : base(componentId, name, HomeAssistantEntityPlatform.BinarySensor, deviceClass, icon, entityCategory, enabledByDefault)
+        bool enabledByDefault = true,
+        string? defaultEntityId = null)
+        : base(componentId, name, HomeAssistantEntityPlatform.BinarySensor, deviceClass, icon, entityCategory, enabledByDefault, defaultEntityId)
     {
     }
 }

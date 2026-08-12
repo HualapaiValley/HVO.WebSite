@@ -24,6 +24,10 @@ public sealed class DavisHomeAssistantProjectionTests
 
         mqtt.Definition!.Key.Should().Be(new HomeAssistantDeviceKey("hvo", "davis", "station-1"));
         mqtt.Definition.Entities.Should().HaveCount(39);
+        mqtt.Definition.Entities.Select(entity => entity.DefaultEntityId).Should().OnlyHaveUniqueItems();
+        mqtt.Definition.Entities.Should().OnlyContain(entity => entity.DefaultEntityId == $"sensor.davis_{entity.ComponentId}");
+        mqtt.Definition.Entities.Select(entity => HomeAssistantMqttIdentity.EntityUniqueId(mqtt.Definition.Key, entity.ComponentId))
+            .Should().OnlyHaveUniqueItems();
         mqtt.States[0].Available.Should().BeTrue();
         mqtt.States[0].ComponentValues.Keys.Should().BeEquivalentTo(
             mqtt.Definition.Entities.Select(entity => entity.ComponentId));

@@ -21,16 +21,17 @@ internal static class HomeAssistantDiscoverySerializer
             var componentId = HomeAssistantMqttIdentity.Normalize(entity.ComponentId);
             var uniqueId = HomeAssistantMqttIdentity.EntityUniqueId(definition.Key, entity.ComponentId);
             var platform = Platform(entity.Platform);
+            var stateValue = $"value_json.components.get({JsonSerializer.Serialize(componentId)})";
             var component = new JsonObject
             {
                 ["platform"] = platform,
                 ["name"] = entity.Name,
                 ["unique_id"] = uniqueId,
-                ["default_entity_id"] = $"{platform}.{uniqueId}",
+                ["default_entity_id"] = entity.DefaultEntityId ?? $"{platform}.{uniqueId}",
                 ["state_topic"] = topics.State(definition.Key),
                 ["value_template"] = entity.Platform == HomeAssistantEntityPlatform.BinarySensor
-                    ? $"{{% if value_json.components.{componentId} %}}ON{{% else %}}OFF{{% endif %}}"
-                    : $"{{{{ value_json.components.{componentId} }}}}",
+                    ? $"{{% if {stateValue} %}}ON{{% else %}}OFF{{% endif %}}"
+                    : $"{{{{ {stateValue} }}}}",
                 ["availability_mode"] = "all",
                 ["availability"] = new JsonArray
                 {
@@ -97,6 +98,7 @@ internal static class HomeAssistantDiscoverySerializer
             throw new ArgumentException("A Home Assistant device must define at least one entity.", nameof(definition));
 
         var normalized = new HashSet<string>(StringComparer.Ordinal);
+        var defaultEntityIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var entity in definition.Entities)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(entity.ComponentId);
@@ -104,6 +106,13 @@ internal static class HomeAssistantDiscoverySerializer
             var componentId = HomeAssistantMqttIdentity.Normalize(entity.ComponentId);
             if (!normalized.Add(componentId))
                 throw new ArgumentException($"Component identifier normalization collision for '{componentId}'.", nameof(definition));
+            var expectedDomain = Platform(entity.Platform);
+            var effectiveDefaultEntityId = entity.DefaultEntityId
+                ?? $"{expectedDomain}.{HomeAssistantMqttIdentity.EntityUniqueId(definition.Key, entity.ComponentId)}";
+            if (!IsValidEntityId(effectiveDefaultEntityId, expectedDomain))
+                throw new ArgumentException($"Default entity ID '{effectiveDefaultEntityId}' is invalid for platform '{expectedDomain}'.", nameof(definition));
+            if (!defaultEntityIds.Add(effectiveDefaultEntityId))
+                throw new ArgumentException($"Default entity ID collision for '{effectiveDefaultEntityId}'.", nameof(definition));
         }
     }
 
@@ -126,4 +135,19 @@ internal static class HomeAssistantDiscoverySerializer
         HomeAssistantEntityPlatform.BinarySensor => "binary_sensor",
         _ => throw new ArgumentOutOfRangeException(nameof(platform))
     };
+
+    private static bool IsValidEntityId(string entityId, string expectedDomain)
+    {
+        var separator = entityId.IndexOf('.');
+        if (separator <= 0 || separator == entityId.Length - 1
+            || !entityId.AsSpan(0, separator).SequenceEqual(expectedDomain))
+            return false;
+
+        foreach (var character in entityId.AsSpan(separator + 1))
+        {
+            if (character is not (>= 'a' and <= 'z') and not (>= '0' and <= '9') and not '_')
+                return false;
+        }
+        return true;
+    }
 }
