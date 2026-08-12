@@ -158,7 +158,7 @@ cutover is handled separately by issue #330.
 
 1. Place a supported ESP32 development board near the H5179. The proxy must
    receive its BLE advertisements reliably from the intended permanent location.
-2. In ESPHome Device Builder, create `hvo-bluetooth-proxy`, select the actual
+2. In ESPHome Device Builder, create `home-dev-bluetooth-proxy`, select the actual
    board, and use `configuration/esphome/hvo-bluetooth-proxy.yaml` as the
    reviewed definition. Change `esp32.board` if the selected hardware is not an
    `esp32dev` board.
@@ -169,8 +169,9 @@ cutover is handled separately by issue #330.
    Keep the management credentials in `hvo-central-kv` as
    `HomeAssistant--EspHomeProxyApiEncryptionKey`,
    `HomeAssistant--EspHomeProxyOtaPassword`, and
-   `HomeAssistant--EspHomeProxyFallbackPassword`. Wi-Fi values remain in the
-   ignored deployment environment and must not be committed.
+   `HomeAssistant--EspHomeProxyFallbackPassword`. Wi-Fi passwords are stored as
+   `obs-wifi-hvo-password` and `obs-wifi-home-express-is-password`; SSIDs remain
+   local configuration. Materialized values must not be committed.
 4. Install the first image over USB. Subsequent reviewed updates may use OTA.
 5. Add the discovered proxy through the native ESPHome integration and verify it
    remains available after both ESP32 and HA restarts.
@@ -185,13 +186,21 @@ cutover is handled separately by issue #330.
 The previously observed H5074 is a separate historical device observation; the
 owner-confirmed commissioning target for this issue is H5179.
 
-The ESP32-D0WDQ6 at `192.168.2.196` is commissioned as `HVO Bluetooth Proxy`
+The ESP32-D0WDQ6 at `192.168.2.196` is commissioned as `Home Dev Bluetooth Proxy`
 for transport validation on the HOME network. Its encrypted native API, remote
 scanner registration, advertisement forwarding, three connection slots, HA
 restart recovery, and ESP32 restart recovery have been verified. This does not
 satisfy H5179 commissioning: move the proxy into reliable RF range on HVO Wi-Fi,
 confirm the `govee_ble` temperature and humidity entities, and then remove or
 rotate its HOME Wi-Fi fallback credential.
+
+The temporary `Home Dev Temporary iBeacon Monitor` integration provides passive
+transport monitoring without pairing, sending commands, or consuming a proxy
+connection slot. It allowlists only the selected beacon UUID. The beacon rotates
+BLE addresses, so HA may show transient address-specific entities until its
+iBeacon coordinator consolidates the address family. Remove the integration from
+**Settings > Devices & services** after validation; removing it also removes its
+temporary devices and entities.
 
 ## Recovery notes
 

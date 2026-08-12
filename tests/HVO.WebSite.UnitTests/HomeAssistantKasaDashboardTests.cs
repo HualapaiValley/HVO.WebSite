@@ -133,6 +133,8 @@ public sealed class HomeAssistantKasaDashboardTests
         package.Should().Contain("automation: !include ../automations/hvo.yaml");
         proxy.Should().Contain("bluetooth_proxy:");
         proxy.Should().Contain("active: true");
+        proxy.Should().Contain("name: home-dev-bluetooth-proxy");
+        proxy.Should().Contain("friendly_name: Home Dev Bluetooth Proxy");
         proxy.Should().Contain("key: !secret hvo_bluetooth_proxy_api_encryption_key");
         proxy.Should().Contain("ssid: !secret hvo_wifi_ssid");
         proxy.Should().Contain("password: !secret hvo_wifi_password");

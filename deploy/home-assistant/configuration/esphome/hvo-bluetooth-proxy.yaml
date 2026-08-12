@@ -1,6 +1,6 @@
 substitutions:
-  name: hvo-bluetooth-proxy
-  friendly_name: HVO Bluetooth Proxy
+  name: home-dev-bluetooth-proxy
+  friendly_name: Home Dev Bluetooth Proxy
 
 esphome:
   name: ${name}
@@ -30,7 +30,7 @@ wifi:
       password: !secret home_wifi_password
       priority: 1
   ap:
-    ssid: HVO Bluetooth Proxy Fallback
+    ssid: Home Dev BT Proxy Fallback
     password: !secret hvo_bluetooth_proxy_fallback_password
 
 captive_portal:
