@@ -23,7 +23,7 @@ This document tracks evidence, open questions, and validation steps for the Davi
 | Change console rain display units without changing bucket type and compare raw rain counters. | Confirms display unit is separate from bucket conversion. | Open |
 | Validate rain bucket type against actual hardware bucket. | Prevents rain totals/rates from being scaled wrong. | Open |
 | Validate archive UTC conversion across DST/timezone settings. | Prevents wrong historical timestamps. | Open |
-| Validate `DMPAFT` behavior when requested timestamp predates circular buffer. | Confirms startup/top-off `fallbackOnEmpty` behavior on real hardware. | Open; simulator-covered and enabled in startup/top-off catchup. |
+| Validate `DMPAFT` behavior when requested timestamp predates circular buffer. | Confirms startup/top-off behavior on real hardware. | Measured: cursor requests return the documented 513-page full buffer. Production catch-up is disabled; bounded recovery is deferred to #346. |
 | Re-check external CRC numeric examples before documenting them. | Avoids encoding a vector without confirmed source context. | Open |
 
 ## Test Strategy
@@ -66,7 +66,7 @@ Use three test levels. Do not treat mock-only coverage as proof that the Davis p
 | Write paths are structurally implemented and simulator-covered for current flows but not live-validated. | Implementation/test | Incorrect writes could change console settings or corrupt expected behavior. | Keep live write tests gated; add read-back verification and final safety gates before exposing writes. | In progress |
 | Unit normalization is implicit in legacy property names. | API design | Future local/cloud consumers may confuse raw protocol units, normalized units, and console display settings. | Current weather API adds display settings/display sub-object; versioned DTO redesign still needed before lock-in. | Partially addressed |
 | Mock-only tests would not catch protocol sequencing defects. | Test design | False confidence in transport/command behavior. | Keep extending the fake TCP protocol simulator for every supported flow. | In progress |
-| Startup/top-off archive catchup enables `fallbackOnEmpty`. | Implementation/live validation | Edge cases should recover oldest available archive data, but hardware behavior still needs confirmation. | Keep enabled and validate against real console circular-buffer edge case. | Implemented; live validation open |
+| Cursor-based DMPAFT returns the 513-page full circular buffer. | Implementation/live validation | Scanning the buffer delays live LOOP acquisition and causes transient timeouts. | Keep production catch-up disabled and implement bounded recovery in #346. | Measured live; deferred to v2 |
 | Destructive/config writes lack final exposure policy. | Safety | Unsafe UI/cloud exposure. | Local auth, confirmation, audit logging, read-back, and command allowlist. | Open |
 
 ## Definition Of Done For Davis Logic
@@ -108,7 +108,7 @@ Do not mark Davis logic as fully implemented until these criteria are satisfied 
 | Console local time differs from host timezone | Archive conversion code strips `DateTimeKind.Local`. | Wrong archive UTC if offset is wrong. | Use console UTC offset. | Validate timezone/DST settings. |
 | WeatherLink IP/TCP has timing quirks | Current client adds a 50 ms send delay and handles LF/CR-prefixed ACK. | Without pacing/prefix handling commands can fail intermittently. | Preserve pacing and prefix tolerance. | Validate after any transport refactor. |
 | Live console can become unstable during repeated connect/stress-test cycles | Live test runs observed intermittent wakeup/read timeouts after multiple tests and after simultaneous-client attempts. A safe read-only subset passed 10/12 twice, with failures in EEPROM setup ACK/wakeup during `ConnectAsync`. | Full live test suite can fail even when individual read paths work. | Run focused live subsets; avoid simultaneous-client/reconnect stress in routine validation; keep EEPROM command/data retries. | Decide whether to add adapter cooldown/reset handling or keep stress tests manual. |
-| `DMPAFT` empty response edge case | Code comments note firmware can return zero pages if request predates circular buffer. | Startup/top-off catchup could miss oldest available archive records without fallback. | `fallbackOnEmpty` is enabled for startup/top-off and manual archive fetches. | Live-validate the real console circular-buffer edge case. |
+| `DMPAFT` full circular-buffer response | Live protocol diagnostics returned 513 pages with start index 1 for an exact durable cursor. | Routine scanning interrupts live LOOP acquisition. | Production archive catch-up is disabled; cursor/data are preserved and bounded recovery is tracked in #346. | Implement and live-validate #346 in a controlled maintenance window. |
 
 ## HVO-Derived Weather Calculation Candidates
 
@@ -139,4 +139,4 @@ Rules for derived values:
 | Do real-console display-unit changes leave raw LOOP/archive bytes unchanged as documented? | Confirms the PDF/open-source-driver interpretation on HVO hardware. | Needs live validation |
 | Should the local API expose both raw protocol values and normalized values? | Helps future-proof against unit/display setting changes. | Open |
 | Should HVO calculate archive dew point, heat index, wind chill, dew spread, or dew risk? | These are useful but not Davis archive protocol fields. | Open |
-| Should startup archive catchup enable DMPAFT full-archive fallback on zero-page responses? | Could improve recovery from circular-buffer edge cases. | Decided yes; implemented, pending live edge-case validation. |
+| Should periodic archive catchup retain DMPAFT full-archive fallback on zero-page responses? | Could improve recovery but the live console returns disruptive 513-page scans. | Deferred to #346; production v1 catch-up is disabled and cancels cursor-triggered full-buffer responses. |

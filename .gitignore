@@ -10,6 +10,7 @@ obj/
 .env
 *.env
 deploy/pi-gateways/*/.env
+deploy/home-assistant/configuration/esphome/
 
 ## NuGet
 *.nupkg

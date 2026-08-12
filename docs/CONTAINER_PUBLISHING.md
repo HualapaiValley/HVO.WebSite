@@ -74,7 +74,7 @@ To inspect the exact commands without building or pushing:
 
 The script:
 
-- sources `.env`
+- reads only the allowlisted `HVO_*` publishing keys from `.env` as dotenv data; optional `export`, matching single/double quotes, CRLF, and values containing `=` are supported, while shell expansion and command substitution are intentionally not evaluated
 - logs into the self-hosted registry with `HVO_CONTAINER_REGISTRY_USERNAME` and `HVO_CONTAINER_REGISTRY_PASSWORD`
 - builds the selected Dockerfile
 - tags the image with the configured version, plus `latest` when `--push-latest` is used

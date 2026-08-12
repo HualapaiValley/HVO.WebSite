@@ -33,18 +33,44 @@ public sealed class DavisHomeAssistantProjection : IDavisHomeAssistantProjection
             "Davis Vantage Pro 2",
             [
                 new HomeAssistantSensorDefinition("outside_temperature", "Outside temperature", "°F", "temperature", Measurement),
+                new HomeAssistantSensorDefinition("inside_temperature", "Inside temperature", "°F", "temperature", Measurement),
                 new HomeAssistantSensorDefinition("outside_humidity", "Outside humidity", "%", "humidity", Measurement),
+                new HomeAssistantSensorDefinition("inside_humidity", "Inside humidity", "%", "humidity", Measurement),
                 new HomeAssistantSensorDefinition("dew_point", "Dew point", "°F", "temperature", Measurement),
+                new HomeAssistantSensorDefinition("heat_index", "Heat index", "°F", "temperature", Measurement),
+                new HomeAssistantSensorDefinition("wind_chill", "Wind chill", "°F", "temperature", Measurement),
+                new HomeAssistantSensorDefinition("thsw_index", "THSW index", "°F", "temperature", Measurement, enabledByDefault: false),
                 new HomeAssistantSensorDefinition("barometric_pressure", "Barometric pressure", "inHg", "atmospheric_pressure", Measurement),
+                new HomeAssistantSensorDefinition("raw_pressure", "Raw station pressure", "inHg", "atmospheric_pressure", Measurement, entityCategory: "diagnostic", enabledByDefault: false),
+                new HomeAssistantSensorDefinition("altimeter_pressure", "Altimeter pressure", "inHg", "atmospheric_pressure", Measurement, entityCategory: "diagnostic", enabledByDefault: false),
+                new HomeAssistantSensorDefinition("barometric_trend", "Barometric trend", stateClass: Measurement, entityCategory: "diagnostic", enabledByDefault: false),
                 new HomeAssistantSensorDefinition("wind_speed", "Wind speed", "mph", "wind_speed", Measurement),
                 new HomeAssistantSensorDefinition("wind_direction", "Wind direction", "°", stateClass: Measurement),
+                new HomeAssistantSensorDefinition("wind_speed_10_min_average", "10-minute average wind speed", "mph", "wind_speed", Measurement),
+                new HomeAssistantSensorDefinition("wind_speed_2_min_average", "2-minute average wind speed", "mph", "wind_speed", Measurement, enabledByDefault: false),
                 new HomeAssistantSensorDefinition("wind_gust", "10-minute wind gust", "mph", "wind_speed", Measurement),
+                new HomeAssistantSensorDefinition("wind_gust_direction", "10-minute wind gust direction", "°", stateClass: Measurement),
                 new HomeAssistantSensorDefinition("rain_rate", "Rain rate", "in/h", "precipitation_intensity", Measurement),
                 new HomeAssistantSensorDefinition("daily_rain", "Daily rain", "in", "precipitation", "total_increasing"),
+                new HomeAssistantSensorDefinition("rain_15_min", "15-minute rain", "in", "precipitation", Measurement, enabledByDefault: false),
+                new HomeAssistantSensorDefinition("rain_1_hour", "1-hour rain", "in", "precipitation", Measurement, enabledByDefault: false),
+                new HomeAssistantSensorDefinition("rain_24_hour", "24-hour rain", "in", "precipitation", Measurement),
+                new HomeAssistantSensorDefinition("storm_rain", "Storm rain", "in", "precipitation", Measurement),
+                new HomeAssistantSensorDefinition("storm_start", "Storm start", entityCategory: "diagnostic", enabledByDefault: false),
+                new HomeAssistantSensorDefinition("monthly_rain", "Monthly rain", "in", "precipitation", "total_increasing"),
+                new HomeAssistantSensorDefinition("yearly_rain", "Yearly rain", "in", "precipitation", "total_increasing"),
                 new HomeAssistantSensorDefinition("solar_radiation", "Solar radiation", "W/m²", "irradiance", Measurement),
                 new HomeAssistantSensorDefinition("uv_index", "UV index", stateClass: Measurement),
+                new HomeAssistantSensorDefinition("daily_et", "Daily evapotranspiration", "in", stateClass: "total_increasing"),
+                new HomeAssistantSensorDefinition("monthly_et", "Monthly evapotranspiration", "in", stateClass: "total_increasing", enabledByDefault: false),
+                new HomeAssistantSensorDefinition("yearly_et", "Yearly evapotranspiration", "in", stateClass: "total_increasing", enabledByDefault: false),
                 new HomeAssistantSensorDefinition("console_battery", "Console battery", "V", "voltage", Measurement, entityCategory: "diagnostic"),
+                new HomeAssistantSensorDefinition("transmitter_battery_status", "Transmitter battery status", entityCategory: "diagnostic"),
+                new HomeAssistantSensorDefinition("transmitter_battery_bitmask", "Transmitter battery bitmask", stateClass: Measurement, entityCategory: "diagnostic", enabledByDefault: false),
                 new HomeAssistantSensorDefinition("forecast", "Forecast", entityCategory: "diagnostic"),
+                new HomeAssistantSensorDefinition("forecast_rule", "Forecast rule", stateClass: Measurement, entityCategory: "diagnostic", enabledByDefault: false),
+                new HomeAssistantSensorDefinition("sunrise", "Sunrise"),
+                new HomeAssistantSensorDefinition("sunset", "Sunset"),
             ],
             manufacturer: "Davis Instruments",
             model: "Vantage Pro 2"));
@@ -54,18 +80,49 @@ public sealed class DavisHomeAssistantProjection : IDavisHomeAssistantProjection
     {
         var values = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         Add(values, "outside_temperature", reading.OutsideTemperatureF);
+        Add(values, "inside_temperature", reading.InsideTemperatureF);
         Add(values, "outside_humidity", reading.OutsideHumidityPercent);
+        Add(values, "inside_humidity", reading.InsideHumidityPercent);
         Add(values, "dew_point", reading.DewPointF);
+        Add(values, "heat_index", reading.HeatIndexF);
+        Add(values, "wind_chill", reading.WindChillF);
+        Add(values, "thsw_index", reading.ThswF);
         Add(values, "barometric_pressure", reading.BarometricPressureInHg);
+        Add(values, "raw_pressure", reading.PressureRawInHg);
+        Add(values, "altimeter_pressure", reading.AltimeterInHg);
+        Add(values, "barometric_trend", reading.BarometricTrend);
         Add(values, "wind_speed", reading.WindSpeedMph);
         Add(values, "wind_direction", reading.WindDirectionDegrees);
+        Add(values, "wind_speed_10_min_average", reading.WindSpeed10MinAvgMph);
+        Add(values, "wind_speed_2_min_average", reading.WindSpeed2MinAvgMph);
         Add(values, "wind_gust", reading.WindGust10MinMph);
+        Add(values, "wind_gust_direction", reading.WindGust10MinDirectionDegrees);
         Add(values, "rain_rate", reading.RainRateInchesPerHour);
         Add(values, "daily_rain", reading.DailyRainInches);
+        Add(values, "rain_15_min", reading.Rain15MinInches);
+        Add(values, "rain_1_hour", reading.HourRainInches);
+        Add(values, "rain_24_hour", reading.Rain24HourInches);
+        Add(values, "storm_rain", reading.StormRainInches);
+        Add(values, "storm_start", reading.StormStartDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        Add(values, "monthly_rain", reading.MonthlyRainInches);
+        Add(values, "yearly_rain", reading.YearlyRainInches);
         Add(values, "solar_radiation", reading.SolarRadiationWm2);
         Add(values, "uv_index", reading.UvIndex);
+        Add(values, "daily_et", reading.DailyEtInches);
+        Add(values, "monthly_et", reading.MonthlyEtInches);
+        Add(values, "yearly_et", reading.YearlyEtInches);
         Add(values, "console_battery", reading.ConsoleBatteryVoltage);
+        if (reading.TransmitterBatteryStatus.HasValue)
+        {
+            Add(values, "transmitter_battery_status", reading.TransmitterLowBatteryChannels.Count == 0
+                ? "OK"
+                : $"Low: {string.Join(", ", reading.TransmitterLowBatteryChannels)}");
+        }
+        Add(values, "transmitter_battery_bitmask", reading.TransmitterBatteryStatus);
         Add(values, "forecast", reading.ForecastString);
+        Add(values, "forecast_rule", reading.ForecastRule);
+        Add(values, "sunrise", reading.SunriseDisplay);
+        Add(values, "sunset", reading.SunsetDisplay);
         return projection.PublishCurrentState(new(key, new DateTimeOffset(reading.RecordedAtUtc), values, available: true));
     }
 
@@ -73,6 +130,16 @@ public sealed class DavisHomeAssistantProjection : IDavisHomeAssistantProjection
         projection.PublishCurrentState(new(key, observedAtUtc, Array.Empty<KeyValuePair<string, JsonElement>>(), available: false));
 
     private static void Add(IDictionary<string, JsonElement> values, string id, double? value)
+    {
+        if (value.HasValue) values[id] = JsonSerializer.SerializeToElement(value.Value);
+    }
+
+    private static void Add(IDictionary<string, JsonElement> values, string id, int? value)
+    {
+        if (value.HasValue) values[id] = JsonSerializer.SerializeToElement(value.Value);
+    }
+
+    private static void Add(IDictionary<string, JsonElement> values, string id, ushort? value)
     {
         if (value.HasValue) values[id] = JsonSerializer.SerializeToElement(value.Value);
     }
