@@ -9,6 +9,13 @@
       "name": "HVO 6500EX Solar"
     },
     {
+      "type": "solar",
+      "stat_energy_from": "sensor.hvo_external_mppt_pv_energy",
+      "stat_rate": "sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_11xpv_x5fpower",
+      "config_entry_solar_forecast": null,
+      "name": "HVO External MPPT Solar"
+    },
+    {
       "type": "battery",
       "stat_energy_from": "sensor.hvo_smartshunt_battery_discharge_energy",
       "stat_energy_to": "sensor.hvo_smartshunt_battery_charge_energy",
