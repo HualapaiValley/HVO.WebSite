@@ -88,6 +88,15 @@ jq -e '
 	' <<<"${website_compose}" >/dev/null ||
 	fail 'website Data Protection persistence and encryption settings are incomplete'
 
+website_sync_block="$(sed -n '/# Website deployment and handoff materializations\./,/# Existing environment-only gateways/p' "${repo_root}/scripts/sync-secrets-from-keyvault.sh")"
+grep -q 'WebsiteRuntime--AzureClientId' <<<"${website_sync_block}" &&
+	grep -q 'WebsiteRuntime--AzureClientSecret' <<<"${website_sync_block}" &&
+	grep -q 'WebsiteRuntime--AzureTenantId' <<<"${website_sync_block}" ||
+	fail 'website deployment does not materialize its dedicated runtime identity'
+if grep -q 'obs-azure-client-' <<<"${website_sync_block}"; then
+	fail 'website deployment still materializes the development service principal'
+fi
+
 for relative_file in \
 	"deploy/hvo-docker/observability/compose.yaml" \
 	"deploy/hvo-docker/shared-infrastructure/compose.yaml"; do

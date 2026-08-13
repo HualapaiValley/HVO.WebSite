@@ -12,10 +12,21 @@ container uses the same application discriminator.
 
 ## Access
 
-The website runtime identity needs:
+The dedicated `hvo-website-runtime` identity needs:
 
 - secret-read access to `hvo-central-kv` for application configuration
 - cryptographic wrap and unwrap access to the configured Data Protection key
+
+Do not reuse the development service principal. Website deployment files obtain
+the dedicated identity from `WebsiteRuntime--AzureClientId`,
+`WebsiteRuntime--AzureClientSecret`, and `WebsiteRuntime--AzureTenantId` in
+`hvo-central-kv` through `sync-secrets-from-keyvault.sh`.
+
+The devcontainer identity is intentionally separate and is cached in the private
+bootstrap gist for rebuild recovery. Rotations must update
+`obs-azure-client-*` in `hvo-central-kv`, materialize root `.env`, verify an
+isolated service-principal login, synchronize the private gist, and only then
+retire the superseded credential.
 
 Keep access to `hvoobs-kv/keys/hvo-website-dp` while any retained key-ring entry
 is wrapped by that key. Do not remove the permission merely because a newer key
