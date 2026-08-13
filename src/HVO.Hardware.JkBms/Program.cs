@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddHvoEdgeRuntime();
 builder.Services.AddHvoHomeAssistantMqtt(builder.Configuration);
 builder.Services.AddJkBmsCollector(builder.Configuration);
+builder.Services.AddHvoHomeAssistantGatewayDiagnostics();
 
 var app = builder.Build();
 // The deployed volume may contain the pre-vNext JK schema. This must run before

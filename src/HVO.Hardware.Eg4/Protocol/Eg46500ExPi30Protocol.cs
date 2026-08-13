@@ -14,6 +14,8 @@ public enum Eg46500ExInquiry
     Pv2Status,
     ParallelStatus,
     ExtendedStatus,
+    TotalPvEnergy,
+    TotalLoadEnergy,
 }
 
 public sealed record Eg46500ExGeneralStatus(
@@ -88,6 +90,8 @@ public static class Eg46500ExPi30Protocol
             [Eg46500ExInquiry.Pv2Status] = "QPIGS2",
             [Eg46500ExInquiry.ParallelStatus] = "QPGS0",
             [Eg46500ExInquiry.ExtendedStatus] = "Q1",
+            [Eg46500ExInquiry.TotalPvEnergy] = "QET",
+            [Eg46500ExInquiry.TotalLoadEnergy] = "QLT",
         };
 
     public static byte[] Encode(Eg46500ExInquiry inquiry)
@@ -201,6 +205,14 @@ public static class Eg46500ExPi30Protocol
         {
             throw new Eg4TransportException(Eg4TransportFailureKind.MalformedFrame, $"Q1 fields are malformed: {exception.Message}");
         }
+    }
+
+    public static long DecodeEnergyWh(ReadOnlySpan<byte> frame)
+    {
+        var payload = DecodePayload(frame);
+        if (!IsDigits(payload, 8))
+            throw new Eg4TransportException(Eg4TransportFailureKind.MalformedFrame, "Expected an eight-digit PI30 energy value in Wh.");
+        return long.Parse(payload, NumberStyles.None, CultureInfo.InvariantCulture);
     }
 
     private static string ChargeStage(string value) => value switch

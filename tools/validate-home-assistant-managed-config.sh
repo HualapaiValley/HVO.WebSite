@@ -21,7 +21,8 @@ trap cleanup EXIT
 
 mkdir -p "$validation_root/hvo"
 cp -R "$source_root/lovelace.yaml" "$source_root/dashboards" "$source_root/packages" \
-    "$source_root/templates" "$source_root/automations" "$validation_root/hvo/"
+    "$source_root/templates" "$source_root/sensors" "$source_root/utility-meters" \
+    "$source_root/automations" "$validation_root/hvo/"
 cp "$test_root/managed-configuration.yaml" "$validation_root/configuration.yaml"
 
 read -r from image <"$dockerfile"

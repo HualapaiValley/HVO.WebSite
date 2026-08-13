@@ -29,6 +29,8 @@ public sealed class Eg4HomeAssistantProjectionTests
             .Should().BeEquivalentTo("a", "controller");
         mqtt.Definitions.Single(definition => definition.Key.DeviceId == "a").Entities
             .Should().Contain(entity => entity.ComponentId == "load_power")
+            .And.Contain(entity => entity.ComponentId == "pv_energy_total")
+            .And.Contain(entity => entity.ComponentId == "load_energy_total")
             .And.Contain(entity => entity.ComponentId == "pv_mppt_2_power")
             .And.Contain(entity => entity.ComponentId == "ac_output_voltage")
             .And.Contain(entity => entity.ComponentId == "fault_code")
@@ -44,6 +46,8 @@ public sealed class Eg4HomeAssistantProjectionTests
         inverter["battery_net_current"].SuggestedDisplayPrecision.Should().Be(0);
         inverter["pv_mppt_1_current"].SuggestedDisplayPrecision.Should().Be(1);
         inverter["load_power"].SuggestedDisplayPrecision.Should().Be(0);
+        inverter["pv_energy_total"].DeviceClass.Should().Be("energy");
+        inverter["pv_energy_total"].StateClass.Should().Be("total_increasing");
         inverter["ac_output_frequency"].SuggestedDisplayPrecision.Should().Be(1);
         var controller = Sensors(mqtt, "controller");
         controller["battery_voltage"].SuggestedDisplayPrecision.Should().Be(1);
@@ -143,8 +147,16 @@ public sealed class Eg4HomeAssistantProjectionTests
                 new() { Key = "parallel-total-load-percent", Value = "14" },
             ],
         };
+        var energy = new PowerEnergyPayload
+        {
+            Counters =
+            [
+                new() { Key = "pv_energy", ValueKwh = 14473.1 },
+                new() { Key = "load_energy", ValueKwh = 8381.8 },
+            ],
+        };
 
-        projector.Publish(device, Eg4TelemetrySample.Available(observation, mppt, inverter)).Should().BeTrue();
+        projector.Publish(device, Eg4TelemetrySample.Available(observation, mppt, inverter, energy)).Should().BeTrue();
 
         var values = mqtt.States.Single().ComponentValues;
         values["pv_power"].GetDouble().Should().Be(2295);
@@ -160,6 +172,8 @@ public sealed class Eg4HomeAssistantProjectionTests
         values["transformer_temperature"].GetDouble().Should().Be(44);
         values["charger_source_priority"].GetString().Should().Be("P");
         values["parallel_total_load_power"].GetDouble().Should().Be(850);
+        values["pv_energy_total"].GetDouble().Should().Be(14473.1);
+        values["load_energy_total"].GetDouble().Should().Be(8381.8);
     }
 
     [TestMethod]

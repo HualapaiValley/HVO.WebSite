@@ -7,7 +7,7 @@ public sealed class Eg4Options
     public const string SectionName = "Eg4";
 
     [Range(10, 3600)]
-    public int DefaultPollIntervalSeconds { get; set; } = 60;
+    public int DefaultPollIntervalSeconds { get; set; } = 15;
 
     public bool SimulationEnabled { get; set; }
     public string? CentralIngestEndpoint { get; set; }

@@ -21,6 +21,7 @@ public sealed class SmartShuntWorker(
     private long lastOutboxWriteAtTicks;
     private volatile SmartShuntLiveSample? lastSample;
     private volatile string? lastError;
+    private bool? lastPublishedAvailability;
 
     public SmartShuntLiveSample? LastSample => lastSample;
     public string? LastError => lastError ?? session.LastError;
@@ -47,8 +48,11 @@ public sealed class SmartShuntWorker(
 
     internal async Task RunIterationAsync(CancellationToken cancellationToken)
     {
-        if (!await PollOnceAsync(cancellationToken))
-            homeAssistant.PublishUnavailable(timeProvider.GetUtcNow().UtcDateTime);
+        if (!await PollOnceAsync(cancellationToken) && lastPublishedAvailability != false)
+        {
+            if (homeAssistant.PublishUnavailable(timeProvider.GetUtcNow().UtcDateTime))
+                lastPublishedAvailability = false;
+        }
     }
 
     internal async Task<bool> PollOnceAsync(CancellationToken cancellationToken)
@@ -79,7 +83,8 @@ public sealed class SmartShuntWorker(
         lastSample = normalized;
         Volatile.Write(ref lastSnapshotAtTicks, recordedAt.Ticks);
         lastError = null;
-        homeAssistant.Publish(normalized);
+        if (homeAssistant.Publish(normalized))
+            lastPublishedAvailability = true;
 
         var lastWrite = ReadUtc(lastOutboxWriteAtTicks);
         if (!lastWrite.HasValue || recordedAt - lastWrite.Value >= TimeSpan.FromSeconds(options.SnapshotIntervalSeconds))

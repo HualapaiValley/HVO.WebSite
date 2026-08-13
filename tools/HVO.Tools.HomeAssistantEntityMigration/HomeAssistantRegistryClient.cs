@@ -14,6 +14,14 @@ internal interface IHomeAssistantRegistryClient : IAsyncDisposable
     Task<string> CreateBackupAsync(string name, CancellationToken cancellationToken);
     Task<IReadOnlyList<JsonElement>> GetLovelaceConfigurationsAsync(CancellationToken cancellationToken);
     Task<JsonElement> RenameAsync(string sourceEntityId, string targetEntityId, CancellationToken cancellationToken);
+    Task<JsonElement[]> ListStatesAsync(CancellationToken cancellationToken);
+    Task<JsonElement?> GetEnergyPreferencesAsync(CancellationToken cancellationToken);
+    Task<JsonElement> SaveEnergyPreferencesAsync(
+        IReadOnlyList<JsonElement> energySources,
+        IReadOnlyList<JsonElement> deviceConsumption,
+        IReadOnlyList<JsonElement> waterConsumption,
+        CancellationToken cancellationToken);
+    Task<JsonElement> ValidateEnergyAsync(CancellationToken cancellationToken);
 }
 
 internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessToken) : IHomeAssistantRegistryClient
@@ -98,7 +106,7 @@ internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessTok
         {
             configurations.Add(await CommandAsync(new { type = "lovelace/config" }, cancellationToken));
         }
-        catch (InvalidOperationException exception) when (exception.Message.Contains("No config found", StringComparison.Ordinal))
+        catch (HomeAssistantCommandException exception) when (exception.Code == "not_found")
         {
         }
 
@@ -115,6 +123,40 @@ internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessTok
 
     public Task<JsonElement> RenameAsync(string sourceEntityId, string targetEntityId, CancellationToken cancellationToken) =>
         CommandAsync(new { type = "config/entity_registry/update", entity_id = sourceEntityId, new_entity_id = targetEntityId }, cancellationToken);
+
+    public async Task<JsonElement[]> ListStatesAsync(CancellationToken cancellationToken)
+    {
+        var result = await CommandAsync(new { type = "get_states" }, cancellationToken);
+        return result.EnumerateArray().Select(static item => item.Clone()).ToArray();
+    }
+
+    public async Task<JsonElement?> GetEnergyPreferencesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await CommandAsync(new { type = "energy/get_prefs" }, cancellationToken);
+        }
+        catch (HomeAssistantCommandException exception) when (exception.Code == "not_found")
+        {
+            return null;
+        }
+    }
+
+    public Task<JsonElement> SaveEnergyPreferencesAsync(
+        IReadOnlyList<JsonElement> energySources,
+        IReadOnlyList<JsonElement> deviceConsumption,
+        IReadOnlyList<JsonElement> waterConsumption,
+        CancellationToken cancellationToken) =>
+        CommandAsync(new
+        {
+            type = "energy/save_prefs",
+            energy_sources = energySources,
+            device_consumption = deviceConsumption,
+            device_consumption_water = waterConsumption,
+        }, cancellationToken);
+
+    public Task<JsonElement> ValidateEnergyAsync(CancellationToken cancellationToken) =>
+        CommandAsync(new { type = "energy/validate" }, cancellationToken);
 
     private static void EnsureBackupSucceeded(JsonElement backup)
     {
@@ -147,10 +189,15 @@ internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessTok
                 continue;
             if (!root.TryGetProperty("success", out var success) || !success.GetBoolean())
             {
-                var error = root.TryGetProperty("error", out var errorElement)
-                    ? errorElement.GetProperty("message").GetString()
+                var code = root.TryGetProperty("error", out var errorElement)
+                    && errorElement.TryGetProperty("code", out var codeElement)
+                    ? codeElement.GetString() ?? "unknown_error"
+                    : "unknown_error";
+                var message = root.TryGetProperty("error", out errorElement)
+                    && errorElement.TryGetProperty("message", out var messageElement)
+                    ? messageElement.GetString() ?? "unknown error"
                     : "unknown error";
-                throw new InvalidOperationException($"Home Assistant command failed: {error}");
+                throw new HomeAssistantCommandException(code, message);
             }
             return root.TryGetProperty("result", out var result) ? result.Clone() : default;
         }
@@ -199,4 +246,10 @@ internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessTok
         }
         socket.Dispose();
     }
+}
+
+internal sealed class HomeAssistantCommandException(string code, string message)
+    : InvalidOperationException($"Home Assistant command failed ({code}): {message}")
+{
+    public string Code { get; } = code;
 }

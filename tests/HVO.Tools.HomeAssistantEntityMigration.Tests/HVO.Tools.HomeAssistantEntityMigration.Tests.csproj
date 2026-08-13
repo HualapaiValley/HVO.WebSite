@@ -19,4 +19,9 @@
     <ProjectReference Include="..\..\tools\HVO.Tools.HomeAssistantEntityMigration\HVO.Tools.HomeAssistantEntityMigration.csproj" />
     <ProjectReference Include="..\..\src\HVO.Hardware.DavisVantagePro2\HVO.Hardware.DavisVantagePro2.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../../tools/HVO.Tools.HomeAssistantEntityMigration/hvo-energy-preferences.json"
+          Link="hvo-energy-preferences.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

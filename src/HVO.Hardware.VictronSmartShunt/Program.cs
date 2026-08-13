@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddHvoEdgeRuntime();
 builder.Services.AddHvoHomeAssistantMqtt(builder.Configuration);
 builder.Services.AddSmartShuntCollector(builder.Configuration);
+builder.Services.AddHvoHomeAssistantGatewayDiagnostics();
 
 var app = builder.Build();
 await app.Services.MigrateSmartShuntLegacyOutboxAsync();

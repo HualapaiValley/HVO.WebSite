@@ -68,7 +68,9 @@ internal sealed class HomeAssistantMqttProjection : IHomeAssistantMqttProjection
         {
             if (!devices.TryGetValue(state.DeviceKey, out var entry))
                 throw new InvalidOperationException("The Home Assistant device must be registered before publishing state.");
-            if (entry.State is not null && state.ObservedAtUtc <= entry.State.ObservedAtUtc)
+            if (entry.State is not null
+                && state.ObservedAtUtc <= entry.State.ObservedAtUtc
+                && (entry.State.Available || entry.State.ComponentValues.Count > 0 || !state.Available))
                 return false;
 
             var componentMap = entry.Definition.Entities.ToDictionary(

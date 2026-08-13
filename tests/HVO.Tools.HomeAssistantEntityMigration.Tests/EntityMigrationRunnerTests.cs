@@ -204,6 +204,22 @@ public sealed class EntityMigrationRunnerTests
             return Task.FromResult(ToJson(entity));
         }
 
+        public Task<JsonElement[]> ListStatesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(Array.Empty<JsonElement>());
+
+        public Task<JsonElement?> GetEnergyPreferencesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<JsonElement?>(null);
+
+        public Task<JsonElement> SaveEnergyPreferencesAsync(
+            IReadOnlyList<JsonElement> energySources,
+            IReadOnlyList<JsonElement> deviceConsumption,
+            IReadOnlyList<JsonElement> waterConsumption,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(JsonSerializer.SerializeToElement(new { energy_sources = energySources }));
+
+        public Task<JsonElement> ValidateEnergyAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(JsonSerializer.SerializeToElement(new { }));
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         private static JsonElement ToJson(FakeEntity entity) => JsonSerializer.SerializeToElement(

@@ -1,1 +1,21 @@
-[]
+- sensor:
+    - name: HVO SmartShunt Battery Charge Power
+      unique_id: hvo_smartshunt_battery_charge_power
+      default_entity_id: sensor.hvo_smartshunt_battery_charge_power
+      unit_of_measurement: W
+      device_class: power
+      state_class: measurement
+      availability: >-
+        {{ 'sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower' | has_value }}
+      state: >-
+        {{ [states('sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower') | float, 0] | max }}
+    - name: HVO SmartShunt Battery Discharge Power
+      unique_id: hvo_smartshunt_battery_discharge_power
+      default_entity_id: sensor.hvo_smartshunt_battery_discharge_power
+      unit_of_measurement: W
+      device_class: power
+      state_class: measurement
+      availability: >-
+        {{ 'sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower' | has_value }}
+      state: >-
+        {{ [-(states('sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower') | float), 0] | max }}

@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddHvoEdgeRuntime();
 builder.Services.AddHvoHomeAssistantMqtt(builder.Configuration);
 builder.Services.AddEg4Collector(builder.Configuration, builder.Environment);
+builder.Services.AddHvoHomeAssistantGatewayDiagnostics();
 
 var app = builder.Build();
 app.MapHvoEdgeRuntimeEndpoints();

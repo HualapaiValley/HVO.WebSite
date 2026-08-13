@@ -13,13 +13,12 @@ services:
 
   home-assistant:
     build:
-      context: .
-      dockerfile: home-assistant.Dockerfile
+      context: ../..
+      dockerfile: tests/HomeAssistant.IntegrationEnvironment/home-assistant.Dockerfile
     depends_on:
       mosquitto:
         condition: service_healthy
     volumes:
-      - ha-config:/config
       - ha-db:/data
     ports:
       - "127.0.0.1::8123"
@@ -35,5 +34,4 @@ services:
       - "127.0.0.1::8080"
 
 volumes:
-  ha-config:
   ha-db:

@@ -1,0 +1,121 @@
+views:
+  - title: Energy
+    path: energy
+    icon: mdi:solar-power-variant
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: Current Power Flow
+        cards:
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_11xpv_x5fpower
+            name: 6500EX Combined PV
+            icon: mdi:solar-power
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_11xpv_x5fpower
+            name: External MPPT PV
+            icon: mdi:solar-panel-large
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_13xload_x5fpower
+            name: AC Load
+            icon: mdi:home-lightning-bolt-outline
+          - type: tile
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower
+            name: Battery Net Power
+            icon: mdi:battery-sync-outline
+
+      - type: grid
+        title: Three PV Inputs
+        cards:
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f1_x5fpower
+            name: 6500EX MPPT 1
+            icon: mdi:solar-panel
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f2_x5fpower
+            name: 6500EX MPPT 2
+            icon: mdi:solar-panel
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_24xpv_x5fmppt_x5f1_x5fpower
+            name: External MPPT
+            icon: mdi:solar-panel-large
+
+      - type: grid
+        title: Today
+        cards:
+          - type: tile
+            entity: sensor.hvo_6500ex_pv_energy_daily
+            name: 6500EX Solar
+            icon: mdi:solar-power
+          - type: tile
+            entity: sensor.hvo_external_mppt_pv_energy_daily
+            name: External MPPT Solar
+            icon: mdi:solar-panel-large
+          - type: tile
+            entity: sensor.hvo_6500ex_ac_load_energy_daily
+            name: AC Consumption
+            icon: mdi:transmission-tower-export
+          - type: tile
+            entity: sensor.hvo_battery_charge_energy_daily
+            name: Battery Charged
+            icon: mdi:battery-arrow-up-outline
+          - type: tile
+            entity: sensor.hvo_battery_discharge_energy_daily
+            name: Battery Discharged
+            icon: mdi:battery-arrow-down-outline
+
+  - title: History
+    path: history
+    icon: mdi:chart-line
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        title: PV Power
+        cards:
+          - type: statistics-graph
+            title: PV Inputs - 24 Hours
+            chart_type: line
+            period: 5minute
+            days_to_show: 1
+            stat_types:
+              - mean
+              - max
+            entities:
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f1_x5fpower
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f2_x5fpower
+              - sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_24xpv_x5fmppt_x5f1_x5fpower
+
+      - type: grid
+        title: AC And Battery Power
+        cards:
+          - type: statistics-graph
+            title: Load And Battery - 24 Hours
+            chart_type: line
+            period: 5minute
+            days_to_show: 1
+            stat_types:
+              - mean
+              - max
+              - min
+            entities:
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_13xload_x5fpower
+              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower
+
+      - type: grid
+        title: Cumulative Energy
+        cards:
+          - type: statistics-graph
+            title: Daily Energy
+            chart_type: bar
+            period: day
+            days_to_show: 14
+            stat_types:
+              - change
+            entities:
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_21xpv_x5fenergy_x5ftotal
+              - sensor.hvo_external_mppt_pv_energy
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xload_x5fenergy_x5ftotal
+              - sensor.hvo_smartshunt_battery_charge_energy
+              - sensor.hvo_smartshunt_battery_discharge_energy

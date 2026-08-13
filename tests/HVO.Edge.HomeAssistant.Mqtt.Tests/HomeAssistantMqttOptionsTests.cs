@@ -96,6 +96,10 @@ public sealed class HomeAssistantMqttOptionsTests
         provider.GetRequiredService<IHomeAssistantMqttProjection>().Should().NotBeNull();
         provider.GetServices<IHostedService>().Should().Contain(service => service is HomeAssistantMqttInitializer);
         provider.GetServices<IHostedService>().Should().Contain(service => service is HomeAssistantMqttWorker);
+
+        var diagnosticsServices = new ServiceCollection();
+        diagnosticsServices.AddHvoHomeAssistantGatewayDiagnostics();
+        diagnosticsServices.Should().Contain(descriptor => descriptor.ImplementationType == typeof(HomeAssistantGatewayDiagnosticsWorker));
     }
 
     private static ServiceProvider CreateOptionsProvider(IReadOnlyDictionary<string, string?> values)

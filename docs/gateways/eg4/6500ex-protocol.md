@@ -44,6 +44,7 @@ Research dates: 2026-08-09 through 2026-08-10. Target: EG4 6500EX-48, model `MKS
 | `QPGS0` | Mode, fault, status, parallel totals, PV2 voltage and coarse integer current | All supported tuples |
 | `Q1` | SCC/inverter/battery-channel/transformer temperatures, fan, charge stage, diagnostics | All supported tuples |
 | `QPIGS2` | Direct MPPT 2 current, voltage, and power | Firmware `79.72/61.13` only |
+| `QET`, `QLT` | Lifetime PV generation and AC output/load energy | Installed firmware; production refreshes every five minutes with last-good retention |
 
 Installed firmware `79.71/61.13` does not respond to QPIGS2. Production never sends it to that tuple. Static C28 analysis found `QPIGS2` at word address `0x3EF3DA`, dispatch pointer `0x3EFA16`, and handler `0x3DC6AA` in official 79.72. Firmware 79.72 is allowlisted and conditionally enables the inquiry, but HVO does not flash firmware as part of this work.
 
