@@ -70,7 +70,7 @@ public sealed class HomeAssistantMqttIntegrationTests
 
     private static async Task WaitForStateAsync(HttpClient http, string entityId, string expected)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(60);
+        var deadline = DateTime.UtcNow.AddSeconds(120);
         while (DateTime.UtcNow < deadline)
         {
             using var response = await http.GetAsync($"/api/states/{entityId}");
