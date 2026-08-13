@@ -56,10 +56,11 @@ the external controller counter, never the combined counter and its children.
 JK bank counters remain comparison/fallback candidates and are not combined
 with the SmartShunt whole-bus meter.
 
-The initial nighttime trial registers only the validated 6500EX solar source,
-SmartShunt battery, and AC load. The external MPPT integration helper is already
-deployed, but must receive a daylight sample and expose valid `kWh` statistics
-before it is added as the second Energy solar source.
+The managed Energy preferences register the validated 6500EX combined solar
+counter and the external MPPT integration helper as two separate solar sources,
+plus the SmartShunt battery and AC load. Daylight validation confirmed the
+external helper exposes cumulative `kWh` statistics and increases with direct
+MPPT power; it may still be unavailable after dark when the controller sleeps.
 
 The Davis entity registry migration procedure is documented in
 `docs/home-assistant/davis-readable-id-migration.md`.
@@ -169,9 +170,9 @@ dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-ap
 ```
 
 The apply operation preserves unrelated preferences and restores the previous
-preferences if save, readback, or Energy validation fails. Keep the external
-MPPT out of the manifest until a daylight sample establishes valid `kWh`
-statistics metadata.
+preferences if save, readback, or Energy validation fails. The external MPPT
+was added only after daylight established valid cumulative `kWh` metadata and
+Home Assistant Energy validation accepted the second solar source.
 
 ## One-time commissioning
 
