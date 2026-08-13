@@ -6,6 +6,7 @@ namespace HVO.Edge.Outbox;
 public sealed class EdgeOutboxStore<TContext>(TContext db)
     where TContext : EdgeOutboxDbContext
 {
+    private const int CompactionBatchSize = 1000;
     private const int MaxLastErrorLength = 1024;
     private static readonly Regex SensitiveErrorPattern = new(
         @"(?i)(authorization\s*:\s*bearer|bearer|api[-_ ]?key|access[-_ ]?token|password|token)\s*[=:]?\s*[^\s&,;]+",
@@ -185,9 +186,11 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
             throw new ArgumentOutOfRangeException(nameof(sentRetention), sentRetention, "Retention cannot be negative.");
 
         var cutoff = DateTime.UtcNow.Subtract(sentRetention);
-        return await _db.OutboxRecords
-            .Where(r => r.Status == EdgeOutboxStatus.Sent && r.SentAtUtc.HasValue && r.SentAtUtc.Value < cutoff)
-            .ExecuteDeleteAsync(ct);
+        return await DeleteInBatchesAsync(
+            _db.OutboxRecords.Where(r => r.Status == EdgeOutboxStatus.Sent
+                && r.SentAtUtc.HasValue
+                && r.SentAtUtc.Value < cutoff),
+            ct).ConfigureAwait(false);
     }
 
     public async Task<int> CompactFailedAsync(TimeSpan failedRetention, CancellationToken ct)
@@ -196,11 +199,11 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
             throw new ArgumentOutOfRangeException(nameof(failedRetention), failedRetention, "Retention cannot be negative.");
 
         var cutoff = DateTime.UtcNow.Subtract(failedRetention);
-        return await _db.OutboxRecords
-            .Where(r => r.Status == EdgeOutboxStatus.Failed
+        return await DeleteInBatchesAsync(
+            _db.OutboxRecords.Where(r => r.Status == EdgeOutboxStatus.Failed
                 && ((r.LastAttemptedAtUtc.HasValue && r.LastAttemptedAtUtc.Value < cutoff)
-                    || (!r.LastAttemptedAtUtc.HasValue && r.CreatedAtUtc < cutoff)))
-            .ExecuteDeleteAsync(ct);
+                    || (!r.LastAttemptedAtUtc.HasValue && r.CreatedAtUtc < cutoff))),
+            ct).ConfigureAwait(false);
     }
 
     public async Task<int> ReclaimFreePagesAsync(int maxPages, CancellationToken ct)
@@ -254,6 +257,24 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
         if (command.Connection!.State != System.Data.ConnectionState.Open)
             await command.Connection.OpenAsync(ct).ConfigureAwait(false);
         return Convert.ToInt32(await command.ExecuteScalarAsync(ct).ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<int> DeleteInBatchesAsync(IQueryable<EdgeOutboxRecord> query, CancellationToken ct)
+    {
+        var totalDeleted = 0;
+        while (true)
+        {
+            var deleted = await query
+                .OrderBy(static record => record.Id)
+                .Take(CompactionBatchSize)
+                .ExecuteDeleteAsync(ct)
+                .ConfigureAwait(false);
+            totalDeleted += deleted;
+            if (deleted < CompactionBatchSize)
+                return totalDeleted;
+
+            await Task.Yield();
+        }
     }
 
     private static string NormalizeRequired(string value, string name)

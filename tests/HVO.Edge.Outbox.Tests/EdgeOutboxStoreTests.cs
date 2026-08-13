@@ -186,6 +186,53 @@ public sealed class EdgeOutboxStoreTests
     }
 
     [TestMethod]
+    public async Task CompactSentAsync_DeletesExpiredRecordsAcrossBatchesAndPreservesQueueState()
+    {
+        var expiredAt = DateTime.UtcNow.AddDays(-2);
+        var records = Enumerable.Range(0, 2501).Select(index => new EdgeOutboxRecord
+        {
+            SourceId = $"expired-{index}",
+            PayloadType = "power.reading",
+            PayloadVersion = "1",
+            RecordedAtUtc = expiredAt.AddTicks(index),
+            PayloadJson = "{}",
+            Status = EdgeOutboxStatus.Sent,
+            SentAtUtc = expiredAt,
+            CreatedAtUtc = expiredAt
+        }).ToArray();
+        _db.OutboxRecords.AddRange(records);
+        _db.OutboxRecords.Add(new EdgeOutboxRecord
+        {
+            SourceId = "recent",
+            PayloadType = "power.reading",
+            PayloadVersion = "1",
+            RecordedAtUtc = DateTime.UtcNow,
+            PayloadJson = "{}",
+            Status = EdgeOutboxStatus.Sent,
+            SentAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        _db.OutboxRecords.Add(new EdgeOutboxRecord
+        {
+            SourceId = "pending",
+            PayloadType = "power.reading",
+            PayloadVersion = "1",
+            RecordedAtUtc = expiredAt,
+            PayloadJson = "{}",
+            Status = EdgeOutboxStatus.Pending,
+            CreatedAtUtc = expiredAt
+        });
+        await _db.SaveChangesAsync();
+
+        var deleted = await _store.CompactSentAsync(TimeSpan.FromDays(1), CancellationToken.None);
+
+        deleted.Should().Be(2501);
+        _db.ChangeTracker.Clear();
+        (await _db.OutboxRecords.Select(record => record.SourceId).ToArrayAsync())
+            .Should().BeEquivalentTo("recent", "pending");
+    }
+
+    [TestMethod]
     public async Task CompactFailedAsync_DeletesExpiredFailedRecords()
     {
         await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
