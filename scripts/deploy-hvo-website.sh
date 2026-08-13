@@ -126,6 +126,8 @@ run_cmd docker "${compose_args[@]}" config --quiet
 run_cmd docker "${compose_args[@]}" "${up_args[@]}"
 run_cmd docker "${compose_args[@]}" ps
 if [[ "${dry_run}" == false ]]; then
-	mapfile -t container_ids < <(docker "${compose_args[@]}" ps -aq)
-	"${repo_root}/tools/verify-running-container-policy.sh" --require-core "${docker_context}" "${container_ids[@]}"
+	container_id="$(docker "${compose_args[@]}" ps -q hvo-website)"
+	[[ -n "${container_id}" ]] || fail 'Website container was not created.'
+	"${repo_root}/tools/verify-running-container-policy.sh" --require-core "${docker_context}" "${container_id}"
+	"${repo_root}/tools/verify-website-data-protection.sh" "${docker_context}" "${container_id}"
 fi

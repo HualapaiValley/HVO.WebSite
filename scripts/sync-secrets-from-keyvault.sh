@@ -268,9 +268,9 @@ for env_file in deploy/hvo-docker/.env .env-handoff/hvo-docker.env; do
 	fi
 	sync_dotenv_secret "$env_file" HVO_CONTAINER_REGISTRY_USERNAME obs-registry-admin-username
 	sync_dotenv_secret "$env_file" HVO_CONTAINER_REGISTRY_PASSWORD obs-registry-admin-password
-	sync_dotenv_secret "$env_file" AZURE_CLIENT_ID obs-azure-client-id
-	sync_dotenv_secret "$env_file" AZURE_CLIENT_SECRET obs-azure-client-secret
-	sync_dotenv_secret "$env_file" AZURE_TENANT_ID obs-azure-tenant-id
+	sync_dotenv_secret "$env_file" AZURE_CLIENT_ID WebsiteRuntime--AzureClientId
+	sync_dotenv_secret "$env_file" AZURE_CLIENT_SECRET WebsiteRuntime--AzureClientSecret
+	sync_dotenv_secret "$env_file" AZURE_TENANT_ID WebsiteRuntime--AzureTenantId
 	sync_dotenv_value "$env_file" KeyVault__Uri "$central_uri"
 	sync_dotenv_secret "$env_file" Seeding__DavisApiKey Seeding--DavisApiKey
 	sync_dotenv_secret "$env_file" Seeding__WeatherReadApiKey Seeding--WeatherReadApiKey

@@ -112,7 +112,8 @@ public sealed class WeatherStationWorkerTests
             homeAssistant: homeAssistant);
 
         await fixture.Worker.StartAsync(CancellationToken.None);
-        await homeAssistant.Unavailable.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.WhenAll(homeAssistant.Unavailable.Task, station.Disconnected.Task)
+            .WaitAsync(TimeSpan.FromSeconds(5));
 
         fixture.Worker.ExecuteTask.Should().NotBeNull();
         fixture.Worker.ExecuteTask!.IsCompleted.Should().BeFalse();

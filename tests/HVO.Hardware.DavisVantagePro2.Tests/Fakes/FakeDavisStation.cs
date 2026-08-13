@@ -16,6 +16,7 @@ internal sealed class FakeDavisStation : IDavisStation
     public List<string> Calls { get; } = [];
     public int ConnectCount { get; private set; }
     public int DisconnectCount { get; private set; }
+    public TaskCompletionSource Disconnected { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Exception? Loop1Exception { get; set; }
     public bool ClearLoop1ExceptionAfterThrow { get; set; }
     public Exception? ArchiveException { get; set; }
@@ -42,6 +43,7 @@ internal sealed class FakeDavisStation : IDavisStation
     {
         DisconnectCount++;
         Calls.Add("disconnect");
+        Disconnected.TrySetResult();
         return Task.CompletedTask;
     }
 
