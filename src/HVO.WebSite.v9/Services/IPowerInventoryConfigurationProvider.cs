@@ -18,4 +18,20 @@ public interface IPowerInventoryConfigurationProvider
         string sourceId = "solarassistant-total",
         int staleAfterMinutes = 1440,
         CancellationToken ct = default);
+
+    Task<PowerInverterDetailSnapshotResponse> GetLatestInverterDetailAsync(
+        string sourceId,
+        int staleAfterMinutes = 5,
+        CancellationToken ct = default);
+
+    Task<PowerMpptDetailSnapshotResponse> GetLatestMpptDetailAsync(
+        string sourceId,
+        int staleAfterMinutes = 5,
+        CancellationToken ct = default);
+
+    Task<PowerTelemetryHistoryResponse> GetRecentTelemetryAsync(
+        IReadOnlyCollection<string> mpptSourceIds,
+        IReadOnlyCollection<string> batterySourceIds,
+        DateTime sinceUtc,
+        CancellationToken ct = default);
 }

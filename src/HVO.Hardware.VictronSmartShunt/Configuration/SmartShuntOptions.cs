@@ -6,52 +6,17 @@ public sealed class SmartShuntOptions
 {
     public const string SectionName = "SmartShunt";
 
-    public string Address { get; set; } = string.Empty;
-
-    [Required]
-    public string Adapter { get; set; } = "hci0";
-
-    [Required]
-    public string SourceId { get; set; } = "smartshunt-main";
-
-    [Required]
-    public string DeviceId { get; set; } = "smartshunt-lifepo4";
-
-    public bool PublicOnly { get; set; } = true;
-
-    public bool EnablePrivateEnrichment { get; set; }
-
-    [Range(1, 3600)]
-    public int SampleIntervalSeconds { get; set; } = 5;
-
-    [Range(1, 3600)]
-    public int SnapshotIntervalSeconds { get; set; } = 15;
-
-    [Range(1, 3600)]
-    public int PublicKeepAliveIntervalSeconds { get; set; } = 10;
-
-    [Range(1, 86400)]
-    public int PrivateRefreshIntervalSeconds { get; set; } = 900;
-
-    [Range(1, 5000)]
-    public int HistoryCapacity { get; set; } = 240;
-
-    [Range(1, 300)]
-    public int ConnectionTimeoutSeconds { get; set; } = 20;
-
-    [Range(5, 3600)]
-    public int SampleStaleAfterSeconds { get; set; } = 60;
-
-    [Range(0, 100000)]
-    public int OutboxPendingWarningCount { get; set; } = 10;
-
-    /// <summary>Classify historical failed outbox records as over-threshold at this count. Historical failures warn/degrade; current forwarding failures are critical. Set to 0 to disable.</summary>
-    [Range(0, 100000)]
-    public int OutboxFailedCriticalCount { get; set; } = 1;
-
-    [Range(0, 100)]
-    public double LowBatteryWarningPercent { get; set; } = 30;
-
-    [Range(0, 100)]
-    public double CriticalBatteryPercent { get; set; } = 15;
+    [Required] public string Address { get; set; } = string.Empty;
+    [Required] public string Adapter { get; set; } = "hci0";
+    [Required, MaxLength(64)] public string SourceId { get; set; } = "smartshunt-main";
+    [Required, MaxLength(64)] public string DeviceId { get; set; } = "smartshunt-lifepo4";
+    public string? CentralIngestBaseEndpoint { get; set; }
+    public string CentralApiKeySecret { get; set; } = "central-ingest-api-key";
+    public bool AllowInsecureCentralIngest { get; set; }
+    [Range(1, 3600)] public int SampleIntervalSeconds { get; set; } = 5;
+    [Range(1, 3600)] public int SnapshotIntervalSeconds { get; set; } = 15;
+    [Range(1, 3600)] public int PublicKeepAliveIntervalSeconds { get; set; } = 10;
+    [Range(1, 300)] public int ConnectionTimeoutSeconds { get; set; } = 20;
+    [Range(5, 3600)] public int SampleStaleAfterSeconds { get; set; } = 60;
+    [Range(1, 1440)] public int RetryExhaustedRequeueMinutes { get; set; } = 15;
 }

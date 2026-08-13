@@ -26,7 +26,7 @@ services:
       EnableHttpsRedirect: "${EnableHttpsRedirect:-false}"
       HealthChecks__ExposeDetailed: "${HealthChecks__ExposeDetailed:-false}"
       ConnectionStrings__HualapaiValleyObservatory: "${ConnectionStrings__HualapaiValleyObservatory}"
-      KeyVault__Uri: "${KeyVault__Uri:-https://obs-infra-kv.vault.azure.net/}"
+      KeyVault__Uri: "${KeyVault__Uri:-https://hvo-central-kv.vault.azure.net/}"
       AZURE_CLIENT_ID: "${AZURE_CLIENT_ID}"
       AZURE_CLIENT_SECRET: "${AZURE_CLIENT_SECRET}"
       AZURE_TENANT_ID: "${AZURE_TENANT_ID}"
@@ -36,12 +36,18 @@ services:
       Seeding__PowerApiKey: "${Seeding__PowerApiKey}"
       Seeding__PowerReadApiKey: "${Seeding__PowerReadApiKey}"
       PowerStatus__SolarAssistantGatewayUrl: "${PowerStatus__SolarAssistantGatewayUrl:-http://devpi5:5300}"
+      PowerStatus__Eg4InverterSourceId: "${PowerStatus__Eg4InverterSourceId:-eg4-6500ex-a}"
+      PowerStatus__Eg4MpptSourceId: "${PowerStatus__Eg4MpptSourceId:-eg4-mppt100-48hv-a}"
+      PowerStatus__HistoryHours: "${PowerStatus__HistoryHours:-6}"
       OTEL_SERVICE_NAME: hvo-website
       OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_COLLECTOR_ENDPOINT:-}"
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       DataProtection__ApplicationName: "${DataProtection__ApplicationName:-HVO.WebSite.v9}"
-      DataProtection__KeyIdentifier: "${DataProtection__KeyIdentifier:-}"
+      DataProtection__KeysDirectory: "/root/.aspnet/DataProtection-Keys"
+      DataProtection__KeyIdentifier: "${DataProtection__KeyIdentifier:-https://hvoobs-kv.vault.azure.net/keys/hvo-website-dp}"
       DataProtection__BlobUri: "${DataProtection__BlobUri:-}"
+    volumes:
+      - hvo-website-data-protection:/root/.aspnet/DataProtection-Keys
     networks:
       - website
       - mssql
@@ -62,3 +68,7 @@ networks:
   mssql:
     name: mssql_default
     external: true
+
+volumes:
+  hvo-website-data-protection:
+    name: hvo-website-data-protection

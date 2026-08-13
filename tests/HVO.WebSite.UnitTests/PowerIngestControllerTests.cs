@@ -4,10 +4,12 @@ using HVO.DataModels.Models.V9;
 using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Controllers;
+using HVO.WebSite.v9.Infrastructure;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Services;
 using HVO.WebSite.v9.Telemetry;
 using System.Text.Json;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -82,6 +84,100 @@ public sealed class PowerIngestControllerTests
         body.Failed.Should().BeEmpty();
 
         _db.PowerReadings.Count().Should().Be(2);
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_HomeAssistantSourceRequiresExactSourceClaim()
+    {
+        var request = MakeRequest("2026-05-23T01:00:00Z", 100, "kasa:plug-1", "tplink-kasa", "plug-1");
+
+        var denied = await _ctrl.IngestReadings(ToJsonElement(new[] { request }), CancellationToken.None);
+        denied.Result.Should().BeOfType<ForbidResult>();
+
+        _ctrl.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity([
+            new Claim(IngestSourceAuthority.SourceClaimType, "kasa:plug-1")
+        ], "test"));
+        var accepted = await _ctrl.IngestReadings(ToJsonElement(new[] { request }), CancellationToken.None);
+        accepted.Result.Should().BeOfType<CreatedAtActionResult>();
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_ServerSideSourceReservationBlocksLegacyWriter()
+    {
+        var apiKey = new ApiKey
+        {
+            Id = Guid.NewGuid(),
+            KeyHash = new string('a', 64),
+            Name = "HA exporter",
+            Type = ApiKeyType.System,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        apiKey.Claims.Add(new ApiKeyClaim
+        {
+            ApiKeyId = apiKey.Id,
+            ClaimType = "source",
+            ClaimValue = "legacy-plug-source"
+        });
+        _db.ApiKeys.Add(apiKey);
+        await _db.SaveChangesAsync();
+        var request = MakeRequest("2026-05-23T01:00:00Z", 100, "legacy-plug-source", "tplink-kasa", "plug-1");
+
+        var denied = await _ctrl.IngestReadings(ToJsonElement(new[] { request }), CancellationToken.None);
+
+        denied.Result.Should().BeOfType<ForbidResult>();
+    }
+
+    [TestMethod]
+    public async Task IngestEg4Details_ServerSideSourceReservationBlocksAnotherWriter()
+    {
+        var apiKey = new ApiKey
+        {
+            Id = Guid.NewGuid(),
+            KeyHash = new string('b', 64),
+            Name = "EG4 vNext",
+            Type = ApiKeyType.System,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            Claims =
+            [
+                new ApiKeyClaim { ClaimType = "source", ClaimValue = "mppt-a" },
+                new ApiKeyClaim { ClaimType = "source", ClaimValue = "inverter-a" }
+            ]
+        };
+        foreach (var claim in apiKey.Claims)
+            claim.ApiKeyId = apiKey.Id;
+        _db.ApiKeys.Add(apiKey);
+        await _db.SaveChangesAsync();
+
+        var mppt = await _ctrl.IngestMpptDetail(MakeMpptDetail(DateTime.UtcNow, sourceId: " mppt-a "), CancellationToken.None);
+        var inverter = await _ctrl.IngestInverterDetail(new PowerInverterDetailPayload
+        {
+            SourceId = "inverter-a",
+            SourceSystem = "eg4-6500ex",
+            DeviceId = "inverter-a",
+            RecordedAtUtc = DateTime.UtcNow,
+            PvStrings = [new PowerPvStringDetail { StringId = "pv-1", PowerW = 500 }]
+        }, CancellationToken.None);
+
+        mppt.Result.Should().BeOfType<ForbidResult>();
+        inverter.Result.Should().BeOfType<ForbidResult>();
+    }
+
+    [TestMethod]
+    public async Task IngestMpptDetailBatch_ReturnsStrictPerBatchAccounting()
+    {
+        var first = MakeMpptDetail(DateTime.UtcNow.AddSeconds(-1), sourceId: "mppt-a");
+        var second = MakeMpptDetail(DateTime.UtcNow, sourceId: "mppt-b");
+
+        var result = await _ctrl.IngestMpptDetailBatch([first, second], CancellationToken.None);
+
+        var response = ((CreatedAtActionResult)result.Result!).Value
+            .Should().BeOfType<PowerReadingBatchResponse>().Subject;
+        response.Inserted.Should().Be(2);
+        response.Skipped.Should().Be(0);
+        response.Failed.Should().BeEmpty();
+        _db.PowerMpptDetailSnapshots.Should().HaveCount(2);
     }
 
     [TestMethod]

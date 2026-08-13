@@ -10,6 +10,7 @@ public sealed class Eg46500ExTelemetrySource(
     IEg46500ExInquiryTransportFactory transportFactory,
     TimeProvider timeProvider) : IEg4DeviceTelemetrySource, IAsyncDisposable
 {
+    private static readonly TimeSpan EnergyRefreshInterval = TimeSpan.FromMinutes(5);
     private static readonly HashSet<(string Main, string Secondary)> SupportedFirmware =
     [
         ("VERFW:00079.02", "VERFW:00061.00"),
@@ -109,6 +110,7 @@ public sealed class Eg46500ExTelemetrySource(
                 var extended = Eg46500ExPi30Protocol.DecodeExtendedStatus(
                     await state.Transport.ExchangeAsync(Eg46500ExInquiry.ExtendedStatus, cancellationToken));
                 var observedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+                var energy = await ReadEnergyAsync(state, device, observedAtUtc, cancellationToken);
                 var currentA = status.BatteryDischargingCurrentA - status.BatteryChargingCurrentA;
                 var observation = new PowerBatteryObservation(
                     device.SourceId,
@@ -127,7 +129,8 @@ public sealed class Eg46500ExTelemetrySource(
                 return Eg4TelemetrySample.Available(
                     observation,
                     CreateMpptDetail(device, observedAtUtc, status, parallel, pv2),
-                    CreateInverterDetail(device, observedAtUtc, status, parallel, pv2, extended, state.Identity, currentA));
+                    CreateInverterDetail(device, observedAtUtc, status, parallel, pv2, extended, state.Identity, currentA),
+                    energy);
             }
             catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
             {
@@ -296,6 +299,64 @@ public sealed class Eg46500ExTelemetrySource(
         return new Eg46500ExIdentity(mainFirmware, secondaryFirmware);
     }
 
+    private static async ValueTask<PowerEnergyPayload?> ReadEnergyAsync(
+        PortState state,
+        Eg4DeviceOptions device,
+        DateTime observedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (state.LastEnergyReadAtUtc != default
+            && observedAtUtc - state.LastEnergyReadAtUtc < EnergyRefreshInterval)
+        {
+            return state.LastEnergy;
+        }
+
+        state.LastEnergyReadAtUtc = observedAtUtc;
+        try
+        {
+            var pvWh = Eg46500ExPi30Protocol.DecodeEnergyWh(
+                await state.Transport!.ExchangeAsync(Eg46500ExInquiry.TotalPvEnergy, cancellationToken));
+            var loadWh = Eg46500ExPi30Protocol.DecodeEnergyWh(
+                await state.Transport.ExchangeAsync(Eg46500ExInquiry.TotalLoadEnergy, cancellationToken));
+            state.LastEnergy = new PowerEnergyPayload
+            {
+                SourceId = device.SourceId,
+                SourceSystem = "eg4-6500ex",
+                DeviceId = device.DeviceId,
+                RecordedAtUtc = observedAtUtc,
+                Counters =
+                [
+                    new PowerEnergyCounter
+                    {
+                        Key = "pv_energy",
+                        Name = "PV energy",
+                        ValueKwh = pvWh / 1000d,
+                        DeviceId = device.DeviceId,
+                        SourceTopic = "QET",
+                    },
+                    new PowerEnergyCounter
+                    {
+                        Key = "load_energy",
+                        Name = "AC load energy",
+                        ValueKwh = loadWh / 1000d,
+                        DeviceId = device.DeviceId,
+                        SourceTopic = "QLT",
+                    },
+                ],
+            };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Eg4TransportException)
+        {
+            // Energy counters are supplementary; normal inverter telemetry remains authoritative and available.
+        }
+
+        return state.LastEnergy;
+    }
+
     private static async ValueTask<string> ReadPayloadAsync(
         IEg46500ExInquiryTransport transport,
         Eg46500ExInquiry inquiry,
@@ -376,6 +437,8 @@ public sealed class Eg46500ExTelemetrySource(
         public SemaphoreSlim Gate { get; } = new(1, 1);
         public IEg46500ExInquiryTransport? Transport { get; set; }
         public Eg46500ExIdentity? Identity { get; set; }
+        public DateTime LastEnergyReadAtUtc { get; set; }
+        public PowerEnergyPayload? LastEnergy { get; set; }
     }
 
     private sealed record Eg46500ExIdentity(string MainFirmware, string SecondaryFirmware)

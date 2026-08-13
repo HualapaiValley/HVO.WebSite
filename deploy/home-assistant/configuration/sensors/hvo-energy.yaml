@@ -1,0 +1,32 @@
+- platform: integration
+  source: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_11xpv_x5fpower
+  name: HVO External MPPT PV Energy
+  unique_id: hvo_external_mppt_pv_energy
+  unit_prefix: k
+  unit_time: h
+  method: trapezoidal
+  round: 3
+  max_sub_interval:
+    minutes: 1
+
+- platform: integration
+  source: sensor.hvo_smartshunt_battery_charge_power
+  name: HVO SmartShunt Battery Charge Energy
+  unique_id: hvo_smartshunt_battery_charge_energy
+  unit_prefix: k
+  unit_time: h
+  method: trapezoidal
+  round: 3
+  max_sub_interval:
+    minutes: 1
+
+- platform: integration
+  source: sensor.hvo_smartshunt_battery_discharge_power
+  name: HVO SmartShunt Battery Discharge Energy
+  unique_id: hvo_smartshunt_battery_discharge_energy
+  unit_prefix: k
+  unit_time: h
+  method: trapezoidal
+  round: 3
+  max_sub_interval:
+    minutes: 1

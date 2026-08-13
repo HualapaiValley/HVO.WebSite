@@ -1,5 +1,5 @@
 using System.Reflection;
-using HVO.Enterprise.Telemetry.Serilog;
+using HVO.Edge.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Serilog;
@@ -25,6 +25,14 @@ public static class HvoGatewayLoggingBuilderExtensions
             Configure(loggerConfiguration, context.Configuration, context.HostingEnvironment, identity));
     }
 
+    public static IHostBuilder UseHvoGatewayLogging(
+        this IHostBuilder hostBuilder,
+        EdgeRuntimeIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        return hostBuilder.UseHvoGatewayLogging(identity.ToLogIdentity());
+    }
+
     internal static LoggerConfiguration Configure(
         LoggerConfiguration loggerConfiguration,
         IConfiguration configuration,
@@ -37,9 +45,11 @@ public static class HvoGatewayLoggingBuilderExtensions
         var serviceName = configuration["OTEL_SERVICE_NAME"]
             ?? configuration["Telemetry:ServiceName"]
             ?? identity.DefaultServiceName;
-        var serviceVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
-        var hostName = configuration["HOSTNAME"] ?? Environment.MachineName;
-        var instanceId = configuration["OTEL_SERVICE_INSTANCE_ID"] ?? hostName;
+        var serviceVersion = identity.ServiceVersion
+            ?? Assembly.GetEntryAssembly()?.GetName().Version?.ToString()
+            ?? "unknown";
+        var hostName = identity.HostName ?? configuration["HOSTNAME"] ?? Environment.MachineName;
+        var instanceId = configuration["OTEL_SERVICE_INSTANCE_ID"] ?? identity.ServiceInstanceId ?? hostName;
         var configuredLevels = configuration.GetSection("Logging:LogLevel").GetChildren().ToList();
         var defaultDisabled = IsNone(configuration["Logging:LogLevel:Default"]);
         var categoryDisabled = configuredLevels
@@ -64,7 +74,7 @@ public static class HvoGatewayLoggingBuilderExtensions
 
         loggerConfiguration
             .Enrich.FromLogContext()
-            .Enrich.WithTelemetry()
+            .Enrich.With(new ActivityCorrelationEnricher())
             .Enrich.With(new SensitivePropertyRedactionEnricher())
             .Enrich.WithProperty("service.name", serviceName)
             .Enrich.WithProperty("service.version", serviceVersion)
@@ -84,6 +94,11 @@ public static class HvoGatewayLoggingBuilderExtensions
         if (!string.IsNullOrWhiteSpace(identity.DeviceId))
         {
             loggerConfiguration.Enrich.WithProperty("hvo.device.id", identity.DeviceId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(identity.SiteId))
+        {
+            loggerConfiguration.Enrich.WithProperty("hvo.site.id", identity.SiteId);
         }
 
         if (writeToConsole)
@@ -167,6 +182,11 @@ public static class HvoGatewayLoggingBuilderExtensions
         if (!string.IsNullOrWhiteSpace(identity.DeviceId))
         {
             attributes["hvo.device.id"] = identity.DeviceId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(identity.SiteId))
+        {
+            attributes["hvo.site.id"] = identity.SiteId;
         }
 
         return attributes;

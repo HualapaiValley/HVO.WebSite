@@ -55,16 +55,8 @@ jobs:
           fi
           dotnet test "${test_args[@]}"
 
-      - name: Test (Integration - gated)
-        if: |
-          github.ref == 'refs/heads/main' || 
-          github.event_name == 'schedule'
-        run: >
-          dotnet test HVO.WebSite.sln --no-build -c Debug --nologo -v minimal
-          --filter "TestCategory=Integration"
-          --logger "trx;LogFileName=tests-integration.trx"
-          --collect:"XPlat Code Coverage"
-          --results-directory TestResults
+      - name: Test (Integration)
+        run: bash tools/run-home-assistant-integration-tests.sh
 
       - name: Validate test category conventions
         run: bash tools/validate-test-categories.sh
@@ -73,6 +65,7 @@ jobs:
         run: |
           bash tools/validate-observability-policy.sh
           bash tools/validate-eg4-deployment.sh
+          bash tools/validate-smartshunt-deployment.sh
           bash tools/verify-alert-rules.sh
 
       - name: Verify bounded logging and outage recovery

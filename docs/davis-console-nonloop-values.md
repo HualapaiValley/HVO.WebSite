@@ -261,7 +261,6 @@ Source:
 | Station TCP port | `StationOptions.Port` | Application-only | Defaults to `22222`. |
 | Socket timeout | `StationOptions.SocketTimeoutSeconds` | Application-only | Controls network read/write timeout behavior. |
 | Archive catchup mode | `StationOptions.ArchiveCatchupMode` | Application-only | `Disabled`, `Enabled`, or `Force`. |
-| Archive catchup lookback hours | `StationOptions.ArchiveCatchupLookbackHours` | Application-only | Used when mode is `Enabled`. |
 | Max consecutive errors | `StationOptions.MaxConsecutiveErrors` | Application-only | Worker health / reconnect behavior. |
 | Station ID sent to downstream API | `StationOptions.StationId` | Application-only | Included with outbox payloads. |
 

@@ -1,12 +1,13 @@
 using FluentAssertions;
+using HVO.Edge.Contracts;
+using HVO.Edge.HomeAssistant.Mqtt;
+using HVO.Edge.Hosting.Telemetry;
 using HVO.Edge.Outbox;
 using HVO.Hardware.VictronSmartShunt.Configuration;
+using HVO.Hardware.VictronSmartShunt.HomeAssistant;
 using HVO.Hardware.VictronSmartShunt.Outbox;
 using HVO.Hardware.VictronSmartShunt.SmartShunt;
-using HVO.Hardware.VictronSmartShunt.Telemetry;
 using HVO.Hardware.VictronSmartShunt.Workers;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -17,213 +18,90 @@ namespace HVO.Hardware.VictronSmartShunt.Tests.Workers;
 public sealed class SmartShuntWorkerTests
 {
     [TestMethod]
-    public async Task PollOnceAsync_ReturnsFalseWhenNoCurrentSample()
+    public async Task HealthyAcquisition_OutboxFailureRetainsAvailableStateAndRetriesSameObservation()
     {
-        await using var fixture = await WorkerFixture.CreateAsync();
-
-        var result = await fixture.Worker.PollOnceAsync(CancellationToken.None);
-
-        result.Should().BeFalse();
-        fixture.Worker.LastSnapshot.Should().BeNull();
-        fixture.Db.OutboxRecords.Should().BeEmpty();
+        var fixture = Fixture(connected: true, writerFailures: 1);
+        await fixture.Worker.PollOnceAsync(CancellationToken.None);
+        await fixture.Worker.PollOnceAsync(CancellationToken.None);
+        fixture.HomeAssistant.Availability.Should().Equal(true, true);
+        fixture.Writer.Attempts.Should().Be(2);
+        fixture.Writer.RecordedAt.Should().OnlyContain(timestamp => timestamp == fixture.Sample.RecordedAtUtc);
     }
 
     [TestMethod]
-    public async Task PollOnceAsync_NormalizesDefaultTimestampToUtc()
+    public async Task MissingStaleOrDisconnectedAcquisitionReturnsUnavailableBoundary()
     {
-        await using var fixture = await WorkerFixture.CreateAsync();
-        fixture.Session.CurrentSample = Sample(recordedAtUtc: default);
-
-        var before = DateTime.UtcNow;
-        var result = await fixture.Worker.PollOnceAsync(CancellationToken.None);
-        var after = DateTime.UtcNow;
-
-        result.Should().BeTrue();
-        fixture.Worker.LastSnapshotAt.Should().NotBeNull();
-        fixture.Worker.LastSnapshotAt!.Value.Kind.Should().Be(DateTimeKind.Utc);
-        fixture.Worker.LastSnapshotAt.Value.Should().BeOnOrAfter(before).And.BeOnOrBefore(after);
-        fixture.Worker.LastSnapshot!.RecordedAtUtc.Kind.Should().Be(DateTimeKind.Utc);
+        var disconnected = Fixture(connected: false);
+        await disconnected.Worker.RunIterationAsync(CancellationToken.None);
+        disconnected.HomeAssistant.Availability.Should().Equal(false);
+        var stale = Fixture(connected: true, stale: true);
+        await stale.Worker.RunIterationAsync(CancellationToken.None);
+        stale.HomeAssistant.Availability.Should().Equal(false);
     }
 
     [TestMethod]
-    public async Task PollOnceAsync_AppliesFreshPrivateOverlay()
+    public async Task RepeatedStaleIterationsPublishOneUnavailableTransitionAndAllowRecovery()
     {
-        var recordedAt = Utc(2026, 6, 17, 12, 0, 0);
-        await using var fixture = await WorkerFixture.CreateAsync(new SmartShuntOptions
+        var fixture = Fixture(connected: true, stale: true);
+
+        await fixture.Worker.RunIterationAsync(CancellationToken.None);
+        await fixture.Worker.RunIterationAsync(CancellationToken.None);
+        fixture.Session.CurrentSample = new SmartShuntLiveSample
         {
-            SourceId = "smartshunt-main",
-            DeviceId = "battery",
-            EnablePrivateEnrichment = true,
-            PrivateRefreshIntervalSeconds = 1,
-        });
-        fixture.Session.CurrentSample = Sample(recordedAt, stateOfChargePercent: 0, remainingMinutes: null);
-        fixture.PrivateInfo.Next = new SmartShuntDeviceInfo
-        {
-            Overlay = new SmartShuntPrivateOverlay
-            {
-                RecordedAtUtc = recordedAt,
-                StateOfChargePercent = 92.5,
-                RemainingMinutes = 180,
-                TotalChargeCycles = 42,
-            },
+            RecordedAtUtc = fixture.Now.AddSeconds(1),
+            VoltageV = fixture.Sample.VoltageV,
+            CurrentA = fixture.Sample.CurrentA,
+            PowerW = fixture.Sample.PowerW,
+            StateOfChargePercent = fixture.Sample.StateOfChargePercent,
         };
+        await fixture.Worker.RunIterationAsync(CancellationToken.None);
 
-        var result = await fixture.Worker.PollOnceAsync(CancellationToken.None);
-
-        result.Should().BeTrue();
-        fixture.PrivateInfo.ReadCount.Should().Be(1);
-        fixture.Worker.LastSnapshot!.DataPath.Should().Be("public+private");
-        fixture.Worker.LastSnapshot.StateOfChargePercent.Should().Be(92.5);
-        fixture.Worker.LastSnapshot.RemainingMinutes.Should().Be(180);
-        fixture.Worker.LastSnapshot.TotalChargeCycles.Should().Be(42);
+        fixture.HomeAssistant.Availability.Should().Equal(false, true);
     }
 
     [TestMethod]
-    public async Task PollOnceAsync_WritesOutboxOnSnapshotCadence()
+    public async Task CancellationFromOutboxIsPropagated()
     {
-        var first = Utc(2026, 6, 17, 12, 0, 0);
-        await using var fixture = await WorkerFixture.CreateAsync(new SmartShuntOptions
-        {
-            SourceId = "smartshunt-main",
-            DeviceId = "battery",
-            SnapshotIntervalSeconds = 60,
-        });
-
-        fixture.Session.CurrentSample = Sample(first, voltageV: 52.1);
-        await fixture.Worker.PollOnceAsync(CancellationToken.None);
-        fixture.Session.CurrentSample = Sample(first.AddSeconds(30), voltageV: 52.2);
-        await fixture.Worker.PollOnceAsync(CancellationToken.None);
-        fixture.Session.CurrentSample = Sample(first.AddSeconds(60), voltageV: 52.3);
-        await fixture.Worker.PollOnceAsync(CancellationToken.None);
-
-        var rows = fixture.Db.OutboxRecords.OrderBy(r => r.RecordedAtUtc).ToList();
-        rows.Should().HaveCount(2);
-        rows.Select(r => r.RecordedAtUtc).Should().Equal(first, first.AddSeconds(60));
-        rows.Should().OnlyContain(r => r.PayloadType == SmartShuntOutboxPayloadTypes.Reading);
-        rows.Last().PayloadJson.Should().Contain("52.3");
+        var fixture = Fixture(connected: true, cancelWriter: true);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var action = () => fixture.Worker.PollOnceAsync(cts.Token);
+        await action.Should().ThrowAsync<OperationCanceledException>();
     }
 
-    [TestMethod]
-    public async Task PollOnceAsync_TrimsHistoryToCapacity()
+    private static TestFixture Fixture(bool connected, int writerFailures = 0, bool stale = false, bool cancelWriter = false)
     {
-        var first = Utc(2026, 6, 17, 12, 0, 0);
-        await using var fixture = await WorkerFixture.CreateAsync(new SmartShuntOptions
-        {
-            SourceId = "smartshunt-main",
-            DeviceId = "battery",
-            HistoryCapacity = 2,
-        });
-
-        fixture.Session.CurrentSample = Sample(first, powerW: -100);
-        await fixture.Worker.PollOnceAsync(CancellationToken.None);
-        fixture.Session.CurrentSample = Sample(first.AddSeconds(1), powerW: -200);
-        await fixture.Worker.PollOnceAsync(CancellationToken.None);
-        fixture.Session.CurrentSample = Sample(first.AddSeconds(2), powerW: -300);
-        await fixture.Worker.PollOnceAsync(CancellationToken.None);
-
-        fixture.Worker.History.Should().HaveCount(2);
-        fixture.Worker.History.Select(p => p.PowerW).Should().Equal(-200, -300);
+        var now = new DateTime(2026, 8, 12, 12, 0, 0, DateTimeKind.Utc);
+        var sample = new SmartShuntLiveSample { RecordedAtUtc = stale ? now.AddMinutes(-5) : now, VoltageV = 52, CurrentA = -5, PowerW = -260, StateOfChargePercent = 80 };
+        var session = new Session { IsConnected = connected, CurrentSample = sample };
+        var writer = new Writer(writerFailures, cancelWriter);
+        var services = new ServiceCollection().AddScoped<ISmartShuntOutboxWriter>(_ => writer).BuildServiceProvider();
+        var ha = new HomeAssistant();
+        var telemetry = new GatewayTelemetry(new("smartshunt", "direct", "hvo"));
+        var worker = new SmartShuntWorker(services.GetRequiredService<IServiceScopeFactory>(), session, ha,
+            Options.Create(new SmartShuntOptions { SourceId = "source", DeviceId = "device", SnapshotIntervalSeconds = 1, SampleStaleAfterSeconds = 60 }),
+            telemetry, new FixedTimeProvider(now), NullLogger<SmartShuntWorker>.Instance);
+        return new(worker, writer, ha, sample, session, now, services, telemetry);
     }
 
-    private static SmartShuntLiveSample Sample(
-        DateTime recordedAtUtc,
-        double? stateOfChargePercent = 75,
-        double? voltageV = 53.2,
-        double? currentA = -12.5,
-        double? powerW = -665,
-        double? remainingMinutes = 240) => new()
-        {
-            RecordedAtUtc = recordedAtUtc,
-            StateOfChargePercent = stateOfChargePercent,
-            VoltageV = voltageV,
-            CurrentA = currentA,
-            PowerW = powerW,
-            ConsumedAh = -50,
-            RemainingMinutes = remainingMinutes,
-            PublicSessionActive = true,
-            DataPath = "public",
-        };
-
-    private static DateTime Utc(int year, int month, int day, int hour, int minute, int second) =>
-        new(year, month, day, hour, minute, second, DateTimeKind.Utc);
-
-    private sealed class WorkerFixture : IAsyncDisposable
+    private sealed record TestFixture(SmartShuntWorker Worker, Writer Writer, HomeAssistant HomeAssistant, SmartShuntLiveSample Sample, Session Session, DateTime Now, ServiceProvider Services, GatewayTelemetry Telemetry);
+    private sealed class Session : ISmartShuntSessionState { public SmartShuntLiveSample? CurrentSample { get; set; } public bool IsConnected { get; set; } public string? LastError => null; }
+    private sealed class Writer(int failures, bool cancel) : ISmartShuntOutboxWriter
     {
-        private readonly SqliteConnection _connection;
-        private readonly ServiceProvider _provider;
-
-        private WorkerFixture(SqliteConnection connection, ServiceProvider provider, FakeSessionState session, FakePrivateInfoSource privateInfo)
+        public int Attempts { get; private set; } public List<DateTime> RecordedAt { get; } = [];
+        public Task<bool> EnqueueAsync(HVO.Edge.Contracts.PowerSystem.SmartShuntObservationPayload bundle, CancellationToken cancellationToken)
         {
-            _connection = connection;
-            _provider = provider;
-            Session = session;
-            PrivateInfo = privateInfo;
-            Db = provider.GetRequiredService<OutboxDbContext>();
-            Worker = provider.GetRequiredService<SmartShuntWorker>();
-        }
-
-        public FakeSessionState Session { get; }
-        public FakePrivateInfoSource PrivateInfo { get; }
-        public OutboxDbContext Db { get; }
-        public SmartShuntWorker Worker { get; }
-
-        public static async Task<WorkerFixture> CreateAsync(SmartShuntOptions? options = null)
-        {
-            var connection = new SqliteConnection("Data Source=:memory:");
-            await connection.OpenAsync();
-            var session = new FakeSessionState();
-            var privateInfo = new FakePrivateInfoSource();
-            var services = new ServiceCollection();
-            services.AddLogging();
-            services.AddDbContext<OutboxDbContext>(builder => builder.UseSqlite(connection));
-            services.AddScoped<EdgeOutboxStore<OutboxDbContext>>();
-            services.AddScoped<PowerOutboxWriter>();
-            services.AddSingleton<ISmartShuntSessionState>(session);
-            services.AddSingleton<ISmartShuntPrivateInfoSource>(privateInfo);
-            services.AddSingleton<IOptions<SmartShuntOptions>>(Options.Create(options ?? new SmartShuntOptions
-            {
-                SourceId = "smartshunt-main",
-                DeviceId = "battery",
-            }));
-            services.AddSingleton(sp => new SmartShuntWorker(
-                sp.GetRequiredService<IServiceScopeFactory>(),
-                sp.GetRequiredService<ISmartShuntSessionState>(),
-                sp.GetRequiredService<ISmartShuntPrivateInfoSource>(),
-                sp.GetRequiredService<IOptions<SmartShuntOptions>>(),
-                NullLogger<SmartShuntWorker>.Instance,
-                new SmartShuntTelemetry()));
-            var provider = services.BuildServiceProvider();
-            var db = provider.GetRequiredService<OutboxDbContext>();
-            await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(
-                db,
-                SmartShuntOutboxPayloadTypes.Reading,
-                SmartShuntOutboxPayloadTypes.ReadingVersion);
-            return new WorkerFixture(connection, provider, session, privateInfo);
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await Db.DisposeAsync();
-            await _provider.DisposeAsync();
-            await _connection.DisposeAsync();
+            Attempts++; RecordedAt.Add(bundle.Summary.RecordedAtUtc);
+            if (cancel) throw new OperationCanceledException(cancellationToken);
+            if (Attempts <= failures) throw new InvalidOperationException("sqlite unavailable");
+            return Task.FromResult(true);
         }
     }
-
-    private sealed class FakeSessionState : ISmartShuntSessionState
+    private sealed class HomeAssistant : ISmartShuntHomeAssistantProjection
     {
-        public SmartShuntLiveSample? CurrentSample { get; set; }
+        public List<bool> Availability { get; } = [];
+        public bool Publish(SmartShuntLiveSample sample) { Availability.Add(true); return true; }
+        public bool PublishUnavailable(DateTime observedAtUtc) { Availability.Add(false); return true; }
     }
-
-    private sealed class FakePrivateInfoSource : ISmartShuntPrivateInfoSource
-    {
-        public SmartShuntDeviceInfo? Next { get; set; }
-        public int ReadCount { get; private set; }
-
-        public Task<SmartShuntDeviceInfo?> TryReadAsync(CancellationToken ct)
-        {
-            ct.ThrowIfCancellationRequested();
-            ReadCount++;
-            return Task.FromResult(Next);
-        }
-    }
+    private sealed class FixedTimeProvider(DateTime now) : TimeProvider { public override DateTimeOffset GetUtcNow() => new(now); }
 }

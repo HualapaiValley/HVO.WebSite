@@ -4,6 +4,7 @@ using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using HVO.Hardware.DavisVantagePro2.Station;
 using HVO.Hardware.DavisVantagePro2.Station.Models;
 using HVO.Hardware.DavisVantagePro2.Tests.Fakes;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Globalization;
 using System.Text;
@@ -29,13 +30,15 @@ namespace HVO.Hardware.DavisVantagePro2.Tests.Integration;
 [TestCategory("Integration")]
 public class VantageStationTests
 {
-    private static (DavisConsoleClient client, VantageStation station) CreatePair(int port)
+    private static (DavisConsoleClient client, VantageStation station) CreatePair(
+        int port,
+        ILogger<VantageStation>? stationLogger = null)
     {
         var client = new DavisConsoleClient(
             "127.0.0.1", port, TimeSpan.FromSeconds(1),
             NullLogger<DavisConsoleClient>.Instance);
         var station = new VantageStation(
-            client, NullLogger<VantageStation>.Instance, maxTries: 1);
+            client, stationLogger ?? NullLogger<VantageStation>.Instance, maxTries: 1);
         return (client, station);
     }
 
@@ -1887,8 +1890,9 @@ public class VantageStationTests
             .WakeStep()
             .Step(7, [DavisProtocol.Ack])
             .Step(6, [DavisProtocol.Ack])
-            .Step(0, PacketBuilder.BuildDmpaftHeader(1))
+            .Step(0, PacketBuilder.BuildDmpaftHeader(2))
             .Step(1, page)
+            .Step(1, [])
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -1901,6 +1905,7 @@ public class VantageStationTests
         records.Should().HaveCount(2);
         records[0].OutsideTemperatureF.Should().BeApproximately(65.0, 0.1);
         records[1].OutsideTemperatureF.Should().BeApproximately(66.0, 0.1);
+        server.ReceivedSteps[5].Should().Equal([DavisProtocol.Escape]);
 
         client.Dispose();
         await station.DisposeAsync();
@@ -1921,8 +1926,9 @@ public class VantageStationTests
             .WakeStep()
             .Step(7, [DavisProtocol.Ack])
             .Step(6, [DavisProtocol.Ack])
-            .Step(0, PacketBuilder.BuildDmpaftHeader(1))
+            .Step(0, PacketBuilder.BuildDmpaftHeader(2))
             .Step(1, page)
+            .Step(1, [])
             .Start();
 
         var (client, station) = CreatePair(server.Port);
@@ -1935,6 +1941,7 @@ public class VantageStationTests
         records.Should().HaveCount(2);
         records[0].OutsideTemperatureF.Should().BeApproximately(61.0, 0.1);
         records[1].OutsideTemperatureF.Should().BeApproximately(62.0, 0.1);
+        server.ReceivedSteps[5].Should().Equal([DavisProtocol.Escape]);
 
         client.Dispose();
         await station.DisposeAsync();
@@ -1943,8 +1950,8 @@ public class VantageStationTests
     [TestMethod]
     public async Task GetArchiveSinceAsync_MaxRecords_SemaphoreReleasedAfterEarlyExit()
     {
-        // After a maxRecords early exit the semaphore must be released so a
-        // subsequent station call can acquire it without deadlocking.
+        // A maxRecords early exit cancels the incomplete archive transfer, and the
+        // semaphore must be released for the next command.
         var baseTime = new DateTime(2025, 6, 15, 14, 0, 0, DateTimeKind.Local);
         byte[] rec0 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime, outsideTempF: 64.0);
         byte[] rec1 = PacketBuilder.BuildArchiveDataBytes(dateTime: baseTime.AddMinutes(30), outsideTempF: 65.0);
@@ -1955,11 +1962,12 @@ public class VantageStationTests
             // First call: GetArchiveSinceAsync(maxRecords=1) — early exit after rec0
             .WakeStep()
             .Step(7, [DavisProtocol.Ack])               // "DMPAFT\n"
-            .Step(6, [DavisProtocol.Ack])               // date stamp + CRC
-            .Step(0, PacketBuilder.BuildDmpaftHeader(1)) // nPages=1
-            .Step(1, page)                               // ACK prompt → 267-byte page
-                                                          // Second call: GetArchiveSinceAsync — nPages=0, proves lock was released
-            .Step(7, [DavisProtocol.Ack])
+             .Step(6, [DavisProtocol.Ack])               // date stamp + CRC
+             .Step(0, PacketBuilder.BuildDmpaftHeader(2)) // nPages=2
+             .Step(1, page)                               // ACK prompt → 267-byte page
+             .Step(1, [])                                  // ESC cancels unread archive pages
+                                                           // Second call: nPages=0, proves command mode and lock recovery
+             .Step(7, [DavisProtocol.Ack])
             .Step(6, [DavisProtocol.Ack])
             .Step(0, PacketBuilder.BuildDmpaftHeader(0)) // nPages=0 → yields nothing
             .Start();
@@ -1967,19 +1975,53 @@ public class VantageStationTests
         var (client, station) = CreatePair(server.Port);
         await client.OpenAsync(CancellationToken.None);
 
-        var firstBatch = new List<ArchiveRecord>();
-        await foreach (var r in station.GetArchiveSinceAsync(DateTime.MinValue, maxRecords: 1))
-            firstBatch.Add(r);
+        await using var firstBatch = station
+            .GetArchiveSinceAsync(DateTime.MinValue, maxRecords: 1)
+            .GetAsyncEnumerator();
+        (await firstBatch.MoveNextAsync()).Should().BeTrue();
+        firstBatch.Current.OutsideTemperatureF.Should().BeApproximately(64.0, 0.1);
+        server.ReceivedSteps[5].Should().Equal([DavisProtocol.Escape]);
 
-        firstBatch.Should().HaveCount(1);
-        firstBatch[0].OutsideTemperatureF.Should().BeApproximately(64.0, 0.1);
-
-        // If the lock was not released this await hangs — MSTest will time it out
+        // The station buffers and closes the protocol batch before yielding records,
+        // so a slow downstream consumer cannot retain the station lock.
         var secondBatch = new List<ArchiveRecord>();
         await foreach (var r in station.GetArchiveSinceAsync(DateTime.MinValue))
             secondBatch.Add(r);
 
         secondBatch.Should().BeEmpty();
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_CircularBufferLeadingRecords_SkipsStaleRecordsAndYieldsRequestedWindow()
+    {
+        var since = new DateTime(2026, 8, 2, 10, 30, 0, DateTimeKind.Local);
+        byte[] stale0 = PacketBuilder.BuildArchiveDataBytes(dateTime: since.AddDays(-1), outsideTempF: 60.0);
+        byte[] stale1 = PacketBuilder.BuildArchiveDataBytes(dateTime: since.AddHours(-3), outsideTempF: 61.0);
+        byte[] overlap = PacketBuilder.BuildArchiveDataBytes(dateTime: since, outsideTempF: 62.0);
+        byte[] current = PacketBuilder.BuildArchiveDataBytes(dateTime: since.AddMinutes(5), outsideTempF: 63.0);
+        byte[] page = PacketBuilder.BuildArchivePage(0, stale0, stale1, overlap, current);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(1))
+            .Step(1, page)
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var record in station.GetArchiveSinceAsync(since))
+            records.Add(record);
+
+        records.Select(record => record.DateTimeLocal).Should().Equal(since, since.AddMinutes(5));
+        records.Select(record => record.OutsideTemperatureF).Should().Equal(62.0, 63.0);
 
         client.Dispose();
         await station.DisposeAsync();
@@ -2050,5 +2092,133 @@ public class VantageStationTests
 
         client.Dispose();
         await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_CursorReturnsFullBuffer_CancelsBeforeFirstPageAndKeepsSession()
+    {
+        var since = new DateTime(2026, 8, 11, 7, 45, 0, DateTimeKind.Local);
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(DavisProtocol.FullArchivePageCount, startIndex: 1))
+            .Step(1, [])
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(0))
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var firstBatch = new List<ArchiveRecord>();
+        await foreach (var record in station.GetArchiveSinceAsync(since))
+            firstBatch.Add(record);
+
+        var secondBatch = new List<ArchiveRecord>();
+        await foreach (var record in station.GetArchiveSinceAsync(since))
+            secondBatch.Add(record);
+
+        firstBatch.Should().BeEmpty();
+        secondBatch.Should().BeEmpty();
+        server.ReceivedSteps[4].Should().Equal([DavisProtocol.Escape]);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_ZeroPageFallbackReturnsFullBuffer_CancelsBeforeFirstPage()
+    {
+        var since = new DateTime(2026, 8, 11, 7, 45, 0, DateTimeKind.Local);
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(0))
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(DavisProtocol.FullArchivePageCount, startIndex: 1))
+            .Step(1, [])
+            .Start();
+
+        var (client, station) = CreatePair(server.Port);
+        await client.OpenAsync(CancellationToken.None);
+
+        var records = new List<ArchiveRecord>();
+        await foreach (var record in station.GetArchiveSinceAsync(since, fallbackOnEmpty: true))
+            records.Add(record);
+
+        records.Should().BeEmpty();
+        server.ReceivedSteps[7].Should().Equal([DavisProtocol.Escape]);
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetArchiveSinceAsync_CancelledBetweenPages_SendsEscapeAndKeepsSession()
+    {
+        var since = new DateTime(2026, 8, 11, 7, 45, 0, DateTimeKind.Local);
+        var stale = Enumerable.Range(0, DavisProtocol.ArchiveRecordsPerPage)
+            .Select(index => PacketBuilder.BuildArchiveDataBytes(dateTime: since.AddDays(-1).AddMinutes(index * 5)))
+            .ToArray();
+        var page = PacketBuilder.BuildArchivePage(0, stale);
+        using var cancellation = new CancellationTokenSource();
+        var logger = new CallbackLogger<VantageStation>(message =>
+        {
+            if (message.Contains("skipping stale circular-buffer record", StringComparison.Ordinal))
+                cancellation.Cancel();
+        });
+
+        await using var server = new FakeDavisServer();
+        server
+            .WakeStep()
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(2))
+            .Step(1, page)
+            .Step(1, [])
+            .Step(7, [DavisProtocol.Ack])
+            .Step(6, [DavisProtocol.Ack])
+            .Step(0, PacketBuilder.BuildDmpaftHeader(0))
+            .Start();
+
+        var (client, station) = CreatePair(server.Port, logger);
+        await client.OpenAsync(CancellationToken.None);
+
+        var cancelled = async () =>
+        {
+            await foreach (var _ in station.GetArchiveSinceAsync(since, ct: cancellation.Token))
+            {
+            }
+        };
+        await cancelled.Should().ThrowAsync<OperationCanceledException>();
+
+        var nextBatch = new List<ArchiveRecord>();
+        await foreach (var record in station.GetArchiveSinceAsync(since))
+            nextBatch.Add(record);
+
+        server.ReceivedSteps[5].Should().Equal([DavisProtocol.Escape]);
+        nextBatch.Should().BeEmpty();
+
+        client.Dispose();
+        await station.DisposeAsync();
+    }
+
+    private sealed class CallbackLogger<T>(Action<string> callback) : ILogger<T>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) => callback(formatter(state, exception));
     }
 }

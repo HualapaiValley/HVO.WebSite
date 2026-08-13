@@ -29,14 +29,14 @@ Observatory dashboard and monitoring system built with ASP.NET Core and Blazor S
 Davis Vantage Pro 2 console (TCP)
         │
  HVO.Hardware.DavisVantagePro2
-   ├─ Blazor SSR UI (status, archive, calibration, settings, …)
+    ├─ Headless health/diagnostics + MQTT current state
    ├─ SQLite outbox (durable, idempotent, with retry)
    └─ POST /api/v1/weather/raw  ──────────────────────────────┐
                                                                │
 JK BMS devices (Bluetooth LE)                                  ▼
         │                                              HVO.WebSite.v9
- HVO.Hardware.JkBms                                  ├─ Blazor SSR dashboard
-    ├─ Blazor SSR UI (status, devices, device detail)  ├─ REST API (API-key auth)
+ HVO.Hardware.JkBms                                  ├─ Headless health/diagnostics API
+    ├─ MQTT Discovery/current state                    ├─ REST API (API-key auth)
     ├─ SQLite outbox (durable, idempotent, with retry)  ├─ Azure SQL (EF Core)
     └─ POST /api/v1/bms/readings  ──────────────────────┤ Role-based auth (Entra ID)
                                                          └─ Health probes + OpenAPI
@@ -130,6 +130,7 @@ The deployable images are published independently to the self-hosted registry on
 Use the repo script to build, tag, push, and verify one image at a time:
 
 ```bash
+./scripts/sync-secrets-from-keyvault.sh --apply
 ./scripts/sync-env-gist.sh
 ./scripts/publish-image.sh website
 ./scripts/publish-image.sh davis
@@ -139,7 +140,9 @@ Use the repo script to build, tag, push, and verify one image at a time:
 ./scripts/publish-image.sh tplinkkasa
 ```
 
-See [docs/CONTAINER_PUBLISHING.md](docs/CONTAINER_PUBLISHING.md) for the self-hosted registry inventory, the version-variable workflow, the gist sync requirement, and the commands used to inspect published tags.
+See [docs/CONTAINER_PUBLISHING.md](docs/CONTAINER_PUBLISHING.md) for the
+self-hosted registry inventory, the Key Vault synchronization and versioning
+workflow, and the commands used to inspect published tags.
 
 ---
 
@@ -173,6 +176,7 @@ docker --context devpi5 compose up -d --build
 | [Project History](docs/PROJECT_HISTORY.md) | Session-by-session working history, key decisions, and next-context notes |
 | [Architecture](docs/ARCHITECTURE.md) | Current system baseline, data flow, collector pattern, and future integration direction |
 | [Container Publishing](docs/CONTAINER_PUBLISHING.md) | Self-hosted registry inventory, versioning workflow, publish script usage |
+| [Website Data Protection](docs/WEBSITE_DATA_PROTECTION.md) | Durable encrypted key-ring deployment, backup, restore, and rollback |
 | [Website Container App](docs/WEBSITE_CONTAINER_APP.md) | Azure Container App deployment decisions and runtime requirements for `HVO.WebSite` |
 
 ---

@@ -50,6 +50,8 @@ public sealed class HvoGatewayLoggingTests
         logEvent.Properties["AccessToken"].LiteralValue().Should().Be("[REDACTED]");
         logEvent.Properties.Should().ContainKey("TraceId");
         logEvent.Properties.Should().ContainKey("SpanId");
+        logEvent.Properties.Should().ContainKey("ParentId");
+        logEvent.Properties.Should().ContainKey("CorrelationId");
         Directory.Exists(Path.Combine(contentRoot, "logs")).Should().BeFalse();
 
         Directory.Delete(contentRoot, recursive: true);

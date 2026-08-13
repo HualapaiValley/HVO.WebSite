@@ -154,6 +154,10 @@ public class PowerIngestController : ControllerBase
                 new PowerReadingBatchResponse { Inserted = 0, Skipped = 0, Failed = [] });
         }
 
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, requests.Select(static request => (request.SourceId, request.SourceSystem)), ct))
+            return Forbid();
+
         var result = await _readingIngestService.IngestReadingsAsync(requests, ct);
         if (result.PersistenceFailed)
         {
@@ -351,6 +355,24 @@ public class PowerIngestController : ControllerBase
         return CreatedAtAction(nameof(GetLatestEnergy), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
     }
 
+    [HttpPost("inverter-detail/batch")]
+    [Authorize(Policy = "PowerIngest")]
+    [ProducesResponseType(typeof(PowerReadingBatchResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public Task<ActionResult<PowerReadingBatchResponse>> IngestInverterDetailBatch(
+        [FromBody] IReadOnlyList<PowerInverterDetailPayload> requests,
+        CancellationToken ct) => IngestDetailBatch(
+            requests,
+            static request => request.SourceId,
+            static request => request.SourceSystem,
+            static request => request.RecordedAtUtc,
+            IngestInverterDetail,
+            nameof(IngestInverterDetailBatch),
+            ct);
+
     [HttpPost("inverter-detail")]
     [Authorize(Policy = "PowerIngest")]
     [ProducesResponseType(typeof(PowerSnapshotIngestResponse), StatusCodes.Status201Created)]
@@ -368,6 +390,9 @@ public class PowerIngestController : ControllerBase
         ValidateInverterDetail(validationResults, request);
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, [(request.SourceId, request.SourceSystem)], ct))
+            return Forbid();
 
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
         var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
@@ -402,6 +427,24 @@ public class PowerIngestController : ControllerBase
         return CreatedAtAction(nameof(GetLatestInverterDetail), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
     }
 
+    [HttpPost("mppt-detail/batch")]
+    [Authorize(Policy = "PowerIngest")]
+    [ProducesResponseType(typeof(PowerReadingBatchResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Produces("application/json")]
+    public Task<ActionResult<PowerReadingBatchResponse>> IngestMpptDetailBatch(
+        [FromBody] IReadOnlyList<PowerMpptDetailPayload> requests,
+        CancellationToken ct) => IngestDetailBatch(
+            requests,
+            static request => request.SourceId,
+            static request => request.SourceSystem,
+            static request => request.RecordedAtUtc,
+            IngestMpptDetail,
+            nameof(IngestMpptDetailBatch),
+            ct);
+
     [HttpPost("mppt-detail")]
     [Authorize(Policy = "PowerIngest")]
     [ProducesResponseType(typeof(PowerSnapshotIngestResponse), StatusCodes.Status201Created)]
@@ -419,6 +462,9 @@ public class PowerIngestController : ControllerBase
         ValidateMpptDetail(validationResults, request);
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, [(request.SourceId, request.SourceSystem)], ct))
+            return Forbid();
 
         if (await _db.PowerMpptDetailSnapshots.AnyAsync(
             r => r.SourceId == sourceId && r.RecordedAt == recordedAt, ct))
@@ -449,6 +495,56 @@ public class PowerIngestController : ControllerBase
         }
 
         return CreatedAtAction(nameof(GetLatestMpptDetail), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
+    }
+
+    private async Task<ActionResult<PowerReadingBatchResponse>> IngestDetailBatch<TPayload>(
+        IReadOnlyList<TPayload>? requests,
+        Func<TPayload, string?> sourceId,
+        Func<TPayload, string?> sourceSystem,
+        Func<TPayload, DateTime> recordedAtUtc,
+        Func<TPayload, CancellationToken, Task<ActionResult<PowerSnapshotIngestResponse>>> ingest,
+        string actionName,
+        CancellationToken ct)
+    {
+        if (requests is null || requests.Count == 0)
+            return ValidationProblem(detail: "Batch must contain at least one record.");
+        if (requests.Count > MaxBatchSize)
+            return ValidationProblem(detail: $"Batch size {requests.Count} exceeds the maximum of {MaxBatchSize} records.");
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, requests.Select(request => (sourceId(request), sourceSystem(request))), ct))
+            return Forbid();
+
+        var inserted = 0;
+        var skipped = 0;
+        var failed = new List<PowerReadingBatchFailure>();
+        foreach (var request in requests)
+        {
+            var result = await ingest(request, ct);
+            if (result.Result is ForbidResult)
+                return Forbid();
+            var response = (result.Result as ObjectResult)?.Value as PowerSnapshotIngestResponse
+                ?? result.Value;
+            if (response?.Inserted == true)
+                inserted++;
+            else if (response?.Skipped == true)
+                skipped++;
+            else
+            {
+                failed.Add(new PowerReadingBatchFailure
+                {
+                    SourceId = sourceId(request)?.Trim() ?? string.Empty,
+                    RecordedAtUtc = recordedAtUtc(request).ToUniversalTime(),
+                    Error = response?.Error ?? "Central ingest rejected the detail record."
+                });
+            }
+        }
+
+        return CreatedAtAction(actionName, new { }, new PowerReadingBatchResponse
+        {
+            Inserted = inserted,
+            Skipped = skipped,
+            Failed = failed
+        });
     }
 
     [HttpPost("gateway-status")]

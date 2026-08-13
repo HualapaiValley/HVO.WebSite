@@ -1,9 +1,9 @@
-using HVO.Enterprise.Telemetry.Abstractions;
+using System.Diagnostics;
+using HVO.Edge.Hosting.Telemetry;
 using HVO.Hardware.JkBms.Configuration;
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Protocol.Transport;
-using HVO.Hardware.JkBms.Telemetry;
 using Microsoft.Extensions.Logging;
 
 namespace HVO.Hardware.JkBms.Workers;
@@ -28,9 +28,10 @@ public sealed class JkBmsDevice : IAsyncDisposable
     private readonly IBmsTransportFactory _transportFactory;
     private readonly IBluetoothAdapterCoordinator _adapterCoordinator;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly BmsTelemetry _telemetry;
-    private readonly ITelemetryService _telemetryService;
+    private readonly GatewayTelemetry _telemetry;
+    private readonly TimeProvider _timeProvider;
     private readonly Func<DevicePollState, JkBmsClient, CellInfoPacket, CancellationToken, Task> _onSuccessfulPoll;
+    private readonly Action<DateTime> _onUnavailable;
     private readonly Action _onStateChanged;
     private readonly ILogger<JkBmsDevice> _logger;
 
@@ -50,9 +51,10 @@ public sealed class JkBmsDevice : IAsyncDisposable
         IBmsTransportFactory transportFactory,
         IBluetoothAdapterCoordinator adapterCoordinator,
         ILoggerFactory loggerFactory,
-        BmsTelemetry telemetry,
-        ITelemetryService telemetryService,
+        GatewayTelemetry telemetry,
+        TimeProvider timeProvider,
         Func<DevicePollState, JkBmsClient, CellInfoPacket, CancellationToken, Task> onSuccessfulPoll,
+        Action<DateTime> onUnavailable,
         Action onStateChanged,
         ILogger<JkBmsDevice> logger)
     {
@@ -64,8 +66,9 @@ public sealed class JkBmsDevice : IAsyncDisposable
         _adapterCoordinator = adapterCoordinator;
         _loggerFactory = loggerFactory;
         _telemetry = telemetry;
-        _telemetryService = telemetryService;
+        _timeProvider = timeProvider;
         _onSuccessfulPoll = onSuccessfulPoll;
+        _onUnavailable = onUnavailable;
         _onStateChanged = onStateChanged;
         _logger = logger;
         _client = CreateClient();
@@ -88,11 +91,19 @@ public sealed class JkBmsDevice : IAsyncDisposable
                     State.Alias, State.Address, _adapterName);
                 try
                 {
+                    var connectStopwatch = Stopwatch.StartNew();
                     await _adapterCoordinator.ConnectAsync(
                         _adapterName,
                         State.Address,
                         (device, token) => _client.ConnectWithDeviceAsync(device, token),
                         ct);
+                    _telemetry.RecordConnect(
+                        true,
+                        connectStopwatch.Elapsed.TotalSeconds,
+                        State.Address,
+                        State.DeviceId,
+                        "jk-bms",
+                        reconnect: State.SessionEstablishedCount > 0);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -106,6 +117,8 @@ public sealed class JkBmsDevice : IAsyncDisposable
                     State.LastError = ex.Message;
                     State.BackoffLevel = Math.Min(State.BackoffLevel + 1, 10);
                     State.NextPollAt = DateTime.UtcNow.Add(GetBackoffDelay(State.BackoffLevel));
+                    _telemetry.RecordConnect(false, 0, State.Address, State.DeviceId, "jk-bms", "connect");
+                    _onUnavailable(_timeProvider.GetUtcNow().UtcDateTime);
                     _onStateChanged();
 
                     _logger.LogWarning(
@@ -135,6 +148,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
                 {
                     var reason = State.LastError ?? "Transport disconnected during session initialization.";
                     State.RecordSessionDisconnected(DateTime.UtcNow, reason);
+                    _onUnavailable(_timeProvider.GetUtcNow().UtcDateTime);
                     _onStateChanged();
 
                     _logger.LogWarning(
@@ -175,6 +189,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
             {
                 var reason = State.LastError ?? "Transport disconnected during polling.";
                 State.RecordSessionDisconnected(DateTime.UtcNow, reason);
+                _onUnavailable(_timeProvider.GetUtcNow().UtcDateTime);
                 _onStateChanged();
 
                 _logger.LogInformation(
@@ -212,8 +227,6 @@ public sealed class JkBmsDevice : IAsyncDisposable
     /// <returns>True if still connected after poll; false if the transport went down.</returns>
     private async Task<bool> PollOnceAsync(CancellationToken ct)
     {
-        using var pollScope = _telemetryService.StartOperation("BMS.Poll");
-        pollScope.WithTag("device", State.Alias);
         _logger.LogDebug("Polling {Alias} ({Address})", State.Alias, State.Address);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -222,7 +235,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
             var packet = await PollCellInfoWithTimeoutAsync(ct);
             sw.Stop();
 
-            _telemetry.RecordPoll(State.Alias, true, sw.Elapsed.TotalSeconds);
+            _telemetry.RecordPoll(true, sw.Elapsed.TotalSeconds, State.Address, State.DeviceId, "jk-bms");
 
             State.LatestReading = packet;
             State.LastPollAt = DateTime.UtcNow;
@@ -236,8 +249,6 @@ public sealed class JkBmsDevice : IAsyncDisposable
                 State.LatestSettings = freshSettings;
 
             await _onSuccessfulPoll(State, _client, packet, ct);
-
-            pollScope.Succeed();
 
             _onStateChanged();
 
@@ -262,16 +273,15 @@ public sealed class JkBmsDevice : IAsyncDisposable
 
             return true;
         }
-        catch (OperationCanceledException ex) when (ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            pollScope.Fail(ex);
             throw;
         }
         catch (Exception ex)
         {
             sw.Stop();
 
-            _telemetry.RecordPoll(State.Alias, false, sw.Elapsed.TotalSeconds, "device_error");
+            _telemetry.RecordPoll(false, sw.Elapsed.TotalSeconds, State.Address, State.DeviceId, "jk-bms", "device_error");
             State.ConsecutiveErrors++;
             State.LastError = ex.Message;
             State.BackoffLevel = Math.Min(State.BackoffLevel + 1, 10);
@@ -280,8 +290,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
             // the actual reconnect wait is driven by BLE re-advertisement, not a timer.
             State.NextPollAt = DateTime.UtcNow.Add(GetBackoffDelay(State.BackoffLevel));
 
-            pollScope.RecordException(ex);
-            pollScope.Fail(ex);
+            _onUnavailable(_timeProvider.GetUtcNow().UtcDateTime);
             _onStateChanged();
 
             _logger.LogWarning(

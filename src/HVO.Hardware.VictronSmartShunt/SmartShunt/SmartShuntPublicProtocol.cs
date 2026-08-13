@@ -7,10 +7,10 @@ public static class SmartShuntPublicProtocol
 
     public static readonly IReadOnlyList<SmartShuntPublicField> Fields =
     [
-        new("soc", "65970fff-4bda-4c1e-af4b-551c4cf74769", DecodeUnsignedHundredths, "ffff"),
-        new("voltage", "6597ed8d-4bda-4c1e-af4b-551c4cf74769", DecodeSignedHundredths, "ff7f"),
-        new("power", "6597ed8e-4bda-4c1e-af4b-551c4cf74769", DecodeSignedInt16, "ff7f"),
-        new("current", "6597ed8c-4bda-4c1e-af4b-551c4cf74769", DecodeSignedThousandths, "ffffff7f"),
+        new("soc", "65970fff-4bda-4c1e-af4b-551c4cf74769", DecodeUnsignedHundredths, "ffff", IsRequired: true),
+        new("voltage", "6597ed8d-4bda-4c1e-af4b-551c4cf74769", DecodeSignedHundredths, "ff7f", IsRequired: true),
+        new("power", "6597ed8e-4bda-4c1e-af4b-551c4cf74769", DecodeSignedInt16, "ff7f", IsRequired: true),
+        new("current", "6597ed8c-4bda-4c1e-af4b-551c4cf74769", DecodeSignedThousandths, "ffffff7f", IsRequired: true),
         new("consumed_ah", "6597eeff-4bda-4c1e-af4b-551c4cf74769", DecodeSignedTenths, "ffffff7f"),
         new("starter_voltage", "6597ed7d-4bda-4c1e-af4b-551c4cf74769", DecodeSignedHundredths, "ff7f"),
         new("val2", "6597edec-4bda-4c1e-af4b-551c4cf74769", DecodeUnsignedInt16, "ffff"),
@@ -45,8 +45,6 @@ public static class SmartShuntPublicProtocol
             TemperatureC = ReadValue("temperature"),
             RemainingMinutes = ReadValue("remaining_time"),
             PublicSessionActive = true,
-            PrivateEnrichmentActive = false,
-            DataPath = "public",
         };
     }
 
@@ -76,4 +74,5 @@ public sealed record SmartShuntPublicField(
     string Key,
     string Uuid,
     Func<byte[], string, double?> Decode,
-    string NotAvailableHex);
+    string NotAvailableHex,
+    bool IsRequired = false);

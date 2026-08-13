@@ -44,6 +44,7 @@ Research dates: 2026-08-09 through 2026-08-10. Target: EG4 6500EX-48, model `MKS
 | `QPGS0` | Mode, fault, status, parallel totals, PV2 voltage and coarse integer current | All supported tuples |
 | `Q1` | SCC/inverter/battery-channel/transformer temperatures, fan, charge stage, diagnostics | All supported tuples |
 | `QPIGS2` | Direct MPPT 2 current, voltage, and power | Firmware `79.72/61.13` only |
+| `QET`, `QLT` | Lifetime PV generation and AC output/load energy | Installed firmware; production refreshes every five minutes with last-good retention |
 
 Installed firmware `79.71/61.13` does not respond to QPIGS2. Production never sends it to that tuple. Static C28 analysis found `QPIGS2` at word address `0x3EF3DA`, dispatch pointer `0x3EFA16`, and handler `0x3DC6AA` in official 79.72. Firmware 79.72 is allowlisted and conditionally enables the inquiry, but HVO does not flash firmware as part of this work.
 
@@ -55,9 +56,11 @@ QPIGS provides direct AC input/output voltage and frequency, active/apparent loa
 
 Canonical battery current is `discharge - charge`: positive discharge and negative charge. Battery power is `voltage * canonical current`; both are derived. Inverter-reported battery capacity remains an observation and does not replace JK BMS or SmartShunt SOC authority.
 
+The headless collector publishes the same canonical sign to history and Home Assistant: positive means discharge and negative means charge. Any future battery-facing display inversion must use a separately named derived presentation value and must not alter canonical entities or payloads.
+
 ### QPGS0
 
-The 29-field response provides operating mode, fault code, output/load totals, status flags, output mode, charger priority, and both tracker voltage/current channels. MPPT 2 current is whole-ampere resolution on installed 79.71, so `voltage * current` is marked derived/coarse and is not preferred for the canonical three-array aggregate.
+The 29-field response provides operating mode, fault code, output/load totals, status flags, output mode, charger priority, and both tracker voltage/current channels. MPPT 2 current is whole-ampere resolution on installed 79.71, so `voltage * current` is retained as derived/coarse detail rather than silently treated as a higher-resolution measurement.
 
 The device serial field is parsed only to validate field shape and is never forwarded, logged, or committed in fixtures.
 
@@ -73,15 +76,15 @@ The 17-field base plus optional 10-field extension provides:
 
 The Q1 timing fields are not firmware identity. Firmware comes only from QVFW/QVFW3.
 
-## Canonical Three-Array Policy
+## Migration And Composition Boundary
 
-SolarAssistant already provides direct high-resolution metrics for both 6500EX trackers. HVO therefore composes site PV from exactly:
+The prior website composition policy used SolarAssistant tracker values plus the external direct MPPT tracker. That is transitional migration behavior, not an EG4 collector dependency.
 
 1. `solarassistant-total/mppt-1`
 2. `solarassistant-total/mppt-2`
 3. `eg4-mppt100-48hv-a/mppt-1`
 
-The aggregate is derived only when all three powers are fresh and timestamps are within the configured skew. Otherwise the existing SolarAssistant aggregate remains the fallback. The coarse HID MPPT 2 estimate is retained in raw EG4 detail history for comparison but excluded from the canonical list and sum, preventing double-counting.
+The vNext direct collector independently persists its validated 6500EX and MPPT100 observations and publishes current state to HA without reading SolarAssistant REST or MQTT. SolarAssistant may be compared during shadow validation. Any final multi-tracker composition and retirement policy is applied centrally during issue #330 and must prevent double-counting.
 
 ## Failures And History
 

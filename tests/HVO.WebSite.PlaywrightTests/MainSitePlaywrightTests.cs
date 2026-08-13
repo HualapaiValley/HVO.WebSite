@@ -117,6 +117,14 @@ public sealed class MainSitePlaywrightTests
         await Assertions.Expect(page.Locator(".power-status-card")).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator(".hvo-table-wrap")).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator("table[aria-label='Battery source observations'] tbody tr").First).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "PV Inputs" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("[aria-label='Canonical site PV inputs'] article")).ToHaveCountAsync(3);
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "EG4 Equipment Detail" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("#site-pv-history-chart")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator("#site-eg4-battery-history-chart")).ToBeVisibleAsync();
+        (await page.Locator("#site-pv-history-chart").EvaluateAsync<bool>(
+            "canvas => canvas.clientWidth > 0 && canvas.clientHeight > 0 && Boolean(window.Chart?.getChart(canvas.id))"))
+            .Should().BeTrue("Chart.js should create the persisted PV history instance");
         await AssertThemedSurfaceAsync(page.Locator(".power-status-card"), "power status card");
         await AssertNoPageOverflowAsync(page, "desktop battery comparison");
         await AssertNoBlazorErrorAsync(page);

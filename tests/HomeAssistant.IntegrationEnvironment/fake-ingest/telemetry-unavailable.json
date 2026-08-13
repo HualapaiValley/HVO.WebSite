@@ -1,0 +1,17 @@
+{
+  "scenarioName": "Central ingest",
+  "requiredScenarioState": "Unavailable",
+  "request": {
+    "method": "POST",
+    "urlPathPattern": "/api/(telemetry|v1/power/readings|v1/weather/raw/batch)"
+  },
+  "response": {
+    "status": 503,
+    "jsonBody": {
+      "accepted": false
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}

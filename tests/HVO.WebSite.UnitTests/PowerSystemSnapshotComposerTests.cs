@@ -10,6 +10,27 @@ namespace HVO.WebSite.UnitTests;
 public sealed class PowerSystemSnapshotComposerTests
 {
     [TestMethod]
+    public void Compose_ConvertsSmartShuntSourceNativeSignsExactlyOnce()
+    {
+        var now = DateTime.UtcNow;
+        var mapped = HVO.Hardware.VictronSmartShunt.SmartShunt.SmartShuntPowerMapper.MapSummary(
+            new HVO.Hardware.VictronSmartShunt.SmartShunt.SmartShuntLiveSample
+            { RecordedAtUtc = now, VoltageV = 52, CurrentA = 10, PowerW = 520, StateOfChargePercent = 80 },
+            new HVO.Hardware.VictronSmartShunt.Configuration.SmartShuntOptions { SourceId = "smartshunt-main", DeviceId = "battery" });
+        var snapshot = PowerSystemSnapshotComposer.Compose([new PowerReading
+        {
+            SourceId = mapped.SourceId!, SourceSystem = mapped.SourceSystem, DeviceId = mapped.DeviceId, RecordedAt = mapped.RecordedAtUtc,
+            BatteryVoltageV = mapped.BatteryVoltageV, BatteryCurrentA = mapped.BatteryCurrentA, BatteryPowerW = mapped.BatteryPowerW,
+            BatteryStateOfChargePercent = mapped.BatteryStateOfChargePercent
+        }], now);
+
+        mapped.BatteryCurrentA.Should().Be(10);
+        mapped.BatteryPowerW.Should().Be(520);
+        snapshot.Battery!.CurrentA!.Value.Should().Be(-10);
+        snapshot.Battery.PowerW!.Value.Should().Be(-520);
+        snapshot.BatteryObservations!.Single(item => item.Source == PowerMetricSource.VictronSmartShunt).CurrentA.Should().Be(-10);
+    }
+    [TestMethod]
     public void Compose_PrefersSolarAssistantForAcPvAndSoc()
     {
         var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);

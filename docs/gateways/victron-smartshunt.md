@@ -1,163 +1,89 @@
-# Victron SmartShunt Gateway Manual
+# Victron SmartShunt Direct Collector
 
-## Status
+## Authority Decision
 
-- Phase 0 status: seeded from current SmartShunt plan and code.
-- Last updated: 2026-05-28
-- Confidence: medium for public read-only telemetry; low for private/write behavior.
-- Primary references: `src/HVO.Hardware.VictronSmartShunt`, `docs/SMARTSHUNT_PLAN.md`.
+Issue #326 selects the existing validated paired public-GATT session as the sole SmartShunt acquisition authority. There is no validated HA/ESPHome evidence for the complete required field set, pairing stability, or update cadence. vNext therefore contains no HA acquisition, private-GATT enrichment, write/sync path, local UI, or competing central writer.
 
-## Identity
+Home Assistant is presentation only. The collector publishes read-only current state and availability through `HVO.Edge.HomeAssistant.Mqtt`; HVO-owned MQTT entities must remain excluded from the HA WebSocket exporter.
 
-This table is HVO documentation metadata unless a row explicitly references a Victron/device value. It is not a list of SmartShunt API fields.
+## Live Contract
 
-| Field | Value |
-|-------|-------|
-| HVO manual subject | Victron SmartShunt |
-| HVO integration role | Source |
-| Known device | `SmartShunt LiFePo4` |
-| HVO project/service | `src/HVO.Hardware.VictronSmartShunt` |
-| HVO deployment target | Pi gateway container, compose file `deploy/pi-gateways/smartshunt/docker-compose.yml` |
-| Native UI exists | VictronConnect |
-| Native UI is primary | Yes for settings/sync/write paths |
-| HVO UI responsibility | Level 2 operational dashboard for read-only telemetry |
-| HVO safety classification | Read-only telemetry currently; writes/sync deferred |
+The collector owns one paired BLE connection through BlueZ and the public `6597...` GATT characteristics. Notifications and initial reads update one in-memory latest sample; the public keepalive is sent every configured interval. The worker samples that state every `SampleIntervalSeconds`, rejects samples older than `SampleStaleAfterSeconds`, publishes current HA state, and creates a durable observation every `SnapshotIntervalSeconds`.
 
-## Communication Summary
+| Field | Public UUID | Encoding | Update/storage semantics |
+|---|---|---|---|
+| Voltage | `6597ed8d-...` | signed hundredths V | Current HA state and central power summary |
+| Current | `6597ed8c-...` | signed thousandths A | Source-native: positive charging, negative discharging |
+| Power | `6597ed8e-...` | signed W | Source-native: positive charging, negative discharging |
+| State of charge | `65970fff-...` | unsigned hundredths % | Current HA state and central power summary |
+| Consumed Ah | `6597eeff-...` | signed tenths Ah | Current HA state and typed SmartShunt detail |
+| Remaining time | `65970ffe-...` | unsigned minutes | Current HA state and typed SmartShunt detail; `ffff` means unavailable |
+| Starter voltage | `6597ed7d-...` | signed hundredths V | Typed SmartShunt detail when device-available |
+| Temperature | `65970383-...` | signed deg C | Typed SmartShunt detail when device-available |
+| Device availability | session/sample state | boolean | HA retained availability plus standard health diagnostics |
 
-| Field | Value |
-|-------|-------|
-| Transport | BLE GATT |
-| Public service/characteristic family | UUIDs beginning `6597...` |
-| Private enrichment family | UUIDs beginning `306b...` in current plan |
-| Authentication | BLE connection/pairing behavior; private behavior not fully documented |
-| Polling/subscription model | Public session reads/keepalive; optional private refresh/enrichment |
-| Current deployment note | SmartShunt and JK BMS sharing `hci0` is not considered stable |
+The central `PowerReading` remains the summary contract. `SmartShuntDetailPayload` and `v9.SmartShuntDetailSnapshot` carry consumed Ah, remaining minutes, starter voltage, and temperature independently. Both payloads share source/device/timestamp identity. The local outbox persists one `com.hvo.smartshunt.observation.v1` bundle and marks it sent only after the transactional protected endpoint returns strict per-record accounting.
 
-## References
+## Runtime And Deployment
 
-| Type | Reference | Status | Notes |
-|------|-----------|--------|-------|
-| Existing HVO plan | `docs/SMARTSHUNT_PLAN.md` | Found | Current field trust and limitations. |
-| Existing HVO code | `SmartShuntPublicProtocol.cs`, worker/session/private source | Found | Current implementation. |
-| Victron public docs | Victron BLE/VE.Direct docs | Needed | VE.Direct docs are supporting only, not proof of BLE writes. |
-| VictronConnect capture | Real capture from installed device | Needed | Required before write/sync work. |
+- Configuration: read-only `/app/config/gateway.json`.
+- Secrets: individual files under read-only `/run/secrets`.
+- Durable state: `/app/data/outbox.db` on the unchanged `smartshunt-outbox` Compose volume.
+- Liveness: `GET /health/live`.
+- Readiness: `GET /health` and `GET /health/ready`.
+- Protected diagnostics: `/diagnostics/health`, `/diagnostics/status`, `/diagnostics/outbox`, and `/diagnostics/outbox/settings`.
+- Central endpoint: `POST /api/v1/power/smartshunt-observations/batch`, protected by `PowerIngest` and an exact source claim. Each envelope persists summary and detail atomically.
 
-## Capabilities Summary
+The website must configure `Seeding:SmartShuntApiKey` and `Seeding:SmartShuntSourceId`. In Azure Key Vault these are `Seeding--SmartShuntApiKey` and `Seeding--SmartShuntSourceId`. The source value must exactly match `SmartShunt:SourceId`; a broad power-ingest key is intentionally forbidden from this endpoint.
 
-| Capability group | Read-only | Read-write | Command/action | Local UI | Outbox/cloud | Notes |
-|------------------|-----------|------------|----------------|----------|--------------|-------|
-| Public live telemetry | Yes | No | No | Yes | Partial | Production baseline. |
-| Private product metadata | Yes, optional | No | No | Candidate | Local/config candidate | Useful enrichment. |
-| Private history/statistics | Yes, optional | No | No | Candidate | Local/detail candidate | Not primary telemetry. |
-| Alarm thresholds/private settings | Partial | Not approved | Not approved | Local candidate | No | Needs capture. |
-| Sync/write paths | No | Deferred | Deferred | Native UI only | No | Do not implement without capture. |
+Legacy `smartshunt.reading` and `com.hvo.smartshunt.reading.v1` rows are converted in place to typed bundles before the shared outbox initializer runs. Existing summary fields and pending/sent status are preserved; unavailable historical detail remains null. HTTP 401/403 are transient so replacing a credential or correcting source authority can recover queued records.
 
-## Public Fields
+## Exactly-One-Owner Cutover
 
-| Name | Type | Unit | UUID | Access | Semantics | Null/not available | Local UI | Outbox | Cloud storage | Notes |
-|------|------|------|------|--------|-----------|--------------------|----------|--------|---------------|-------|
-| StateOfChargePercent | double? | % | `65970fff-...` | Read-only | Instantaneous | `ffff` | Yes | Yes | Yes | Sometimes invalid at 0; private overlay may help. |
-| VoltageV | double? | V | `6597ed8d-...` | Read-only | Instantaneous | `ff7f` | Yes | Yes | Yes | Stable. |
-| CurrentA | double? | A | `6597ed8c-...` | Read-only | Instantaneous | `ffffff7f` | Yes | Yes | Yes | Signed thousandths; positive is charge into the battery and negative is discharge. |
-| PowerW | double? | W | `6597ed8e-...` | Read-only | Instantaneous | `ff7f` | Yes | Yes | Yes | Signed watts; positive is charge into the battery and negative is discharge. |
-| ConsumedAh | double? | Ah | `6597eeff-...` | Read-only | Cumulative/session | `ffffff7f` | Yes | Local-only currently | Not central | Stable locally. |
-| StarterVoltageV | double? | V | `6597ed7d-...` | Read-only | Instantaneous | `ff7f` | Yes if present | Local-only currently | Not central | Often unavailable on this device. |
-| TemperatureC | double? | deg C | `65970383-...` | Read-only | Instantaneous | `ff7f` | Yes if present | Local-only currently | Not central | Often unavailable. |
-| RemainingMinutes | double? | minutes | `65970ffe-...` | Read-only | Estimate | `ffff` | Yes if present | Local-only currently | Not central | Often unavailable. |
+1. Deploy the website migration and protected observation endpoint first. Verify the dedicated seeded API key owns the configured source.
+2. Record the current image and back up the complete named volume without stopping or deleting it:
 
-## Sign-Correction Rollout
+```bash
+docker --context devpi5 inspect smartshunt-hvo-smartshunt-1 --format '{{.Config.Image}}' > /tmp/smartshunt-image.txt
+docker --context devpi5 run --rm -v smartshunt_smartshunt-outbox:/source:ro -v /tmp:/backup alpine:3.22 \
+  tar -C /source -czf /backup/smartshunt-outbox-before-vnext.tgz .
+```
+3. Confirm no HA/ESPHome SmartShunt integration is acquiring the device and no HA exporter mapping owns `smartshunt-main`.
+4. Stop the legacy SmartShunt container. Confirm it no longer owns the Bluetooth connection or writes centrally.
+5. Place `gateway.json` and separate secrets on the deployment workstation, then run `./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt`. The script validates and synchronizes mounted files over the Docker context's SSH endpoint.
+6. Verify `/health`, protected diagnostics, MQTT availability/state, outbox drainage, and one summary/detail row for the same source timestamp. Reconcile counts before promotion:
 
-The source-native SmartShunt convention is positive charge into the battery and negative discharge. The shared composed power-system contract intentionally converts this to positive discharge and negative charge.
+```bash
+docker --context devpi5 compose --env-file deploy/pi-gateways/smartshunt/.env \
+  -f deploy/pi-gateways/smartshunt/docker-compose.yml ps
+curl -fsS -H "X-Api-Key: $(<deploy/pi-gateways/smartshunt/secrets/diagnostics-api-key)" \
+  http://devPi5:5400/diagnostics/outbox
+```
+7. Keep the legacy container stopped. Do not run shadow central writes.
 
-When deploying the corrected decoder from issue #302:
+## Rollback
 
-1. Stop the SmartShunt gateway before changing retained data or deploying the new image.
-2. Archive the complete Pi `smartshunt_smartshunt-outbox` database with `scripts/outbox-maintenance.sh`; do not replay old opposite-sign payloads.
-3. Back up the self-hosted SQL Server database and remove existing `v9.PowerReading` rows where `SourceSystem = 'victron-smartshunt'`.
-4. Deploy the website first so its host-local SQL connection remains authoritative over the legacy Key Vault setting.
-5. Deploy and start the corrected SmartShunt gateway, then verify source `+` charging becomes composed `-` charging exactly once.
-6. Leave Azure SQL history untouched; it is not part of the local production data path.
+1. Stop vNext before starting any legacy process.
+2. Preserve the current outbox volume and database for diagnosis; do not delete or recreate it. Never use `docker compose down -v`.
+3. Restore the pre-cutover outbox backup only if the legacy binary cannot read the migrated schema. Doing so intentionally discards records created after that backup and requires central duplicate review:
 
-## Private Enrichment Fields
+```bash
+docker --context devpi5 compose --env-file deploy/pi-gateways/smartshunt/.env \
+  -f deploy/pi-gateways/smartshunt/docker-compose.yml stop hvo-smartshunt
+docker --context devpi5 run --rm -v smartshunt_smartshunt-outbox:/target -v /tmp:/backup alpine:3.22 \
+  sh -c 'rm -rf /target/* && tar -C /target -xzf /backup/smartshunt-outbox-before-vnext.tgz'
+```
+4. Restore the image recorded in `/tmp/smartshunt-image.txt`, start exactly one legacy collector, and confirm sole Bluetooth ownership and central writing. Compare the last central source timestamp with the restored outbox before enabling forwarding; duplicates are safe, missing post-backup records require explicit reconciliation.
+5. Keep HA/ESPHome acquisition/export disabled throughout rollback.
 
-| Name | Type | Unit | Access | Semantics | Local UI | Outbox/cloud | Notes |
-|------|------|------|--------|-----------|----------|--------------|-------|
-| Firmware version | string | n/a | Read-only | Metadata | Candidate | Device inventory candidate | Product field `0x02` in current plan. |
-| Serial number | string | n/a | Read-only | Metadata | Candidate/redacted | Treat carefully | Product field `0x0a`. |
-| Deepest/last/average discharge | double? | Ah | Read-only | History | Candidate | Optional detail | History fields `0x00`-`0x02`. |
-| Total charge cycles | uint? | count | Read-only | Lifetime counter | Candidate | Optional detail | History `0x03`. |
-| Full discharges | uint? | count | Read-only | Lifetime counter | Candidate | Optional detail | History `0x04`. |
-| Cumulative Ah drawn | double? | Ah | Read-only | Lifetime counter | Candidate | Optional detail | History `0x05`. |
-| Min/max battery voltage | double? | V | Read-only | History | Candidate | Optional detail | History `0x06`/`0x07`. |
-| Charged/discharged energy | double? | kWh | Read-only | Lifetime counter | Candidate | Optional detail | History `0x10`/`0x11`. |
-| Alarm threshold fields | double? | V/% | Read-only? | Configuration | Candidate | Local-only until validated | Private overlay includes threshold fields. |
-| CurrentCoarseA | double? | A | Read-only | Diagnostic | Candidate | Local-only | Approx fallback, not forwarded. |
+## Bounded Live Validation
 
-## Local Configuration
+Routine CI does not access hardware. Protocol, sign mapping, options, outbox, migration, hosting, MQTT, and API tests are non-live. After deployment, run one bounded two-minute validation only when physical access is explicitly intended:
 
-| Setting | Type | Required | Secret | Runtime editable | Default | Notes |
-|---------|------|----------|--------|------------------|---------|-------|
-| `SmartShunt.Address` | string | Yes for live | No | App config | empty disables | BLE address. |
-| `SmartShunt.Adapter` | string | Yes | No | App config | hci0 | BLE adapter. |
-| `SourceId` | string | Yes | No | App config | smartshunt-main | Cloud source id. |
-| `DeviceId` | string | Yes | No | App config | smartshunt-lifepo4 | Cloud device id. |
-| `PublicOnly` | bool | No | No | App config | true | Public baseline. |
-| `EnablePrivateEnrichment` | bool | No | No | App config | false | Optional enrichment. |
-| `SampleIntervalSeconds` | int | Yes | No | App config | 5 | Live sample cadence. |
-| `SnapshotIntervalSeconds` | int | Yes | No | App config | 15 | Outbox snapshot cadence. |
+```bash
+SMARTSHUNT_LIVE_ADDRESS=AA:BB:CC:DD:EE:FF \
+dotnet test tests/HVO.Hardware.VictronSmartShunt.Tests \
+  --filter "TestCategory=Live"
+```
 
-## Local API Plan
-
-Existing endpoints:
-
-| Endpoint | Purpose | Auth | Response | Notes |
-|----------|---------|------|----------|-------|
-| `/status` | Current snapshot, private info, history, outbox, health | none/internal today | anonymous object | Existing. |
-| `/gateway-health` | Gateway health snapshot | none/internal today | health snapshot | Existing. |
-
-## Local UI Plan
-
-Current pages:
-
-- status
-- telemetry
-
-Needed before local completeness:
-
-- explicit public/private data path display
-- stale sample state
-- BLE adapter/shared workload warning
-- private enrichment age and confidence
-- clear distinction between trusted telemetry and diagnostic/private fields
-
-## Outbox / Cloud Candidate Streams
-
-| Stream | Payload type | Cadence | Idempotency key | Cloud treatment | Notes |
-|--------|--------------|---------|-----------------|-----------------|-------|
-| power.reading | battery monitor summary | snapshot interval | source + device + recordedAt | Existing central power reading | Public-first only. |
-| smartshunt.detail | public+private detail | low frequency/manual | device + recordedAt | Optional future detail | Needs trust decision. |
-| smartshunt.device-info | product metadata | on change | device + hash | Optional inventory | Serial privacy decision. |
-| gateway.status | runtime/health | low frequency | gateway + recordedAt | Central gateway cards | Needed. |
-
-## Known Issues And Quirks
-
-| Issue | Evidence | Impact | Workaround | Validation needed |
-|-------|----------|--------|------------|-------------------|
-| Public SoC can be invalid | Current plan notes public `soc == 0` suspicious | Wrong SoC if trusted blindly | Private overlay when fresh or public looks invalid | VictronConnect comparison. |
-| Write/sync not proven | `SMARTSHUNT_PLAN.md` | Unsafe to alter battery monitor settings | Keep read-only | Real VictronConnect capture. |
-| BLE contention with JK BMS | Current plan | Gateway instability | Avoid mixed stable workload on same `hci0` | Adapter strategy. |
-
-## Security And Safety Notes
-
-- Keep SmartShunt write/sync disabled until a real capture proves framing and safety.
-- Treat serial/product fields as potentially sensitive.
-- Do not let coarse/private fallback fields silently replace trusted public telemetry in forwarded payloads.
-
-## Open Questions
-
-| Question | Why it matters | Status |
-|----------|----------------|--------|
-| What official Victron BLE docs apply to this exact SmartShunt firmware? | Contract validation | Open |
-| Can private enrichment be made deterministic and safe? | Local UI accuracy | Open |
-| What second Bluetooth adapter, if any, works reliably on Pi? | JK/SmartShunt coexistence | Open |
+Pass criteria: a paired public-GATT session returns voltage, current, power, and SOC within two minutes. Then use deployed diagnostics/MQTT/API observations to confirm consumed Ah, remaining time when device-available, availability transitions, update cadence, and source-native signs. The test performs no writes beyond the validated public keepalive.

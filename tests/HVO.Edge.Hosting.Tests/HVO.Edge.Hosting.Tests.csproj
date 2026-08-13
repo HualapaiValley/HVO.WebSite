@@ -11,6 +11,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="MSTest" />
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="coverlet.collector">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -19,5 +20,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\HVO.Edge.Hosting\HVO.Edge.Hosting.csproj" />
+    <ProjectReference Include="..\HVO.Edge.Hosting.TestHost\HVO.Edge.Hosting.TestHost.csproj" />
   </ItemGroup>
 </Project>

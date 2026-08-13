@@ -1,3 +1,5 @@
+name: davis
+
 x-hvo-local-logging: &hvo-local-logging
   driver: local
   options:
@@ -7,37 +9,35 @@ x-hvo-local-logging: &hvo-local-logging
     mode: non-blocking
     max-buffer-size: "4m"
 
-x-hvo-no-core: &hvo-no-core
-  core:
-    soft: 0
-    hard: 0
-
 services:
   hvo-davis:
     build:
       context: ../../..
       dockerfile: src/HVO.Hardware.DavisVantagePro2/Dockerfile
     ports:
-      - "5100:8080"
+      - "${DAVIS_HTTP_PORT:-5100}:8080"
     environment:
-      Station__Host: ${DAVIS_STATION_HOST}
-      Station__Port: ${DAVIS_STATION_PORT:-22222}
-      Station__ArchiveCatchupMode: "Disabled"
-      Station__ArchiveCatchupLookbackHours: "12"
-      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL}/api/v1/weather/raw"
-      Outbox__ApiKey: ${DAVIS_API_KEY}
-      Outbox__DbPath: /app/data/outbox.db
+      Station__Host: ${DAVIS_STATION_HOST:?DAVIS_STATION_HOST is required}
       DOTNET_ENVIRONMENT: Production
       OTEL_SERVICE_NAME: hvo-davis
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
+      - "${DAVIS_REMOTE_CONFIG_FILE:?DAVIS_REMOTE_CONFIG_FILE is required}:/app/config/gateway.json:ro"
+      - "${DAVIS_REMOTE_SECRETS_DIRECTORY:?DAVIS_REMOTE_SECRETS_DIRECTORY is required}:/run/secrets:ro"
       - davis-outbox:/app/data
-      - davis-data-protection:/root/.aspnet/DataProtection-Keys
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
     restart: unless-stopped
     logging: *hvo-local-logging
-    ulimits: *hvo-no-core
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
 
 volumes:
   davis-outbox:
-  davis-data-protection:

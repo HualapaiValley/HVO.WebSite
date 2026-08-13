@@ -8,7 +8,7 @@ This runbook commissions read-only EG4 6500EX and MPPT100-48HV telemetry on `dev
 - Never map enumerated `/dev/ttyUSB0`; use the verified MPPT `/dev/serial/by-id/...` identity only.
 - The inverter runtime allowlists identity, `QPIGS`, `QPGS0`, `Q1`, and firmware-conditional `QPIGS2`. The MPPT runtime permits only unit-1 function-`0x03` registers 200-217. Neither has a command endpoint.
 - Keep SolarAssistant, SmartShunt, JK BMS, Davis, and TP-Link/Kasa unchanged during commissioning.
-- SmartShunt remains preferred for whole-bus electrical values. SolarAssistant supplies the two direct internal tracker channels; the direct EG4 MPPT supplies the third array. JK BMS/SmartShunt remain authoritative for SOC.
+- The direct EG4 collector owns 6500EX and MPPT100 acquisition. SolarAssistant remains an independent comparison source during migration and is never a runtime input. JK BMS/SmartShunt remain authoritative for SOC and whole-bus measurements.
 
 ## Verified Host Baseline
 
@@ -54,13 +54,14 @@ The container runs as root but receives only the explicitly mapped HID nodes; it
 
 ## Configuration
 
-1. Copy `deploy/pi-gateways/eg4/.env.example` to the ignored `.env` file.
-2. Provision an API key with only `ingest:power` and set `EG4_POWER_API_KEY` without committing or printing it.
-3. Keep `EG4_DEVICE_1_ENABLED=false` while only one HID exists.
-4. Set `EG4_MPPT_0_PORT` to the verified stable `/dev/serial/by-id` identity. Keep `EG4_MPPT_0_ENABLED=false` until the website migration/API is deployed and the overlay has been reviewed; then set it true to map and poll only the fixed read profile.
-5. Keep the source and device IDs stable; list indexes are configuration positions, not identity.
-6. Keep `HVO_WEBSITE_PUBLIC_BASE_URL` on the HTTPS public website route.
-7. Leave `OTEL_COLLECTOR_ENDPOINT` empty unless collector reachability has been verified.
+1. Copy `.env.example` to ignored `.env` and `gateway.json.example` to ignored `gateway.json`.
+2. Create the ignored `secrets` directory with root-readable files named `diagnostics-api-key`, `central-ingest-api-key`, `mqtt-username`, and `mqtt-password`. Do not place raw credentials in `.env` or `gateway.json`.
+3. Provision the central key with only `ingest:power`. Issue #330 transfers exact source claims during one-writer cutover.
+4. Keep the second inverter disabled in both `.env` and `gateway.json` while only one HID exists.
+5. Set `EG4_MPPT_0_PORT` to the verified stable `/dev/serial/by-id` identity. Enable the MPPT in both `.env` and `gateway.json` only when its overlay and fixed read profile are ready.
+6. Keep source and device IDs stable; list indexes are configuration positions, not identity.
+7. Configure the local HA Mosquitto address and mounted MQTT secret names in `gateway.json`.
+8. Leave `OTEL_COLLECTOR_ENDPOINT` empty unless collector reachability has been verified.
 
 The base stack maps only `EG4_DEVICE_0_PORT`. When `EG4_MPPT_0_ENABLED=true`, `deploy-pi-gateway.sh` adds `docker-compose.mppt.yml` and maps only the configured stable serial path. When `EG4_DEVICE_1_ENABLED=true`, it also adds `docker-compose.two-device.yml`; both stable HID nodes must then exist before container creation.
 
@@ -96,7 +97,7 @@ docker compose \
 ./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 eg4
 ```
 
-Include every enabled overlay in manual Compose checks. Do not save rendered Compose output because service environment values include the API key.
+Include every enabled overlay in manual Compose checks. Verify that every enabled `gateway.json` device has exactly one rendered Compose device mapping and that disabled devices are not exposed.
 
 If OTLP is configured, verify basic HTTP connectivity from the Pi before deployment. A 404 response at the collector root is acceptable; a DNS, connection, or timeout failure is not:
 
@@ -117,7 +118,7 @@ The deploy script validates Compose, recreates only the EG4 stack, waits for the
 
 ## Verification
 
-Local UI and health:
+Headless health and process state:
 
 ```bash
 curl --fail http://devpi5:5600/health
@@ -129,15 +130,14 @@ test -n "${eg4_container}"
 docker --context devpi5 logs --since 30m "${eg4_container}"
 ```
 
-Protected diagnostics require the configured key. Load it from the approved deployment secret without printing it. Put the header in a temporary root-readable file so the key does not appear in curl process arguments, then remove it:
+Protected diagnostics require the dedicated diagnostics key. Build the header from the mounted secret file without printing it, then remove the temporary header:
 
 ```bash
 umask 077
 eg4_header="$(mktemp)"
 trap 'rm -f "${eg4_header}"' EXIT HUP INT TERM
-printf 'X-Api-Key: %s\n' "${EG4_POWER_API_KEY}" > "${eg4_header}"
+printf 'X-Api-Key: %s\n' "$(<deploy/pi-gateways/eg4/secrets/diagnostics-api-key)" > "${eg4_header}"
 curl --fail --header "@${eg4_header}" http://devpi5:5600/diagnostics/status
-curl --fail --header "@${eg4_header}" http://devpi5:5600/diagnostics/devices
 curl --fail --header "@${eg4_header}" http://devpi5:5600/diagnostics/outbox
 rm -f "${eg4_header}"
 trap - EXIT HUP INT TERM
@@ -163,10 +163,10 @@ Record:
 - Firmware identity acceptance after each reconnect.
 - Healthy/degraded/offline transitions and any HID ownership conflict.
 - Outbox pending, retry-exhausted, permanent-failure, and last-sent state.
+- Stable HA MQTT device identity, canonical battery signs, device availability, and recovery after broker/HA restarts.
 - Charging, discharging, and idle samples, including a simultaneous zero-charge/zero-discharge frame when naturally observed.
 - External MPPT daylight samples, expected nighttime silence, temperature channels, and diagnostic-state history.
-- Direct SolarAssistant MPPT 1/2 power compared with the EG4 HID MPPT 1 and coarse MPPT 2 observations.
-- The three-array composed sum only when both SolarAssistant trackers and the external MPPT tracker are fresh and within timestamp skew.
+- Direct EG4 tracker observations compared with SolarAssistant only as independent migration evidence; the collector never reads SolarAssistant.
 - Timestamp skew between each EG4 branch and the nearest SmartShunt whole-bus sample.
 - Direct branch sum compared with SmartShunt whole-bus net flow using the canonical sign: positive discharge, negative charge.
 
@@ -181,11 +181,26 @@ EG4 branch values and SmartShunt whole-bus values are different physical measure
 - Durable outbox recovery with no growing normal-operation backlog or permanent failures.
 - Successful local SQL retention of distinct `eg4-6500ex-*` source/device rows.
 - Website comparison shows each inverter as an `Inverter branch`, never a whole-bus value.
-- MPPT history preserves three independent arrays and derives a sum only from the configured complete tracker set.
+- MPPT history preserves each independently measured direct tracker without using SolarAssistant as an input.
 - Branch-versus-bus differences are physically explainable at bounded timestamp skew.
 - SolarAssistant, SmartShunt, and JK BMS remain operational and independently deployable.
 
-No EG4 source becomes preferred automatically. Any future composition-policy promotion requires a separate explicit decision and tests.
+Direct EG4 is the target authority, but source-claim transfer and retirement of overlapping writers remain the controlled cutover in issue #330.
+
+## Production Cutover Evidence
+
+Issue #354 cut production over to the headless vNext collector on 2026-08-12:
+
+- The previous image and quiescent outbox state were recorded before replacement.
+- The complete `eg4_eg4-outbox` volume was archived to a checksum-verified, tar-readable backup without deleting or recreating the named volume.
+- The quiescent checkpoint contained 13,728 sent records and no pending or failed records.
+- The vNext collector resumed with both the 6500EX and MPPT100-48HV online, retained stable source/device identities, and continued central forwarding through the same outbox.
+- A bounded container restart recovered both devices, MQTT availability, and deterministic Home Assistant entity IDs.
+- Home Assistant power entities use watts, `device_class: power`, and `state_class: measurement`. Battery current and power retain the canonical EG4 sign convention: positive discharge and negative charge.
+- The 6500EX MQTT device exposes aggregate PV, both MPPT channels, AC input/output, active/apparent load, operating mode, load percentage, fault/status fields, four temperature channels, firmware, charge/fan/parallel state, and output/charger diagnostics.
+- The MPPT100-48HV MQTT device exposes aggregate and tracker PV, battery output, both controller temperatures, controller-estimated SOC, and the validated read-only diagnostic-register values. Opaque registers remain named diagnostics and are not presented as decoded alarms.
+
+These are instantaneous measurements and operational state. Do not derive durable cumulative energy history inside the gateway from sampled watts. Home Assistant energy helpers may integrate power for presentation, while source-native monotonic energy counters remain preferred whenever a device provides trustworthy reset semantics.
 
 ## Rollback
 
@@ -200,7 +215,7 @@ docker --context devpi5 stop "${eg4_container}"
 docker --context devpi5 rm "${eg4_container}"
 ```
 
-Preserve the `eg4_eg4-outbox` volume and the `.env` used for the run. Restore the prior image/configuration if one exists, then recreate only `hvo-eg4`. Do not stop existing gateway containers, run `down -v`, or perform broad volume pruning. If an older image cannot read the current outbox schema, leave the volume untouched and investigate from a read-only copy.
+Preserve the `eg4_eg4-outbox` volume, `.env`, `gateway.json`, and mounted secrets. Restore the prior image/configuration if one exists, then recreate only `hvo-eg4`. Do not run `down -v` or perform broad volume pruning. Before the vNext upgrade, stop acquisition and drain legacy reading/detail rows because the new bundle forwarder selects only `com.hvo.eg4.observation.v1`; never strand old payload types in place.
 
 ## References
 

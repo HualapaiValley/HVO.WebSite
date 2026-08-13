@@ -1,3 +1,5 @@
+name: smartshunt
+
 x-hvo-local-logging: &hvo-local-logging
   driver: local
   options:
@@ -7,11 +9,6 @@ x-hvo-local-logging: &hvo-local-logging
     mode: non-blocking
     max-buffer-size: "4m"
 
-x-hvo-no-core: &hvo-no-core
-  core:
-    soft: 0
-    hard: 0
-
 services:
   hvo-smartshunt:
     build:
@@ -19,41 +16,29 @@ services:
       dockerfile: src/HVO.Hardware.VictronSmartShunt/Dockerfile
     privileged: true
     ports:
-      - "5400:8080"
+      - "${SMARTSHUNT_HTTP_PORT:-5400}:8080"
     environment:
-      SmartShunt__Address: ${SMARTSHUNT_ADDRESS:-}
-      SmartShunt__Adapter: ${SMARTSHUNT_ADAPTER:-hci0}
-      SmartShunt__SourceId: ${SMARTSHUNT_SOURCE_ID:-smartshunt-main}
-      SmartShunt__DeviceId: ${SMARTSHUNT_DEVICE_ID:-smartshunt-lifepo4}
-      SmartShunt__PublicOnly: ${SMARTSHUNT_PUBLIC_ONLY:-true}
-      SmartShunt__EnablePrivateEnrichment: ${SMARTSHUNT_ENABLE_PRIVATE_ENRICHMENT:-false}
-      SmartShunt__SampleIntervalSeconds: ${SMARTSHUNT_SAMPLE_INTERVAL_SECONDS:-5}
-      SmartShunt__SnapshotIntervalSeconds: ${SMARTSHUNT_SNAPSHOT_INTERVAL_SECONDS:-15}
-      SmartShunt__PublicKeepAliveIntervalSeconds: ${SMARTSHUNT_PUBLIC_KEEPALIVE_INTERVAL_SECONDS:-10}
-      SmartShunt__PrivateRefreshIntervalSeconds: ${SMARTSHUNT_PRIVATE_REFRESH_INTERVAL_SECONDS:-900}
-      SmartShunt__HistoryCapacity: ${SMARTSHUNT_HISTORY_CAPACITY:-240}
-      SmartShunt__ConnectionTimeoutSeconds: ${SMARTSHUNT_CONNECTION_TIMEOUT_SECONDS:-20}
-      SmartShunt__SampleStaleAfterSeconds: ${SMARTSHUNT_SAMPLE_STALE_AFTER_SECONDS:-60}
-      SmartShunt__OutboxPendingWarningCount: ${SMARTSHUNT_OUTBOX_PENDING_WARNING_COUNT:-10}
-      SmartShunt__OutboxFailedCriticalCount: ${SMARTSHUNT_OUTBOX_FAILED_CRITICAL_COUNT:-1}
-      SmartShunt__LowBatteryWarningPercent: ${SMARTSHUNT_LOW_BATTERY_WARNING_PERCENT:-30}
-      SmartShunt__CriticalBatteryPercent: ${SMARTSHUNT_CRITICAL_BATTERY_PERCENT:-15}
-      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL}/api/v1/power/readings"
-      Outbox__ApiKey: ${POWER_API_KEY:-}
-      Outbox__DbPath: /app/data/outbox.db
       DOTNET_ENVIRONMENT: Production
-      Diagnostics__ExposeDetailedEndpoints: ${SMARTSHUNT_EXPOSE_DETAILED_ENDPOINTS:-false}
       OTEL_SERVICE_NAME: hvo-smartshunt
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+      - "${SMARTSHUNT_REMOTE_CONFIG_FILE:?SMARTSHUNT_REMOTE_CONFIG_FILE is required}:/app/config/gateway.json:ro"
+      - "${SMARTSHUNT_REMOTE_SECRETS_DIRECTORY:?SMARTSHUNT_REMOTE_SECRETS_DIRECTORY is required}:/run/secrets:ro"
       - smartshunt-outbox:/app/data
-      - smartshunt-data-protection:/root/.aspnet/DataProtection-Keys
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
     restart: unless-stopped
     logging: *hvo-local-logging
-    ulimits: *hvo-no-core
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
 
 volumes:
   smartshunt-outbox:
-  smartshunt-data-protection:

@@ -1,0 +1,12 @@
+{
+  "scenarioName": "Central ingest",
+  "requiredScenarioState": "Started",
+  "newScenarioState": "Unavailable",
+  "request": {
+    "method": "POST",
+    "urlPath": "/__test/central-ingest/unavailable"
+  },
+  "response": {
+    "status": 204
+  }
+}

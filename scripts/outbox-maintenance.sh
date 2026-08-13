@@ -8,9 +8,9 @@ action="summary"
 remote=false
 
 usage() {
-	printf 'Usage: %s [--context <docker-context>] [--remote] <summary|schema|archive> <davis|eg4|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
+	printf 'Usage: %s [--context <docker-context>] [--remote] <summary|schema|archive|compact> <davis|eg4|ha-exporter|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
 	printf '\n'
-	printf 'Inspects or archives gateway outbox.db files. Archive renames outbox.db* inside the Docker volume; it never deletes files.\n'
+	printf 'Inspects, archives, or compacts gateway outbox.db files. Compact requires a stopped gateway and creates a verified local backup first.\n'
 }
 
 fail() {
@@ -22,6 +22,7 @@ volume_for_target() {
 	case "$1" in
 		davis) printf '%s\n' 'davis_davis-outbox' ;;
 		eg4) printf '%s\n' 'eg4_eg4-outbox' ;;
+		ha-exporter|home-assistant-exporter) printf '%s\n' 'home-assistant-exporter_home-assistant-exporter-data' ;;
 		jkbms) printf '%s\n' 'jkbms_jkbms-outbox' ;;
 		solarassistant) printf '%s\n' 'solarassistant_solarassistant-outbox' ;;
 		smartshunt) printf '%s\n' 'smartshunt_smartshunt-outbox' ;;
@@ -34,6 +35,7 @@ service_for_target() {
 	case "$1" in
 		davis) printf '%s\n' 'hvo-davis' ;;
 		eg4) printf '%s\n' 'hvo-eg4' ;;
+		ha-exporter|home-assistant-exporter) printf '%s\n' 'hvo-home-assistant-exporter' ;;
 		jkbms) printf '%s\n' 'hvo-jkbms' ;;
 		solarassistant) printf '%s\n' 'hvo-solarassistant' ;;
 		smartshunt) printf '%s\n' 'hvo-smartshunt' ;;
@@ -69,6 +71,17 @@ summarize() {
 	printf 'Outbox summary for volume %s\n' "${volume}"
 	run_volume_sqlite "${volume}" "${summary_sql}"
 	run_volume_sqlite "${volume}" "${forward_sql}"
+	run_volume_sqlite "${volume}" "SELECT page_count AS PageCount, freelist_count AS FreePages, ROUND(100.0 * freelist_count / page_count, 1) AS FreePercent FROM pragma_page_count(), pragma_freelist_count();"
+	run_volume_sqlite "${volume}" "PRAGMA auto_vacuum;"
+}
+
+require_stopped() {
+	local service="$1"
+	local running
+	running="$(run_docker ps --filter "name=${service}" --format '{{.Names}}' 2>/dev/null || true)"
+	if [[ -n "${running}" ]]; then
+		fail "Gateway service '${service}' appears to be running (${running//$'\n'/, }). Stop it before modifying live SQLite files."
+	fi
 }
 
 schema() {
@@ -81,15 +94,35 @@ archive() {
 	local volume="$1"
 	local service="$2"
 	local stamp
-	local running
-	running="$(run_docker ps --filter "name=${service}" --format '{{.Names}}' 2>/dev/null || true)"
-	if [[ -n "${running}" ]]; then
-		fail "Gateway service '${service}' appears to be running (${running//$'\n'/, }). Stop it before archiving live SQLite files."
-	fi
+	require_stopped "${service}"
 
 	stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 	printf 'Archiving /app/data/outbox.db* in volume %s with suffix .archived-%s\n' "${volume}" "${stamp}"
 	run_docker run --rm -v "${volume}:/data" alpine:3.20 sh -c "set -e; for file in /data/outbox.db*; do [ -e \"\$file\" ] || continue; mv \"\$file\" \"\$file.archived-${stamp}\"; done; ls -la /data"
+}
+
+compact() {
+	local volume="$1"
+	local service="$2"
+	local stamp backup_dir backup_path
+	require_stopped "${service}"
+	stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+	backup_dir="artifacts/outbox"
+	backup_path="${backup_dir}/${target}-${stamp}.tar.gz"
+	mkdir -p "${backup_dir}"
+
+	printf 'Creating local outbox backup %s\n' "${backup_path}"
+	# SQLite needs write access for WAL shared-memory coordination even though the
+	# source connection is read-only and the backup itself is written to /tmp.
+	run_docker run --rm -v "${volume}:/data" alpine:3.20 sh -c \
+		'apk add --no-cache sqlite >/dev/null && test "$(sqlite3 -readonly /data/outbox.db "PRAGMA integrity_check")" = ok && sqlite3 -readonly /data/outbox.db ".backup /tmp/outbox.db" && tar -czf - -C /tmp outbox.db' > "${backup_path}"
+	[[ -s "${backup_path}" ]] || fail "Outbox backup is empty: ${backup_path}"
+	tar -tzf "${backup_path}" | grep -qx 'outbox.db' || fail "Outbox backup is not readable: ${backup_path}"
+
+	printf 'Compacting outbox in volume %s\n' "${volume}"
+	run_docker run --rm -v "${volume}:/data" alpine:3.20 sh -c \
+		'apk add --no-cache sqlite >/dev/null && test "$(sqlite3 /data/outbox.db "PRAGMA integrity_check")" = ok && sqlite3 /data/outbox.db "PRAGMA journal_mode=DELETE; PRAGMA auto_vacuum=INCREMENTAL; VACUUM; PRAGMA journal_mode=WAL;" && test "$(sqlite3 /data/outbox.db "PRAGMA integrity_check")" = ok'
+	printf 'Compaction complete; verified backup retained at %s\n' "${backup_path}"
 }
 
 while (($# > 0)); do
@@ -103,11 +136,11 @@ while (($# > 0)); do
 			remote=true
 			shift
 			;;
-		summary|schema|archive)
+		summary|schema|archive|compact)
 			action="$1"
 			shift
 			;;
-		davis|eg4|jkbms|solarassistant|smartshunt|tplinkkasa|tplink-kasa)
+		davis|eg4|ha-exporter|home-assistant-exporter|jkbms|solarassistant|smartshunt|tplinkkasa|tplink-kasa)
 			target="$1"
 			shift
 			;;
@@ -130,4 +163,5 @@ case "${action}" in
 	summary) summarize "${volume}" ;;
 	schema) schema "${volume}" ;;
 	archive) archive "${volume}" "${service}" ;;
+	compact) compact "${volume}" "${service}" ;;
 esac

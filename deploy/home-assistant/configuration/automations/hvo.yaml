@@ -1,0 +1,280 @@
+- id: hvo_source_offline
+  alias: HVO source offline
+  mode: parallel
+  max: 10
+  triggers:
+    - trigger: state
+      entity_id:
+        - sensor.hvo_eg4_gateway_health
+        - sensor.hvo_jkbms_gateway_health
+        - sensor.hvo_smartshunt_gateway_health
+      to: unavailable
+      for: "00:00:10"
+  actions:
+    - action: persistent_notification.create
+      data:
+        notification_id: "hvo_source_offline_{{ trigger.entity_id | replace('.', '_') }}"
+        title: HVO source offline
+        message: "{{ trigger.to_state.name }} is unavailable."
+
+- id: hvo_source_online
+  alias: HVO source online
+  mode: parallel
+  max: 10
+  triggers:
+    - trigger: state
+      entity_id:
+        - sensor.hvo_eg4_gateway_health
+        - sensor.hvo_jkbms_gateway_health
+        - sensor.hvo_smartshunt_gateway_health
+      from: unavailable
+  actions:
+    - action: persistent_notification.dismiss
+      data:
+        notification_id: "hvo_source_offline_{{ trigger.entity_id | replace('.', '_') }}"
+
+- id: hvo_source_stale
+  alias: HVO source stale
+  mode: parallel
+  max: 10
+  triggers:
+    - trigger: state
+      entity_id:
+        - sensor.hvo_eg4_source_freshness
+        - sensor.hvo_jkbms_source_freshness
+        - sensor.hvo_smartshunt_source_freshness
+      to:
+        - stale
+        - error
+      for: "00:00:10"
+  actions:
+    - action: persistent_notification.create
+      data:
+        notification_id: "hvo_source_stale_{{ trigger.entity_id | replace('.', '_') }}"
+        title: HVO source data is stale
+        message: "{{ trigger.to_state.name }} reports {{ trigger.to_state.state }} data."
+
+- id: hvo_source_fresh
+  alias: HVO source fresh
+  mode: parallel
+  max: 10
+  triggers:
+    - trigger: state
+      entity_id:
+        - sensor.hvo_eg4_source_freshness
+        - sensor.hvo_jkbms_source_freshness
+        - sensor.hvo_smartshunt_source_freshness
+      to: live
+  actions:
+    - action: persistent_notification.dismiss
+      data:
+        notification_id: "hvo_source_stale_{{ trigger.entity_id | replace('.', '_') }}"
+
+- id: hvo_gateway_critical
+  alias: HVO gateway critical
+  mode: parallel
+  max: 10
+  triggers:
+    - trigger: state
+      entity_id:
+        - sensor.hvo_eg4_gateway_health
+        - sensor.hvo_jkbms_gateway_health
+        - sensor.hvo_smartshunt_gateway_health
+      to: critical
+      for: "00:00:10"
+  actions:
+    - action: persistent_notification.create
+      data:
+        notification_id: "hvo_gateway_critical_{{ trigger.entity_id | replace('.', '_') }}"
+        title: HVO gateway requires attention
+        message: "{{ trigger.to_state.name }} reports critical health."
+
+- id: hvo_gateway_recovered
+  alias: HVO gateway recovered
+  mode: parallel
+  max: 10
+  triggers:
+    - trigger: state
+      entity_id:
+        - sensor.hvo_eg4_gateway_health
+        - sensor.hvo_jkbms_gateway_health
+        - sensor.hvo_smartshunt_gateway_health
+      to:
+        - healthy
+        - warning
+        - waiting
+  actions:
+    - action: persistent_notification.dismiss
+      data:
+        notification_id: "hvo_gateway_critical_{{ trigger.entity_id | replace('.', '_') }}"
+
+- id: hvo_outbox_backlog
+  alias: HVO outbox backlog
+  mode: parallel
+  max: 10
+  triggers:
+    - trigger: numeric_state
+      entity_id:
+        - sensor.hvo_eg4_outbox_pending
+        - sensor.hvo_jkbms_outbox_pending
+        - sensor.hvo_smartshunt_outbox_pending
+      above: 10
+      for: "00:00:10"
+  actions:
+    - action: persistent_notification.create
+      data:
+        notification_id: "hvo_outbox_backlog_{{ trigger.entity_id | replace('.', '_') }}"
+        title: HVO central delivery backlog
+        message: "{{ trigger.to_state.name }} has {{ trigger.to_state.state }} records pending."
+
+- id: hvo_outbox_recovered
+  alias: HVO outbox recovered
+  mode: parallel
+  max: 10
+  triggers:
+    - trigger: numeric_state
+      entity_id:
+        - sensor.hvo_eg4_outbox_pending
+        - sensor.hvo_jkbms_outbox_pending
+        - sensor.hvo_smartshunt_outbox_pending
+      below: 5
+  actions:
+    - action: persistent_notification.dismiss
+      data:
+        notification_id: "hvo_outbox_backlog_{{ trigger.entity_id | replace('.', '_') }}"
+
+- id: hvo_battery_critical
+  alias: HVO battery state of charge critical
+  mode: single
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_21xstate_x5fof_x5fcharge
+      below: 20
+      for: "00:00:30"
+  actions:
+    - action: persistent_notification.create
+      data:
+        notification_id: hvo_battery_critical
+        title: HVO battery state of charge critical
+        message: "Whole-bus state of charge is {{ trigger.to_state.state }}%."
+
+- id: hvo_battery_recovered
+  alias: HVO battery state of charge recovered
+  mode: single
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_21xstate_x5fof_x5fcharge
+      above: 25
+  actions:
+    - action: persistent_notification.dismiss
+      data:
+        notification_id: hvo_battery_critical
+
+- id: hvo_jk_bms_alarm
+  alias: HVO JK BMS alarm
+  mode: parallel
+  max: 10
+  triggers:
+    - trigger: state
+      entity_id:
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_5xalarm
+      to: "on"
+      for: "00:00:10"
+  actions:
+    - action: persistent_notification.create
+      data:
+        notification_id: "hvo_jk_bms_alarm_{{ trigger.entity_id | replace('.', '_') }}"
+        title: HVO battery bank alarm
+        message: "{{ trigger.to_state.name }} is active."
+
+- id: hvo_jk_bms_alarm_cleared
+  alias: HVO JK BMS alarm cleared
+  mode: parallel
+  max: 10
+  triggers:
+    - trigger: state
+      entity_id:
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_5xalarm
+        - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_5xalarm
+      to: "off"
+  actions:
+    - action: persistent_notification.dismiss
+      data:
+        notification_id: "hvo_jk_bms_alarm_{{ trigger.entity_id | replace('.', '_') }}"
+
+- id: hvo_environment_sensor_offline
+  alias: HVO environment sensor offline
+  mode: parallel
+  max: 5
+  triggers:
+    - trigger: state
+      entity_id:
+        - sensor.h5074_8d05_temperature
+        - sensor.h5075_48d9_temperature
+      to: unavailable
+      for: "00:00:30"
+  actions:
+    - action: persistent_notification.create
+      data:
+        notification_id: "hvo_environment_offline_{{ trigger.entity_id | replace('.', '_') }}"
+        title: HVO environment sensor offline
+        message: "{{ trigger.to_state.name }} is unavailable."
+
+- id: hvo_environment_sensor_online
+  alias: HVO environment sensor online
+  mode: parallel
+  max: 5
+  triggers:
+    - trigger: state
+      entity_id:
+        - sensor.h5074_8d05_temperature
+        - sensor.h5075_48d9_temperature
+      from: unavailable
+  actions:
+    - action: persistent_notification.dismiss
+      data:
+        notification_id: "hvo_environment_offline_{{ trigger.entity_id | replace('.', '_') }}"
+
+- id: hvo_environment_sensor_battery_low
+  alias: HVO environment sensor battery low
+  mode: parallel
+  max: 5
+  triggers:
+    - trigger: numeric_state
+      entity_id:
+        - sensor.h5074_8d05_battery
+        - sensor.h5075_48d9_battery
+      below: 20
+      for: "00:00:30"
+  actions:
+    - action: persistent_notification.create
+      data:
+        notification_id: "hvo_environment_battery_{{ trigger.entity_id | replace('.', '_') }}"
+        title: HVO environment sensor battery low
+        message: "{{ trigger.to_state.name }} is at {{ trigger.to_state.state }}%."
+
+- id: hvo_environment_sensor_battery_recovered
+  alias: HVO environment sensor battery recovered
+  mode: parallel
+  max: 5
+  triggers:
+    - trigger: numeric_state
+      entity_id:
+        - sensor.h5074_8d05_battery
+        - sensor.h5075_48d9_battery
+      above: 25
+  actions:
+    - action: persistent_notification.dismiss
+      data:
+        notification_id: "hvo_environment_battery_{{ trigger.entity_id | replace('.', '_') }}"

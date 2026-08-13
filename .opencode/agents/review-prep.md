@@ -77,7 +77,7 @@ Search for ALL of these patterns across the scope. Do not skip any category:
 **Gateway deployment - P1:**
 - Device IP/hostname hardcoded in `appsettings.json` or C# source (must be in `.env` only)
 - Docker Compose shell env variable vs `--env-file` precedence - stale shell vars override `.env` silently
-- `.env` not synced to gist after IP/credential change (`./scripts/sync-env-gist.sh` not run)
+- Credentials not synchronized from `hvo-central-kv` (`./scripts/sync-secrets-from-keyvault.sh --check` fails), or the private gist cache was not refreshed after non-secret `.env` changes
 
 ## Output Contract
 

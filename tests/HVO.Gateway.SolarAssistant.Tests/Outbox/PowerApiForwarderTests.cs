@@ -280,7 +280,7 @@ public sealed class PowerApiForwarderTests
     }
 
     [TestMethod]
-    public async Task SweepAsync_MpptDetail_ForwardsCloudEventToDerivedEndpoint()
+    public async Task SweepAsync_MpptDetail_ForwardsRawPayloadToDerivedEndpoint()
     {
         using (var scope = _provider.CreateScope())
         {
@@ -310,10 +310,11 @@ public sealed class PowerApiForwarderTests
 
         _handler.Requests.Should().ContainSingle();
         _handler.Requests[0].RequestUri!.ToString().Should().Be("https://hvo.example/api/v1/power/mppt-detail");
-        _handler.RequestBodies.Should().ContainSingle()
-            .Which.Should().Contain(EdgePayloadTypes.PowerMpptDetail)
-            .And.Contain("mppt-1")
-            .And.Contain("source-direct");
+        _handler.RequestBodies.Should().ContainSingle();
+        using var document = JsonDocument.Parse(_handler.RequestBodies[0]);
+        document.RootElement.GetProperty("sourceId").GetString().Should().Be("solarassistant-total");
+        document.RootElement.GetProperty("trackers")[0].GetProperty("trackerId").GetString().Should().Be("mppt-1");
+        document.RootElement.TryGetProperty("specversion", out _).Should().BeFalse();
         using var verifyScope = _provider.CreateScope();
         verifyScope.ServiceProvider.GetRequiredService<OutboxDbContext>().OutboxRecords.Single().Status
             .Should().Be(EdgeOutboxStatus.Sent);

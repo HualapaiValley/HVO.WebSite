@@ -1,69 +1,50 @@
 using System.Text.Json;
+using HVO.Edge.Contracts;
 using HVO.Edge.Outbox;
 using HVO.Hardware.JkBms.Bms;
-using Microsoft.Extensions.Logging;
 
 namespace HVO.Hardware.JkBms.Outbox;
 
-public sealed class BmsOutboxWriter(
-    EdgeOutboxStore<OutboxDbContext> store,
-    ILogger<BmsOutboxWriter> logger)
+public interface IBmsOutboxWriter
 {
-    public async Task<bool> EnqueueReadingAsync(
-        string deviceAddress,
-        string deviceAlias,
+    Task<bool> EnqueueAsync(
+        string sourceId,
+        string deviceId,
         DateTime recordedAtUtc,
         BmsIngressRecord record,
-        CancellationToken ct)
+        CancellationToken cancellationToken);
+}
+
+public sealed class BmsOutboxWriter(
+    EdgeOutboxStore<DefaultEdgeOutboxDbContext> store,
+    ILogger<BmsOutboxWriter> logger) : IBmsOutboxWriter
+{
+    public async Task<bool> EnqueueAsync(
+        string sourceId,
+        string deviceId,
+        DateTime recordedAtUtc,
+        BmsIngressRecord record,
+        CancellationToken cancellationToken)
     {
-        var payload = JsonSerializer.Serialize(record);
-        var enqueued = await store.EnqueueAsync(new EdgeOutboxMessage(
-            SourceId: deviceAddress,
-            RecordedAtUtc: recordedAtUtc,
-            PayloadType: BmsOutboxPayloadTypes.Reading,
-            PayloadVersion: BmsOutboxPayloadTypes.ReadingVersion,
-            PayloadJson: payload,
-            DeviceId: deviceAlias), ct);
+        ArgumentNullException.ThrowIfNull(record);
+        ArgumentNullException.ThrowIfNull(record.Reading);
+        if (string.IsNullOrWhiteSpace(sourceId) || string.IsNullOrWhiteSpace(deviceId))
+            throw new InvalidOperationException("JK BMS observations require stable source and device identities.");
+        if (recordedAtUtc == default || recordedAtUtc.Kind != DateTimeKind.Utc)
+            throw new InvalidOperationException("JK BMS observations require a UTC RecordedAtUtc value.");
+        if (!string.Equals(record.Reading.DeviceAddress, sourceId, StringComparison.OrdinalIgnoreCase)
+            || record.Reading.RecordedAtUtc != recordedAtUtc)
+            throw new InvalidOperationException("JK BMS reading identity must match its outbox record.");
 
-        if (!enqueued)
-            logger.LogWarning(
-                "Outbox duplicate skipped for {Alias} ({Address}) at {Timestamp:O}.",
-                deviceAlias,
-                deviceAddress,
-                recordedAtUtc);
-
-        return enqueued;
-    }
-
-    public async Task<bool> EnqueueConfigAsync(
-        string deviceAddress,
-        string deviceAlias,
-        BmsConfigPayload config,
-        CancellationToken ct)
-    {
-        var payload = JsonSerializer.Serialize(config);
-        return await store.EnqueueAsync(new EdgeOutboxMessage(
-            SourceId: deviceAddress,
-            RecordedAtUtc: DateTime.UtcNow,
-            PayloadType: BmsOutboxPayloadTypes.Config,
-            PayloadVersion: BmsOutboxPayloadTypes.ConfigVersion,
-            PayloadJson: payload,
-            DeviceId: deviceAlias), ct);
-    }
-
-    public async Task<bool> EnqueueDeviceInfoAsync(
-        string deviceAddress,
-        string deviceAlias,
-        BmsDeviceInfoPayload deviceInfo,
-        CancellationToken ct)
-    {
-        var payload = JsonSerializer.Serialize(deviceInfo);
-        return await store.EnqueueAsync(new EdgeOutboxMessage(
-            SourceId: deviceAddress,
-            RecordedAtUtc: DateTime.UtcNow,
-            PayloadType: BmsOutboxPayloadTypes.DeviceInfo,
-            PayloadVersion: BmsOutboxPayloadTypes.DeviceInfoVersion,
-            PayloadJson: payload,
-            DeviceId: deviceAlias), ct);
+        var inserted = await store.EnqueueAsync(new EdgeOutboxMessage(
+            sourceId,
+            recordedAtUtc,
+            EdgePayloadTypes.BmsReading,
+            "1",
+            JsonSerializer.Serialize(record, JsonSerializerOptions.Web),
+            deviceId), cancellationToken);
+        if (!inserted)
+            logger.LogDebug("JK BMS outbox duplicate skipped for {SourceId} at {RecordedAt:O}", sourceId, recordedAtUtc);
+        return inserted;
     }
 }

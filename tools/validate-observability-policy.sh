@@ -25,6 +25,16 @@ export OTEL_COLLECTOR_ENDPOINT="http://collector:4318"
 export HVO_WEBSITE_PUBLIC_BASE_URL="http://website"
 export DAVIS_STATION_HOST="example"
 export DAVIS_STATION_PORT="22222"
+export DAVIS_REMOTE_CONFIG_FILE="/tmp/hvo-edge/davis/gateway.json"
+export DAVIS_REMOTE_SECRETS_DIRECTORY="/tmp/hvo-edge/davis/secrets"
+export EG4_REMOTE_CONFIG_FILE="/tmp/hvo-edge/eg4/gateway.json"
+export EG4_REMOTE_SECRETS_DIRECTORY="/tmp/hvo-edge/eg4/secrets"
+export JKBMS_REMOTE_CONFIG_FILE="/tmp/hvo-edge/jkbms/gateway.json"
+export JKBMS_REMOTE_SECRETS_DIRECTORY="/tmp/hvo-edge/jkbms/secrets"
+export SMARTSHUNT_CONFIG_FILE="/tmp/hvo-edge/smartshunt/gateway.json"
+export SMARTSHUNT_SECRETS_DIRECTORY="/tmp/hvo-edge/smartshunt/secrets"
+export SMARTSHUNT_REMOTE_CONFIG_FILE="/tmp/hvo-edge/smartshunt/gateway.json"
+export SMARTSHUNT_REMOTE_SECRETS_DIRECTORY="/tmp/hvo-edge/smartshunt/secrets"
 export GRAFANA_ADMIN_USER="admin"
 export GRAFANA_ADMIN_PASSWORD="test"
 export HVO_OBSERVABILITY_DATA_ROOT="/var/lib/docker/hvo-observability"
@@ -41,6 +51,7 @@ app_compose_files=(
 	"deploy/hvo-docker/docker-compose.yml"
 	"deploy/pi-gateways/davis/docker-compose.yml"
 	"deploy/pi-gateways/eg4/docker-compose.yml"
+	"deploy/pi-gateways/home-assistant-exporter/docker-compose.yml"
 	"deploy/pi-gateways/jkbms/docker-compose.yml"
 	"deploy/pi-gateways/solarassistant/docker-compose.yml"
 	"deploy/pi-gateways/smartshunt/docker-compose.yml"
@@ -62,6 +73,29 @@ for relative_file in "${app_compose_files[@]}"; do
 			([.volumes[]? | select(.target == "/app/logs")] | length) == 0)
 		' <<<"${config}" >/dev/null || fail "${relative_file} does not resolve to the bounded local-log/core policy"
 done
+
+website_compose="$(docker compose -f "${repo_root}/deploy/hvo-docker/docker-compose.yml" config --format json 2>/dev/null)"
+jq -e '
+	.services["hvo-website"].volumes
+	| any(.type == "volume" and .target == "/root/.aspnet/DataProtection-Keys")
+	' <<<"${website_compose}" >/dev/null ||
+	fail 'website Data Protection keys are not mounted on a persistent volume'
+jq -e '
+	.services["hvo-website"].environment
+	| .DataProtection__ApplicationName == "HVO.WebSite.v9" and
+	  .DataProtection__KeysDirectory == "/root/.aspnet/DataProtection-Keys" and
+	  (.DataProtection__KeyIdentifier | length) > 0
+	' <<<"${website_compose}" >/dev/null ||
+	fail 'website Data Protection persistence and encryption settings are incomplete'
+
+website_sync_block="$(sed -n '/# Website deployment and handoff materializations\./,/# Existing environment-only gateways/p' "${repo_root}/scripts/sync-secrets-from-keyvault.sh")"
+grep -q 'WebsiteRuntime--AzureClientId' <<<"${website_sync_block}" &&
+	grep -q 'WebsiteRuntime--AzureClientSecret' <<<"${website_sync_block}" &&
+	grep -q 'WebsiteRuntime--AzureTenantId' <<<"${website_sync_block}" ||
+	fail 'website deployment does not materialize its dedicated runtime identity'
+if grep -q 'obs-azure-client-' <<<"${website_sync_block}"; then
+	fail 'website deployment still materializes the development service principal'
+fi
 
 for relative_file in \
 	"deploy/hvo-docker/observability/compose.yaml" \

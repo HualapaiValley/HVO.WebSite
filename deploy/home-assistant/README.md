@@ -1,0 +1,304 @@
+# Home Assistant configuration
+
+This directory contains the agent-managed Home Assistant configuration for the
+observatory instance. It intentionally excludes `.storage`, secrets, generated
+state, and integration config entries. Core integrations are commissioned only
+through supported Home Assistant config flows.
+
+## Managed configuration
+
+The tracked configuration is deployed under `/config/hvo`:
+
+- `configuration/lovelace.yaml` registers HVO YAML dashboards.
+- `configuration/packages/hvo.yaml` is the package entry point.
+- `configuration/templates/hvo.yaml` contains HVO template entities.
+- `configuration/sensors/hvo-energy.yaml` contains presentation-only energy integrators.
+- `configuration/utility-meters/hvo-energy.yaml` contains daily energy meters.
+- `configuration/automations/hvo.yaml` contains HVO automations.
+- `configuration/esphome/hvo-bluetooth-proxy.yaml` is the ESP32 Bluetooth proxy
+  definition and is commissioned separately through ESPHome Device Builder.
+
+Issue #331 defines availability-safe power templates and energy helpers. Derived
+energy remains a Home Assistant presentation concern and is never exported as
+source-native HVO telemetry.
+
+The HVO Operations dashboard groups the commissioned H5074/H5075 environment
+sensors, Davis weather, SmartShunt whole-bus battery status, individual JK BMS
+banks, and collector diagnostics. Gateway collectors publish a dedicated
+diagnostics device every 30 seconds with readable `sensor.hvo_<gateway>_*` and
+`binary_sensor.hvo_<gateway>_*` IDs. Health and freshness remain calculated by
+the collector-specific diagnostics providers; Home Assistant only presents and
+alerts on those authoritative states.
+
+Davis weather entities are included now, but Davis gateway diagnostics remain
+deferred until the collector's separate controlled maintenance window. The
+shared diagnostics projector is already wired for that later deployment.
+
+Critical automations create persistent notifications for source unavailability,
+stale/error freshness, critical gateway health, outbox backlogs above 10 rows,
+whole-bus state of charge below 20%, JK BMS alarms, and commissioned Govee
+availability/battery conditions. Stable notification IDs update an existing
+alert instead of producing an unbounded notification list. H5179 remains
+hardware/RF-blocked and is intentionally absent until it is commissioned.
+
+## Off-grid energy model
+
+The Energy presentation has no grid source. The 6500EX supplies native lifetime
+PV generation (`QET`) and AC output/load (`QLT`) counters. The external
+MPPT100-48HV PV input is integrated from its direct power sensor. SmartShunt
+charge and discharge are integrated separately from its signed whole-bus power.
+The external MPPT may sleep and remain unavailable after dark; unavailable data
+is never replaced with zero.
+
+The dashboard shows all three physical PV inputs: two 6500EX trackers and the
+external MPPT. Energy aggregation uses the combined native 6500EX counter plus
+the external controller counter, never the combined counter and its children.
+JK bank counters remain comparison/fallback candidates and are not combined
+with the SmartShunt whole-bus meter.
+
+The managed Energy preferences register the validated 6500EX combined solar
+counter and the external MPPT integration helper as two separate solar sources,
+plus the SmartShunt battery and AC load. Daylight validation confirmed the
+external helper exposes cumulative `kWh` statistics and increases with direct
+MPPT power; it may still be unavailable after dark when the controller sleeps.
+
+The Davis entity registry migration procedure is documented in
+`docs/home-assistant/davis-readable-id-migration.md`.
+
+## Kasa power dashboard
+
+`configuration/dashboards/hvo-kasa.yaml` provides the first HVO presentation
+slice using the commissioned TP-Link entities on `192.168.1.0/24`.
+
+- Critical infrastructure is status-only. The dashboard does not provide
+  actionable controls for routers, network switches, Proxmox hosts, cameras,
+  roof equipment, or telescope equipment.
+- Permitted switch and light actions are available only from the tile icon and
+  always show a confirmation dialog.
+- Parent power-strip controls, LED settings, unnamed outlets, restart buttons,
+  and cloud diagnostics are omitted.
+- The dashboard uses only built-in Home Assistant cards and remains independent
+  of internet-hosted resources or custom frontend packages.
+
+## Core deployment
+
+The deployment script uses the Proxmox QEMU guest agent to copy the tracked
+files into the HA OS configuration volume. It never writes `.storage`.
+
+Prerequisites:
+
+- SSH access to the Proxmox host.
+- `HOME_ASSISTANT_TOKEN` in the ignored root `.env` or current environment.
+- HA OS VM `101` running with the QEMU guest agent.
+
+Validate entity references and the complete managed configuration without
+changing HA:
+
+```bash
+./scripts/deploy-home-assistant-dashboard.sh --check
+```
+
+Deploy, run Home Assistant configuration validation, and restart Core:
+
+```bash
+export HVO_HOME_ASSISTANT_ALLOW_INSECURE=true
+./scripts/deploy-home-assistant-dashboard.sh --apply
+```
+
+Optional overrides:
+
+```bash
+HVO_PROXMOX_HOST=root@192.168.1.240 \
+HVO_HOME_ASSISTANT_VMID=101 \
+HVO_HOME_ASSISTANT_URL=http://192.168.1.113 \
+HVO_HOME_ASSISTANT_ALLOW_INSECURE=true \
+./scripts/deploy-home-assistant-dashboard.sh --apply
+```
+
+The script validates the candidate files against the repository-pinned Home
+Assistant image before connecting to production. It then creates a timestamped
+backup under `/mnt/data/supervisor/homeassistant`, deploys the managed tree, and
+adds these declarations when they are not already present:
+
+```yaml
+lovelace: !include hvo/lovelace.yaml
+
+homeassistant:
+  packages: !include_dir_named hvo/packages
+```
+
+Home Assistant Core sees the host directory as `/config`. The backup is removed
+after a successful restart. A failed file transfer, configuration check, or
+restart request restores `configuration.yaml` and the complete prior `/config/hvo`
+tree. If a different top-level `lovelace:` or `homeassistant:` key exists,
+deployment stops and requires a manual merge instead of creating a duplicate
+YAML key. The script never writes `.storage`.
+
+After deployment, run the focused live Playwright test with:
+
+```bash
+HVO_HOME_ASSISTANT_URL=http://192.168.1.113 \
+HOME_ASSISTANT_TOKEN=<long-lived-token> \
+dotnet test tests/HVO.WebSite.PlaywrightTests \
+  --filter "FullyQualifiedName~HomeAssistantKasaDashboardPlaywrightTests"
+```
+
+Use `HomeAssistantEnergyDashboardPlaywrightTests` or
+`HomeAssistantOperationsDashboardPlaywrightTests` in the same filter to check
+the other dashboards. These tests open the dashboards at desktop and mobile
+widths. They do not click a switch or call any device service.
+
+The deterministic pinned-Home-Assistant suite loads the exact tracked
+automation YAML and uses MQTT simulator entities to exercise offline, stale,
+battery, gateway-health, and outbox-backlog transitions:
+
+```bash
+./tools/run-home-assistant-integration-tests.sh
+```
+
+## Energy preferences
+
+The dashboard deployment does not mutate Energy preferences. Check or apply the
+managed off-grid manifest transactionally through the supported WebSocket API:
+
+```bash
+set -a && source .env && set +a
+export HVO_HOME_ASSISTANT_ALLOW_INSECURE=true
+dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --backup
+dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-check
+dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-apply
+```
+
+The apply operation preserves unrelated preferences and restores the previous
+preferences if save, readback, or Energy validation fails. The external MPPT
+was added only after daylight established valid cumulative `kWh` metadata and
+Home Assistant Energy validation accepted the second solar source.
+
+## One-time commissioning
+
+These steps use Home Assistant and add-on supported interfaces. Never create or
+edit config entries by writing `.storage`.
+
+### Service identity and API token
+
+1. In **Settings > People > Users**, create a dedicated `hvo-automation` user.
+2. Grant administrator access because exporter startup validates the entity
+   registry before accepting mapped entities. Do not use the HA owner account.
+3. Sign in as `hvo-automation`, open its profile, and create a long-lived token
+   named `HVO agent and exporter`.
+4. Store the token as `HomeAssistant--Token` in `hvo-central-kv`. Do not place it
+   in Git, issue comments, logs, or Home Assistant YAML.
+5. Materialize it only into the ignored root `.env` as
+   `HOME_ASSISTANT_TOKEN` or into the exporter's ignored mounted secret file.
+6. To rotate it, create and deploy the replacement first, verify API and
+   exporter health, then delete the previous token from the service profile and
+   replace the Key Vault secret version.
+
+The token grants administrative API access. Keep its canonical copy in Key
+Vault and restrict local materializations to the systems that run deployment or
+export services.
+
+### Mosquitto and MQTT
+
+1. Install the official Mosquitto broker app and enable start on boot and the
+   watchdog.
+2. Create a dedicated external login named `hvo-edge`; do not reuse a Home
+   Assistant interactive user.
+3. Store its username and password as `HomeAssistant--MqttUsername` and
+   `HomeAssistant--MqttPassword` in `hvo-central-kv`.
+4. Confirm the HA MQTT integration is loaded, then verify authenticated publish,
+   subscribe, retained discovery, broker restart, HA restart, and retained
+   discovery cleanup.
+
+The pinned integration environment exercises MQTT and HA reconnect behavior.
+Production credential validation is a bounded live check because secrets are
+not available to CI.
+
+### TP-Link Kasa
+
+1. Add TP-Link Smart Home through **Settings > Devices & services**.
+2. Commission only observatory devices on `192.168.1.0/24`. Do not add routed
+   home networks `192.168.2.0/24` or `192.168.9.0/24`.
+3. Do not invoke switch, light, LED, outlet, or restart actions during discovery.
+4. Confirm each config entry is loaded and preserve entity IDs referenced by
+   `configuration/dashboards/hvo-kasa.yaml`.
+5. Run `./scripts/deploy-home-assistant-dashboard.sh --check` after entity
+   renames. Missing dashboard entities fail validation.
+
+The observatory instance currently has 15 loaded TP-Link parent entries and 57
+registered parent/child devices. Kasa remains an HA-owned source; central-writer
+cutover is handled separately by issue #330.
+
+### Bluetooth proxy and Govee sensors
+
+1. Place a supported ESP32 development board near the Govee sensors. The proxy must
+   receive its BLE advertisements reliably from the intended permanent location.
+2. In ESPHome Device Builder, create `home-dev-bluetooth-proxy`, select the actual
+   board, and use `configuration/esphome/hvo-bluetooth-proxy.yaml` as the
+   reviewed definition. Change `esp32.board` if the selected hardware is not an
+   `esp32dev` board.
+3. Add the values listed in `secrets.yaml.example` through the ESPHome secrets
+   editor. Use generated unique API, OTA, and fallback credentials. The reviewed
+   definition prefers HVO Wi-Fi and retains HOME Wi-Fi only as a commissioning
+   fallback; remove or rotate the HOME credential after permanent placement.
+   Keep the management credentials in `hvo-central-kv` as
+   `HomeAssistant--EspHomeProxyApiEncryptionKey`,
+   `HomeAssistant--EspHomeProxyOtaPassword`, and
+   `HomeAssistant--EspHomeProxyFallbackPassword`. Wi-Fi passwords are stored as
+   `obs-wifi-hvo-password` and `obs-wifi-home-express-is-password`; SSIDs remain
+   local configuration. Materialized values must not be committed.
+4. Install the first image over USB. Subsequent reviewed updates may use OTA.
+5. Add the discovered proxy through the native ESPHome integration and verify it
+   remains available after both ESP32 and HA restarts.
+6. Wait for Home Assistant's supported Govee Bluetooth integration to discover
+   each sensor through the proxy. H5074 and H5075 require active scan responses;
+   the proxy does not pair with or establish GATT connections to them. An H5179
+   Wi-Fi address is not used by this path.
+7. Confirm temperature and humidity entities have stable values and entity
+   registry platform `govee_ble`. Record their entity IDs before enabling an
+   explicit `govee:` exporter mapping.
+8. Do not enable the exporter source until any prior canonical writer is stopped,
+   drained, and its source reservation is transferred.
+
+The observatory currently has native `govee_ble` entries for H5074 `8D05` and
+H5075 `48D9`. Each exposes stable temperature, humidity, battery, and signal
+strength entities. The canonical measurement IDs are:
+
+- `sensor.h5074_8d05_temperature`
+- `sensor.h5074_8d05_humidity`
+- `sensor.h5075_48d9_temperature`
+- `sensor.h5075_48d9_humidity`
+
+Both integrations recovered after Home Assistant and proxy restarts. H5179 did
+not advertise during the commissioning window and remains a later target when
+present and within RF range.
+
+The ESP32-D0WDQ6 at `192.168.2.196` is commissioned as `Home Dev Bluetooth Proxy`
+for transport validation on the HOME network. Its encrypted native API, remote
+scanner registration, advertisement forwarding, three connection slots, HA
+restart recovery, and ESP32 restart recovery have been verified. Move this
+tracked proxy into reliable HVO RF range and then remove or rotate its HOME
+Wi-Fi fallback credential before treating the proxy deployment as permanent.
+
+Commissioning used a temporary Linux ESPHome-compatible bridge on the isolated
+Pi USB controller `hci1`. It was pinned and locally constrained to zero GATT
+connection slots; JK BMS and SmartShunt remained on `hci0`. This proved native
+Govee transport and restart recovery but is not tracked production architecture.
+Do not reproduce or promote the temporary bridge without separate review.
+
+The earlier `Home Dev Temporary iBeacon Monitor` was removed after native Govee
+commissioning; no iBeacon duplicate of H5074 should remain.
+
+The temporary bridge also exposes SmartShunt Instant Readout advertisements to
+HA. Keep the native Victron integration and HA exporter mapping disabled while
+the direct collector owns `smartshunt-main`. Issue #352 governs any future
+exactly-one-writer migration.
+
+## Recovery notes
+
+A Home Assistant Core/app backup restores Mosquitto, ESPHome, integrations, and
+managed Core configuration, but a full HA OS restore does not recreate the
+host-level off-node backup mount or its schedule. Re-add and test that mount and
+schedule after disaster recovery. Then validate MQTT authentication, retained
+discovery cleanup, Kasa availability, ESPHome proxy availability, and the Govee
+entities before enabling export or automation.

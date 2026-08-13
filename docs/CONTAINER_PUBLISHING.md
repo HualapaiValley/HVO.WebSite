@@ -13,7 +13,9 @@ Current container publishing target:
 | Login server | `registry.hualapaivalleyobservatory.org` |
 | Active publish script | `scripts/publish-image.sh` |
 
-The repo-local source of truth for these settings is `.env`, and the devcontainer bootstrap gist must stay aligned with that file.
+Image repositories, tags, and other non-secret publish settings are maintained in
+`.env`. Registry credentials come from `hvo-central-kv`; the devcontainer
+bootstrap gist is only a cache of the synchronized `.env`.
 
 ## Image Repositories
 
@@ -74,7 +76,7 @@ To inspect the exact commands without building or pushing:
 
 The script:
 
-- sources `.env`
+- reads only the allowlisted `HVO_*` publishing keys from `.env` as dotenv data; optional `export`, matching single/double quotes, CRLF, and values containing `=` are supported, while shell expansion and command substitution are intentionally not evaluated
 - logs into the self-hosted registry with `HVO_CONTAINER_REGISTRY_USERNAME` and `HVO_CONTAINER_REGISTRY_PASSWORD`
 - builds the selected Dockerfile
 - tags the image with the configured version, plus `latest` when `--push-latest` is used
@@ -91,6 +93,12 @@ Deploy the hvo-docker website stack to a specific image tag:
 ```
 
 If `--tag` is omitted, the script uses the image configured by the hvo-docker compose file or rebuilds locally unless `--no-build` is supplied.
+
+The website deployment also verifies that ASP.NET Core Data Protection uses the
+durable encrypted key ring. Before the first migration or any key-ring change,
+follow [WEBSITE_DATA_PROTECTION.md](WEBSITE_DATA_PROTECTION.md) for backup,
+restore, authentication-continuity, and rollback requirements. Never remove the
+named key volume with `docker compose down -v`.
 
 Deploy Pi gateway compose stacks to the configured Docker context:
 
@@ -112,22 +120,25 @@ All three scripts support dry-run or environment overrides where appropriate; ru
 When you are publishing a new version for a single target:
 
 1. Update the corresponding `HVO_*_IMAGE_VERSION` value in `.env`.
-2. Sync the private `.env` gist so new devcontainers pull the same version metadata.
-3. Run `./scripts/publish-image.sh <target>`.
-4. Verify the image tag in the self-hosted registry or by pulling/running the target deployment.
-5. Add or update a short image-publish note in `CHANGELOG.md` under `Unreleased` when the published version changes.
-6. If the publish changes the operational deployment workflow or release guidance, update this document and the README.
+2. Pull authoritative credentials with `./scripts/sync-secrets-from-keyvault.sh --apply`.
+3. Sync the private `.env` gist so new devcontainers pull the same version metadata.
+4. Run `./scripts/publish-image.sh <target>`.
+5. Verify the image tag in the self-hosted registry or by pulling/running the target deployment.
+6. Add or update a short image-publish note in `CHANGELOG.md` under `Unreleased` when the published version changes.
+7. If the publish changes the operational deployment workflow or release guidance, update this document and the README.
 
 Example for a Davis-only publish:
 
 ```bash
+./scripts/sync-secrets-from-keyvault.sh --apply
 ./scripts/sync-env-gist.sh
 ./scripts/publish-image.sh davis
 ```
 
 ## Gist Sync Script
 
-Use the companion gist-sync script after changing `.env` publish metadata:
+Use the companion gist-sync script after changing `.env` publish metadata. It
+refuses to upload when allowlisted credentials drift from `hvo-central-kv`:
 
 ```bash
 ./scripts/sync-env-gist.sh
@@ -155,7 +166,9 @@ docker pull registry.hualapaivalleyobservatory.org/hvo-tplinkkasa:<tag>
 
 ## Gist Sync
 
-The devcontainer bootstrap uses private gist `f343db002d980ebe5fcc51413b0b7227` as the `.env` source.
+The devcontainer bootstrap uses private gist `f343db002d980ebe5fcc51413b0b7227`
+as an initial `.env` cache. Azure Key Vault `hvo-central-kv` is the primary
+source of truth for credentials.
 
 After changing image version variables in `.env`, run `./scripts/sync-env-gist.sh` so fresh containers inherit the same publish metadata.
 

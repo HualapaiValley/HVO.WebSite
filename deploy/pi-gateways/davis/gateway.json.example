@@ -1,0 +1,50 @@
+{
+  "Edge": {
+    "Runtime": {
+      "ServiceName": "hvo-davis",
+      "GatewayId": "davis",
+      "GatewayType": "davis-vantage-pro2",
+      "Domain": "Weather",
+      "SourceId": "hvo-davis-01",
+      "SiteId": "hvo",
+      "DeviceId": "hvo-davis-01",
+      "DisplayName": "Davis Vantage Pro 2 Collector",
+      "DiagnosticsApiKeySecret": "diagnostics-api-key"
+    }
+  },
+  "Station": {
+    "Port": 22222,
+    "SocketTimeoutSeconds": 8,
+    "ArchiveCatchupMode": "Disabled",
+    "ArchiveOverlapIntervals": 2,
+    "MaxConsecutiveErrors": 5,
+    "StationId": "hvo-davis-01",
+    "CentralIngestBaseEndpoint": "https://www.hualapaivalleyobservatory.org/",
+    "CentralApiKeySecret": "central-ingest-api-key",
+    "LegacyArchiveConsoleUtcOffsetHours": -7,
+    "RetryExhaustedRequeueMinutes": 15,
+    "LocalDatabasePath": "/app/data/davis-local.db"
+  },
+  "HomeAssistant": {
+    "Mqtt": {
+      "Enabled": true,
+      "Host": "REPLACE_WITH_MQTT_HOST",
+      "Port": 1883,
+      "UsernameSecret": "mqtt-username",
+      "PasswordSecret": "mqtt-password",
+      "DiscoveryPrefix": "homeassistant",
+      "TopicPrefix": "hvo"
+    }
+  },
+  "Outbox": {
+    "DatabasePath": "/app/data/outbox.db",
+    "PayloadTypes": ["com.hvo.weather.raw.v1", "com.hvo.weather.archive.v1"],
+    "PayloadVersion": "1",
+    "BatchSize": 50,
+    "SweepIntervalSeconds": 5,
+    "MaxRetryAttempts": 10,
+    "MaxBackoffSeconds": 300,
+    "SentRetentionDays": 1,
+    "FailedRetentionDays": 30
+  }
+}

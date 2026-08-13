@@ -4,6 +4,11 @@ This document defines shared HVO gateway behavior that should be common across D
 
 Status: Current standard. Use this as the baseline for current gateways and future gateway work.
 
+Headless vNext executables also follow
+`docs/architecture/EDGE_VNEXT_RUNTIME.md`, including `AddHvoEdgeRuntime`, mounted
+configuration under `/app/config`, durable data under `/app/data`, secret files
+under `/run/secrets`, and the shared protected diagnostics route group.
+
 ## Goals
 
 - Keep gateway behavior consistent across device types.
@@ -61,7 +66,7 @@ Gateway storage and API contracts should treat timestamps as instants first and 
 - Do not use server/container `ToLocalTime()` for operator display. In a deployed container this reflects the host/container timezone, which may not be the observatory, browser, gateway, or device timezone.
 - Browser UIs may render UTC timestamps in the viewer's local timezone when the view is clearly user-local. Gateway/operator status pages should prefer a configured gateway display timezone so a headless wall display and remote browser see the same site-relative time.
 - Gateways that read a device timezone, such as Davis, should use the device timezone for protocol-local values and convert source-local timestamps to UTC before storage or forwarding.
-- Gateways whose devices do not have a reliable local-time concept, such as JK BMS, SmartShunt, SolarAssistant, and live Kasa polling, should use a configured gateway display timezone for local UI labels while continuing to store and forward UTC.
+- UI-bearing gateways whose devices do not have a reliable local-time concept, such as SmartShunt, SolarAssistant, and live Kasa polling, should use a configured gateway display timezone for local UI labels while continuing to store and forward UTC. Headless vNext collectors such as JK BMS expose UTC diagnostics only.
 - Multi-device gateways may allow a per-device display timezone override. This is presentation metadata only; it must not change `RecordedAtUtc`, `ObservedAtUtc`, idempotency keys, or stale-age calculations.
 
 Recommended configuration shape:
@@ -111,7 +116,8 @@ APIs may expose both the UTC instant and the display timezone metadata, for exam
 
 Deployed gateways can accumulate millions of outbox rows during long-running deployments and outage backfills. Compaction runs once per day and deletes terminal rows older than the configured retention.
 
-- `SentRetentionDays` (default 7) controls deletion of sent records.
+- `SentRetentionDays` (default 1) controls deletion of sent records. Outboxes are
+  delivery queues; canonical history belongs in the central database.
 - `FailedRetentionDays` (default 30) controls deletion of failed records.
 - Compaction only removes records that have been in their terminal state for longer than the retention window. Pending and retrying records are never compacted.
 - Compaction does not resolve a backlog; it only reclaims disk space for already-delivered or already-failed data.
@@ -265,13 +271,20 @@ Current implementation status:
 - SolarAssistant uses the shared outbox plus typed power, inventory, configuration, energy, inverter detail, and gateway-status streams.
 - TPLink Kasa uses the shared outbox for energy and inventory payloads.
 - SmartShunt uses the shared outbox for battery monitor power readings.
-- JK BMS uses the shared outbox for BMS readings/config/device-info and per-record permanent-failure isolation.
+- JK BMS uses one canonical shared-outbox record per poll, with changed config/device-info embedded in the BMS reading contract and strict per-record outcome accounting.
 - Davis uses the shared outbox for weather raw/archive telemetry, with station settings/info split into gateway-owned local persistence.
 
 Open future work is tracked in `docs/FUTURE_WORK.md`.
 
 ## Implementation Rules For New Gateways
 
+- Use the headless `AddHvoEdgeRuntime` composition and
+  `MapHvoEdgeRuntimeEndpoints`; do not add Razor, Blazor, MudBlazor, Themes, or
+  static assets.
+- Mount non-secret configuration read-only at `/app/config/gateway.json`, data
+  read-write at `/app/data`, and secret files read-only under `/run/secrets`.
+- Register device workers after the shared runtime so validation and SQLite
+  initialization complete first.
 - Start with the shared outbox unless there is a documented blocker.
 - Use common status/failure/health semantics even when a gateway needs custom payloads.
 - Add gateway-specific metrics only after mapping common metrics first.

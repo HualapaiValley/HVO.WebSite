@@ -1,0 +1,33 @@
+{
+  "homeAssistantVersion": "2026.8.1",
+  "energySources": [
+    {
+      "type": "solar",
+      "stat_energy_from": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_21xpv_x5fenergy_x5ftotal",
+      "stat_rate": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_11xpv_x5fpower",
+      "config_entry_solar_forecast": null,
+      "name": "HVO 6500EX Solar"
+    },
+    {
+      "type": "solar",
+      "stat_energy_from": "sensor.hvo_external_mppt_pv_energy",
+      "stat_rate": "sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_11xpv_x5fpower",
+      "config_entry_solar_forecast": null,
+      "name": "HVO External MPPT Solar"
+    },
+    {
+      "type": "battery",
+      "stat_energy_from": "sensor.hvo_smartshunt_battery_discharge_energy",
+      "stat_energy_to": "sensor.hvo_smartshunt_battery_charge_energy",
+      "stat_soc": "sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_21xstate_x5fof_x5fcharge",
+      "name": "HVO Battery"
+    }
+  ],
+  "deviceConsumption": [
+    {
+      "stat_consumption": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xload_x5fenergy_x5ftotal",
+      "stat_rate": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_13xload_x5fpower",
+      "name": "HVO AC Load"
+    }
+  ]
+}

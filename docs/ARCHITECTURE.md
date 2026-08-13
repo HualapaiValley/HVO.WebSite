@@ -1,8 +1,12 @@
 # HVO Architecture Baseline
 
-Last updated: 2026-06-17
+Last updated: 2026-08-11
 
 This document captures the current architecture baseline for HVO.WebSite and the expected direction for near-term hardware integrations. It is a current-state reference, not a full implementation plan. Use `docs/PROJECT_HISTORY.md` for recent session context and decision notes. The validated RabbitMQ/Service Bus ingest POC was removed from the active repo after being deferred and remains available in git history if needed.
+
+The headless target for new and migrated edge executables is defined in
+`docs/architecture/EDGE_VNEXT_RUNTIME.md`. Current UI-bearing gateways remain in
+this baseline until their source-specific migration and cutover issues complete.
 
 ## System Purpose
 
@@ -16,13 +20,13 @@ The central website should stay focused on ingest, persistence, dashboards, admi
 |------|---------|------------------|------------------------|
 | Website | `src/HVO.WebSite.v9` | Azure Container Apps or local Docker | Blazor UI, read/admin APIs, auth, dashboards |
 | Davis collector | `src/HVO.Hardware.DavisVantagePro2` | Local edge Docker host | Davis console TCP protocol, weather polling/archive catchup, gateway-owned local station persistence, shared SQLite outbox, local status UI, website API forwarding |
-| JK BMS collector | `src/HVO.Hardware.JkBms` | Local edge Docker host with BLE access | JK BMS BLE polling, battery readings, alarms, shared SQLite outbox, local status UI, website API forwarding |
+| JK BMS collector | `src/HVO.Hardware.JkBms` | Local edge Docker host with BLE access | Headless persistent JK BMS BLE sessions, durable shared outbox forwarding, standard diagnostics, and bounded HA MQTT current state |
 | SolarAssistant gateway | `src/HVO.Gateway.SolarAssistant` | Local edge Docker host | Solar/inverter/load/battery REST/MQTT telemetry, typed snapshots, shared SQLite outbox, local status UI, website API forwarding |
 | SmartShunt gateway | `src/HVO.Hardware.VictronSmartShunt` | Local edge Docker host with BLE access | Victron SmartShunt BLE telemetry, shared SQLite outbox, local status UI, website API forwarding |
 | TPLink Kasa gateway | `src/HVO.Gateway.TplinkKasa` | Local edge Docker host | Kasa device polling, local status/control-safe UI, energy/inventory shared outbox forwarding |
 | Edge contracts | `src/HVO.Edge.Contracts` | Shared library | Gateway status, health, runtime, and payload contracts |
-| Edge hosting | `src/HVO.Edge.Hosting` | Shared library | Gateway structured logging, OTLP log export, metadata, redaction, and repeated-failure suppression |
-| Edge outbox | `src/HVO.Edge.Outbox` | Shared library | Durable outbox model/store, retry, dead-letter/requeue, compaction, and health evaluation |
+| Edge hosting | `src/HVO.Edge.Hosting` | Shared library | vNext host composition, identity, mounted configuration, secret files, structured logging, standard OpenTelemetry, health, and diagnostics |
+| Edge outbox | `src/HVO.Edge.Outbox` | Shared library | Durable SQLite registration/initialization, forwarding orchestration, retry, dead-letter/requeue, compaction, and diagnostics |
 | Data models | `src/HVO.DataModels` | Shared library | EF Core DbContexts, entities, migrations |
 | Theme assets | `src/HVO.WebSite.Themes` | Shared Razor class library | Shared visual theme assets |
 
@@ -106,7 +110,8 @@ Minute and hourly aggregate entities exist for weather and BMS, but the website 
 | `GET /api/v1/weather/raw/recent` | `read:weather` | Recent raw weather readings |
 | `GET /api/v1/weather/hourly/recent` | `read:weather` | Recent hourly weather aggregates |
 | `POST /api/v1/bms/readings` | `ingest:bms` | Batch BMS readings with related cell/config/info/alarm data |
-| `POST /api/v1/power/readings` | `ingest:power` | Batch power readings from SolarAssistant, SmartShunt, and TPLink/Kasa energy sources |
+| `POST /api/v1/power/readings` | `ingest:power` | Batch power readings from general power sources |
+| `POST /api/v1/power/smartshunt-observations/batch` | `ingest:power` + exact `source` claim | Atomic SmartShunt summary and public-GATT detail observations |
 | `POST /api/v1/power/device-inventory` | `ingest:power` | Power/gateway inventory snapshot ingest |
 | `POST /api/v1/power/configuration` | `ingest:power` | Power/gateway configuration snapshot ingest |
 | `POST /api/v1/power/energy` | `ingest:power` | Power energy-counter snapshot ingest |
@@ -157,7 +162,7 @@ The gateway applications are independent ASP.NET Core applications. They share t
 | Poller/worker | Schedule reads, manage reconnect/backoff, map device payloads to HVO records |
 | Local SQLite outbox | Store telemetry durably before API transfer |
 | API forwarder | POST batches to typed website ingest endpoints with retry/backoff |
-| Local UI | Show device, outbox, and forwarding state near the hardware |
+| Diagnostics | Expose standard health, device, outbox, and forwarding state without a local UI |
 | Health endpoint | Support container/runtime health checks |
 | Telemetry | Emit operational logs, traces, and metrics |
 
@@ -165,7 +170,7 @@ New collectors and gateways should use the local SQLite outbox + website API pat
 
 ## Davis Collector
 
-`HVO.Hardware.DavisVantagePro2` connects to the Davis Vantage Pro 2 console through the WeatherLink IP TCP bridge. It implements Davis protocol commands, LOOP packet parsing, archive catch-up support, gateway-owned local station persistence, shared SQLite outbox storage, and a rich Blazor local admin UI.
+`HVO.Hardware.DavisVantagePro2` is a headless vNext collector that connects to the Davis Vantage Pro 2 console through the WeatherLink IP TCP bridge. It implements Davis protocol commands, LOOP packet parsing, durable archive continuity, gateway-owned local station persistence, shared SQLite outbox storage, protected diagnostics, and bounded Home Assistant MQTT current-state projection.
 
 Current responsibilities:
 
@@ -173,16 +178,16 @@ Current responsibilities:
 |----------------|---------------|
 | TCP protocol | Implemented in `DavisConsoleClient` and related protocol classes |
 | Weather polling | Implemented in `WeatherStationWorker` |
-| Archive handling | Implemented with configurable catch-up mode |
+| Archive handling | Full available-console bootstrap when no cursor exists, then overlapped DMPAFT top-off on startup, reconnect, and periodically between finite LOOP batches |
 | Local outbox | SQLite durable queue |
-| Forwarding | Posts weather batches to the website API |
-| Local UI | Mature hardware admin shell and weather/status pages |
+| Forwarding | Partitions typed live and complete archive batches to separate website endpoints |
+| Local UI | None; standard protected diagnostics only |
 
-The Davis UI is currently the best baseline for future hardware admin shells.
+The collector preserves the deployed `davis-outbox` volume across the vNext migration; legacy schema and payload identifiers are upgraded before shared outbox initialization.
 
 ## JK BMS Collector
 
-`HVO.Hardware.JkBms` connects to JK BMS units over Bluetooth LE through the host BlueZ stack. It uses a protocol/transport boundary, polls multiple devices, stores readings in a local outbox, and forwards to the website BMS ingest API.
+`HVO.Hardware.JkBms` is a headless vNext collector that connects to JK BMS units over Bluetooth LE through the host BlueZ stack. One persistent session owns each device, adapter connection attempts remain coordinated, and device failures/reconnect backoff are isolated. Complete central-ingress records are committed to the shared durable outbox before forwarding, while bounded current state and availability are projected to Home Assistant through MQTT.
 
 Current responsibilities:
 
@@ -191,11 +196,12 @@ Current responsibilities:
 | BLE transport | Implemented through a transport abstraction and BlueZ-backed transport |
 | Protocol parsing | Implemented for cell info, settings/config, and device info |
 | Multi-device polling | Implemented with per-device state and backoff |
-| Local outbox | SQLite durable queue |
-| Forwarding | HTTP forwarder to website BMS ingest API |
-| Local UI | Basic device/status pages |
+| Local outbox | Standard `HVO.Edge.Outbox` SQLite durable queue with legacy-volume migration |
+| Forwarding | Strictly accounted batch sender to the website BMS ingest API |
+| Local presentation | Ten-entity HA MQTT current-state projection; no local UI |
+| Diagnostics | Standard vNext health and protected diagnostics contract |
 
-The JK BMS forwarder shape is the better baseline for future shared collector infrastructure.
+The collector uses the shared vNext hosting, outbox, and Home Assistant MQTT infrastructure established by the EG4 reference implementation.
 
 ## Deployment Baseline
 
@@ -304,23 +310,26 @@ Expected command/control additions:
 | Edge collectors | Background command worker separate from telemetry forwarding |
 | Security | Strong authorization, audit trail, command expiry, idempotency |
 
-## Shared Collector Infrastructure Opportunities
+## Shared Collector Infrastructure
 
-The Davis and JK BMS collectors intentionally started independently. With more collectors planned, shared infrastructure is becoming worthwhile.
+The current gateways started independently. Issue #332 establishes the shared
+headless vNext runtime while preserving current gateway behavior until each
+source is ported.
 
-Good candidates for future shared edge projects:
+Shared edge projects:
 
 | Candidate | Reason |
 |-----------|--------|
-| `HVO.Edge.Outbox` | Implemented shared durable local delivery, retry, compaction, idempotency, requeue, and status pattern across collectors/gateways |
-| `HVO.Edge.ApiForwarding` | Shared typed HTTP forwarding if the HTTP client/response mapping grows beyond the outbox package |
+| `HVO.Edge.Outbox` | Shared SQLite registration, initialization, durable delivery, pluggable forwarding, retry, compaction, idempotency, requeue, and diagnostics |
+| `HVO.Edge.Hosting` | Shared headless host, mounted configuration, secret files, identity, logging, OpenTelemetry, resilient HTTP, health, and protected diagnostics |
 | Ingest DTO/client package | Reduce payload drift between collectors and website |
-| Gateway host | Shared worker shell for SolarAssistant, ESPHome, and vendor topic transforms |
-| Collector options | Common endpoint, API key, batch size, retry, DB path, retention settings |
-| Health checks | Common stale-device and outbox-backlog checks |
+| Ingest sender adapters | Device-owned mapping from shared outbox records to typed central endpoints |
+| Collector options | Shared vNext path, outbox, identity, diagnostics, and secret-reference settings |
+| Health checks | Shared process/readiness endpoints plus device-owned health snapshots |
 | Status state models | Common UI footer/status patterns |
 
-Do not extract additional abstractions before the shape is stable. Future extractions should be based on repeated code across the existing Davis, JK BMS, SolarAssistant, SmartShunt, and TPLink Kasa implementations.
+New edge infrastructure abstractions must follow the dependency and ownership
+rules in `docs/architecture/EDGE_VNEXT_RUNTIME.md`.
 
 ## Known Gaps
 

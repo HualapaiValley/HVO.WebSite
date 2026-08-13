@@ -1,0 +1,4 @@
+template: !include ../templates/hvo.yaml
+sensor: !include ../sensors/hvo-energy.yaml
+utility_meter: !include ../utility-meters/hvo-energy.yaml
+automation: !include ../automations/hvo.yaml

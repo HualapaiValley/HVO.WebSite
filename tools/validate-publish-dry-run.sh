@@ -10,12 +10,12 @@ trap cleanup EXIT
 export HVO_PUBLISH_ENV_FILE="$tmp_dir/.env"
 {
 	printf '%s\n' 'HVO_CONTAINER_REGISTRY_LOGIN_SERVER=registry.example.invalid'
-	printf '%s\n' 'HVO_CONTAINER_REGISTRY_USERNAME=ci'
-	printf '%s\n' 'HVO_CONTAINER_REGISTRY_PASSWORD=ci-password'
+	printf '%s\n' 'export HVO_CONTAINER_REGISTRY_USERNAME="ci"'
+	printf '%s\n' "HVO_CONTAINER_REGISTRY_PASSWORD='ci=password'"
 	printf '%s\n' 'HVO_WEBSITE_IMAGE_REPOSITORY=hvo-website'
 	printf '%s\n' 'HVO_WEBSITE_IMAGE_VERSION=0.0.0-ci'
 	printf '%s\n' 'HVO_DAVIS_IMAGE_REPOSITORY=hvo-davis'
-	printf '%s\n' 'HVO_DAVIS_IMAGE_VERSION=0.0.0-ci'
+	printf '%s\r\n' 'HVO_DAVIS_IMAGE_VERSION=0.0.0-ci'
 	printf '%s\n' 'HVO_JKBMS_IMAGE_REPOSITORY=hvo-jkbms'
 	printf '%s\n' 'HVO_JKBMS_IMAGE_VERSION=0.0.0-ci'
 	printf '%s\n' 'HVO_SOLARASSISTANT_IMAGE_REPOSITORY=hvo-solarassistant'
@@ -32,7 +32,7 @@ for target in website davis jkbms solarassistant smartshunt tplinkkasa; do
 		printf 'Dry run for %s omitted the registry login command.\n' "${target}" >&2
 		exit 1
 	}
-	[[ "${output}" != *'ci-password'* ]] || {
+	[[ "${output}" != *'ci=password'* ]] || {
 		printf 'Dry run for %s exposed the registry password.\n' "${target}" >&2
 		exit 1
 	}

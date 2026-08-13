@@ -1,0 +1,70 @@
+default_config:
+
+homeassistant:
+  name: HVO Integration Test
+  latitude: 35.0
+  longitude: -114.0
+  elevation: 1000
+  unit_system: metric
+  time_zone: UTC
+
+automation: !include hvo/automations/hvo.yaml
+
+recorder:
+  db_url: sqlite:////data/home-assistant.db
+
+logger:
+  default: warning
+
+input_number:
+  hvo_test_kasa_power_input:
+    name: HVO Test Kasa Power Input
+    min: 0
+    max: 5000
+    step: 0.1
+    unit_of_measurement: W
+  hvo_test_kasa_voltage_input:
+    name: HVO Test Kasa Voltage Input
+    min: 0
+    max: 300
+    step: 0.1
+    unit_of_measurement: V
+  hvo_test_govee_temperature_input:
+    name: HVO Test Govee Temperature Input
+    min: -50
+    max: 150
+    step: 0.1
+    unit_of_measurement: °C
+  hvo_test_govee_humidity_input:
+    name: HVO Test Govee Humidity Input
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "%"
+
+template:
+  - sensor:
+      - name: Fixture Test Kasa Power
+        unique_id: fixture_test_kasa_power
+        state: "{{ states('input_number.hvo_test_kasa_power_input') }}"
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+      - name: Fixture Test Kasa Voltage
+        unique_id: fixture_test_kasa_voltage
+        state: "{{ states('input_number.hvo_test_kasa_voltage_input') }}"
+        unit_of_measurement: V
+        device_class: voltage
+        state_class: measurement
+      - name: Fixture Test Govee Temperature
+        unique_id: fixture_test_govee_temperature
+        state: "{{ states('input_number.hvo_test_govee_temperature_input') }}"
+        unit_of_measurement: °C
+        device_class: temperature
+        state_class: measurement
+      - name: Fixture Test Govee Humidity
+        unique_id: fixture_test_govee_humidity
+        state: "{{ states('input_number.hvo_test_govee_humidity_input') }}"
+        unit_of_measurement: "%"
+        device_class: humidity
+        state_class: measurement

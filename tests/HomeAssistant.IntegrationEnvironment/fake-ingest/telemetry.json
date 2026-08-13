@@ -1,0 +1,19 @@
+{
+  "scenarioName": "Central ingest",
+  "requiredScenarioState": "Started",
+  "request": {
+    "method": "POST",
+    "urlPathPattern": "/api/(telemetry|v1/power/readings|v1/weather/raw/batch)"
+  },
+  "response": {
+    "status": 201,
+    "jsonBody": {
+      "inserted": 1,
+      "skipped": 0,
+      "failed": []
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}

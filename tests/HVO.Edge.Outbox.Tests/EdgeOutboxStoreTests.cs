@@ -57,6 +57,39 @@ public sealed class EdgeOutboxStoreTests
     }
 
     [TestMethod]
+    public async Task EnqueueAsync_ConcurrentFileBackedDuplicates_InsertExactlyOnce()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"hvo-outbox-{Guid.NewGuid():N}.db");
+        try
+        {
+            var options = new DbContextOptionsBuilder<TestOutboxDbContext>()
+                .UseSqlite($"Data Source={databasePath};Default Timeout=30")
+                .Options;
+            await using (var initializer = new TestOutboxDbContext(options))
+                await initializer.Database.EnsureCreatedAsync();
+
+            var attempts = Enumerable.Range(0, 8).Select(async _ =>
+            {
+                await using var context = new TestOutboxDbContext(options);
+                return await new EdgeOutboxStore<TestOutboxDbContext>(context)
+                    .EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
+            });
+
+            var results = await Task.WhenAll(attempts);
+            results.Should().ContainSingle(inserted => inserted);
+            await using var verification = new TestOutboxDbContext(options);
+            (await verification.OutboxRecords.CountAsync()).Should().Be(1);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(databasePath);
+            File.Delete($"{databasePath}-shm");
+            File.Delete($"{databasePath}-wal");
+        }
+    }
+
+    [TestMethod]
     public async Task GetReadyBatchAsync_IsolatesPayloadTypes()
     {
         await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
@@ -153,6 +186,53 @@ public sealed class EdgeOutboxStoreTests
     }
 
     [TestMethod]
+    public async Task CompactSentAsync_DeletesExpiredRecordsAcrossBatchesAndPreservesQueueState()
+    {
+        var expiredAt = DateTime.UtcNow.AddDays(-2);
+        var records = Enumerable.Range(0, 2501).Select(index => new EdgeOutboxRecord
+        {
+            SourceId = $"expired-{index}",
+            PayloadType = "power.reading",
+            PayloadVersion = "1",
+            RecordedAtUtc = expiredAt.AddTicks(index),
+            PayloadJson = "{}",
+            Status = EdgeOutboxStatus.Sent,
+            SentAtUtc = expiredAt,
+            CreatedAtUtc = expiredAt
+        }).ToArray();
+        _db.OutboxRecords.AddRange(records);
+        _db.OutboxRecords.Add(new EdgeOutboxRecord
+        {
+            SourceId = "recent",
+            PayloadType = "power.reading",
+            PayloadVersion = "1",
+            RecordedAtUtc = DateTime.UtcNow,
+            PayloadJson = "{}",
+            Status = EdgeOutboxStatus.Sent,
+            SentAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        _db.OutboxRecords.Add(new EdgeOutboxRecord
+        {
+            SourceId = "pending",
+            PayloadType = "power.reading",
+            PayloadVersion = "1",
+            RecordedAtUtc = expiredAt,
+            PayloadJson = "{}",
+            Status = EdgeOutboxStatus.Pending,
+            CreatedAtUtc = expiredAt
+        });
+        await _db.SaveChangesAsync();
+
+        var deleted = await _store.CompactSentAsync(TimeSpan.FromDays(1), CancellationToken.None);
+
+        deleted.Should().Be(2501);
+        _db.ChangeTracker.Clear();
+        (await _db.OutboxRecords.Select(record => record.SourceId).ToArrayAsync())
+            .Should().BeEquivalentTo("recent", "pending");
+    }
+
+    [TestMethod]
     public async Task CompactFailedAsync_DeletesExpiredFailedRecords()
     {
         await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);
@@ -182,6 +262,14 @@ public sealed class EdgeOutboxStoreTests
 
         deleted.Should().Be(0);
         _db.OutboxRecords.Should().ContainSingle();
+    }
+
+    [TestMethod]
+    public async Task ReclaimFreePagesAsync_RejectsNonPositiveLimit()
+    {
+        var act = async () => await _store.ReclaimFreePagesAsync(0, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
     }
 
     [TestMethod]

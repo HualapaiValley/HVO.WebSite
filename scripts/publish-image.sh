@@ -46,6 +46,49 @@ require_env() {
 	[[ -n "${!name:-}" ]] || fail "Required environment variable is missing: ${name}"
 }
 
+read_env_value() {
+	local file="$1"
+	local name="$2"
+	local key value
+
+	while IFS='=' read -r key value || [[ -n "${key}${value}" ]]; do
+		key="${key#export }"
+		if [[ "${key}" == "${name}" ]]; then
+			value="${value%$'\r'}"
+			if [[ "${value}" == \"*\" && "${value}" == *\" ]]; then
+				value="${value:1:${#value}-2}"
+			elif [[ "${value}" == \'*\' && "${value}" == *\' ]]; then
+				value="${value:1:${#value}-2}"
+			fi
+			printf '%s' "${value}"
+			return 0
+		fi
+	done < "${file}"
+
+	return 1
+}
+
+load_publish_environment() {
+	local name value
+	local names=(
+		HVO_CONTAINER_REGISTRY_LOGIN_SERVER
+		HVO_CONTAINER_REGISTRY_USERNAME
+		HVO_CONTAINER_REGISTRY_PASSWORD
+		HVO_WEBSITE_IMAGE_REPOSITORY HVO_WEBSITE_IMAGE_VERSION
+		HVO_DAVIS_IMAGE_REPOSITORY HVO_DAVIS_IMAGE_VERSION
+		HVO_JKBMS_IMAGE_REPOSITORY HVO_JKBMS_IMAGE_VERSION
+		HVO_SOLARASSISTANT_IMAGE_REPOSITORY HVO_SOLARASSISTANT_IMAGE_VERSION
+		HVO_SMARTSHUNT_IMAGE_REPOSITORY HVO_SMARTSHUNT_IMAGE_VERSION
+		HVO_TPLINKKASA_IMAGE_REPOSITORY HVO_TPLINKKASA_IMAGE_VERSION
+	)
+
+	for name in "${names[@]}"; do
+		if value="$(read_env_value "${env_file}" "${name}")"; then
+			printf -v "${name}" '%s' "${value}"
+		fi
+	done
+}
+
 resolve_target() {
 	local var_prefix
 	case "$1" in
@@ -125,10 +168,7 @@ done
 [[ -n "${target}" ]] || { usage; exit 1; }
 [[ -f "${env_file}" ]] || fail "Expected environment file at ${env_file}"
 
-set -a
-# shellcheck disable=SC1090
-source "${env_file}"
-set +a
+load_publish_environment
 
 require_env HVO_CONTAINER_REGISTRY_LOGIN_SERVER
 require_env HVO_CONTAINER_REGISTRY_USERNAME

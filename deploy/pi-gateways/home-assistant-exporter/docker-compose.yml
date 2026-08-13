@@ -1,0 +1,42 @@
+name: home-assistant-exporter
+
+x-hvo-local-logging: &hvo-local-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+    mode: non-blocking
+    max-buffer-size: "4m"
+
+services:
+  hvo-home-assistant-exporter:
+    build:
+      context: ../../..
+      dockerfile: src/HVO.Edge.Exporter.HomeAssistant/Dockerfile
+    ports:
+      - "${HA_EXPORTER_HTTP_PORT:-5700}:8080"
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      OTEL_SERVICE_NAME: hvo-home-assistant-exporter
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+    volumes:
+      - "${HA_EXPORTER_CONFIG_FILE:-./gateway.json}:/app/config/gateway.json:ro"
+      - "${HA_EXPORTER_SECRETS_DIRECTORY:-./secrets}:/run/secrets:ro"
+      - home-assistant-exporter-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
+    logging: *hvo-local-logging
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
+
+volumes:
+  home-assistant-exporter-data:
