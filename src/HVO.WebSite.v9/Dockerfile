@@ -3,7 +3,7 @@
 # -------------------------
 # Build the application
 # -------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.400 AS build
 WORKDIR /src
 
 # Copy solution metadata and project files to warm the restore cache
@@ -37,7 +37,7 @@ RUN dotnet publish "HVO.WebSite.v9.csproj" \
 # -------------------------
 # Runtime image
 # -------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.11 AS runtime
 WORKDIR /app
 
 # Install minimal native dependencies for fonts and health checks

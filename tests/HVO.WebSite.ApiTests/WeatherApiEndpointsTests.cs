@@ -17,6 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace HVO.WebSite.ApiTests;
 
@@ -112,6 +113,20 @@ public sealed class WeatherApiEndpointsTests
         payload.Should().NotBeNull();
         payload!.MachineName.Should().Be("api-test-host");
         payload.Data.Should().NotBeNull();
+    }
+
+    [TestMethod]
+    public async Task OpenApiEndpoint_DescribesVersionedApi()
+    {
+        using var factory = new TestWebApplicationFactory();
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync("/openapi/v1.json");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync());
+        document.RootElement.GetProperty("info").GetProperty("version").GetString().Should().Be("v1.0");
+        document.RootElement.GetProperty("paths").TryGetProperty("/api/v1/weather/latest", out _).Should().BeTrue();
     }
 
     [TestMethod]
