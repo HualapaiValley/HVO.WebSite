@@ -23,6 +23,14 @@ public sealed class SmartShuntHomeAssistantProjectionTests
         projection.PublishUnavailable(DateTime.UtcNow);
 
         mqtt.Definition!.Entities.Should().HaveCount(6);
+        var sensors = mqtt.Definition.Entities.OfType<HomeAssistantSensorDefinition>()
+            .ToDictionary(entity => entity.ComponentId, StringComparer.Ordinal);
+        sensors["battery_voltage"].SuggestedDisplayPrecision.Should().Be(2);
+        sensors["battery_net_current"].SuggestedDisplayPrecision.Should().Be(3);
+        sensors["battery_net_power"].SuggestedDisplayPrecision.Should().Be(0);
+        sensors["state_of_charge"].SuggestedDisplayPrecision.Should().Be(2);
+        sensors["consumed_ah"].SuggestedDisplayPrecision.Should().Be(1);
+        sensors["remaining_time"].SuggestedDisplayPrecision.Should().Be(0);
         mqtt.States.Should().HaveCount(2);
         mqtt.States[0].Available.Should().BeTrue();
         mqtt.States[0].ComponentValues.Keys.Should().BeEquivalentTo("battery_voltage", "battery_net_current", "battery_net_power", "state_of_charge", "consumed_ah", "remaining_time");

@@ -33,9 +33,19 @@ public sealed class DavisHomeAssistantProjectionTests
             mqtt.Definition.Entities.Select(entity => entity.ComponentId));
         mqtt.Definition.Entities.Single(entity => entity.ComponentId == "inside_temperature").EnabledByDefault.Should().BeTrue();
         mqtt.Definition.Entities.Single(entity => entity.ComponentId == "raw_pressure").EnabledByDefault.Should().BeFalse();
+        Sensor(mqtt, "outside_temperature").SuggestedDisplayPrecision.Should().Be(1);
+        Sensor(mqtt, "barometric_pressure").SuggestedDisplayPrecision.Should().Be(3);
+        Sensor(mqtt, "wind_speed").SuggestedDisplayPrecision.Should().Be(0);
+        Sensor(mqtt, "wind_speed_10_min_average").SuggestedDisplayPrecision.Should().Be(1);
+        Sensor(mqtt, "daily_rain").SuggestedDisplayPrecision.Should().Be(3);
+        Sensor(mqtt, "daily_et").SuggestedDisplayPrecision.Should().Be(3);
+        Sensor(mqtt, "console_battery").SuggestedDisplayPrecision.Should().Be(3);
         mqtt.States[0].ComponentValues["transmitter_battery_status"].GetString().Should().Be("Low: 1, 3");
         mqtt.States[1].Available.Should().BeFalse();
     }
+
+    private static HomeAssistantSensorDefinition Sensor(CaptureProjection mqtt, string componentId) =>
+        mqtt.Definition!.Entities.OfType<HomeAssistantSensorDefinition>().Single(entity => entity.ComponentId == componentId);
 
     [TestMethod]
     public void Projection_RequiresExplicitSiteId()

@@ -376,7 +376,8 @@ public sealed class BmsPollerWorker : BackgroundService
         var reading = MapToReading(device, packet);
         _homeAssistant.Publish(
             _options.Devices.Single(config => string.Equals(config.Address, device.Address, StringComparison.OrdinalIgnoreCase)),
-            reading);
+            reading,
+            device.LatestDeviceInfo);
 
         var attempt = 0;
         while (true)

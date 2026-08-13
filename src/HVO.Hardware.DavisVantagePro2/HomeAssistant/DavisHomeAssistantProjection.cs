@@ -146,7 +146,28 @@ public sealed class DavisHomeAssistantProjection : IDavisHomeAssistantProjection
             icon,
             entityCategory,
             enabledByDefault,
-            $"sensor.davis_{componentId}");
+            $"sensor.davis_{componentId}",
+            SuggestedDisplayPrecision(componentId));
+
+    private static int? SuggestedDisplayPrecision(string componentId) => componentId switch
+    {
+        "outside_temperature" or "inside_temperature" => 1,
+        "dew_point" or "heat_index" or "wind_chill" or "thsw_index" => 0,
+        "outside_humidity" or "inside_humidity" => 0,
+        "barometric_pressure" or "raw_pressure" or "altimeter_pressure" => 3,
+        "barometric_trend" => 0,
+        "wind_speed" or "wind_direction" or "wind_gust" or "wind_gust_direction" => 0,
+        "wind_speed_10_min_average" or "wind_speed_2_min_average" => 1,
+        "rain_rate" or "daily_rain" or "rain_15_min" or "rain_1_hour" or "rain_24_hour" or "storm_rain" => 3,
+        "monthly_rain" or "yearly_rain" => 3,
+        "solar_radiation" => 0,
+        "uv_index" => 1,
+        "daily_et" => 3,
+        "monthly_et" or "yearly_et" => 2,
+        "console_battery" => 3,
+        "transmitter_battery_bitmask" or "forecast_rule" => 0,
+        _ => null,
+    };
 
     private static void Add(IDictionary<string, JsonElement> values, string id, double? value)
     {

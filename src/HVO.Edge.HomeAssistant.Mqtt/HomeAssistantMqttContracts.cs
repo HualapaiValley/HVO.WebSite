@@ -54,15 +54,18 @@ public sealed record HomeAssistantSensorDefinition : HomeAssistantEntityDefiniti
         string? icon = null,
         string? entityCategory = null,
         bool enabledByDefault = true,
-        string? defaultEntityId = null)
+        string? defaultEntityId = null,
+        int? suggestedDisplayPrecision = null)
         : base(componentId, name, HomeAssistantEntityPlatform.Sensor, deviceClass, icon, entityCategory, enabledByDefault, defaultEntityId)
     {
         UnitOfMeasurement = unitOfMeasurement;
         StateClass = stateClass;
+        SuggestedDisplayPrecision = suggestedDisplayPrecision;
     }
 
     public string? UnitOfMeasurement { get; }
     public string? StateClass { get; }
+    public int? SuggestedDisplayPrecision { get; }
 }
 
 public sealed record HomeAssistantBinarySensorDefinition : HomeAssistantEntityDefinition
@@ -88,7 +91,8 @@ public sealed record HomeAssistantDeviceDefinition
         IEnumerable<HomeAssistantEntityDefinition> entities,
         string? manufacturer = null,
         string? model = null,
-        string? softwareVersion = null)
+        string? softwareVersion = null,
+        string? hardwareVersion = null)
     {
         Key = key;
         Name = name;
@@ -96,6 +100,7 @@ public sealed record HomeAssistantDeviceDefinition
         Manufacturer = manufacturer;
         Model = model;
         SoftwareVersion = softwareVersion;
+        HardwareVersion = hardwareVersion;
     }
 
     public HomeAssistantDeviceKey Key { get; }
@@ -104,6 +109,7 @@ public sealed record HomeAssistantDeviceDefinition
     public string? Manufacturer { get; }
     public string? Model { get; }
     public string? SoftwareVersion { get; }
+    public string? HardwareVersion { get; }
 }
 
 public sealed record HomeAssistantCurrentState

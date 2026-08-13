@@ -80,7 +80,7 @@ flowchart LR
     HA -. excluded from HA exporter .-> X[No second writer]
 ```
 
-**Migration status:** the issue #328 headless port is implemented. Production cutover still requires the documented bounded endurance check; the direct collector remains the only canonical writer throughout cutover.
+**Migration status:** the issue #328 headless port is implemented and running as the direct production authority. Issue #356 expands the bounded MQTT presentation with pack power, cell-health aggregates, temperatures, capacity/health, balancing, charge/discharge state, alarms, and availability while keeping per-cell history in the canonical HVO path.
 
 ## EG4 6500EX And MPPT100
 
@@ -201,6 +201,22 @@ The Bluetooth proxy does not use MQTT for this path. Home Assistant owns the Gov
 | SolarAssistant | Transitional legacy gateway | None in target vNext | Transitional SolarAssistant SQLite | Transitional only |
 | Kasa | Home Assistant | HA WebSocket exporter | Exporter SQLite | Native HA integration |
 | Govee | Home Assistant | HA WebSocket exporter | Exporter SQLite | Native HA integration through BT proxy |
+
+## Home Assistant Power Semantics
+
+Home Assistant power entities are current-state measurements, not an alternate canonical history path. Dashboards and helpers must preserve source and measurement-point meaning:
+
+HVO MQTT Discovery includes source-resolution display precision for Davis, JK BMS, EG4, and SmartShunt measurements. This controls Home Assistant presentation only and never rounds the MQTT state or canonical history. Kasa and Govee precision remains owned by their native Home Assistant integrations; HVO does not create duplicate MQTT entities to override it.
+
+| Source | Measurement point | Instantaneous sign | HA ownership/history rule |
+|---|---|---|---|
+| JK BMS | Individual battery bank | Positive charging, negative discharging | Direct JK collector owns acquisition/history; MQTT is presentation only. |
+| SmartShunt | Whole DC bus | Positive charging, negative discharging | Direct SmartShunt collector owns acquisition/history; MQTT is presentation only. |
+| EG4 6500EX | Inverter battery branch | Positive discharging, negative charging | Direct EG4 collector owns acquisition/history; do not sum it with whole-bus power. |
+| EG4 MPPT100 | Charge-controller battery branch | Negative charging | Direct EG4 collector owns acquisition/history; PV input and battery output are different measurement points. |
+| Kasa | Individual AC appliance load | Non-negative consumption | HA owns acquisition; only the HA exporter writes approved history. |
+
+Never add JK bank totals, SmartShunt whole-bus power, EG4 branches, and Kasa appliance loads into one undifferentiated total. They overlap electrically and are sampled at different points and cadences. Home Assistant may derive presentation-only charge/discharge energy helpers from signed power, but helper output must not be exported as source-native HVO telemetry. Prefer source-native monotonic kWh counters, such as supported Kasa energy totals, when reset behavior and provenance are known.
 
 ## Failure Boundaries
 

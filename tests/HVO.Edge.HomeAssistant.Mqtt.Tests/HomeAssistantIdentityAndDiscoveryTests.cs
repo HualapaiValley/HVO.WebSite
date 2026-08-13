@@ -61,6 +61,42 @@ public sealed class HomeAssistantIdentityAndDiscoveryTests
     }
 
     [TestMethod]
+    public void Discovery_IncludesSuggestedDisplayPrecisionWhenConfigured()
+    {
+        var definition = TestSupport.Device(
+            TestSupport.Key,
+            new HomeAssistantSensorDefinition(
+                "power",
+                "Power",
+                "W",
+                "power",
+                "measurement",
+                suggestedDisplayPrecision: 2));
+
+        using var document = JsonDocument.Parse(HomeAssistantDiscoverySerializer.Serialize(definition, TestSupport.Topics));
+
+        document.RootElement.GetProperty("components").GetProperty("power")
+            .GetProperty("suggested_display_precision").GetInt32().Should().Be(2);
+    }
+
+    [TestMethod]
+    public void Discovery_IncludesHardwareVersionInDeviceMetadata()
+    {
+        var definition = new HomeAssistantDeviceDefinition(
+            TestSupport.Key,
+            "Test device",
+            [new HomeAssistantSensorDefinition("voltage", "Voltage")],
+            manufacturer: "Test",
+            model: "Model",
+            softwareVersion: "1.2",
+            hardwareVersion: "3.4");
+
+        using var document = JsonDocument.Parse(HomeAssistantDiscoverySerializer.Serialize(definition, TestSupport.Topics));
+
+        document.RootElement.GetProperty("device").GetProperty("hw_version").GetString().Should().Be("3.4");
+    }
+
+    [TestMethod]
     public void Discovery_ReadableDefaultEntityId_DoesNotChangeUniqueId()
     {
         var entity = new HomeAssistantSensorDefinition(
