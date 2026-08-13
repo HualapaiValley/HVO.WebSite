@@ -213,6 +213,43 @@ public sealed class JkBmsHomeAssistantProjectionTests
             .WithMessage("*Edge:Runtime:SiteId*");
     }
 
+    [TestMethod]
+    public void Constructor_RejectsMissingOrUntrimmedEnabledDeviceIdWithClearMessage()
+    {
+        var missing = Device("a");
+        missing.DeviceId = " ";
+        var untrimmed = Device("b");
+        untrimmed.DeviceId = " bank-b ";
+
+        var missingAct = () => new JkBmsHomeAssistantProjection(
+            new FakeProjection(),
+            Identity(),
+            Options.Create(new JkBmsOptions { Devices = [missing] }));
+        var untrimmedAct = () => new JkBmsHomeAssistantProjection(
+            new FakeProjection(),
+            Identity(),
+            Options.Create(new JkBmsOptions { Devices = [untrimmed] }));
+
+        missingAct.Should().Throw<InvalidOperationException>().WithMessage("*JkBms:Devices[].DeviceId*non-empty and trimmed*");
+        untrimmedAct.Should().Throw<InvalidOperationException>().WithMessage("*JkBms:Devices[].DeviceId*non-empty and trimmed*");
+    }
+
+    [TestMethod]
+    public void Constructor_RejectsCaseVariantDuplicateEnabledDeviceIdsWithClearMessage()
+    {
+        var first = Device("a");
+        first.DeviceId = "bank-a";
+        var duplicate = Device("b");
+        duplicate.DeviceId = "BANK-A";
+
+        var act = () => new JkBmsHomeAssistantProjection(
+            new FakeProjection(),
+            Identity(),
+            Options.Create(new JkBmsOptions { Devices = [first, duplicate] }));
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*JkBms:Devices[].DeviceId*unique ignoring case*");
+    }
+
     private static BmsDeviceConfig Device(string id) => new()
     {
         Address = $"AA:BB:CC:DD:EE:{(id == "a" ? "01" : "02")}",

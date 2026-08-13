@@ -15,8 +15,8 @@ public sealed class JkBmsHomeAssistantProjection
     private readonly EdgeRuntimeIdentity identity;
     private readonly string siteId;
     private readonly Lock definitionLock = new();
-    private readonly Dictionary<string, int> bankNumbers = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, DeviceMetadata> deviceMetadata = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> bankNumbers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DeviceMetadata> deviceMetadata = new(StringComparer.OrdinalIgnoreCase);
 
     public JkBmsHomeAssistantProjection(
         IHomeAssistantMqttProjection projection,
@@ -29,8 +29,12 @@ public sealed class JkBmsHomeAssistantProjection
             ?? throw new InvalidOperationException("Edge:Runtime:SiteId is required for JK BMS Home Assistant identity.");
         var enabledDevices = (options.Value.Devices ?? [])
             .Where(static device => device.Enabled)
-            .OrderBy(static device => device.DeviceId, StringComparer.Ordinal)
+            .OrderBy(static device => device.DeviceId, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        if (enabledDevices.Any(static device => string.IsNullOrWhiteSpace(device.DeviceId) || device.DeviceId != device.DeviceId.Trim()))
+            throw new InvalidOperationException("Every enabled JkBms:Devices[].DeviceId must be non-empty and trimmed.");
+        if (enabledDevices.Select(static device => device.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count() != enabledDevices.Length)
+            throw new InvalidOperationException("Enabled JkBms:Devices[].DeviceId values must be unique ignoring case.");
         for (var index = 0; index < enabledDevices.Length; index++)
         {
             var device = enabledDevices[index];
