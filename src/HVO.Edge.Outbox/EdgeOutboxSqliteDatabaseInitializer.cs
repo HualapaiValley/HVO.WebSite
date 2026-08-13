@@ -17,6 +17,7 @@ public static class EdgeOutboxSqliteDatabaseInitializer
         if (!string.Equals(db.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
             throw new InvalidOperationException("Edge outbox SQLite initialization requires the Microsoft.EntityFrameworkCore.Sqlite provider.");
 
+        await EnableIncrementalAutoVacuumAsync(db, ct);
         await db.Database.EnsureCreatedAsync(ct);
         await EnableWriteAheadLoggingAsync(db, ct);
         await EnsureColumnAsync(db, "PayloadType", $"TEXT NOT NULL DEFAULT '{EscapeSqlLiteral(payloadType)}'", ct);
@@ -37,6 +38,15 @@ public static class EdgeOutboxSqliteDatabaseInitializer
         if (!string.Equals(mode, "wal", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(mode, "memory", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"Edge outbox SQLite database did not enable WAL mode; journal mode is '{mode}'.");
+    }
+
+    private static async Task EnableIncrementalAutoVacuumAsync(EdgeOutboxDbContext db, CancellationToken ct)
+    {
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+        command.CommandText = "PRAGMA auto_vacuum=INCREMENTAL";
+        if (command.Connection!.State != System.Data.ConnectionState.Open)
+            await command.Connection.OpenAsync(ct);
+        await command.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task EnsureColumnAsync(EdgeOutboxDbContext db, string columnName, string columnDefinition, CancellationToken ct)

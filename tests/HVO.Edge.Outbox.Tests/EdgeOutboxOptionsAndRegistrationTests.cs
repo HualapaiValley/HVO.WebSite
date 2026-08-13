@@ -25,7 +25,7 @@ public sealed class EdgeOutboxOptionsAndRegistrationTests
         options.SweepIntervalSeconds.Should().Be(5);
         options.MaxRetryAttempts.Should().Be(10);
         options.MaxBackoffSeconds.Should().Be(300);
-        options.SentRetentionDays.Should().Be(7);
+        options.SentRetentionDays.Should().Be(1);
         options.FailedRetentionDays.Should().Be(30);
     }
 

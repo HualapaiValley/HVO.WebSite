@@ -65,7 +65,7 @@ public sealed class KasaGatewayOptions
         public int BatchSize { get; set; } = 50;
 
         [Range(0, 3650)]
-        public int SentRetentionDays { get; set; } = 7;
+        public int SentRetentionDays { get; set; } = 1;
 
         [Range(0, 3650)]
         public int FailedRetentionDays { get; set; } = 30;

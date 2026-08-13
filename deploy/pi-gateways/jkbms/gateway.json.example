@@ -48,7 +48,7 @@
     "SweepIntervalSeconds": 5,
     "MaxRetryAttempts": 10,
     "MaxBackoffSeconds": 300,
-    "SentRetentionDays": 7,
+    "SentRetentionDays": 1,
     "FailedRetentionDays": 30
   }
 }

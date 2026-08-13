@@ -145,6 +145,7 @@ public sealed class EdgeOutboxForwarder(
             await store.CompactSentAsync(TimeSpan.FromDays(_options.SentRetentionDays), cancellationToken).ConfigureAwait(false);
         if (_options.FailedRetentionDays > 0)
             await store.CompactFailedAsync(TimeSpan.FromDays(_options.FailedRetentionDays), cancellationToken).ConfigureAwait(false);
+        await store.ReclaimFreePagesAsync(4096, cancellationToken).ConfigureAwait(false);
     }
 
     private static string NormalizeError(string? error, string fallback) =>

@@ -344,8 +344,13 @@ public sealed class KasaOutboxForwarder : BackgroundService
         var store = scope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
         var sentDeleted = await store.CompactSentAsync(TimeSpan.FromDays(_options.SentRetentionDays), ct).ConfigureAwait(false);
         var failedDeleted = await store.CompactFailedAsync(TimeSpan.FromDays(_options.FailedRetentionDays), ct).ConfigureAwait(false);
-        if (sentDeleted > 0 || failedDeleted > 0)
-            _logger.LogInformation("Kasa outbox compaction deleted {SentCount} sent and {FailedCount} failed record(s)", sentDeleted, failedDeleted);
+        var pagesReclaimed = await store.ReclaimFreePagesAsync(4096, ct).ConfigureAwait(false);
+        if (sentDeleted > 0 || failedDeleted > 0 || pagesReclaimed > 0)
+            _logger.LogInformation(
+                "Kasa outbox compaction deleted {SentCount} sent and {FailedCount} failed record(s) and reclaimed {PageCount} page(s)",
+                sentDeleted,
+                failedDeleted,
+                pagesReclaimed);
     }
 
     private async Task RequeueRetryExhaustedAsync(CancellationToken ct)

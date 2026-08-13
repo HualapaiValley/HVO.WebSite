@@ -49,6 +49,23 @@ Use the Pi Docker context:
 ./scripts/outbox-maintenance.sh --remote --context devpi5 summary eg4
 ```
 
+Outboxes are delivery queues, not historical databases. Active vNext gateways
+retain delivered rows for one day, retain failed rows for their configured
+intervention window, and never age-purge pending rows. `summary` reports SQLite
+page/free-page accounting and auto-vacuum mode in addition to queue counts.
+
+Existing databases created before incremental auto-vacuum require a one-time
+controlled compaction. Stop only the target gateway, then run:
+
+```bash
+./scripts/outbox-maintenance.sh --remote --context devpi5 compact <gateway>
+```
+
+The command refuses a running gateway, streams a verified backup to
+`artifacts/outbox/`, checks database integrity before and after compaction, and
+never deletes or recreates the named Docker volume. Restart the gateway and
+verify health, outbox drainage, and central continuity afterward.
+
 ## Safe Re-Baselining
 
 Archive only after confirming the central API has current data and the outbox contains old sent/failed records or a legacy incompatible schema. Stop the gateway before archiving so SQLite cannot keep writing to the renamed database or race WAL/SHM moves. The script refuses to archive when the target gateway service appears to be running, renames `outbox.db*` files inside the Docker volume, and never deletes them:
