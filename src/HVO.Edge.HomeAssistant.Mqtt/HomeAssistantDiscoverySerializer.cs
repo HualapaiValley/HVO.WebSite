@@ -53,6 +53,8 @@ internal static class HomeAssistantDiscoverySerializer
             {
                 AddOptional(component, "unit_of_measurement", sensor.UnitOfMeasurement);
                 AddOptional(component, "state_class", sensor.StateClass);
+                if (sensor.SuggestedDisplayPrecision.HasValue)
+                    component["suggested_display_precision"] = sensor.SuggestedDisplayPrecision.Value;
             }
 
             components.Add(componentId, component);
@@ -73,6 +75,7 @@ internal static class HomeAssistantDiscoverySerializer
         AddOptional(device, "manufacturer", definition.Manufacturer);
         AddOptional(device, "model", definition.Model);
         AddOptional(device, "sw_version", definition.SoftwareVersion);
+        AddOptional(device, "hw_version", definition.HardwareVersion);
 
         var root = new JsonObject
         {
@@ -103,6 +106,8 @@ internal static class HomeAssistantDiscoverySerializer
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(entity.ComponentId);
             ArgumentException.ThrowIfNullOrWhiteSpace(entity.Name);
+            if (entity is HomeAssistantSensorDefinition { SuggestedDisplayPrecision: < 0 })
+                throw new ArgumentException("Suggested display precision cannot be negative.", nameof(definition));
             var componentId = HomeAssistantMqttIdentity.Normalize(entity.ComponentId);
             if (!normalized.Add(componentId))
                 throw new ArgumentException($"Component identifier normalization collision for '{componentId}'.", nameof(definition));

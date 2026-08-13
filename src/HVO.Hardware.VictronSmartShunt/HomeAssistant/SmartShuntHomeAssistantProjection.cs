@@ -23,12 +23,12 @@ public sealed class SmartShuntHomeAssistantProjection : ISmartShuntHomeAssistant
         this.projection = projection;
         key = new(identity.SiteId ?? throw new InvalidOperationException("Edge:Runtime:SiteId is required."), identity.GatewayId, options.Value.DeviceId);
         projection.UpsertDevice(new(key, "Victron SmartShunt", [
-            new HomeAssistantSensorDefinition("battery_voltage", "Battery voltage", "V", "voltage", "measurement"),
-            new HomeAssistantSensorDefinition("battery_net_current", "Battery net current", "A", "current", "measurement"),
-            new HomeAssistantSensorDefinition("battery_net_power", "Battery net power", "W", "power", "measurement"),
-            new HomeAssistantSensorDefinition("state_of_charge", "State of charge", "%", "battery", "measurement"),
-            new HomeAssistantSensorDefinition("consumed_ah", "Consumed amp hours", "Ah", stateClass: "measurement"),
-            new HomeAssistantSensorDefinition("remaining_time", "Remaining time", "min", "duration", "measurement"),
+            new HomeAssistantSensorDefinition("battery_voltage", "Battery voltage", "V", "voltage", "measurement", suggestedDisplayPrecision: 2),
+            new HomeAssistantSensorDefinition("battery_net_current", "Battery net current", "A", "current", "measurement", suggestedDisplayPrecision: 3),
+            new HomeAssistantSensorDefinition("battery_net_power", "Battery net power", "W", "power", "measurement", suggestedDisplayPrecision: 0),
+            new HomeAssistantSensorDefinition("state_of_charge", "State of charge", "%", "battery", "measurement", suggestedDisplayPrecision: 2),
+            new HomeAssistantSensorDefinition("consumed_ah", "Consumed amp hours", "Ah", stateClass: "measurement", suggestedDisplayPrecision: 1),
+            new HomeAssistantSensorDefinition("remaining_time", "Remaining time", "min", "duration", "measurement", suggestedDisplayPrecision: 0),
         ], manufacturer: "Victron Energy", model: "SmartShunt"));
     }
 

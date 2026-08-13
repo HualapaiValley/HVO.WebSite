@@ -245,7 +245,7 @@ public sealed class ApiKeySeedService : IHostedService
 
     private static string ComputeSha256Hex(string input)
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input.Trim()));
         return Convert.ToHexStringLower(bytes);
     }
 }

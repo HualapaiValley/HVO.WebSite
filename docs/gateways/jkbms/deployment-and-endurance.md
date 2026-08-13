@@ -51,3 +51,36 @@ Record the window, device count, reconnects, failed polls, maximum outbox depth,
 drain result, and any BlueZ anomalies before approving cutover. Roll back by
 restarting the preserved prior image against the same named outbox volume; never
 run old and new collectors simultaneously.
+
+## Production Validation: 2026-08-12/13
+
+Issue #356 completed the production vNext cutover with the existing
+`jkbms_jkbms-outbox` volume and exactly one direct BLE collector:
+
+- A checksum-verified, tar-readable quiescent volume archive was created before
+  the legacy schema migration. The rollback image reference was also preserved.
+- All seven configured BMS sessions connected through the direct collector and
+  recovered after bounded collector, Mosquitto, and Home Assistant restarts.
+- Home Assistant exposes 25 available entities per bank with stable entity IDs.
+  Device names use the reported JK model, nominal capacity, and stable bank
+  number; device metadata includes reported hardware and firmware versions.
+- MQTT and Home Assistant restarts did not interrupt BLE collection or canonical
+  outbox delivery. The queue returned to zero pending after each restart.
+- Twenty records that failed with HTTP 401 during a controlled ingest-key
+  rotation were requeued from a checksum-backed quiescent database and delivered.
+  Five unrelated pre-existing permanent failures remain preserved for separate
+  payload investigation; current forwarding is synchronized.
+- A Home Assistant configuration/database backup was completed through the
+  supported backup API before updating stale entity-registry precision
+  suggestions. The supported entity-registry API updated 172 HVO MQTT sensors
+  across Davis, EG4, SmartShunt, and JK BMS; no explicit user display-precision
+  override was present or changed.
+- Effective precision was verified through
+  `config/entity_registry/list_for_display` after a full Home Assistant restart.
+  Examples include JK voltage/current at 3 decimals, SmartShunt voltage at 2 and
+  current at 3, EG4 6500EX battery voltage at 2 and current at 0, EG4 MPPT100
+  voltage/current at 1, and Davis pressure/console battery at 3.
+
+Home Assistant-native Kasa and Govee entities were not modified by the HVO MQTT
+migration. Their discovery metadata remains owned by their native integrations,
+and no duplicate HVO MQTT writer was introduced.

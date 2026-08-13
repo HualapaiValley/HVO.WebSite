@@ -155,7 +155,13 @@ The vNext collector intentionally has no Razor, Blazor, or static UI. Operators 
 
 - `/health/live`, `/health`, and `/health/ready` for health checks;
 - protected `/diagnostics/status` and `/diagnostics/outbox` for runtime/outbox state;
-- Home Assistant MQTT Discovery for a bounded ten-entity current-state view per bank.
+- Home Assistant MQTT Discovery for a bounded 25-entity current-state view per bank: pack voltage/current/power, state of charge and health, capacity/cycles, aggregate cell health, temperatures, balancing, charge/discharge state, alarms, and availability.
+
+Home Assistant device identifiers remain the stable configured `DeviceId` values. Display names are updated after the first poll to include the source-reported JK model, nominal capacity, and stable bank number; device metadata also includes the reported firmware and hardware revision. Decimal display precision follows protocol resolution without rounding source state: 3 decimals for V/A/Ah, 2 for W, 1 for temperature, and 0 for integer protocol fields such as SOC, SOH, counts, indexes, and alarm masks.
+
+The MQTT view intentionally omits one entity per physical cell. With seven 24-cell banks that would create at least 168 voltage entities before resistances and other diagnostics. Home Assistant instead receives average/minimum/maximum/delta voltage plus the minimum/maximum cell indexes; complete per-cell readings remain in the durable HVO outbox and canonical database.
+
+JK current and derived power preserve the device protocol sign: positive is charging and negative is discharging. This is intentionally different from the EG4 inverter-branch convention. Dashboards must label the source and measurement point and must not sum individual JK banks, SmartShunt whole-bus values, and EG4 branch values as if they were independent loads.
 
 Diagnostics expose stable device IDs and categorized health without Bluetooth addresses,
 secret values, or mounted filesystem paths.

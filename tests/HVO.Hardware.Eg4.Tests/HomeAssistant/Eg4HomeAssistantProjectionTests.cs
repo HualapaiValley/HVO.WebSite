@@ -39,7 +39,22 @@ public sealed class Eg4HomeAssistantProjectionTests
             .And.Contain(entity => entity.ComponentId == "controller_diagnostic_201" && entity.Name == "Controller diagnostic 201")
             .And.NotContain(entity => entity.ComponentId == "load_power")
             .And.NotContain(entity => entity.ComponentId == "pv_mppt_2_power");
+        var inverter = Sensors(mqtt, "a");
+        inverter["battery_voltage"].SuggestedDisplayPrecision.Should().Be(2);
+        inverter["battery_net_current"].SuggestedDisplayPrecision.Should().Be(0);
+        inverter["pv_mppt_1_current"].SuggestedDisplayPrecision.Should().Be(1);
+        inverter["load_power"].SuggestedDisplayPrecision.Should().Be(0);
+        inverter["ac_output_frequency"].SuggestedDisplayPrecision.Should().Be(1);
+        var controller = Sensors(mqtt, "controller");
+        controller["battery_voltage"].SuggestedDisplayPrecision.Should().Be(1);
+        controller["battery_net_current"].SuggestedDisplayPrecision.Should().Be(1);
+        controller["pv_mppt_1_current"].SuggestedDisplayPrecision.Should().Be(1);
     }
+
+    private static IReadOnlyDictionary<string, HomeAssistantSensorDefinition> Sensors(FakeProjection mqtt, string deviceId) =>
+        mqtt.Definitions.Single(definition => definition.Key.DeviceId == deviceId).Entities
+            .OfType<HomeAssistantSensorDefinition>()
+            .ToDictionary(entity => entity.ComponentId, StringComparer.Ordinal);
 
     [TestMethod]
     public void Publish_PreservesCanonicalZeroAndOmitsUnknownMeasurements()

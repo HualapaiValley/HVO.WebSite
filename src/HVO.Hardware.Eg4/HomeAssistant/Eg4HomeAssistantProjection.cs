@@ -63,58 +63,59 @@ internal sealed class Eg4HomeAssistantProjection
 
     private HomeAssistantDeviceDefinition CreateDefinition(Eg4DeviceOptions device)
     {
+        var isInverter = device.Type == Eg4DeviceType.Inverter6500Ex;
         var entities = new List<HomeAssistantEntityDefinition>
         {
-            new HomeAssistantSensorDefinition("battery_voltage", "Battery voltage", "V", "voltage", Measurement),
-            new HomeAssistantSensorDefinition("battery_net_current", "Battery net current", "A", "current", Measurement),
-            new HomeAssistantSensorDefinition("battery_net_power", "Battery net power", "W", "power", Measurement),
-            new HomeAssistantSensorDefinition("battery_state_of_charge", "Inverter-reported battery state of charge", "%", "battery", Measurement, entityCategory: "diagnostic", enabledByDefault: false),
-            new HomeAssistantSensorDefinition("pv_power", "PV power", "W", "power", Measurement),
-            new HomeAssistantSensorDefinition("pv_mppt_1_voltage", "PV MPPT 1 voltage", "V", "voltage", Measurement),
-            new HomeAssistantSensorDefinition("pv_mppt_1_current", "PV MPPT 1 current", "A", "current", Measurement),
-            new HomeAssistantSensorDefinition("pv_mppt_1_power", "PV MPPT 1 power", "W", "power", Measurement),
-            new HomeAssistantSensorDefinition("temperature", "Temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic"),
+            new HomeAssistantSensorDefinition("battery_voltage", "Battery voltage", "V", "voltage", Measurement, suggestedDisplayPrecision: isInverter ? 2 : 1),
+            new HomeAssistantSensorDefinition("battery_net_current", "Battery net current", "A", "current", Measurement, suggestedDisplayPrecision: isInverter ? 0 : 1),
+            new HomeAssistantSensorDefinition("battery_net_power", "Battery net power", "W", "power", Measurement, suggestedDisplayPrecision: 2),
+            new HomeAssistantSensorDefinition("battery_state_of_charge", "Inverter-reported battery state of charge", "%", "battery", Measurement, entityCategory: "diagnostic", enabledByDefault: false, suggestedDisplayPrecision: 0),
+            new HomeAssistantSensorDefinition("pv_power", "PV power", "W", "power", Measurement, suggestedDisplayPrecision: 0),
+            new HomeAssistantSensorDefinition("pv_mppt_1_voltage", "PV MPPT 1 voltage", "V", "voltage", Measurement, suggestedDisplayPrecision: 1),
+            new HomeAssistantSensorDefinition("pv_mppt_1_current", "PV MPPT 1 current", "A", "current", Measurement, suggestedDisplayPrecision: 1),
+            new HomeAssistantSensorDefinition("pv_mppt_1_power", "PV MPPT 1 power", "W", "power", Measurement, suggestedDisplayPrecision: 0),
+            new HomeAssistantSensorDefinition("temperature", "Temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0),
         };
         if (device.Type == Eg4DeviceType.Inverter6500Ex)
         {
-            entities.Add(new HomeAssistantSensorDefinition("pv_mppt_2_voltage", "PV MPPT 2 voltage", "V", "voltage", Measurement));
-            entities.Add(new HomeAssistantSensorDefinition("pv_mppt_2_current", "PV MPPT 2 current", "A", "current", Measurement));
-            entities.Add(new HomeAssistantSensorDefinition("pv_mppt_2_power", "PV MPPT 2 power", "W", "power", Measurement));
-            entities.Add(new HomeAssistantSensorDefinition("ac_input_voltage", "AC input voltage", "V", "voltage", Measurement));
-            entities.Add(new HomeAssistantSensorDefinition("ac_input_frequency", "AC input frequency", "Hz", "frequency", Measurement));
-            entities.Add(new HomeAssistantSensorDefinition("ac_output_voltage", "AC output voltage", "V", "voltage", Measurement));
-            entities.Add(new HomeAssistantSensorDefinition("ac_output_frequency", "AC output frequency", "Hz", "frequency", Measurement));
-            entities.Add(new HomeAssistantSensorDefinition("load_power", "Load power", "W", "power", Measurement));
-            entities.Add(new HomeAssistantSensorDefinition("load_apparent_power", "Load apparent power", "VA", "apparent_power", Measurement));
-            entities.Add(new HomeAssistantSensorDefinition("load_percentage", "Load percentage", "%", stateClass: Measurement));
+            entities.Add(new HomeAssistantSensorDefinition("pv_mppt_2_voltage", "PV MPPT 2 voltage", "V", "voltage", Measurement, suggestedDisplayPrecision: 1));
+            entities.Add(new HomeAssistantSensorDefinition("pv_mppt_2_current", "PV MPPT 2 current", "A", "current", Measurement, suggestedDisplayPrecision: 1));
+            entities.Add(new HomeAssistantSensorDefinition("pv_mppt_2_power", "PV MPPT 2 power", "W", "power", Measurement, suggestedDisplayPrecision: 0));
+            entities.Add(new HomeAssistantSensorDefinition("ac_input_voltage", "AC input voltage", "V", "voltage", Measurement, suggestedDisplayPrecision: 1));
+            entities.Add(new HomeAssistantSensorDefinition("ac_input_frequency", "AC input frequency", "Hz", "frequency", Measurement, suggestedDisplayPrecision: 1));
+            entities.Add(new HomeAssistantSensorDefinition("ac_output_voltage", "AC output voltage", "V", "voltage", Measurement, suggestedDisplayPrecision: 1));
+            entities.Add(new HomeAssistantSensorDefinition("ac_output_frequency", "AC output frequency", "Hz", "frequency", Measurement, suggestedDisplayPrecision: 1));
+            entities.Add(new HomeAssistantSensorDefinition("load_power", "Load power", "W", "power", Measurement, suggestedDisplayPrecision: 0));
+            entities.Add(new HomeAssistantSensorDefinition("load_apparent_power", "Load apparent power", "VA", "apparent_power", Measurement, suggestedDisplayPrecision: 0));
+            entities.Add(new HomeAssistantSensorDefinition("load_percentage", "Load percentage", "%", stateClass: Measurement, suggestedDisplayPrecision: 0));
             entities.Add(new HomeAssistantSensorDefinition("operating_mode", "Operating mode", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("fault_code", "Fault code", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("status_flags", "Status flags", entityCategory: "diagnostic"));
-            entities.Add(new HomeAssistantSensorDefinition("scc_pwm_temperature", "SCC PWM temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic"));
-            entities.Add(new HomeAssistantSensorDefinition("inverter_temperature", "Inverter temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic"));
-            entities.Add(new HomeAssistantSensorDefinition("battery_channel_temperature", "Battery channel temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic"));
-            entities.Add(new HomeAssistantSensorDefinition("transformer_temperature", "Transformer temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic"));
+            entities.Add(new HomeAssistantSensorDefinition("scc_pwm_temperature", "SCC PWM temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0));
+            entities.Add(new HomeAssistantSensorDefinition("inverter_temperature", "Inverter temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0));
+            entities.Add(new HomeAssistantSensorDefinition("battery_channel_temperature", "Battery channel temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0));
+            entities.Add(new HomeAssistantSensorDefinition("transformer_temperature", "Transformer temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0));
             entities.Add(new HomeAssistantSensorDefinition("main_firmware", "Main firmware", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("secondary_firmware", "Secondary firmware", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("charge_stage", "Charge stage", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantBinarySensorDefinition("fan_locked", "Fan locked", deviceClass: "problem", entityCategory: "diagnostic"));
-            entities.Add(new HomeAssistantSensorDefinition("fan_pwm_percentage", "Fan PWM", "%", stateClass: Measurement, entityCategory: "diagnostic"));
+            entities.Add(new HomeAssistantSensorDefinition("fan_pwm_percentage", "Fan PWM", "%", stateClass: Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0));
             entities.Add(new HomeAssistantSensorDefinition("parallel_role", "Parallel role", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("parallel_warning_flags", "Parallel warning flags", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("output_mode", "Output mode", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("charger_source_priority", "Charger source priority", entityCategory: "diagnostic"));
-            entities.Add(new HomeAssistantSensorDefinition("parallel_total_load_power", "Parallel total load power", "W", "power", Measurement, entityCategory: "diagnostic"));
-            entities.Add(new HomeAssistantSensorDefinition("parallel_total_load_apparent_power", "Parallel total load apparent power", "VA", "apparent_power", Measurement, entityCategory: "diagnostic"));
-            entities.Add(new HomeAssistantSensorDefinition("parallel_total_load_percentage", "Parallel total load percentage", "%", stateClass: Measurement, entityCategory: "diagnostic"));
+            entities.Add(new HomeAssistantSensorDefinition("parallel_total_load_power", "Parallel total load power", "W", "power", Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0));
+            entities.Add(new HomeAssistantSensorDefinition("parallel_total_load_apparent_power", "Parallel total load apparent power", "VA", "apparent_power", Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0));
+            entities.Add(new HomeAssistantSensorDefinition("parallel_total_load_percentage", "Parallel total load percentage", "%", stateClass: Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0));
         }
         else
         {
-            entities.Add(new HomeAssistantSensorDefinition("controller_temperature", "Controller temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic"));
-            entities.Add(new HomeAssistantSensorDefinition("controller_secondary_temperature", "Controller secondary temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic"));
+            entities.Add(new HomeAssistantSensorDefinition("controller_temperature", "Controller temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0));
+            entities.Add(new HomeAssistantSensorDefinition("controller_secondary_temperature", "Controller secondary temperature", "°C", "temperature", Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0));
             entities.Add(new HomeAssistantSensorDefinition("controller_status", "Controller status", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("controller_diagnostic_201", "Controller diagnostic 201", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("charge_state", "Charge state", entityCategory: "diagnostic"));
-            entities.Add(new HomeAssistantSensorDefinition("controller_estimated_soc", "Controller estimated state of charge", "%", stateClass: Measurement, entityCategory: "diagnostic"));
+            entities.Add(new HomeAssistantSensorDefinition("controller_estimated_soc", "Controller estimated state of charge", "%", stateClass: Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0));
             entities.Add(new HomeAssistantSensorDefinition("controller_diagnostic_206", "Controller diagnostic 206", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("controller_diagnostic_212", "Controller diagnostic 212", entityCategory: "diagnostic"));
             entities.Add(new HomeAssistantSensorDefinition("controller_diagnostic_215", "Controller diagnostic 215", entityCategory: "diagnostic"));

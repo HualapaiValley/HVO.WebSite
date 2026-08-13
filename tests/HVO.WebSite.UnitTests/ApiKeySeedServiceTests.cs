@@ -161,6 +161,32 @@ public sealed class ApiKeySeedServiceTests
     }
 
     [TestMethod]
+    public async Task StartAsync_TrimsConfiguredApiKeyBeforeHashing()
+    {
+        var dbName = $"{nameof(StartAsync_TrimsConfiguredApiKeyBeforeHashing)}-{Guid.NewGuid():N}";
+        var services = new ServiceCollection()
+            .AddDbContext<HvoV9DbContext>(options => options.UseInMemoryDatabase(dbName))
+            .BuildServiceProvider();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Seeding:BmsApiKey"] = "\r\nbms-test-key\n",
+            })
+            .Build();
+
+        await new ApiKeySeedService(
+            services,
+            configuration,
+            NullLogger<ApiKeySeedService>.Instance).StartAsync(CancellationToken.None);
+
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<HvoV9DbContext>();
+        var keyHash = ApiKeyAuthMiddleware.HashKey("bms-test-key");
+
+        (await db.ApiKeys.CountAsync(key => key.KeyHash == keyHash)).Should().Be(1);
+    }
+
+    [TestMethod]
     public async Task StartAsync_SeedsHomeAssistantExporterScopesAndSourceClaimsIdempotently()
     {
         var dbName = $"{nameof(StartAsync_SeedsHomeAssistantExporterScopesAndSourceClaimsIdempotently)}-{Guid.NewGuid():N}";
