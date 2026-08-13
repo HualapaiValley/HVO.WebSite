@@ -25,7 +25,7 @@ public static class HomeAssistantMqttIdentity
         $"{DeviceId(key)}_{Segment(componentId)}";
 
     public static string ReadableEntityId(HomeAssistantDeviceKey key, string componentId) =>
-        $"hvo_{ReadableSegment(key.GatewayId)}_{ReadableSegment(key.DeviceId)}_{ReadableSegment(componentId)}";
+        $"hvo_{ReadableSegment(key.GatewayId)}__{ReadableSegment(key.DeviceId)}__{ReadableSegment(componentId)}";
 
     public static string GatewayClientId(string siteId, string gatewayId) =>
         $"hvo_{Segment(siteId)}_{Segment(gatewayId)}";

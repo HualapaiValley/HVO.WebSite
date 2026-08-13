@@ -137,7 +137,8 @@ MQTT device identifiers and Home Assistant `unique_id` values encode configured
 site, gateway, device, and component UTF-8 bytes into collision-safe,
 length-prefixed compound IDs. These internal IDs are stable and are not intended
 for display. New entities use readable default entity IDs in the form
-`<domain>.hvo_<gateway>_<device>_<component>`; existing registry IDs are not
+`<domain>.hvo_<gateway>__<device>__<component>`; double underscores preserve
+segment boundaries. Existing registry IDs are not
 renamed automatically, and a readable-name collision requires an explicit
 `default_entity_id`. Topic conventions are:
 
