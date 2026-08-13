@@ -27,7 +27,8 @@ internal static class HomeAssistantDiscoverySerializer
                 ["platform"] = platform,
                 ["name"] = entity.Name,
                 ["unique_id"] = uniqueId,
-                ["default_entity_id"] = entity.DefaultEntityId ?? $"{platform}.{uniqueId}",
+                ["default_entity_id"] = entity.DefaultEntityId
+                    ?? $"{platform}.{HomeAssistantMqttIdentity.ReadableEntityId(definition.Key, entity.ComponentId)}",
                 ["state_topic"] = topics.State(definition.Key),
                 ["value_template"] = entity.Platform == HomeAssistantEntityPlatform.BinarySensor
                     ? $"{{% if {stateValue} %}}ON{{% else %}}OFF{{% endif %}}"
@@ -113,7 +114,7 @@ internal static class HomeAssistantDiscoverySerializer
                 throw new ArgumentException($"Component identifier normalization collision for '{componentId}'.", nameof(definition));
             var expectedDomain = Platform(entity.Platform);
             var effectiveDefaultEntityId = entity.DefaultEntityId
-                ?? $"{expectedDomain}.{HomeAssistantMqttIdentity.EntityUniqueId(definition.Key, entity.ComponentId)}";
+                ?? $"{expectedDomain}.{HomeAssistantMqttIdentity.ReadableEntityId(definition.Key, entity.ComponentId)}";
             if (!IsValidEntityId(effectiveDefaultEntityId, expectedDomain))
                 throw new ArgumentException($"Default entity ID '{effectiveDefaultEntityId}' is invalid for platform '{expectedDomain}'.", nameof(definition));
             if (!defaultEntityIds.Add(effectiveDefaultEntityId))

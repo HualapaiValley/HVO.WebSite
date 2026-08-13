@@ -133,10 +133,13 @@ prefixes, and initial/maximum reconnect delays bounded to 1-300 seconds. The
 secret files are resolved under `Edge:Paths:SecretsDirectory` during startup.
 Status and logs never include credential values.
 
-IDs encode configured site, gateway, device, and component UTF-8 bytes into a
-collision-safe MQTT/HA identifier and length-prefix compound IDs so distinct
-configured identities cannot collapse to one entity or MQTT client. Topic
-conventions are:
+MQTT device identifiers and Home Assistant `unique_id` values encode configured
+site, gateway, device, and component UTF-8 bytes into collision-safe,
+length-prefixed compound IDs. These internal IDs are stable and are not intended
+for display. New entities use readable default entity IDs in the form
+`<domain>.hvo_<gateway>_<device>_<component>`; existing registry IDs are not
+renamed automatically, and a readable-name collision requires an explicit
+`default_entity_id`. Topic conventions are:
 
 ```text
 homeassistant/device/{site_gateway_device}/config
