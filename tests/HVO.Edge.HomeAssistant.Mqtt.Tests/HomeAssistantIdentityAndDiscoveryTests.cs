@@ -15,20 +15,35 @@ public sealed class HomeAssistantIdentityAndDiscoveryTests
             "hvo_32x_x20_x48ualapai_x20_x56alley_x20_20x_x47ateway_x2f_x4fne_19x_x42attery_x20_x231");
         HomeAssistantMqttIdentity.EntityUniqueId(key, "DC Voltage").Should().EndWith("22x_x44_x43_x20_x56oltage");
         HomeAssistantMqttIdentity.DeviceId(key).Should().Be(HomeAssistantMqttIdentity.DeviceId(key));
+        HomeAssistantMqttIdentity.ReadableEntityId(key, "DC Voltage").Should()
+            .MatchRegex("^hvo_gateway_one_battery_1_dc_voltage_[0-9a-f]{8}$");
     }
 
     [TestMethod]
-    public void IdentityEncoding_PreservesPreviouslyCollidingComponents()
+    public void ReadableIdentity_PreservesSegmentBoundaries()
+    {
+        var first = HomeAssistantMqttIdentity.ReadableEntityId(new("hvo", "a_b", "c"), "power");
+        var second = HomeAssistantMqttIdentity.ReadableEntityId(new("hvo", "a", "b_c"), "power");
+
+        first.Should().StartWith("hvo_a_b_c_power_").And.NotBe(second);
+        second.Should().StartWith("hvo_a_b_c_power_");
+    }
+
+    [TestMethod]
+    public void Discovery_GeneratedReadableEntityIds_PreservePreviouslyCollidingComponents()
     {
         var definition = TestSupport.Device(
             TestSupport.Key,
             new HomeAssistantSensorDefinition("dc-voltage", "Voltage A"),
             new HomeAssistantSensorDefinition("DC Voltage", "Voltage B"));
 
-        var payload = HomeAssistantDiscoverySerializer.Serialize(definition, TestSupport.Topics);
-        using var document = JsonDocument.Parse(payload);
-        document.RootElement.GetProperty("components").EnumerateObject().Select(property => property.Name)
-            .Should().OnlyHaveUniqueItems().And.HaveCount(2);
+        using var document = JsonDocument.Parse(HomeAssistantDiscoverySerializer.Serialize(definition, TestSupport.Topics));
+        var defaultEntityIds = document.RootElement.GetProperty("components")
+            .EnumerateObject()
+            .Select(component => component.Value.GetProperty("default_entity_id").GetString())
+            .ToArray();
+
+        defaultEntityIds.Should().OnlyHaveUniqueItems().And.HaveCount(2);
     }
 
     [TestMethod]
@@ -45,7 +60,8 @@ public sealed class HomeAssistantIdentityAndDiscoveryTests
         var voltage = root.GetProperty("components").GetProperty("voltage");
         voltage.GetProperty("platform").GetString().Should().Be("sensor");
         voltage.GetProperty("unique_id").GetString().Should().Be(HomeAssistantMqttIdentity.EntityUniqueId(TestSupport.Key, "voltage"));
-        voltage.GetProperty("default_entity_id").GetString().Should().Be($"sensor.{HomeAssistantMqttIdentity.EntityUniqueId(TestSupport.Key, "voltage")}");
+        voltage.GetProperty("default_entity_id").GetString().Should()
+            .Be($"sensor.{HomeAssistantMqttIdentity.ReadableEntityId(TestSupport.Key, "voltage")}");
         voltage.GetProperty("unit_of_measurement").GetString().Should().Be("V");
         voltage.GetProperty("device_class").GetString().Should().Be("voltage");
         voltage.GetProperty("state_class").GetString().Should().Be("measurement");
@@ -150,7 +166,7 @@ public sealed class HomeAssistantIdentityAndDiscoveryTests
     public void Discovery_CustomAndGeneratedDefaultEntityIdCollision_IsRejected()
     {
         var generatedEntity = new HomeAssistantSensorDefinition("voltage", "Voltage");
-        var generatedDefault = $"sensor.{HomeAssistantMqttIdentity.EntityUniqueId(TestSupport.Key, "voltage")}";
+        var generatedDefault = $"sensor.{HomeAssistantMqttIdentity.ReadableEntityId(TestSupport.Key, "voltage")}";
         var definition = TestSupport.Device(
             TestSupport.Key,
             generatedEntity,

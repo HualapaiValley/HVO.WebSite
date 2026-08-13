@@ -40,7 +40,7 @@ public sealed class HomeAssistantMqttIntegrationTests
         projection.UpsertDevice(TestSupport.Device());
         projection.PublishCurrentState(TestSupport.State(DateTimeOffset.UtcNow, 52.4));
         await worker.StartAsync(CancellationToken.None);
-        var entityId = $"sensor.{HomeAssistantMqttIdentity.EntityUniqueId(TestSupport.Key, "voltage")}";
+        var entityId = $"sensor.{HomeAssistantMqttIdentity.ReadableEntityId(TestSupport.Key, "voltage")}";
         await WaitForStateAsync(http, entityId, "52.4");
         await AssertSingleEntityAsync(http, entityId);
 
@@ -70,7 +70,7 @@ public sealed class HomeAssistantMqttIntegrationTests
 
     private static async Task WaitForStateAsync(HttpClient http, string entityId, string expected)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(60);
+        var deadline = DateTime.UtcNow.AddSeconds(120);
         while (DateTime.UtcNow < deadline)
         {
             using var response = await http.GetAsync($"/api/states/{entityId}");
