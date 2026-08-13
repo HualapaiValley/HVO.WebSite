@@ -39,6 +39,7 @@
     <PackageVersion Include="Microsoft.Identity.Web.UI" Version="4.14.2" />
 
     <!-- ASP.NET Core / Web -->
+    <PackageVersion Include="Asp.Versioning.Http" Version="10.2.2" />
     <PackageVersion Include="Asp.Versioning.Mvc" Version="10.2.1" />
     <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.2.1" />
     <PackageVersion Include="Asp.Versioning.OpenApi" Version="10.2.2" />
@@ -86,8 +87,9 @@
     <PackageVersion Include="Tmds.DBus" Version="0.94.2" />
 
     <!-- Serilog -->
-    <PackageVersion Include="Serilog" Version="4.3.1" />
+    <PackageVersion Include="Serilog" Version="4.4.0" />
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Settings.Configuration" Version="10.0.1" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageVersion Include="Serilog.Sinks.OpenTelemetry" Version="4.2.0" />
     <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
