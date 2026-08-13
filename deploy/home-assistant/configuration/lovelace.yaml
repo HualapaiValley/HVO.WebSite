@@ -6,3 +6,17 @@ dashboards:
     icon: mdi:power-plug
     show_in_sidebar: true
     require_admin: true
+  hvo-energy:
+    mode: yaml
+    filename: hvo/dashboards/hvo-energy.yaml
+    title: HVO Energy
+    icon: mdi:solar-power-variant
+    show_in_sidebar: true
+    require_admin: true
+  hvo-operations:
+    mode: yaml
+    filename: hvo/dashboards/hvo-operations.yaml
+    title: HVO Operations
+    icon: mdi:monitor-dashboard
+    show_in_sidebar: true
+    require_admin: true

@@ -85,35 +85,53 @@ public sealed class SmartShuntPublicSession : BackgroundService, ISmartShuntSess
 
             foreach (var field in SmartShuntPublicProtocol.Fields)
             {
-                var characteristic = await session.GetCharacteristicAsync(field.Uuid, ct);
-                watchers.Add(await characteristic.WatchPropertiesAsync(changes =>
-                {
-                    foreach (var pair in changes.Changed)
-                    {
-                        if (pair.Key != "Value" || pair.Value is not byte[] value)
-                            continue;
-
-                        PublishField(aggregate, field.Key, value, DateTime.UtcNow);
-                    }
-                }).WaitAsync(operationTimeout, ct));
-
                 try
                 {
-                    await characteristic.StartNotifyAsync().WaitAsync(operationTimeout, ct);
-                    startedNotifications.Add(characteristic);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Notify start failed for SmartShunt field {FieldKey}", field.Key);
-                }
+                    var characteristic = await session.GetCharacteristicAsync(field.Uuid, ct);
+                    watchers.Add(await characteristic.WatchPropertiesAsync(changes =>
+                    {
+                        foreach (var pair in changes.Changed)
+                        {
+                            if (pair.Key != "Value" || pair.Value is not byte[] value)
+                                continue;
 
-                var initial = await characteristic.ReadValueAsync(new Dictionary<string, object>()).WaitAsync(operationTimeout, ct);
-                PublishField(aggregate, field.Key, initial, DateTime.UtcNow);
+                            PublishField(aggregate, field.Key, value, DateTime.UtcNow);
+                        }
+                    }).WaitAsync(operationTimeout, ct));
+
+                    try
+                    {
+                        await characteristic.StartNotifyAsync().WaitAsync(operationTimeout, ct);
+                        startedNotifications.Add(characteristic);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogWarning(ex,
+                            "Notify start failed for SmartShunt field {FieldKey}; periodic reads will continue",
+                            field.Key);
+                    }
+
+                    var initial = await characteristic.ReadValueAsync(new Dictionary<string, object>()).WaitAsync(operationTimeout, ct);
+                    PublishField(aggregate, field.Key, initial, DateTime.UtcNow);
+                }
+                catch (Exception ex) when (!field.IsRequired && ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Optional SmartShunt field {FieldKey} is unavailable; required telemetry will continue", field.Key);
+                }
             }
 
             while (await keepAliveTimer.WaitForNextTickAsync(ct))
             {
                 await SendPublicKeepAliveAsync(session, ct);
+                await RefreshRequiredFieldsAsync(session, aggregate, operationTimeout, ct);
+                var sample = _currentSample;
+                if (sample is null || IsRequiredSampleStale(
+                        sample,
+                        DateTime.UtcNow,
+                        TimeSpan.FromSeconds(_options.SampleStaleAfterSeconds)))
+                {
+                    throw new TimeoutException("SmartShunt required field notifications became stale.");
+                }
             }
         }
         finally
@@ -143,6 +161,13 @@ public sealed class SmartShuntPublicSession : BackgroundService, ISmartShuntSess
             _currentSample = aggregate.Update(fieldKey, value, updatedAtUtc);
     }
 
+    internal static bool IsRequiredSampleStale(SmartShuntLiveSample sample, DateTime nowUtc, TimeSpan staleAfter)
+    {
+        if (sample.RecordedAtUtc.Kind != DateTimeKind.Utc || nowUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("SmartShunt freshness timestamps must be UTC.");
+        return nowUtc - sample.RecordedAtUtc > staleAfter;
+    }
+
     private static async Task SendPublicKeepAliveAsync(DeviceSession session, CancellationToken ct)
     {
         var characteristic = await session.GetCharacteristicAsync(SmartShuntPublicProtocol.PublicKeepAliveUuid, ct);
@@ -151,9 +176,24 @@ public sealed class SmartShuntPublicSession : BackgroundService, ISmartShuntSess
             .WaitAsync(TimeSpan.FromSeconds(20), ct);
     }
 
+    private async Task RefreshRequiredFieldsAsync(
+        DeviceSession session,
+        SmartShuntPublicAggregate aggregate,
+        TimeSpan operationTimeout,
+        CancellationToken ct)
+    {
+        foreach (var field in SmartShuntPublicProtocol.Fields.Where(static field => field.IsRequired))
+        {
+            var characteristic = await session.GetCharacteristicAsync(field.Uuid, ct);
+            var value = await characteristic.ReadValueAsync(new Dictionary<string, object>()).WaitAsync(operationTimeout, ct);
+            PublishField(aggregate, field.Key, value, DateTime.UtcNow);
+        }
+    }
+
     private sealed class DeviceSession(string address, ILogger logger, TimeSpan connectTimeout) : IAsyncDisposable
     {
         private Device? _device;
+        private IReadOnlyDictionary<string, IGattCharacteristic1>? _characteristics;
 
         public Device Device => _device ?? throw new InvalidOperationException("Session is not connected.");
         public string Address { get; } = address;
@@ -198,19 +238,25 @@ public sealed class SmartShuntPublicSession : BackgroundService, ISmartShuntSess
         public async Task<IGattCharacteristic1> GetCharacteristicAsync(string characteristicUuid, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            var services = await Device.GetServicesAsync().WaitAsync(connectTimeout, ct) ?? [];
-            foreach (var service in services)
+            if (_characteristics is null)
             {
-                var characteristics = await service.GetCharacteristicsAsync().WaitAsync(connectTimeout, ct) ?? [];
-                foreach (var characteristic in characteristics)
+                var byUuid = new Dictionary<string, IGattCharacteristic1>(StringComparer.OrdinalIgnoreCase);
+                var services = await Device.GetServicesAsync().WaitAsync(connectTimeout, ct) ?? [];
+                foreach (var service in services)
                 {
-                    var uuid = await characteristic.GetUUIDAsync().WaitAsync(connectTimeout, ct);
-                    if (string.Equals(uuid, characteristicUuid, StringComparison.OrdinalIgnoreCase))
-                        return characteristic;
+                    var characteristics = await service.GetCharacteristicsAsync().WaitAsync(connectTimeout, ct) ?? [];
+                    foreach (var characteristic in characteristics)
+                    {
+                        var uuid = await characteristic.GetUUIDAsync().WaitAsync(connectTimeout, ct);
+                        byUuid[uuid] = characteristic;
+                    }
                 }
+                _characteristics = byUuid;
             }
 
-            throw new InvalidOperationException($"Characteristic {characteristicUuid} not found.");
+            return _characteristics.TryGetValue(characteristicUuid, out var result)
+                ? result
+                : throw new InvalidOperationException($"Characteristic {characteristicUuid} not found.");
         }
 
         public async ValueTask DisposeAsync()
@@ -228,6 +274,7 @@ public sealed class SmartShuntPublicSession : BackgroundService, ISmartShuntSess
             }
 
             _device = null;
+            _characteristics = null;
         }
 
         private async Task<Device> FindDeviceAsync(Adapter adapter, string address, CancellationToken ct)

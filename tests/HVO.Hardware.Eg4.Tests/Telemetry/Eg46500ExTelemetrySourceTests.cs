@@ -43,7 +43,9 @@ public sealed class Eg46500ExTelemetrySourceTests
             Eg46500ExInquiry.SecondaryFirmware,
             Eg46500ExInquiry.GeneralStatus,
             Eg46500ExInquiry.ParallelStatus,
-            Eg46500ExInquiry.ExtendedStatus);
+            Eg46500ExInquiry.ExtendedStatus,
+            Eg46500ExInquiry.TotalPvEnergy,
+            Eg46500ExInquiry.TotalLoadEnergy);
         sample.MpptDetail!.Trackers.Should().HaveCount(2);
         sample.MpptDetail.Trackers[1].Provenance.Should().Be(PowerObservationProvenance.Derived);
         sample.MpptDetail.Trackers[1].Confidence.Should().Contain("low-resolution/coarse");
@@ -52,6 +54,8 @@ public sealed class Eg46500ExTelemetrySourceTests
         sample.InverterDetail.Statuses.Select(value => value.Key).Should().Contain(
             "main-firmware", "secondary-firmware", "charge-stage", "fan-locked", "fan-pwm-percent",
             "parallel-role", "parallel-warning-flags", "mppt-1-charge-power-w");
+        sample.Energy!.Counters.Should().Contain(counter => counter.Key == "pv_energy" && counter.ValueKwh == 14473.1)
+            .And.Contain(counter => counter.Key == "load_energy" && counter.ValueKwh == 8381.8);
     }
 
     [TestMethod]
@@ -136,6 +140,49 @@ public sealed class Eg46500ExTelemetrySourceTests
         second.CurrentA.Should().Be(11);
         factory.Created.Should().Be(1);
         factory.Commands.Count(command => command == Eg46500ExInquiry.ProtocolId).Should().Be(1);
+        factory.Commands.Count(command => command == Eg46500ExInquiry.GeneralStatus).Should().Be(2);
+        factory.Commands.Count(command => command == Eg46500ExInquiry.TotalPvEnergy).Should().Be(1);
+        factory.Commands.Count(command => command == Eg46500ExInquiry.TotalLoadEnergy).Should().Be(1);
+    }
+
+    [TestMethod]
+    public async Task ReadAsync_EnergyProtocolFailureDoesNotDiscardCoreTelemetry()
+    {
+        var factory = new ScriptedFactory();
+        factory.AddSession([
+            .. IdentitySteps(),
+            Step(Eg46500ExInquiry.GeneralStatus, "(000.0 00.0 120.0 60.0 0000 0000 000 360 53.20 000 075 0030 00.0 000.0 00.00 00010 00010000 00 00 00000 010"),
+            new ScriptedStep(Eg46500ExInquiry.TotalPvEnergy,
+                Error: new Eg4TransportException(Eg4TransportFailureKind.Protocol, "unsupported")),
+        ]);
+        await using var source = new Eg46500ExTelemetrySource(factory, TimeProvider.System);
+
+        var sample = await source.ReadSampleAsync(Device(), CancellationToken.None);
+
+        sample.IsAvailable.Should().BeTrue();
+        sample.BatteryObservation!.CurrentA.Should().Be(10);
+        sample.Energy.Should().BeNull();
+    }
+
+    [TestMethod]
+    public async Task ReadAsync_EnergyFailureWaitsForNextRefreshWindow()
+    {
+        var factory = new ScriptedFactory();
+        factory.AddSession([
+            .. IdentitySteps(),
+            Step(Eg46500ExInquiry.GeneralStatus, "(000.0 00.0 120.0 60.0 0000 0000 000 360 53.20 000 075 0030 00.0 000.0 00.00 00010 00010000 00 00 00000 010"),
+            new ScriptedStep(Eg46500ExInquiry.TotalPvEnergy,
+                Error: new Eg4TransportException(Eg4TransportFailureKind.Protocol, "unsupported")),
+            Step(Eg46500ExInquiry.GeneralStatus, "(000.0 00.0 120.0 60.0 0000 0000 000 360 53.20 000 075 0030 00.0 000.0 00.00 00011 00010000 00 00 00000 010"),
+        ]);
+        var time = new FixedTimeProvider(new DateTimeOffset(2026, 8, 13, 5, 0, 0, TimeSpan.Zero));
+        await using var source = new Eg46500ExTelemetrySource(factory, time);
+
+        await source.ReadSampleAsync(Device(), CancellationToken.None);
+        await source.ReadSampleAsync(Device(), CancellationToken.None);
+
+        factory.Commands.Count(command => command == Eg46500ExInquiry.TotalPvEnergy).Should().Be(1);
+        factory.Commands.Count(command => command == Eg46500ExInquiry.TotalLoadEnergy).Should().Be(0);
         factory.Commands.Count(command => command == Eg46500ExInquiry.GeneralStatus).Should().Be(2);
     }
 
@@ -295,6 +342,10 @@ public sealed class Eg46500ExTelemetrySourceTests
                     return FrameResponse("(0 00000000000000 B 00 000.0 00.00 120.0 60.00 0000 0000 000 53.2 000 075 000.0 000 00000 00000 000 00000000 0 0 000 000 000 00 000 000.0 00");
                 if ((!steps.TryPeek(out next) || next.Inquiry != inquiry) && inquiry == Eg46500ExInquiry.ExtendedStatus)
                     return FrameResponse("(00001 22533 01 00 00 030 031 032 033 02 00 000 0035 0552 0000 00.00 11");
+                if ((!steps.TryPeek(out next) || next.Inquiry != inquiry) && inquiry == Eg46500ExInquiry.TotalPvEnergy)
+                    return FrameResponse("(14473100");
+                if ((!steps.TryPeek(out next) || next.Inquiry != inquiry) && inquiry == Eg46500ExInquiry.TotalLoadEnergy)
+                    return FrameResponse("(08381800");
                 if (!steps.TryDequeue(out var step)) throw new InvalidOperationException("No scripted inquiry remains.");
                 if (step.Inquiry != inquiry) throw new InvalidOperationException($"Expected {step.Inquiry}, received {inquiry}.");
                 step.Started?.TrySetResult();

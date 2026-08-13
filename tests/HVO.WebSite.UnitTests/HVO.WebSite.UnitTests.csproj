@@ -44,7 +44,13 @@
           Link="Fixtures/HomeAssistant/Configuration/packages/%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../deploy/home-assistant/configuration/templates/*.yaml"
-          Link="Fixtures/HomeAssistant/Configuration/templates/%(Filename)%(Extension)"
+           Link="Fixtures/HomeAssistant/Configuration/templates/%(Filename)%(Extension)"
+           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../deploy/home-assistant/configuration/sensors/*.yaml"
+          Link="Fixtures/HomeAssistant/Configuration/sensors/%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../deploy/home-assistant/configuration/utility-meters/*.yaml"
+          Link="Fixtures/HomeAssistant/Configuration/utility-meters/%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../deploy/home-assistant/configuration/automations/*.yaml"
           Link="Fixtures/HomeAssistant/Configuration/automations/%(Filename)%(Extension)"

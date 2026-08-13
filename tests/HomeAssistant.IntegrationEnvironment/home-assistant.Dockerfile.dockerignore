@@ -1,0 +1,9 @@
+**
+!tests/
+!tests/HomeAssistant.IntegrationEnvironment/
+!tests/HomeAssistant.IntegrationEnvironment/home-assistant/
+!tests/HomeAssistant.IntegrationEnvironment/home-assistant/configuration.yaml
+!deploy/
+!deploy/home-assistant/
+!deploy/home-assistant/configuration/
+!deploy/home-assistant/configuration/**

@@ -13,10 +13,23 @@ public sealed class Eg46500ExPi30ProtocolTests
     {
         Eg46500ExPi30Protocol.Encode(Eg46500ExInquiry.GeneralStatus).Should().Equal(0x51, 0x50, 0x49, 0x47, 0x53, 0xB7, 0xA9, 0x0D);
         Eg46500ExPi30Protocol.Encode(Eg46500ExInquiry.Pv2Status).Should().Equal(0x51, 0x50, 0x49, 0x47, 0x53, 0x32, 0x68, 0x2D, 0x0D);
-        Enum.GetNames<Eg46500ExInquiry>().Should().HaveCount(9)
+        Eg46500ExPi30Protocol.Encode(Eg46500ExInquiry.TotalPvEnergy).Should().Equal(0x51, 0x45, 0x54, 0x81, 0xB6, 0x0D);
+        Eg46500ExPi30Protocol.Encode(Eg46500ExInquiry.TotalLoadEnergy).Should().Equal(0x51, 0x4C, 0x54, 0x3B, 0x2E, 0x0D);
+        Enum.GetNames<Eg46500ExInquiry>().Should().HaveCount(11)
             .And.NotContain(name => name.Contains("Write", StringComparison.OrdinalIgnoreCase) || name.Contains("Set", StringComparison.OrdinalIgnoreCase));
         typeof(Eg46500ExPi30Protocol).GetMethods().Select(method => method.Name)
             .Should().NotContain(name => name.Contains("Write", StringComparison.OrdinalIgnoreCase) || name.Contains("Set", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void EnergyCounter_DecodesEightDigitWhAndRejectsOtherShapes()
+    {
+        Eg46500ExPi30Protocol.DecodeEnergyWh(FrameResponse("(00123456")).Should().Be(123456);
+
+        FluentActions.Invoking(() => Eg46500ExPi30Protocol.DecodeEnergyWh(FrameResponse("(1234")))
+            .Should().Throw<Eg4TransportException>().Which.Kind.Should().Be(Eg4TransportFailureKind.MalformedFrame);
+        FluentActions.Invoking(() => Eg46500ExPi30Protocol.DecodeEnergyWh(FrameResponse("(00012ABC")))
+            .Should().Throw<Eg4TransportException>().Which.Kind.Should().Be(Eg4TransportFailureKind.MalformedFrame);
     }
 
     [TestMethod]

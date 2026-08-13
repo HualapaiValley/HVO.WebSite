@@ -36,6 +36,27 @@ public sealed class HomeAssistantProjectionTests
     }
 
     [TestMethod]
+    public void CurrentState_FreshAcquisitionCanRecoverFromNewerSyntheticOfflineState()
+    {
+        var projection = new HomeAssistantMqttProjection(TestSupport.Identity(), Options.Create(TestSupport.Options()));
+        projection.UpsertDevice(TestSupport.Device());
+        var acquiredAt = DateTimeOffset.Parse("2026-08-11T12:00:00Z");
+        var offlineAt = acquiredAt.AddSeconds(1);
+
+        projection.PublishCurrentState(new(
+            TestSupport.Key,
+            offlineAt,
+            Array.Empty<KeyValuePair<string, JsonElement>>(),
+            available: false)).Should().BeTrue();
+        projection.PublishCurrentState(TestSupport.State(acquiredAt, 52.4)).Should().BeTrue();
+
+        var state = projection.Snapshot().Devices.Single().State!;
+        state.Available.Should().BeTrue();
+        state.ObservedAtUtc.Should().Be(acquiredAt);
+        state.ComponentValues["voltage"].GetDouble().Should().Be(52.4);
+    }
+
+    [TestMethod]
     public void CurrentState_RejectsComponentsNotInDefinition()
     {
         var projection = new HomeAssistantMqttProjection(TestSupport.Identity(), Options.Create(TestSupport.Options()));

@@ -12,7 +12,7 @@
     }
   },
   "Eg4": {
-    "DefaultPollIntervalSeconds": 60,
+    "DefaultPollIntervalSeconds": 15,
     "SimulationEnabled": false,
     "CentralIngestEndpoint": "https://www.hualapaivalleyobservatory.org/",
     "CentralApiKeySecret": "central-ingest-api-key",
@@ -26,7 +26,7 @@
         "Enabled": true,
         "Port": "/dev/hvo/eg4-6500ex-a",
         "UnitId": 0,
-        "PollIntervalSeconds": 60
+        "PollIntervalSeconds": 15
       },
       {
         "Type": "ChargeControllerMppt10048Hv",
@@ -36,7 +36,7 @@
         "Enabled": false,
         "Port": "/dev/serial/by-id/REPLACE_WITH_MPPT_ADAPTER",
         "UnitId": 1,
-        "PollIntervalSeconds": 60
+        "PollIntervalSeconds": 15
       },
       {
         "Type": "Inverter6500Ex",
@@ -46,7 +46,7 @@
         "Enabled": false,
         "Port": "/dev/hvo/eg4-6500ex-b",
         "UnitId": 0,
-        "PollIntervalSeconds": 60
+        "PollIntervalSeconds": 15
       }
     ]
   },

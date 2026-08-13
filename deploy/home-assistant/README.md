@@ -12,13 +12,54 @@ The tracked configuration is deployed under `/config/hvo`:
 - `configuration/lovelace.yaml` registers HVO YAML dashboards.
 - `configuration/packages/hvo.yaml` is the package entry point.
 - `configuration/templates/hvo.yaml` contains HVO template entities.
+- `configuration/sensors/hvo-energy.yaml` contains presentation-only energy integrators.
+- `configuration/utility-meters/hvo-energy.yaml` contains daily energy meters.
 - `configuration/automations/hvo.yaml` contains HVO automations.
 - `configuration/esphome/hvo-bluetooth-proxy.yaml` is the ESP32 Bluetooth proxy
   definition and is commissioned separately through ESPHome Device Builder.
 
-Templates and automations are intentionally empty until issue #331 defines
-stable entities and reviewed safety behavior. This establishes their supported
-source-controlled include paths without enabling speculative automation.
+Issue #331 defines availability-safe power templates and energy helpers. Derived
+energy remains a Home Assistant presentation concern and is never exported as
+source-native HVO telemetry.
+
+The HVO Operations dashboard groups the commissioned H5074/H5075 environment
+sensors, Davis weather, SmartShunt whole-bus battery status, individual JK BMS
+banks, and collector diagnostics. Gateway collectors publish a dedicated
+diagnostics device every 30 seconds with readable `sensor.hvo_<gateway>_*` and
+`binary_sensor.hvo_<gateway>_*` IDs. Health and freshness remain calculated by
+the collector-specific diagnostics providers; Home Assistant only presents and
+alerts on those authoritative states.
+
+Davis weather entities are included now, but Davis gateway diagnostics remain
+deferred until the collector's separate controlled maintenance window. The
+shared diagnostics projector is already wired for that later deployment.
+
+Critical automations create persistent notifications for source unavailability,
+stale/error freshness, critical gateway health, outbox backlogs above 10 rows,
+whole-bus state of charge below 20%, JK BMS alarms, and commissioned Govee
+availability/battery conditions. Stable notification IDs update an existing
+alert instead of producing an unbounded notification list. H5179 remains
+hardware/RF-blocked and is intentionally absent until it is commissioned.
+
+## Off-grid energy model
+
+The Energy presentation has no grid source. The 6500EX supplies native lifetime
+PV generation (`QET`) and AC output/load (`QLT`) counters. The external
+MPPT100-48HV PV input is integrated from its direct power sensor. SmartShunt
+charge and discharge are integrated separately from its signed whole-bus power.
+The external MPPT may sleep and remain unavailable after dark; unavailable data
+is never replaced with zero.
+
+The dashboard shows all three physical PV inputs: two 6500EX trackers and the
+external MPPT. Energy aggregation uses the combined native 6500EX counter plus
+the external controller counter, never the combined counter and its children.
+JK bank counters remain comparison/fallback candidates and are not combined
+with the SmartShunt whole-bus meter.
+
+The initial nighttime trial registers only the validated 6500EX solar source,
+SmartShunt battery, and AC load. The external MPPT integration helper is already
+deployed, but must receive a daylight sample and expose valid `kWh` statistics
+before it is added as the second Energy solar source.
 
 The Davis entity registry migration procedure is documented in
 `docs/home-assistant/davis-readable-id-migration.md`.
@@ -59,6 +100,7 @@ changing HA:
 Deploy, run Home Assistant configuration validation, and restart Core:
 
 ```bash
+export HVO_HOME_ASSISTANT_ALLOW_INSECURE=true
 ./scripts/deploy-home-assistant-dashboard.sh --apply
 ```
 
@@ -68,6 +110,7 @@ Optional overrides:
 HVO_PROXMOX_HOST=root@192.168.1.240 \
 HVO_HOME_ASSISTANT_VMID=101 \
 HVO_HOME_ASSISTANT_URL=http://192.168.1.113 \
+HVO_HOME_ASSISTANT_ALLOW_INSECURE=true \
 ./scripts/deploy-home-assistant-dashboard.sh --apply
 ```
 
@@ -99,8 +142,36 @@ dotnet test tests/HVO.WebSite.PlaywrightTests \
   --filter "FullyQualifiedName~HomeAssistantKasaDashboardPlaywrightTests"
 ```
 
-The test opens the dashboard at desktop and mobile widths. It does not click a
-switch or call any device service.
+Use `HomeAssistantEnergyDashboardPlaywrightTests` or
+`HomeAssistantOperationsDashboardPlaywrightTests` in the same filter to check
+the other dashboards. These tests open the dashboards at desktop and mobile
+widths. They do not click a switch or call any device service.
+
+The deterministic pinned-Home-Assistant suite loads the exact tracked
+automation YAML and uses MQTT simulator entities to exercise offline, stale,
+battery, gateway-health, and outbox-backlog transitions:
+
+```bash
+./tools/run-home-assistant-integration-tests.sh
+```
+
+## Energy preferences
+
+The dashboard deployment does not mutate Energy preferences. Check or apply the
+managed off-grid manifest transactionally through the supported WebSocket API:
+
+```bash
+set -a && source .env && set +a
+export HVO_HOME_ASSISTANT_ALLOW_INSECURE=true
+dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --backup
+dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-check
+dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-apply
+```
+
+The apply operation preserves unrelated preferences and restores the previous
+preferences if save, readback, or Energy validation fails. Keep the external
+MPPT out of the manifest until a daylight sample establishes valid `kWh`
+statistics metadata.
 
 ## One-time commissioning
 

@@ -43,6 +43,8 @@ internal sealed class Eg4HomeAssistantProjection
         Add(values, "temperature", sample.InverterDetail?.TemperatureC
             ?? sample.MpptDetail?.Temperatures.FirstOrDefault(static temperature => temperature.TemperatureC.HasValue)?.TemperatureC);
         Add(values, "operating_mode", sample.InverterDetail?.Operating?.Mode);
+        Add(values, "pv_energy_total", Energy(sample, "pv_energy"));
+        Add(values, "load_energy_total", Energy(sample, "load_energy"));
         if (device.Type == Eg4DeviceType.Inverter6500Ex)
             AddInverterDetail(values, sample);
         else
@@ -86,6 +88,8 @@ internal sealed class Eg4HomeAssistantProjection
             entities.Add(new HomeAssistantSensorDefinition("ac_output_voltage", "AC output voltage", "V", "voltage", Measurement, suggestedDisplayPrecision: 1));
             entities.Add(new HomeAssistantSensorDefinition("ac_output_frequency", "AC output frequency", "Hz", "frequency", Measurement, suggestedDisplayPrecision: 1));
             entities.Add(new HomeAssistantSensorDefinition("load_power", "Load power", "W", "power", Measurement, suggestedDisplayPrecision: 0));
+            entities.Add(new HomeAssistantSensorDefinition("pv_energy_total", "PV energy total", "kWh", "energy", "total_increasing", suggestedDisplayPrecision: 1));
+            entities.Add(new HomeAssistantSensorDefinition("load_energy_total", "AC load energy total", "kWh", "energy", "total_increasing", suggestedDisplayPrecision: 1));
             entities.Add(new HomeAssistantSensorDefinition("load_apparent_power", "Load apparent power", "VA", "apparent_power", Measurement, suggestedDisplayPrecision: 0));
             entities.Add(new HomeAssistantSensorDefinition("load_percentage", "Load percentage", "%", stateClass: Measurement, suggestedDisplayPrecision: 0));
             entities.Add(new HomeAssistantSensorDefinition("operating_mode", "Operating mode", entityCategory: "diagnostic"));
@@ -235,6 +239,10 @@ internal sealed class Eg4HomeAssistantProjection
 
     private static bool? ParseBoolean(string? value) =>
         bool.TryParse(value, out var parsed) ? parsed : null;
+
+    private static double? Energy(Eg4TelemetrySample sample, string key) =>
+        sample.Energy?.Counters.FirstOrDefault(counter =>
+            string.Equals(counter.Key, key, StringComparison.OrdinalIgnoreCase))?.ValueKwh;
 
     private static double? TotalPvPower(Eg4DeviceOptions device, Eg4TelemetrySample sample)
     {

@@ -31,6 +31,13 @@ public static class HomeAssistantMqttRegistration
         services.AddHostedService<HomeAssistantMqttWorker>();
         return services;
     }
+
+    public static IServiceCollection AddHvoHomeAssistantGatewayDiagnostics(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddHostedService<HomeAssistantGatewayDiagnosticsWorker>();
+        return services;
+    }
 }
 
 internal sealed class MqttRuntimeCredential

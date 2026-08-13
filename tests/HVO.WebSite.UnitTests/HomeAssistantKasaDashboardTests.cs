@@ -129,7 +129,10 @@ public sealed class HomeAssistantKasaDashboardTests
             .ToArray();
 
         lovelace.Should().Contain("filename: hvo/dashboards/hvo-kasa.yaml");
+        lovelace.Should().Contain("filename: hvo/dashboards/hvo-energy.yaml");
         package.Should().Contain("template: !include ../templates/hvo.yaml");
+        package.Should().Contain("sensor: !include ../sensors/hvo-energy.yaml");
+        package.Should().Contain("utility_meter: !include ../utility-meters/hvo-energy.yaml");
         package.Should().Contain("automation: !include ../automations/hvo.yaml");
         proxy.Should().Contain("bluetooth_proxy:");
         proxy.Should().Contain("active: true");

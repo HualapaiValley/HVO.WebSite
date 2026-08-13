@@ -14,6 +14,14 @@ internal interface IHomeAssistantRegistryClient : IAsyncDisposable
     Task<string> CreateBackupAsync(string name, CancellationToken cancellationToken);
     Task<IReadOnlyList<JsonElement>> GetLovelaceConfigurationsAsync(CancellationToken cancellationToken);
     Task<JsonElement> RenameAsync(string sourceEntityId, string targetEntityId, CancellationToken cancellationToken);
+    Task<JsonElement[]> ListStatesAsync(CancellationToken cancellationToken);
+    Task<JsonElement?> GetEnergyPreferencesAsync(CancellationToken cancellationToken);
+    Task<JsonElement> SaveEnergyPreferencesAsync(
+        IReadOnlyList<JsonElement> energySources,
+        IReadOnlyList<JsonElement> deviceConsumption,
+        IReadOnlyList<JsonElement> waterConsumption,
+        CancellationToken cancellationToken);
+    Task<JsonElement> ValidateEnergyAsync(CancellationToken cancellationToken);
 }
 
 internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessToken) : IHomeAssistantRegistryClient
@@ -115,6 +123,40 @@ internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessTok
 
     public Task<JsonElement> RenameAsync(string sourceEntityId, string targetEntityId, CancellationToken cancellationToken) =>
         CommandAsync(new { type = "config/entity_registry/update", entity_id = sourceEntityId, new_entity_id = targetEntityId }, cancellationToken);
+
+    public async Task<JsonElement[]> ListStatesAsync(CancellationToken cancellationToken)
+    {
+        var result = await CommandAsync(new { type = "get_states" }, cancellationToken);
+        return result.EnumerateArray().Select(static item => item.Clone()).ToArray();
+    }
+
+    public async Task<JsonElement?> GetEnergyPreferencesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await CommandAsync(new { type = "energy/get_prefs" }, cancellationToken);
+        }
+        catch (InvalidOperationException exception) when (exception.Message.Contains("No prefs", StringComparison.Ordinal))
+        {
+            return null;
+        }
+    }
+
+    public Task<JsonElement> SaveEnergyPreferencesAsync(
+        IReadOnlyList<JsonElement> energySources,
+        IReadOnlyList<JsonElement> deviceConsumption,
+        IReadOnlyList<JsonElement> waterConsumption,
+        CancellationToken cancellationToken) =>
+        CommandAsync(new
+        {
+            type = "energy/save_prefs",
+            energy_sources = energySources,
+            device_consumption = deviceConsumption,
+            device_consumption_water = waterConsumption,
+        }, cancellationToken);
+
+    public Task<JsonElement> ValidateEnergyAsync(CancellationToken cancellationToken) =>
+        CommandAsync(new { type = "energy/validate" }, cancellationToken);
 
     private static void EnsureBackupSucceeded(JsonElement backup)
     {

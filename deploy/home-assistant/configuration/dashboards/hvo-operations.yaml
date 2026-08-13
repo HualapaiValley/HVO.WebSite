@@ -1,0 +1,225 @@
+views:
+  - title: Environment
+    path: environment
+    icon: mdi:thermometer-lines
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        title: Observatory Sensors
+        cards:
+          - type: tile
+            entity: sensor.h5074_8d05_temperature
+            name: H5074 Temperature
+            icon: mdi:thermometer
+          - type: tile
+            entity: sensor.h5074_8d05_humidity
+            name: H5074 Humidity
+            icon: mdi:water-percent
+          - type: tile
+            entity: sensor.h5074_8d05_battery
+            name: H5074 Battery
+            icon: mdi:battery
+          - type: tile
+            entity: sensor.h5075_48d9_temperature
+            name: H5075 Temperature
+            icon: mdi:thermometer
+          - type: tile
+            entity: sensor.h5075_48d9_humidity
+            name: H5075 Humidity
+            icon: mdi:water-percent
+          - type: tile
+            entity: sensor.h5075_48d9_battery
+            name: H5075 Battery
+            icon: mdi:battery
+      - type: grid
+        title: Environment - 24 Hours
+        cards:
+          - type: statistics-graph
+            title: Temperature And Humidity
+            chart_type: line
+            period: 5minute
+            days_to_show: 1
+            stat_types:
+              - mean
+              - max
+              - min
+            entities:
+              - sensor.h5074_8d05_temperature
+              - sensor.h5074_8d05_humidity
+              - sensor.h5075_48d9_temperature
+              - sensor.h5075_48d9_humidity
+
+  - title: Weather
+    path: weather
+    icon: mdi:weather-partly-cloudy
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: Current Conditions
+        cards:
+          - type: tile
+            entity: sensor.davis_outside_temperature
+            name: Outside Temperature
+          - type: tile
+            entity: sensor.davis_outside_humidity
+            name: Outside Humidity
+          - type: tile
+            entity: sensor.davis_dew_point
+            name: Dew Point
+          - type: tile
+            entity: sensor.davis_barometric_pressure
+            name: Barometric Pressure
+          - type: tile
+            entity: sensor.davis_solar_radiation
+            name: Solar Radiation
+          - type: tile
+            entity: sensor.davis_uv_index
+            name: UV Index
+      - type: grid
+        title: Wind And Rain
+        cards:
+          - type: tile
+            entity: sensor.davis_wind_speed
+            name: Wind Speed
+          - type: tile
+            entity: sensor.davis_wind_speed_10_min_average
+            name: 10-Minute Wind
+          - type: tile
+            entity: sensor.davis_wind_gust
+            name: Wind Gust
+          - type: tile
+            entity: sensor.davis_rain_rate
+            name: Rain Rate
+          - type: tile
+            entity: sensor.davis_daily_rain
+            name: Rain Today
+          - type: tile
+            entity: sensor.davis_rain_24_hour
+            name: Rain - 24 Hours
+      - type: grid
+        title: Station Status
+        cards:
+          - type: tile
+            entity: sensor.davis_console_battery
+            name: Console Battery
+          - type: tile
+            entity: sensor.davis_transmitter_battery_status
+            name: Transmitter Battery
+          - type: tile
+            entity: sensor.davis_forecast
+            name: Station Forecast
+
+  - title: Batteries
+    path: batteries
+    icon: mdi:battery-heart-variant
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: Whole Battery Bus
+        cards:
+          - type: tile
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_21xstate_x5fof_x5fcharge
+            name: SmartShunt State Of Charge
+          - type: tile
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_18xbattery_x5fvoltage
+            name: SmartShunt Voltage
+          - type: tile
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower
+            name: SmartShunt Net Power
+      - type: grid
+        title: JK Bank State Of Charge
+        cards:
+          - type: tile
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_21xstate_x5fof_x5fcharge
+            name: Bank 1
+          - type: tile
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_21xstate_x5fof_x5fcharge
+            name: Bank 2
+          - type: tile
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_21xstate_x5fof_x5fcharge
+            name: Bank 3
+          - type: tile
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_21xstate_x5fof_x5fcharge
+            name: Bank 4
+          - type: tile
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_21xstate_x5fof_x5fcharge
+            name: Bank 5
+          - type: tile
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_21xstate_x5fof_x5fcharge
+            name: Bank 6
+          - type: tile
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_21xstate_x5fof_x5fcharge
+            name: Bank 7
+      - type: grid
+        title: JK Bank Alarms
+        cards:
+          - type: entities
+            entities:
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_5xalarm
+                name: Bank 1
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_5xalarm
+                name: Bank 2
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_5xalarm
+                name: Bank 3
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_5xalarm
+                name: Bank 4
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_5xalarm
+                name: Bank 5
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_5xalarm
+                name: Bank 6
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_5xalarm
+                name: Bank 7
+
+  - title: Gateway Health
+    path: gateways
+    icon: mdi:access-point-check
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        title: Collector Health
+        cards:
+          - type: tile
+            entity: sensor.hvo_eg4_gateway_health
+            name: EG4
+          - type: tile
+            entity: sensor.hvo_jkbms_gateway_health
+            name: JK BMS
+          - type: tile
+            entity: sensor.hvo_smartshunt_gateway_health
+            name: SmartShunt
+      - type: grid
+        title: Source Freshness
+        cards:
+          - type: tile
+            entity: sensor.hvo_eg4_source_freshness
+            name: EG4
+          - type: tile
+            entity: sensor.hvo_jkbms_source_freshness
+            name: JK BMS
+          - type: tile
+            entity: sensor.hvo_smartshunt_source_freshness
+            name: SmartShunt
+      - type: grid
+        title: Outbox Pending
+        cards:
+          - type: tile
+            entity: sensor.hvo_eg4_outbox_pending
+            name: EG4
+          - type: tile
+            entity: sensor.hvo_jkbms_outbox_pending
+            name: JK BMS
+          - type: tile
+            entity: sensor.hvo_smartshunt_outbox_pending
+            name: SmartShunt
+      - type: grid
+        title: Delivery Problems
+        cards:
+          - type: entities
+            entities:
+              - binary_sensor.hvo_eg4_outbox_problem
+              - binary_sensor.hvo_jkbms_outbox_problem
+              - binary_sensor.hvo_smartshunt_outbox_problem

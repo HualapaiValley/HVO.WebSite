@@ -10,5 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="davis-readable-ids.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="hvo-energy-preferences.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

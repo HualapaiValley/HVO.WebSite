@@ -40,6 +40,26 @@ public sealed class SmartShuntWorkerTests
     }
 
     [TestMethod]
+    public async Task RepeatedStaleIterationsPublishOneUnavailableTransitionAndAllowRecovery()
+    {
+        var fixture = Fixture(connected: true, stale: true);
+
+        await fixture.Worker.RunIterationAsync(CancellationToken.None);
+        await fixture.Worker.RunIterationAsync(CancellationToken.None);
+        fixture.Session.CurrentSample = new SmartShuntLiveSample
+        {
+            RecordedAtUtc = fixture.Now.AddSeconds(1),
+            VoltageV = fixture.Sample.VoltageV,
+            CurrentA = fixture.Sample.CurrentA,
+            PowerW = fixture.Sample.PowerW,
+            StateOfChargePercent = fixture.Sample.StateOfChargePercent,
+        };
+        await fixture.Worker.RunIterationAsync(CancellationToken.None);
+
+        fixture.HomeAssistant.Availability.Should().Equal(false, true);
+    }
+
+    [TestMethod]
     public async Task CancellationFromOutboxIsPropagated()
     {
         var fixture = Fixture(connected: true, cancelWriter: true);
@@ -61,10 +81,10 @@ public sealed class SmartShuntWorkerTests
         var worker = new SmartShuntWorker(services.GetRequiredService<IServiceScopeFactory>(), session, ha,
             Options.Create(new SmartShuntOptions { SourceId = "source", DeviceId = "device", SnapshotIntervalSeconds = 1, SampleStaleAfterSeconds = 60 }),
             telemetry, new FixedTimeProvider(now), NullLogger<SmartShuntWorker>.Instance);
-        return new(worker, writer, ha, sample, services, telemetry);
+        return new(worker, writer, ha, sample, session, now, services, telemetry);
     }
 
-    private sealed record TestFixture(SmartShuntWorker Worker, Writer Writer, HomeAssistant HomeAssistant, SmartShuntLiveSample Sample, ServiceProvider Services, GatewayTelemetry Telemetry);
+    private sealed record TestFixture(SmartShuntWorker Worker, Writer Writer, HomeAssistant HomeAssistant, SmartShuntLiveSample Sample, Session Session, DateTime Now, ServiceProvider Services, GatewayTelemetry Telemetry);
     private sealed class Session : ISmartShuntSessionState { public SmartShuntLiveSample? CurrentSample { get; set; } public bool IsConnected { get; set; } public string? LastError => null; }
     private sealed class Writer(int failures, bool cancel) : ISmartShuntOutboxWriter
     {

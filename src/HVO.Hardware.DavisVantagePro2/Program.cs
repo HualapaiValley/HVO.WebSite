@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddHvoEdgeRuntime();
 builder.Services.AddHvoHomeAssistantMqtt(builder.Configuration);
 builder.Services.AddDavisCollector(builder.Configuration);
+builder.Services.AddHvoHomeAssistantGatewayDiagnostics();
 
 var app = builder.Build();
 // The deployed davis-outbox volume can contain both the pre-shared schema and
