@@ -112,7 +112,9 @@ compact() {
 	mkdir -p "${backup_dir}"
 
 	printf 'Creating local outbox backup %s\n' "${backup_path}"
-	run_docker run --rm -v "${volume}:/data:ro" alpine:3.20 sh -c \
+	# SQLite needs write access for WAL shared-memory coordination even though the
+	# source connection is read-only and the backup itself is written to /tmp.
+	run_docker run --rm -v "${volume}:/data" alpine:3.20 sh -c \
 		'apk add --no-cache sqlite >/dev/null && test "$(sqlite3 -readonly /data/outbox.db "PRAGMA integrity_check")" = ok && sqlite3 -readonly /data/outbox.db ".backup /tmp/outbox.db" && tar -czf - -C /tmp outbox.db' > "${backup_path}"
 	[[ -s "${backup_path}" ]] || fail "Outbox backup is empty: ${backup_path}"
 	tar -tzf "${backup_path}" | grep -qx 'outbox.db' || fail "Outbox backup is not readable: ${backup_path}"
