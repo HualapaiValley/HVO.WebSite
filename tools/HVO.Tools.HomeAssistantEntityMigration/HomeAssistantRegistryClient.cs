@@ -106,7 +106,7 @@ internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessTok
         {
             configurations.Add(await CommandAsync(new { type = "lovelace/config" }, cancellationToken));
         }
-        catch (InvalidOperationException exception) when (exception.Message.Contains("No config found", StringComparison.Ordinal))
+        catch (HomeAssistantCommandException exception) when (exception.Code == "not_found")
         {
         }
 
@@ -136,7 +136,7 @@ internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessTok
         {
             return await CommandAsync(new { type = "energy/get_prefs" }, cancellationToken);
         }
-        catch (InvalidOperationException exception) when (exception.Message.Contains("No prefs", StringComparison.Ordinal))
+        catch (HomeAssistantCommandException exception) when (exception.Code == "not_found")
         {
             return null;
         }
@@ -189,10 +189,15 @@ internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessTok
                 continue;
             if (!root.TryGetProperty("success", out var success) || !success.GetBoolean())
             {
-                var error = root.TryGetProperty("error", out var errorElement)
-                    ? errorElement.GetProperty("message").GetString()
+                var code = root.TryGetProperty("error", out var errorElement)
+                    && errorElement.TryGetProperty("code", out var codeElement)
+                    ? codeElement.GetString() ?? "unknown_error"
+                    : "unknown_error";
+                var message = root.TryGetProperty("error", out errorElement)
+                    && errorElement.TryGetProperty("message", out var messageElement)
+                    ? messageElement.GetString() ?? "unknown error"
                     : "unknown error";
-                throw new InvalidOperationException($"Home Assistant command failed: {error}");
+                throw new HomeAssistantCommandException(code, message);
             }
             return root.TryGetProperty("result", out var result) ? result.Clone() : default;
         }
@@ -241,4 +246,10 @@ internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessTok
         }
         socket.Dispose();
     }
+}
+
+internal sealed class HomeAssistantCommandException(string code, string message)
+    : InvalidOperationException($"Home Assistant command failed ({code}): {message}")
+{
+    public string Code { get; } = code;
 }

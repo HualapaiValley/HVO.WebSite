@@ -73,7 +73,7 @@ if (energyMode)
     return 0;
 }
 
-var manifest = await EntityMigrationManifest.LoadAsync(manifestPath, CancellationToken.None);
+var manifest = await EntityMigrationManifest.LoadAsync(manifestPath, cancellation.Token);
 var backupPath = Path.Combine("artifacts", "home-assistant", $"{manifest.MigrationId}-{DateTime.UtcNow:yyyyMMddTHHmmssZ}.json");
 var trackedConfigurationPath = Path.Combine(Directory.GetCurrentDirectory(), "deploy", "home-assistant", "configuration");
 var runner = new EntityMigrationRunner(client, manifest, backupPath, trackedConfigurationPath);

@@ -65,5 +65,6 @@ public sealed class HomeAssistantGatewayDiagnosticsWorkerTests
         var state = HomeAssistantGatewayDiagnosticsWorker.CreateState(TestSupport.Key, snapshot, outbox, evaluatedAt);
 
         state.ComponentValues["gateway_health"].GetString().Should().Be("waiting");
+        state.ComponentValues["gateway_problem"].GetBoolean().Should().BeFalse();
     }
 }

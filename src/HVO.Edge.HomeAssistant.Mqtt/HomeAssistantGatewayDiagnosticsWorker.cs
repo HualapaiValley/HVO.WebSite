@@ -91,6 +91,7 @@ internal sealed class HomeAssistantGatewayDiagnosticsWorker(
         GatewayOutboxDiagnostics outbox,
         DateTimeOffset observedAtUtc)
     {
+        var waiting = snapshot.Health.SourceFreshness is GatewaySampleState.Unknown or GatewaySampleState.Waiting;
         var outboxProblem = !outbox.Schema.IsCompatible
             || outbox.FailedCount > 0
             || outbox.PendingCount > 10
@@ -98,7 +99,7 @@ internal sealed class HomeAssistantGatewayDiagnosticsWorker(
         var values = new Dictionary<string, JsonElement>
         {
             ["gateway_health"] = JsonSerializer.SerializeToElement(
-                snapshot.Health.SourceFreshness is GatewaySampleState.Unknown or GatewaySampleState.Waiting
+                waiting
                     ? "waiting"
                     : State(snapshot.Health.State)),
             ["source_freshness"] = JsonSerializer.SerializeToElement(State(snapshot.Health.SourceFreshness)),
@@ -109,7 +110,7 @@ internal sealed class HomeAssistantGatewayDiagnosticsWorker(
             ["outbox_pending"] = JsonSerializer.SerializeToElement(outbox.PendingCount),
             ["outbox_failed"] = JsonSerializer.SerializeToElement(outbox.FailedCount),
             ["outbox_state"] = JsonSerializer.SerializeToElement(outbox.MaintenanceState),
-            ["gateway_problem"] = JsonSerializer.SerializeToElement(snapshot.Health.State is GatewayHealthState.Warning or GatewayHealthState.Critical),
+            ["gateway_problem"] = JsonSerializer.SerializeToElement(!waiting && snapshot.Health.State is GatewayHealthState.Warning or GatewayHealthState.Critical),
             ["outbox_problem"] = JsonSerializer.SerializeToElement(outboxProblem)
         };
         return new(key, observedAtUtc, values);
