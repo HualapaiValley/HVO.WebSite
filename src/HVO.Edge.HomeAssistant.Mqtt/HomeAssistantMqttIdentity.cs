@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 
 namespace HVO.Edge.HomeAssistant.Mqtt;
@@ -24,8 +25,12 @@ public static class HomeAssistantMqttIdentity
     public static string EntityUniqueId(HomeAssistantDeviceKey key, string componentId) =>
         $"{DeviceId(key)}_{Segment(componentId)}";
 
-    public static string ReadableEntityId(HomeAssistantDeviceKey key, string componentId) =>
-        $"hvo_{ReadableSegment(key.GatewayId)}__{ReadableSegment(key.DeviceId)}__{ReadableSegment(componentId)}";
+    public static string ReadableEntityId(HomeAssistantDeviceKey key, string componentId)
+    {
+        var identityHash = SHA256.HashData(Encoding.UTF8.GetBytes(EntityUniqueId(key, componentId)));
+        var suffix = Convert.ToHexStringLower(identityHash.AsSpan(0, 4));
+        return $"hvo_{ReadableSegment(key.GatewayId)}_{ReadableSegment(key.DeviceId)}_{ReadableSegment(componentId)}_{suffix}";
+    }
 
     public static string GatewayClientId(string siteId, string gatewayId) =>
         $"hvo_{Segment(siteId)}_{Segment(gatewayId)}";

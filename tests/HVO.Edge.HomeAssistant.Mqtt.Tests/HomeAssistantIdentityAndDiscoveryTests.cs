@@ -16,7 +16,7 @@ public sealed class HomeAssistantIdentityAndDiscoveryTests
         HomeAssistantMqttIdentity.EntityUniqueId(key, "DC Voltage").Should().EndWith("22x_x44_x43_x20_x56oltage");
         HomeAssistantMqttIdentity.DeviceId(key).Should().Be(HomeAssistantMqttIdentity.DeviceId(key));
         HomeAssistantMqttIdentity.ReadableEntityId(key, "DC Voltage").Should()
-            .Be("hvo_gateway_one__battery_1__dc_voltage");
+            .MatchRegex("^hvo_gateway_one_battery_1_dc_voltage_[0-9a-f]{8}$");
     }
 
     [TestMethod]
@@ -25,21 +25,25 @@ public sealed class HomeAssistantIdentityAndDiscoveryTests
         var first = HomeAssistantMqttIdentity.ReadableEntityId(new("hvo", "a_b", "c"), "power");
         var second = HomeAssistantMqttIdentity.ReadableEntityId(new("hvo", "a", "b_c"), "power");
 
-        first.Should().Be("hvo_a_b__c__power").And.NotBe(second);
-        second.Should().Be("hvo_a__b_c__power");
+        first.Should().StartWith("hvo_a_b_c_power_").And.NotBe(second);
+        second.Should().StartWith("hvo_a_b_c_power_");
     }
 
     [TestMethod]
-    public void Discovery_GeneratedReadableEntityIdCollision_IsRejected()
+    public void Discovery_GeneratedReadableEntityIds_PreservePreviouslyCollidingComponents()
     {
         var definition = TestSupport.Device(
             TestSupport.Key,
             new HomeAssistantSensorDefinition("dc-voltage", "Voltage A"),
             new HomeAssistantSensorDefinition("DC Voltage", "Voltage B"));
 
-        var act = () => HomeAssistantDiscoverySerializer.Serialize(definition, TestSupport.Topics);
+        using var document = JsonDocument.Parse(HomeAssistantDiscoverySerializer.Serialize(definition, TestSupport.Topics));
+        var defaultEntityIds = document.RootElement.GetProperty("components")
+            .EnumerateObject()
+            .Select(component => component.Value.GetProperty("default_entity_id").GetString())
+            .ToArray();
 
-        act.Should().Throw<ArgumentException>().WithMessage("*Default entity ID collision*");
+        defaultEntityIds.Should().OnlyHaveUniqueItems().And.HaveCount(2);
     }
 
     [TestMethod]
