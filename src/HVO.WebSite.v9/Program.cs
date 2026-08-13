@@ -55,6 +55,7 @@ namespace HVO.WebSite.v9
             //   2. Azure CLI (az login) — local bare-metal dev
             //   3. Managed Identity — when deployed to Azure
             var hostDatabaseConnection = builder.Configuration.GetConnectionString(HostConfigurationPrecedence.DatabaseConnectionName);
+            var hostDataProtection = HostConfigurationPrecedence.CaptureDataProtection(builder.Configuration);
             var kvUri = builder.Configuration["KeyVault:Uri"];
             if (!string.IsNullOrWhiteSpace(kvUri))
             {
@@ -65,6 +66,7 @@ namespace HVO.WebSite.v9
                 // Host-local settings must win over legacy cloud secrets. In particular,
                 // self-hosted deployments provide the authoritative local SQL connection.
                 HostConfigurationPrecedence.Restore(builder.Configuration, hostDatabaseConnection);
+                HostConfigurationPrecedence.RestoreDataProtection(builder.Configuration, hostDataProtection);
             }
 
             // Emit one sanitized stdout stream; Docker bounds it and Promtail ships it once.
@@ -307,23 +309,52 @@ namespace HVO.WebSite.v9
             services.AddHostedService<Services.ApiKeySeedService>();
         }
 
-        private static void ConfigureDataProtection(IServiceCollection services, IConfiguration configuration)
+        internal static void ConfigureDataProtection(IServiceCollection services, IConfiguration configuration)
         {
             var dataProtection = services.AddDataProtection()
                 .SetApplicationName(configuration["DataProtection:ApplicationName"] ?? "HVO.WebSite.v9");
 
+            var keysDirectory = configuration["DataProtection:KeysDirectory"];
             var blobUri = configuration["DataProtection:BlobUri"];
             var keyIdentifier = configuration["DataProtection:KeyIdentifier"];
+            var hasKeysDirectory = !string.IsNullOrWhiteSpace(keysDirectory);
+            var hasBlobUri = !string.IsNullOrWhiteSpace(blobUri);
+            var hasKeyIdentifier = !string.IsNullOrWhiteSpace(keyIdentifier);
 
-            if (string.IsNullOrWhiteSpace(blobUri) || string.IsNullOrWhiteSpace(keyIdentifier))
+            if (hasKeysDirectory && hasBlobUri)
             {
+                throw new InvalidOperationException(
+                    "Configure only one Data Protection key repository: KeysDirectory or BlobUri.");
+            }
+
+            if (!hasKeysDirectory && !hasBlobUri)
+            {
+                if (hasKeyIdentifier)
+                {
+                    throw new InvalidOperationException(
+                        "DataProtection:KeyIdentifier requires KeysDirectory or BlobUri.");
+                }
+
                 return;
             }
 
+            if (!hasKeyIdentifier)
+            {
+                throw new InvalidOperationException(
+                    "Persisted Data Protection keys require DataProtection:KeyIdentifier for encryption at rest.");
+            }
+
             var credential = new DefaultAzureCredential();
-            dataProtection
-                .PersistKeysToAzureBlobStorage(new Uri(blobUri), credential)
-                .ProtectKeysWithAzureKeyVault(new Uri(keyIdentifier), credential);
+            if (hasKeysDirectory)
+            {
+                dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysDirectory!));
+            }
+            else
+            {
+                dataProtection.PersistKeysToAzureBlobStorage(new Uri(blobUri!), credential);
+            }
+
+            dataProtection.ProtectKeysWithAzureKeyVault(new Uri(keyIdentifier!), credential);
         }
 
         private static void ConfigureForwardedHeaders(IServiceCollection services, IConfiguration configuration)

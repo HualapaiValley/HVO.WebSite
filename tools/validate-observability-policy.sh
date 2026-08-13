@@ -74,6 +74,20 @@ for relative_file in "${app_compose_files[@]}"; do
 		' <<<"${config}" >/dev/null || fail "${relative_file} does not resolve to the bounded local-log/core policy"
 done
 
+website_compose="$(docker compose -f "${repo_root}/deploy/hvo-docker/docker-compose.yml" config --format json 2>/dev/null)"
+jq -e '
+	.services["hvo-website"].volumes
+	| any(.type == "volume" and .target == "/root/.aspnet/DataProtection-Keys")
+	' <<<"${website_compose}" >/dev/null ||
+	fail 'website Data Protection keys are not mounted on a persistent volume'
+jq -e '
+	.services["hvo-website"].environment
+	| .DataProtection__ApplicationName == "HVO.WebSite.v9" and
+	  .DataProtection__KeysDirectory == "/root/.aspnet/DataProtection-Keys" and
+	  (.DataProtection__KeyIdentifier | length) > 0
+	' <<<"${website_compose}" >/dev/null ||
+	fail 'website Data Protection persistence and encryption settings are incomplete'
+
 for relative_file in \
 	"deploy/hvo-docker/observability/compose.yaml" \
 	"deploy/hvo-docker/shared-infrastructure/compose.yaml"; do

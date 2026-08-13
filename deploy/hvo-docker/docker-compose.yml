@@ -43,8 +43,11 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_COLLECTOR_ENDPOINT:-}"
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       DataProtection__ApplicationName: "${DataProtection__ApplicationName:-HVO.WebSite.v9}"
-      DataProtection__KeyIdentifier: "${DataProtection__KeyIdentifier:-}"
+      DataProtection__KeysDirectory: "/root/.aspnet/DataProtection-Keys"
+      DataProtection__KeyIdentifier: "${DataProtection__KeyIdentifier:-https://hvoobs-kv.vault.azure.net/keys/hvo-website-dp}"
       DataProtection__BlobUri: "${DataProtection__BlobUri:-}"
+    volumes:
+      - hvo-website-data-protection:/root/.aspnet/DataProtection-Keys
     networks:
       - website
       - mssql
@@ -65,3 +68,7 @@ networks:
   mssql:
     name: mssql_default
     external: true
+
+volumes:
+  hvo-website-data-protection:
+    name: hvo-website-data-protection

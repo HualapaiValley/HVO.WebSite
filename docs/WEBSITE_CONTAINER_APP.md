@@ -156,9 +156,13 @@ Wire Azure Container Apps probes to the built-in endpoints exposed by `HVO.WebSi
 - The application already emits telemetry via OTLP export when the OTel endpoint is configured.
 - The ACA environment should also keep platform logs enabled so ingress, revision, and console diagnostics are available alongside app telemetry.
 
-## Current Runtime Status
+## Historical Azure Runtime Status
 
-The earlier deployment blockers have been resolved:
+This section records the former Azure Container App deployment. The active
+self-hosted deployment and its durable key-ring procedure are documented in
+[`WEBSITE_DATA_PROTECTION.md`](WEBSITE_DATA_PROTECTION.md).
+
+The earlier Azure deployment blockers were resolved:
 
 - ASP.NET Core Data Protection now uses Azure Blob Storage for persistence and Azure Key Vault for encryption.
 - The website Entra app client secret is stored in `hvo-central-kv` as

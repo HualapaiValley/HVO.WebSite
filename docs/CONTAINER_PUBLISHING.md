@@ -94,6 +94,12 @@ Deploy the hvo-docker website stack to a specific image tag:
 
 If `--tag` is omitted, the script uses the image configured by the hvo-docker compose file or rebuilds locally unless `--no-build` is supplied.
 
+The website deployment also verifies that ASP.NET Core Data Protection uses the
+durable encrypted key ring. Before the first migration or any key-ring change,
+follow [WEBSITE_DATA_PROTECTION.md](WEBSITE_DATA_PROTECTION.md) for backup,
+restore, authentication-continuity, and rollback requirements. Never remove the
+named key volume with `docker compose down -v`.
+
 Deploy Pi gateway compose stacks to the configured Docker context:
 
 ```bash

@@ -176,6 +176,7 @@ docker --context devpi5 compose up -d --build
 | [Project History](docs/PROJECT_HISTORY.md) | Session-by-session working history, key decisions, and next-context notes |
 | [Architecture](docs/ARCHITECTURE.md) | Current system baseline, data flow, collector pattern, and future integration direction |
 | [Container Publishing](docs/CONTAINER_PUBLISHING.md) | Self-hosted registry inventory, versioning workflow, publish script usage |
+| [Website Data Protection](docs/WEBSITE_DATA_PROTECTION.md) | Durable encrypted key-ring deployment, backup, restore, and rollback |
 | [Website Container App](docs/WEBSITE_CONTAINER_APP.md) | Azure Container App deployment decisions and runtime requirements for `HVO.WebSite` |
 
 ---
