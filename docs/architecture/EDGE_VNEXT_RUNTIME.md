@@ -59,6 +59,13 @@ secrets, directories, and SQLite schema are ready before ordinary workers start.
 | `/app/data/outbox.db` | Durable SQLite outbox | Read-write volume |
 | `/run/secrets/*` | One secret value per referenced file | Read-only secret mount |
 
+The outbox is a delivery queue, not the canonical historical store. Delivered
+rows are retained for one day for operational verification, then deleted.
+Failed rows retain their configured intervention window, while pending rows are
+never age-purged. SQLite uses incremental auto-vacuum so daily queue maintenance
+returns deleted pages to the filesystem without a blocking full vacuum during
+acquisition.
+
 Production paths must be absolute. The configuration file must remain under the
 configured config root, and secret references must be relative file names that
 resolve under the secret root. Runtime code creates only the data directory; it

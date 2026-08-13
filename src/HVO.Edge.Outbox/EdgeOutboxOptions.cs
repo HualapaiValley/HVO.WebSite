@@ -32,7 +32,7 @@ public sealed class EdgeOutboxOptions
     public int MaxBackoffSeconds { get; set; } = 300;
 
     [Range(0, 3650)]
-    public int SentRetentionDays { get; set; } = 7;
+    public int SentRetentionDays { get; set; } = 1;
 
     [Range(0, 3650)]
     public int FailedRetentionDays { get; set; } = 30;

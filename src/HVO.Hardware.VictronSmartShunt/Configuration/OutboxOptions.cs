@@ -26,7 +26,7 @@ public sealed class OutboxOptions
     public string DbPath { get; set; } = string.Empty;
 
     [Range(0, 3650)]
-    public int SentRetentionDays { get; set; } = 7;
+    public int SentRetentionDays { get; set; } = 1;
 
     [Range(0, 3650)]
     public int FailedRetentionDays { get; set; } = 30;

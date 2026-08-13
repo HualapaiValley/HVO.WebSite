@@ -61,6 +61,35 @@ public sealed class EdgeOutboxSqliteDatabaseInitializerTests
     }
 
     [TestMethod]
+    public async Task EnsureCreatedAsync_EnablesIncrementalAutoVacuumForNewDatabase()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"hvo-outbox-vacuum-{Guid.NewGuid():N}.db");
+        try
+        {
+            await using var db = new TestOutboxDbContext(
+                new DbContextOptionsBuilder<TestOutboxDbContext>()
+                    .UseSqlite($"Data Source={databasePath}")
+                    .Options);
+
+            await EdgeOutboxSqliteDatabaseInitializer.EnsureCreatedAsync(db, "power.reading", "1");
+
+            await using var command = db.Database.GetDbConnection().CreateCommand();
+            command.CommandText = "PRAGMA auto_vacuum";
+            if (command.Connection!.State != System.Data.ConnectionState.Open)
+                await command.Connection.OpenAsync();
+            Convert.ToInt32(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture)
+                .Should().Be(2);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(databasePath);
+            File.Delete($"{databasePath}-shm");
+            File.Delete($"{databasePath}-wal");
+        }
+    }
+
+    [TestMethod]
     public async Task EnsureCreatedAsync_ThrowsClearError_WhenLegacyNotNullColumnBlocksSharedInserts()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:");

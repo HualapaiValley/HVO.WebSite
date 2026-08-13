@@ -218,6 +218,14 @@ public sealed class EdgeOutboxStoreTests
     }
 
     [TestMethod]
+    public async Task ReclaimFreePagesAsync_RejectsNonPositiveLimit()
+    {
+        var act = async () => await _store.ReclaimFreePagesAsync(0, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
+    [TestMethod]
     public async Task RequeueRetryExhaustedAsync_MovesRecords_BackToPending()
     {
         await _store.EnqueueAsync(Message("power.reading", "2026-05-23T10:00:00Z"), CancellationToken.None);

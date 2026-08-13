@@ -359,9 +359,13 @@ public sealed class PowerApiForwarder : BackgroundService
         await using var serviceScope = _scopeFactory.CreateAsyncScope();
         var store = serviceScope.ServiceProvider.GetRequiredService<EdgeOutboxStore<OutboxDbContext>>();
         var deleted = await store.CompactSentAsync(TimeSpan.FromDays(_options.SentRetentionDays), ct);
+        var pagesReclaimed = await store.ReclaimFreePagesAsync(4096, ct);
 
-        if (deleted > 0)
-            _logger.LogInformation("Power outbox compaction deleted {Count} sent record(s)", deleted);
+        if (deleted > 0 || pagesReclaimed > 0)
+            _logger.LogInformation(
+                "Power outbox compaction deleted {Count} sent record(s) and reclaimed {PageCount} page(s)",
+                deleted,
+                pagesReclaimed);
     }
 
     private bool TryReadPayload(EdgeOutboxRecord record, out PowerReadingPayload payload)

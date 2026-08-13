@@ -107,7 +107,7 @@ services:
       Outbox__MaxBackoffSeconds: ${KASA_OUTBOX_MAXBACKOFFSECONDS:-300}
       Outbox__SweepIntervalSeconds: ${KASA_OUTBOX_SWEEPINTERVALSECONDS:-5}
       Outbox__BatchSize: ${KASA_OUTBOX_BATCHSIZE:-50}
-      Outbox__SentRetentionDays: ${KASA_OUTBOX_SENTRETENTIONDAYS:-7}
+      Outbox__SentRetentionDays: ${KASA_OUTBOX_SENTRETENTIONDAYS:-1}
       Outbox__FailedRetentionDays: ${KASA_OUTBOX_FAILEDRETENTIONDAYS:-30}
       Outbox__PendingWarningCount: ${KASA_OUTBOX_PENDINGWARNINGCOUNT:-10}
       Outbox__FailedCriticalCount: ${KASA_OUTBOX_FAILEDCRITICALCOUNT:-1}

@@ -116,7 +116,8 @@ APIs may expose both the UTC instant and the display timezone metadata, for exam
 
 Deployed gateways can accumulate millions of outbox rows during long-running deployments and outage backfills. Compaction runs once per day and deletes terminal rows older than the configured retention.
 
-- `SentRetentionDays` (default 7) controls deletion of sent records.
+- `SentRetentionDays` (default 1) controls deletion of sent records. Outboxes are
+  delivery queues; canonical history belongs in the central database.
 - `FailedRetentionDays` (default 30) controls deletion of failed records.
 - Compaction only removes records that have been in their terminal state for longer than the retention window. Pending and retrying records are never compacted.
 - Compaction does not resolve a backlog; it only reclaims disk space for already-delivered or already-failed data.

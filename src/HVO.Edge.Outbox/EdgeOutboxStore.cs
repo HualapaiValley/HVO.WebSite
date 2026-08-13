@@ -203,6 +203,28 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
             .ExecuteDeleteAsync(ct);
     }
 
+    public async Task<int> ReclaimFreePagesAsync(int maxPages, CancellationToken ct)
+    {
+        if (maxPages < 1)
+            throw new ArgumentOutOfRangeException(nameof(maxPages), maxPages, "Page count must be positive.");
+        if (!_db.Database.IsSqlite())
+            return 0;
+
+        var before = await ReadPragmaIntAsync("freelist_count", ct).ConfigureAwait(false);
+        if (before == 0)
+            return 0;
+
+        await using (var command = _db.Database.GetDbConnection().CreateCommand())
+        {
+            command.CommandText = $"PRAGMA incremental_vacuum({maxPages})";
+            if (command.Connection!.State != System.Data.ConnectionState.Open)
+                await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+            await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+        var after = await ReadPragmaIntAsync("freelist_count", ct).ConfigureAwait(false);
+        return Math.Max(0, before - after);
+    }
+
     public async Task<int> RequeueRetryExhaustedAsync(CancellationToken ct)
     {
         var records = await _db.OutboxRecords
@@ -224,6 +246,15 @@ public sealed class EdgeOutboxStore<TContext>(TContext db)
     }
 
     public Task SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
+
+    private async Task<int> ReadPragmaIntAsync(string pragma, CancellationToken ct)
+    {
+        await using var command = _db.Database.GetDbConnection().CreateCommand();
+        command.CommandText = $"PRAGMA {pragma}";
+        if (command.Connection!.State != System.Data.ConnectionState.Open)
+            await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+        return Convert.ToInt32(await command.ExecuteScalarAsync(ct).ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     private static string NormalizeRequired(string value, string name)
     {
