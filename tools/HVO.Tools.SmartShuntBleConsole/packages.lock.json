@@ -12,9 +12,10 @@
         }
       },
       "Tmds.DBus": {
-        "type": "Transitive",
-        "resolved": "0.20.0",
-        "contentHash": "zbWoimlpWKBIyc9JqNr26f0pnJ7W5M78XCks0J02qXEQykWzIgzR3ZCIO7yZyeqww+Oz2Jh+62GnkErNLyIG9w=="
+        "type": "CentralTransitive",
+        "requested": "[0.94.2, )",
+        "resolved": "0.94.2",
+        "contentHash": "7tKdC4X6yhGnAFyRmZ4OAAF9pVccZ0qn+2tYZfDlF2B8I74ehXBedhtd74nM4J5vapDew/5hlXdhtAnqdeKsIA=="
       }
     }
   }

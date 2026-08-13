@@ -212,39 +212,37 @@ namespace HVO.WebSite.v9
                 .AddDbContextCheck<HvoDbContext>("database-legacy", tags: new[] { "database", "ef" })
                 .AddDbContextCheck<HvoV9DbContext>("database-v9", tags: new[] { "database", "ef" });
 
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-            // NOTE: Use built-in OpenAPI/Swagger functionality instead of custom documentation endpoints
-            // This provides automatic API documentation generation from controller attributes
-            services.AddOpenApi("v1", options =>
-            {
-                options.AddDocumentTransformer((document, context, cancellationToken) =>
-                {
-                    document.Info = new OpenApiInfo
-                    {
-                        Title = "HVO Weather API",
-                        Version = "v1.0",
-                        Description = "Hualapai Valley Observatory Weather API for accessing current conditions and daily highs/lows",
-                        Contact = new OpenApiContact
-                        {
-                            Name = "HVO Development Team",
-                            Email = "admin@hualapai-valley-observatory.com"
-                        }
-                    };
-                    return Task.CompletedTask;
-                });
-            });
-
-            // Enable endpoints API explorer for OpenAPI
-            services.AddEndpointsApiExplorer();
-
             // Add API versioning
             services.AddApiVersioning(opt =>
             {
                 opt.DefaultApiVersion = new ApiVersion(1, 0);
-                opt.AssumeDefaultVersionWhenUnspecified = true;
                 opt.ReportApiVersions = true;
                 opt.ApiVersionReader = new UrlSegmentApiVersionReader();
-            }).AddMvc();
+            })
+                .AddMvc()
+                .AddApiExplorer(options =>
+                {
+                    options.GroupNameFormat = "'v'V";
+                    options.SubstituteApiVersionInUrl = true;
+                })
+                .AddOpenApi(options =>
+                {
+                    options.Document.AddDocumentTransformer((document, context, cancellationToken) =>
+                    {
+                        document.Info = new OpenApiInfo
+                        {
+                            Title = "HVO Weather API",
+                            Version = $"v{options.Description.ApiVersion}",
+                            Description = "Hualapai Valley Observatory Weather API for accessing current conditions and daily highs/lows",
+                            Contact = new OpenApiContact
+                            {
+                                Name = "HVO Development Team",
+                                Email = "admin@hualapai-valley-observatory.com"
+                            }
+                        };
+                        return Task.CompletedTask;
+                    });
+                });
 
             // ── Telemetry ──────────────────────────────────────────────────────────────────────────────
             services.AddTelemetry(configuration.GetSection("Telemetry"));
@@ -430,7 +428,7 @@ namespace HVO.WebSite.v9
 
             // Built-in OpenAPI endpoint - provides automatic API documentation
             // Available at: /openapi/v1.json
-            app.MapOpenApi();
+            app.MapOpenApi().WithDocumentPerVersion();
 
             if (app.Environment.IsDevelopment())
             {
