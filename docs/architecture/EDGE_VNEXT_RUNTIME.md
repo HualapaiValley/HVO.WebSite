@@ -64,7 +64,8 @@ rows are retained for one day for operational verification, then deleted.
 Failed rows retain their configured intervention window, while pending rows are
 never age-purged. SQLite uses incremental auto-vacuum so daily queue maintenance
 returns deleted pages to the filesystem without a blocking full vacuum during
-acquisition.
+acquisition. Retention deletion uses bounded transactions so a large first purge
+cannot hold SQLite's write lock long enough to starve device acquisition.
 
 Production paths must be absolute. The configuration file must remain under the
 configured config root, and secret references must be relative file names that
