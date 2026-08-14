@@ -16,5 +16,6 @@
     <ProjectReference Include="..\HVO.Edge.HomeAssistant.Mqtt\HVO.Edge.HomeAssistant.Mqtt.csproj" />
     <ProjectReference Include="..\HVO.Edge.Hosting\HVO.Edge.Hosting.csproj" />
     <ProjectReference Include="..\HVO.Edge.Outbox\HVO.Edge.Outbox.csproj" />
+    <ProjectReference Include="..\HVO.Staging\HVO.Staging.csproj" />
   </ItemGroup>
 </Project>

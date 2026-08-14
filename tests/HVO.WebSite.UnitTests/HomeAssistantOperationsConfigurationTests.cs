@@ -18,7 +18,7 @@ public sealed class HomeAssistantOperationsConfigurationTests
             .And.Contain("title: Batteries")
             .And.Contain("title: Gateway Health")
             .And.Contain("sensor.h5074_8d05_temperature")
-            .And.Contain("sensor.davis_wind_gust")
+            .And.Contain("navigation_path: /hvo-weather/overview")
             .And.Contain("SmartShunt State Of Charge")
             .And.Contain("sensor.hvo_eg4_outbox_pending");
     }

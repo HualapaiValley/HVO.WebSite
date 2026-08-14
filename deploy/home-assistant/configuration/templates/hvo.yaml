@@ -19,3 +19,13 @@
         {{ 'sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower' | has_value }}
       state: >-
         {{ [-(states('sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower') | float), 0] | max }}
+    - name: HVO Forecast Cloud Coverage
+      unique_id: hvo_forecast_cloud_coverage
+      default_entity_id: sensor.hvo_forecast_cloud_coverage
+      unit_of_measurement: "%"
+      state_class: measurement
+      icon: mdi:weather-cloudy
+      availability: >-
+        {{ 'weather.forecast_home' | has_value and state_attr('weather.forecast_home', 'cloud_coverage') is not none }}
+      state: >-
+        {{ state_attr('weather.forecast_home', 'cloud_coverage') }}

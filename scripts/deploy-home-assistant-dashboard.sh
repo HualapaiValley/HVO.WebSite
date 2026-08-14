@@ -13,6 +13,7 @@ mode="$1"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 lovelace_file="$repo_root/deploy/home-assistant/configuration/lovelace.yaml"
 configuration_root="$repo_root/deploy/home-assistant/configuration"
+frontend_root="$configuration_root/frontend"
 managed_entities_file="$configuration_root/managed-entities.txt"
 ha_url="${HVO_HOME_ASSISTANT_URL:-http://192.168.1.113}"
 proxmox_host="${HVO_PROXMOX_HOST:-root@192.168.1.240}"
@@ -33,9 +34,9 @@ if [[ "$ha_url" == http://* && "${HVO_HOME_ASSISTANT_ALLOW_INSECURE:-false}" != 
 fi
 
 mapfile -t referenced_entities < <(
-    rg --no-filename --only-matching '(entity: |entity_id: |^\s+- )[a-z0-9_]+\.[a-z0-9_]+' \
+    rg --no-filename --only-matching '([a-z0-9_]+_entity: |entity: |entity_id: |^\s+- )[a-z0-9_]+\.[a-z0-9_]+' \
         "$configuration_root/dashboards" "$configuration_root/automations" --glob '*.yaml' |
-        sed -E 's/.*(entity: |entity_id: |- )//' |
+        sed -E 's/.*(: |- )//' |
         sort -u
 )
 
@@ -43,6 +44,11 @@ states="$(curl -fsS \
     -H "Authorization: Bearer ${HOME_ASSISTANT_TOKEN}" \
     -H "Content-Type: application/json" \
     "$ha_url/api/states")"
+
+if ! jq -e '.[] | select(.entity_id == "weather.forecast_home") | .attributes.cloud_coverage | numbers' >/dev/null <<<"$states"; then
+    printf 'Commissioned external weather entity weather.forecast_home must expose numeric cloud_coverage.\n' >&2
+    exit 1
+fi
 
 missing=0
 for entity_id in "${referenced_entities[@]}"; do
@@ -59,6 +65,10 @@ fi
 
 if rg -n 'https?://|\.storage' "$configuration_root" --glob '*.yaml' >/dev/null; then
     printf 'Home Assistant configuration must not contain external resources.\n' >&2
+    exit 1
+fi
+if rg -n 'https?://|\.storage' "$frontend_root" --glob '*.js' >/dev/null; then
+    printf 'Home Assistant frontend assets must not contain external resources.\n' >&2
     exit 1
 fi
 
@@ -124,7 +134,7 @@ rollback() {
         return
     fi
 
-    guest_exec "cp '$backup_root/configuration.yaml' '$main_config' && rm -rf '$guest_config_root/hvo' '$staging_root' && if [ -f '$backup_root/had-hvo' ]; then cp -a '$backup_root/hvo' '$guest_config_root/hvo'; fi && ha core restart" >/dev/null || true
+    guest_exec "cp '$backup_root/configuration.yaml' '$main_config' && rm -rf '$guest_config_root/hvo' '$guest_config_root/www/hvo' '$staging_root' && if [ -f '$backup_root/had-hvo' ]; then cp -a '$backup_root/hvo' '$guest_config_root/hvo'; fi && if [ -f '$backup_root/had-www-hvo' ]; then mkdir -p '$guest_config_root/www' && cp -a '$backup_root/www-hvo' '$guest_config_root/www/hvo'; fi && ha core restart" >/dev/null || true
     deployment_started=0
 }
 cancel() {
@@ -135,9 +145,10 @@ cancel() {
 trap rollback ERR
 trap cancel INT TERM
 
-guest_exec "mkdir -p '$backup_root' '$staging_root' && cp '$main_config' '$backup_root/configuration.yaml' && if [ -d '$guest_config_root/hvo' ]; then cp -a '$guest_config_root/hvo' '$backup_root/hvo' && touch '$backup_root/had-hvo'; fi" >/dev/null
+guest_exec "mkdir -p '$backup_root' '$staging_root' && cp '$main_config' '$backup_root/configuration.yaml' && if [ -d '$guest_config_root/hvo' ]; then cp -a '$guest_config_root/hvo' '$backup_root/hvo' && touch '$backup_root/had-hvo'; fi && if [ -d '$guest_config_root/www/hvo' ]; then cp -a '$guest_config_root/www/hvo' '$backup_root/www-hvo' && touch '$backup_root/had-www-hvo'; fi" >/dev/null
 deployment_started=1
 deploy_file "$lovelace_file" "$staging_root/lovelace.yaml"
+deploy_file "$frontend_root/hvo-weather-wind-card.js" "$staging_root/frontend/hvo-weather-wind-card.js"
 managed_directories=(dashboards packages templates sensors utility-meters automations)
 for directory in "${managed_directories[@]}"; do
     deploy_directory "$directory" "$staging_root"
@@ -150,6 +161,7 @@ mapfile -t candidate_files < <(
 printf -v candidate_file_list "'%s' " "${candidate_files[@]}"
 guest_exec "for file in $candidate_file_list; do test -s '$staging_root/'\"\$file\" || { printf 'Candidate Home Assistant file is missing or empty: %s\\n' \"\$file\" >&2; exit 1; }; done" >/dev/null
 guest_exec "rm -rf '$guest_config_root/hvo' && mv '$staging_root' '$guest_config_root/hvo'" >/dev/null
+guest_exec "mkdir -p '$guest_config_root/www' && rm -rf '$guest_config_root/www/hvo' && mv '$guest_config_root/hvo/frontend' '$guest_config_root/www/hvo'" >/dev/null
 
 guest_exec "if grep -q '^lovelace: !include hvo/lovelace.yaml$' '$main_config'; then exit 0; elif grep -q '^lovelace:' '$main_config'; then printf 'configuration.yaml already has a different top-level lovelace key; merge hvo/lovelace.yaml manually.\n' >&2; exit 1; else printf '\nlovelace: !include hvo/lovelace.yaml\n' >> '$main_config'; fi" >/dev/null
 guest_exec "if grep -q '^  packages: !include_dir_named hvo/packages$' '$main_config'; then exit 0; elif grep -q '^homeassistant:' '$main_config'; then printf 'configuration.yaml already has a homeassistant key without the HVO package include; merge hvo/packages manually.\n' >&2; exit 1; else printf '\nhomeassistant:\n  packages: !include_dir_named hvo/packages\n' >> '$main_config'; fi" >/dev/null
@@ -160,7 +172,7 @@ mapfile -t managed_files < <(
 )
 managed_files+=("hvo/lovelace.yaml")
 printf -v managed_file_list "'%s' " "${managed_files[@]}"
-verify_deployment="for file in $managed_file_list; do test -s '$guest_config_root/'\"\$file\" || { printf 'Managed Home Assistant file is missing or empty: %s\\n' \"\$file\" >&2; exit 1; }; done; grep -q '^lovelace: !include hvo/lovelace.yaml$' '$main_config' || { printf 'Managed Lovelace include is missing.\\n' >&2; exit 1; }; grep -q '^  packages: !include_dir_named hvo/packages$' '$main_config' || { printf 'Managed package include is missing.\\n' >&2; exit 1; }"
+verify_deployment="for file in $managed_file_list; do test -s '$guest_config_root/'\"\$file\" || { printf 'Managed Home Assistant file is missing or empty: %s\\n' \"\$file\" >&2; exit 1; }; done; test -s '$guest_config_root/www/hvo/hvo-weather-wind-card.js' || { printf 'Managed weather frontend asset is missing or empty.\\n' >&2; exit 1; }; grep -q '^lovelace: !include hvo/lovelace.yaml$' '$main_config' || { printf 'Managed Lovelace include is missing.\\n' >&2; exit 1; }; grep -q '^  packages: !include_dir_named hvo/packages$' '$main_config' || { printf 'Managed package include is missing.\\n' >&2; exit 1; }"
 guest_exec "$verify_deployment" >/dev/null
 
 validation="$(curl -fsS -X POST \
@@ -203,7 +215,7 @@ for _ in {1..60}; do
         guest_exec "$verify_deployment" >/dev/null
         guest_exec "rm -rf '$backup_root'" >/dev/null
         deployment_started=0
-        printf 'HVO managed configuration deployed; dashboards are at %s/hvo-kasa/overview, %s/hvo-energy/energy, and %s/hvo-operations/environment.\n' "$ha_url" "$ha_url" "$ha_url"
+        printf 'HVO managed configuration deployed; dashboards are at %s/hvo-kasa/overview, %s/hvo-energy/energy, %s/hvo-operations/environment, and %s/hvo-weather/overview.\n' "$ha_url" "$ha_url" "$ha_url" "$ha_url"
         exit 0
     fi
     sleep 2

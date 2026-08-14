@@ -570,7 +570,15 @@
           "HVO.Edge.HomeAssistant.Mqtt": "[1.0.0, )",
           "HVO.Edge.Hosting": "[1.0.0, )",
           "HVO.Edge.Outbox": "[1.0.0, )",
+          "HVO.Staging": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.11, )"
+        }
+      },
+      "hvo.staging": {
+        "type": "Project",
+        "dependencies": {
+          "HVO.Astronomy": "[1.0.0, )",
+          "HVO.Weather": "[1.0.0, )"
         }
       },
       "hvo.tools.homeassistantentitymigration": {
@@ -578,6 +586,18 @@
         "dependencies": {
           "HVO.Edge.HomeAssistant.Mqtt": "[1.0.0, )"
         }
+      },
+      "HVO.Astronomy": {
+        "type": "CentralTransitive",
+        "requested": "[1.0.0, )",
+        "resolved": "1.0.0",
+        "contentHash": "8xQ+OJtefxw9yRDp2+quKKvxzZ8f032wDLwpeFFyP0LqwUQwpK3Lk55MdB5Ey6PfSkvMHNUyH3M5TsI+94ylMg=="
+      },
+      "HVO.Weather": {
+        "type": "CentralTransitive",
+        "requested": "[1.0.0, )",
+        "resolved": "1.0.0",
+        "contentHash": "tZpl6bFpbwQKx4+lC9e0FW5ehrmovOdfI0ff/X55BhrddP4O5WC72SxCGf6skKruhTRJGnPhhe3bU/ss8BALaw=="
       },
       "Microsoft.EntityFrameworkCore": {
         "type": "CentralTransitive",

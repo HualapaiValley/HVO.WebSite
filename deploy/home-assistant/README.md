@@ -12,6 +12,7 @@ Home Assistant is the production acquisition and presentation owner for Kasa and
 The tracked configuration is deployed under `/config/hvo`:
 
 - `configuration/lovelace.yaml` registers HVO YAML dashboards.
+- `configuration/frontend/` contains locally served HVO Lovelace cards.
 - `configuration/packages/hvo.yaml` is the package entry point.
 - `configuration/templates/hvo.yaml` contains HVO template entities.
 - `configuration/sensors/hvo-energy.yaml` contains presentation-only energy integrators.
@@ -32,9 +33,55 @@ diagnostics device every 30 seconds with readable `sensor.hvo_<gateway>_*` and
 the collector-specific diagnostics providers; Home Assistant only presents and
 alerts on those authoritative states.
 
-Davis weather entities are included now, but Davis gateway diagnostics remain
-deferred until the collector's separate controlled maintenance window. The
-shared diagnostics projector is already wired for that later deployment.
+The dedicated `HVO Weather` dashboard at `/hvo-weather/overview` is the
+canonical detailed operations weather view. The shorter Weather view in HVO
+Operations links to it. The dashboard groups current conditions, a graphical
+wind instrument, rain totals, 24-hour and 7-day recorder history, local
+astronomy, an external forecast, and subordinate station health. It uses only
+built-in cards except for the source-controlled wind card at
+`configuration/frontend/hvo-weather-wind-card.js`; the deployment script serves
+that asset from `/config/www/hvo` and registers it through the local `/local/hvo`
+URL. It has no HACS, CDN, or internet-hosted frontend dependency.
+
+Current, stale, waiting, error, and unavailable presentation is driven by the
+collector-owned `sensor.hvo_davis_source_freshness` diagnostic. Entity
+`last_updated` age is displayed only as supporting context and never overrides
+the collector's authoritative state.
+
+The Davis collector is authoritative for local observations and publishes moon
+phase, illumination, moonrise, and moonset using the repository's HVO astronomy
+calculations plus the Davis console location and time-zone settings. If console
+location is unavailable, those entities remain unavailable instead of showing
+invented values. Calculations are cached by local calendar date, console UTC
+offset, latitude, and longitude; any relevant setting or date change invalidates
+the cache. Deploying a Davis collector image containing those projection changes
+is a separate controlled live operation.
+
+`weather.forecast_home` is the commissioned external Home Assistant weather
+entity and is deliberately labeled only as external forecast data. It supplies
+current cloud coverage and the short hourly forecast; cloud cover is never
+inferred from the Davis forecast text. The deployment check requires that entity
+and its `cloud_coverage` attribute to exist. Provider identity must be verified
+through the supported Home Assistant integration/config-entry UI before it is
+named in this documentation or dashboard. If the provider is offline, its card
+and `sensor.hvo_forecast_cloud_coverage` become unavailable independently while
+the Davis observations continue to render. Forecast refresh may require network
+access, but all dashboard code and resources remain local.
+
+The 2-minute wind average, 15-minute rain, and 1-hour rain Davis entities are
+disabled by default. Enable them in the Home Assistant entity registry to show
+those optional instruments. Optional rain cards are conditionally omitted and
+the wind card renders a placeholder when those entities are disabled; no
+entity-not-found card is shown. Recorder history must be enabled for
+the referenced Davis entities to populate the Trends view; no long-term
+statistics metadata is required because the dashboard uses built-in raw
+`history-graph` cards.
+
+Dashboard deployment is collector-first: the four Davis astronomy entities are
+required live entity references and are intentionally absent from
+`managed-entities.txt`. Deploy and verify the collector projection before
+running or applying the dashboard deployment. The deployment check must fail if
+those required entities have not appeared through MQTT Discovery.
 
 Critical automations create persistent notifications for source unavailability,
 stale/error freshness, critical gateway health, outbox backlogs above 10 rows,
@@ -145,10 +192,13 @@ dotnet test tests/HVO.WebSite.PlaywrightTests \
   --filter "FullyQualifiedName~HomeAssistantKasaDashboardPlaywrightTests"
 ```
 
-Use `HomeAssistantEnergyDashboardPlaywrightTests` or
-`HomeAssistantOperationsDashboardPlaywrightTests` in the same filter to check
-the other dashboards. These tests open the dashboards at desktop and mobile
-widths. They do not click a switch or call any device service.
+Use `HomeAssistantEnergyDashboardPlaywrightTests`,
+`HomeAssistantOperationsDashboardPlaywrightTests`, or
+`HomeAssistantWeatherDashboardPlaywrightTests` in the same filter to check the
+other dashboards. These tests open the dashboards at desktop and mobile widths.
+They do not click a switch or call any device service. The non-live
+`HomeAssistantWeatherWindCardPlaywrightTests` exercises compass directions,
+missing values, stale state, and 320-pixel sizing with deterministic states.
 
 The deterministic pinned-Home-Assistant suite loads the exact tracked
 automation YAML and uses MQTT simulator entities to exercise offline, stale,

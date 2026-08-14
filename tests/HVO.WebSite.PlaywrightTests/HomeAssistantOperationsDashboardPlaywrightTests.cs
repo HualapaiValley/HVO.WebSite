@@ -39,7 +39,7 @@ public sealed class HomeAssistantOperationsDashboardPlaywrightTests
 
             var page = await context.NewPageAsync();
             await AssertViewAsync(page, $"{baseUrl.TrimEnd('/')}/hvo-operations/environment", "Observatory Sensors", viewport.Width);
-            await AssertViewAsync(page, $"{baseUrl.TrimEnd('/')}/hvo-operations/weather", "Wind And Rain", viewport.Width);
+            await AssertViewAsync(page, $"{baseUrl.TrimEnd('/')}/hvo-operations/weather", "Weather Summary", viewport.Width);
             await AssertViewAsync(page, $"{baseUrl.TrimEnd('/')}/hvo-operations/batteries", "JK Bank State Of Charge", viewport.Width);
             await AssertViewAsync(page, $"{baseUrl.TrimEnd('/')}/hvo-operations/gateways", "Outbox Pending", viewport.Width);
         }

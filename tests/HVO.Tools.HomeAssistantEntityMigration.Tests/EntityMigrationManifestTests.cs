@@ -80,8 +80,16 @@ public sealed class EntityMigrationManifestTests
         var expected = manifest.Entities
             .Select(entity => (entity.ComponentId, (string?)entity.TargetEntityId, entity.EnabledByDefault));
 
-        projected.Should().BeEquivalentTo(expected);
-        capture.Definition.Entities.Count(entity => entity.EnabledByDefault).Should().Be(27);
+        projected.Should().Contain(expected);
+        projected.Should().Contain(
+        [
+            ("moon_phase", "sensor.davis_moon_phase", true),
+            ("moon_illumination", "sensor.davis_moon_illumination", true),
+            ("moonrise", "sensor.davis_moonrise", true),
+            ("moonset", "sensor.davis_moonset", true)
+        ]);
+        projected.Should().HaveCount(43);
+        capture.Definition.Entities.Count(entity => entity.EnabledByDefault).Should().Be(31);
         capture.Definition.Entities.Count(entity => !entity.EnabledByDefault).Should().Be(12);
     }
 

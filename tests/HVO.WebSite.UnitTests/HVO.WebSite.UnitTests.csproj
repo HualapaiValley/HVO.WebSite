@@ -37,6 +37,9 @@
     <None Include="../../deploy/home-assistant/configuration/lovelace.yaml"
           Link="Fixtures/HomeAssistant/Configuration/lovelace.yaml"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../deploy/home-assistant/configuration/managed-entities.txt"
+          Link="Fixtures/HomeAssistant/Configuration/managed-entities.txt"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../deploy/home-assistant/configuration/dashboards/*.yaml"
           Link="Fixtures/HomeAssistant/Configuration/dashboards/%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
@@ -57,6 +60,12 @@
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../deploy/home-assistant/configuration/esphome/hvo-bluetooth-proxy.yaml"
           Link="Fixtures/HomeAssistant/Configuration/esphome/hvo-bluetooth-proxy.yaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../deploy/home-assistant/configuration/frontend/hvo-weather-wind-card.js"
+          Link="Fixtures/HomeAssistant/Configuration/frontend/hvo-weather-wind-card.js"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../scripts/deploy-home-assistant-dashboard.sh"
+          Link="Fixtures/HomeAssistant/deploy-home-assistant-dashboard.sh"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
