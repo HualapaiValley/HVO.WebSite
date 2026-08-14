@@ -42,7 +42,18 @@ public sealed class GatewayDiagnosticStatusResponseTests
             {
                 ["health"] = "/diagnostics/health",
                 ["outbox"] = "/diagnostics/outbox",
-            });
+            },
+            ExternalDeliveries:
+            [
+                new GatewayExternalDeliveryDiagnostics(
+                    "weather-underground",
+                    true,
+                    evaluatedAt.AddSeconds(-2),
+                    evaluatedAt.AddSeconds(-1),
+                    evaluatedAt,
+                    0,
+                    null),
+            ]);
 
         var json = JsonSerializer.Serialize(response, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
@@ -55,6 +66,8 @@ public sealed class GatewayDiagnosticStatusResponseTests
         json.Should().Contain("telemetry");
         json.Should().Contain("failedCountByKind");
         json.Should().Contain("maintenanceState");
+        json.Should().Contain("externalDeliveries");
+        json.Should().Contain("weather-underground");
     }
 
     [TestMethod]

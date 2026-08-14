@@ -304,6 +304,19 @@ for mapping in \
 	sync_secret_file "deploy/pi-gateways/$gateway/secrets/mqtt-username" HomeAssistant--MqttUsername
 	sync_secret_file "deploy/pi-gateways/$gateway/secrets/mqtt-password" HomeAssistant--MqttPassword
 done
+
+davis_config=deploy/pi-gateways/davis/gateway.json
+if [[ ! -f "$repo_root/$davis_config" ]]; then
+	printf 'skipped deploy/pi-gateways/davis/secrets/weather-underground-station-key (Davis gateway.json not materialized)\n'
+else
+	command -v jq >/dev/null 2>&1 || fail "jq is required to inspect $davis_config."
+	jq -e . "$repo_root/$davis_config" >/dev/null || fail "$davis_config is not valid JSON."
+	if jq -e '.WeatherUnderground.Enabled == true' "$repo_root/$davis_config" >/dev/null; then
+		sync_secret_file deploy/pi-gateways/davis/secrets/weather-underground-station-key WeatherUnderground--StationKey
+	else
+		printf 'skipped deploy/pi-gateways/davis/secrets/weather-underground-station-key (Weather Underground disabled)\n'
+	fi
+fi
 sync_secret_file deploy/pi-gateways/home-assistant-exporter/secrets/home-assistant-token HomeAssistant--Token
 sync_secret_file deploy/pi-gateways/home-assistant-exporter/secrets/diagnostics-api-key Edge--HomeAssistantExporter--DiagnosticsApiKey
 

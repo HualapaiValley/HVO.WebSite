@@ -10,9 +10,11 @@ using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Protocol;
 using HVO.Hardware.DavisVantagePro2.Station;
 using HVO.Hardware.DavisVantagePro2.Workers;
+using HVO.Hardware.DavisVantagePro2.WeatherUnderground;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Metrics;
 
 namespace HVO.Hardware.DavisVantagePro2.Hosting;
 
@@ -25,6 +27,11 @@ public static class DavisServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<StationOptions>, StationOptionsValidator>();
+        services.AddOptions<WeatherUndergroundOptions>()
+            .Bind(configuration.GetSection(WeatherUndergroundOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<WeatherUndergroundOptions>, WeatherUndergroundOptionsValidator>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddDbContext<DavisLocalDbContext>((provider, builder) =>
             builder.UseSqlite($"Data Source={provider.GetRequiredService<IOptions<StationOptions>>().Value.LocalDatabasePath}"));
@@ -52,6 +59,19 @@ public static class DavisServiceCollectionExtensions
         services.AddSingleton<IEdgeOutboxBatchSender, DavisOutboxBatchSender>();
         services.AddHostedService<DavisRetryRequeueWorker>();
         services.AddSingleton<DavisRuntimeState>();
+        services.AddSingleton<WeatherUndergroundCredential>();
+        services.AddSingleton<WeatherUndergroundPublisherState>();
+        services.AddSingleton<WeatherUndergroundMetrics>();
+        services.AddHostedService<WeatherUndergroundInitializer>();
+        services.AddHttpClient<WeatherUndergroundClient>(client =>
+            {
+                client.BaseAddress = WeatherUndergroundQueryBuilder.Endpoint;
+                client.Timeout = Timeout.InfiniteTimeSpan;
+            })
+            .RemoveAllLoggers();
+        services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter(WeatherUndergroundMetrics.MeterName));
+        services.AddSingleton<WeatherUndergroundPublisher>();
+        services.AddHostedService(provider => provider.GetRequiredService<WeatherUndergroundPublisher>());
         services.AddSingleton<DavisHomeAssistantProjection>();
         services.AddSingleton<IDavisHomeAssistantProjection>(provider => provider.GetRequiredService<DavisHomeAssistantProjection>());
         services.RemoveAll<IEdgeDiagnosticsSnapshotProvider>();

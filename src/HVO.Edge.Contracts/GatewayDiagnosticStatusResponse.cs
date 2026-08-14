@@ -8,7 +8,8 @@ public sealed record GatewayDiagnosticStatusResponse(
     GatewayDeviceCounts Devices,
     GatewayOutboxDiagnostics Outbox,
     GatewayTelemetryDiagnostics Telemetry,
-    IReadOnlyDictionary<string, string> Links);
+    IReadOnlyDictionary<string, string> Links,
+    IReadOnlyList<GatewayExternalDeliveryDiagnostics>? ExternalDeliveries = null);
 
 public sealed record GatewayRuntimeInfo(
     DateTime StartedAtUtc,
@@ -49,3 +50,12 @@ public sealed record GatewayTelemetryDiagnostics(
     string? ServiceName,
     IReadOnlyList<string> MetricNames,
     IReadOnlyList<string> ActivitySourceNames);
+
+public sealed record GatewayExternalDeliveryDiagnostics(
+    string Name,
+    bool Enabled,
+    DateTime? LastObservationAtUtc,
+    DateTime? LastAttemptAtUtc,
+    DateTime? LastSuccessAtUtc,
+    int ConsecutiveFailures,
+    string? LastError);

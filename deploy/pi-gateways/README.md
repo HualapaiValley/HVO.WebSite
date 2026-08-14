@@ -64,6 +64,15 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 
 `deploy/pi-gateways/home-assistant-exporter` retains the implemented exporter deployment template, but the exporter is intentionally disabled in production with no mappings or source claims. Do not deploy or enable it without a separately approved source-authority change. The retired direct SolarAssistant and TP-Link/Kasa deployment stacks, containers, and images have been removed. SolarAssistant's old outbox and data-protection volumes remain preserved pending disposition.
 
+## Davis deployment notes
+
+- Weather Underground publication is disabled by default in `davis/gateway.json.example` and targets station `KAZKINGM12` on a five-second cadence with a two-second request timeout.
+- The upload station key is stored in Key Vault as `WeatherUnderground--StationKey`. It is materialized as the ignored `davis/secrets/weather-underground-station-key` file only when the ignored local Davis `gateway.json` enables publication.
+- `WeatherUnderground--ApiKey` is a separate query credential and is never retrieved or mounted for PWS upload. No Weather Underground credential belongs in `.env` or Compose environment entries.
+- The existing secrets-directory bind remains read-only at `/run/secrets`. Davis preflight validates the complete section and requires a non-empty station-key file only when enabled, before SSH synchronization or container changes.
+- Run `bash tools/validate-davis-weather-underground-deployment.sh` for deterministic disabled/enabled, secret, Compose, ignore, and API-key-isolation checks.
+- Follow `docs/gateways/davis-vantage-pro2/weather-underground-deployment.md` for protocol mapping, diagnostics, enablement, verification, and rollback.
+
 ## Common workflow
 
 1. Copy `.env.example` to `.env` and `gateway.json.example` to `gateway.json` where provided.

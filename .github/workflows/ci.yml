@@ -64,6 +64,7 @@ jobs:
       - name: Validate observability policy
         run: |
           bash tools/validate-observability-policy.sh
+          bash tools/validate-davis-weather-underground-deployment.sh
           bash tools/validate-eg4-deployment.sh
           bash tools/validate-smartshunt-deployment.sh
           bash tools/verify-alert-rules.sh

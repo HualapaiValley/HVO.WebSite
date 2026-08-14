@@ -308,18 +308,34 @@ public sealed class WeatherStationWorker(
 public sealed class DavisRuntimeState
 {
     private readonly object sync = new();
-    public Loop2Packet? LatestReading { get; private set; }
-    public DateTime? LastReadingAtUtc { get; private set; }
-    public DateTime? LastArchiveTopOffAtUtc { get; private set; }
-    public int LastArchiveTopOffCount { get; private set; }
-    public string? LastArchiveError { get; private set; }
-    public int ConsecutiveErrors { get; private set; }
-    public string? LastError { get; private set; }
-    public bool IsConnected { get; private set; }
+    private DavisObservationSnapshot? latestObservation;
+    private DateTime? lastArchiveTopOffAtUtc;
+    private int lastArchiveTopOffCount;
+    private string? lastArchiveError;
+    private int consecutiveErrors;
+    private string? lastError;
+    private bool isConnected;
 
-    public void Connected() { lock (sync) { IsConnected = true; ConsecutiveErrors = 0; LastError = null; } }
-    public void Observed(Loop2Packet reading, DateTime receivedAtUtc) { lock (sync) { IsConnected = true; LatestReading = reading; LastReadingAtUtc = receivedAtUtc; ConsecutiveErrors = 0; LastError = null; } }
-    public void Failed(string error) { lock (sync) { IsConnected = false; ConsecutiveErrors++; LastError = error; } }
-    public void ArchiveTopOffCompleted(DateTime atUtc, int count) { lock (sync) { LastArchiveTopOffAtUtc = atUtc; LastArchiveTopOffCount = count; LastArchiveError = null; } }
-    public void ArchiveTopOffFailed(DateTime atUtc, string error) { lock (sync) { LastArchiveTopOffAtUtc = atUtc; LastArchiveError = error; } }
+    public Loop2Packet? LatestReading => GetLatestObservation()?.Observation;
+    public DateTime? LastReadingAtUtc => GetLatestObservation()?.ReceivedAtUtc;
+    public DateTime? LastArchiveTopOffAtUtc { get { lock (sync) return lastArchiveTopOffAtUtc; } }
+    public int LastArchiveTopOffCount { get { lock (sync) return lastArchiveTopOffCount; } }
+    public string? LastArchiveError { get { lock (sync) return lastArchiveError; } }
+    public int ConsecutiveErrors { get { lock (sync) return consecutiveErrors; } }
+    public string? LastError { get { lock (sync) return lastError; } }
+    public bool IsConnected { get { lock (sync) return isConnected; } }
+
+    public DavisObservationSnapshot? GetLatestObservation()
+    {
+        lock (sync)
+            return latestObservation;
+    }
+
+    public void Connected() { lock (sync) { isConnected = true; consecutiveErrors = 0; lastError = null; } }
+    public void Observed(Loop2Packet reading, DateTime receivedAtUtc) { lock (sync) { isConnected = true; latestObservation = new(reading, receivedAtUtc); consecutiveErrors = 0; lastError = null; } }
+    public void Failed(string error) { lock (sync) { isConnected = false; consecutiveErrors++; lastError = error; } }
+    public void ArchiveTopOffCompleted(DateTime atUtc, int count) { lock (sync) { lastArchiveTopOffAtUtc = atUtc; lastArchiveTopOffCount = count; lastArchiveError = null; } }
+    public void ArchiveTopOffFailed(DateTime atUtc, string error) { lock (sync) { lastArchiveTopOffAtUtc = atUtc; lastArchiveError = error; } }
 }
+
+public sealed record DavisObservationSnapshot(Loop2Packet Observation, DateTime ReceivedAtUtc);

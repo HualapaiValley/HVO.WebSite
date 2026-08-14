@@ -174,7 +174,7 @@ New collectors and gateways should use the local SQLite outbox + website API pat
 
 ## Davis Collector
 
-`HVO.Hardware.DavisVantagePro2` is a headless vNext collector that connects to the Davis Vantage Pro 2 console through the WeatherLink IP TCP bridge. It implements Davis protocol commands, LOOP packet parsing, durable archive continuity, gateway-owned local station persistence, shared SQLite outbox storage, protected diagnostics, and bounded Home Assistant MQTT current-state projection.
+`HVO.Hardware.DavisVantagePro2` is a headless vNext collector that connects to the Davis Vantage Pro 2 console through the WeatherLink IP TCP bridge. It implements Davis protocol commands, LOOP packet parsing, durable archive continuity, gateway-owned local station persistence, shared SQLite outbox storage, protected diagnostics, bounded Home Assistant MQTT current-state projection, and disabled-by-default best-effort Weather Underground publication from the same latest merged observation.
 
 Current responsibilities:
 
@@ -185,6 +185,7 @@ Current responsibilities:
 | Archive handling | Full available-console bootstrap when no cursor exists, then overlapped DMPAFT top-off on startup, reconnect, and periodically between finite LOOP batches |
 | Local outbox | SQLite durable queue |
 | Forwarding | Partitions typed live and complete archive batches to separate website endpoints |
+| Weather Underground | Optional non-durable PWS rapid-fire projection to `KAZKINGM12`; five-second cadence, no replay, and no additional console polling |
 | Local UI | None; standard protected diagnostics only |
 
 The collector preserves the deployed `davis-outbox` volume across the vNext migration; legacy schema and payload identifiers are upgraded before shared outbox initialization.
@@ -234,7 +235,7 @@ Configuration is split by purpose:
 | Runtime non-secret settings | `v9.SiteConfiguration` when central editing is needed |
 | Build/runtime image settings | `appsettings.json` plus environment overrides |
 
-Raw API keys, Azure client secrets, SQL connection strings, MQTT credentials, and device control credentials are secrets. RabbitMQ and Service Bus credentials are also secrets if the archived brokered pattern is revived.
+Raw API keys, Azure client secrets, SQL connection strings, MQTT credentials, and device control credentials are secrets. RabbitMQ and Service Bus credentials are also secrets if the archived brokered pattern is revived. The Weather Underground PWS upload station key is a mounted edge secret sourced from Key Vault `WeatherUnderground--StationKey`; it is distinct from the unused Weather Underground query `ApiKey` and must not enter environment configuration. Mounted gateway secret directories remain read-only in containers.
 
 ## Observability And Health
 

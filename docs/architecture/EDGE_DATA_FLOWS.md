@@ -53,11 +53,14 @@ flowchart LR
     DAVIS[Davis console] -->|WeatherLink IP TCP| COL[Davis headless collector]
     COL -->|current weather and availability| MQTT[Local Mosquitto]
     MQTT --> HA[Home Assistant]
+    COL -. latest merged reading, best effort .-> WU[Weather Underground PWS]
     COL -->|raw and archive weather| OUT[(Davis SQLite outbox)]
     OUT -->|weather ingest HTTPS| API[Central Website API]
     API --> DB[(Canonical SQL database)]
     HA -. excluded from HA exporter .-> X[No second writer]
 ```
+
+Weather Underground is disabled by default. When explicitly enabled, it receives the latest eligible merged LOOP observation every five seconds without another console poll. This projection has no outbox and no replay: failure is isolated, recovery sends the latest reading, and the central website remains the only canonical historical path. The upload uses the station key, not the unrelated Weather Underground query API key. See [Weather Underground Publication](../gateways/davis-vantage-pro2/weather-underground-deployment.md).
 
 **Migration status:** the Davis slice of issue #330 is cut over to the headless collector. The legacy collector is stopped, the vNext collector is the sole WeatherLink owner and canonical writer, and the verified legacy image/volume backup remains available for ordered rollback. See [Davis vNext Cutover And Rollback](../gateways/davis-vantage-pro2/cutover-and-rollback.md).
 

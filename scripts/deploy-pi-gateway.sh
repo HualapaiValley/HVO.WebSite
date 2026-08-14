@@ -185,6 +185,65 @@ preflight_smartshunt_contract() {
 	resolved_remote_secrets="${remote_secrets}"
 }
 
+preflight_davis_contract() {
+	local env_file="${1}"
+	local compose_dir="${2}"
+	local -n resolved_config_path="${3}"
+	local -n resolved_secrets_path="${4}"
+	local -n resolved_remote_config="${5}"
+	local -n resolved_remote_secrets="${6}"
+	local config_setting config_path secrets_setting secrets_path station_host remote_config remote_secrets
+	[[ -f "${env_file}" ]] || fail "Environment file not found: ${env_file}"
+	config_setting="$(read_env_value "${env_file}" DAVIS_CONFIG_FILE)"
+	config_path="${config_setting:-./gateway.json}"
+	[[ "${config_path}" = /* ]] || config_path="${repo_root}/${compose_dir}/${config_path#./}"
+	[[ -f "${config_path}" ]] || fail "Davis mounted configuration not found: ${config_path}"
+	jq -e . "${config_path}" >/dev/null || fail "Davis mounted configuration is not valid JSON: ${config_path}"
+	jq -e '
+		(.Edge.Runtime.GatewayId == "davis")
+		and (.Edge.Runtime.SiteId | type == "string" and length > 0)
+		and (.Edge.Runtime.SourceId == .Station.StationId)
+		and (.Station.ArchiveCatchupMode == "Disabled")
+		and (.Station.LegacyArchiveConsoleUtcOffsetHours | type == "number" and . >= -12 and . <= 14)
+		and (.Station.LocalDatabasePath == "/app/data/davis-local.db")
+		and (.Outbox.DatabasePath == "/app/data/outbox.db")
+		and ((.Outbox.PayloadTypes | sort) == (["com.hvo.weather.archive.v1", "com.hvo.weather.raw.v1"] | sort))
+		and (.WeatherUnderground | type == "object")
+		and ((.WeatherUnderground | keys | sort) == (["Enabled", "IntervalSeconds", "RequestTimeoutSeconds", "StationId", "StationKeySecret"] | sort))
+		and (.WeatherUnderground.Enabled | type == "boolean")
+		and (.WeatherUnderground.StationId == "KAZKINGM12")
+		and (.WeatherUnderground.IntervalSeconds == 5)
+		and (.WeatherUnderground.RequestTimeoutSeconds | type == "number" and floor == . and . >= 1 and (. * 2) < 5)
+		and (.WeatherUnderground.StationKeySecret == "weather-underground-station-key")' \
+		"${config_path}" >/dev/null || fail "Davis gateway.json does not satisfy the vNext and Weather Underground deployment contract."
+
+	secrets_setting="$(read_env_value "${env_file}" DAVIS_SECRETS_DIRECTORY)"
+	secrets_path="${secrets_setting:-./secrets}"
+	[[ "${secrets_path}" = /* ]] || secrets_path="${repo_root}/${compose_dir}/${secrets_path#./}"
+	for secret_name in diagnostics-api-key central-ingest-api-key; do
+		[[ -s "${secrets_path}/${secret_name}" ]] || fail "Davis required secret file is missing or empty: ${secret_name}"
+	done
+	if jq -e '.HomeAssistant.Mqtt.Enabled == true' "${config_path}" >/dev/null; then
+		for secret_name in mqtt-username mqtt-password; do
+			[[ -s "${secrets_path}/${secret_name}" ]] || fail "Davis required MQTT secret file is missing or empty: ${secret_name}"
+		done
+	fi
+	if jq -e '.WeatherUnderground.Enabled == true' "${config_path}" >/dev/null; then
+		[[ -s "${secrets_path}/weather-underground-station-key" ]] ||
+			fail "Davis Weather Underground station-key secret file is missing or empty: weather-underground-station-key"
+	fi
+	station_host="$(read_env_value "${env_file}" DAVIS_STATION_HOST)"
+	[[ -n "${station_host}" ]] || fail "DAVIS_STATION_HOST is required in the Davis .env file."
+	remote_config="$(read_env_value "${env_file}" DAVIS_REMOTE_CONFIG_FILE)"
+	[[ -n "${remote_config}" ]] || fail "DAVIS_REMOTE_CONFIG_FILE is required in the Davis .env file."
+	remote_secrets="$(read_env_value "${env_file}" DAVIS_REMOTE_SECRETS_DIRECTORY)"
+	[[ -n "${remote_secrets}" ]] || fail "DAVIS_REMOTE_SECRETS_DIRECTORY is required in the Davis .env file."
+	resolved_config_path="${config_path}"
+	resolved_secrets_path="${secrets_path}"
+	resolved_remote_config="${remote_config}"
+	resolved_remote_secrets="${remote_secrets}"
+}
+
 deploy_target() {
 	local gateway="$1"
 	local compose_dir compose_file env_file two_device_file mppt_file
@@ -262,40 +321,9 @@ deploy_target() {
 		sync_remote_mounts eg4 "${eg4_config_path}" "${eg4_secrets_path}" "${eg4_remote_config}" "${eg4_remote_secrets}"
 	fi
 	if [[ "${gateway}" == davis ]]; then
-		local davis_config_setting davis_config_path davis_secrets_setting davis_secrets_path davis_station_host davis_remote_config davis_remote_secrets
-		davis_config_setting="$(read_env_value "${env_file}" DAVIS_CONFIG_FILE)"
-		davis_config_path="${davis_config_setting:-./gateway.json}"
-		[[ "${davis_config_path}" = /* ]] || davis_config_path="${repo_root}/${compose_dir}/${davis_config_path#./}"
-		[[ -f "${davis_config_path}" ]] || fail "Davis mounted configuration not found: ${davis_config_path}"
-		jq -e . "${davis_config_path}" >/dev/null || fail "Davis mounted configuration is not valid JSON: ${davis_config_path}"
-		jq -e '
-			(.Edge.Runtime.GatewayId == "davis")
-			and (.Edge.Runtime.SiteId | type == "string" and length > 0)
-			and (.Edge.Runtime.SourceId == .Station.StationId)
-			and (.Station.ArchiveCatchupMode == "Disabled")
-			and (.Station.LegacyArchiveConsoleUtcOffsetHours | type == "number" and . >= -12 and . <= 14)
-			and (.Station.LocalDatabasePath == "/app/data/davis-local.db")
-			and (.Outbox.DatabasePath == "/app/data/outbox.db")
-			and ((.Outbox.PayloadTypes | sort) == (["com.hvo.weather.archive.v1", "com.hvo.weather.raw.v1"] | sort))' \
-			"${davis_config_path}" >/dev/null || fail "Davis gateway.json does not satisfy the vNext deployment contract."
-
-		davis_secrets_setting="$(read_env_value "${env_file}" DAVIS_SECRETS_DIRECTORY)"
-		davis_secrets_path="${davis_secrets_setting:-./secrets}"
-		[[ "${davis_secrets_path}" = /* ]] || davis_secrets_path="${repo_root}/${compose_dir}/${davis_secrets_path#./}"
-		for secret_name in diagnostics-api-key central-ingest-api-key; do
-			[[ -s "${davis_secrets_path}/${secret_name}" ]] || fail "Davis required secret file is missing or empty: ${secret_name}"
-		done
-		if jq -e '.HomeAssistant.Mqtt.Enabled == true' "${davis_config_path}" >/dev/null; then
-			for secret_name in mqtt-username mqtt-password; do
-				[[ -s "${davis_secrets_path}/${secret_name}" ]] || fail "Davis required MQTT secret file is missing or empty: ${secret_name}"
-			 done
-		fi
-		davis_station_host="$(read_env_value "${env_file}" DAVIS_STATION_HOST)"
-		[[ -n "${davis_station_host}" ]] || fail "DAVIS_STATION_HOST is required in the Davis .env file."
-		davis_remote_config="$(read_env_value "${env_file}" DAVIS_REMOTE_CONFIG_FILE)"
-		[[ -n "${davis_remote_config}" ]] || fail "DAVIS_REMOTE_CONFIG_FILE is required in the Davis .env file."
-		davis_remote_secrets="$(read_env_value "${env_file}" DAVIS_REMOTE_SECRETS_DIRECTORY)"
-		[[ -n "${davis_remote_secrets}" ]] || fail "DAVIS_REMOTE_SECRETS_DIRECTORY is required in the Davis .env file."
+		local davis_config_path davis_secrets_path davis_remote_config davis_remote_secrets
+		preflight_davis_contract "${env_file}" "${compose_dir}" \
+			davis_config_path davis_secrets_path davis_remote_config davis_remote_secrets
 		sync_remote_mounts davis "${davis_config_path}" "${davis_secrets_path}" "${davis_remote_config}" "${davis_remote_secrets}"
 	fi
 	if [[ "${gateway}" == jkbms ]]; then
