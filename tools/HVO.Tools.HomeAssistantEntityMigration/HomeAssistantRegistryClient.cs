@@ -15,6 +15,14 @@ internal interface IHomeAssistantRegistryClient : IAsyncDisposable
     Task<IReadOnlyList<JsonElement>> GetLovelaceConfigurationsAsync(CancellationToken cancellationToken);
     Task<JsonElement> RenameAsync(string sourceEntityId, string targetEntityId, CancellationToken cancellationToken);
     Task<JsonElement[]> ListStatesAsync(CancellationToken cancellationToken);
+    Task<JsonElement[]> ListStatisticIdsAsync(CancellationToken cancellationToken);
+    Task<JsonElement> GetConfigAsync(CancellationToken cancellationToken);
+    Task<JsonElement> GetDailyStatisticAsync(string statisticId, CancellationToken cancellationToken);
+    Task<JsonElement> GetStatisticsDuringPeriodAsync(
+        IReadOnlyList<string> statisticIds,
+        DateTimeOffset start,
+        DateTimeOffset end,
+        CancellationToken cancellationToken);
     Task<JsonElement?> GetEnergyPreferencesAsync(CancellationToken cancellationToken);
     Task<JsonElement> SaveEnergyPreferencesAsync(
         IReadOnlyList<JsonElement> energySources,
@@ -129,6 +137,39 @@ internal sealed class HomeAssistantRegistryClient(Uri endpoint, string accessTok
         var result = await CommandAsync(new { type = "get_states" }, cancellationToken);
         return result.EnumerateArray().Select(static item => item.Clone()).ToArray();
     }
+
+    public async Task<JsonElement[]> ListStatisticIdsAsync(CancellationToken cancellationToken)
+    {
+        var result = await CommandAsync(new { type = "recorder/list_statistic_ids" }, cancellationToken);
+        return result.EnumerateArray().Select(static item => item.Clone()).ToArray();
+    }
+
+    public Task<JsonElement> GetConfigAsync(CancellationToken cancellationToken) =>
+        CommandAsync(new { type = "get_config" }, cancellationToken);
+
+    public Task<JsonElement> GetDailyStatisticAsync(string statisticId, CancellationToken cancellationToken) =>
+        CommandAsync(new
+        {
+            type = "recorder/statistic_during_period",
+            statistic_id = statisticId,
+            calendar = new { period = "day" },
+            types = new[] { "change" },
+        }, cancellationToken);
+
+    public Task<JsonElement> GetStatisticsDuringPeriodAsync(
+        IReadOnlyList<string> statisticIds,
+        DateTimeOffset start,
+        DateTimeOffset end,
+        CancellationToken cancellationToken) =>
+        CommandAsync(new
+        {
+            type = "recorder/statistics_during_period",
+            statistic_ids = statisticIds,
+            start_time = start.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            end_time = end.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            period = "5minute",
+            types = new[] { "sum" },
+        }, cancellationToken);
 
     public async Task<JsonElement?> GetEnergyPreferencesAsync(CancellationToken cancellationToken)
     {

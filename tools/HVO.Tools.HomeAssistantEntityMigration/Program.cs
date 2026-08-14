@@ -5,6 +5,7 @@ var validArguments = mode switch
 {
     "--check" or "--apply" => args.Length is 1 or 2,
     "--energy-check" or "--energy-apply" => args.Length is 1 or 2,
+    "--energy-audit" => args.Length == 1,
     "--backup" => args.Length == 1,
     "--rollback" => args.Length is 2 or 3,
     _ => false
@@ -14,6 +15,7 @@ if (!validArguments)
     Console.Error.WriteLine("Usage:");
     Console.Error.WriteLine("  HVO.Tools.HomeAssistantEntityMigration --check|--apply [manifest-path]");
     Console.Error.WriteLine("  HVO.Tools.HomeAssistantEntityMigration --energy-check|--energy-apply [manifest-path]");
+    Console.Error.WriteLine("  HVO.Tools.HomeAssistantEntityMigration --energy-audit");
     Console.Error.WriteLine("  HVO.Tools.HomeAssistantEntityMigration --backup");
     Console.Error.WriteLine("  HVO.Tools.HomeAssistantEntityMigration --rollback <backup-path> [manifest-path]");
     return 2;
@@ -53,9 +55,14 @@ var websocketUrl = new UriBuilder(homeAssistantUrl)
 }.Uri;
 await using var client = new HomeAssistantRegistryClient(websocketUrl, token);
 using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-if (mode == "--apply")
+if (mode is "--apply" or "--energy-apply")
     cancellation.CancelAfter(TimeSpan.FromMinutes(30));
 await client.ConnectAsync(cancellation.Token);
+if (mode == "--energy-audit")
+{
+    await new EnergyAuditRunner(client).AuditAsync(cancellation.Token);
+    return 0;
+}
 if (mode == "--backup")
 {
     var backupId = await client.CreateBackupAsync("Before HVO off-grid Energy trial", cancellation.Token);

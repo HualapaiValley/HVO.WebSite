@@ -27,7 +27,49 @@
     {
       "stat_consumption": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xload_x5fenergy_x5ftotal",
       "stat_rate": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_13xload_x5fpower",
-      "name": "HVO AC Load"
+      "name": "HVO 6500EX AC Load"
+    },
+    {
+      "stat_consumption": "sensor.tp_link_power_strip_4540_total_consumption",
+      "stat_rate": "sensor.tp_link_power_strip_4540_current_consumption",
+      "included_in_stat": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xload_x5fenergy_x5ftotal",
+      "name": "Control Room Strip"
+    },
+    {
+      "stat_consumption": "sensor.tp_link_power_strip_0628_total_consumption",
+      "stat_rate": "sensor.tp_link_power_strip_0628_current_consumption",
+      "included_in_stat": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xload_x5fenergy_x5ftotal",
+      "name": "Telescope Strip"
+    },
+    {
+      "stat_consumption": "sensor.workshop_power_strip_plug_1_total_consumption",
+      "stat_rate": "sensor.workshop_power_strip_plug_1_current_consumption",
+      "included_in_stat": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xload_x5fenergy_x5ftotal",
+      "name": "Workshop Strip"
+    },
+    {
+      "stat_consumption": "sensor.tp_link_power_strip_d65c_total_consumption",
+      "stat_rate": "sensor.tp_link_power_strip_d65c_current_consumption",
+      "included_in_stat": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xload_x5fenergy_x5ftotal",
+      "name": "Observatory Amenities Strip"
+    },
+    {
+      "stat_consumption": "sensor.power_room_heater_total_consumption",
+      "stat_rate": "sensor.power_room_heater_current_consumption",
+      "included_in_stat": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xload_x5fenergy_x5ftotal",
+      "name": "Power Room Heater"
+    },
+    {
+      "stat_consumption": "sensor.tpra_smart_switch_total_consumption",
+      "stat_rate": "sensor.tpra_smart_switch_current_consumption",
+      "included_in_stat": "sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xload_x5fenergy_x5ftotal",
+      "name": "TPRA Workshop Strip"
     }
+  ],
+  "removedDeviceConsumptionEntities": [
+    "sensor.workshop_power_strip_plug_1_workshop_mr_cool_ac_today_s_consumption"
+  ],
+  "replacedManagedNames": [
+    "HVO AC Load"
   ]
 }
