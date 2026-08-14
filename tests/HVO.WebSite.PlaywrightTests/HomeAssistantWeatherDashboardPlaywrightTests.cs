@@ -77,9 +77,16 @@ public sealed class HomeAssistantWeatherDashboardPlaywrightTests
             """
             cards => cards
                 .filter(card => card.clientWidth > 0 && (card.scrollWidth > card.clientWidth + 2 || card.getBoundingClientRect().right > document.documentElement.clientWidth + 2))
-                .map(card => card.tagName.toLowerCase() + (card.className ? '.' + String(card.className).replaceAll(' ', '.') : ''))
+                .map(card => JSON.stringify({
+                    text: card.innerText?.slice(0, 80),
+                    width: card.clientWidth,
+                    scrollWidth: card.scrollWidth,
+                    right: card.getBoundingClientRect().right,
+                    viewportWidth: document.documentElement.clientWidth
+                }))
             """);
-        Assert.IsEmpty(overflowingCards, $"{view} cards should fit at {viewportWidth}px.");
+        Assert.AreEqual(0, overflowingCards.Length,
+            $"{view} cards should fit at {viewportWidth}px: {string.Join(", ", overflowingCards)}");
     }
 
     private static async Task AssertWindCardContainersFitAsync(IPage page, int viewportWidth)
