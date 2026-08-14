@@ -38,8 +38,21 @@ public sealed class HomeAssistantWeatherDashboardPlaywrightTests
                 """);
 
             var page = await context.NewPageAsync();
+            var pageErrors = new List<string>();
+            page.PageError += (_, error) => pageErrors.Add(error);
             await page.GotoAsync($"{baseUrl.TrimEnd('/')}/hvo-weather/overview");
             await Assertions.Expect(page.GetByText("Current Conditions", new() { Exact = true })).ToBeVisibleAsync();
+            var configurationErrors = await page.Locator("hui-error-card").EvaluateAllAsync<string[]>(
+                "cards => cards.map(card => card.shadowRoot?.textContent?.trim() ?? card.textContent?.trim() ?? 'Unknown configuration error')");
+            var resourceState = await page.EvaluateAsync<string>(
+                """
+                JSON.stringify({
+                    customCardDefined: Boolean(customElements.get('hvo-weather-wind-card')),
+                    resources: performance.getEntriesByType('resource').map(entry => entry.name).filter(name => name.includes('hvo-weather'))
+                })
+                """);
+            Assert.IsEmpty(configurationErrors,
+                $"Home Assistant configuration errors: {string.Join(" | ", configurationErrors)}; page errors: {string.Join(" | ", pageErrors)}; resource state: {resourceState}");
             await Assertions.Expect(page.GetByText("Davis Wind Instrument", new() { Exact = true })).ToBeVisibleAsync();
             await Assertions.Expect(page.GetByTestId("wind-compass")).ToBeVisibleAsync();
             await Assertions.Expect(page.GetByText("External Cloud And Forecast", new() { Exact = true })).ToBeVisibleAsync();

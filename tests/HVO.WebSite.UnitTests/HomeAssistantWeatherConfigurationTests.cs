@@ -14,7 +14,8 @@ public sealed class HomeAssistantWeatherConfigurationTests
         var lovelace = File.ReadAllText(Path.Combine(ConfigurationRoot, "lovelace.yaml"));
         var operations = File.ReadAllText(Path.Combine(ConfigurationRoot, "dashboards", "hvo-operations.yaml"));
 
-        lovelace.Should().Contain("hvo-weather:")
+        lovelace.Should().Contain("resource_mode: yaml")
+            .And.Contain("hvo-weather:")
             .And.Contain("filename: hvo/dashboards/hvo-weather.yaml")
             .And.Contain("url: /local/hvo/hvo-weather-wind-card.js?v=1")
             .And.NotContain("http://")
