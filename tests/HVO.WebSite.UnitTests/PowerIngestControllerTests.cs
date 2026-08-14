@@ -333,7 +333,7 @@ public sealed class PowerIngestControllerTests
     }
 
     [TestMethod]
-    public async Task GetLatestSystemSnapshot_ComposesRecentSourceReadings()
+    public async Task GetLatestSystemSnapshot_DoesNotUseHistoricalSolarAssistantAsActiveAuthority()
     {
         var now = DateTime.UtcNow;
         var solarAssistant = MakeEntity("solarassistant-total", now.AddMinutes(-5), 1300, "solarassistant");
@@ -357,9 +357,10 @@ public sealed class PowerIngestControllerTests
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var body = ok.Value.Should().BeOfType<PowerSystemSnapshot>().Subject;
-        body.Pv!.PowerW!.Value.Should().Be(1300);
-        body.Ac!.GridFlowDirection!.Value.Should().Be(PowerFlowDirection.Export);
-        body.Battery!.StateOfChargePercent!.Value.Should().Be(82);
+        body.Pv.Should().BeNull();
+        body.Ac.Should().BeNull();
+        body.Battery!.StateOfChargePercent!.Value.Should().Be(0);
+        body.Battery.StateOfChargePercent.Source.Should().Be(PowerMetricSource.VictronSmartShunt);
         body.Battery.VoltageV!.Source.Should().Be(PowerMetricSource.VictronSmartShunt);
         body.Battery.FlowDirection!.Value.Should().Be(PowerFlowDirection.Discharging);
     }
@@ -388,13 +389,13 @@ public sealed class PowerIngestControllerTests
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var body = ok.Value.Should().BeOfType<PowerSystemSnapshot>().Subject;
-        body.Pv!.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
+        body.Pv.Should().BeNull();
         body.Battery!.VoltageV!.Source.Should().Be(PowerMetricSource.VictronSmartShunt);
         body.Battery.VoltageV.Value.Should().Be(53.7);
     }
 
     [TestMethod]
-    public async Task GetLatestSystemSnapshot_MatchesSourceSystemCaseInsensitively()
+    public async Task GetLatestSystemSnapshot_IgnoresHistoricalSolarAssistantCaseInsensitively()
     {
         var now = DateTime.UtcNow;
         var solarAssistant = MakeEntity("solarassistant-total", now.AddMinutes(-5), 1400, "SolarAssistant");
@@ -406,8 +407,10 @@ public sealed class PowerIngestControllerTests
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var body = ok.Value.Should().BeOfType<PowerSystemSnapshot>().Subject;
-        body.Pv!.PowerW!.Value.Should().Be(1400);
-        body.Ac!.LoadPowerW!.Value.Should().Be(900);
+        body.Pv.Should().BeNull();
+        body.Ac.Should().BeNull();
+        body.Battery.Should().BeNull();
+        body.BatteryObservations.Should().BeNull();
     }
 
     [TestMethod]

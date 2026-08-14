@@ -9,16 +9,6 @@ public interface IPowerInventoryConfigurationProvider
         int staleAfterMinutes = 1440,
         CancellationToken ct = default);
 
-    Task<(
-        PowerDeviceInventorySnapshotResponse Inventory,
-        PowerConfigurationSnapshotResponse Configuration,
-        PowerEnergySnapshotResponse Energy,
-        PowerInverterDetailSnapshotResponse InverterDetail,
-        GatewayStatusSnapshotResponse GatewayStatus)> GetLatestCentralAsync(
-        string sourceId = "solarassistant-total",
-        int staleAfterMinutes = 1440,
-        CancellationToken ct = default);
-
     Task<PowerInverterDetailSnapshotResponse> GetLatestInverterDetailAsync(
         string sourceId,
         int staleAfterMinutes = 5,

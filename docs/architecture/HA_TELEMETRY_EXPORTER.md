@@ -1,15 +1,17 @@
 # Home Assistant Telemetry Exporter
 
-`HVO.Edge.Exporter.HomeAssistant` exports approved Home Assistant-owned current state to canonical HVO history. It uses Home Assistant's documented `/api/websocket` API and never reads Recorder.
+`HVO.Edge.Exporter.HomeAssistant` implements export of approved Home Assistant-owned current state to canonical HVO history. It uses Home Assistant's documented `/api/websocket` API and never reads Recorder.
+
+Production status: intentionally disabled. There are no production mappings and no production Kasa/Govee source claims. Home Assistant currently owns Kasa and Govee acquisition and presentation only; the exporter is not a canonical production writer.
 
 See [Edge Data Flows](EDGE_DATA_FLOWS.md) for the complete per-source diagrams and authority matrix.
 
 ## Authority
 
-- Configuration is an explicit allowlist of physical Kasa and Govee sources.
+- When enabled, configuration is an explicit allowlist of physical Kasa and Govee sources.
 - Each mapping assigns a stable HVO source ID and device ID; HA entity IDs are selectors, not canonical identity.
 - The exporter verifies each entity's registry platform and rejects MQTT-platform and `sensor.hvo_*` mappings.
-- Existing direct collectors must be stopped and their outboxes drained before the equivalent HA mapping is enabled.
+- A mapping must not be enabled while another canonical writer owns the same physical observation. The retired direct Kasa collector has already been removed.
 - HVO-owned entities projected into HA through MQTT remain owned by their direct gateways and are never exported back to central ingest.
 
 ## Observation Semantics
@@ -33,13 +35,13 @@ Retry-exhausted transient records are automatically requeued on a bounded interv
 
 Home Assistant and central API credentials are read from mounted secret files. Token values and raw WebSocket messages are never logged.
 
-The dedicated central API key must carry `source=<stable-source-id>` claims for every configured mapping in addition to `ingest:power` and/or `ingest:weather`. Central ingest rejects `homeassistant-*` observations when the authenticated key lacks the exact source claim.
+If production export is approved later, the dedicated central API key must carry `source=<stable-source-id>` claims for every configured mapping in addition to `ingest:power` and/or `ingest:weather`. Central ingest rejects `homeassistant-*` observations when the authenticated key lacks the exact source claim. No such production claims are currently provisioned.
 
-## Cutover
+## Future Enablement
 
-1. Create and validate mappings with export disabled.
-2. Stop the previous collector for each mapped physical source.
-3. Confirm its durable outbox has drained.
-4. Record the cutover timestamp and revoke the old source's ingest authority where applicable.
-5. Enable the HA exporter and verify startup reconciliation, central persistence, and diagnostics.
-6. Keep rollback limited to one writer at a time.
+1. Obtain explicit approval for each physical source and canonical-history requirement.
+2. Create and validate mappings while export remains disabled.
+3. Confirm no previous or competing canonical writer exists; if one exists, stop it and drain its durable outbox.
+4. Provision only the exact source claims needed by the approved mappings.
+5. Record the enablement timestamp, enable the exporter, and verify startup reconciliation, central persistence, and diagnostics.
+6. Keep rollback limited to one writer at a time and remove source claims when mappings are disabled.

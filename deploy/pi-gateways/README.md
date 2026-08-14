@@ -26,8 +26,6 @@ Required website secret names in `hvo-central-kv`:
 - `Seeding--SmartShuntSourceId`
 - `Seeding--WeatherReadApiKey`
 - `Seeding--PowerReadApiKey`
-- `Seeding--HomeAssistantExporterApiKey`
-- `Seeding--HomeAssistantExporterSources--0` (repeat the numeric suffix for each reserved `kasa:`/`govee:` source)
 
 Reason:
 
@@ -59,13 +57,12 @@ Important:
 
 - `deploy/pi-gateways/davis`
 - `deploy/pi-gateways/eg4`
-- `deploy/pi-gateways/home-assistant-exporter`
 - `deploy/pi-gateways/jkbms`
-- `deploy/pi-gateways/solarassistant`
 - `deploy/pi-gateways/smartshunt`
-- `deploy/pi-gateways/tplink-kasa`
 
 Each gateway is deployed independently so Pi rollouts do not depend on the main repo-level compose stack.
+
+`deploy/pi-gateways/home-assistant-exporter` retains the implemented exporter deployment template, but the exporter is intentionally disabled in production with no mappings or source claims. Do not deploy or enable it without a separately approved source-authority change. The retired direct SolarAssistant and TP-Link/Kasa deployment stacks, containers, and images have been removed. SolarAssistant's old outbox and data-protection volumes remain preserved pending disposition.
 
 ## Common workflow
 
@@ -77,20 +74,11 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 ```bash
 ./scripts/deploy-pi-gateway.sh --context devpi5 davis
 ./scripts/deploy-pi-gateway.sh --context devpi5 eg4
-./scripts/deploy-pi-gateway.sh --context devpi5 ha-exporter
 ./scripts/deploy-pi-gateway.sh --context devpi5 jkbms
-./scripts/deploy-pi-gateway.sh --context devpi5 solarassistant
 ./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt
-./scripts/deploy-pi-gateway.sh --context devpi5 tplinkkasa
 ```
 
-To deploy all gateway stacks from the current checkout:
-
-```bash
-./scripts/deploy-pi-gateway.sh --context devpi5 all
-```
-
-The commissioning EG4 and Home Assistant exporter stacks are intentionally excluded from `all`; deploy them explicitly after source-authority preflight.
+Deploy only the named active collector being changed. The HA exporter is not a production target.
 
 To verify deployed endpoints after rollout:
 
@@ -106,16 +94,7 @@ To verify deployed endpoints after rollout:
 - Every gateway has a nominal 34 MB local budget: three compressed 10 MB files plus a 4 MB non-blocking buffer. When full, new stdout records are dropped rather than blocking device polling.
 - Core dumps are disabled in every gateway container. The deploy script verifies both logging and core policies after recreation.
 - Direct OTLP logging buffers at most 5,000 events and retries for ten minutes. Longer outages can lose central records; use bounded local `docker logs` for incident reconstruction.
-- SolarAssistant and TP-Link/Kasa retain their independent local polling, diagnostics, and shared-outbox forwarding behavior when OTLP is unavailable.
-
-## TP-Link/Kasa deployment notes
-
-- The gateway polls only configured devices with allowlisted read-only commands during normal operation.
-- It does not scan continuously and does not execute device commands. It does enqueue and forward energy/inventory payloads through the shared outbox when `KASA_OUTBOX_*` settings are configured.
-- Start with one enabled non-critical pilot device in `deploy/pi-gateways/tplink-kasa/.env`.
-- Configure vendor `DeviceId` as the primary identity; configure `Host` only as the current locator and `MacAddress` as a secondary validation hint.
-- Keep all `KASA_DEVICE_<n>_ENABLED=false` until the device has been explicitly selected for the pilot.
-- `/health` and `/gateway-health` are unauthenticated health endpoints; `/inventory` and `/status` require `X-Api-Key: <KASA_LOCAL_API_KEY>`.
+- Davis, JK BMS, EG4, and SmartShunt retain independent acquisition, diagnostics, and shared-outbox forwarding when OTLP is unavailable.
 
 ## JK BMS deployment notes
 
@@ -152,13 +131,12 @@ To verify deployed endpoints after rollout:
 
 ## Current local ports
 
-- Davis UI: `http://<pi-host>:5100`
+- Davis headless health and protected diagnostics: `http://<pi-host>:5100`
 - JK BMS headless health and protected diagnostics: `http://<pi-host>:5200`
-- SolarAssistant UI: `http://<pi-host>:5300`
 - SmartShunt headless health and protected diagnostics: `http://<pi-host>:5400`
-- TP-Link/Kasa local API: `http://<pi-host>:5500`
 - EG4 headless health and protected diagnostics: `http://<pi-host>:5600`
-- Home Assistant exporter diagnostics: `http://<pi-host>:5700`
+
+Ports 5300 and 5500 are no longer assigned to direct SolarAssistant or TP-Link/Kasa services. Port 5700 is reserved by the disabled HA exporter template and has no production service.
 
 ## EG4 deployment notes
 

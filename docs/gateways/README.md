@@ -1,6 +1,6 @@
 # Gateway Manuals
 
-This folder is the Phase 0 discovery area for observatory gateways and adjacent systems.
+This folder contains current manuals and retained protocol evidence for observatory collectors and adjacent systems.
 
 The goal is to build implementer-grade documentation before locking local models, outbox contracts, central storage, or main-site UI.
 
@@ -33,12 +33,12 @@ Small or placeholder systems can start as one file, but should split before APIs
 
 | System | Manual | Status |
 |--------|--------|--------|
-| Davis Vantage Pro2 | [davis-vantage-pro2/](davis-vantage-pro2/) | Split docs baseline created; needs live validation and deeper field-by-field protocol transcription. |
-| JK BMS | [jk-bms.md](jk-bms.md) | Seeded from parser/protocol code; needs external repo/manual validation. |
-| SolarAssistant | [solarassistant.md](solarassistant.md) | Seeded from live discovery docs and gateway code; needs official docs cross-check. |
-| Victron SmartShunt | [victron-smartshunt.md](victron-smartshunt.md) | Seeded from current plan/code; write paths intentionally unvalidated. |
-| TP-Link/Kasa | [tplink-kasa/](tplink-kasa/) | Split docs baseline plus sanitized live read-only discovery; initial recommendation is legacy Kasa LAN read-only. |
-| Future integration candidates | [future-integrations.md](future-integrations.md) | Consolidated placeholders for Govee, Digital Loggers, Blue Iris, AllSky, Roof/Dome, and Motion Sensors. |
+| Davis Vantage Pro2 | [davis-vantage-pro2/](davis-vantage-pro2/) | Active direct headless vNext collector. |
+| JK BMS | [jk-bms.md](jk-bms.md) | Active direct headless vNext collector. |
+| EG4 6500EX / MPPT100 | [eg4/](eg4/) | Active direct read-only headless vNext collector. Historical SolarAssistant comparisons are retained only as migration evidence. |
+| Victron SmartShunt | [victron-smartshunt.md](victron-smartshunt.md) | Active direct paired public-GATT headless vNext collector. |
+| Kasa and Govee | [Home Assistant operations](../../deploy/home-assistant/README.md) | Home Assistant owns acquisition and presentation; exporter intentionally disabled with no production mappings/source claims. |
+| Future integration candidates | [future-integrations.md](future-integrations.md) | Historical discovery notes and placeholders for Digital Loggers, Blue Iris, AllSky, Roof/Dome, and Motion Sensors. Govee's current production owner is Home Assistant. |
 
 ## Shared Design Notes
 
@@ -58,7 +58,6 @@ Small or placeholder systems can start as one file, but should split before APIs
 
 ## Supporting Documents
 
-- [Phase 0 Gateway Capability Inventory](PHASE_0_GATEWAY_CAPABILITY_INVENTORY.md)
 - [Gateway documentation set template](templates/gateway-manual-template.md)
 - Existing Davis inventory: [../davis-console-nonloop-values.md](../davis-console-nonloop-values.md)
 - Current future-work roadmap: [../FUTURE_WORK.md](../FUTURE_WORK.md)

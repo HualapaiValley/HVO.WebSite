@@ -8,7 +8,7 @@ action="summary"
 remote=false
 
 usage() {
-	printf 'Usage: %s [--context <docker-context>] [--remote] <summary|schema|archive|compact> <davis|eg4|ha-exporter|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
+	printf 'Usage: %s [--context <docker-context>] [--remote] <summary|schema|archive|compact> <davis|eg4|ha-exporter|jkbms|smartshunt>\n' "$(basename "$0")"
 	printf '\n'
 	printf 'Inspects, archives, or compacts gateway outbox.db files. Compact requires a stopped gateway and creates a verified local backup first.\n'
 }
@@ -24,9 +24,7 @@ volume_for_target() {
 		eg4) printf '%s\n' 'eg4_eg4-outbox' ;;
 		ha-exporter|home-assistant-exporter) printf '%s\n' 'home-assistant-exporter_home-assistant-exporter-data' ;;
 		jkbms) printf '%s\n' 'jkbms_jkbms-outbox' ;;
-		solarassistant) printf '%s\n' 'solarassistant_solarassistant-outbox' ;;
 		smartshunt) printf '%s\n' 'smartshunt_smartshunt-outbox' ;;
-		tplinkkasa|tplink-kasa) printf '%s\n' 'tplink-kasa_kasa-data' ;;
 		*) fail "Unknown gateway target '$1'." ;;
 	esac
 }
@@ -37,9 +35,7 @@ service_for_target() {
 		eg4) printf '%s\n' 'hvo-eg4' ;;
 		ha-exporter|home-assistant-exporter) printf '%s\n' 'hvo-home-assistant-exporter' ;;
 		jkbms) printf '%s\n' 'hvo-jkbms' ;;
-		solarassistant) printf '%s\n' 'hvo-solarassistant' ;;
 		smartshunt) printf '%s\n' 'hvo-smartshunt' ;;
-		tplinkkasa|tplink-kasa) printf '%s\n' 'hvo-tplink-kasa' ;;
 		*) fail "Unknown gateway target '$1'." ;;
 	esac
 }
@@ -140,7 +136,7 @@ while (($# > 0)); do
 			action="$1"
 			shift
 			;;
-		davis|eg4|ha-exporter|home-assistant-exporter|jkbms|solarassistant|smartshunt|tplinkkasa|tplink-kasa)
+		davis|eg4|ha-exporter|home-assistant-exporter|jkbms|smartshunt)
 			target="$1"
 			shift
 			;;

@@ -1,6 +1,6 @@
 # Common Gateway Standards
 
-This document defines shared HVO gateway behavior that should be common across Davis, SolarAssistant, JK BMS, SmartShunt, and future gateways. Gateway-specific drivers may extend these standards, but should not redefine common lifecycle, outbox, telemetry, or health semantics without documenting why.
+This document defines shared HVO gateway behavior for the active direct Davis, JK BMS, EG4, and SmartShunt collectors and future direct collectors. Device-specific drivers may extend these standards, but should not redefine common lifecycle, outbox, telemetry, or health semantics without documenting why.
 
 Status: Current standard. Use this as the baseline for current gateways and future gateway work.
 
@@ -23,8 +23,8 @@ Every gateway should expose and use a stable identity model.
 
 | Field | Required | Purpose |
 |-------|----------|---------|
-| `GatewayId` | Yes | Stable HVO gateway identifier, for example `hvo-davis` or `solarassistant`. |
-| `GatewayType` | Yes | Gateway implementation family, for example `davis-vantage-pro2`, `solarassistant`, `jk-bms`. |
+| `GatewayId` | Yes | Stable HVO gateway identifier, for example `hvo-davis` or `hvo-eg4`. |
+| `GatewayType` | Yes | Gateway implementation family, for example `davis-vantage-pro2`, `eg4`, or `jk-bms`. |
 | `SiteId` | Yes where configured | Observatory/site identity used by cloud ingest and operations. |
 | `SourceId` | Yes | Per-source identity used for idempotency and downstream attribution. For single-device gateways this can equal `GatewayId`. |
 | `DeviceId` | Optional | Per-device identity for multi-device gateways such as BMS packs or inverter components. |
@@ -66,7 +66,7 @@ Gateway storage and API contracts should treat timestamps as instants first and 
 - Do not use server/container `ToLocalTime()` for operator display. In a deployed container this reflects the host/container timezone, which may not be the observatory, browser, gateway, or device timezone.
 - Browser UIs may render UTC timestamps in the viewer's local timezone when the view is clearly user-local. Gateway/operator status pages should prefer a configured gateway display timezone so a headless wall display and remote browser see the same site-relative time.
 - Gateways that read a device timezone, such as Davis, should use the device timezone for protocol-local values and convert source-local timestamps to UTC before storage or forwarding.
-- UI-bearing gateways whose devices do not have a reliable local-time concept, such as SmartShunt, SolarAssistant, and live Kasa polling, should use a configured gateway display timezone for local UI labels while continuing to store and forward UTC. Headless vNext collectors such as JK BMS expose UTC diagnostics only.
+- Headless vNext collectors expose UTC diagnostics. Any future operator UI whose device lacks a reliable local-time concept should use an explicitly configured display timezone while continuing to store and forward UTC.
 - Multi-device gateways may allow a per-device display timezone override. This is presentation metadata only; it must not change `RecordedAtUtc`, `ObservedAtUtc`, idempotency keys, or stale-age calculations.
 
 Recommended configuration shape:
@@ -132,8 +132,6 @@ tuning forwarding throughput.
 - **API endpoint** (API-key protected): `PUT /diagnostics/outbox/settings`
   - Body: `{"batchSize": 500, "sweepIntervalSeconds": 1}`
   - Body: `{"reset": true}` — reverts to configured defaults
-- **UI controls**: Each gateway's status/settings page provides editable fields
-  with Apply and Reset buttons for batch size and sweep interval.
 - **Defaults**: `OUTBOX_BATCH_SIZE=500`, `OUTBOX_SWEEP_INTERVAL_SECONDS=1` in `.env`
 - The forwarder skips the sweep interval delay entirely when the queue has work,
   so backlog draining proceeds at maximum rate.
@@ -203,7 +201,7 @@ Metric names are defined in `GatewayTelemetryConventions`. Prefer counters for e
 | `gateway.health.evaluation` | Counter | `{evaluation}` | Health evaluations by state. |
 | `gateway.health.evaluation.duration` | Histogram | `s` | Health evaluation duration. |
 
-The common meter and activity source are both `HVO.Edge`. Existing `davis.*`, `bms.*`, `smartshunt.*`, `solarassistant.*`, and `kasa.*` instruments remain temporary compatibility aliases. Remove them only after externally stored Grafana dashboards have been exported, checked for those names, and migrated.
+The common meter and activity source are both `HVO.Edge`. Existing active-collector compatibility aliases remain temporary. Remove them only after externally stored Grafana dashboards have been exported, checked for those names, and migrated.
 
 ### Common Traces/Operations
 
@@ -220,7 +218,7 @@ The common meter and activity source are both `HVO.Edge`. Existing `davis.*`, `b
 | `gateway.outbox.requeue` | Retry-exhausted records returned to pending after recovery. |
 | `gateway.health.evaluate` | Gateway health/status evaluation. |
 
-Gateway-specific operations should use a stable prefix such as `Davis.Console.*`, `SolarAssistant.Mqtt.*`, or `JkBms.Ble.*`.
+Gateway-specific operations should use a stable prefix such as `Davis.Console.*`, `Eg4.Hid.*`, or `JkBms.Ble.*`.
 
 ## Gateway-Specific Telemetry Extensions
 
@@ -229,7 +227,7 @@ Gateway-specific metrics should not duplicate common metrics. They should expose
 | Gateway | Examples |
 |---------|----------|
 | Davis Vantage Pro2 | console wake failures, ACK/CRC failures, LOOP packet counts, archive catchup records/pages, WeatherLink/IP reconnects. |
-| SolarAssistant | MQTT connection state, topic freshness, stale inventory/readings, inverter count, battery count. |
+| EG4 | USB HID/serial connection state, identity rejection, PI30/Modbus read failures, tracker freshness. |
 | JK BMS | BLE connection failures, adapter lock contention, frame decode failures, per-device poll success, alarm state changes. |
 | Victron SmartShunt | BLE read failures, protocol decode failures, write/sync confidence, stale value age. |
 
@@ -268,11 +266,12 @@ Target shared components:
 
 Current implementation status:
 
-- SolarAssistant uses the shared outbox plus typed power, inventory, configuration, energy, inverter detail, and gateway-status streams.
-- TPLink Kasa uses the shared outbox for energy and inventory payloads.
-- SmartShunt uses the shared outbox for battery monitor power readings.
+- EG4 uses the shared outbox for typed read-only power and device-detail observations.
+- SmartShunt uses the shared outbox for battery monitor observations.
 - JK BMS uses one canonical shared-outbox record per poll, with changed config/device-info embedded in the BMS reading contract and strict per-record outcome accounting.
 - Davis uses the shared outbox for weather raw/archive telemetry, with station settings/info split into gateway-owned local persistence.
+
+Home Assistant, rather than a direct HVO gateway, owns Kasa and Govee acquisition and presentation. The HA exporter is implemented but intentionally disabled in production with no mappings or source claims. The retired direct SolarAssistant and TP-Link/Kasa applications are not covered as current gateways by this standard.
 
 Open future work is tracked in `docs/FUTURE_WORK.md`.
 

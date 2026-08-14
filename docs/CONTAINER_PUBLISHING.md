@@ -1,6 +1,6 @@
 # Container Publishing
 
-This repository publishes six application images to the self-hosted Docker registry on `hvo-docker`, and each image is versioned independently.
+This repository actively publishes four application images to the self-hosted Docker registry on `hvo-docker`, and each image is versioned independently. EG4 is built natively through the remote Pi Docker context rather than published by this workflow.
 
 ## Registry Inventory
 
@@ -26,9 +26,9 @@ The published repositories are:
 | Website | `hvo-website` | `src/HVO.WebSite.v9/Dockerfile` | `HVO_WEBSITE_IMAGE_VERSION` |
 | Davis | `hvo-davis` | `src/HVO.Hardware.DavisVantagePro2/Dockerfile` | `HVO_DAVIS_IMAGE_VERSION` |
 | JK BMS | `hvo-jkbms` | `src/HVO.Hardware.JkBms/Dockerfile` | `HVO_JKBMS_IMAGE_VERSION` |
-| SolarAssistant | `hvo-solarassistant` | `src/HVO.Gateway.SolarAssistant/Dockerfile` | `HVO_SOLARASSISTANT_IMAGE_VERSION` |
 | SmartShunt | `hvo-smartshunt` | `src/HVO.Hardware.VictronSmartShunt/Dockerfile` | `HVO_SMARTSHUNT_IMAGE_VERSION` |
-| TP-Link/Kasa | `hvo-tplinkkasa` | `src/HVO.Gateway.TplinkKasa/Dockerfile` | `HVO_TPLINKKASA_IMAGE_VERSION` |
+
+The retired direct `hvo-solarassistant` and `hvo-tplinkkasa` images have been removed and are not publish targets. The HA exporter is implemented but intentionally disabled in production and is not part of the active image-publishing inventory.
 
 Each publish always writes the explicit version tag from `.env`. Add `--push-latest` when you intentionally want to update the mutable `latest` tag as well.
 
@@ -48,9 +48,7 @@ The independent image version variables live in `.env`. Each image tracks its ow
 HVO_WEBSITE_IMAGE_VERSION=<current>
 HVO_DAVIS_IMAGE_VERSION=<current>
 HVO_JKBMS_IMAGE_VERSION=<current>
-HVO_SOLARASSISTANT_IMAGE_VERSION=<current>
 HVO_SMARTSHUNT_IMAGE_VERSION=<current>
-HVO_TPLINKKASA_IMAGE_VERSION=<current>
 ```
 
 Only bump the variable for the image you are publishing. See `CHANGELOG.md` for published version history.
@@ -63,9 +61,7 @@ Use the repo script to build, tag, push, and verify one target at a time:
 ./scripts/publish-image.sh website
 ./scripts/publish-image.sh davis
 ./scripts/publish-image.sh jkbms
-./scripts/publish-image.sh solarassistant
 ./scripts/publish-image.sh smartshunt
-./scripts/publish-image.sh tplinkkasa
 ```
 
 To inspect the exact commands without building or pushing:
@@ -103,8 +99,10 @@ named key volume with `docker compose down -v`.
 Deploy Pi gateway compose stacks to the configured Docker context:
 
 ```bash
-./scripts/deploy-pi-gateway.sh --context devpi5 all
+./scripts/deploy-pi-gateway.sh --context devpi5 davis
 ./scripts/deploy-pi-gateway.sh --context devpi5 jkbms
+./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt
+./scripts/deploy-pi-gateway.sh --context devpi5 eg4
 ```
 
 Check website and Pi health endpoints:
@@ -159,9 +157,7 @@ docker --context hvo-docker ps
 docker pull registry.hualapaivalleyobservatory.org/hvo-website:<tag>
 docker pull registry.hualapaivalleyobservatory.org/hvo-davis:<tag>
 docker pull registry.hualapaivalleyobservatory.org/hvo-jkbms:<tag>
-docker pull registry.hualapaivalleyobservatory.org/hvo-solarassistant:<tag>
 docker pull registry.hualapaivalleyobservatory.org/hvo-smartshunt:<tag>
-docker pull registry.hualapaivalleyobservatory.org/hvo-tplinkkasa:<tag>
 ```
 
 ## Gist Sync

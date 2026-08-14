@@ -11,7 +11,7 @@ allow_env_overrides=false
 target=""
 
 usage() {
-	printf 'Usage: %s [--dry-run] [--context <docker-context>] [--pull] [--no-build] [--allow-env-overrides] <all|davis|eg4|ha-exporter|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
+	printf 'Usage: %s [--dry-run] [--context <docker-context>] [--pull] [--no-build] [--allow-env-overrides] <all|davis|eg4|ha-exporter|jkbms|smartshunt>\n' "$(basename "$0")"
 	printf '\n'
 	printf 'Deploys one or more Pi gateway compose stacks using an existing Docker context.\n'
 }
@@ -143,9 +143,7 @@ compose_dir_for_target() {
 		eg4) printf '%s\n' 'deploy/pi-gateways/eg4' ;;
 		ha-exporter|home-assistant-exporter) printf '%s\n' 'deploy/pi-gateways/home-assistant-exporter' ;;
 		jkbms) printf '%s\n' 'deploy/pi-gateways/jkbms' ;;
-		solarassistant) printf '%s\n' 'deploy/pi-gateways/solarassistant' ;;
 		smartshunt) printf '%s\n' 'deploy/pi-gateways/smartshunt' ;;
-		tplinkkasa|tplink-kasa) printf '%s\n' 'deploy/pi-gateways/tplink-kasa' ;;
 		*) fail "Unknown gateway target '$1'." ;;
 	esac
 }
@@ -394,7 +392,7 @@ while (($# > 0)); do
 			usage
 			exit 0
 			;;
-		all|davis|eg4|ha-exporter|home-assistant-exporter|jkbms|solarassistant|smartshunt|tplinkkasa|tplink-kasa)
+		all|davis|eg4|ha-exporter|home-assistant-exporter|jkbms|smartshunt)
 			[[ -z "${target}" ]] || fail 'Only one target can be specified.'
 			target="$1"
 			shift
@@ -424,7 +422,7 @@ if [[ "${target}" == all ]]; then
 	smartshunt_preflight_remote_secrets=""
 	preflight_smartshunt_contract "${repo_root}/deploy/pi-gateways/smartshunt/.env" "deploy/pi-gateways/smartshunt" \
 		smartshunt_preflight_config smartshunt_preflight_secrets smartshunt_preflight_remote_config smartshunt_preflight_remote_secrets
-	for gateway in davis jkbms solarassistant smartshunt tplinkkasa; do
+	for gateway in davis jkbms smartshunt; do
 		deploy_target "${gateway}"
 	done
 else

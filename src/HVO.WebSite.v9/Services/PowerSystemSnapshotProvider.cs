@@ -70,9 +70,23 @@ public sealed class PowerSystemSnapshotProvider(
             .OfType<PowerMpptDetailPayload>()
             .ToArray();
 
-        return readings.Length == 0 && bmsReadings.Length == 0 && mpptDetails.Length == 0
+        var inverterDetailRows = await db.PowerInverterDetailSnapshots.AsNoTracking()
+            .Where(r => r.RecordedAt >= cutoffUtc && r.RecordedAt <= futureCutoffUtc)
+            .Where(r => r.SourceSystem == PowerSourceSystems.Eg46500Ex)
+            .OrderByDescending(r => r.RecordedAt)
+            .ThenByDescending(r => r.Id)
+            .Take(1000)
+            .ToArrayAsync(ct);
+        var inverterDetails = inverterDetailRows
+            .Select(TryDeserializeInverterDetail)
+            .OfType<PowerInverterDetailPayload>()
+            .GroupBy(detail => detail.SourceId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+
+        return readings.Length == 0 && bmsReadings.Length == 0 && mpptDetails.Length == 0 && inverterDetails.Length == 0
             ? null
-            : PowerSystemSnapshotComposer.Compose(readings, nowUtc, bmsReadings, options.Value, mpptDetails);
+            : PowerSystemSnapshotComposer.Compose(readings, nowUtc, bmsReadings, options.Value, mpptDetails, inverterDetails);
     }
 
     private PowerMpptDetailPayload? TryDeserializeMpptDetail(PowerMpptDetailSnapshot row)
@@ -89,6 +103,29 @@ public sealed class PowerSystemSnapshotProvider(
             logger?.LogWarning(
                 exception,
                 "Skipping invalid MPPT detail snapshot {SnapshotId} for source {SourceId}",
+                row.Id,
+                row.SourceId);
+            return null;
+        }
+    }
+
+    private PowerInverterDetailPayload? TryDeserializeInverterDetail(PowerInverterDetailSnapshot row)
+    {
+        try
+        {
+            var payload = JsonSerializer.Deserialize<PowerInverterDetailPayload>(row.PayloadJson, JsonOptions);
+            if (payload is null || string.IsNullOrWhiteSpace(payload.SourceId)
+                || payload.PvStrings is null || payload.PvStrings.Any(item => item is null)
+                || payload.Temperatures is null || payload.Temperatures.Any(item => item is null)
+                || payload.Statuses is null || payload.Statuses.Any(item => item is null))
+                throw new JsonException("Inverter detail payload is invalid or has a null collection or entry.");
+            return payload;
+        }
+        catch (JsonException exception)
+        {
+            logger?.LogWarning(
+                exception,
+                "Skipping invalid inverter detail snapshot {SnapshotId} for source {SourceId}",
                 row.Id,
                 row.SourceId);
             return null;

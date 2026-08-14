@@ -1,16 +1,16 @@
 # Edge Data Flows
 
-This document shows acquisition authority, current-state presentation, durable history, and the planned migration state for each HVO telemetry source.
+This document shows current production acquisition authority, current-state presentation, and durable history for each HVO telemetry source.
 
 ## Reading The Diagrams
 
 - **HVO-owned source:** a direct HVO collector owns acquisition and writes canonical history through its own SQLite outbox.
-- **HA-owned source:** Home Assistant owns acquisition; the HA WebSocket exporter writes canonical history through the exporter's SQLite outbox.
+- **HA-owned source:** Home Assistant owns acquisition and presentation. The HA WebSocket exporter can write approved canonical history, but it is intentionally disabled in production with no mappings or source claims.
 - **MQTT projection:** current state for Home Assistant presentation only. It is not canonical historical delivery.
 - **Website API:** the only path from edge services to the canonical SQL database. Edge services never connect directly to SQL.
 - **Dashed path:** transitional, planned, or explicitly non-canonical.
 
-Each SQLite outbox is independent. A Davis outage cannot block the JK BMS outbox, and an HA exporter outage cannot block direct collectors.
+Each active collector SQLite outbox is independent. A Davis outage cannot block the JK BMS outbox. The disabled HA exporter has no active production outbox flow.
 
 ## System Overview
 
@@ -25,20 +25,20 @@ flowchart LR
     subgraph HAO[Home Assistant-owned acquisition]
         HAD[HA-owned device] --> HAI[HA integration]
         HAI --> HAE[HA entities]
-        HAE --> HAW[HA WebSocket exporter]
-        HAW --> HAOBOX[(Exporter SQLite outbox)]
+        HAE -. no production mappings or source claims .-> HAW[HA WebSocket exporter disabled]
+        HAW -. inactive .-> HAOBOX[(Exporter SQLite outbox)]
     end
 
     DM --> MQ[Local Mosquitto]
     MQ --> HA[Home Assistant]
     DO --> API[Central Website ingest API]
-    HAOBOX --> API
+    HAOBOX -. no production delivery .-> API
     API --> DB[(Canonical SQL database)]
 
     HA -. HVO MQTT entities are excluded .-> HAW
 ```
 
-The exclusion on the final line prevents HA from sending Davis, JK BMS, EG4, or other HVO-owned MQTT state back through the exporter as a second canonical writer.
+If the exporter is enabled in the future, the exclusion on the final line prevents HA from sending Davis, JK BMS, EG4, or other HVO-owned MQTT state back through it as a second canonical writer.
 
 ## Davis Vantage Pro 2
 
@@ -125,30 +125,15 @@ flowchart LR
 
 **Migration status:** issue #326 selected and implemented the direct authority. Production cutover must stop the legacy process before vNext starts; rollback must stop vNext before restoring the legacy process.
 
-## SolarAssistant
+## Retired SolarAssistant Path
 
-**Current authority:** Existing SolarAssistant gateway during transition.
+**Current authority:** None. There is no HVO SolarAssistant collector or canonical writer.
 
-**vNext authority:** No HVO vNext collector or canonical writer. Direct EG4 acquisition replaces overlapping observations only after shadow validation and cutover.
-
-```mermaid
-flowchart LR
-    SA[SolarAssistant] -->|current REST and MQTT reads| LEGACY[Existing HVO SolarAssistant gateway]
-    LEGACY -->|current transitional state| STATUS[Local gateway status]
-    LEGACY -->|transitional typed records| OUT[(SolarAssistant SQLite outbox)]
-    OUT -->|power ingest HTTPS| API[Central Website API]
-    API --> DB[(Canonical SQL database)]
-
-    EG4[Direct EG4 collector] -. shadow validation .-> EOUT[(EG4 SQLite outbox)]
-    EOUT -. cutover .-> API
-    LEGACY -. drain and retire in issue 330 .-> RETIRE[No SolarAssistant vNext writer]
-```
-
-**Migration status:** the existing gateway remains operational during comparison. Issue #330 must drain and retire its canonical writer before overlapping direct EG4 streams are promoted.
+The direct SolarAssistant application, tests, deployment definition, container, and image were removed after direct EG4 became the production authority for the applicable physical observations. Historical SolarAssistant comparisons remain valid only as evidence used during EG4 shadow validation. The old SolarAssistant outbox and data-protection volumes remain preserved pending explicit disposition.
 
 ## TP-Link Kasa
 
-**Target authority:** Home Assistant TP-Link integration.
+**Authority:** Home Assistant TP-Link integration.
 
 **Historical data:** approved per-device load power and optional voltage. Switch commands and command history are outside this design.
 
@@ -157,18 +142,12 @@ flowchart LR
 ```mermaid
 flowchart LR
     KASA[Kasa plug] -->|local TP-Link integration| HA[Home Assistant entities]
-    HA -->|approved entity state over WebSocket| EXP[HA WebSocket exporter on devpi5]
-    EXP -->|typed power observation| OUT[(HA exporter SQLite outbox)]
-    OUT -->|power ingest HTTPS| API[Central Website API]
-    API --> DB[(Canonical SQL database)]
-
-    KASA -. current direct polling .-> LEGACY[Existing direct Kasa gateway]
-    LEGACY -. energy and inventory .-> LOUT[(Legacy Kasa SQLite outbox)]
-    LOUT -. current canonical path .-> API
-    LEGACY -. stop and drain before enablement .-> CUTOVER[One-writer cutover]
+    HA --> PRESENT[Native Home Assistant presentation]
+    HA -. exporter disabled; no mapping or source claim .-> EXP[HA WebSocket exporter]
+    EXP -. no production delivery .-> API[Central Website API]
 ```
 
-**Migration status:** target authority is defined, but the direct Kasa gateway remains the writer until issue #330 performs the stop, drain, source-claim transfer, and exporter enablement sequence.
+**Current status:** the direct Kasa application, tests, deployment definition, container, and image are removed. HA owns acquisition and presentation. The exporter is implemented but intentionally disabled, with no production Kasa mappings or source claims, so there is no active canonical HVO writer for Kasa.
 
 ## Govee Bluetooth Sensors
 
@@ -182,13 +161,12 @@ flowchart LR
 flowchart LR
     GOVEE[Govee BLE sensor] -->|Bluetooth advertisements| PROXY[ESPHome Bluetooth proxy]
     PROXY -->|Bluetooth proxy transport| HA[Home Assistant Govee entities]
-    HA -->|approved entity state over WebSocket| EXP[HA WebSocket exporter on devpi5]
-    EXP -->|typed weather observation| OUT[(HA exporter SQLite outbox)]
-    OUT -->|weather ingest HTTPS| API[Central Website API]
-    API --> DB[(Canonical SQL database)]
+    HA --> PRESENT[Native Home Assistant presentation]
+    HA -. exporter disabled; no mapping or source claim .-> EXP[HA WebSocket exporter]
+    EXP -. no production delivery .-> API[Central Website API]
 ```
 
-The Bluetooth proxy does not use MQTT for this path. Home Assistant owns the Govee entity state, and the exporter is its only canonical HVO writer.
+The Bluetooth proxy does not use MQTT for this path. Home Assistant owns Govee acquisition and presentation. The exporter is intentionally disabled with no production Govee mappings or source claims, so there is no active canonical HVO writer for Govee.
 
 ## Authority And Outbox Matrix
 
@@ -198,9 +176,9 @@ The Bluetooth proxy does not use MQTT for this path. Home Assistant owns the Gov
 | JK BMS | Direct HVO collector | JK collector | JK SQLite | Collector -> MQTT -> HA |
 | EG4 | Direct HVO collector | EG4 collector | EG4 SQLite | Collector -> MQTT -> HA |
 | SmartShunt | Direct HVO public-GATT collector | SmartShunt collector | SmartShunt SQLite | Collector -> MQTT -> HA |
-| SolarAssistant | Transitional legacy gateway | None in target vNext | Transitional SolarAssistant SQLite | Transitional only |
-| Kasa | Home Assistant | HA WebSocket exporter | Exporter SQLite | Native HA integration |
-| Govee | Home Assistant | HA WebSocket exporter | Exporter SQLite | Native HA integration through BT proxy |
+| SolarAssistant | None; retired | None | Preserved legacy volumes pending disposition | None |
+| Kasa | Home Assistant | None; exporter disabled | None active | Native HA integration |
+| Govee | Home Assistant | None; exporter disabled | None active | Native HA integration through BT proxy |
 
 ## Home Assistant Power Semantics
 
@@ -214,7 +192,7 @@ HVO MQTT Discovery includes source-resolution display precision for Davis, JK BM
 | SmartShunt | Whole DC bus | Positive charging, negative discharging | Direct SmartShunt collector owns acquisition/history; MQTT is presentation only. |
 | EG4 6500EX | Inverter battery branch | Positive discharging, negative charging | Direct EG4 collector owns acquisition/history; do not sum it with whole-bus power. |
 | EG4 MPPT100 | Charge-controller battery branch | Negative charging | Direct EG4 collector owns acquisition/history; PV input and battery output are different measurement points. |
-| Kasa | Individual AC appliance load | Non-negative consumption | HA owns acquisition; only the HA exporter writes approved history. |
+| Kasa | Individual AC appliance load | Non-negative consumption | HA owns acquisition/presentation; no HVO history export is enabled. |
 
 Never add JK bank totals, SmartShunt whole-bus power, EG4 branches, and Kasa appliance loads into one undifferentiated total. They overlap electrically and are sampled at different points and cadences. Home Assistant may derive presentation-only charge/discharge energy helpers from signed power, but helper output must not be exported as source-native HVO telemetry. Prefer source-native monotonic kWh counters, such as supported Kasa energy totals, when reset behavior and provenance are known.
 
@@ -222,9 +200,9 @@ Never add JK bank totals, SmartShunt whole-bus power, EG4 branches, and Kasa app
 
 - MQTT or Home Assistant failure does not stop direct collectors from committing to their own outboxes.
 - Central API failure causes each outbox to accumulate independently and drain after recovery.
-- HA failure pauses Kasa and Govee acquisition because HA owns those sources; the exporter does not query Recorder to reconstruct missed history.
-- Exporter failure does not affect Davis, JK BMS, EG4, or other direct collectors.
-- A source-authority cutover is incomplete until the old writer is stopped, its outbox is drained, and central source claims belong only to the new writer.
+- HA failure pauses Kasa and Govee acquisition/presentation because HA owns those sources.
+- The disabled exporter does not affect Davis, JK BMS, EG4, or SmartShunt direct collectors.
+- Enabling any exporter mapping requires explicit approval, exact production source claims, and confirmation that no competing writer exists.
 
 ## Related Documents
 

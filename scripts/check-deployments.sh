@@ -26,9 +26,7 @@ check_url 'website /health/live' "${website_base_url}/health/live"
 check_url 'website /health/ready' "${website_base_url}/health/ready"
 check_url 'davis /health' "http://${pi_host}:5100/health"
 check_url 'jkbms /health' "http://${pi_host}:5200/health"
-check_url 'solarassistant /health' "http://${pi_host}:5300/health"
 check_url 'smartshunt /health' "http://${pi_host}:5400/health"
-check_url 'tplink-kasa /health' "http://${pi_host}:5500/health"
 if [[ "${HVO_CHECK_EG4:-false}" == true ]]; then
 	check_url 'eg4 /health' "http://${pi_host}:${EG4_HTTP_PORT:-5600}/health"
 fi

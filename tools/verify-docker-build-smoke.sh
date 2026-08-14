@@ -29,9 +29,9 @@ chmod +x "${fake_docker}"
 		bash "${repo_root}/tools/docker-build-smoke.sh"
 )
 
-[[ "$(grep -c '^build ' "${log_file}")" == 8 ]] || { printf 'Expected eight Docker smoke builds.\n' >&2; exit 1; }
-[[ "$(grep -c '^image rm --force ' "${log_file}")" == 8 ]] || { printf 'Expected every smoke image to be removed.\n' >&2; exit 1; }
-[[ "$(grep -c '^builder prune --all --force$' "${log_file}")" == 10 ]] || { printf 'Expected cache cleanup before, between, and after builds.\n' >&2; exit 1; }
+[[ "$(grep -c '^build ' "${log_file}")" == 6 ]] || { printf 'Expected six Docker smoke builds.\n' >&2; exit 1; }
+[[ "$(grep -c '^image rm --force ' "${log_file}")" == 6 ]] || { printf 'Expected every smoke image to be removed.\n' >&2; exit 1; }
+[[ "$(grep -c '^builder prune --all --force$' "${log_file}")" == 8 ]] || { printf 'Expected cache cleanup before, between, and after builds.\n' >&2; exit 1; }
 
 : > "${log_file}"
 (
@@ -40,7 +40,7 @@ chmod +x "${fake_docker}"
 		DOCKER_SMOKE_RUN_KEY=cache-test DOCKER_SMOKE_CACHE_MODE=persistent \
 		bash "${repo_root}/tools/docker-build-smoke.sh"
 )
-[[ "$(grep -c '^build ' "${log_file}")" == 8 ]] || { printf 'Expected eight persistent-cache Docker smoke builds.\n' >&2; exit 1; }
+[[ "$(grep -c '^build ' "${log_file}")" == 6 ]] || { printf 'Expected six persistent-cache Docker smoke builds.\n' >&2; exit 1; }
 [[ "$(grep -c '^builder prune --force --max-used-space 30GB$' "${log_file}")" == 2 ]] || {
 	printf 'Expected bounded persistent cache pruning before and after the smoke suite.\n' >&2
 	exit 1
@@ -77,7 +77,7 @@ set +e
 	cd "${tmp_dir}"
 	DOCKER_COMMAND="${fake_docker}" DOCKER_SMOKE_TEST_LOG="${log_file}" \
 		DOCKER_SMOKE_RUN_KEY=cleanup-test DOCKER_SMOKE_CACHE_MODE=persistent \
-		DOCKER_SMOKE_FAIL_FINAL_PRUNE_AFTER_IMAGE='hvo-tplinkkasa-ci:cleanup-test' \
+		DOCKER_SMOKE_FAIL_FINAL_PRUNE_AFTER_IMAGE='hvo-ha-exporter-ci:cleanup-test' \
 		bash "${repo_root}/tools/docker-build-smoke.sh"
 )
 cleanup_failure_status="$?"
@@ -97,4 +97,4 @@ remove_failure_status="$?"
 set -e
 [[ "${remove_failure_status}" == 1 ]] || { printf 'Expected image cleanup failure to fail a successful smoke suite.\n' >&2; exit 1; }
 
-printf 'Verified bounded Docker smoke build cleanup for all eight images.\n'
+printf 'Verified bounded Docker smoke build cleanup for all six images.\n'

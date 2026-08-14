@@ -248,10 +248,6 @@ sync_dotenv_secret .env POWER_API_KEY Seeding--PowerApiKey
 sync_dotenv_secret .env EG4_POWER_API_KEY Seeding--PowerApiKey
 sync_dotenv_secret .env POWER_READ_API_KEY Seeding--PowerReadApiKey
 sync_dotenv_secret .env WEATHER_READ_API_KEY Seeding--WeatherReadApiKey
-sync_dotenv_secret .env SOLAR_ASSISTANT_REST_USERNAME obs-solarassistant-rest-username
-sync_dotenv_secret .env SOLAR_ASSISTANT_REST_PASSWORD obs-solarassistant-rest-password
-sync_dotenv_secret .env SOLAR_ASSISTANT_MQTT_USERNAME obs-solarassistant-mqtt-username
-sync_dotenv_secret .env SOLAR_ASSISTANT_MQTT_PASSWORD obs-solarassistant-mqtt-password
 sync_dotenv_secret .env HVO_CONTAINER_REGISTRY_USERNAME obs-registry-admin-username
 sync_dotenv_secret .env HVO_CONTAINER_REGISTRY_PASSWORD obs-registry-admin-password
 sync_dotenv_secret .env MSSQL_SA_PASSWORD obs-docker-mssql-sa-password
@@ -277,30 +273,10 @@ for env_file in deploy/hvo-docker/.env .env-handoff/hvo-docker.env; do
 	sync_dotenv_secret "$env_file" Seeding__BmsApiKey Seeding--BmsApiKey
 	sync_dotenv_secret "$env_file" Seeding__PowerApiKey Seeding--PowerApiKey
 	sync_dotenv_secret "$env_file" Seeding__PowerReadApiKey Seeding--PowerReadApiKey
-	sync_dotenv_secret "$env_file" PowerStatus__SolarAssistantGatewayUrl PowerStatus--SolarAssistantGatewayUrl
 	sync_dotenv_value "$env_file" ConnectionStrings__HualapaiValleyObservatory "$(derive_local_connection_string "$env_file")"
 done
 
 # Existing environment-only gateways and handoff copies.
-for env_file in deploy/pi-gateways/solarassistant/.env .env-handoff/solarassistant.env; do
-	if [[ ! -f "$repo_root/$env_file" ]]; then
-		printf 'skipped %s (not materialized)\n' "$env_file"
-		continue
-	fi
-	sync_dotenv_secret "$env_file" SOLAR_ASSISTANT_REST_USERNAME obs-solarassistant-rest-username
-	sync_dotenv_secret "$env_file" SOLAR_ASSISTANT_REST_PASSWORD obs-solarassistant-rest-password
-	sync_dotenv_secret "$env_file" SOLAR_ASSISTANT_MQTT_USERNAME obs-solarassistant-mqtt-username
-	sync_dotenv_secret "$env_file" SOLAR_ASSISTANT_MQTT_PASSWORD obs-solarassistant-mqtt-password
-	sync_dotenv_secret "$env_file" POWER_API_KEY Seeding--PowerApiKey
-done
-for env_file in deploy/pi-gateways/tplink-kasa/.env .env-handoff/tplink-kasa.env; do
-	if [[ ! -f "$repo_root/$env_file" ]]; then
-		printf 'skipped %s (not materialized)\n' "$env_file"
-		continue
-	fi
-	sync_dotenv_secret "$env_file" KASA_LOCAL_API_KEY Edge--TplinkKasa--LocalApiKey
-	sync_dotenv_secret "$env_file" KASA_OUTBOX_APIKEY Seeding--PowerApiKey
-done
 for env_file in deploy/pi-gateways/davis/.env .env-handoff/davis.env; do
 	if [[ ! -f "$repo_root/$env_file" ]]; then
 		printf 'skipped %s (not materialized)\n' "$env_file"

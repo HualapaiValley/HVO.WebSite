@@ -15,9 +15,9 @@ Observatory dashboard and monitoring system built with ASP.NET Core and Blazor S
 | **HVO.WebSite.v9** | Main observatory dashboard — Blazor SSR pages, REST API endpoints, Azure SQL persistence |
 | **HVO.Hardware.DavisVantagePro2** | Davis Vantage Pro 2 weather station collector — polls console, stores local station state separately from shared SQLite outbox, forwards to website API |
 | **HVO.Hardware.JkBms** | JK BMS battery monitor collector — polls devices over Bluetooth LE, stores to shared SQLite outbox, forwards to website API |
-| **HVO.Gateway.SolarAssistant** | SolarAssistant gateway — REST/MQTT power telemetry, inventory/configuration/detail/status snapshots, shared SQLite outbox |
-| **HVO.Hardware.VictronSmartShunt** | Victron SmartShunt gateway — BLE battery monitor telemetry with shared SQLite outbox |
-| **HVO.Gateway.TplinkKasa** | TP-Link/Kasa gateway — local device status UI plus energy/inventory forwarding through shared SQLite outbox |
+| **HVO.Hardware.Eg4** | EG4 6500EX and MPPT100 collector — read-only direct device telemetry, Home Assistant MQTT projection, and shared SQLite outbox |
+| **HVO.Hardware.VictronSmartShunt** | Victron SmartShunt collector — paired BLE battery monitor telemetry, Home Assistant MQTT projection, and shared SQLite outbox |
+| **HVO.Edge.Exporter.HomeAssistant** | Implemented exporter for approved HA-owned sources; intentionally disabled in production with no mappings or source claims |
 | **HVO.Edge.Outbox** | Shared edge durable outbox model, store, retry/dead-letter/requeue logic, compaction, and health evaluator |
 | **HVO.Edge.Contracts** | Shared gateway status, health, and payload contracts |
 | **HVO.DataModels** | Entity Framework Core models and DbContexts for observatory data |
@@ -42,7 +42,9 @@ JK BMS devices (Bluetooth LE)                                  ▼
                                                          └─ Health probes + OpenAPI
 ```
 
-Additional Pi gateways follow the same edge pattern: SolarAssistant, SmartShunt, and TPLink Kasa poll local sources, enqueue to their local shared outbox, and forward typed payloads to the website API.
+The active direct headless vNext collectors are Davis, JK BMS, EG4, and SmartShunt. Home Assistant owns Kasa and Govee acquisition and presentation. The HA exporter exists for a future approved canonical-history path, but it is intentionally disabled and has no production mappings or source claims.
+
+The retired direct SolarAssistant and TP-Link/Kasa containers and images have been removed. Their applications are not deployable repository targets. The old SolarAssistant outbox and data-protection volumes remain preserved pending an explicit disposition decision.
 
 ## Edge Deployment Direction
 
@@ -64,7 +66,7 @@ Current validated BLE edge baseline:
 
 | Feature | Description |
 |---------|-------------|
-| **Weather collection** | Davis Vantage Pro 2 console polled at ~2 sec (LOOP2) and archived on schedule; UI for calibration, settings, clock, transmitters |
+| **Weather collection** | Davis Vantage Pro 2 console polled at ~2 sec (LOOP2), archived on schedule, and forwarded through the durable outbox |
 | **Battery monitoring** | JK BMS devices polled over Bluetooth LE with alarm change detection and device-info snapshots |
 | **Durable outbox** | Each gateway writes to a local SQLite outbox before forwarding; retries with exponential backoff survive restarts/API downtime, permanent failures are dead-lettered, and retry-exhausted rows can requeue after recovery |
 | **REST API** | Versioned API (`/api/v1/…`) protected by API key + scope claims; supports single and batch ingest |
@@ -73,16 +75,16 @@ Current validated BLE edge baseline:
 | **Health probes** | `/health/live` (liveness), `/health/ready` (DB readiness), `/health` (full diagnostics) |
 | **OpenAPI** | `/openapi/v1.json` spec; interactive Scalar UI at `/scalar/v1` (dev) |
 
-## UI Baseline
+## UI Design System
 
-The Davis collector UI now serves as the baseline shell/template for the hardware admin apps.
+`HVO.WebSite.Themes` provides the shared UI baseline for the website and ThemeSandbox. The active direct collectors are headless; Kasa and Govee presentation is owned by Home Assistant.
 
 - Fixed top and bottom app bars with the page content scrolling inside the center canvas
 - Light and dark theme support driven by shared shell tokens instead of page-local hardcoded colors
 - MudBlazor shell chrome, with page-specific content kept in Blazor components and scoped CSS
-- Inline SVG charts and astronomy graphics so the live status page has no separate charting dependency
+- Shared chart and astronomy presentation components for current website surfaces
 
-See [src/HVO.Hardware.DavisVantagePro2/README.md](src/HVO.Hardware.DavisVantagePro2/README.md) for the Davis template structure, dependencies, and the Status page implementation notes.
+See [src/HVO.WebSite.Themes/README.md](src/HVO.WebSite.Themes/README.md) for the current shared layout, component, and asset contract.
 
 ## API Endpoints
 
@@ -135,10 +137,10 @@ Use the repo script to build, tag, push, and verify one image at a time:
 ./scripts/publish-image.sh website
 ./scripts/publish-image.sh davis
 ./scripts/publish-image.sh jkbms
-./scripts/publish-image.sh solarassistant
 ./scripts/publish-image.sh smartshunt
-./scripts/publish-image.sh tplinkkasa
 ```
+
+EG4 is built natively through the remote Pi Docker context. The retired `hvo-solarassistant` and `hvo-tplinkkasa` images are not active publishing targets.
 
 See [docs/CONTAINER_PUBLISHING.md](docs/CONTAINER_PUBLISHING.md) for the
 self-hosted registry inventory, the Key Vault synchronization and versioning

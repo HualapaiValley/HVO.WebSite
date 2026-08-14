@@ -1,6 +1,5 @@
 using Bunit;
 using FluentAssertions;
-using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Components.Pages;
 using HVO.WebSite.v9.Models;
@@ -22,22 +21,20 @@ public sealed class PowerStatusCardTests : BunitContext
             new PowerSystemSnapshot(
                 ObservedAtUtc: observedAt,
                 Ac: new PowerSystemAcSnapshot(
-                    LoadPowerW: Value(474d, PowerMetricSource.SolarAssistant, observedAt),
-                    GridPowerW: Value(0d, PowerMetricSource.SolarAssistant, observedAt),
-                    GridFlowDirection: Value(PowerFlowDirection.Idle, PowerMetricSource.SolarAssistant, observedAt),
-                    InverterMode: new SourcedValue<string>("Solar/Battery", PowerMetricSource.SolarAssistant, observedAt)),
+                    LoadPowerW: Value(474d, PowerMetricSource.Eg46500Ex, observedAt),
+                    InverterMode: new SourcedValue<string>("Battery", PowerMetricSource.Eg46500Ex, observedAt)),
                 Pv: new PowerSystemPvSnapshot(
                     Value(3098d, PowerMetricSource.Derived, observedAt),
                     Trackers:
                     [
-                        new PowerSystemPvTrackerSnapshot("solarassistant-total/mppt-1", "Inverter MPPT 1", "solarassistant-total", "inverter_1", observedAt, PowerMetricSource.SolarAssistant, 332, 4.4, 1475, PowerObservationProvenance.Direct, "source-direct"),
-                        new PowerSystemPvTrackerSnapshot("solarassistant-total/mppt-2", "Inverter MPPT 2", "solarassistant-total", "inverter_1", observedAt, PowerMetricSource.SolarAssistant, 381, 3.8, 1462, PowerObservationProvenance.Direct, "source-direct"),
+                        new PowerSystemPvTrackerSnapshot("eg4-6500ex-a/mppt-1", "Inverter MPPT 1", "eg4-6500ex-a", "inverter-a", observedAt, PowerMetricSource.Eg46500Ex, 332, 4.4, 1475, PowerObservationProvenance.Direct, "direct registers"),
+                        new PowerSystemPvTrackerSnapshot("eg4-6500ex-a/mppt-2", "Inverter MPPT 2", "eg4-6500ex-a", "inverter-a", observedAt, PowerMetricSource.Eg46500Ex, 381, 3.8, 1462, PowerObservationProvenance.Direct, "direct registers"),
                         new PowerSystemPvTrackerSnapshot("eg4-mppt100-48hv-a/mppt-1", "External MPPT", "eg4-mppt100-48hv-a", "controller-a", observedAt, PowerMetricSource.Eg4Mppt10048Hv, 400, 0.4, 161, PowerObservationProvenance.Direct, "direct registers"),
                     ],
                     ExpectedTrackerCount: 3,
                     ReportedTrackerCount: 3),
                 Battery: new PowerSystemBatterySnapshot(
-                    StateOfChargePercent: Value(100d, PowerMetricSource.SolarAssistant, observedAt, "solarassistant-total", "inverter-total"),
+                    StateOfChargePercent: Value(100d, PowerMetricSource.VictronSmartShunt, observedAt, "smartshunt-main", "smartshunt"),
                     VoltageV: Value(54.1d, PowerMetricSource.VictronSmartShunt, observedAt, "smartshunt-main", "smartshunt"),
                     CurrentA: Value(-16.6d, PowerMetricSource.VictronSmartShunt, observedAt, "smartshunt-main", "smartshunt"),
                     PowerW: Value(-900d, PowerMetricSource.VictronSmartShunt, observedAt, "smartshunt-main", "smartshunt"),
@@ -69,11 +66,7 @@ public sealed class PowerStatusCardTests : BunitContext
                 [
                     new PowerBatteryObservation("smartshunt-main", "smartshunt", PowerMetricSource.VictronSmartShunt,
                         PowerMeasurementRole.BusNet, "battery-bus-net", observedAt.AddSeconds(-5),
-                        VoltageV: 54.1, CurrentA: -16.6, PowerW: -900, StateOfChargePercent: 92),
-                    new PowerBatteryObservation("solarassistant-total", "inverter-total", PowerMetricSource.SolarAssistant,
-                        PowerMeasurementRole.AggregateEstimate, "solarassistant-battery-aggregate", observedAt.AddSeconds(-10),
-                        VoltageV: 54.0, CurrentA: -15, PowerW: -810, StateOfChargePercent: 100,
-                        Provenance: PowerObservationProvenance.SourceAggregate),
+                        VoltageV: 54.1, CurrentA: -16.6, PowerW: -900, StateOfChargePercent: 100),
                     new PowerBatteryObservation("eg4-inverter-a", "inverter-a", PowerMetricSource.Eg46500Ex,
                         PowerMeasurementRole.InverterBranch, "inverter-battery-branch", observedAt.AddSeconds(-20),
                         VoltageV: 54.4, CurrentA: -8, PowerW: -435),
@@ -89,47 +82,6 @@ public sealed class PowerStatusCardTests : BunitContext
                             new PowerObservationInput("eg4-inverter-b", observedAt.AddMinutes(-4), "inverter-b"),
                         ]),
                 ])));
-        var energy = new PowerEnergySnapshotResponse
-        {
-            SourceId = "solarassistant-total",
-            IsPresent = true,
-            IsStale = false,
-            Counters = [new PowerEnergyCounter { Key = "pv_energy", Name = "PV energy", ValueKwh = 123.45 }],
-        };
-        var inverterDetail = new PowerInverterDetailSnapshotResponse
-        {
-            SourceId = "solarassistant-total",
-            DeviceId = "inverter_1",
-            IsPresent = true,
-            IsStale = false,
-            PvStrings = [new PowerPvStringDetail { StringId = "1", PowerW = 612, VoltageV = 120.4, CurrentA = 5.1 }],
-            Load = new PowerInverterLoadDetail { LoadPowerW = 474, LoadApparentPowerVa = 700 },
-            Battery = new PowerInverterBatteryDetail { PowerW = -240, VoltageV = 53.1 },
-            TemperatureC = 44,
-            Statuses = [new PowerInverterStatusDetail { Key = "inverter_1.status_1", Value = "normal" }],
-        };
-        var gatewayStatus = new GatewayStatusSnapshotResponse
-        {
-            SourceId = "solarassistant-total",
-            SourceSystem = "solarassistant",
-            IsPresent = true,
-            IsStale = false,
-            RecordedAtUtc = observedAt,
-            Identity = new GatewayIdentity("solarassistant", "SolarAssistant Gateway", GatewayDomain.Power, "solarassistant-total", "total"),
-            Health = new GatewayHealthSnapshot(
-                GatewayHealthState.Warning,
-                observedAt,
-                [new GatewayHealthAlert("outbox-failed", GatewayAlertSeverity.Warning, "Historical failed outbox rows are present.")],
-                GatewaySampleState.Live,
-                OutboxState: "warning",
-                ApiSyncState: "healthy"),
-            Rest = new GatewayRuntimeSignal(GatewaySampleState.Live, observedAt, Detail: "124 REST metric(s)"),
-            Mqtt = new GatewayRuntimeSignal(GatewaySampleState.Live, observedAt, Detail: "48 entit(ies), 42 state topic(s)"),
-            Outbox = new GatewayOutboxStatus(PendingCount: 0, FailedCount: 71, LastSentAtUtc: observedAt, LastBatchCount: 1),
-            RestMetricCount = 124,
-            MqttEntityCount = 48,
-            MqttCommandTopicCount = 14,
-        };
         var eg4Inverter = new PowerInverterDetailSnapshotResponse
         {
             SourceId = "eg4-6500ex-a", DeviceId = "inverter-a", IsPresent = true, IsStale = false, RecordedAtUtc = observedAt,
@@ -153,7 +105,7 @@ public sealed class PowerStatusCardTests : BunitContext
         };
         var history = new PowerTelemetryHistoryResponse(
             [
-                new PowerMpptDetailSnapshotResponse { SourceId = "solarassistant-total", RecordedAtUtc = observedAt.AddMinutes(-5), Trackers = [new PowerMpptTrackerDetail { TrackerId = "mppt-1", PowerW = 1400 }, new PowerMpptTrackerDetail { TrackerId = "mppt-2", PowerW = 1300 }] },
+                new PowerMpptDetailSnapshotResponse { SourceId = "eg4-6500ex-a", RecordedAtUtc = observedAt.AddMinutes(-5), Trackers = [new PowerMpptTrackerDetail { TrackerId = "mppt-1", PowerW = 1400 }, new PowerMpptTrackerDetail { TrackerId = "mppt-2", PowerW = 1300 }] },
                 new PowerMpptDetailSnapshotResponse { SourceId = "eg4-mppt100-48hv-a", RecordedAtUtc = observedAt.AddMinutes(-5), Trackers = [new PowerMpptTrackerDetail { TrackerId = "mppt-1", PowerW = 1000 }] },
             ],
             [
@@ -161,35 +113,16 @@ public sealed class PowerStatusCardTests : BunitContext
                 new PowerBatteryHistoryPoint(observedAt.AddMinutes(-5), "eg4-mppt100-48hv-a", "controller-a", -490),
             ]);
         Services.AddSingleton<IPowerInventoryConfigurationProvider>(new StubPowerInventoryConfigurationProvider(
-            new PowerDeviceInventorySnapshotResponse
-            {
-                SourceId = "solarassistant-total",
-                IsPresent = true,
-                IsStale = false,
-                RestMetricCount = 124,
-                MqttEntityCount = 48,
-                Devices = [new PowerDeviceInventoryDevice { DeviceId = "eg4-6500ex", Name = "EG4 6500EX", Model = "6500EX" }],
-            },
-            new PowerConfigurationSnapshotResponse
-            {
-                SourceId = "solarassistant-total",
-                IsPresent = true,
-                IsStale = false,
-                Settings = [new PowerConfigurationSetting { Key = "inverter_1.output_source_priority", Name = "Output source priority" }],
-                CommandCapabilities = [new PowerCommandCapability { Key = "inverter_1.output_source_priority", Name = "Output source priority", CommandTopic = "solar_assistant/inverter_1/output_source_priority/set" }],
-            },
-            energy,
-            inverterDetail,
-            gatewayStatus,
-            eg4Inverter,
-            eg4Controller,
-            history));
+            new PowerDeviceInventorySnapshotResponse(),
+            new PowerConfigurationSnapshotResponse(),
+            eg4InverterDetail: eg4Inverter,
+            eg4MpptDetail: eg4Controller,
+            history: history));
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["PowerStatus:SolarAssistantGatewayUrl"] = "http://192.168.1.145:5300/",
-                ["PowerComposition:ExpectedPvTrackerIds:0"] = "solarassistant-total/mppt-1",
-                ["PowerComposition:ExpectedPvTrackerIds:1"] = "solarassistant-total/mppt-2",
+                ["PowerComposition:ExpectedPvTrackerIds:0"] = "eg4-6500ex-a/mppt-1",
+                ["PowerComposition:ExpectedPvTrackerIds:1"] = "eg4-6500ex-a/mppt-2",
                 ["PowerComposition:ExpectedPvTrackerIds:2"] = "eg4-mppt100-48hv-a/mppt-1",
             })
             .Build());
@@ -210,7 +143,7 @@ public sealed class PowerStatusCardTests : BunitContext
         component.Find("tr[data-source-id='eg4-inverter-a']").TextContent.Should().Contain("Inverter branch");
         component.Find("tr[data-source-id='eg4-inverter-a']").TextContent.Should().NotContain("Battery bus net");
         component.Find("tr[data-source-id='smartshunt-main']").TextContent.Should().Contain("Preferred bus: voltage, current, power");
-        component.Find("tr[data-source-id='solarassistant-total']").TextContent.Should().Contain("Preferred SOC");
+        component.Find("tr[data-source-id='smartshunt-main']").TextContent.Should().Contain("Preferred SOC");
         component.Find("tr[data-source-id='eg4-inverter-b'] .hvo-chip-danger").TextContent.Should().Contain("stale");
         component.Find("tr[data-source-id='derived-6500ex-branch-sum']").TextContent.Should().Contain("Inputs: eg4-inverter-a/inverter-a, eg4-inverter-b/inverter-b");
         component.Markup.Should().Contain("Aggregate branch comparison may include additional DC loads.");
@@ -227,22 +160,10 @@ public sealed class PowerStatusCardTests : BunitContext
         component.Markup.Should().Contain("2 min ago");
         component.Markup.Should().Contain("All banks fresh");
         component.Markup.Should().Contain("No alarms");
-        component.Markup.Should().Contain("SolarAssistant Inventory");
-        component.Markup.Should().Contain("Current");
-        component.Markup.Should().Contain("EG4 6500EX 6500EX");
-        component.Markup.Should().Contain("writes disabled");
-        component.Markup.Should().Contain("SolarAssistant Gateway");
-        component.Markup.Should().Contain("Warning with 1 alert(s)");
-        component.Markup.Should().Contain("Live; 124 REST metric(s)");
-        component.Markup.Should().Contain("0 pending, 71 failed, last batch 1");
-        component.Markup.Should().Contain("outbox-failed");
-        component.Markup.Should().Contain("SolarAssistant Detail");
-        component.Markup.Should().Contain("1 energy counter(s)");
-        component.Markup.Should().Contain("PV energy 123.45 kWh");
-        component.Markup.Should().Contain("String 1");
-        component.Markup.Should().Contain("612 W");
-        component.Markup.Should().Contain("44 C");
-        component.Markup.Should().Contain("Open local SolarAssistant gateway diagnostics");
+        component.Markup.Should().NotContain("SolarAssistant Inventory");
+        component.Markup.Should().NotContain("SolarAssistant Gateway");
+        component.Markup.Should().NotContain("SolarAssistant Detail");
+        component.Markup.Should().NotContain("Open local SolarAssistant gateway diagnostics");
         component.Markup.Should().Contain("PV Inputs").And.Contain("3 of 3 inputs").And.Contain("Canonical site PV inputs");
         component.FindAll("[aria-label='Canonical site PV inputs'] article").Should().HaveCount(3);
         component.Markup.Should().Contain("EG4 Equipment Detail").And.Contain("2496 W").And.Contain("120.1 V / 59.9 Hz");
@@ -259,7 +180,7 @@ public sealed class PowerStatusCardTests : BunitContext
             new PowerSystemSnapshot(
                 ObservedAtUtc: observedAt,
                 Battery: new PowerSystemBatterySnapshot(
-                    PowerW: Value(250d, PowerMetricSource.SolarAssistant, observedAt)))));
+                    PowerW: Value(250d, PowerMetricSource.VictronSmartShunt, observedAt)))));
         Services.AddSingleton<IPowerInventoryConfigurationProvider>(new StubPowerInventoryConfigurationProvider(
             new PowerDeviceInventorySnapshotResponse(),
             new PowerConfigurationSnapshotResponse()));
@@ -322,9 +243,6 @@ public sealed class PowerStatusCardTests : BunitContext
     private sealed class StubPowerInventoryConfigurationProvider(
         PowerDeviceInventorySnapshotResponse inventory,
         PowerConfigurationSnapshotResponse configuration,
-        PowerEnergySnapshotResponse? energy = null,
-        PowerInverterDetailSnapshotResponse? inverterDetail = null,
-        GatewayStatusSnapshotResponse? gatewayStatus = null,
         PowerInverterDetailSnapshotResponse? eg4InverterDetail = null,
         PowerMpptDetailSnapshotResponse? eg4MpptDetail = null,
         PowerTelemetryHistoryResponse? history = null) : IPowerInventoryConfigurationProvider
@@ -333,21 +251,6 @@ public sealed class PowerStatusCardTests : BunitContext
             string sourceId = "solarassistant-total",
             int staleAfterMinutes = 1440,
             CancellationToken ct = default) => Task.FromResult((inventory, configuration));
-
-        public Task<(
-            PowerDeviceInventorySnapshotResponse Inventory,
-            PowerConfigurationSnapshotResponse Configuration,
-            PowerEnergySnapshotResponse Energy,
-            PowerInverterDetailSnapshotResponse InverterDetail,
-            GatewayStatusSnapshotResponse GatewayStatus)> GetLatestCentralAsync(
-            string sourceId = "solarassistant-total",
-            int staleAfterMinutes = 1440,
-            CancellationToken ct = default) => Task.FromResult((
-                inventory,
-                configuration,
-                energy ?? new PowerEnergySnapshotResponse { SourceId = sourceId, IsPresent = false, IsStale = true },
-                inverterDetail ?? new PowerInverterDetailSnapshotResponse { SourceId = sourceId, IsPresent = false, IsStale = true },
-                gatewayStatus ?? new GatewayStatusSnapshotResponse { SourceId = sourceId, IsPresent = false, IsStale = true }));
 
         public Task<PowerInverterDetailSnapshotResponse> GetLatestInverterDetailAsync(
             string sourceId, int staleAfterMinutes = 5, CancellationToken ct = default) =>

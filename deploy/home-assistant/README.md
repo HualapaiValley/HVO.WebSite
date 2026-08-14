@@ -5,6 +5,8 @@ observatory instance. It intentionally excludes `.storage`, secrets, generated
 state, and integration config entries. Core integrations are commissioned only
 through supported Home Assistant config flows.
 
+Home Assistant is the production acquisition and presentation owner for Kasa and Govee. The HVO HA telemetry exporter is implemented but intentionally disabled, with no production mappings or source claims. The direct HVO TP-Link/Kasa gateway, container, and image have been removed; keep the active HA Kasa dashboards and tests.
+
 ## Managed configuration
 
 The tracked configuration is deployed under `/config/hvo`:
@@ -182,21 +184,23 @@ edit config entries by writing `.storage`.
 ### Service identity and API token
 
 1. In **Settings > People > Users**, create a dedicated `hvo-automation` user.
-2. Grant administrator access because exporter startup validates the entity
-   registry before accepting mapped entities. Do not use the HA owner account.
+2. Grant administrator access because the managed deployment and migration
+   tooling uses protected Home Assistant APIs. Do not use the HA owner account.
 3. Sign in as `hvo-automation`, open its profile, and create a long-lived token
-   named `HVO agent and exporter`.
+   named `HVO automation`.
 4. Store the token as `HomeAssistant--Token` in `hvo-central-kv`. Do not place it
    in Git, issue comments, logs, or Home Assistant YAML.
 5. Materialize it only into the ignored root `.env` as
-   `HOME_ASSISTANT_TOKEN` or into the exporter's ignored mounted secret file.
-6. To rotate it, create and deploy the replacement first, verify API and
-   exporter health, then delete the previous token from the service profile and
+   `HOME_ASSISTANT_TOKEN`. Materialize it into the exporter's ignored mounted
+   secret file only after a separately approved exporter enablement.
+6. To rotate it, create and deploy the replacement first, verify API and managed
+   tooling access, then delete the previous token from the service profile and
    replace the Key Vault secret version.
 
 The token grants administrative API access. Keep its canonical copy in Key
-Vault and restrict local materializations to the systems that run deployment or
-export services.
+Vault and restrict local materializations to approved deployment and migration
+tools. The disabled exporter must not receive a production token as routine
+configuration.
 
 ### Mosquitto and MQTT
 
@@ -226,8 +230,9 @@ not available to CI.
    renames. Missing dashboard entities fail validation.
 
 The observatory instance currently has 15 loaded TP-Link parent entries and 57
-registered parent/child devices. Kasa remains an HA-owned source; central-writer
-cutover is handled separately by issue #330.
+registered parent/child devices. Kasa remains an HA-owned acquisition and
+presentation source. No Kasa exporter mapping or production source claim is
+enabled.
 
 ### Bluetooth proxy and Govee sensors
 
@@ -255,10 +260,9 @@ cutover is handled separately by issue #330.
    the proxy does not pair with or establish GATT connections to them. An H5179
    Wi-Fi address is not used by this path.
 7. Confirm temperature and humidity entities have stable values and entity
-   registry platform `govee_ble`. Record their entity IDs before enabling an
-   explicit `govee:` exporter mapping.
-8. Do not enable the exporter source until any prior canonical writer is stopped,
-   drained, and its source reservation is transferred.
+   registry platform `govee_ble`. Record their entity IDs for operations, but do
+   not create or enable a production exporter mapping without separate approval.
+8. Keep the HA exporter disabled; no production Govee source claim is provisioned.
 
 The observatory currently has native `govee_ble` entries for H5074 `8D05` and
 H5075 `48D9`. Each exposes stable temperature, humidity, battery, and signal
@@ -301,4 +305,5 @@ managed Core configuration, but a full HA OS restore does not recreate the
 host-level off-node backup mount or its schedule. Re-add and test that mount and
 schedule after disaster recovery. Then validate MQTT authentication, retained
 discovery cleanup, Kasa availability, ESPHome proxy availability, and the Govee
-entities before enabling export or automation.
+entities before restoring automations. Confirm the HA exporter remains disabled
+unless a separate approved source-authority change says otherwise.

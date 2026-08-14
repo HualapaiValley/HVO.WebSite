@@ -6,13 +6,11 @@ public sealed class PowerCompositionOptions
 {
     public const string SectionName = "PowerComposition";
     public int SmartShuntFreshnessSeconds { get; set; } = 1800;
-    public int SolarAssistantFreshnessSeconds { get; set; } = 1800;
     public int JkBmsFreshnessSeconds { get; set; } = 1800;
     public int Eg4BranchFreshnessSeconds { get; set; } = 180;
     public int MaxDerivationSkewSeconds { get; set; } = 30;
     public int MaxFutureClockSkewSeconds { get; set; } = 30;
     public List<string> PreferredSmartShuntSourceIds { get; set; } = [];
-    public List<string> PreferredSolarAssistantSourceIds { get; set; } = [];
     public List<string> EnabledMpptSourceIds { get; set; } = [];
     public List<string> ExpectedPvTrackerIds { get; set; } = [];
 }
@@ -25,7 +23,6 @@ public sealed class PowerCompositionOptionsValidator : IValidateOptions<PowerCom
         foreach (var (field, value) in new[]
         {
             (nameof(options.SmartShuntFreshnessSeconds), options.SmartShuntFreshnessSeconds),
-            (nameof(options.SolarAssistantFreshnessSeconds), options.SolarAssistantFreshnessSeconds),
             (nameof(options.JkBmsFreshnessSeconds), options.JkBmsFreshnessSeconds),
             (nameof(options.Eg4BranchFreshnessSeconds), options.Eg4BranchFreshnessSeconds),
             (nameof(options.MaxDerivationSkewSeconds), options.MaxDerivationSkewSeconds),
@@ -39,7 +36,6 @@ public sealed class PowerCompositionOptionsValidator : IValidateOptions<PowerCom
             id.Count(character => character == '/') != 1 || id.StartsWith('/') || id.EndsWith('/')))
             failures.Add("PowerComposition:ExpectedPvTrackerIds must use SourceId/TrackerId composite IDs.");
         ValidateIds(options.PreferredSmartShuntSourceIds, nameof(options.PreferredSmartShuntSourceIds), failures);
-        ValidateIds(options.PreferredSolarAssistantSourceIds, nameof(options.PreferredSolarAssistantSourceIds), failures);
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 

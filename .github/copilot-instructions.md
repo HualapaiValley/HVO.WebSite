@@ -43,7 +43,7 @@ The theme is the single source of truth. `hvo-shared-shell.css` defines all toke
 
 ### Global CSS change process (changes to hvo-shared-shell.css or hvo-components.css)
 
-These files affect all 6 projects simultaneously.
+These files affect every consuming web project simultaneously.
 
 - **Adding a class/token**: demo it in ThemeSandbox `/css-reference` or `/palette` first; get sign-off before merge.
 - **Modifying**: grep all projects first (`rg "classname" src/`); verify visual impact; run `dotnet build` across the entire solution.
@@ -98,16 +98,15 @@ Follow this process for every issue. **Never auto-start the next issue unless ex
 
 - **Do not** start the next issue automatically. Wait for explicit instructions.
 
-## Active Migration: Unified Theme & Layout
+## Shared Theme & Layout
 
-The repo has completed migration (epic #153) to a unified shared theme/layout system in `HVO.WebSite.Themes`. See `docs/UNIFIED_THEME_PLAN.md` for the full plan.
+The repo uses the unified shared theme/layout system in `HVO.WebSite.Themes`.
 
-**Key rules during migration:**
+**Key rules:**
 - **All shared components** go in `HVO.WebSite.Themes`, not per-app projects
 - **HvoFormat** is the single formatting utility — no raw `ToString("F*")` in razor files
 - **ShellLayoutState** is shared from Themes RCL — never copy-pasted
-- **Davis app.css** must be deleted, not maintained
-- **Phase 0.5 (ThemeSandbox)** must pass before any production gateway migration starts
+- Theme changes must be demonstrated in ThemeSandbox before production use
 
 ## Conventions
 
@@ -137,7 +136,7 @@ This applies to **all** cases where you need to pass multi-line text to a CLI co
 
 ## Offline-First Resource Policy
 
-All gateway applications run on **local networks with no internet access**. Every CSS, JS, font, and image resource must be served from within the app or from the shared `HVO.WebSite.Themes` RCL static assets.
+Any edge application with a web UI runs on a **local network with no internet access**. Every CSS, JS, font, and image resource must be served from within the app or from the shared `HVO.WebSite.Themes` RCL static assets. The active Davis, JK BMS, EG4, and SmartShunt collectors are headless.
 
 - **Never** add CDN URLs (`cdn.jsdelivr.net`, `fonts.googleapis.com`, `unpkg.com`, etc.) to any gateway `App.razor` file.
 - Chart.js is bundled at `src/HVO.WebSite.Themes/wwwroot/js/chart.min.js` — reference it as `_content/HVO.WebSite.Themes/js/chart.min.js`.
@@ -174,12 +173,11 @@ Ensure these are covered:
 - `Tension` per-dataset parameter is stored correctly.
 - `Data_AllowsNullEntries_RepresentingGaps` test passes.
 
-### Playwright Test Checklist (`DavisGatewayLayoutPlaywrightTests`)
+### Playwright Test Checklist
 
-Ensure these are covered for the Davis gateway (and extend pattern to other gateways):
+Apply these checks to current website or ThemeSandbox chart surfaces:
 - No `#blazor-error-ui` visible after page settles (circuit alive).
-- All three chart canvases present: `#status-temp-chart`, `#status-wind-chart`, `#status-solar-chart`.
-- Chart canvas `clientWidth > 0` (Chart.js rendered at least the canvas frame).
+- Expected chart canvases are present and have `clientWidth > 0`.
 - `datetime-local` inputs have themed styling (not browser default white).
 - `hvo-card-shell` cards have non-transparent backgrounds.
 - No legacy class names (`proto-*`, `action-btn`, `card-shell`, `archive-table`) on live pages.

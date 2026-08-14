@@ -67,6 +67,35 @@ public sealed class PowerSystemSnapshotProviderTests
                 TrackerCount = 1,
                 CreatedAt = payload.RecordedAtUtc,
             });
+        var inverterPayload = new PowerInverterDetailPayload
+        {
+            SourceId = "eg4-6500ex-a",
+            SourceSystem = "eg4-6500ex",
+            DeviceId = "inverter-a",
+            RecordedAtUtc = now.UtcDateTime.AddMinutes(-1),
+            Ac = new PowerInverterAcDetail { OutputVoltageV = 120.1, OutputFrequencyHz = 59.9 },
+            Load = new PowerInverterLoadDetail { LoadPowerW = 875 },
+            Operating = new PowerInverterOperatingDetail { Mode = "Battery", LoadPercentage = 19 },
+        };
+        db.PowerInverterDetailSnapshots.AddRange(
+            new PowerInverterDetailSnapshot
+            {
+                SourceId = inverterPayload.SourceId,
+                SourceSystem = inverterPayload.SourceSystem,
+                DeviceId = inverterPayload.DeviceId,
+                RecordedAt = inverterPayload.RecordedAtUtc,
+                PayloadJson = JsonSerializer.Serialize(inverterPayload, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+                CreatedAt = inverterPayload.RecordedAtUtc,
+            },
+            new PowerInverterDetailSnapshot
+            {
+                SourceId = inverterPayload.SourceId,
+                SourceSystem = inverterPayload.SourceSystem,
+                DeviceId = inverterPayload.DeviceId,
+                RecordedAt = now.UtcDateTime,
+                PayloadJson = "null",
+                CreatedAt = now.UtcDateTime,
+            });
         await db.SaveChangesAsync();
         var compositionOptions = new PowerCompositionOptions
         {
@@ -81,6 +110,10 @@ public sealed class PowerSystemSnapshotProviderTests
         snapshot.Pv.Trackers![0].TrackerId.Should().Be("eg4-6500ex-a/mppt-1");
         snapshot.Pv.Trackers[0].PowerW.Should().Be(725);
         snapshot.Pv.PowerW!.Source.Should().Be(PowerMetricSource.Derived);
+        snapshot.Ac!.LoadPowerW!.Value.Should().Be(875);
+        snapshot.Ac.LoadPowerW.Source.Should().Be(PowerMetricSource.Eg46500Ex);
+        snapshot.Ac.OutputVoltageV!.Value.Should().Be(120.1);
+        snapshot.Ac.InverterMode!.Value.Should().Be("Battery");
     }
 
     [TestMethod]
@@ -108,8 +141,10 @@ public sealed class PowerSystemSnapshotProviderTests
 
         var snapshot = await provider.GetLatestAsync(10);
 
-        snapshot!.Pv!.PowerW!.Value.Should().Be(1200);
-        snapshot.Pv.Trackers.Should().BeNull();
+        snapshot!.Pv.Should().BeNull();
+        snapshot.Ac.Should().BeNull();
+        snapshot.Battery.Should().BeNull();
+        snapshot.BatteryObservations.Should().BeNull();
     }
 
     private static PowerMpptDetailSnapshot InvalidSnapshot(string sourceId, DateTime recordedAt, string payloadJson) => new()

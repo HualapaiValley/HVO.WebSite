@@ -31,21 +31,22 @@ public sealed class PowerSystemSnapshotComposerTests
         snapshot.BatteryObservations!.Single(item => item.Source == PowerMetricSource.VictronSmartShunt).CurrentA.Should().Be(-10);
     }
     [TestMethod]
-    public void Compose_PrefersSolarAssistantForAcPvAndSoc()
+    public void Compose_UsesFreshDirectEg4InverterDetailForAcLoadOutputAndMode()
     {
         var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
         var snapshot = PowerSystemSnapshotComposer.Compose(
-            [
-                SolarAssistant(now.AddSeconds(-10), pvPowerW: 1300, loadPowerW: 875, gridPowerW: -25, soc: 82),
-                SmartShunt(now, voltageV: 53.74, currentA: -20.72, powerW: -1113, soc: 0),
-            ],
-            now);
+            [], now,
+            inverterDetails: [InverterDetail(now.AddSeconds(-10), loadPowerW: 875, mode: "Battery")]);
 
-        snapshot.Pv!.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
-        snapshot.Ac!.LoadPowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
-        snapshot.Ac.GridFlowDirection!.Value.Should().Be(PowerFlowDirection.Export);
-        snapshot.Battery!.StateOfChargePercent!.Source.Should().Be(PowerMetricSource.SolarAssistant);
-        snapshot.Battery.StateOfChargePercent.Value.Should().Be(82);
+        snapshot.Ac!.LoadPowerW.Should().BeEquivalentTo(
+            new SourcedValue<double>(875, PowerMetricSource.Eg46500Ex, now.AddSeconds(-10), "eg4-6500ex-a", "inverter-a"));
+        snapshot.Ac.GridVoltageV!.Value.Should().Be(240);
+        snapshot.Ac.GridFrequencyHz!.Value.Should().Be(60);
+        snapshot.Ac.OutputVoltageV!.Value.Should().Be(120);
+        snapshot.Ac.OutputFrequencyHz!.Value.Should().Be(59.9);
+        snapshot.Ac.LoadPercent!.Value.Should().Be(19);
+        snapshot.Ac.InverterMode!.Value.Should().Be("Battery");
+        snapshot.Ac.GridPowerW.Should().BeNull();
     }
 
     [TestMethod]
@@ -54,7 +55,6 @@ public sealed class PowerSystemSnapshotComposerTests
         var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
         var snapshot = PowerSystemSnapshotComposer.Compose(
             [
-                SolarAssistant(now.AddSeconds(-10), batteryPowerW: 250, voltageV: 53.2, currentA: 4.7, soc: 82),
                 SmartShunt(now, voltageV: 53.74, currentA: -20.72, powerW: -1113, soc: 0),
             ],
             now);
@@ -67,7 +67,7 @@ public sealed class PowerSystemSnapshotComposerTests
     }
 
     [TestMethod]
-    public void Compose_MarksSmartShuntSocFallbackAsUntrusted()
+    public void Compose_UsesSmartShuntAsAuthoritativeSocSource()
     {
         var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
         var snapshot = PowerSystemSnapshotComposer.Compose(
@@ -75,7 +75,8 @@ public sealed class PowerSystemSnapshotComposerTests
             now);
 
         snapshot.Battery!.StateOfChargePercent!.Source.Should().Be(PowerMetricSource.VictronSmartShunt);
-        snapshot.Battery.StateOfChargePercent.Confidence.Should().Be("fallback-untrusted");
+        snapshot.Battery.StateOfChargePercent.Value.Should().Be(91);
+        snapshot.Battery.StateOfChargePercent.Confidence.Should().BeNull();
         snapshot.Battery.FlowDirection!.Value.Should().Be(PowerFlowDirection.Charging);
     }
 
@@ -85,7 +86,7 @@ public sealed class PowerSystemSnapshotComposerTests
         var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
 
         var snapshot = PowerSystemSnapshotComposer.Compose(
-            [SolarAssistant(now, soc: 82)],
+            [],
             now,
             [
                 JkBmsReading(now.AddSeconds(-5), "bank-2a", alarmBitmask: 0, cellVoltagesMv: [3361, 3364, 3362]),
@@ -106,6 +107,9 @@ public sealed class PowerSystemSnapshotComposerTests
         snapshot.Battery!.BankCount!.Value.Should().Be(2);
         snapshot.Battery.BankCount.Source.Should().Be(PowerMetricSource.JkBms);
         snapshot.Battery.HasAlarms!.Value.Should().BeTrue();
+        snapshot.Battery.StateOfChargePercent!.Source.Should().Be(PowerMetricSource.JkBms);
+        snapshot.Battery.StateOfChargePercent.Value.Should().Be(91);
+        snapshot.Battery.StateOfChargePercent.SourceId.Should().Be("C8:47:8C:E4:56:B0");
         snapshot.BatteryObservations!.Where(item => item.Source == PowerMetricSource.JkBms)
             .Should().AllSatisfy(item => item.CurrentA.Should().Be(-7.5));
     }
@@ -174,16 +178,15 @@ public sealed class PowerSystemSnapshotComposerTests
     }
 
     [TestMethod]
-    public void Compose_FutureSampleDoesNotMaskPriorValidStreamSample()
+    public void Compose_FutureInverterDetailDoesNotMaskPriorValidPayload()
     {
         var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
-        var valid = SolarAssistant(now.AddSeconds(-10), pvPowerW: 1300);
-        var future = SolarAssistant(now.AddMinutes(5), pvPowerW: 9999);
-        future.Id = 2;
+        var valid = InverterDetail(now.AddSeconds(-10), loadPowerW: 1300);
+        var future = InverterDetail(now.AddMinutes(5), loadPowerW: 9999);
 
-        var snapshot = PowerSystemSnapshotComposer.Compose([valid, future], now);
+        var snapshot = PowerSystemSnapshotComposer.Compose([], now, inverterDetails: [future, valid]);
 
-        snapshot.Pv!.PowerW!.Value.Should().Be(1300);
+        snapshot.Ac!.LoadPowerW!.Value.Should().Be(1300);
     }
 
     [TestMethod]
@@ -230,11 +233,10 @@ public sealed class PowerSystemSnapshotComposerTests
         var options = PvOptions();
 
         var snapshot = PowerSystemSnapshotComposer.Compose(
-            [SolarAssistant(now, pvPowerW: 9999)], now, options: options,
+            [], now, options: options,
             mpptDetails:
             [
-                MpptDetail(now.AddSeconds(-2), "solarassistant-total", "solarassistant", ("mppt-1", 500), ("mppt-2", 600)),
-                MpptDetail(now.AddSeconds(-1), "eg4-6500ex-a", "eg4-6500ex", ("mppt-1", 510), ("mppt-2", 650)),
+                MpptDetail(now.AddSeconds(-1), "eg4-6500ex-a", "eg4-6500ex", ("mppt-1", 500), ("mppt-2", 600)),
                 MpptDetail(now, "eg4-mppt100-48hv-a", "eg4-mppt100-48hv", ("mppt-1", 700)),
             ]);
 
@@ -248,19 +250,18 @@ public sealed class PowerSystemSnapshotComposerTests
     }
 
     [TestMethod]
-    public void Compose_UsesSolarAssistantFallbackWhenExpectedTrackerIsMissing()
+    public void Compose_DoesNotUseSolarAssistantFallbackWhenExpectedTrackerIsMissing()
     {
         var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
 
         var snapshot = PowerSystemSnapshotComposer.Compose(
             [SolarAssistant(now, pvPowerW: 1900)], now, options: PvOptions(),
-            mpptDetails: [MpptDetail(now, "solarassistant-total", "solarassistant", ("mppt-1", 500), ("mppt-2", 600))]);
+            mpptDetails: [MpptDetail(now, "eg4-6500ex-a", "eg4-6500ex", ("mppt-1", 500))]);
 
-        snapshot.Pv!.PowerW!.Value.Should().Be(1900);
-        snapshot.Pv.PowerW.Source.Should().Be(PowerMetricSource.SolarAssistant);
-        snapshot.Pv.Trackers.Should().HaveCount(2);
+        snapshot.Pv!.PowerW.Should().BeNull();
+        snapshot.Pv.Trackers.Should().ContainSingle();
         snapshot.Pv.ExpectedTrackerCount.Should().Be(3);
-        snapshot.Pv.ReportedTrackerCount.Should().Be(2);
+        snapshot.Pv.ReportedTrackerCount.Should().Be(1);
     }
 
     [TestMethod]
@@ -272,17 +273,17 @@ public sealed class PowerSystemSnapshotComposerTests
         options.MaxFutureClockSkewSeconds = 5;
 
         var snapshot = PowerSystemSnapshotComposer.Compose(
-            [SolarAssistant(now, pvPowerW: 1900)], now, options: options,
+            [], now, options: options,
             mpptDetails:
             [
-                MpptDetail(now.AddSeconds(-61), "stale", "eg4-6500ex", ("mppt-1", 500)),
-                MpptDetail(now.AddSeconds(6), "future", "eg4-mppt100-48hv", ("mppt-1", 700)),
-                MpptDetail(now, "solarassistant-total", "solarassistant", ("mppt-1", 600)),
+                MpptDetail(now.AddSeconds(-61), "eg4-6500ex-a", "eg4-6500ex", ("mppt-1", 500)),
+                MpptDetail(now.AddSeconds(6), "eg4-mppt100-48hv-a", "eg4-mppt100-48hv", ("mppt-1", 700)),
+                MpptDetail(now, "eg4-6500ex-a", "eg4-6500ex", ("mppt-2", 600)),
             ]);
 
         snapshot.Pv!.Trackers.Should().ContainSingle()
-            .Which.TrackerId.Should().Be("solarassistant-total/mppt-1");
-        snapshot.Pv.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
+            .Which.TrackerId.Should().Be("eg4-6500ex-a/mppt-2");
+        snapshot.Pv.PowerW.Should().BeNull();
     }
 
     [TestMethod]
@@ -293,14 +294,14 @@ public sealed class PowerSystemSnapshotComposerTests
         options.MaxDerivationSkewSeconds = 5;
 
         var snapshot = PowerSystemSnapshotComposer.Compose(
-            [SolarAssistant(now, pvPowerW: 1900)], now, options: options,
+            [], now, options: options,
             mpptDetails:
             [
-                MpptDetail(now.AddSeconds(-10), "solarassistant-total", "solarassistant", ("mppt-1", 500), ("mppt-2", 600)),
+                MpptDetail(now.AddSeconds(-10), "eg4-6500ex-a", "eg4-6500ex", ("mppt-1", 500), ("mppt-2", 600)),
                 MpptDetail(now, "eg4-mppt100-48hv-a", "eg4-mppt100-48hv", ("mppt-1", 700)),
             ]);
 
-        snapshot.Pv!.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
+        snapshot.Pv!.PowerW.Should().BeNull();
         snapshot.Pv.Trackers.Should().HaveCount(3);
     }
 
@@ -310,22 +311,22 @@ public sealed class PowerSystemSnapshotComposerTests
         var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
 
         var snapshot = PowerSystemSnapshotComposer.Compose(
-            [SolarAssistant(now, pvPowerW: 1900)], now, options: PvOptions(),
+            [], now, options: PvOptions(),
             mpptDetails:
             [
-                MpptDetail(now, "solarassistant-total", "solarassistant", ("mppt-1", 500), ("MPPT-1", 500), ("mppt-2", 600)),
+                MpptDetail(now, "eg4-6500ex-a", "eg4-6500ex", ("mppt-1", 500), ("MPPT-1", 500), ("mppt-2", 600)),
                 MpptDetail(now, "eg4-mppt100-48hv-a", "eg4-mppt100-48hv", ("mppt-1", 700)),
             ]);
 
         snapshot.Pv!.Trackers.Should().HaveCount(3);
-        snapshot.Pv.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
+        snapshot.Pv.PowerW.Should().BeNull();
     }
 
     [TestMethod]
     public void Compose_DoesNotDerivePvAggregateWhenExpectedTrackerPowerIsNull()
     {
         var now = DateTime.Parse("2026-05-27T18:45:00Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
-        var detail = MpptDetail(now, "solarassistant-total", "solarassistant", ("mppt-1", 500), ("mppt-2", 600));
+        var detail = MpptDetail(now, "eg4-6500ex-a", "eg4-6500ex", ("mppt-1", 500), ("mppt-2", 600));
         var controller = MpptDetail(now, "eg4-mppt100-48hv-a", "eg4-mppt100-48hv", ("mppt-1", 700));
         controller = new PowerMpptDetailPayload
         {
@@ -337,9 +338,9 @@ public sealed class PowerSystemSnapshotComposerTests
         };
 
         var snapshot = PowerSystemSnapshotComposer.Compose(
-            [SolarAssistant(now, pvPowerW: 1900)], now, options: PvOptions(), mpptDetails: [detail, controller]);
+            [], now, options: PvOptions(), mpptDetails: [detail, controller]);
 
-        snapshot.Pv!.PowerW!.Source.Should().Be(PowerMetricSource.SolarAssistant);
+        snapshot.Pv!.PowerW.Should().BeNull();
         snapshot.Pv.Trackers.Should().HaveCount(3);
     }
 
@@ -350,12 +351,12 @@ public sealed class PowerSystemSnapshotComposerTests
 
         var snapshot = PowerSystemSnapshotComposer.Compose([], now, options: PvOptions(), mpptDetails:
         [
-            MpptDetail(now, "solarassistant-total", "solarassistant", ("mppt-1", 500), ("mppt-2", 600)),
+            MpptDetail(now, "eg4-6500ex-a", "eg4-6500ex", ("mppt-1", 500), ("mppt-2", 600)),
             MpptDetail(now, "eg4-mppt100-48hv-a", "eg4-mppt100-48hv", ("mppt-1", 700)),
         ]);
 
-        snapshot.Pv!.Trackers!.Single(tracker => tracker.TrackerId == "solarassistant-total/mppt-1").Source
-            .Should().Be(PowerMetricSource.SolarAssistant);
+        snapshot.Pv!.Trackers!.Single(tracker => tracker.TrackerId == "eg4-6500ex-a/mppt-1").Source
+            .Should().Be(PowerMetricSource.Eg46500Ex);
         var controller = snapshot.Pv.Trackers!.Single(tracker => tracker.TrackerId == "eg4-mppt100-48hv-a/mppt-1");
         controller.Source.Should().Be(PowerMetricSource.Eg4Mppt10048Hv);
         controller.Provenance.Should().Be(PowerObservationProvenance.Direct);
@@ -402,10 +403,27 @@ public sealed class PowerSystemSnapshotComposerTests
     {
         ExpectedPvTrackerIds =
         [
-            "solarassistant-total/mppt-1",
-            "solarassistant-total/mppt-2",
+            "eg4-6500ex-a/mppt-1",
+            "eg4-6500ex-a/mppt-2",
             "eg4-mppt100-48hv-a/mppt-1",
         ],
+    };
+
+    private static PowerInverterDetailPayload InverterDetail(DateTime recordedAt, double loadPowerW, string mode = "Battery") => new()
+    {
+        SourceId = "eg4-6500ex-a",
+        SourceSystem = "eg4-6500ex",
+        DeviceId = "inverter-a",
+        RecordedAtUtc = recordedAt,
+        Ac = new PowerInverterAcDetail
+        {
+            InputVoltageV = 240,
+            InputFrequencyHz = 60,
+            OutputVoltageV = 120,
+            OutputFrequencyHz = 59.9,
+        },
+        Load = new PowerInverterLoadDetail { LoadPowerW = loadPowerW },
+        Operating = new PowerInverterOperatingDetail { Mode = mode, LoadPercentage = 19 },
     };
 
     private static PowerMpptDetailPayload MpptDetail(
