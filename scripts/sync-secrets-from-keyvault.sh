@@ -308,6 +308,7 @@ done
 davis_config=deploy/pi-gateways/davis/gateway.json
 if [[ ! -f "$repo_root/$davis_config" ]]; then
 	printf 'skipped deploy/pi-gateways/davis/secrets/weather-underground-station-key (Davis gateway.json not materialized)\n'
+	printf 'skipped deploy/pi-gateways/davis/secrets/cwop-passcode (Davis gateway.json not materialized)\n'
 else
 	command -v jq >/dev/null 2>&1 || fail "jq is required to inspect $davis_config."
 	jq -e . "$repo_root/$davis_config" >/dev/null || fail "$davis_config is not valid JSON."
@@ -315,6 +316,11 @@ else
 		sync_secret_file deploy/pi-gateways/davis/secrets/weather-underground-station-key WeatherUnderground--StationKey
 	else
 		printf 'skipped deploy/pi-gateways/davis/secrets/weather-underground-station-key (Weather Underground disabled)\n'
+	fi
+	if jq -e '.Cwop.Enabled == true and .Cwop.PasscodeSecret == "cwop-passcode"' "$repo_root/$davis_config" >/dev/null; then
+		sync_secret_file deploy/pi-gateways/davis/secrets/cwop-passcode Cwop--AprsIsPasscode
+	else
+		printf 'skipped deploy/pi-gateways/davis/secrets/cwop-passcode (CWOP disabled or registered passcode not configured)\n'
 	fi
 fi
 sync_secret_file deploy/pi-gateways/home-assistant-exporter/secrets/home-assistant-token HomeAssistant--Token

@@ -4,6 +4,7 @@ using HVO.Edge.Hosting.Diagnostics;
 using HVO.Edge.HomeAssistant.Mqtt;
 using HVO.Edge.Outbox;
 using HVO.Hardware.DavisVantagePro2.Configuration;
+using HVO.Hardware.DavisVantagePro2.Cwop;
 using HVO.Hardware.DavisVantagePro2.Diagnostics;
 using HVO.Hardware.DavisVantagePro2.HomeAssistant;
 using HVO.Hardware.DavisVantagePro2.Outbox;
@@ -32,6 +33,11 @@ public static class DavisServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<WeatherUndergroundOptions>, WeatherUndergroundOptionsValidator>();
+        services.AddOptions<CwopOptions>()
+            .Bind(configuration.GetSection(CwopOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<CwopOptions>, CwopOptionsValidator>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddDbContext<DavisLocalDbContext>((provider, builder) =>
             builder.UseSqlite($"Data Source={provider.GetRequiredService<IOptions<StationOptions>>().Value.LocalDatabasePath}"));
@@ -72,6 +78,13 @@ public static class DavisServiceCollectionExtensions
         services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter(WeatherUndergroundMetrics.MeterName));
         services.AddSingleton<WeatherUndergroundPublisher>();
         services.AddHostedService(provider => provider.GetRequiredService<WeatherUndergroundPublisher>());
+        services.AddSingleton<CwopCredential>();
+        services.AddSingleton<CwopPublisherState>();
+        services.AddSingleton<CwopClient>();
+        services.AddSingleton<ICwopClient>(provider => provider.GetRequiredService<CwopClient>());
+        services.AddHostedService<CwopInitializer>();
+        services.AddSingleton<CwopPublisher>();
+        services.AddHostedService(provider => provider.GetRequiredService<CwopPublisher>());
         services.AddSingleton<DavisHomeAssistantProjection>();
         services.AddSingleton<IDavisHomeAssistantProjection>(provider => provider.GetRequiredService<DavisHomeAssistantProjection>());
         services.RemoveAll<IEdgeDiagnosticsSnapshotProvider>();
@@ -102,6 +115,30 @@ public static class DavisServiceCollectionExtensions
             TimeSpan.FromHours(stationOptions.LegacyArchiveConsoleUtcOffsetHours!.Value),
             cancellationToken);
     }
+}
+
+internal sealed class CwopInitializer(
+    IOptions<CwopOptions> options,
+    SecretFileResolver secretResolver,
+    CwopCredential credential) : IHostedLifecycleService
+{
+    public Task StartingAsync(CancellationToken cancellationToken)
+    {
+        if (options.Value.Enabled)
+        {
+            var passcode = string.IsNullOrWhiteSpace(options.Value.PasscodeSecret)
+                ? options.Value.Passcode
+                : secretResolver.ReadRequired(options.Value.PasscodeSecret, "Cwop:PasscodeSecret");
+            credential.Initialize(passcode);
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 internal sealed class DavisCollectorInitializer(
