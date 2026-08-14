@@ -2,23 +2,28 @@ hvo_6500ex_pv_energy_daily:
   source: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_21xpv_x5fenergy_x5ftotal
   name: HVO 6500EX PV Energy Daily
   cycle: daily
+  periodically_resetting: false
 
 hvo_6500ex_ac_load_energy_daily:
   source: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xload_x5fenergy_x5ftotal
   name: HVO 6500EX AC Load Energy Daily
   cycle: daily
+  periodically_resetting: false
 
 hvo_external_mppt_pv_energy_daily:
   source: sensor.hvo_external_mppt_pv_energy
   name: HVO External MPPT PV Energy Daily
   cycle: daily
+  periodically_resetting: false
 
 hvo_battery_charge_energy_daily:
   source: sensor.hvo_smartshunt_battery_charge_energy
   name: HVO Battery Charge Energy Daily
   cycle: daily
+  periodically_resetting: false
 
 hvo_battery_discharge_energy_daily:
   source: sensor.hvo_smartshunt_battery_discharge_energy
   name: HVO Battery Discharge Energy Daily
   cycle: daily
+  periodically_resetting: false

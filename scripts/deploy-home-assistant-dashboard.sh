@@ -213,9 +213,18 @@ for _ in {1..60}; do
         "$ha_url/api/" >/dev/null 2>&1; then
         sleep 5
         guest_exec "$verify_deployment" >/dev/null
+        post_restart_states="$(curl -fsS \
+            -H "Authorization: Bearer ${HOME_ASSISTANT_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "$ha_url/api/states")"
+        if ! printf '%s\n' "$post_restart_states" | bash "$repo_root/tools/validate-home-assistant-energy-state.sh"; then
+            rollback
+            printf 'Home Assistant aggregate helper validation failed; all managed files were restored.\n' >&2
+            exit 1
+        fi
         guest_exec "rm -rf '$backup_root'" >/dev/null
         deployment_started=0
-        printf 'HVO managed configuration deployed; dashboards are at %s/hvo-kasa/overview, %s/hvo-energy/energy, %s/hvo-operations/environment, and %s/hvo-weather/overview.\n' "$ha_url" "$ha_url" "$ha_url" "$ha_url"
+        printf 'HVO managed configuration deployed; dashboards are at %s/hvo-kasa/overview, %s/hvo-energy/overview, %s/hvo-operations/environment, and %s/hvo-weather/overview.\n' "$ha_url" "$ha_url" "$ha_url" "$ha_url"
         exit 0
     fi
     sleep 2

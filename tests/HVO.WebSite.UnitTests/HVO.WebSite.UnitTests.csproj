@@ -65,7 +65,10 @@
           Link="Fixtures/HomeAssistant/Configuration/frontend/hvo-weather-wind-card.js"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../scripts/deploy-home-assistant-dashboard.sh"
-          Link="Fixtures/HomeAssistant/deploy-home-assistant-dashboard.sh"
+           Link="Fixtures/HomeAssistant/deploy-home-assistant-dashboard.sh"
+           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../tools/validate-home-assistant-energy-state.sh"
+          Link="Fixtures/HomeAssistant/validate-home-assistant-energy-state.sh"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -1,32 +1,37 @@
 views:
-  - title: Energy
-    path: energy
-    icon: mdi:solar-power-variant
+  - title: Overview
+    path: overview
+    icon: mdi:home-lightning-bolt-outline
     type: sections
     max_columns: 3
     sections:
       - type: grid
-        title: Current Power Flow
+        title: Live Power
         cards:
-          - type: tile
-            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_11xpv_x5fpower
-            name: 6500EX Combined PV
-            icon: mdi:solar-power
-          - type: tile
-            entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_11xpv_x5fpower
-            name: External MPPT PV
-            icon: mdi:solar-panel-large
-          - type: tile
-            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_13xload_x5fpower
-            name: AC Load
-            icon: mdi:home-lightning-bolt-outline
-          - type: tile
-            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower
-            name: Battery Net Power
-            icon: mdi:battery-sync-outline
-
+          - type: gauge
+            entity: sensor.hvo_all_pv_power
+            name: All Three PV Total
+            min: 0
+            max: 9000
+            needle: true
+          - type: gauge
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_34xparallel_x5ftotal_x5fload_x5fpower
+            name: Parallel System Load
+            min: 0
+            max: 12000
+            needle: true
+          - type: gauge
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_21xstate_x5fof_x5fcharge
+            name: Whole-Bus Battery SOC
+            min: 0
+            max: 100
+            needle: true
+            severity:
+              red: 0
+              yellow: 20
+              green: 50
       - type: grid
-        title: Three PV Inputs
+        title: Three PV Trackers
         cards:
           - type: tile
             entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f1_x5fpower
@@ -38,84 +43,703 @@ views:
             icon: mdi:solar-panel
           - type: tile
             entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_24xpv_x5fmppt_x5f1_x5fpower
-            name: External MPPT
+            name: Standalone MPPT100
             icon: mdi:solar-panel-large
-
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_11xpv_x5fpower
+            name: 6500EX Native Subtotal
+            icon: mdi:solar-power
+          - type: tile
+            entity: sensor.hvo_all_pv_power
+            name: All-Three Calculated Total
+            icon: mdi:solar-power-variant
       - type: grid
-        title: Today
+        title: Today And Battery
         cards:
           - type: tile
             entity: sensor.hvo_6500ex_pv_energy_daily
-            name: 6500EX Solar
-            icon: mdi:solar-power
+            name: 6500EX Native PV Today
           - type: tile
             entity: sensor.hvo_external_mppt_pv_energy_daily
-            name: External MPPT Solar
-            icon: mdi:solar-panel-large
+            name: MPPT100 Integrated PV Today
           - type: tile
-            entity: sensor.hvo_6500ex_ac_load_energy_daily
-            name: AC Consumption
-            icon: mdi:transmission-tower-export
+            entity: sensor.hvo_total_pv_energy_daily
+            name: Total PV Today
           - type: tile
-            entity: sensor.hvo_battery_charge_energy_daily
-            name: Battery Charged
-            icon: mdi:battery-arrow-up-outline
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower
+            name: Battery Net Power
           - type: tile
-            entity: sensor.hvo_battery_discharge_energy_daily
-            name: Battery Discharged
-            icon: mdi:battery-arrow-down-outline
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_18xbattery_x5fvoltage
+            name: Battery Voltage
+      - type: grid
+        title: Reconciliation
+        cards:
+          - type: markdown
+            content: >-
+              **Live PV:** All-three total is the sum of 6500EX MPPT 1, 6500EX MPPT 2,
+              and the standalone MPPT100 tracker. It becomes unavailable unless every
+              source has a numeric value.
 
-  - title: History
-    path: history
-    icon: mdi:chart-line
+              **Daily PV:** Total PV Today adds the 6500EX native QET-derived daily meter
+              to the standalone MPPT100 power-integration daily meter. No tracker or
+              subtotal is counted twice. Native QET/QLT update about every five minutes,
+              so short-lived differences are expected near updates and day boundaries.
+
+  - title: Generation
+    path: generation
+    icon: mdi:solar-power
     type: sections
     max_columns: 2
     sections:
       - type: grid
-        title: PV Power
+        title: Generation Now
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f1_x5fpower
+            name: 6500EX MPPT 1
+            min: 0
+            max: 4500
+            needle: true
+          - type: gauge
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f2_x5fpower
+            name: 6500EX MPPT 2
+            min: 0
+            max: 4500
+            needle: true
+          - type: gauge
+            entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_24xpv_x5fmppt_x5f1_x5fpower
+            name: Standalone MPPT100
+            min: 0
+            max: 5000
+            needle: true
+          - type: gauge
+            entity: sensor.hvo_all_pv_power
+            name: All Three PV Total
+            min: 0
+            max: 9000
+            needle: true
+      - type: grid
+        title: PV Power History
         cards:
           - type: statistics-graph
-            title: PV Inputs - 24 Hours
+            title: PV Trackers - 24 Hours
             chart_type: line
             period: 5minute
             days_to_show: 1
-            stat_types:
-              - mean
-              - max
+            stat_types: [mean, max]
             entities:
               - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f1_x5fpower
               - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f2_x5fpower
               - sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_24xpv_x5fmppt_x5f1_x5fpower
-
-      - type: grid
-        title: AC And Battery Power
-        cards:
+              - sensor.hvo_all_pv_power
           - type: statistics-graph
-            title: Load And Battery - 24 Hours
+            title: PV Totals - 7 Days
             chart_type: line
-            period: 5minute
-            days_to_show: 1
-            stat_types:
-              - mean
-              - max
-              - min
+            period: hour
+            days_to_show: 7
+            stat_types: [mean, max]
             entities:
-              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_13xload_x5fpower
-              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower
-
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_11xpv_x5fpower
+              - sensor.hvo_all_pv_power
       - type: grid
-        title: Cumulative Energy
+        title: Daily Energy Reconciliation
         cards:
+          - type: entities
+            entities:
+              - entity: sensor.hvo_6500ex_pv_energy_daily
+                name: 6500EX Native QET-Derived Daily
+              - entity: sensor.hvo_external_mppt_pv_energy_daily
+                name: MPPT100 Integrated Daily
+              - entity: sensor.hvo_total_pv_energy_daily
+                name: Combined Daily, No Double Counting
           - type: statistics-graph
-            title: Daily Energy
+            title: Solar Energy - 14 Days
             chart_type: bar
             period: day
             days_to_show: 14
-            stat_types:
-              - change
+            stat_types: [change]
             entities:
               - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_21xpv_x5fenergy_x5ftotal
               - sensor.hvo_external_mppt_pv_energy
-              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xload_x5fenergy_x5ftotal
+
+  - title: Usage
+    path: usage
+    icon: mdi:transmission-tower-export
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: 6500EX AC Load
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_13xload_x5fpower
+            name: 6500EX Local Load
+            min: 0
+            max: 6000
+            needle: true
+          - type: gauge
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_34xparallel_x5ftotal_x5fload_x5fpower
+            name: Parallel System Load
+            min: 0
+            max: 12000
+            needle: true
+          - type: tile
+            entity: sensor.hvo_6500ex_ac_load_energy_daily
+            name: Native AC Load Today
+      - type: grid
+        title: Physical Parent Submeters
+        cards:
+          - type: tile
+            entity: sensor.tp_link_power_strip_4540_current_consumption
+            name: Control Room Strip
+          - type: tile
+            entity: sensor.tp_link_power_strip_0628_current_consumption
+            name: Telescope Strip
+          - type: tile
+            entity: sensor.workshop_power_strip_plug_1_current_consumption
+            name: Workshop Strip
+          - type: tile
+            entity: sensor.tp_link_power_strip_d65c_current_consumption
+            name: Observatory Amenities Strip
+          - type: tile
+            entity: sensor.power_room_heater_current_consumption
+            name: Power Room Heater
+          - type: tile
+            entity: sensor.tpra_smart_switch_current_consumption
+            name: TPRA Workshop Strip
+      - type: grid
+        title: Load History
+        cards:
+          - type: statistics-graph
+            title: Local And Parallel Load - 24 Hours
+            chart_type: line
+            period: 5minute
+            days_to_show: 1
+            stat_types: [mean, max]
+            entities:
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_13xload_x5fpower
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_34xparallel_x5ftotal_x5fload_x5fpower
+          - type: statistics-graph
+            title: Parent Submeters - 24 Hours
+            chart_type: line
+            period: 5minute
+            days_to_show: 1
+            stat_types: [mean, max]
+            entities:
+              - sensor.tp_link_power_strip_4540_current_consumption
+              - sensor.tp_link_power_strip_0628_current_consumption
+              - sensor.workshop_power_strip_plug_1_current_consumption
+              - sensor.tp_link_power_strip_d65c_current_consumption
+              - sensor.power_room_heater_current_consumption
+              - sensor.tpra_smart_switch_current_consumption
+
+  - title: Batteries
+    path: batteries
+    icon: mdi:battery-charging-high
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: Whole-Bus Battery
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_21xstate_x5fof_x5fcharge
+            name: SmartShunt SOC
+            min: 0
+            max: 100
+            needle: true
+            severity: { red: 0, yellow: 20, green: 50 }
+          - type: gauge
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_18xbattery_x5fvoltage
+            name: SmartShunt Voltage
+            min: 44
+            max: 58
+            needle: true
+          - type: gauge
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower
+            name: Net Battery Power
+            min: -10000
+            max: 10000
+            needle: true
+      - type: grid
+        title: Battery Energy Today
+        cards:
+          - type: tile
+            entity: sensor.hvo_battery_charge_energy_daily
+            name: Charged Today
+          - type: tile
+            entity: sensor.hvo_battery_discharge_energy_daily
+            name: Discharged Today
+          - type: tile
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_25xbattery_x5fnet_x5fcurrent
+            name: Net Current
+      - type: grid
+        title: Battery History
+        cards:
+          - type: statistics-graph
+            title: Battery Flow And Voltage - 24 Hours
+            chart_type: line
+            period: 5minute
+            days_to_show: 1
+            stat_types: [mean, min, max]
+            entities:
+              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower
+              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_18xbattery_x5fvoltage
+          - type: statistics-graph
+            title: Battery SOC - 7 Days
+            chart_type: line
+            period: hour
+            days_to_show: 7
+            stat_types: [mean, min, max]
+            entities:
+              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_21xstate_x5fof_x5fcharge
+
+  - title: 6500EX
+    path: 6500ex
+    icon: mdi:solar-power-variant-outline
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: 6500EX Generation
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f1_x5fpower
+            name: MPPT 1 Power
+            min: 0
+            max: 4500
+            needle: true
+          - type: gauge
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f2_x5fpower
+            name: MPPT 2 Power
+            min: 0
+            max: 4500
+            needle: true
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_11xpv_x5fpower
+            name: Native Two-Tracker Subtotal
+      - type: grid
+        title: 6500EX AC And Battery
+        cards:
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_13xload_x5fpower
+            name: Local Load Power
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_34xparallel_x5ftotal_x5fload_x5fpower
+            name: Parallel Total Load Power
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_18xbattery_x5fvoltage
+            name: Battery Voltage
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xbattery_x5fnet_x5fpower
+            name: Battery Net Power
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_17xoperating_x5fmode
+            name: Operating Mode
+          - type: tile
+            entity: sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_15xcharge_x5fstage
+            name: Charge Stage
+      - type: grid
+        title: 6500EX Electrical And Thermal
+        cards:
+          - type: entities
+            entities:
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_26xpv_x5fmppt_x5f1_x5fvoltage
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_26xpv_x5fmppt_x5f1_x5fcurrent
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_26xpv_x5fmppt_x5f2_x5fvoltage
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_26xpv_x5fmppt_x5f2_x5fcurrent
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xac_x5foutput_x5fvoltage
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_25xac_x5foutput_x5ffrequency
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_23xinverter_x5ftemperature
+              - sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_26xtransformer_x5ftemperature
+
+  - title: MPPT100
+    path: mppt100
+    icon: mdi:solar-panel-large
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        title: Standalone MPPT100
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_24xpv_x5fmppt_x5f1_x5fpower
+            name: PV Power
+            min: 0
+            max: 5000
+            needle: true
+          - type: gauge
+            entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_18xbattery_x5fvoltage
+            name: Battery Voltage
+            min: 44
+            max: 60
+            needle: true
+          - type: entities
+            entities:
+              - entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_26xpv_x5fmppt_x5f1_x5fvoltage
+                name: PV Voltage
+              - entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_26xpv_x5fmppt_x5f1_x5fcurrent
+                name: PV Current
+              - entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_25xbattery_x5fnet_x5fcurrent
+                name: Battery Net Current
+              - entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_23xbattery_x5fnet_x5fpower
+                name: Battery Net Power
+              - entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_25xcontroller_x5ftemperature
+                name: Controller Temperature
+              - entity: sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_20xcontroller_x5fstatus
+                name: Controller Status
+      - type: grid
+        title: MPPT100 History
+        cards:
+          - type: statistics-graph
+            title: MPPT100 PV - 24 Hours
+            chart_type: line
+            period: 5minute
+            days_to_show: 1
+            stat_types: [mean, max]
+            entities:
+              - sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_24xpv_x5fmppt_x5f1_x5fpower
+              - sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_26xpv_x5fmppt_x5f1_x5fvoltage
+          - type: statistics-graph
+            title: Integrated PV Energy - 7 Days
+            chart_type: bar
+            period: day
+            days_to_show: 7
+            stat_types: [change]
+            entities:
+              - sensor.hvo_external_mppt_pv_energy
+
+  - title: SmartShunt
+    path: smartshunt
+    icon: mdi:current-dc
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        title: SmartShunt Whole-Bus Meter
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_21xstate_x5fof_x5fcharge
+            name: State Of Charge
+            min: 0
+            max: 100
+            needle: true
+            severity: { red: 0, yellow: 20, green: 50 }
+          - type: gauge
+            entity: sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_18xbattery_x5fvoltage
+            name: Battery Voltage
+            min: 44
+            max: 58
+            needle: true
+          - type: entities
+            entities:
+              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_25xbattery_x5fnet_x5fcurrent
+              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower
+              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_14xconsumed_x5fah
+              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_17xremaining_x5ftime
+      - type: grid
+        title: SmartShunt History
+        cards:
+          - type: statistics-graph
+            title: Whole-Bus Battery - 24 Hours
+            chart_type: line
+            period: 5minute
+            days_to_show: 1
+            stat_types: [mean, min, max]
+            entities:
+              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_23xbattery_x5fnet_x5fpower
+              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_18xbattery_x5fvoltage
+              - sensor.hvo_3xhvo_10xsmartshunt_21xsmartshunt_x2dlifepo4_21xstate_x5fof_x5fcharge
+          - type: entities
+            title: Directional Energy Helpers
+            entities:
+              - sensor.hvo_smartshunt_battery_charge_power
+              - sensor.hvo_smartshunt_battery_discharge_power
               - sensor.hvo_smartshunt_battery_charge_energy
               - sensor.hvo_smartshunt_battery_discharge_energy
+
+  - title: JK Banks And Health
+    path: jk-health
+    icon: mdi:battery-heart-variant
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: System Health
+        cards:
+          - type: tile
+            entity: sensor.hvo_eg4_gateway_health
+            name: EG4 Collector
+          - type: tile
+            entity: sensor.hvo_jkbms_gateway_health
+            name: JK Collector
+          - type: tile
+            entity: sensor.hvo_smartshunt_gateway_health
+            name: SmartShunt Collector
+          - type: tile
+            entity: sensor.hvo_eg4_source_freshness
+            name: EG4 Freshness
+          - type: tile
+            entity: sensor.hvo_jkbms_source_freshness
+            name: JK Freshness
+          - type: tile
+            entity: sensor.hvo_smartshunt_source_freshness
+            name: SmartShunt Freshness
+      - type: grid
+        title: JK Bank Trends
+        cards:
+          - type: statistics-graph
+            title: JK State Of Charge - 24 Hours
+            chart_type: line
+            period: 5minute
+            days_to_show: 1
+            stat_types: [mean, min, max]
+            entities:
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_21xstate_x5fof_x5fcharge
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_21xstate_x5fof_x5fcharge
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_21xstate_x5fof_x5fcharge
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_21xstate_x5fof_x5fcharge
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_21xstate_x5fof_x5fcharge
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_21xstate_x5fof_x5fcharge
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_21xstate_x5fof_x5fcharge
+          - type: statistics-graph
+            title: JK Cell Spread - 24 Hours
+            chart_type: line
+            period: 5minute
+            days_to_show: 1
+            stat_types: [mean, max]
+            entities:
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_13xcell_x5fdelta
+      - type: grid
+        title: Bank 1
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_21xstate_x5fof_x5fcharge
+            name: Bank 1 SOC
+            min: 0
+            max: 100
+            needle: true
+          - type: entities
+            entities:
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_18xbattery_x5fvoltage
+                secondary_info: last-updated
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_25xbattery_x5fnet_x5fcurrent
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_23xbattery_x5fnet_x5fpower
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_27xbattery_x5ftemperature_x5f1
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_21xmosfet_x5ftemperature
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_9xbalancing
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_20xbalancing_x5fcurrent
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_5xalarm
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_16xalarm_x5fbitmask
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_21xremaining_x5fcapacity
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_14xcycle_x5fcount
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_21xstate_x5fof_x5fhealth
+      - type: grid
+        title: Bank 2
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_21xstate_x5fof_x5fcharge
+            name: Bank 2 SOC
+            min: 0
+            max: 100
+            needle: true
+          - type: entities
+            entities:
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_18xbattery_x5fvoltage
+                secondary_info: last-updated
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_25xbattery_x5fnet_x5fcurrent
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_23xbattery_x5fnet_x5fpower
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_27xbattery_x5ftemperature_x5f1
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_21xmosfet_x5ftemperature
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_9xbalancing
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_20xbalancing_x5fcurrent
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_5xalarm
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_16xalarm_x5fbitmask
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_21xremaining_x5fcapacity
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_14xcycle_x5fcount
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_21xstate_x5fof_x5fhealth
+      - type: grid
+        title: Bank 3
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_21xstate_x5fof_x5fcharge
+            name: Bank 3 SOC
+            min: 0
+            max: 100
+            needle: true
+          - type: entities
+            entities:
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_18xbattery_x5fvoltage
+                secondary_info: last-updated
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_25xbattery_x5fnet_x5fcurrent
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_23xbattery_x5fnet_x5fpower
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_27xbattery_x5ftemperature_x5f1
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_21xmosfet_x5ftemperature
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_9xbalancing
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_20xbalancing_x5fcurrent
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_5xalarm
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_16xalarm_x5fbitmask
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_21xremaining_x5fcapacity
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_14xcycle_x5fcount
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_21xstate_x5fof_x5fhealth
+      - type: grid
+        title: Bank 4
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_21xstate_x5fof_x5fcharge
+            name: Bank 4 SOC
+            min: 0
+            max: 100
+            needle: true
+          - type: entities
+            entities:
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_18xbattery_x5fvoltage
+                secondary_info: last-updated
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_25xbattery_x5fnet_x5fcurrent
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_23xbattery_x5fnet_x5fpower
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_27xbattery_x5ftemperature_x5f1
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_21xmosfet_x5ftemperature
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_9xbalancing
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_20xbalancing_x5fcurrent
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_5xalarm
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_16xalarm_x5fbitmask
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_21xremaining_x5fcapacity
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_14xcycle_x5fcount
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_21xstate_x5fof_x5fhealth
+      - type: grid
+        title: Bank 5
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_21xstate_x5fof_x5fcharge
+            name: Bank 5 SOC
+            min: 0
+            max: 100
+            needle: true
+          - type: entities
+            entities:
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_18xbattery_x5fvoltage
+                secondary_info: last-updated
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_25xbattery_x5fnet_x5fcurrent
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_23xbattery_x5fnet_x5fpower
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_27xbattery_x5ftemperature_x5f1
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_21xmosfet_x5ftemperature
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_9xbalancing
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_20xbalancing_x5fcurrent
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_5xalarm
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_16xalarm_x5fbitmask
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_21xremaining_x5fcapacity
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_14xcycle_x5fcount
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_21xstate_x5fof_x5fhealth
+      - type: grid
+        title: Bank 6
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_21xstate_x5fof_x5fcharge
+            name: Bank 6 SOC
+            min: 0
+            max: 100
+            needle: true
+          - type: entities
+            entities:
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_18xbattery_x5fvoltage
+                secondary_info: last-updated
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_25xbattery_x5fnet_x5fcurrent
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_23xbattery_x5fnet_x5fpower
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_27xbattery_x5ftemperature_x5f1
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_21xmosfet_x5ftemperature
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_9xbalancing
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_20xbalancing_x5fcurrent
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_5xalarm
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_16xalarm_x5fbitmask
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_21xremaining_x5fcapacity
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_14xcycle_x5fcount
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_21xstate_x5fof_x5fhealth
+      - type: grid
+        title: Bank 7
+        cards:
+          - type: gauge
+            entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_21xstate_x5fof_x5fcharge
+            name: Bank 7 SOC
+            min: 0
+            max: 100
+            needle: true
+          - type: entities
+            entities:
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_18xbattery_x5fvoltage
+                secondary_info: last-updated
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_25xbattery_x5fnet_x5fcurrent
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_23xbattery_x5fnet_x5fpower
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_13xcell_x5fdelta
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_27xbattery_x5ftemperature_x5f1
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_21xmosfet_x5ftemperature
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_9xbalancing
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_20xbalancing_x5fcurrent
+              - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_5xalarm
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_16xalarm_x5fbitmask
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_21xremaining_x5fcapacity
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_14xcycle_x5fcount
+              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_21xstate_x5fof_x5fhealth
+      - type: grid
+        title: Active JK Alarms
+        cards:
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_5xalarm
+                state: "on"
+            card:
+              type: markdown
+              content: "**Bank 1 alarm is active.** Inspect the alarm bitmask and collector logs."
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_5xalarm
+                state: "on"
+            card:
+              type: markdown
+              content: "**Bank 2 alarm is active.** Inspect the alarm bitmask and collector logs."
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_5xalarm
+                state: "on"
+            card:
+              type: markdown
+              content: "**Bank 3 alarm is active.** Inspect the alarm bitmask and collector logs."
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_5xalarm
+                state: "on"
+            card:
+              type: markdown
+              content: "**Bank 4 alarm is active.** Inspect the alarm bitmask and collector logs."
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_5xalarm
+                state: "on"
+            card:
+              type: markdown
+              content: "**Bank 5 alarm is active.** Inspect the alarm bitmask and collector logs."
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_5xalarm
+                state: "on"
+            card:
+              type: markdown
+              content: "**Bank 6 alarm is active.** Inspect the alarm bitmask and collector logs."
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_5xalarm
+                state: "on"
+            card:
+              type: markdown
+              content: "**Bank 7 alarm is active.** Inspect the alarm bitmask and collector logs."

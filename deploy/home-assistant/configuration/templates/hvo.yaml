@@ -1,4 +1,32 @@
 - sensor:
+    - name: HVO All PV Power
+      unique_id: hvo_all_pv_power
+      default_entity_id: sensor.hvo_all_pv_power
+      unit_of_measurement: W
+      device_class: power
+      state_class: measurement
+      icon: mdi:solar-power-variant
+      availability: >-
+        {{ 'sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f1_x5fpower' | has_value
+           and 'sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f2_x5fpower' | has_value
+           and 'sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_24xpv_x5fmppt_x5f1_x5fpower' | has_value }}
+      state: >-
+        {{ (states('sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f1_x5fpower') | float)
+           + (states('sensor.hvo_3xhvo_3xeg4_13xinverter_x2da_24xpv_x5fmppt_x5f2_x5fpower') | float)
+           + (states('sensor.hvo_3xhvo_3xeg4_15xcontroller_x2da_24xpv_x5fmppt_x5f1_x5fpower') | float) }}
+    - name: HVO Total PV Energy Daily
+      unique_id: hvo_total_pv_energy_daily
+      default_entity_id: sensor.hvo_total_pv_energy_daily
+      unit_of_measurement: kWh
+      device_class: energy
+      state_class: total_increasing
+      icon: mdi:solar-power
+      availability: >-
+        {{ 'sensor.hvo_6500ex_pv_energy_daily' | has_value
+           and 'sensor.hvo_external_mppt_pv_energy_daily' | has_value }}
+      state: >-
+        {{ (states('sensor.hvo_6500ex_pv_energy_daily') | float)
+           + (states('sensor.hvo_external_mppt_pv_energy_daily') | float) }}
     - name: HVO SmartShunt Battery Charge Power
       unique_id: hvo_smartshunt_battery_charge_power
       default_entity_id: sensor.hvo_smartshunt_battery_charge_power

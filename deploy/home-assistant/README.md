@@ -99,15 +99,44 @@ charge and discharge are integrated separately from its signed whole-bus power.
 The external MPPT may sleep and remain unavailable after dark; unavailable data
 is never replaced with zero.
 
-The dashboard shows all three physical PV inputs: two 6500EX trackers and the
-external MPPT. Energy aggregation uses the combined native 6500EX counter plus
-the external controller counter, never the combined counter and its children.
+`HVO 6500EX AC Load` remains the Energy parent for the selected Kasa
+breakdowns. This name identifies its source counter without claiming an
+independently verified site or fleet total. The instantaneous 6500EX local
+load and parallel-system load are distinct dashboard signals; the lifetime QLT
+counter's exact fleet/site aggregation semantics have not been independently
+proven.
+
+The dashboard has responsive Overview, Generation, Usage, Batteries, 6500EX,
+MPPT100, SmartShunt, and JK Banks and Health views. It shows all three physical
+PV inputs, the native 6500EX two-tracker subtotal, and an availability-safe
+all-three total. The total is unavailable unless every tracker is numeric.
+Daily energy aggregation adds the QET-derived 6500EX daily meter to the external
+controller's integrated daily meter, never the combined counter and its children.
 JK bank counters remain comparison/fallback candidates and are not combined
 with the SmartShunt whole-bus meter.
 
+All five daily utility meters read persisted, non-resetting lifetime cumulative
+sources: native QET/QLT or HA integration-derived cumulative energy. They set
+`periodically_resetting: false` so Home Assistant calculates from its last valid
+source state after an unavailable interval instead of losing the reconnect
+increment. `always_available` remains unset; source unavailability still
+propagates, including to the availability-safe combined daily helper.
+
+This setting is prospective. It does not repair a deficit already accumulated
+in the current local day. After deployment, either wait for the next local
+midnight cycle before final acceptance or separately review an explicit,
+supported `utility_meter` calibration using a fresh recorder-derived target.
+Recorder completion lag means operators must not guess a calibration value, and
+this change intentionally adds no mutating calibration mode.
+
 The managed Energy preferences register the validated 6500EX combined solar
 counter and the external MPPT integration helper as two separate solar sources,
-plus the SmartShunt battery and AC load. Daylight validation confirmed the
+plus the SmartShunt battery and `HVO 6500EX AC Load`. Distinct physical Kasa
+parents are nested device-consumption breakdowns through `included_in_stat`;
+child outlets are excluded to prevent overlap. The managed parents are the
+control-room, telescope, workshop, observatory-amenities, TPRA workshop strips,
+and the power-room heater. Live device-registry evidence identifies each by a
+different TP-Link device ID and hardware identifier. Daylight validation confirmed the
 external helper exposes cumulative `kWh` statistics and increases with direct
 MPPT power; it may still be unavailable after dark when the controller sleeps.
 
@@ -219,12 +248,74 @@ export HVO_HOME_ASSISTANT_ALLOW_INSECURE=true
 dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --backup
 dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-check
 dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-apply
+dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-audit
 ```
 
-The apply operation preserves unrelated preferences and restores the previous
-preferences if save, readback, or Energy validation fails. The external MPPT
+The check reports managed-entry drift by name. Validation inspects solar,
+battery, device-consumption, and water categories so submeter errors cannot be
+missed. Before check/apply, the tool also verifies that every managed cumulative
+entity is recorder `has_sum` eligible, every managed rate/SOC entity is recorder
+`has_mean` eligible, and their current state and metadata match the Energy role.
+`included_in_stat` is validated as an acyclic graph whose parents are configured
+device-consumption statistics. The apply operation preserves unrelated preferences, removes the known
+legacy workshop child-plug entry, and restores the previous preferences if save,
+readback, or Energy validation fails; rollback is also read back and a combined
+failure is reported if restoration cannot be verified. The external MPPT
 was added only after daylight established valid cumulative `kWh` metadata and
 Home Assistant Energy validation accepted the second solar source.
+
+These checks use only supported Home Assistant 2026.8 WebSocket responses:
+`get_states`, `recorder/list_statistic_ids`, `energy/get_prefs`, and
+`energy/validate`. Recorder eligibility confirms metadata capability, not the
+completeness or historical accuracy of stored samples. Current rate/SOC checks
+accept normal `unknown` and `unavailable` states so nighttime and transient
+outages do not block operations. Numeric values must be finite, numeric SOC must
+remain within 0-100, and other malformed states fail validation. Home Assistant's own `energy/validate` remains authoritative for
+additional platform validation semantics.
+
+`--energy-audit` is read-only. It obtains the configured timezone through
+`get_config`, then requests `recorder/statistic_during_period` with the server's
+`calendar: { period: day }` and `change` semantics for each cumulative source.
+Home Assistant therefore resolves local midnight and clamps the current day to
+now; recorder combines hourly and short-term statistics for this partial-day
+change. The audit separately requests five-minute sum rows through
+`recorder/statistics_during_period` and rejects data older than 15 minutes.
+
+The audit compares QET to the 6500EX PV daily meter, external integrated energy
+to its daily meter, QLT to the AC daily meter, and both SmartShunt directional
+integrations to their daily meters. It also compares the combined solar helper
+to the two solar daily meters. Native QET/QLT comparisons start with a 0.1 kWh
+precision allowance; integration comparisons start with 0.001 kWh. To account
+only for bounded recorder completion lag, each source tolerance adds
+`nameplate kW * age of newest statistics row in hours`. Combined-current
+agreement uses 0.002 kWh. Missing, stale, nonnumeric, or materially different
+values fail the command.
+
+When recorder change materially exceeds a daily meter, the audit reports the
+cumulative source and utility-meter entity IDs and identifies unavailable-gap
+loss as the likely mechanism. This remains a failure; the diagnostic does not
+widen tolerance or conceal an already accumulated deficit.
+
+PR acceptance evidence for Energy changes should include the concise audit
+table, a passing `--energy-check`, and the live desktop/mobile Playwright result.
+During pre-deployment review, record expected preference drift or missing new
+helpers explicitly rather than presenting the audit as passed.
+
+For issue #380 rollout, deploy the managed YAML first, wait for
+`sensor.hvo_all_pv_power` and `sensor.hvo_total_pv_energy_daily` to become
+available, then create a backup and run `--energy-apply`. Follow with
+`--energy-check`, confirm `energy/validate` has empty arrays in every category,
+and run `HomeAssistantEnergyDashboardPlaywrightTests` at desktop and phone
+widths. Do not judge daily reconciliation across a local-midnight reset or while
+the five-minute QET/QLT counters are between updates.
+
+The dashboard deploy transaction retains its on-host backup after Core restarts
+until both aggregate helpers reappear with the expected metadata. When every
+source is numeric, post-restart validation requires all-three PV agreement
+within 1 W and combined daily agreement within 0.002 kWh. If any source is not
+numeric, its aggregate helper must be exactly `unavailable`; stale numeric
+helpers are rejected. A failure restores the
+prior managed tree while the backup still exists.
 
 ## One-time commissioning
 

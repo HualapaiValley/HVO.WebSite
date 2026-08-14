@@ -207,6 +207,17 @@ public sealed class EntityMigrationRunnerTests
         public Task<JsonElement[]> ListStatesAsync(CancellationToken cancellationToken) =>
             Task.FromResult(Array.Empty<JsonElement>());
 
+        public Task<JsonElement[]> ListStatisticIdsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(Array.Empty<JsonElement>());
+
+        public Task<JsonElement> GetConfigAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<JsonElement> GetDailyStatisticAsync(string statisticId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<JsonElement> GetStatisticsDuringPeriodAsync(
+            IReadOnlyList<string> statisticIds,
+            DateTimeOffset start,
+            DateTimeOffset end,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<JsonElement?> GetEnergyPreferencesAsync(CancellationToken cancellationToken) =>
             Task.FromResult<JsonElement?>(null);
 
