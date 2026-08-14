@@ -17,7 +17,7 @@ public sealed class HomeAssistantWeatherConfigurationTests
         lovelace.Should().Contain("resource_mode: yaml")
             .And.Contain("hvo-weather:")
             .And.Contain("filename: hvo/dashboards/hvo-weather.yaml")
-            .And.Contain("url: /local/hvo/hvo-weather-wind-card.js?v=1")
+            .And.Contain("url: /local/hvo/hvo-weather-wind-card.js?v=2")
             .And.NotContain("http://")
             .And.NotContain("https://");
         operations.Should().Contain("navigation_path: /hvo-weather/overview")
