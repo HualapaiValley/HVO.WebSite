@@ -131,6 +131,9 @@ jq '.' "${config_example}" >"${disabled_config}"
 jq '.WeatherUnderground.Enabled = true' "${config_example}" >"${enabled_config}"
 disabled_env="$(write_env_file disabled "${disabled_config}")"
 enabled_env="$(write_env_file enabled "${enabled_config}")"
+configurable_cwop_config="${tmp_dir}/configurable-cwop.json"
+jq '.Cwop.IntervalSeconds = 600 | .Cwop.StaleAfterSeconds = 1200' "${disabled_config}" >"${configurable_cwop_config}"
+configurable_cwop_env="$(write_env_file configurable-cwop "${configurable_cwop_config}")"
 
 docker compose --env-file "${disabled_env}" -f "${compose_file}" config --quiet
 resolved="$(docker compose --env-file "${disabled_env}" -f "${compose_file}" config --format json)"
@@ -144,6 +147,10 @@ disabled_output="$(run_deploy_dry_run "${disabled_env}")"
 [[ "${disabled_output}" == *'config --quiet'* && "${disabled_output}" == *'up -d --wait'* ]] ||
 	fail 'disabled profile did not reach the secret-safe deployment dry run'
 [[ "${disabled_output}" != *"${sentinel}"* ]] || fail 'disabled dry run exposed a mounted secret'
+
+configurable_cwop_output="$(run_deploy_dry_run "${configurable_cwop_env}")"
+[[ "${configurable_cwop_output}" == *'config --quiet'* && "${configurable_cwop_output}" == *'up -d --wait'* ]] ||
+	fail 'supported configurable CWOP cadence did not pass deployment preflight'
 
 set +e
 missing_output="$(run_deploy_dry_run "${enabled_env}")"
@@ -166,10 +173,14 @@ expect_contract_failure invalid-interval '.WeatherUnderground.IntervalSeconds = 
 expect_contract_failure invalid-timeout '.WeatherUnderground.RequestTimeoutSeconds = 3'
 expect_contract_failure invalid-secret-name '.WeatherUnderground.StationKeySecret = "../station-key"'
 expect_contract_failure unexpected-api-key '.WeatherUnderground.ApiKeySecret = "weather-underground-api-key"'
+expect_contract_failure invalid-cwop-fast-cadence '.Cwop.IntervalSeconds = 299'
+expect_contract_failure invalid-cwop-slow-cadence '.Cwop.IntervalSeconds = 3601 | .Cwop.StaleAfterSeconds = 3601'
 
 git -C "${repo_root}" check-ignore -q deploy/pi-gateways/davis/gateway.json || fail 'local Davis gateway.json is not ignored'
 git -C "${repo_root}" check-ignore -q deploy/pi-gateways/davis/secrets/weather-underground-station-key ||
 	fail 'Davis station-key file is not ignored'
+git -C "${repo_root}" check-ignore -q deploy/pi-gateways/davis/secrets/cwop-passcode ||
+	fail 'Davis CWOP passcode file is not ignored'
 if git -C "${repo_root}" check-ignore -q deploy/pi-gateways/davis/gateway.json.example; then
 	fail 'tracked Davis gateway.json.example is unexpectedly ignored'
 fi
@@ -184,4 +195,4 @@ fi
 
 validate_key_vault_sync
 
-printf 'Davis Weather Underground disabled/enabled preflight, secret sync, Compose, ignore, and API-key isolation contracts validated.\n'
+printf 'Davis Weather Underground and CWOP preflight, secret sync, Compose, ignore, and credential isolation contracts validated.\n'

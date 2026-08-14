@@ -1,5 +1,7 @@
 using System.Net;
+using System.Text.Json;
 using FluentAssertions;
+using HVO.Hardware.DavisVantagePro2.Cwop;
 using HVO.Hardware.DavisVantagePro2.Station;
 using HVO.Hardware.DavisVantagePro2.Tests.Fakes;
 using Microsoft.AspNetCore.Hosting;
@@ -15,6 +17,7 @@ public sealed class DavisHeadlessHostingTests
 {
     private const string DiagnosticsKey = "davis-diagnostics-test-key";
     private const string CentralKey = "davis-central-test-key";
+    private const string CwopPasscode = "24680";
 
     [TestMethod]
     public async Task DavisHost_ExposesProtectedHeadlessDiagnosticsAndRedactsConfiguration()
@@ -28,6 +31,7 @@ public sealed class DavisHeadlessHostingTests
         Directory.CreateDirectory(secretsDirectory);
         await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "diagnostics-api-key"), DiagnosticsKey);
         await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "central-ingest-api-key"), CentralKey);
+        await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "cwop-passcode"), CwopPasscode);
 
         try
         {
@@ -42,6 +46,14 @@ public sealed class DavisHeadlessHostingTests
                 });
             });
             using var client = factory.CreateClient();
+            var cwopState = factory.Services.GetRequiredService<CwopPublisherState>();
+            var observedAt = new DateTime(2026, 8, 14, 11, 59, 0, DateTimeKind.Utc);
+            var attemptedAt = new DateTime(2026, 8, 14, 12, 0, 0, DateTimeKind.Utc);
+            var succeededAt = new DateTime(2026, 8, 14, 11, 55, 0, DateTimeKind.Utc);
+            cwopState.Observed(observedAt);
+            cwopState.Attempted(attemptedAt);
+            cwopState.Succeeded(succeededAt);
+            cwopState.Failed("transport");
 
             (await client.GetAsync("/")).StatusCode.Should().Be(HttpStatusCode.NotFound);
             (await client.GetAsync("/health/live")).StatusCode.Should().Be(HttpStatusCode.OK);
@@ -59,11 +71,25 @@ public sealed class DavisHeadlessHostingTests
             body.Should().Contain("hvo-davis-test");
             body.Should().NotContain(DiagnosticsKey);
             body.Should().NotContain(CentralKey);
+            body.Should().NotContain(CwopPasscode);
+            body.Should().NotContain("cwop-passcode");
+            body.Should().NotContain("cwop.example.invalid");
             body.Should().NotContain("diagnostics-api-key");
             body.Should().NotContain("central-ingest-api-key");
             body.Should().NotContain(root);
             body.Should().Contain("externalDeliveries");
             body.Should().Contain("weather-underground");
+            body.Should().Contain("cwop");
+            using var document = JsonDocument.Parse(body);
+            var cwop = document.RootElement.GetProperty("externalDeliveries")
+                .EnumerateArray()
+                .Single(delivery => delivery.GetProperty("name").GetString() == "cwop");
+            cwop.GetProperty("enabled").GetBoolean().Should().BeTrue();
+            cwop.GetProperty("lastObservationAtUtc").GetDateTime().Should().Be(observedAt);
+            cwop.GetProperty("lastAttemptAtUtc").GetDateTime().Should().Be(attemptedAt);
+            cwop.GetProperty("lastSuccessAtUtc").GetDateTime().Should().Be(succeededAt);
+            cwop.GetProperty("consecutiveFailures").GetInt32().Should().Be(1);
+            cwop.GetProperty("lastError").GetString().Should().Be("transport");
             var references = typeof(Program).Assembly.GetReferencedAssemblies().Select(reference => reference.Name);
             references.Should().NotContain(name => name == "MudBlazor" || name == "HVO.WebSite.Themes");
             typeof(Program).Assembly.GetManifestResourceNames().Should().NotContain(name => name.Contains("Razor", StringComparison.OrdinalIgnoreCase));
@@ -96,6 +122,11 @@ public sealed class DavisHeadlessHostingTests
         ["Station__CentralIngestBaseEndpoint"] = "https://example.test/",
         ["Station__CentralApiKeySecret"] = "central-ingest-api-key",
         ["Station__LocalDatabasePath"] = Path.Combine(data, "davis-local.db"),
+        ["Cwop__Enabled"] = "true",
+        ["Cwop__StationId"] = "DW4515",
+        ["Cwop__Host"] = "cwop.example.invalid",
+        ["Cwop__Passcode"] = "",
+        ["Cwop__PasscodeSecret"] = "cwop-passcode",
         ["HomeAssistant__Mqtt__Enabled"] = "false",
         ["Outbox__DatabasePath"] = Path.Combine(data, "outbox.db"),
         ["Outbox__PayloadTypes__0"] = "com.hvo.weather.raw.v1",

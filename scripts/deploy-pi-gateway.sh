@@ -214,8 +214,22 @@ preflight_davis_contract() {
 		and (.WeatherUnderground.StationId == "KAZKINGM12")
 		and (.WeatherUnderground.IntervalSeconds == 5)
 		and (.WeatherUnderground.RequestTimeoutSeconds | type == "number" and floor == . and . >= 1 and (. * 2) < 5)
-		and (.WeatherUnderground.StationKeySecret == "weather-underground-station-key")' \
-		"${config_path}" >/dev/null || fail "Davis gateway.json does not satisfy the vNext and Weather Underground deployment contract."
+		and (.WeatherUnderground.StationKeySecret == "weather-underground-station-key")
+		and (.Cwop | type == "object")
+		and ((.Cwop | keys | sort) == (["ConnectTimeoutSeconds", "Enabled", "Host", "IntervalSeconds", "OperationTimeoutSeconds", "Passcode", "PasscodeSecret", "Port", "SoftwareName", "SoftwareVersion", "StaleAfterSeconds", "StationId"] | sort))
+		and (.Cwop.Enabled | type == "boolean")
+		and (.Cwop.StationId == "DW4515")
+		and (.Cwop.Host == "cwop.aprs.net")
+		and (.Cwop.Port == 14580)
+		and (.Cwop.IntervalSeconds | type == "number" and floor == . and . >= 300 and . <= 3600)
+		and (.Cwop.StaleAfterSeconds | type == "number" and floor == . and . <= 3600)
+		and (.Cwop.StaleAfterSeconds >= .Cwop.IntervalSeconds)
+		and (.Cwop.ConnectTimeoutSeconds | type == "number" and floor == . and . >= 1 and . <= 30)
+		and (.Cwop.OperationTimeoutSeconds | type == "number" and floor == . and . >= 1 and . <= 30)
+		and (.Cwop.SoftwareName == "HVO-Davis")
+		and (.Cwop.SoftwareVersion | type == "string" and length > 0)
+		and (((.Cwop.Passcode == "-1") and (.Cwop.PasscodeSecret == null)) or ((.Cwop.Passcode == "") and (.Cwop.PasscodeSecret == "cwop-passcode")))' \
+		"${config_path}" >/dev/null || fail "Davis gateway.json does not satisfy the vNext, Weather Underground, and CWOP deployment contract."
 
 	secrets_setting="$(read_env_value "${env_file}" DAVIS_SECRETS_DIRECTORY)"
 	secrets_path="${secrets_setting:-./secrets}"
@@ -231,6 +245,10 @@ preflight_davis_contract() {
 	if jq -e '.WeatherUnderground.Enabled == true' "${config_path}" >/dev/null; then
 		[[ -s "${secrets_path}/weather-underground-station-key" ]] ||
 			fail "Davis Weather Underground station-key secret file is missing or empty: weather-underground-station-key"
+	fi
+	if jq -e '.Cwop.Enabled == true and .Cwop.PasscodeSecret == "cwop-passcode"' "${config_path}" >/dev/null; then
+		[[ -s "${secrets_path}/cwop-passcode" ]] ||
+			fail "Davis CWOP APRS-IS passcode secret file is missing or empty: cwop-passcode"
 	fi
 	station_host="$(read_env_value "${env_file}" DAVIS_STATION_HOST)"
 	[[ -n "${station_host}" ]] || fail "DAVIS_STATION_HOST is required in the Davis .env file."

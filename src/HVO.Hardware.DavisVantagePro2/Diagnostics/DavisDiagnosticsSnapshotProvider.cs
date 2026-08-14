@@ -4,6 +4,7 @@ using HVO.Edge.Hosting.Diagnostics;
 using HVO.Edge.Outbox;
 using HVO.Hardware.DavisVantagePro2.Workers;
 using HVO.Hardware.DavisVantagePro2.Configuration;
+using HVO.Hardware.DavisVantagePro2.Cwop;
 using HVO.Hardware.DavisVantagePro2.WeatherUnderground;
 using Microsoft.Extensions.Options;
 
@@ -13,6 +14,8 @@ internal sealed class DavisDiagnosticsSnapshotProvider(
     DavisRuntimeState state,
     WeatherUndergroundPublisherState weatherUndergroundState,
     IOptions<WeatherUndergroundOptions> weatherUndergroundOptions,
+    CwopPublisherState cwopState,
+    IOptions<CwopOptions> cwopOptions,
     IHomeAssistantMqttProjection mqtt,
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider) : IEdgeDiagnosticsSnapshotProvider
@@ -31,6 +34,9 @@ internal sealed class DavisDiagnosticsSnapshotProvider(
         var weatherUnderground = weatherUndergroundState.Snapshot();
         if (weatherUndergroundOptions.Value.Enabled && weatherUnderground.ConsecutiveFailures > 0)
             alerts.Add(new("weather-underground", GatewayAlertSeverity.Warning, "Weather Underground delivery is currently degraded."));
+        var cwop = cwopState.Snapshot();
+        if (cwopOptions.Value.Enabled && cwop.ConsecutiveFailures > 0)
+            alerts.Add(new("cwop", GatewayAlertSeverity.Warning, "CWOP delivery is currently degraded."));
 
         await using var scope = scopeFactory.CreateAsyncScope();
         var outbox = await scope.ServiceProvider.GetRequiredService<EdgeOutboxDiagnostics>().ReadAsync(cancellationToken);
@@ -63,6 +69,14 @@ internal sealed class DavisDiagnosticsSnapshotProvider(
                 weatherUnderground.LastAttemptAtUtc,
                 weatherUnderground.LastSuccessAtUtc,
                 weatherUnderground.ConsecutiveFailures,
-                weatherUnderground.LastError)]);
+                weatherUnderground.LastError),
+             new GatewayExternalDeliveryDiagnostics(
+                "cwop",
+                cwopOptions.Value.Enabled,
+                cwop.LastObservationAtUtc,
+                cwop.LastAttemptAtUtc,
+                cwop.LastSuccessAtUtc,
+                cwop.ConsecutiveFailures,
+                cwop.LastError)]);
     }
 }
