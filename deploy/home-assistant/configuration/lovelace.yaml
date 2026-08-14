@@ -1,3 +1,7 @@
+resources:
+  - url: /local/hvo/hvo-weather-wind-card.js?v=1
+    type: module
+
 dashboards:
   hvo-kasa:
     mode: yaml
@@ -18,5 +22,12 @@ dashboards:
     filename: hvo/dashboards/hvo-operations.yaml
     title: HVO Operations
     icon: mdi:monitor-dashboard
+    show_in_sidebar: true
+    require_admin: true
+  hvo-weather:
+    mode: yaml
+    filename: hvo/dashboards/hvo-weather.yaml
+    title: HVO Weather
+    icon: mdi:weather-windy
     show_in_sidebar: true
     require_admin: true

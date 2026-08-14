@@ -1,10 +1,12 @@
 using FluentAssertions;
+using HVO.Astronomy;
 using HVO.Edge.Contracts;
 using HVO.Edge.HomeAssistant.Mqtt;
 using HVO.Edge.Hosting;
 using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.HomeAssistant;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
+using HVO.Hardware.DavisVantagePro2.Station.Models;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.DavisVantagePro2.Tests.HomeAssistant;
@@ -19,11 +21,16 @@ public sealed class DavisHomeAssistantProjectionTests
         var projection = new DavisHomeAssistantProjection(mqtt, Identity("hvo"), Options.Create(new StationOptions { StationId = "station-1" }));
         var at = new DateTime(2026, 8, 11, 12, 0, 0, DateTimeKind.Utc);
 
-        projection.Publish(CompleteReading(at));
+        projection.Publish(CompleteReading(at), new StationSettings
+        {
+            LatitudeDegrees = 35.2,
+            LongitudeDegrees = -113.8,
+            GmtOffsetHours = -7
+        });
         projection.PublishUnavailable(new DateTimeOffset(at.AddMinutes(1)));
 
         mqtt.Definition!.Key.Should().Be(new HomeAssistantDeviceKey("hvo", "davis", "station-1"));
-        mqtt.Definition.Entities.Should().HaveCount(39);
+        mqtt.Definition.Entities.Should().HaveCount(43);
         mqtt.Definition.Entities.Select(entity => entity.DefaultEntityId).Should().OnlyHaveUniqueItems();
         mqtt.Definition.Entities.Should().OnlyContain(entity => entity.DefaultEntityId == $"sensor.davis_{entity.ComponentId}");
         mqtt.Definition.Entities.Select(entity => HomeAssistantMqttIdentity.EntityUniqueId(mqtt.Definition.Key, entity.ComponentId))
@@ -31,6 +38,10 @@ public sealed class DavisHomeAssistantProjectionTests
         mqtt.States[0].Available.Should().BeTrue();
         mqtt.States[0].ComponentValues.Keys.Should().BeEquivalentTo(
             mqtt.Definition.Entities.Select(entity => entity.ComponentId));
+        mqtt.States[0].ComponentValues["moon_phase"].GetString().Should().NotBeNullOrWhiteSpace();
+        mqtt.States[0].ComponentValues["moon_illumination"].GetDouble().Should().BeInRange(0, 100);
+        mqtt.States[0].ComponentValues["moonrise"].GetString().Should().NotBeNullOrWhiteSpace();
+        mqtt.States[0].ComponentValues["moonset"].GetString().Should().NotBeNullOrWhiteSpace();
         mqtt.Definition.Entities.Single(entity => entity.ComponentId == "inside_temperature").EnabledByDefault.Should().BeTrue();
         mqtt.Definition.Entities.Single(entity => entity.ComponentId == "raw_pressure").EnabledByDefault.Should().BeFalse();
         Sensor(mqtt, "outside_temperature").SuggestedDisplayPrecision.Should().Be(1);
@@ -64,6 +75,73 @@ public sealed class DavisHomeAssistantProjectionTests
 
         mqtt.States.Single().ComponentValues.Should().NotContainKey("transmitter_battery_status");
         mqtt.States.Single().ComponentValues.Should().NotContainKey("transmitter_battery_bitmask");
+    }
+
+    [TestMethod]
+    public void Projection_OmitsAstronomyWhenStationLocationIsUnavailable()
+    {
+        var mqtt = new CaptureProjection();
+        var projection = new DavisHomeAssistantProjection(mqtt, Identity("hvo"), Options.Create(new StationOptions { StationId = "station-1" }));
+
+        projection.Publish(new Loop2Packet { RecordedAtUtc = DateTime.UtcNow }, new StationSettings());
+
+        mqtt.States.Single().ComponentValues.Should().NotContainKeys(
+            "moon_phase", "moon_illumination", "moonrise", "moonset");
+    }
+
+    [TestMethod]
+    public void Projection_CachesAstronomyByLocalDateLocationAndTimeZone()
+    {
+        var calls = new List<(DateTimeOffset ObservedLocal, TimeSpan Offset, double? Latitude, double? Longitude)>();
+        var mqtt = new CaptureProjection();
+        var projection = new DavisHomeAssistantProjection(
+            mqtt,
+            Identity("hvo"),
+            Options.Create(new StationOptions { StationId = "station-1" }),
+            (observedLocal, offset, latitude, longitude) =>
+            {
+                calls.Add((observedLocal, offset, latitude, longitude));
+                return new MoonSnapshot(CelestialMarker.Hidden, "Full moon", 99, false, "99%", "8:01 PM", "5:42 AM");
+            });
+        var settings = new StationSettings
+        {
+            LatitudeDegrees = 35.7,
+            LongitudeDegrees = -114.0,
+            GmtOffsetHours = -7
+        };
+
+        projection.Publish(new Loop2Packet { RecordedAtUtc = new DateTime(2026, 5, 12, 12, 0, 0, DateTimeKind.Utc) }, settings);
+        projection.Publish(new Loop2Packet { RecordedAtUtc = new DateTime(2026, 5, 12, 20, 0, 0, DateTimeKind.Utc) }, settings);
+        projection.Publish(new Loop2Packet { RecordedAtUtc = new DateTime(2026, 5, 13, 12, 0, 0, DateTimeKind.Utc) }, settings);
+        projection.Publish(new Loop2Packet { RecordedAtUtc = new DateTime(2026, 5, 13, 13, 0, 0, DateTimeKind.Utc) }, settings with { LongitudeDegrees = -113.9 });
+        projection.Publish(new Loop2Packet { RecordedAtUtc = new DateTime(2026, 5, 13, 14, 0, 0, DateTimeKind.Utc) }, settings with { GmtOffsetHours = -6 });
+
+        calls.Should().HaveCount(4);
+        calls[0].ObservedLocal.Offset.Should().Be(TimeSpan.FromHours(-7));
+        calls[1].ObservedLocal.Date.Should().Be(new DateTime(2026, 5, 13));
+        calls[2].Longitude.Should().Be(-113.9);
+        calls[3].Offset.Should().Be(TimeSpan.FromHours(-6));
+    }
+
+    [TestMethod]
+    public void Projection_AstronomyMatchesKnownHualapaiValleyDateAndTimeZone()
+    {
+        var mqtt = new CaptureProjection();
+        var projection = new DavisHomeAssistantProjection(mqtt, Identity("hvo"), Options.Create(new StationOptions { StationId = "station-1" }));
+        var observedUtc = new DateTime(2026, 5, 12, 20, 0, 0, DateTimeKind.Utc);
+
+        projection.Publish(new Loop2Packet { RecordedAtUtc = observedUtc }, new StationSettings
+        {
+            LatitudeDegrees = 35.7,
+            LongitudeDegrees = -114.0,
+            GmtOffsetHours = -7
+        });
+
+        var values = mqtt.States.Single().ComponentValues;
+        values["moon_phase"].GetString().Should().Be("Waning crescent");
+        values["moon_illumination"].GetDouble().Should().BeApproximately(20.9604, 0.001);
+        values["moonrise"].GetString().Should().Be("2:54 AM");
+        values["moonset"].GetString().Should().Be("3:04 PM");
     }
 
     [TestMethod]

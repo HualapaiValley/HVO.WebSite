@@ -5,6 +5,7 @@ using HVO.Hardware.DavisVantagePro2.Outbox;
 using HVO.Hardware.DavisVantagePro2.Protocol;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
 using HVO.Hardware.DavisVantagePro2.Station;
+using HVO.Hardware.DavisVantagePro2.Station.Models;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.DavisVantagePro2.Workers;
@@ -27,6 +28,7 @@ public sealed class WeatherStationWorker(
     private readonly SemaphoreSlim archiveGate = new(1, 1);
     private DateTime nextArchiveTopOffAtUtc = DateTime.MinValue;
     private Loop2Packet? loop1Cache;
+    private StationSettings? stationSettings;
 
     public Loop2Packet? LatestReading => state.LatestReading;
     public DateTime? LastReadingAt => state.LastReadingAtUtc;
@@ -73,6 +75,7 @@ public sealed class WeatherStationWorker(
     private async Task RefreshPersistedStationMetadataAsync(CancellationToken cancellationToken)
     {
         var settings = await station.GetStationSettingsAsync(cancellationToken);
+        stationSettings = settings;
         station.ApplyStationSettings(settings);
         await settingsStore.SaveAsync(settings, cancellationToken);
         try
@@ -130,7 +133,7 @@ public sealed class WeatherStationWorker(
             var reading = VantageStation.MergePackets(loop1, loop2);
             await EnqueueLiveAsync(reading, cancellationToken);
             state.Observed(reading, timeProvider.GetUtcNow().UtcDateTime);
-            homeAssistant.Publish(reading);
+            homeAssistant.Publish(reading, stationSettings);
         }
         return loop1;
     }

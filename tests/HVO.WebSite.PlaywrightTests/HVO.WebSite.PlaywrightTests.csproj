@@ -19,4 +19,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../deploy/home-assistant/configuration/frontend/hvo-weather-wind-card.js"
+          Link="Fixtures/HomeAssistant/hvo-weather-wind-card.js"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

@@ -1,15 +1,17 @@
 using System.Text.Json;
+using HVO.Astronomy;
 using HVO.Edge.HomeAssistant.Mqtt;
 using HVO.Edge.Hosting;
 using HVO.Hardware.DavisVantagePro2.Configuration;
 using HVO.Hardware.DavisVantagePro2.Protocol.Packets;
+using HVO.Hardware.DavisVantagePro2.Station.Models;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.DavisVantagePro2.HomeAssistant;
 
 public interface IDavisHomeAssistantProjection
 {
-    bool Publish(Loop2Packet reading);
+    bool Publish(Loop2Packet reading, StationSettings? settings = null);
     bool PublishUnavailable(DateTimeOffset observedAtUtc);
 }
 
@@ -18,13 +20,30 @@ public sealed class DavisHomeAssistantProjection : IDavisHomeAssistantProjection
     private const string Measurement = "measurement";
     private readonly IHomeAssistantMqttProjection projection;
     private readonly HomeAssistantDeviceKey key;
+    private readonly Func<DateTimeOffset, TimeSpan, double?, double?, MoonSnapshot> moonSnapshotFactory;
+    private readonly object astronomyLock = new();
+    private AstronomyCacheKey? astronomyCacheKey;
+    private MoonSnapshot? astronomyCacheValue;
 
     public DavisHomeAssistantProjection(
         IHomeAssistantMqttProjection projection,
         EdgeRuntimeIdentity identity,
-        IOptions<StationOptions> options)
+        IOptions<StationOptions> options) : this(
+            projection,
+            identity,
+            options,
+            CelestialArcCalculations.BuildMoonSnapshot)
+    {
+    }
+
+    internal DavisHomeAssistantProjection(
+        IHomeAssistantMqttProjection projection,
+        EdgeRuntimeIdentity identity,
+        IOptions<StationOptions> options,
+        Func<DateTimeOffset, TimeSpan, double?, double?, MoonSnapshot> moonSnapshotFactory)
     {
         this.projection = projection;
+        this.moonSnapshotFactory = moonSnapshotFactory;
         var siteId = identity.SiteId
             ?? throw new InvalidOperationException("Edge:Runtime:SiteId is required for Davis Home Assistant identity.");
         key = new(siteId, identity.GatewayId, options.Value.StationId);
@@ -71,12 +90,16 @@ public sealed class DavisHomeAssistantProjection : IDavisHomeAssistantProjection
                 Sensor("forecast_rule", "Forecast rule", stateClass: Measurement, entityCategory: "diagnostic", enabledByDefault: false),
                 Sensor("sunrise", "Sunrise"),
                 Sensor("sunset", "Sunset"),
+                Sensor("moon_phase", "Moon phase", icon: "mdi:moon-waning-crescent"),
+                Sensor("moon_illumination", "Moon illumination", "%", stateClass: Measurement, icon: "mdi:brightness-percent"),
+                Sensor("moonrise", "Moonrise", icon: "mdi:moon-first-quarter"),
+                Sensor("moonset", "Moonset", icon: "mdi:moon-last-quarter"),
             ],
             manufacturer: "Davis Instruments",
             model: "Vantage Pro 2"));
     }
 
-    public bool Publish(Loop2Packet reading)
+    public bool Publish(Loop2Packet reading, StationSettings? settings = null)
     {
         var values = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         Add(values, "outside_temperature", reading.OutsideTemperatureF);
@@ -123,7 +146,52 @@ public sealed class DavisHomeAssistantProjection : IDavisHomeAssistantProjection
         Add(values, "forecast_rule", reading.ForecastRule);
         Add(values, "sunrise", reading.SunriseDisplay);
         Add(values, "sunset", reading.SunsetDisplay);
+        if (settings is not null)
+        {
+            var observedUtc = new DateTimeOffset(DateTime.SpecifyKind(reading.RecordedAtUtc, DateTimeKind.Utc));
+            var moon = GetMoonSnapshot(
+                observedUtc.ToOffset(settings.UtcOffset),
+                settings.UtcOffset,
+                settings.LatitudeDegrees,
+                settings.LongitudeDegrees);
+            if (moon != MoonSnapshot.Empty)
+            {
+                Add(values, "moon_phase", moon.PhaseName);
+                Add(values, "moon_illumination", moon.IlluminationPercent);
+                Add(values, "moonrise", moon.MoonriseText);
+                Add(values, "moonset", moon.MoonsetText);
+            }
+        }
         return projection.PublishCurrentState(new(key, new DateTimeOffset(reading.RecordedAtUtc), values, available: true));
+    }
+
+    private MoonSnapshot GetMoonSnapshot(
+        DateTimeOffset observedLocal,
+        TimeSpan consoleOffset,
+        double? latitude,
+        double? longitude)
+    {
+        if (latitude is null || longitude is null)
+        {
+            return MoonSnapshot.Empty;
+        }
+
+        var cacheKey = new AstronomyCacheKey(
+            DateOnly.FromDateTime(observedLocal.Date),
+            consoleOffset,
+            latitude.Value,
+            longitude.Value);
+        lock (astronomyLock)
+        {
+            if (astronomyCacheKey == cacheKey && astronomyCacheValue is not null)
+            {
+                return astronomyCacheValue;
+            }
+
+            astronomyCacheValue = moonSnapshotFactory(observedLocal, consoleOffset, latitude, longitude);
+            astronomyCacheKey = cacheKey;
+            return astronomyCacheValue;
+        }
     }
 
     public bool PublishUnavailable(DateTimeOffset observedAtUtc) =>
@@ -162,6 +230,7 @@ public sealed class DavisHomeAssistantProjection : IDavisHomeAssistantProjection
         "monthly_rain" or "yearly_rain" => 3,
         "solar_radiation" => 0,
         "uv_index" => 1,
+        "moon_illumination" => 0,
         "daily_et" => 3,
         "monthly_et" or "yearly_et" => 2,
         "console_battery" => 3,
@@ -188,4 +257,10 @@ public sealed class DavisHomeAssistantProjection : IDavisHomeAssistantProjection
     {
         if (!string.IsNullOrWhiteSpace(value)) values[id] = JsonSerializer.SerializeToElement(value);
     }
+
+    private readonly record struct AstronomyCacheKey(
+        DateOnly LocalDate,
+        TimeSpan ConsoleOffset,
+        double Latitude,
+        double Longitude);
 }

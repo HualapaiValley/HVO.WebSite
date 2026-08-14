@@ -275,7 +275,7 @@ public sealed class WeatherStationWorkerTests
     private sealed class RecordingHomeAssistantProjection : IDavisHomeAssistantProjection
     {
         public TaskCompletionSource Unavailable { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public bool Publish(Loop2Packet reading) => true;
+        public bool Publish(Loop2Packet reading, StationSettings? settings = null) => true;
         public bool PublishUnavailable(DateTimeOffset observedAtUtc) { Unavailable.TrySetResult(); return true; }
     }
 

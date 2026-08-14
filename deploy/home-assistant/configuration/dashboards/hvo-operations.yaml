@@ -54,62 +54,29 @@ views:
     path: weather
     icon: mdi:weather-partly-cloudy
     type: sections
-    max_columns: 3
+    max_columns: 2
     sections:
       - type: grid
-        title: Current Conditions
+        title: Weather Summary
         cards:
           - type: tile
             entity: sensor.davis_outside_temperature
             name: Outside Temperature
           - type: tile
-            entity: sensor.davis_outside_humidity
-            name: Outside Humidity
-          - type: tile
-            entity: sensor.davis_dew_point
-            name: Dew Point
-          - type: tile
-            entity: sensor.davis_barometric_pressure
-            name: Barometric Pressure
-          - type: tile
-            entity: sensor.davis_solar_radiation
-            name: Solar Radiation
-          - type: tile
-            entity: sensor.davis_uv_index
-            name: UV Index
-      - type: grid
-        title: Wind And Rain
-        cards:
-          - type: tile
             entity: sensor.davis_wind_speed
             name: Wind Speed
-          - type: tile
-            entity: sensor.davis_wind_speed_10_min_average
-            name: 10-Minute Wind
-          - type: tile
-            entity: sensor.davis_wind_gust
-            name: Wind Gust
           - type: tile
             entity: sensor.davis_rain_rate
             name: Rain Rate
           - type: tile
-            entity: sensor.davis_daily_rain
-            name: Rain Today
-          - type: tile
-            entity: sensor.davis_rain_24_hour
-            name: Rain - 24 Hours
-      - type: grid
-        title: Station Status
-        cards:
-          - type: tile
-            entity: sensor.davis_console_battery
-            name: Console Battery
-          - type: tile
-            entity: sensor.davis_transmitter_battery_status
-            name: Transmitter Battery
-          - type: tile
-            entity: sensor.davis_forecast
-            name: Station Forecast
+            entity: sensor.hvo_davis_source_freshness
+            name: Source Freshness
+          - type: button
+            name: Open HVO Weather Dashboard
+            icon: mdi:weather-windy
+            tap_action:
+              action: navigate
+              navigation_path: /hvo-weather/overview
 
   - title: Batteries
     path: batteries

@@ -1,0 +1,271 @@
+views:
+  - title: Weather Station
+    path: overview
+    icon: mdi:weather-partly-cloudy
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        title: Current Conditions
+        cards:
+          - type: markdown
+            content: >-
+              {% set observation = states.sensor.davis_outside_temperature %}
+              {% set freshness = states('sensor.hvo_davis_source_freshness') %}
+              {% if freshness == 'live' %}
+              # {{ observation.state if observation is not none and observation.state not in ['unknown', 'unavailable'] else '--' }} {{ observation.attributes.unit_of_measurement | default('') if observation is not none else '' }} · CURRENT
+              {% elif freshness == 'stale' %}
+              # Local weather · STALE
+              Collector diagnostics report stale source data. Do not treat local readings as current.
+              {% elif freshness == 'error' %}
+              # Local weather · ERROR
+              Collector diagnostics report a Davis source error.
+              {% elif freshness in ['waiting', 'unknown'] %}
+              # Local weather · WAITING
+              The collector is waiting for an authoritative Davis observation.
+              {% else %}
+              # Local weather unavailable
+              Collector freshness is {{ freshness }}; treat local readings as unavailable.
+              {% endif %}
+              {% if observation is not none and observation.last_updated is defined %}
+              Last temperature update: {{ relative_time(observation.last_updated) }} ago.
+              {% endif %}
+          - type: tile
+            entity: sensor.davis_heat_index
+            name: Heat Index
+            icon: mdi:sun-thermometer-outline
+          - type: tile
+            entity: sensor.davis_wind_chill
+            name: Wind Chill
+            icon: mdi:snowflake-thermometer
+          - type: tile
+            entity: sensor.davis_outside_humidity
+            name: Humidity
+            icon: mdi:water-percent
+          - type: tile
+            entity: sensor.davis_dew_point
+            name: Dew Point
+            icon: mdi:thermometer-water
+          - type: tile
+            entity: sensor.davis_barometric_pressure
+            name: Pressure
+            icon: mdi:gauge
+          - type: tile
+            entity: sensor.davis_forecast
+            name: Davis Local Forecast
+            icon: mdi:weather-cloudy-clock
+
+      - type: grid
+        title: Wind
+        cards:
+          - type: custom:hvo-weather-wind-card
+            title: Davis Wind Instrument
+            freshness_entity: sensor.hvo_davis_source_freshness
+            direction_entity: sensor.davis_wind_direction
+            speed_entity: sensor.davis_wind_speed
+            average_2_entity: sensor.davis_wind_speed_2_min_average
+            average_10_entity: sensor.davis_wind_speed_10_min_average
+            gust_entity: sensor.davis_wind_gust
+            gust_direction_entity: sensor.davis_wind_gust_direction
+
+      - type: grid
+        title: Precipitation
+        cards:
+          - type: tile
+            entity: sensor.davis_rain_rate
+            name: Current Rate
+            icon: mdi:weather-pouring
+          - type: conditional
+            conditions:
+              - condition: numeric_state
+                entity: sensor.davis_rain_15_min
+                above: -0.001
+            card:
+              type: tile
+              entity: sensor.davis_rain_15_min
+              name: Last 15 Minutes
+              icon: mdi:timer-outline
+          - type: conditional
+            conditions:
+              - condition: numeric_state
+                entity: sensor.davis_rain_1_hour
+                above: -0.001
+            card:
+              type: tile
+              entity: sensor.davis_rain_1_hour
+              name: Last Hour
+              icon: mdi:clock-outline
+          - type: tile
+            entity: sensor.davis_rain_24_hour
+            name: Last 24 Hours
+            icon: mdi:hours-24
+          - type: tile
+            entity: sensor.davis_daily_rain
+            name: Today
+            icon: mdi:calendar-today
+          - type: tile
+            entity: sensor.davis_storm_rain
+            name: Current Storm
+            icon: mdi:weather-lightning-rainy
+          - type: tile
+            entity: sensor.davis_monthly_rain
+            name: This Month
+            icon: mdi:calendar-month
+          - type: tile
+            entity: sensor.davis_yearly_rain
+            name: This Year
+            icon: mdi:calendar
+
+      - type: grid
+        title: Sun And Moon
+        cards:
+          - type: tile
+            entity: sensor.davis_sunrise
+            name: Sunrise
+            icon: mdi:weather-sunset-up
+          - type: tile
+            entity: sensor.davis_sunset
+            name: Sunset
+            icon: mdi:weather-sunset-down
+          - type: tile
+            entity: sensor.davis_moon_phase
+            name: Moon Phase
+            icon: mdi:moon-waning-crescent
+          - type: tile
+            entity: sensor.davis_moon_illumination
+            name: Moon Illumination
+            icon: mdi:brightness-percent
+          - type: tile
+            entity: sensor.davis_moonrise
+            name: Moonrise
+            icon: mdi:moon-first-quarter
+          - type: tile
+            entity: sensor.davis_moonset
+            name: Moonset
+            icon: mdi:moon-last-quarter
+
+      - type: grid
+        title: External Cloud And Forecast
+        cards:
+          - type: weather-forecast
+            entity: weather.forecast_home
+            name: External Forecast
+            show_current: true
+            show_forecast: true
+            forecast_type: hourly
+          - type: tile
+            entity: sensor.hvo_forecast_cloud_coverage
+            name: External Cloud Coverage
+            icon: mdi:weather-cloudy
+
+      - type: grid
+        title: Solar And UV
+        cards:
+          - type: tile
+            entity: sensor.davis_solar_radiation
+            name: Solar Radiation
+            icon: mdi:white-balance-sunny
+          - type: tile
+            entity: sensor.davis_uv_index
+            name: UV Index
+            icon: mdi:sun-wireless-outline
+
+      - type: grid
+        title: Station Health
+        cards:
+          - type: tile
+            entity: sensor.hvo_davis_source_freshness
+            name: Source Freshness
+            icon: mdi:clock-check-outline
+          - type: tile
+            entity: sensor.hvo_davis_gateway_health
+            name: Collector Health
+            icon: mdi:heart-pulse
+          - type: tile
+            entity: sensor.davis_console_battery
+            name: Console Battery
+            icon: mdi:battery
+          - type: tile
+            entity: sensor.davis_transmitter_battery_status
+            name: Transmitter Battery
+            icon: mdi:access-point-check
+
+  - title: Trends
+    path: trends
+    icon: mdi:chart-line
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        title: Temperature And Dew Point
+        cards:
+          - type: history-graph
+            title: Temperature And Dew Point - 24 Hours
+            hours_to_show: 24
+            entities:
+              - entity: sensor.davis_outside_temperature
+                name: Outside Temperature
+              - entity: sensor.davis_dew_point
+                name: Dew Point
+
+      - type: grid
+        title: Pressure
+        cards:
+          - type: history-graph
+            title: Barometric Pressure - 24 Hours
+            hours_to_show: 24
+            entities:
+              - entity: sensor.davis_barometric_pressure
+                name: Pressure
+
+      - type: grid
+        title: Wind
+        cards:
+          - type: history-graph
+            title: Wind And Gust - 24 Hours
+            hours_to_show: 24
+            entities:
+              - entity: sensor.davis_wind_speed
+                name: Current Wind
+              - entity: sensor.davis_wind_speed_10_min_average
+                name: 10-Minute Average
+              - entity: sensor.davis_wind_gust
+                name: 10-Minute Gust
+
+      - type: grid
+        title: Rain
+        cards:
+          - type: history-graph
+            title: Rain Rate - 24 Hours
+            hours_to_show: 24
+            entities:
+              - entity: sensor.davis_rain_rate
+                name: Rain Rate
+          - type: history-graph
+            title: Rain Accumulation - 7 Days
+            hours_to_show: 168
+            entities:
+              - entity: sensor.davis_daily_rain
+                name: Daily Total
+              - entity: sensor.davis_rain_24_hour
+                name: Rolling 24 Hours
+
+      - type: grid
+        title: Solar Radiation
+        cards:
+          - type: history-graph
+            title: Solar Radiation - 24 Hours
+            hours_to_show: 24
+            entities:
+              - entity: sensor.davis_solar_radiation
+                name: Solar Radiation
+
+      - type: grid
+        title: UV Index
+        cards:
+          - type: history-graph
+            title: UV Index - 24 Hours
+            hours_to_show: 24
+            entities:
+              - entity: sensor.davis_uv_index
+                name: UV Index
