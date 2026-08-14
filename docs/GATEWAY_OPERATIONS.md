@@ -37,7 +37,6 @@ The script summarizes gateway ingest requests, trace severity, outbox/SQLite err
 Use local Docker context:
 
 ```bash
-./scripts/outbox-maintenance.sh summary solarassistant
 ./scripts/outbox-maintenance.sh schema jkbms
 ```
 
@@ -45,9 +44,10 @@ Use the Pi Docker context:
 
 ```bash
 ./scripts/outbox-maintenance.sh --remote --context devpi5 summary smartshunt
-./scripts/outbox-maintenance.sh --remote --context devpi5 schema tplinkkasa
 ./scripts/outbox-maintenance.sh --remote --context devpi5 summary eg4
 ```
+
+The retired direct SolarAssistant and TP-Link/Kasa services are not valid maintenance targets. SolarAssistant's old outbox and data-protection volumes remain preserved pending an explicit archive/delete decision; do not mutate or remove them as routine outbox maintenance.
 
 Outboxes are delivery queues, not historical databases. Active vNext gateways
 retain delivered rows for one day, retain failed rows for their configured
@@ -91,7 +91,7 @@ Central recovery and alert handling are documented in `docs/SHARED_INFRASTRUCTUR
 
 ## EG4 6500EX
 
-The EG4 gateway uses stable `/dev/hvo` USB HID mappings and, when explicitly enabled, a stable MPPT `/dev/serial/by-id/...` mapping. It has a dedicated `eg4_eg4-outbox` volume and local UI port 5600. Its `/health` result includes device connectivity and forwarding state. Detailed `/diagnostics/status`, `/diagnostics/devices`, and `/diagnostics/outbox` endpoints require the configured `X-Api-Key`.
+The EG4 gateway uses stable `/dev/hvo` USB HID mappings and, when explicitly enabled, a stable MPPT `/dev/serial/by-id/...` mapping. It has a dedicated `eg4_eg4-outbox` volume and exposes headless health/diagnostics on port 5600. Its `/health` result includes device connectivity and forwarding state. Detailed `/diagnostics/status`, `/diagnostics/devices`, and `/diagnostics/outbox` endpoints require the configured `X-Api-Key`.
 
 Use `docs/gateways/eg4/deployment-and-shadow-validation.md` for USB identity, secret-safe Compose validation, commissioning, comparison criteria, and volume-preserving rollback. The EG4 stack is read-only: never add PI30 setters or any Modbus function other than the fixed MPPT function-`0x03` inquiry.
 

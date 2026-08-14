@@ -4,9 +4,7 @@
 #   hvo-website   — ASP.NET Core / Blazor Server web application
 #   hvo-davis     — Davis Vantage Pro 2 hardware driver
 #   hvo-jkbms     — JK BMS battery monitor driver
-#   hvo-solarassistant — SolarAssistant gateway
 #   hvo-smartshunt — Victron SmartShunt gateway
-#   hvo-tplinkkasa — TP-Link/Kasa local gateway read-only monitor
 #
 # Images are built locally from the repo. No registry is required.
 #
@@ -139,52 +137,6 @@ services:
     ulimits: *hvo-no-core
 
   # ---------------------------------------------------------------------------
-  # SolarAssistant gateway — polls SolarAssistant REST, posts power readings
-  # ---------------------------------------------------------------------------
-  hvo-solarassistant:
-    build:
-      context: .
-      dockerfile: src/HVO.Gateway.SolarAssistant/Dockerfile
-    ports:
-      - "5300:8080"
-    environment:
-      # SolarAssistant read-only REST credentials. Keep values in .env.
-      # Empty host disables REST polling; empty POWER_API_KEY disables forwarding.
-      SolarAssistant__Host: ${SOLAR_ASSISTANT_IP:-}
-      SolarAssistant__RestUsername: ${SOLAR_ASSISTANT_REST_USERNAME:-admin}
-      SolarAssistant__RestPassword: ${SOLAR_ASSISTANT_REST_PASSWORD:-}
-      SolarAssistant__EnableMqttDiscovery: ${SOLAR_ASSISTANT_ENABLE_MQTT_DISCOVERY:-true}
-      SolarAssistant__MqttUsername: ${SOLAR_ASSISTANT_MQTT_USERNAME:-}
-      SolarAssistant__MqttPassword: ${SOLAR_ASSISTANT_MQTT_PASSWORD:-}
-      SolarAssistant__SnapshotIntervalSeconds: ${SOLAR_ASSISTANT_SNAPSHOT_INTERVAL_SECONDS:-30}
-      SolarAssistant__HistoryCapacity: ${SOLAR_ASSISTANT_HISTORY_CAPACITY:-240}
-      SolarAssistant__RestStaleAfterSeconds: ${SOLAR_ASSISTANT_REST_STALE_AFTER_SECONDS:-120}
-      SolarAssistant__MqttStaleAfterSeconds: ${SOLAR_ASSISTANT_MQTT_STALE_AFTER_SECONDS:-120}
-      SolarAssistant__OutboxPendingWarningCount: ${SOLAR_ASSISTANT_OUTBOX_PENDING_WARNING_COUNT:-10}
-      SolarAssistant__OutboxFailedCriticalCount: ${SOLAR_ASSISTANT_OUTBOX_FAILED_CRITICAL_COUNT:-1}
-      SolarAssistant__LowBatteryWarningPercent: ${SOLAR_ASSISTANT_LOW_BATTERY_WARNING_PERCENT:-30}
-      SolarAssistant__CriticalBatteryPercent: ${SOLAR_ASSISTANT_CRITICAL_BATTERY_PERCENT:-15}
-      SolarAssistant__HighLoadWarningW: ${SOLAR_ASSISTANT_HIGH_LOAD_WARNING_W:-5000}
-      SolarAssistant__BatteryDischargeWarningW: ${SOLAR_ASSISTANT_BATTERY_DISCHARGE_WARNING_W:-5000}
-      SolarAssistant__TotalSourceId: ${SOLAR_ASSISTANT_TOTAL_SOURCE_ID:-solarassistant-total}
-      SolarAssistant__TotalDeviceId: ${SOLAR_ASSISTANT_TOTAL_DEVICE_ID:-total}
-      # Defaults to the in-stack website service. Set HVO_WEBSITE_PUBLIC_BASE_URL
-      # in .env when you explicitly want local gateways to post to the deployed site.
-      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/power/readings"
-      Outbox__ApiKey: ${POWER_API_KEY:-}
-      Outbox__DbPath: /app/data/outbox.db
-      DOTNET_ENVIRONMENT: Production
-      OTEL_SERVICE_NAME: hvo-solarassistant
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
-      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-      Diagnostics__ExposeDetailedEndpoints: ${SOLAR_ASSISTANT_EXPOSE_DETAILED_ENDPOINTS:-false}
-    volumes:
-      - solarassistant-outbox:/app/data
-    restart: unless-stopped
-    logging: *hvo-local-logging
-    ulimits: *hvo-no-core
-
-  # ---------------------------------------------------------------------------
   # Victron SmartShunt headless direct public-GATT collector
   # ---------------------------------------------------------------------------
   hvo-smartshunt:
@@ -215,37 +167,9 @@ services:
     logging: *hvo-local-logging
     ulimits: *hvo-no-core
 
-  # ---------------------------------------------------------------------------
-  hvo-tplinkkasa:
-    build:
-      context: .
-      dockerfile: src/HVO.Gateway.TplinkKasa/Dockerfile
-    ports:
-      - "5500:8080"
-    environment:
-      ASPNETCORE_URLS: http://+:8080
-      DOTNET_ENVIRONMENT: Production
-      KasaGateway__PollIntervalSeconds: ${KASA_POLL_INTERVAL_SECONDS:-30}
-      KasaGateway__MaxPollConcurrency: ${KASA_MAX_POLL_CONCURRENCY:-5}
-      KasaGateway__DashboardRefreshSeconds: ${KASA_DASHBOARD_REFRESH_SECONDS:-5}
-      KasaGateway__DeviceRegistryPath: ${KASA_DEVICE_REGISTRY_PATH:-/app/data/devices.json}
-      Outbox__ApiEndpoint: "${HVO_WEBSITE_PUBLIC_BASE_URL:-http://hvo-website:8080}/api/v1/power/readings"
-      Outbox__ApiKey: ${POWER_API_KEY:-}
-      Outbox__DbPath: /app/data/outbox.db
-      OTEL_SERVICE_NAME: hvo-tplinkkasa
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
-      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-    volumes:
-      - kasa-registry:/app/data
-    restart: unless-stopped
-    logging: *hvo-local-logging
-    ulimits: *hvo-no-core
-
 volumes:
   davis-outbox:
   jkbms-outbox:
-  solarassistant-outbox:
   smartshunt-outbox:
-  kasa-registry:
   data-protection:
   jkbms-data-protection:

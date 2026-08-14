@@ -301,6 +301,4 @@ Completed cleanup: the Davis `PrototypeFrame.razor` component was removed in iss
 | `hvo-dark.css` | `hvo-shared-shell.css` | Entire file deprecated; still present for backward compat |
 | `.jk-*` classes in `hvo-components.css` | `hvo-*` classes | Legacy shim; remove when JkBms app is fully migrated |
 | `.smartshunt-*` classes in `hvo-components.css` | `hvo-*` classes | Legacy shim |
-| `.solar-*` classes in `hvo-components.css` | `hvo-*` classes | Legacy shim |
-| `.kasa-*` classes in `hvo-components.css` | `hvo-*` classes | Legacy shim |
 | `.proto-*` class names | `hvo-*` equivalents | Fully migrated; class names must not reappear. Legacy `PrototypeFrame.razor` was removed in issue #212. |

@@ -35,10 +35,11 @@ Existing service names:
 hvo-website
 hvo-davis
 hvo-jkbms
+hvo-eg4
 hvo-smartshunt
-hvo-solarassistant
-hvo-tplinkkasa
 ```
+
+The retired direct `hvo-solarassistant` and `hvo-tplinkkasa` services are no longer telemetry producers. `HVO.Edge.Exporter.HomeAssistant` is implemented but intentionally disabled in production, so it has no active production service telemetry.
 
 Use the same convention for new services, for example `hvo-skymonitor` or
 `hvo-camera`.

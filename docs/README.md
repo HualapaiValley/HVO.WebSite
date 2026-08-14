@@ -2,6 +2,8 @@
 
 This directory holds current reference, operational notes, discovery findings, and the consolidated future-work roadmap.
 
+Production currently uses direct headless vNext collectors for Davis, JK BMS, EG4, and SmartShunt. Home Assistant owns Kasa and Govee acquisition and presentation. The implemented HA exporter is intentionally disabled with no production mappings or source claims. The direct SolarAssistant and TP-Link/Kasa applications, containers, and images have been retired; preserved SolarAssistant volumes remain pending disposition.
+
 ## Current Reference
 
 - `ARCHITECTURE.md`: current system baseline, deployment boundaries, and active data-flow direction
@@ -21,7 +23,6 @@ Project history guidance:
 
 ## Current Discovery And Design Notes
 
-- `SOLARASSISTANT_DISCOVERY.md`: sanitized discovery findings for the local SolarAssistant integration
 - `SMARTSHUNT_PLAN.md`: SmartShunt data inventory and BLE/reference notes; implementation status now follows `ARCHITECTURE.md`
 - `davis-console-nonloop-values.md`: Davis console field inventory and UI-relevant protocol values
 - `JKBMS_SESSION_LIFECYCLE.md`: JK BMS session-lifecycle notes for the current BLE runtime direction

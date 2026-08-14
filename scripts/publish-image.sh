@@ -10,7 +10,7 @@ target=""
 user_tag=""
 
 usage() {
-	printf 'Usage: %s [--dry-run] [--push-latest] [--tag <tag>] <website|davis|jkbms|solarassistant|smartshunt|tplinkkasa>\n' "$(basename "$0")"
+	printf 'Usage: %s [--dry-run] [--push-latest] [--tag <tag>] <website|davis|jkbms|smartshunt>\n' "$(basename "$0")"
 	printf '\n'
 	printf 'Builds, tags, and pushes a single image to the self-hosted container\n'
 	printf 'registry at registry.hualapaivalleyobservatory.org.\n'
@@ -77,9 +77,7 @@ load_publish_environment() {
 		HVO_WEBSITE_IMAGE_REPOSITORY HVO_WEBSITE_IMAGE_VERSION
 		HVO_DAVIS_IMAGE_REPOSITORY HVO_DAVIS_IMAGE_VERSION
 		HVO_JKBMS_IMAGE_REPOSITORY HVO_JKBMS_IMAGE_VERSION
-		HVO_SOLARASSISTANT_IMAGE_REPOSITORY HVO_SOLARASSISTANT_IMAGE_VERSION
 		HVO_SMARTSHUNT_IMAGE_REPOSITORY HVO_SMARTSHUNT_IMAGE_VERSION
-		HVO_TPLINKKASA_IMAGE_REPOSITORY HVO_TPLINKKASA_IMAGE_VERSION
 	)
 
 	for name in "${names[@]}"; do
@@ -104,20 +102,12 @@ resolve_target() {
 			var_prefix="HVO_JKBMS"
 			dockerfile_path="src/HVO.Hardware.JkBms/Dockerfile"
 			;;
-		solarassistant|hvo-solarassistant)
-			var_prefix="HVO_SOLARASSISTANT"
-			dockerfile_path="src/HVO.Gateway.SolarAssistant/Dockerfile"
-			;;
 		smartshunt|hvo-smartshunt)
 			var_prefix="HVO_SMARTSHUNT"
 			dockerfile_path="src/HVO.Hardware.VictronSmartShunt/Dockerfile"
 			;;
-		tplinkkasa|hvo-tplinkkasa)
-			var_prefix="HVO_TPLINKKASA"
-			dockerfile_path="src/HVO.Gateway.TplinkKasa/Dockerfile"
-			;;
 		*)
-			fail "Unknown target '$1'. Expected website, davis, jkbms, solarassistant, smartshunt, or tplinkkasa."
+			fail "Unknown target '$1'. Expected website, davis, jkbms, or smartshunt."
 			;;
 	esac
 
@@ -154,7 +144,7 @@ while (($# > 0)); do
 			usage
 			exit 0
 			;;
-		website|hvo-website|davis|hvo-davis|jkbms|hvo-jkbms|solarassistant|hvo-solarassistant|smartshunt|hvo-smartshunt|tplinkkasa|hvo-tplinkkasa)
+		website|hvo-website|davis|hvo-davis|jkbms|hvo-jkbms|smartshunt|hvo-smartshunt)
 			[[ -z "${target}" ]] || fail 'Only one target can be published per invocation.'
 			target="$1"
 			shift

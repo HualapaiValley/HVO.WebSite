@@ -7,8 +7,8 @@ This runbook commissions read-only EG4 6500EX and MPPT100-48HV telemetry on `dev
 - Connect only an inverter RS232/COM monitoring cable exposed as USB HID `0665:5161`.
 - Never map enumerated `/dev/ttyUSB0`; use the verified MPPT `/dev/serial/by-id/...` identity only.
 - The inverter runtime allowlists identity, `QPIGS`, `QPGS0`, `Q1`, and firmware-conditional `QPIGS2`. The MPPT runtime permits only unit-1 function-`0x03` registers 200-217. Neither has a command endpoint.
-- Keep SolarAssistant, SmartShunt, JK BMS, Davis, and TP-Link/Kasa unchanged during commissioning.
-- The direct EG4 collector owns 6500EX and MPPT100 acquisition. SolarAssistant remains an independent comparison source during migration and is never a runtime input. JK BMS/SmartShunt remain authoritative for SOC and whole-bus measurements.
+- Keep the other active direct collectors, SmartShunt, JK BMS, and Davis, unchanged during commissioning.
+- The direct EG4 collector owns 6500EX and MPPT100 acquisition. Historical SolarAssistant observations may be used only as independent migration evidence and are never a runtime input. JK BMS/SmartShunt remain authoritative for SOC and whole-bus measurements.
 
 ## Verified Host Baseline
 
@@ -56,7 +56,7 @@ The container runs as root but receives only the explicitly mapped HID nodes; it
 
 1. Copy `.env.example` to ignored `.env` and `gateway.json.example` to ignored `gateway.json`.
 2. Create the ignored `secrets` directory with root-readable files named `diagnostics-api-key`, `central-ingest-api-key`, `mqtt-username`, and `mqtt-password`. Do not place raw credentials in `.env` or `gateway.json`.
-3. Provision the central key with only `ingest:power`. Issue #330 transfers exact source claims during one-writer cutover.
+3. Provision the central key with only `ingest:power` and the exact active EG4 source claims.
 4. Keep the second inverter disabled in both `.env` and `gateway.json` while only one HID exists.
 5. Set `EG4_MPPT_0_PORT` to the verified stable `/dev/serial/by-id` identity. Enable the MPPT in both `.env` and `gateway.json` only when its overlay and fixed read profile are ready.
 6. Keep source and device IDs stable; list indexes are configuration positions, not identity.
@@ -166,11 +166,11 @@ Record:
 - Stable HA MQTT device identity, canonical battery signs, device availability, and recovery after broker/HA restarts.
 - Charging, discharging, and idle samples, including a simultaneous zero-charge/zero-discharge frame when naturally observed.
 - External MPPT daylight samples, expected nighttime silence, temperature channels, and diagnostic-state history.
-- Direct EG4 tracker observations compared with SolarAssistant only as independent migration evidence; the collector never reads SolarAssistant.
+- Direct EG4 tracker observations compared with retained historical SolarAssistant samples only as migration evidence; the collector never reads SolarAssistant.
 - Timestamp skew between each EG4 branch and the nearest SmartShunt whole-bus sample.
 - Direct branch sum compared with SmartShunt whole-bus net flow using the canonical sign: positive discharge, negative charge.
 
-EG4 branch values and SmartShunt whole-bus values are different physical measurements and are not expected to match exactly. Explain differences using update cadence, integer-amp inverter resolution, wiring and conversion losses, MPPT charging, other DC loads, and standby consumption. Never add SolarAssistant's aggregate PV to individual tracker powers.
+EG4 branch values and SmartShunt whole-bus values are different physical measurements and are not expected to match exactly. Explain differences using update cadence, integer-amp inverter resolution, wiring and conversion losses, MPPT charging, other DC loads, and standby consumption. Historical SolarAssistant aggregate PV was comparison evidence only and must never be added to individual tracker powers.
 
 ## Promotion Criteria
 
@@ -183,9 +183,9 @@ EG4 branch values and SmartShunt whole-bus values are different physical measure
 - Website comparison shows each inverter as an `Inverter branch`, never a whole-bus value.
 - MPPT history preserves each independently measured direct tracker without using SolarAssistant as an input.
 - Branch-versus-bus differences are physically explainable at bounded timestamp skew.
-- SolarAssistant, SmartShunt, and JK BMS remain operational and independently deployable.
+- SmartShunt, JK BMS, and Davis remain operational and independently deployable.
 
-Direct EG4 is the target authority, but source-claim transfer and retirement of overlapping writers remain the controlled cutover in issue #330.
+Direct EG4 is the production authority. The overlapping direct SolarAssistant writer, container, and image have been retired.
 
 ## Production Cutover Evidence
 

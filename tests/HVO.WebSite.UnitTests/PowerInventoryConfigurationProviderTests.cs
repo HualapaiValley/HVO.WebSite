@@ -156,7 +156,6 @@ public sealed class PowerInventoryConfigurationProviderTests
 
         var latest = await provider.GetLatestMpptDetailAsync("controller", int.MaxValue);
         var latestInverter = await provider.GetLatestInverterDetailAsync("inverter", int.MaxValue);
-        var central = await provider.GetLatestCentralAsync("inverter", int.MaxValue);
         var history = await provider.GetRecentTelemetryAsync(["controller"], ["inverter"], now.UtcDateTime.AddHours(-1));
 
         latest.IsPresent.Should().BeTrue();
@@ -164,8 +163,6 @@ public sealed class PowerInventoryConfigurationProviderTests
         latestInverter.IsPresent.Should().BeTrue();
         latestInverter.RecordedAtUtc.Should().Be(now.UtcDateTime.AddMinutes(-1));
         latestInverter.Load!.LoadPowerW.Should().Be(750);
-        central.InverterDetail.IsPresent.Should().BeTrue();
-        central.InverterDetail.RecordedAtUtc.Should().Be(now.UtcDateTime.AddMinutes(-1));
         history.MpptDetails.Should().ContainSingle().Which.RecordedAtUtc.Should().Be(now.UtcDateTime.AddMinutes(-1));
         history.BatteryReadings.Should().ContainSingle().Which.RecordedAtUtc.Should().Be(now.UtcDateTime.AddMinutes(-1));
     }

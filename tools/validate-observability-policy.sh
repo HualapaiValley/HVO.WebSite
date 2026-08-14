@@ -53,9 +53,7 @@ app_compose_files=(
 	"deploy/pi-gateways/eg4/docker-compose.yml"
 	"deploy/pi-gateways/home-assistant-exporter/docker-compose.yml"
 	"deploy/pi-gateways/jkbms/docker-compose.yml"
-	"deploy/pi-gateways/solarassistant/docker-compose.yml"
 	"deploy/pi-gateways/smartshunt/docker-compose.yml"
-	"deploy/pi-gateways/tplink-kasa/docker-compose.yml"
 )
 
 for relative_file in "${app_compose_files[@]}"; do

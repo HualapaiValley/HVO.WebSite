@@ -1,5 +1,4 @@
 using System.Globalization;
-using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.Themes.Components.Format;
 using HVO.WebSite.v9.Configuration;
@@ -14,8 +13,6 @@ public sealed record PowerStatusViewModel(
     string BatteryStateOfCharge,
     string BatterySource,
     string BatterySocSource,
-    string GridPower,
-    string GridFlow,
     string InverterMode,
     string BatteryBankCount,
     string BatteryAlarmState,
@@ -37,8 +34,6 @@ public sealed record PowerStatusViewModel(
         BatteryStateOfCharge: "--",
         BatterySource: "No source",
         BatterySocSource: "No source",
-        GridPower: "--",
-        GridFlow: "Unknown",
         InverterMode: "Unknown",
         BatteryBankCount: "--",
         BatteryAlarmState: "Unknown",
@@ -59,7 +54,6 @@ public sealed record PowerStatusViewModel(
 
         options ??= new PowerCompositionOptions();
         var batteryPower = snapshot.Battery?.PowerW;
-        var gridPower = snapshot.Ac?.GridPowerW;
 
         var batteryBanks = FormatBanks(snapshot.BatteryBanks, snapshot.ObservedAtUtc);
         var batteryObservations = FormatObservations(snapshot, options);
@@ -73,8 +67,6 @@ public sealed record PowerStatusViewModel(
             BatteryStateOfCharge: FormatPercent(snapshot.Battery?.StateOfChargePercent?.Value),
             BatterySource: FormatSource(snapshot.Battery?.PowerW),
             BatterySocSource: FormatSource(snapshot.Battery?.StateOfChargePercent),
-            GridPower: FormatSignedWatts(gridPower?.Value),
-            GridFlow: FormatFlow(snapshot.Ac?.GridFlowDirection?.Value),
             InverterMode: snapshot.Ac?.InverterMode?.Value ?? "Unknown",
             BatteryBankCount: FormatBankCount(snapshot.Battery?.BankCount?.Value),
             BatteryAlarmState: FormatAlarmState(snapshot.Battery?.HasAlarms?.Value),
@@ -297,11 +289,10 @@ public sealed record PowerStatusViewModel(
         var threshold = TimeSpan.FromSeconds(observation.Source switch
         {
             PowerMetricSource.VictronSmartShunt => options.SmartShuntFreshnessSeconds,
-            PowerMetricSource.SolarAssistant => options.SolarAssistantFreshnessSeconds,
             PowerMetricSource.JkBms => options.JkBmsFreshnessSeconds,
             PowerMetricSource.Eg46500Ex or PowerMetricSource.Eg4Mppt10048Hv => options.Eg4BranchFreshnessSeconds,
             PowerMetricSource.Derived => options.Eg4BranchFreshnessSeconds,
-            _ => options.SolarAssistantFreshnessSeconds,
+            _ => options.Eg4BranchFreshnessSeconds,
         });
 
         var status = age > threshold ? "stale" : age >= threshold * 0.8 ? "warning" : "fresh";
@@ -330,11 +321,11 @@ public sealed record PowerStatusViewModel(
 
         if (observation.StateOfChargePercent.HasValue && Matches(observation, battery?.StateOfChargePercent))
         {
-            labels.Add(observation.Source == PowerMetricSource.SolarAssistant
+            labels.Add(observation.Source == PowerMetricSource.VictronSmartShunt
                 ? "Preferred SOC"
-                : battery?.StateOfChargePercent?.Confidence == "fallback-untrusted"
-                    ? "Fallback SOC (untrusted)"
-                    : "Fallback SOC");
+                : observation.Source == PowerMetricSource.JkBms
+                    ? "Fallback SOC"
+                    : "Selected SOC");
         }
 
         return labels.Count > 0 ? labels : ["Comparison only"];
@@ -523,232 +514,6 @@ public sealed record PowerStatusPvTrackerViewModel(
     string Freshness,
     string Provenance,
     string Confidence);
-
-public sealed record PowerInventoryConfigurationViewModel(
-    string State,
-    string DeviceSummary,
-    string ConfigurationSummary,
-    string CommandCapabilitySummary,
-    IReadOnlyList<string> Devices,
-    IReadOnlyList<string> Settings)
-{
-    public static PowerInventoryConfigurationViewModel Empty { get; } = new(
-        State: "Missing",
-        DeviceSummary: "No device inventory received",
-        ConfigurationSummary: "No configuration snapshot received",
-        CommandCapabilitySummary: "No command capabilities inventoried",
-        Devices: [],
-        Settings: []);
-
-    public static PowerInventoryConfigurationViewModel FromSnapshots(
-        PowerDeviceInventorySnapshotResponse inventory,
-        PowerConfigurationSnapshotResponse configuration)
-    {
-        var state = (inventory.IsPresent, inventory.IsStale, configuration.IsPresent, configuration.IsStale) switch
-        {
-            (true, false, true, false) => "Current",
-            (false, _, false, _) => "Missing",
-            (_, true, _, _) or (_, _, _, true) => "Stale",
-            _ => "Partial",
-        };
-
-        var deviceSummary = inventory.IsPresent
-            ? $"{inventory.Devices.Count} device(s), {inventory.RestMetricCount} REST metric(s), {inventory.MqttEntityCount} MQTT entit(ies)"
-            : "No device inventory received";
-        var configurationSummary = configuration.IsPresent
-            ? $"{configuration.Settings.Count} read-only setting(s)"
-            : "No configuration snapshot received";
-        var commandSummary = configuration.IsPresent
-            ? $"{configuration.CommandCapabilities.Count} command capabilit(ies) inventoried; writes disabled"
-            : "No command capabilities inventoried";
-
-        return new PowerInventoryConfigurationViewModel(
-            State: state,
-            DeviceSummary: deviceSummary,
-            ConfigurationSummary: configurationSummary,
-            CommandCapabilitySummary: commandSummary,
-            Devices: inventory.Devices.Select(d => $"{d.Name} {d.Model}".Trim()).Where(d => d.Length > 0).Take(3).ToArray(),
-            Settings: configuration.Settings.Select(s => s.Name).Where(s => !string.IsNullOrWhiteSpace(s)).Take(5).ToArray());
-    }
-}
-
-public sealed record PowerGatewayStatusViewModel(
-    string State,
-    string HealthSummary,
-    string RestSummary,
-    string MqttSummary,
-    string OutboxSummary,
-    string MetricSummary,
-    string LastSeen,
-    IReadOnlyList<string> Alerts)
-{
-    public static PowerGatewayStatusViewModel Empty { get; } = new(
-        State: "Missing",
-        HealthSummary: "No gateway status received",
-        RestSummary: "No REST status received",
-        MqttSummary: "No MQTT status received",
-        OutboxSummary: "No outbox status received",
-        MetricSummary: "No gateway metrics received",
-        LastSeen: "Waiting for gateway status",
-        Alerts: []);
-
-    public static PowerGatewayStatusViewModel FromSnapshot(GatewayStatusSnapshotResponse status)
-    {
-        if (!status.IsPresent)
-            return Empty;
-
-        var healthState = status.Health?.State ?? GatewayHealthState.Unknown;
-        var state = status.IsStale
-            ? "Stale"
-            : healthState switch
-            {
-                GatewayHealthState.Healthy => "Healthy",
-                GatewayHealthState.Warning => "Warning",
-                GatewayHealthState.Critical => "Critical",
-                _ => "Unknown",
-            };
-
-        var alertCount = status.Health?.Alerts.Count ?? 0;
-        var alerts = status.Health?.Alerts
-            .OrderByDescending(a => a.Severity)
-            .ThenBy(a => a.Code, StringComparer.OrdinalIgnoreCase)
-            .Select(a => $"{a.Code}: {a.Message}")
-            .Take(4)
-            .ToArray() ?? [];
-
-        return new PowerGatewayStatusViewModel(
-            State: state,
-            HealthSummary: alertCount == 0 ? $"{healthState} with no active alerts" : $"{healthState} with {alertCount} alert(s)",
-            RestSummary: FormatSignal(status.Rest),
-            MqttSummary: status.Mqtt is null ? "MQTT disabled or not reported" : FormatSignal(status.Mqtt),
-            OutboxSummary: FormatOutbox(status.Outbox),
-            MetricSummary: $"{status.RestMetricCount ?? 0} REST metric(s), {status.MqttEntityCount ?? 0} MQTT entit(ies), {status.MqttCommandTopicCount ?? 0} command topic(s)",
-            LastSeen: $"Gateway status {status.RecordedAtUtc.ToLocalTime().ToString("dd MMM yyyy - h:mm tt", CultureInfo.InvariantCulture)}",
-            Alerts: alerts);
-    }
-
-    private static string FormatSignal(GatewayRuntimeSignal? signal)
-    {
-        if (signal is null)
-            return "Not reported";
-
-        var detail = string.IsNullOrWhiteSpace(signal.Detail) ? null : $"; {signal.Detail}";
-        return $"{signal.State}{detail}";
-    }
-
-    private static string FormatOutbox(GatewayOutboxStatus? outbox)
-    {
-        if (outbox is null)
-            return "Not reported";
-
-        return $"{outbox.PendingCount} pending, {outbox.FailedCount} failed, last batch {outbox.LastBatchCount}";
-    }
-}
-
-public sealed record PowerSolarAssistantDetailViewModel(
-    string State,
-    string EnergySummary,
-    string EnergyResetState,
-    string PvStringSummary,
-    string InverterLoadSummary,
-    string InverterBatterySummary,
-    string TemperatureSummary,
-    string StatusSummary,
-    IReadOnlyList<string> EnergyCounters,
-    IReadOnlyList<PowerPvStringViewModel> PvStrings,
-    IReadOnlyList<string> Statuses,
-    string? GatewayUrl)
-{
-    public static PowerSolarAssistantDetailViewModel Empty { get; } = new(
-        State: "Missing",
-        EnergySummary: "No energy counters received",
-        EnergyResetState: "No counter reset evidence",
-        PvStringSummary: "No PV string detail received",
-        InverterLoadSummary: "No inverter load detail received",
-        InverterBatterySummary: "No inverter battery detail received",
-        TemperatureSummary: "No temperature detail received",
-        StatusSummary: "No inverter statuses received",
-        EnergyCounters: [],
-        PvStrings: [],
-        Statuses: [],
-        GatewayUrl: null);
-
-    public static PowerSolarAssistantDetailViewModel FromSnapshots(
-        PowerEnergySnapshotResponse energy,
-        PowerInverterDetailSnapshotResponse inverterDetail,
-        string? gatewayUrl)
-    {
-        var state = (energy.IsPresent, energy.IsStale, inverterDetail.IsPresent, inverterDetail.IsStale) switch
-        {
-            (true, false, true, false) => "Current",
-            (false, _, false, _) => "Missing",
-            (_, true, _, _) or (_, _, _, true) => "Stale",
-            _ => "Partial",
-        };
-
-        var counters = energy.Counters
-            .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(c => $"{c.Name} {FormatKwh(c.ValueKwh)}")
-            .Take(6)
-            .ToArray();
-        var pvStrings = inverterDetail.PvStrings
-            .OrderBy(s => s.StringId, StringComparer.OrdinalIgnoreCase)
-            .Select(s => new PowerPvStringViewModel(
-                StringId: s.StringId,
-                Power: FormatWatts(s.PowerW),
-                Voltage: FormatVolts(s.VoltageV),
-                Current: FormatAmps(s.CurrentA)))
-            .ToArray();
-        var statuses = inverterDetail.Statuses
-            .OrderBy(s => s.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(s => $"{s.Key}: {s.Value}")
-            .Take(4)
-            .ToArray();
-
-        return new PowerSolarAssistantDetailViewModel(
-            State: state,
-            EnergySummary: energy.IsPresent
-                ? $"{energy.Counters.Count} energy counter(s)"
-                : "No energy counters received",
-            EnergyResetState: energy.CounterResetDetected ? "Counter reset detected" : "No counter reset evidence",
-            PvStringSummary: inverterDetail.IsPresent
-                ? $"{inverterDetail.PvStrings.Count} PV string(s)"
-                : "No PV string detail received",
-            InverterLoadSummary: inverterDetail.Load is null
-                ? "No inverter load detail received"
-                : $"Load {FormatWatts(inverterDetail.Load.LoadPowerW)}, apparent {FormatVa(inverterDetail.Load.LoadApparentPowerVa)}",
-            InverterBatterySummary: inverterDetail.Battery is null
-                ? "No inverter battery detail received"
-                : $"Battery {FormatBatteryFacingWatts(inverterDetail.Battery.PowerW)}, {FormatVolts(inverterDetail.Battery.VoltageV)} (+ charging)",
-            TemperatureSummary: inverterDetail.TemperatureC.HasValue
-                ? $"{inverterDetail.TemperatureC.Value:0} C"
-                : "No temperature detail received",
-            StatusSummary: inverterDetail.IsPresent
-                ? $"{inverterDetail.Statuses.Count} status value(s)"
-                : "No inverter statuses received",
-            EnergyCounters: counters,
-            PvStrings: pvStrings,
-            Statuses: statuses,
-            GatewayUrl: NormalizeUrl(gatewayUrl));
-    }
-
-    private static string FormatKwh(double? value) => value.HasValue ? $"{value.Value:0.##} kWh" : "--";
-
-    private static string FormatWatts(double? value) => value.HasValue ? $"{value.Value:0} W" : "--";
-
-    private static string FormatSignedWatts(double? value) => value.HasValue ? $"{value.Value:+0;-0;0} W" : "--";
-
-    private static string FormatBatteryFacingWatts(double? canonicalValue) =>
-        canonicalValue.HasValue ? $"{-canonicalValue.Value:+0;-0;0} W" : "--";
-
-    private static string FormatVa(double? value) => value.HasValue ? $"{value.Value:0} VA" : "--";
-
-    private static string FormatVolts(double? value) => value.HasValue ? $"{value.Value:0.0} V" : "--";
-
-    private static string FormatAmps(double? value) => value.HasValue ? $"{value.Value:0.0} A" : "--";
-
-    private static string? NormalizeUrl(string? url) => string.IsNullOrWhiteSpace(url) ? null : url.Trim();
-}
 
 public sealed record PowerPvStringViewModel(
     string StringId,

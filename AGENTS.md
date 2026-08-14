@@ -12,7 +12,7 @@
 
 This repository uses AI coding agents — including GitHub Copilot Coding Agent and OpenCode — for code review, investigation, refactoring, documentation assistance, and implementation support.
 
-The goal is not to produce superficial comments. The goal is to identify meaningful engineering risks, verify that changes meet requirements, improve maintainability, and protect production stability across all six applications in this solution.
+The goal is not to produce superficial comments. The goal is to identify meaningful engineering risks, verify that changes meet requirements, improve maintainability, and protect production stability across the solution.
 
 When working in this repository, act as a senior software engineer and architect with strong experience in:
 
@@ -39,9 +39,9 @@ src/
   HVO.DataModels/               EF Core models and DbContext
   HVO.Hardware.DavisVantagePro2/  Davis weather station gateway
   HVO.Hardware.JkBms/           JK BMS battery monitor gateway
+  HVO.Hardware.Eg4/             EG4 6500EX and MPPT100 gateway
   HVO.Hardware.VictronSmartShunt/ Victron SmartShunt gateway
-  HVO.Gateway.SolarAssistant/   SolarAssistant inverter gateway
-  HVO.Gateway.TplinkKasa/       TP-Link Kasa smart plug gateway
+  HVO.Edge.Exporter.HomeAssistant/ Implemented HA telemetry exporter (disabled in production)
   HVO.ThemeSandbox/             CSS/component reference app (not deployed to production)
 deploy/
   hvo-docker/                   Docker Compose + .env for the website host (hvo-docker)
@@ -53,7 +53,6 @@ scripts/
   sync-env-gist.sh              Syncs root .env to private GitHub gist (devcontainer bootstrap)
 docs/
   CSS_GOVERNANCE.md             Full CSS authoring policy (read before touching any CSS)
-  UNIFIED_THEME_PLAN.md         Migration epic plan
 tests/
   HVO.WebSite.UnitTests/        Unit tests (188 tests)
   HVO.WebSite.PlaywrightTests/  Playwright end-to-end tests
@@ -322,7 +321,7 @@ Check for:
 
 ## Gateway-specific guidelines
 
-Each Pi gateway (Davis, JkBms, SmartShunt, SolarAssistant, TplinkKasa) has specific deployment and connectivity requirements.
+The active direct Pi collectors are Davis, JK BMS, EG4, and SmartShunt. Home Assistant owns Kasa and Govee acquisition/presentation. The HA exporter is implemented but intentionally disabled in production with no mappings or source claims. The retired direct SolarAssistant and TP-Link/Kasa applications, containers, and images are not deployment targets.
 
 Check for:
 

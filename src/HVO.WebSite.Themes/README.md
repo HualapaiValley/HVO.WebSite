@@ -94,11 +94,9 @@ These primitives were promoted from the ThemeSandbox showcase so the production 
 ## Used By
 
 - `HVO.WebSite.v9` - Main observatory website
-- `HVO.Hardware.DavisVantagePro2` - Davis admin UI
-- `HVO.Hardware.JkBms` - JK BMS monitoring UI
-- `HVO.Hardware.VictronSmartShunt` - SmartShunt monitoring UI
-- `HVO.Gateway.SolarAssistant` - SolarAssistant monitoring UI
-- `HVO.Gateway.TplinkKasa` - TP-Link/Kasa gateway UI
+- `HVO.ThemeSandbox` - Shared component and design-system reference app
+
+The active Davis, JK BMS, EG4, and SmartShunt collectors are headless and do not consume this UI library. Kasa and Govee presentation is owned by Home Assistant.
 
 ## Design Philosophy
 

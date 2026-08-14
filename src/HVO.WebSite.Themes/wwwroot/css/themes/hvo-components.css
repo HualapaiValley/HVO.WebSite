@@ -440,12 +440,7 @@
 .jk-hero,
 .jk-table-shell,
 .smartshunt-card,
-.smartshunt-hero,
-.solar-card,
-.solar-hero-card,
-.kasa-panel,
-.kasa-device-card,
-.kasa-card-dialog {
+.smartshunt-hero {
     background: var(--shell-card-background) !important;
     border-color: var(--shell-card-border) !important;
     color: var(--shell-card-foreground) !important;
@@ -471,18 +466,7 @@
 .jk-bank-stat,
 .jk-ataglance-stat,
 .smartshunt-stat-chip,
-.smartshunt-metric-tile,
-.solar-detail-row,
-.solar-metric-tile,
-.solar-hero-panel,
-.kasa-control-surface,
-.kasa-card-stats div,
-.kasa-light-summary div,
-.kasa-outlet-summary div,
-.kasa-details-chip-groups > div,
-.kasa-outlet-row,
-.kasa-preferred-state-row,
-.kasa-config-grid div {
+.smartshunt-metric-tile {
     background: var(--shell-overlay-panel) !important;
     border-color: var(--shell-overlay-panel-border) !important;
     color: var(--shell-card-foreground) !important;
@@ -498,42 +482,23 @@
 .smartshunt-card-kicker,
 .smartshunt-eyebrow,
 .smartshunt-stat-chip span,
-.smartshunt-metric-tile span,
-.solar-eyebrow,
-.solar-muted,
-.solar-detail-row span,
-.solar-metric-tile span,
-.kasa-eyebrow,
-.kasa-muted,
-.kasa-card-stats span,
-.kasa-light-summary span,
-.kasa-outlet-summary span,
-.kasa-config-grid span {
+.smartshunt-metric-tile span {
     color: var(--shell-pill-text) !important;
 }
 
 .jk-card-head h2,
 .smartshunt-card-head h2,
-.solar-card-title,
-.kasa-title,
 .jk-metric strong,
 .jk-detail-value,
 .jk-bank-stat-value,
 .smartshunt-stat-chip strong,
-.smartshunt-metric-tile strong,
-.solar-detail-row strong,
-.solar-metric-tile strong,
-.kasa-card-stats strong,
-.kasa-light-summary strong,
-.kasa-outlet-summary strong,
-.kasa-config-grid strong {
+.smartshunt-metric-tile strong {
     color: var(--shell-card-foreground) !important;
 }
 
 .jk-summary-pill,
 .smartshunt-badge,
-.smartshunt-inline-badge,
-.kasa-capability-pill {
+.smartshunt-inline-badge {
     background: var(--shell-overlay-panel) !important;
     border-color: var(--shell-overlay-panel-border) !important;
     color: var(--shell-card-foreground) !important;

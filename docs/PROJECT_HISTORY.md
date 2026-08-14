@@ -46,6 +46,19 @@ Avoid:
 - Immediate context worth knowing before resuming work
 ```
 
+## 2026-08-14
+
+### Direct Gateway Retirement
+
+- Retired the direct SolarAssistant and TP-Link/Kasa applications, tests, deployment definitions, containers, and images.
+- Confirmed the active direct headless vNext collectors are Davis, JK BMS, EG4, and SmartShunt.
+- Confirmed Home Assistant owns Kasa and Govee acquisition and presentation.
+- Kept the implemented HA exporter intentionally disabled with no production mappings or source claims.
+
+### Deferred Or Open
+
+- Decide the explicit archive/delete disposition for the preserved SolarAssistant outbox and data-protection volumes; do not remove them through broad volume cleanup.
+
 ## 2026-05-24
 
 ### Repo Cleanup And Review Follow-Through

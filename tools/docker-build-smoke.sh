@@ -68,8 +68,6 @@ prune_cache
 build_smoke_image src/HVO.WebSite.v9/Dockerfile "hvo-website-ci:${run_key}"
 build_smoke_image src/HVO.Hardware.DavisVantagePro2/Dockerfile "hvo-davis-ci:${run_key}"
 build_smoke_image src/HVO.Hardware.JkBms/Dockerfile "hvo-jkbms-ci:${run_key}"
-build_smoke_image src/HVO.Gateway.SolarAssistant/Dockerfile "hvo-solarassistant-ci:${run_key}"
 build_smoke_image src/HVO.Hardware.VictronSmartShunt/Dockerfile "hvo-smartshunt-ci:${run_key}"
-build_smoke_image src/HVO.Gateway.TplinkKasa/Dockerfile "hvo-tplinkkasa-ci:${run_key}"
 build_smoke_image src/HVO.Hardware.Eg4/Dockerfile "hvo-eg4-ci:${run_key}"
 build_smoke_image src/HVO.Edge.Exporter.HomeAssistant/Dockerfile "hvo-ha-exporter-ci:${run_key}"

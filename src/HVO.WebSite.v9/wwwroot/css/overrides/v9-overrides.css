@@ -194,11 +194,6 @@
 }
 
 /* ─── PV String Grid ─────────────────────────────────────────────────────── */
-.power-solarassistant-detail dl,
-.power-gateway-status dl {
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-}
-
 .power-pv-string-grid {
     display: grid;
     gap: 0.65rem;

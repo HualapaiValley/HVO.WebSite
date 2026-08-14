@@ -1,8 +1,8 @@
 # Edge vNext Runtime
 
-Issue #332 establishes the standard headless runtime used by new HVO edge
-executables. Existing UI-bearing gateways remain unchanged until their focused
-port and cutover issues.
+Issue #332 established the standard headless runtime used by HVO edge
+executables. Davis, JK BMS, EG4, and SmartShunt are the active direct production
+collectors using this model.
 
 ## Dependency Direction
 
@@ -176,8 +176,8 @@ issue #321.
 | JK BMS | Direct JK collector |
 | Davis Vantage Pro 2 | Direct Davis collector |
 | SmartShunt | Paired direct public-GATT SmartShunt collector |
-| Kasa | Home Assistant Core, exported through the HA exporter |
-| Govee | Home Assistant through an ESPHome Bluetooth proxy |
+| Kasa | Home Assistant Core owns acquisition/presentation; HA exporter disabled with no production mapping/source claim |
+| Govee | Home Assistant through an ESPHome Bluetooth proxy owns acquisition/presentation; HA exporter disabled with no production mapping/source claim |
 | SolarAssistant | No HVO vNext collector or canonical writer |
 
 No migration may run two acquisition authorities or two central writers for the

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using HVO.DataModels.Data;
-using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Configuration;
 using HVO.WebSite.v9.Models;
@@ -30,51 +29,6 @@ public sealed class PowerInventoryConfigurationProvider(
         var inventory = await GetLatestInventoryRowAsync(normalized, ct);
         var configuration = await GetLatestConfigurationRowAsync(normalized, ct);
         return (MapInventory(normalized, inventory, staleAfterMinutes), MapConfiguration(normalized, configuration, staleAfterMinutes));
-    }
-
-    public async Task<(
-        PowerDeviceInventorySnapshotResponse Inventory,
-        PowerConfigurationSnapshotResponse Configuration,
-        PowerEnergySnapshotResponse Energy,
-        PowerInverterDetailSnapshotResponse InverterDetail,
-        GatewayStatusSnapshotResponse GatewayStatus)> GetLatestCentralAsync(
-        string sourceId = "solarassistant-total",
-        int staleAfterMinutes = 1440,
-        CancellationToken ct = default)
-    {
-        var normalized = string.IsNullOrWhiteSpace(sourceId) ? "solarassistant-total" : sourceId.Trim();
-        var futureCutoffUtc = FutureCutoffUtc();
-        var inventory = await GetLatestInventoryRowAsync(normalized, ct);
-        var configuration = await GetLatestConfigurationRowAsync(normalized, ct);
-        var energy = await _db.PowerEnergySnapshots
-            .AsNoTracking()
-            .Where(r => r.SourceId == normalized && r.RecordedAt <= futureCutoffUtc)
-            .OrderByDescending(r => r.RecordedAt)
-            .FirstOrDefaultAsync(ct);
-        var inverterDetailRows = await _db.PowerInverterDetailSnapshots
-            .AsNoTracking()
-            .Where(r => r.SourceId == normalized && r.RecordedAt <= futureCutoffUtc)
-            .OrderByDescending(r => r.RecordedAt)
-            .ThenByDescending(r => r.Id)
-            .Take(100)
-            .ToArrayAsync(ct);
-        var inverterDetail = inverterDetailRows
-            .Select(row => TryMapInverterDetail(normalized, row, staleAfterMinutes))
-            .OfType<PowerInverterDetailSnapshotResponse>()
-            .FirstOrDefault()
-            ?? new PowerInverterDetailSnapshotResponse { SourceId = normalized, IsPresent = false, IsStale = true };
-        var gatewayStatus = await _db.GatewayStatusSnapshots
-            .AsNoTracking()
-            .Where(r => r.SourceId == normalized)
-            .OrderByDescending(r => r.RecordedAt)
-            .FirstOrDefaultAsync(ct);
-
-        return (
-            MapInventory(normalized, inventory, staleAfterMinutes),
-            MapConfiguration(normalized, configuration, staleAfterMinutes),
-            MapEnergy(normalized, energy, staleAfterMinutes),
-            inverterDetail,
-            MapGatewayStatus(normalized, gatewayStatus, staleAfterMinutes));
     }
 
     public async Task<PowerInverterDetailSnapshotResponse> GetLatestInverterDetailAsync(
@@ -222,25 +176,6 @@ public sealed class PowerInventoryConfigurationProvider(
         };
     }
 
-    private static PowerEnergySnapshotResponse MapEnergy(string sourceId, DataModels.Models.V9.PowerEnergySnapshot? row, int staleAfterMinutes)
-    {
-        if (row is null)
-            return new PowerEnergySnapshotResponse { SourceId = sourceId, IsPresent = false, IsStale = true };
-
-        var payload = JsonSerializer.Deserialize<PowerEnergyPayload>(row.PayloadJson, JsonOptions);
-        return new PowerEnergySnapshotResponse
-        {
-            SourceId = row.SourceId,
-            SourceSystem = row.SourceSystem,
-            DeviceId = row.DeviceId,
-            RecordedAtUtc = row.RecordedAt,
-            IsPresent = true,
-            IsStale = DateTime.UtcNow - row.RecordedAt.ToUniversalTime() > TimeSpan.FromMinutes(staleAfterMinutes),
-            CounterResetDetected = payload?.CounterResetDetected ?? row.CounterResetDetected,
-            Counters = payload?.Counters ?? [],
-        };
-    }
-
     private static PowerInverterDetailSnapshotResponse MapInverterDetail(
         string sourceId,
         DataModels.Models.V9.PowerInverterDetailSnapshot? row,
@@ -360,30 +295,4 @@ public sealed class PowerInventoryConfigurationProvider(
         }
     }
 
-    private static GatewayStatusSnapshotResponse MapGatewayStatus(string sourceId, DataModels.Models.V9.GatewayStatusSnapshot? row, int staleAfterMinutes)
-    {
-        if (row is null)
-            return new GatewayStatusSnapshotResponse { SourceId = sourceId, IsPresent = false, IsStale = true };
-
-        var recordedAtUtc = DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc);
-        var payload = JsonSerializer.Deserialize<GatewayStatusPayload>(row.PayloadJson, JsonOptions);
-        return new GatewayStatusSnapshotResponse
-        {
-            SourceId = row.SourceId,
-            SourceSystem = row.SourceSystem,
-            DeviceId = row.DeviceId,
-            RecordedAtUtc = recordedAtUtc,
-            IsPresent = true,
-            IsStale = DateTime.UtcNow - recordedAtUtc > TimeSpan.FromMinutes(staleAfterMinutes),
-            Identity = payload?.Identity,
-            Health = payload?.Health,
-            Rest = payload?.Rest,
-            Mqtt = payload?.Mqtt,
-            Outbox = payload?.Outbox,
-            RestMetricCount = payload?.RestMetricCount,
-            MqttEntityCount = payload?.MqttEntityCount,
-            MqttStateTopicCount = payload?.MqttStateTopicCount,
-            MqttCommandTopicCount = payload?.MqttCommandTopicCount,
-        };
-    }
 }

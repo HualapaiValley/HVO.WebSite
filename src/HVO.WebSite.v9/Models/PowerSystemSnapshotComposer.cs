@@ -7,7 +7,6 @@ namespace HVO.WebSite.v9.Models;
 
 public static class PowerSystemSnapshotComposer
 {
-    private const string SolarAssistantSystem = "solarassistant";
     private const string SmartShuntSystem = "victron-smartshunt";
 
     public static PowerSystemSnapshot Compose(
@@ -15,7 +14,8 @@ public static class PowerSystemSnapshotComposer
         DateTime observedAtUtc,
         IReadOnlyList<BmsReading>? bmsReadings = null,
         PowerCompositionOptions? options = null,
-        IReadOnlyList<PowerMpptDetailPayload>? mpptDetails = null)
+        IReadOnlyList<PowerMpptDetailPayload>? mpptDetails = null,
+        IReadOnlyList<PowerInverterDetailPayload>? inverterDetails = null)
     {
         options ??= new PowerCompositionOptions();
         var latestStreams = readings
@@ -24,9 +24,14 @@ public static class PowerSystemSnapshotComposer
             .Select(group => group.OrderByDescending(reading => reading.RecordedAt).ThenByDescending(reading => reading.Id).First())
             .Where(reading => IsFresh(reading.RecordedAt, observedAtUtc, FreshnessFor(reading.SourceSystem, options), options))
             .ToArray();
-        var latestSolarAssistant = LatestBySourceSystem(latestStreams, SolarAssistantSystem, options.PreferredSolarAssistantSourceIds);
         var latestSmartShunt = LatestBySourceSystem(latestStreams, SmartShuntSystem, options.PreferredSmartShuntSourceIds);
         var canonicalSmartShunt = CanonicalSmartShunt(latestSmartShunt);
+        var latestEg4Inverter = (inverterDetails ?? [])
+            .Where(detail => string.Equals(detail.SourceSystem, PowerSourceSystems.Eg46500Ex, StringComparison.OrdinalIgnoreCase))
+            .Where(detail => IsFresh(detail.RecordedAtUtc, observedAtUtc,
+                TimeSpan.FromSeconds(options.Eg4BranchFreshnessSeconds), options))
+            .OrderByDescending(detail => detail.RecordedAtUtc)
+            .FirstOrDefault();
         var freshBms = (bmsReadings ?? []).Where(reading => IsFresh(
             reading.RecordedAt, observedAtUtc, TimeSpan.FromSeconds(options.JkBmsFreshnessSeconds), options)).ToArray();
         var batteryBanks = ComposeBatteryBanks(freshBms);
@@ -40,9 +45,9 @@ public static class PowerSystemSnapshotComposer
 
         return new PowerSystemSnapshot(
             ObservedAtUtc: observedAtUtc,
-            Ac: ComposeAc(latestSolarAssistant),
-            Pv: ComposePv(latestSolarAssistant, mpptDetails ?? [], observedAtUtc, options),
-            Battery: ComposeBattery(latestSolarAssistant, canonicalSmartShunt, batteryBanks),
+            Ac: ComposeAc(latestEg4Inverter),
+            Pv: ComposePv(mpptDetails ?? [], observedAtUtc, options),
+            Battery: ComposeBattery(canonicalSmartShunt, batteryBanks),
             BatteryBanks: batteryBanks.Count > 0 ? batteryBanks : null,
             Notes: notes,
             BatteryObservations: observations.Count > 0 ? observations : null);
@@ -60,8 +65,6 @@ public static class PowerSystemSnapshotComposer
             {
                 SmartShuntSystem => Observation(reading, PowerMetricSource.VictronSmartShunt, PowerMeasurementRole.BusNet,
                     "battery-bus-net", PowerObservationProvenance.Direct, -reading.BatteryCurrentA, -reading.BatteryPowerW),
-                SolarAssistantSystem => Observation(reading, PowerMetricSource.SolarAssistant, PowerMeasurementRole.AggregateEstimate,
-                    "solarassistant-battery-aggregate", PowerObservationProvenance.SourceAggregate, reading.BatteryCurrentA, reading.BatteryPowerW),
                 PowerSourceSystems.Eg46500Ex => Observation(reading, PowerMetricSource.Eg46500Ex, PowerMeasurementRole.InverterBranch,
                     "inverter-battery-branch", PowerObservationProvenance.Derived, reading.BatteryCurrentA, reading.BatteryPowerW,
                     "PI30 voltage/SOC direct; current=discharge-charge; power=voltage*current", includeSourceInput: true),
@@ -146,9 +149,8 @@ public static class PowerSystemSnapshotComposer
     private static TimeSpan FreshnessFor(string? system, PowerCompositionOptions options) => TimeSpan.FromSeconds(system?.ToLowerInvariant() switch
     {
         SmartShuntSystem => options.SmartShuntFreshnessSeconds,
-        SolarAssistantSystem => options.SolarAssistantFreshnessSeconds,
         PowerSourceSystems.Eg46500Ex or PowerSourceSystems.Eg4Mppt10048Hv => options.Eg4BranchFreshnessSeconds,
-        _ => options.SolarAssistantFreshnessSeconds,
+        _ => options.Eg4BranchFreshnessSeconds,
     });
 
     private static PowerReading? CanonicalSmartShunt(PowerReading? reading) => reading is null ? null : new PowerReading
@@ -159,32 +161,30 @@ public static class PowerSystemSnapshotComposer
         BatteryStateOfChargePercent = reading.BatteryStateOfChargePercent,
     };
 
-    private static PowerSystemAcSnapshot? ComposeAc(PowerReading? solarAssistant)
+    private static PowerSystemAcSnapshot? ComposeAc(PowerInverterDetailPayload? inverter)
     {
-        if (solarAssistant is null)
+        if (inverter is null)
             return null;
 
         return new PowerSystemAcSnapshot(
-            LoadPowerW: Sourced(solarAssistant.LoadPowerW, PowerMetricSource.SolarAssistant, solarAssistant),
-            GridPowerW: Sourced(solarAssistant.GridPowerW, PowerMetricSource.SolarAssistant, solarAssistant),
-            GridFlowDirection: Sourced(FlowFromSignedGridPower(solarAssistant.GridPowerW), PowerMetricSource.SolarAssistant, solarAssistant),
-            GridVoltageV: Sourced(solarAssistant.GridVoltageV, PowerMetricSource.SolarAssistant, solarAssistant),
-            GridFrequencyHz: Sourced(solarAssistant.GridFrequencyHz, PowerMetricSource.SolarAssistant, solarAssistant),
-            OutputVoltageV: Sourced(solarAssistant.OutputVoltageV, PowerMetricSource.SolarAssistant, solarAssistant),
-            OutputFrequencyHz: Sourced(solarAssistant.OutputFrequencyHz, PowerMetricSource.SolarAssistant, solarAssistant),
-            LoadPercent: Sourced(solarAssistant.LoadPercentage, PowerMetricSource.SolarAssistant, solarAssistant),
-            InverterMode: Sourced(solarAssistant.InverterMode, PowerMetricSource.SolarAssistant, solarAssistant),
-            OutputSourcePriority: Sourced(solarAssistant.OutputSourcePriority, PowerMetricSource.SolarAssistant, solarAssistant),
-            ChargerSourcePriority: Sourced(solarAssistant.ChargerSourcePriority, PowerMetricSource.SolarAssistant, solarAssistant));
+            LoadPowerW: Sourced(inverter.Load?.LoadPowerW, inverter),
+            GridVoltageV: Sourced(inverter.Ac?.InputVoltageV, inverter),
+            GridFrequencyHz: Sourced(inverter.Ac?.InputFrequencyHz, inverter),
+            OutputVoltageV: Sourced(inverter.Ac?.OutputVoltageV, inverter),
+            OutputFrequencyHz: Sourced(inverter.Ac?.OutputFrequencyHz, inverter),
+            LoadPercent: Sourced(inverter.Operating?.LoadPercentage, inverter),
+            InverterMode: Sourced(inverter.Operating?.Mode, inverter));
     }
 
     private static PowerSystemPvSnapshot? ComposePv(
-        PowerReading? solarAssistant,
         IReadOnlyList<PowerMpptDetailPayload> mpptDetails,
         DateTime observedAtUtc,
         PowerCompositionOptions options)
     {
         var freshDetails = mpptDetails
+            .Where(detail => detail.SourceSystem is not null &&
+                (string.Equals(detail.SourceSystem, PowerSourceSystems.Eg46500Ex, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(detail.SourceSystem, PowerSourceSystems.Eg4Mppt10048Hv, StringComparison.OrdinalIgnoreCase)))
             .Where(detail => IsFresh(detail.RecordedAtUtc, observedAtUtc,
                 FreshnessFor(detail.SourceSystem, options), options))
             .ToArray();
@@ -244,11 +244,6 @@ public static class PowerSystemSnapshotComposer
                 "derived-pv-tracker-sum",
                 Confidence: $"complete tracker set ({completeTrackers.Length}/{expectedIds.Count})");
         }
-        else if (solarAssistant?.PvPowerW is not null)
-        {
-            power = Sourced(solarAssistant.PvPowerW, PowerMetricSource.SolarAssistant, solarAssistant);
-        }
-
         if (power is null && trackers.Length == 0 && expectedIds.Count == 0)
             return null;
 
@@ -270,33 +265,33 @@ public static class PowerSystemSnapshotComposer
     private static PowerMetricSource PvSourceFor(string? sourceSystem)
         => sourceSystem?.Trim().ToLowerInvariant() switch
         {
-            SolarAssistantSystem => PowerMetricSource.SolarAssistant,
             PowerSourceSystems.Eg46500Ex => PowerMetricSource.Eg46500Ex,
             PowerSourceSystems.Eg4Mppt10048Hv => PowerMetricSource.Eg4Mppt10048Hv,
             _ => PowerMetricSource.Unknown,
         };
 
     private static PowerSystemBatterySnapshot? ComposeBattery(
-        PowerReading? solarAssistant,
         PowerReading? smartShunt,
         IReadOnlyList<PowerSystemBatteryBankSnapshot> batteryBanks)
     {
-        if (solarAssistant is null && smartShunt is null && batteryBanks.Count == 0)
+        if (smartShunt is null && batteryBanks.Count == 0)
             return null;
 
-        var voltageSource = smartShunt?.BatteryVoltageV is not null ? smartShunt : solarAssistant;
-        var currentSource = smartShunt?.BatteryCurrentA is not null ? smartShunt : solarAssistant;
-        var powerSource = smartShunt?.BatteryPowerW is not null ? smartShunt : solarAssistant;
-        var socSource = solarAssistant?.BatteryStateOfChargePercent is not null ? solarAssistant : smartShunt;
-        var socConfidence = ReferenceEquals(socSource, smartShunt) ? "fallback-untrusted" : null;
+        var jkBmsSoc = batteryBanks
+            .Where(bank => bank.StateOfChargePercent is not null)
+            .OrderByDescending(bank => bank.RecordedAtUtc)
+            .Select(bank => bank.StateOfChargePercent)
+            .FirstOrDefault();
+        var stateOfCharge = smartShunt?.BatteryStateOfChargePercent is not null
+            ? Sourced(smartShunt.BatteryStateOfChargePercent, PowerMetricSource.VictronSmartShunt, smartShunt)
+            : jkBmsSoc;
 
         return new PowerSystemBatterySnapshot(
-            StateOfChargePercent: Sourced(socSource?.BatteryStateOfChargePercent, SourceFor(socSource), socSource, socConfidence),
-            VoltageV: Sourced(voltageSource?.BatteryVoltageV, SourceFor(voltageSource), voltageSource),
-            CurrentA: Sourced(currentSource?.BatteryCurrentA, SourceFor(currentSource), currentSource),
-            PowerW: Sourced(powerSource?.BatteryPowerW, SourceFor(powerSource), powerSource),
-            FlowDirection: Sourced(FlowFromSignedBatteryPower(powerSource?.BatteryPowerW), SourceFor(powerSource), powerSource),
-            CapacityKwh: Sourced(solarAssistant?.BatteryCapacityKwh, PowerMetricSource.SolarAssistant, solarAssistant),
+            StateOfChargePercent: stateOfCharge,
+            VoltageV: Sourced(smartShunt?.BatteryVoltageV, PowerMetricSource.VictronSmartShunt, smartShunt),
+            CurrentA: Sourced(smartShunt?.BatteryCurrentA, PowerMetricSource.VictronSmartShunt, smartShunt),
+            PowerW: Sourced(smartShunt?.BatteryPowerW, PowerMetricSource.VictronSmartShunt, smartShunt),
+            FlowDirection: Sourced(FlowFromSignedBatteryPower(smartShunt?.BatteryPowerW), PowerMetricSource.VictronSmartShunt, smartShunt),
             BankCount: batteryBanks.Count > 0 ? Sourced(batteryBanks.Count, PowerMetricSource.JkBms, batteryBanks.Max(b => b.RecordedAtUtc)) : null,
             HasAlarms: batteryBanks.Count > 0 ? Sourced(batteryBanks.Any(b => b.HasAlarms?.Value == true), PowerMetricSource.JkBms, batteryBanks.Max(b => b.RecordedAtUtc)) : null);
     }
@@ -354,14 +349,6 @@ public static class PowerSystemSnapshotComposer
         return int.MaxValue;
     }
 
-    private static PowerMetricSource SourceFor(PowerReading? reading)
-        => reading?.SourceSystem?.Trim().ToLowerInvariant() switch
-        {
-            SolarAssistantSystem => PowerMetricSource.SolarAssistant,
-            SmartShuntSystem => PowerMetricSource.VictronSmartShunt,
-            _ => PowerMetricSource.Unknown,
-        };
-
     private static SourcedValue<T>? Sourced<T>(T? value, PowerMetricSource source, PowerReading? reading, string? confidence = null)
         where T : struct
         => value.HasValue && reading is not null
@@ -376,19 +363,16 @@ public static class PowerSystemSnapshotComposer
         where T : struct
         => new(value, source, recordedAt, sourceId, deviceId);
 
-    private static SourcedValue<string>? Sourced(string? value, PowerMetricSource source, PowerReading? reading)
-        => !string.IsNullOrWhiteSpace(value) && reading is not null
-            ? new SourcedValue<string>(value, source, reading.RecordedAt, reading.SourceId, reading.DeviceId)
+    private static SourcedValue<T>? Sourced<T>(T? value, PowerInverterDetailPayload detail)
+        where T : struct
+        => value.HasValue
+            ? new SourcedValue<T>(value.Value, PowerMetricSource.Eg46500Ex, detail.RecordedAtUtc, detail.SourceId, detail.DeviceId)
             : null;
 
-    private static PowerFlowDirection? FlowFromSignedGridPower(double? gridPowerW)
-        => gridPowerW switch
-        {
-            > 0 => PowerFlowDirection.Import,
-            < 0 => PowerFlowDirection.Export,
-            0 => PowerFlowDirection.Idle,
-            _ => null,
-        };
+    private static SourcedValue<string>? Sourced(string? value, PowerInverterDetailPayload detail)
+        => !string.IsNullOrWhiteSpace(value)
+            ? new SourcedValue<string>(value, PowerMetricSource.Eg46500Ex, detail.RecordedAtUtc, detail.SourceId, detail.DeviceId)
+            : null;
 
     private static PowerFlowDirection? FlowFromSignedBatteryPower(double? batteryPowerW)
         => batteryPowerW switch

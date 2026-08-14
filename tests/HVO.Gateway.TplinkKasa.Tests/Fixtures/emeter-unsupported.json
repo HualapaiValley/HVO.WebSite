@@ -1,8 +1,0 @@
-{
-  "emeter": {
-    "get_realtime": {
-      "err_code": -1,
-      "err_msg": "module not support"
-    }
-  }
-}

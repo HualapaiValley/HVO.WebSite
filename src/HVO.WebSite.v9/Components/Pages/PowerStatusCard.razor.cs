@@ -13,9 +13,6 @@ public partial class PowerStatusCard : ComponentBase
     [Inject] private IConfiguration Configuration { get; set; } = default!;
 
     private PowerStatusViewModel _viewModel = PowerStatusViewModel.Empty;
-    private PowerInventoryConfigurationViewModel _inventoryConfiguration = PowerInventoryConfigurationViewModel.Empty;
-    private PowerGatewayStatusViewModel _gatewayStatus = PowerGatewayStatusViewModel.Empty;
-    private PowerSolarAssistantDetailViewModel _solarAssistantDetail = PowerSolarAssistantDetailViewModel.Empty;
     private PowerEg4EquipmentViewModel _eg4Equipment = PowerEg4EquipmentViewModel.Empty;
     private PowerTelemetryHistoryResponse _history = PowerTelemetryHistoryResponse.Empty;
     private PowerCompositionOptions _compositionOptions = new();
@@ -50,13 +47,6 @@ public partial class PowerStatusCard : ComponentBase
             .Get<PowerCompositionOptions>() ?? new PowerCompositionOptions();
         _compositionOptions = compositionOptions;
         _viewModel = PowerStatusViewModel.FromSnapshot(snapshot, compositionOptions);
-        var (inventory, configuration, energy, inverterDetail, gatewayStatus) = await InventoryConfigurationProvider.GetLatestCentralAsync();
-        _inventoryConfiguration = PowerInventoryConfigurationViewModel.FromSnapshots(inventory, configuration);
-        _gatewayStatus = PowerGatewayStatusViewModel.FromSnapshot(gatewayStatus);
-        _solarAssistantDetail = PowerSolarAssistantDetailViewModel.FromSnapshots(
-            energy,
-            inverterDetail,
-            Configuration["PowerStatus:SolarAssistantGatewayUrl"]);
         var inverterSourceId = Configuration["PowerStatus:Eg4InverterSourceId"] ?? "eg4-6500ex-a";
         var controllerSourceId = Configuration["PowerStatus:Eg4MpptSourceId"] ?? "eg4-mppt100-48hv-a";
         _historyHours = Math.Clamp(Configuration.GetValue("PowerStatus:HistoryHours", 6), 1, 48);

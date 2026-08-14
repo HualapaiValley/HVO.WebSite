@@ -47,6 +47,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 - Rewrote `README.md` to serve as a documentation hub
 
+### Removed
+
+- Retired the direct SolarAssistant and TP-Link/Kasa gateway applications, tests, deployment definitions, containers, and images after direct EG4 and Home Assistant assumed the applicable production responsibilities; SolarAssistant outbox and data-protection volumes remain preserved pending disposition
+
 ## [1.0.0]
 
 ### Added

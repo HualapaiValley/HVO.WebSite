@@ -18,15 +18,11 @@ export HVO_PUBLISH_ENV_FILE="$tmp_dir/.env"
 	printf '%s\r\n' 'HVO_DAVIS_IMAGE_VERSION=0.0.0-ci'
 	printf '%s\n' 'HVO_JKBMS_IMAGE_REPOSITORY=hvo-jkbms'
 	printf '%s\n' 'HVO_JKBMS_IMAGE_VERSION=0.0.0-ci'
-	printf '%s\n' 'HVO_SOLARASSISTANT_IMAGE_REPOSITORY=hvo-solarassistant'
-	printf '%s\n' 'HVO_SOLARASSISTANT_IMAGE_VERSION=0.0.0-ci'
 	printf '%s\n' 'HVO_SMARTSHUNT_IMAGE_REPOSITORY=hvo-smartshunt'
 	printf '%s\n' 'HVO_SMARTSHUNT_IMAGE_VERSION=0.0.0-ci'
-	printf '%s\n' 'HVO_TPLINKKASA_IMAGE_REPOSITORY=hvo-tplinkkasa'
-	printf '%s\n' 'HVO_TPLINKKASA_IMAGE_VERSION=0.0.0-ci'
 } > "$HVO_PUBLISH_ENV_FILE"
 
-for target in website davis jkbms solarassistant smartshunt tplinkkasa; do
+for target in website davis jkbms smartshunt; do
 	output="$(bash scripts/publish-image.sh --dry-run "$target" 2>&1)"
 	[[ "${output}" == *'--password-stdin'* ]] || {
 		printf 'Dry run for %s omitted the registry login command.\n' "${target}" >&2
