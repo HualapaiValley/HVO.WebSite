@@ -85,7 +85,10 @@ internal sealed class JkBmsOutboxBatchSender(
             return ready.Select(item => result.Failures.TryGetValue(
                     (item.Record.SourceId, item.Record.RecordedAtUtc),
                     out var error)
-                ? new EdgeOutboxSendOutcome(item.Record.Id, EdgeOutboxSendStatus.PermanentFailure, error)
+                ? new EdgeOutboxSendOutcome(
+                    item.Record.Id,
+                    EdgeOutboxSendStatus.PermanentFailure,
+                    FormatRejectionError(error))
                 : new EdgeOutboxSendOutcome(item.Record.Id, EdgeOutboxSendStatus.Sent))
                 .ToArray();
         }
@@ -123,8 +126,8 @@ internal sealed class JkBmsOutboxBatchSender(
                     return null;
                 var key = (sourceId.GetString() ?? string.Empty, recordedAtUtc.GetDateTime().ToUniversalTime());
                 if (!failures.TryAdd(key, item.TryGetProperty("error", out var error)
-                    ? error.GetString() ?? "Central ingest rejected the record"
-                    : "Central ingest rejected the record"))
+                    ? error.GetString() ?? string.Empty
+                    : string.Empty))
                     return null;
             }
             return new(inserted.GetInt32(), skipped.GetInt32(), failures);
@@ -143,6 +146,17 @@ internal sealed class JkBmsOutboxBatchSender(
         if (statusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests || code >= 500)
             return EdgeOutboxSendStatus.TransientFailure;
         return EdgeOutboxSendStatus.PermanentFailure;
+    }
+
+    private static string FormatRejectionError(string? error)
+    {
+        const string prefix = "Central ingest rejected the record";
+        var reason = error?.Trim();
+        if (string.IsNullOrWhiteSpace(reason) || string.Equals(reason, prefix, StringComparison.OrdinalIgnoreCase))
+            return $"{prefix}: No rejection reason was provided";
+        return reason.StartsWith($"{prefix}:", StringComparison.OrdinalIgnoreCase)
+            ? reason
+            : $"{prefix}: {reason}";
     }
 
     private sealed record BatchResult(

@@ -8,8 +8,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Moq;
 using System.Text.Json;
 
 namespace HVO.WebSite.UnitTests;
@@ -57,10 +59,12 @@ public class BmsControllerTests
         return doc.RootElement.Clone();
     }
 
-    private static BmsController CreateController(HvoV9DbContext db)
+    private static BmsController CreateController(
+        HvoV9DbContext db,
+        ILogger<BmsIngestService>? ingestLogger = null)
     {
         var ctrl = new BmsController(
-            new BmsIngestService(db, NullLogger<BmsIngestService>.Instance),
+            new BmsIngestService(db, ingestLogger ?? NullLogger<BmsIngestService>.Instance),
             NullLogger<BmsController>.Instance);
         ctrl.ControllerContext = new ControllerContext
         {
@@ -248,7 +252,7 @@ public class BmsControllerTests
     }
 
     [TestMethod]
-    public async Task IngestReadings_DbFailure_ReturnsSanitizedError()
+    public async Task IngestReadings_DbFailure_PropagatesForGlobalExceptionHandling()
     {
         await using var conn = new SqliteConnection("DataSource=:memory:");
         await conn.OpenAsync();
@@ -257,16 +261,25 @@ public class BmsControllerTests
                 .UseSqlite(conn)
                 .Options);
         await db.Database.EnsureCreatedAsync();
-        var controller = CreateController(db);
+        var logger = new Mock<ILogger<BmsIngestService>>();
+        var controller = CreateController(db, logger.Object);
         var request = MakeRequest(DeviceA, "2026-01-01T00:05:00Z");
 
-        var result = await controller.IngestReadings(ToJsonElement(new List<BmsIngestRequest> { request }), CancellationToken.None);
+        var action = () => controller.IngestReadings(
+            ToJsonElement(new List<BmsIngestRequest> { request }),
+            CancellationToken.None);
 
-        var body = ((CreatedAtActionResult)result.Result!).Value
-            .Should().BeOfType<BmsIngestBatchResponse>().Subject;
-        body.Inserted.Should().Be(0);
-        body.Failed.Should().ContainSingle()
-            .Which.Error.Should().Be("Batch ingest failed; record could not be ingested.");
+        await action.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("raw database detail");
+        logger.Verify(log => log.Log(
+            LogLevel.Error,
+            It.IsAny<EventId>(),
+            It.Is<It.IsAnyType>((state, _) =>
+                state.ToString()!.Contains("BMS batch transaction failed for 1 records", StringComparison.Ordinal)
+                && state.ToString()!.Contains(DeviceA, StringComparison.Ordinal)),
+            It.Is<InvalidOperationException>(exception => exception.Message == "raw database detail"),
+            It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 
     [TestMethod]

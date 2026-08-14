@@ -56,6 +56,41 @@ public sealed class JkBmsOutboxBatchSenderTests
         var outcomes = await Sender(new StubHandler(_ => new HttpResponseMessage(code)))
             .SendAsync([Record(1, "AA:BB:CC:DD:EE:01", RecordedAt)], CancellationToken.None);
         outcomes.Single().Status.Should().Be(expected);
+        outcomes.Single().Error.Should().Be($"Central ingest returned HTTP {(int)code}");
+    }
+
+    [TestMethod]
+    public async Task SendAsync_PermanentRecordFailure_RetainsActionableRejectionReason()
+    {
+        var response = $$"""
+            {"inserted":0,"skipped":0,"failed":[{"deviceAddress":"AA:BB:CC:DD:EE:01","recordedAtUtc":"{{RecordedAt:O}}","error":"Pack voltage must be positive"}]}
+            """;
+
+        var outcome = (await Sender(new StubHandler(_ => Created(response)))
+            .SendAsync([Record(1, "AA:BB:CC:DD:EE:01", RecordedAt)], CancellationToken.None)).Single();
+
+        outcome.Status.Should().Be(EdgeOutboxSendStatus.PermanentFailure);
+        outcome.Error.Should().Be("Central ingest rejected the record: Pack voltage must be positive");
+    }
+
+    [TestMethod]
+    public async Task SendAsync_PermanentRecordFailure_NormalizesMissingAndPrefixedReasons()
+    {
+        var secondRecordedAt = RecordedAt.AddSeconds(1);
+        var response = $$"""
+            {"inserted":0,"skipped":0,"failed":[
+              {"deviceAddress":"AA:BB:CC:DD:EE:01","recordedAtUtc":"{{RecordedAt:O}}"},
+              {"deviceAddress":"AA:BB:CC:DD:EE:02","recordedAtUtc":"{{secondRecordedAt:O}}","error":"Central ingest rejected the record: Invalid state of charge"}
+            ]}
+            """;
+
+        var outcomes = await Sender(new StubHandler(_ => Created(response))).SendAsync([
+            Record(1, "AA:BB:CC:DD:EE:01", RecordedAt),
+            Record(2, "AA:BB:CC:DD:EE:02", secondRecordedAt)
+        ], CancellationToken.None);
+
+        outcomes[0].Error.Should().Be("Central ingest rejected the record: No rejection reason was provided");
+        outcomes[1].Error.Should().Be("Central ingest rejected the record: Invalid state of charge");
     }
 
     private static JkBmsOutboxBatchSender Sender(StubHandler handler) => new(

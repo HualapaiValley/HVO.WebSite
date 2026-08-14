@@ -1,5 +1,13 @@
 # AGENTS.md
 
+## Workspace Scope and Repository Safety
+
+- These instructions authorize project work only within the `HVO.WebSite` repository and only when the user's request calls for it.
+- Treat every other repository as read-only unless the user explicitly authorizes changes to that repository in the current conversation.
+- Do not edit, create branches or worktrees, restore, build, test, commit, push, merge, or deploy another repository merely because it is accessible from this host.
+- If the session began in `/home/roys` or another non-repository directory, `/home/roys/AGENTS.md` applies: this repository remains read-only until the user explicitly authorizes project changes.
+- Reading issues, inspecting repository state, or identifying proposed work does not by itself authorize implementation.
+
 ## Purpose
 
 This repository uses AI coding agents — including GitHub Copilot Coding Agent and OpenCode — for code review, investigation, refactoring, documentation assistance, and implementation support.
