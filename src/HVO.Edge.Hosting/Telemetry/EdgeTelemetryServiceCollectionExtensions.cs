@@ -33,11 +33,25 @@ public static class EdgeTelemetryServiceCollectionExtensions
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation());
 
-        var commonEndpoint = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
-        if (TryEndpoint(configuration["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] ?? commonEndpoint, out var traceEndpoint))
-            telemetry.WithTracing(tracing => tracing.AddOtlpExporter(options => options.Endpoint = traceEndpoint));
-        if (TryEndpoint(configuration["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] ?? commonEndpoint, out var metricEndpoint))
-            telemetry.WithMetrics(metrics => metrics.AddOtlpExporter(options => options.Endpoint = metricEndpoint));
+        var traceExport = OtlpSignalEndpointResolver.Resolve(configuration, "traces");
+        if (traceExport is not null)
+        {
+            telemetry.WithTracing(tracing => tracing.AddOtlpExporter(options =>
+            {
+                options.Endpoint = traceExport.Endpoint;
+                options.Protocol = traceExport.Protocol;
+            }));
+        }
+
+        var metricExport = OtlpSignalEndpointResolver.Resolve(configuration, "metrics");
+        if (metricExport is not null)
+        {
+            telemetry.WithMetrics(metrics => metrics.AddOtlpExporter(options =>
+            {
+                options.Endpoint = metricExport.Endpoint;
+                options.Protocol = metricExport.Protocol;
+            }));
+        }
 
         return services;
     }

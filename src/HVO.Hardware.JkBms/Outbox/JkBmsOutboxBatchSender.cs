@@ -85,7 +85,10 @@ internal sealed class JkBmsOutboxBatchSender(
             return ready.Select(item => result.Failures.TryGetValue(
                     (item.Record.SourceId, item.Record.RecordedAtUtc),
                     out var error)
-                ? new EdgeOutboxSendOutcome(item.Record.Id, EdgeOutboxSendStatus.PermanentFailure, error)
+                ? new EdgeOutboxSendOutcome(
+                    item.Record.Id,
+                    EdgeOutboxSendStatus.PermanentFailure,
+                    $"Central ingest rejected the record: {NormalizeRejectionReason(error)}")
                 : new EdgeOutboxSendOutcome(item.Record.Id, EdgeOutboxSendStatus.Sent))
                 .ToArray();
         }
@@ -144,6 +147,9 @@ internal sealed class JkBmsOutboxBatchSender(
             return EdgeOutboxSendStatus.TransientFailure;
         return EdgeOutboxSendStatus.PermanentFailure;
     }
+
+    private static string NormalizeRejectionReason(string? error) =>
+        string.IsNullOrWhiteSpace(error) ? "No rejection reason was provided" : error.Trim();
 
     private sealed record BatchResult(
         int Inserted,

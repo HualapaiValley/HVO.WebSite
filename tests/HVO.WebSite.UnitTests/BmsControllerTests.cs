@@ -248,7 +248,7 @@ public class BmsControllerTests
     }
 
     [TestMethod]
-    public async Task IngestReadings_DbFailure_ReturnsSanitizedError()
+    public async Task IngestReadings_DbFailure_PropagatesForGlobalExceptionHandling()
     {
         await using var conn = new SqliteConnection("DataSource=:memory:");
         await conn.OpenAsync();
@@ -260,13 +260,12 @@ public class BmsControllerTests
         var controller = CreateController(db);
         var request = MakeRequest(DeviceA, "2026-01-01T00:05:00Z");
 
-        var result = await controller.IngestReadings(ToJsonElement(new List<BmsIngestRequest> { request }), CancellationToken.None);
+        var action = () => controller.IngestReadings(
+            ToJsonElement(new List<BmsIngestRequest> { request }),
+            CancellationToken.None);
 
-        var body = ((CreatedAtActionResult)result.Result!).Value
-            .Should().BeOfType<BmsIngestBatchResponse>().Subject;
-        body.Inserted.Should().Be(0);
-        body.Failed.Should().ContainSingle()
-            .Which.Error.Should().Be("Batch ingest failed; record could not be ingested.");
+        await action.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("raw database detail");
     }
 
     [TestMethod]

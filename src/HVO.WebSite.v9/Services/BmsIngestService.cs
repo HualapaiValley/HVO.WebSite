@@ -327,22 +327,6 @@ public sealed class BmsIngestService : IBmsIngestService
                 validRecords.Count, string.Join(", ", addresses));
             skipped += validRecords.Count;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "BMS batch transaction failed for {Count} records. Marking all as failures. {Addresses}",
-                validRecords.Count, string.Join(", ", addresses));
-
-            foreach (var (request, _, recordedAt) in validRecords)
-            {
-                failures.Add(new BmsIngestFailure
-                {
-                    DeviceAddress = request.Reading.DeviceAddress,
-                    RecordedAtUtc = recordedAt,
-                    Error = "Batch ingest failed; record could not be ingested.",
-                });
-            }
-        }
 
         if (inserted > 0)
         {
