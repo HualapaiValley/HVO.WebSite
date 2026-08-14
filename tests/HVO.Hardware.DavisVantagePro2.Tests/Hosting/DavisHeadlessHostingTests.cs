@@ -47,6 +47,9 @@ public sealed class DavisHeadlessHostingTests
             });
             using var client = factory.CreateClient();
             var cwopState = factory.Services.GetRequiredService<CwopPublisherState>();
+            using var startupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            while (cwopState.Snapshot().ConsecutiveFailures == 0)
+                await Task.Delay(10, startupTimeout.Token);
             var observedAt = new DateTime(2026, 8, 14, 11, 59, 0, DateTimeKind.Utc);
             var attemptedAt = new DateTime(2026, 8, 14, 12, 0, 0, DateTimeKind.Utc);
             var succeededAt = new DateTime(2026, 8, 14, 11, 55, 0, DateTimeKind.Utc);
