@@ -147,7 +147,33 @@ public sealed class WeatherUndergroundPublisherTests
         await fixture.Publisher.PublishLatestAsync(CancellationToken.None);
 
         attempts.Should().Be(0);
-        fixture.State.Snapshot().LastError.Should().Be("stale-observation");
+        var snapshot = fixture.State.Snapshot();
+        snapshot.LastError.Should().Be("stale-observation");
+        snapshot.ConsecutiveFailures.Should().Be(0);
+    }
+
+    [TestMethod]
+    public async Task PublishLatestAsync_SkippedReadingClearsPriorDeliveryFailures()
+    {
+        var clock = new FakeTimeProvider(InitialTime);
+        var state = CurrentState(clock, 70);
+        await using var fixture = CreateFixture(
+            state,
+            clock,
+            (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("rejected"),
+            }));
+
+        await fixture.Publisher.PublishLatestAsync(CancellationToken.None);
+        fixture.State.Snapshot().ConsecutiveFailures.Should().Be(1);
+
+        clock.Advance(TimeSpan.FromSeconds(11));
+        await fixture.Publisher.PublishLatestAsync(CancellationToken.None);
+
+        var snapshot = fixture.State.Snapshot();
+        snapshot.ConsecutiveFailures.Should().Be(0);
+        snapshot.LastError.Should().Be("stale-observation");
     }
 
     private static DavisRuntimeState CurrentState(FakeTimeProvider clock, double temperature)

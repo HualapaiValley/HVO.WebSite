@@ -87,8 +87,8 @@ validate_key_vault_sync() {
 		bash "${fixture}/scripts/sync-secrets-from-keyvault.sh" --apply 2>&1)"
 	[[ ! -e "${fixture}/deploy/pi-gateways/davis/secrets/weather-underground-station-key" ]] ||
 		fail 'non-materialized Davis config caused station-key materialization'
-	! rg -q '^WeatherUnderground--StationKey$' "${call_log}" || fail 'non-materialized Davis config caused station-key retrieval'
-	! rg -q '^WeatherUnderground--ApiKey$' "${call_log}" || fail 'Key Vault sync retrieved the query API key'
+	! grep -qx 'WeatherUnderground--StationKey' "${call_log}" || fail 'non-materialized Davis config caused station-key retrieval'
+	! grep -qx 'WeatherUnderground--ApiKey' "${call_log}" || fail 'Key Vault sync retrieved the query API key'
 	[[ "${sync_output}" != *"${sentinel}"* ]] || fail 'Key Vault sync without Davis config exposed a secret value'
 
 	cp "${disabled_config}" "${fixture}/deploy/pi-gateways/davis/gateway.json"
@@ -97,8 +97,8 @@ validate_key_vault_sync() {
 		bash "${fixture}/scripts/sync-secrets-from-keyvault.sh" --apply 2>&1)"
 	[[ ! -e "${fixture}/deploy/pi-gateways/davis/secrets/weather-underground-station-key" ]] ||
 		fail 'disabled Key Vault sync materialized the station key'
-	! rg -q '^WeatherUnderground--StationKey$' "${call_log}" || fail 'disabled Key Vault sync retrieved the station key'
-	! rg -q '^WeatherUnderground--ApiKey$' "${call_log}" || fail 'Key Vault sync retrieved the query API key'
+	! grep -qx 'WeatherUnderground--StationKey' "${call_log}" || fail 'disabled Key Vault sync retrieved the station key'
+	! grep -qx 'WeatherUnderground--ApiKey' "${call_log}" || fail 'Key Vault sync retrieved the query API key'
 	[[ "${sync_output}" != *"${sentinel}"* ]] || fail 'disabled Key Vault sync exposed a secret value'
 
 	cp "${enabled_config}" "${fixture}/deploy/pi-gateways/davis/gateway.json"
@@ -109,16 +109,16 @@ validate_key_vault_sync() {
 		fail 'enabled Key Vault sync did not materialize the station key'
 	[[ "$(<"${fixture}/deploy/pi-gateways/davis/secrets/weather-underground-station-key")" == "${sentinel}" ]] ||
 		fail 'enabled Key Vault sync wrote an unexpected station-key value'
-	[[ "$(rg -c '^WeatherUnderground--StationKey$' "${call_log}")" -eq 1 ]] ||
+	[[ "$(grep -c '^WeatherUnderground--StationKey$' "${call_log}" || true)" -eq 1 ]] ||
 		fail 'enabled Key Vault sync did not retrieve exactly the station key'
-	! rg -q '^WeatherUnderground--ApiKey$' "${call_log}" || fail 'enabled Key Vault sync retrieved the query API key'
+	! grep -qx 'WeatherUnderground--ApiKey' "${call_log}" || fail 'enabled Key Vault sync retrieved the query API key'
 	[[ "${sync_output}" != *"${sentinel}"* ]] || fail 'enabled Key Vault sync exposed a secret value'
 }
 
 command -v docker >/dev/null 2>&1 || fail 'docker is required'
 command -v git >/dev/null 2>&1 || fail 'git is required'
 command -v jq >/dev/null 2>&1 || fail 'jq is required'
-command -v rg >/dev/null 2>&1 || fail 'rg is required'
+command -v grep >/dev/null 2>&1 || fail 'grep is required'
 
 mkdir -p "${secrets_dir}"
 for secret_name in diagnostics-api-key central-ingest-api-key mqtt-username mqtt-password; do
@@ -173,11 +173,11 @@ git -C "${repo_root}" check-ignore -q deploy/pi-gateways/davis/secrets/weather-u
 if git -C "${repo_root}" check-ignore -q deploy/pi-gateways/davis/gateway.json.example; then
 	fail 'tracked Davis gateway.json.example is unexpectedly ignored'
 fi
-if rg -n 'WeatherUnderground--ApiKey' "${repo_root}/scripts/sync-secrets-from-keyvault.sh" \
+if grep -Ern 'WeatherUnderground--ApiKey' "${repo_root}/scripts/sync-secrets-from-keyvault.sh" \
 	"${repo_root}/scripts/deploy-pi-gateway.sh" "${repo_root}/deploy/pi-gateways/davis" >/dev/null; then
 	fail 'deployment artifacts reference the Weather Underground query API key'
 fi
-if rg -n 'WeatherUnderground.*(Key|Secret)|WEATHER_UNDERGROUND.*(KEY|SECRET)' \
+if grep -Ern 'WeatherUnderground.*(Key|Secret)|WEATHER_UNDERGROUND.*(KEY|SECRET)' \
 	"${repo_root}/deploy/pi-gateways/davis/docker-compose.yml" "${repo_root}/deploy/pi-gateways/davis/.env.example" >/dev/null; then
 	fail 'Weather Underground credentials are present in Compose or environment configuration'
 fi

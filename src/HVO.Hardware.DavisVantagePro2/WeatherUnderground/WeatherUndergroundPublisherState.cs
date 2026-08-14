@@ -47,7 +47,11 @@ internal sealed class WeatherUndergroundPublisherState
     public void Skipped(WeatherUndergroundOutcome outcome)
     {
         lock (sync)
-            snapshot = snapshot with { LastError = outcome.Category() };
+            snapshot = snapshot with
+            {
+                ConsecutiveFailures = 0,
+                LastError = outcome.Category(),
+            };
     }
 }
 

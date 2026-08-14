@@ -79,9 +79,8 @@ internal sealed class WeatherUndergroundPublisher(
 
         publisherState.Failed(result.Outcome);
         logger.LogWarning(
-            "Weather Underground delivery for station {StationId} completed with outcome {Outcome} and category {FailureCategory}",
+            "Weather Underground delivery for station {StationId} failed with category {FailureCategory}",
             configuration.StationId,
-            "failure",
             result.Outcome.Category());
     }
 }
