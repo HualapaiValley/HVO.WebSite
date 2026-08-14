@@ -3,11 +3,16 @@ using HVO.Edge.HomeAssistant.Mqtt;
 using HVO.Edge.Hosting.Diagnostics;
 using HVO.Edge.Outbox;
 using HVO.Hardware.DavisVantagePro2.Workers;
+using HVO.Hardware.DavisVantagePro2.Configuration;
+using HVO.Hardware.DavisVantagePro2.WeatherUnderground;
+using Microsoft.Extensions.Options;
 
 namespace HVO.Hardware.DavisVantagePro2.Diagnostics;
 
 internal sealed class DavisDiagnosticsSnapshotProvider(
     DavisRuntimeState state,
+    WeatherUndergroundPublisherState weatherUndergroundState,
+    IOptions<WeatherUndergroundOptions> weatherUndergroundOptions,
     IHomeAssistantMqttProjection mqtt,
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider) : IEdgeDiagnosticsSnapshotProvider
@@ -23,6 +28,9 @@ internal sealed class DavisDiagnosticsSnapshotProvider(
             alerts.Add(new("davis-stale", GatewayAlertSeverity.Warning, "The latest Davis LOOP observation is stale."));
         if (!string.IsNullOrWhiteSpace(state.LastArchiveError))
             alerts.Add(new("davis-archive", GatewayAlertSeverity.Warning, "Davis archive recovery is currently degraded."));
+        var weatherUnderground = weatherUndergroundState.Snapshot();
+        if (weatherUndergroundOptions.Value.Enabled && weatherUnderground.ConsecutiveFailures > 0)
+            alerts.Add(new("weather-underground", GatewayAlertSeverity.Warning, "Weather Underground delivery is currently degraded."));
 
         await using var scope = scopeFactory.CreateAsyncScope();
         var outbox = await scope.ServiceProvider.GetRequiredService<EdgeOutboxDiagnostics>().ReadAsync(cancellationToken);
@@ -47,6 +55,14 @@ internal sealed class DavisDiagnosticsSnapshotProvider(
                 fresh ? GatewaySampleState.Live : state.LastReadingAtUtc.HasValue ? GatewaySampleState.Stale : GatewaySampleState.Waiting,
                 outbox.FailedCount > 0 ? "degraded" : "healthy",
                 outbox.PendingCount > 0 ? "pending" : "synced"),
-            GatewayDeviceCounts.SingleSource(fresh, !state.IsConnected));
+            GatewayDeviceCounts.SingleSource(fresh, !state.IsConnected),
+            [new GatewayExternalDeliveryDiagnostics(
+                "weather-underground",
+                weatherUndergroundOptions.Value.Enabled,
+                weatherUnderground.LastObservationAtUtc,
+                weatherUnderground.LastAttemptAtUtc,
+                weatherUnderground.LastSuccessAtUtc,
+                weatherUnderground.ConsecutiveFailures,
+                weatherUnderground.LastError)]);
     }
 }

@@ -62,6 +62,8 @@ public sealed class DavisHeadlessHostingTests
             body.Should().NotContain("diagnostics-api-key");
             body.Should().NotContain("central-ingest-api-key");
             body.Should().NotContain(root);
+            body.Should().Contain("externalDeliveries");
+            body.Should().Contain("weather-underground");
             var references = typeof(Program).Assembly.GetReferencedAssemblies().Select(reference => reference.Name);
             references.Should().NotContain(name => name == "MudBlazor" || name == "HVO.WebSite.Themes");
             typeof(Program).Assembly.GetManifestResourceNames().Should().NotContain(name => name.Contains("Razor", StringComparison.OrdinalIgnoreCase));

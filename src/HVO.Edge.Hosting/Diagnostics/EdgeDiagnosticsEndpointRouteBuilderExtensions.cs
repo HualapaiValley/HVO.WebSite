@@ -68,7 +68,8 @@ public static class EdgeDiagnosticsEndpointRouteBuilderExtensions
             {
                 ["health"] = "/diagnostics/health",
                 ["outbox"] = "/diagnostics/outbox"
-            }));
+            },
+            snapshot.ExternalDeliveries ?? []));
     }
 
     private static IResult UpdateOutboxSettings(

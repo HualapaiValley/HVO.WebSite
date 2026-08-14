@@ -3,7 +3,7 @@
 ## Status
 
 - Phase 0 status: split baseline created from current HVO code, official Davis protocol PDF, existing Davis inventory, WeeWX, and CumulusMX research.
-- Last updated: 2026-05-28
+- Last updated: 2026-08-14
 - Confidence: high for current HVO implementation and common Davis serial framing/CRC/LOOP/archive behavior; medium where large official protocol tables still need field-by-field transcription.
 
 ## Document Map
@@ -15,6 +15,7 @@
 | [hvo-api-contracts.md](hvo-api-contracts.md) | HVO local APIs, outbox payloads, central ingest mappings, and candidate contract decisions. | HVO developers designing local/cloud contracts. |
 | [validation-notes.md](validation-notes.md) | Evidence, open questions, live validation checklist, and unresolved research items. | HVO developers validating hardware behavior. |
 | [cutover-and-rollback.md](cutover-and-rollback.md) | Production authority, one-owner cutover, archive recovery, validation, and rollback. | HVO operators and deployment reviewers. |
+| [weather-underground-deployment.md](weather-underground-deployment.md) | PWS protocol mapping, credentials, disabled-first rollout, diagnostics, verification, and rollback. | HVO operators and deployment reviewers. |
 
 ## References
 

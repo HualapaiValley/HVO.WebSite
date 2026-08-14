@@ -36,6 +36,13 @@
       "TopicPrefix": "hvo"
     }
   },
+  "WeatherUnderground": {
+    "Enabled": false,
+    "StationId": "KAZKINGM12",
+    "IntervalSeconds": 5,
+    "RequestTimeoutSeconds": 2,
+    "StationKeySecret": "weather-underground-station-key"
+  },
   "Outbox": {
     "DatabasePath": "/app/data/outbox.db",
     "PayloadTypes": ["com.hvo.weather.raw.v1", "com.hvo.weather.archive.v1"],

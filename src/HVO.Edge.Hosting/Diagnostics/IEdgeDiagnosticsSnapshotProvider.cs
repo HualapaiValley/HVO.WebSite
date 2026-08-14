@@ -9,7 +9,8 @@ public interface IEdgeDiagnosticsSnapshotProvider
 
 public sealed record EdgeDiagnosticsSnapshot(
     GatewayHealthSnapshot Health,
-    GatewayDeviceCounts Devices);
+    GatewayDeviceCounts Devices,
+    IReadOnlyList<GatewayExternalDeliveryDiagnostics>? ExternalDeliveries = null);
 
 internal sealed class DefaultEdgeDiagnosticsSnapshotProvider : IEdgeDiagnosticsSnapshotProvider
 {

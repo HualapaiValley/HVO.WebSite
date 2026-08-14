@@ -95,6 +95,14 @@ The EG4 gateway uses stable `/dev/hvo` USB HID mappings and, when explicitly ena
 
 Use `docs/gateways/eg4/deployment-and-shadow-validation.md` for USB identity, secret-safe Compose validation, commissioning, comparison criteria, and volume-preserving rollback. The EG4 stack is read-only: never add PI30 setters or any Modbus function other than the fixed MPPT function-`0x03` inquiry.
 
+## Davis Weather Underground
+
+Weather Underground publication is an independent, best-effort current-state projection from the Davis collector's latest merged LOOP reading. It does not poll the console, use the SQLite outbox, replay failures, or affect canonical HVO history. Production enablement uses station `KAZKINGM12`, a five-second rapid-fire cadence, and a two-second request timeout so two bounded attempts plus backoff fit inside the cadence.
+
+Keep it disabled for the first deployment. After the disabled collector is healthy, set `WeatherUnderground.Enabled=true` only in the ignored local Davis `gateway.json`, run `./scripts/sync-secrets-from-keyvault.sh --apply`, perform the Davis dry run, deploy, and verify diagnostics plus Weather Underground freshness. The sync script retrieves only `WeatherUnderground--StationKey`; it never retrieves the unrelated `WeatherUnderground--ApiKey`. Both the local config and `secrets/` are ignored, and the existing `/run/secrets` mount stays read-only.
+
+Diagnostics must expose only enabled state, last observation/attempt/success UTC, consecutive failures, and sanitized last error. Never log the full PWS URI because the station key is carried as the `PASSWORD` query parameter. On failure or rollback, disable the section and redeploy; LOOP collection, MQTT, and outbox forwarding must continue unchanged. See `docs/gateways/davis-vantage-pro2/weather-underground-deployment.md` for mapping, protocol/rate evidence, validation commands, rollout, verification, and key-rotation response.
+
 ## Schema Compatibility
 
 Startup now validates the SQLite `OutboxRecords` table after initialization. Missing shared columns or legacy `NOT NULL` columns without defaults fail startup clearly instead of allowing repeated enqueue failures such as `NOT NULL constraint failed: OutboxRecords.DeviceAddress`.

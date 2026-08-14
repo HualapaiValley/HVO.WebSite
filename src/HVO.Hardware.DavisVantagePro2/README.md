@@ -17,7 +17,9 @@ The cursor is keyed by `Station:StationId` and stores the console-local timestam
 
 ## Configuration
 
-Production uses `/app/config/gateway.json` and `/run/secrets`. See `deploy/pi-gateways/davis/gateway.json.example`. Required secret files are `diagnostics-api-key`, `central-ingest-api-key`, and, when MQTT is enabled, `mqtt-username` and `mqtt-password`.
+Production uses `/app/config/gateway.json` and the read-only `/run/secrets` mount. See `deploy/pi-gateways/davis/gateway.json.example`. Required secret files are `diagnostics-api-key`, `central-ingest-api-key`, and, when MQTT is enabled, `mqtt-username` and `mqtt-password`. When Weather Underground publication is enabled, `weather-underground-station-key` is also required; the separate Weather Underground query API key is not used.
+
+Weather Underground publication is disabled by default. See `docs/gateways/davis-vantage-pro2/weather-underground-deployment.md` for the five-second PWS contract, field mapping, diagnostics, secret sync, enablement, and rollback.
 
 The preserved named volume is `davis-outbox`, mounted at `/app/data`.
 
