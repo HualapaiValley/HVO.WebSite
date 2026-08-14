@@ -88,7 +88,7 @@ internal sealed class JkBmsOutboxBatchSender(
                 ? new EdgeOutboxSendOutcome(
                     item.Record.Id,
                     EdgeOutboxSendStatus.PermanentFailure,
-                    $"Central ingest rejected the record: {NormalizeRejectionReason(error)}")
+                    FormatRejectionError(error))
                 : new EdgeOutboxSendOutcome(item.Record.Id, EdgeOutboxSendStatus.Sent))
                 .ToArray();
         }
@@ -126,8 +126,8 @@ internal sealed class JkBmsOutboxBatchSender(
                     return null;
                 var key = (sourceId.GetString() ?? string.Empty, recordedAtUtc.GetDateTime().ToUniversalTime());
                 if (!failures.TryAdd(key, item.TryGetProperty("error", out var error)
-                    ? error.GetString() ?? "Central ingest rejected the record"
-                    : "Central ingest rejected the record"))
+                    ? error.GetString() ?? string.Empty
+                    : string.Empty))
                     return null;
             }
             return new(inserted.GetInt32(), skipped.GetInt32(), failures);
@@ -148,8 +148,16 @@ internal sealed class JkBmsOutboxBatchSender(
         return EdgeOutboxSendStatus.PermanentFailure;
     }
 
-    private static string NormalizeRejectionReason(string? error) =>
-        string.IsNullOrWhiteSpace(error) ? "No rejection reason was provided" : error.Trim();
+    private static string FormatRejectionError(string? error)
+    {
+        const string prefix = "Central ingest rejected the record";
+        var reason = error?.Trim();
+        if (string.IsNullOrWhiteSpace(reason) || string.Equals(reason, prefix, StringComparison.OrdinalIgnoreCase))
+            return $"{prefix}: No rejection reason was provided";
+        return reason.StartsWith($"{prefix}:", StringComparison.OrdinalIgnoreCase)
+            ? reason
+            : $"{prefix}: {reason}";
+    }
 
     private sealed record BatchResult(
         int Inserted,

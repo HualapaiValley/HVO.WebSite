@@ -25,6 +25,22 @@ public sealed class OtlpSignalEndpointResolverTests
     }
 
     [TestMethod]
+    [DataRow("traces", "http://collector:4318/v1/traces")]
+    [DataRow("metrics", "http://collector:4318/V1/METRICS/")]
+    public void Resolve_CommonHttpEndpoint_WithSignalPath_DoesNotAppendItAgain(
+        string signalName,
+        string endpoint)
+    {
+        var settings = Resolve(signalName, new Dictionary<string, string?>
+        {
+            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = endpoint,
+            ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf",
+        });
+
+        settings!.Endpoint.OriginalString.Should().Be(endpoint);
+    }
+
+    [TestMethod]
     [DataRow("traces", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")]
     [DataRow("metrics", "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")]
     public void Resolve_SignalSpecificHttpEndpoint_UsesEndpointUnchanged(string signalName, string settingName)

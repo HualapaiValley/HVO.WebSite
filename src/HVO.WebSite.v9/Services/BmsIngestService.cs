@@ -327,6 +327,13 @@ public sealed class BmsIngestService : IBmsIngestService
                 validRecords.Count, string.Join(", ", addresses));
             skipped += validRecords.Count;
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex,
+                "BMS batch transaction failed for {Count} records. {Addresses}",
+                validRecords.Count, string.Join(", ", addresses));
+            throw;
+        }
 
         if (inserted > 0)
         {

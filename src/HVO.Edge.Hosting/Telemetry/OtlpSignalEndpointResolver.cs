@@ -40,7 +40,10 @@ internal static class OtlpSignalEndpointResolver
 
         if (string.IsNullOrWhiteSpace(signalEndpoint) && protocol == OtlpExportProtocol.HttpProtobuf)
         {
-            endpointUri = new Uri($"{endpointUri.ToString().TrimEnd('/')}/v1/{signalName}");
+            var signalPath = $"/v1/{signalName}";
+            var resolvedEndpoint = endpointUri.ToString().TrimEnd('/');
+            if (!resolvedEndpoint.EndsWith(signalPath, StringComparison.OrdinalIgnoreCase))
+                endpointUri = new Uri($"{resolvedEndpoint}{signalPath}");
         }
 
         return new OtlpSignalExportSettings(endpointUri, protocol.Value);
