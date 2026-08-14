@@ -111,7 +111,7 @@ class HvoWeatherWindCard extends HTMLElement {
                 .waiting { color: var(--warning-color); }
                 .error { color: var(--error-color); }
                 .unavailable { color: var(--error-color); }
-                .content { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(190px, 1fr); gap: 20px; align-items: center; margin-top: 14px; }
+                .content { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: center; margin-top: 14px; }
                 .compass { position: relative; width: min(100%, 250px); aspect-ratio: 1; margin: auto; border: 2px solid var(--divider-color); border-radius: 50%; background: var(--secondary-background-color); }
                 .ring { position: absolute; inset: 13%; border: 1px solid var(--divider-color); border-radius: 50%; }
                 .axis { position: absolute; inset: 8%; color: var(--secondary-text-color); font-size: 0.75rem; font-weight: 700; }
