@@ -5,8 +5,8 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- HVO SDK -->
-    <PackageVersion Include="HVO.Astronomy" Version="1.0.0" />
-    <PackageVersion Include="HVO.Core" Version="1.1.1" />
+    <PackageVersion Include="HVO.Astronomy" Version="1.0.1" />
+    <PackageVersion Include="HVO.Core" Version="1.1.2" />
     <PackageVersion Include="HVO.Core.SourceGenerators" Version="1.1.0" />
     <PackageVersion Include="HVO.Weather" Version="1.0.0" />
 
@@ -50,7 +50,7 @@
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.11" />
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.16.19" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.16.20" />
 
     <!-- Entity Framework -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
@@ -95,7 +95,7 @@
     <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
 
     <!-- Testing -->
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageVersion Include="MSTest" Version="4.3.3" />
     <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="FluentAssertions" Version="8.10.0" />
