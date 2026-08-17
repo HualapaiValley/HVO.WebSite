@@ -77,6 +77,33 @@ public static class JkBmsProtocol
          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
          0x00, 0x00, 0x00, 0x11]; // CRC8: 0xAA+0x55+0x90+0xEB+0x97 = 0x311 → 0x11
 
+    /// <summary>
+    /// Builds the JK02 settings-password command used by the official JK BMS app.
+    /// The deployed JK02_32S devices accept six ASCII digits in register 0xA0.
+    /// </summary>
+    public static byte[] BuildSetSettingsPasswordCommand(string password)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(password);
+        if (password.Length != 6 || password.AsSpan().IndexOfAnyExceptInRange('0', '9') >= 0)
+            throw new ArgumentException("The JK BMS settings password must contain exactly six ASCII digits.", nameof(password));
+
+        var command = new byte[20]
+        {
+            0xAA, 0x55, 0x90, 0xEB, 0xA0, 0x06, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0,
+        };
+        System.Text.Encoding.ASCII.GetBytes(password, command.AsSpan(6, 6));
+        command[^1] = CrcByteSum.Compute(command.AsSpan(0, command.Length - 1));
+        return command;
+    }
+
+    public static bool ValidateAcknowledgement(ReadOnlySpan<byte> frame) =>
+        frame.Length == 20
+        && frame[0] == 0xAA && frame[1] == 0x55 && frame[2] == 0x90 && frame[3] == 0xEB
+        && frame[4] == 0xC8 && frame[5] == 0x01
+        && CrcByteSum.IsValid(frame);
+
     // ── Frame assembly from chunked BLE notifications ─────────────────────────
 
     /// <summary>

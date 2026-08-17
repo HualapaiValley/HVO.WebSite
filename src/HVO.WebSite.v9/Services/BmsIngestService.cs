@@ -282,7 +282,6 @@ public sealed class BmsIngestService : IBmsIngestService
                             if (hasOpenAlarm)
                             {
                                 openAlarm!.ClearedAt = recordedAt;
-                                _db.BmsAlarms.Update(openAlarm);
                             }
 
                             var newAlarm = new BmsAlarm
@@ -298,7 +297,6 @@ public sealed class BmsIngestService : IBmsIngestService
                     else if (hasOpenAlarm)
                     {
                         openAlarm!.ClearedAt = recordedAt;
-                        _db.BmsAlarms.Update(openAlarm);
                         openAlarms.Remove(deviceId);
                     }
                 }

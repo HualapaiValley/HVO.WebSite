@@ -29,6 +29,7 @@ public static class JkBmsServiceCollectionExtensions
         services.AddSingleton<IBluetoothAdapterCoordinator, BluetoothAdapterCoordinator>();
         services.AddSingleton<IBmsTransportFactory, JkBmsBluetoothTransportFactory>();
         services.AddSingleton<JkBmsCentralIngestCredential>();
+        services.AddSingleton<JkBmsSettingsPasswordCredentials>();
         services.AddHostedService<JkBmsCollectorInitializer>();
         services.AddScoped<IBmsOutboxWriter, BmsOutboxWriter>();
         services.AddSingleton<IEdgeOutboxBatchSender, JkBmsOutboxBatchSender>();
@@ -69,7 +70,8 @@ internal sealed class JkBmsCollectorInitializer(
     IOptions<JkBmsOptions> options,
     IOptions<EdgeOutboxOptions> outboxOptions,
     SecretFileResolver secretResolver,
-    JkBmsCentralIngestCredential credential) : IHostedLifecycleService
+    JkBmsCentralIngestCredential credential,
+    JkBmsSettingsPasswordCredentials settingsPasswordCredentials) : IHostedLifecycleService
 {
     public Task StartingAsync(CancellationToken cancellationToken)
     {
@@ -77,6 +79,17 @@ internal sealed class JkBmsCollectorInitializer(
             || outboxOptions.Value.PayloadVersion != "1")
             throw new InvalidOperationException("JK BMS requires Outbox:PayloadType com.hvo.bms.reading.v1 and PayloadVersion 1.");
         credential.ApiKey = secretResolver.ReadRequired(options.Value.CentralApiKeySecret, "JkBms:CentralApiKeySecret");
+        foreach (var device in options.Value.Devices.Where(static device =>
+                     device.Enabled && !string.IsNullOrWhiteSpace(device.SettingsPasswordSecret)))
+        {
+            var password = secretResolver.ReadRequired(
+                device.SettingsPasswordSecret!,
+                $"JkBms:Devices[{device.DeviceId}]:SettingsPasswordSecret");
+            if (password.Length != 6 || password.AsSpan().IndexOfAnyExceptInRange('0', '9') >= 0)
+                throw new InvalidOperationException(
+                    $"The settings-password secret for JK BMS device '{device.DeviceId}' must contain exactly six ASCII digits.");
+            settingsPasswordCredentials.Set(device.DeviceId, password);
+        }
         return Task.CompletedTask;
     }
 
@@ -85,4 +98,13 @@ internal sealed class JkBmsCollectorInitializer(
     public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+public sealed class JkBmsSettingsPasswordCredentials
+{
+    private readonly Dictionary<string, string> passwords = new(StringComparer.OrdinalIgnoreCase);
+
+    public void Set(string deviceId, string password) => passwords[deviceId] = password;
+
+    public string? Get(string deviceId) => passwords.GetValueOrDefault(deviceId);
 }

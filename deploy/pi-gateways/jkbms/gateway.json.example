@@ -16,7 +16,8 @@
     "ConnectTimeoutSeconds": 20,
     "ExchangeTimeoutSeconds": 10,
     "DefaultPollIntervalSeconds": 30,
-    "CentralIngestEndpoint": "https://www.hualapaivalleyobservatory.org/api/v1/bms/readings",
+    "CentralIngestEndpoint": "http://hvo-docker.hvo.lan/api/v1/bms/readings",
+    "AllowInsecureCentralIngest": true,
     "CentralApiKeySecret": "central-ingest-api-key",
     "RetryExhaustedRequeueMinutes": 15,
     "Devices": [
@@ -24,9 +25,9 @@
       { "Address": "C8:47:8C:E4:56:B0", "DeviceId": "bank-1b", "Alias": "bank-1b", "Enabled": true },
       { "Address": "C8:47:8C:E4:55:71", "DeviceId": "bank-1c", "Alias": "bank-1c", "Enabled": true },
       { "Address": "C8:47:8C:E4:54:B1", "DeviceId": "bank-1d", "Alias": "bank-1d", "Enabled": true },
-      { "Address": "C8:47:8C:EC:1B:0F", "DeviceId": "bank-2a", "Alias": "bank-2a", "Enabled": true },
-      { "Address": "C8:47:8C:EC:1E:B5", "DeviceId": "bank-2b", "Alias": "bank-2b", "Enabled": true },
-      { "Address": "C8:47:8C:EA:FF:2F", "DeviceId": "bank-2c", "Alias": "bank-2c", "Enabled": true }
+      { "Address": "C8:47:8C:EC:1B:0F", "DeviceId": "bank-2a", "Alias": "bank-2a", "SettingsPasswordSecret": "jkbms-bank-2a-settings-password", "Enabled": true },
+      { "Address": "C8:47:8C:EC:1E:B5", "DeviceId": "bank-2b", "Alias": "bank-2b", "SettingsPasswordSecret": "jkbms-bank-2b-settings-password", "Enabled": true },
+      { "Address": "C8:47:8C:EA:FF:2F", "DeviceId": "bank-2c", "Alias": "bank-2c", "SettingsPasswordSecret": "jkbms-bank-2c-settings-password", "Enabled": true }
     ]
   },
   "HomeAssistant": {

@@ -11,6 +11,41 @@ namespace HVO.Hardware.JkBms.HomeAssistant;
 public sealed class JkBmsHomeAssistantProjection
 {
     private const string Measurement = "measurement";
+    private static readonly string?[] AlarmNames =
+    [
+        "Wire resistance",
+        "MOSFET overtemperature",
+        "Cell count does not match settings",
+        null,
+        "Battery fully charged",
+        "Battery pack overvoltage",
+        "Charge overcurrent",
+        "Charge short circuit",
+        "Charge overtemperature",
+        "Charge undertemperature",
+        "Coprocessor communication error",
+        "Cell undervoltage",
+        "Battery pack undervoltage",
+        "Discharge overcurrent",
+        "Discharge short circuit",
+        "Discharge overtemperature",
+        "Charging MOSFET abnormal",
+        "Discharging MOSFET abnormal",
+        "GPS disconnected",
+        "Password change required",
+        "Discharge enable failed",
+        "Battery overtemperature",
+        "Temperature sensor anomaly",
+        "Power-loss module anomaly",
+        "Short-circuit protection release failed",
+        "Discharge overcurrent level 2",
+        "Discharge overcurrent level 3",
+        "Discharge undertemperature",
+        "GPS remote lock",
+        null,
+        null,
+        null,
+    ];
     private readonly IHomeAssistantMqttProjection projection;
     private readonly EdgeRuntimeIdentity identity;
     private readonly string siteId;
@@ -43,7 +78,11 @@ public sealed class JkBmsHomeAssistantProjection
         }
     }
 
-    public bool Publish(BmsDeviceConfig device, BmsDeviceReading reading, DeviceInfoPacket? deviceInfo = null)
+    public bool Publish(
+        BmsDeviceConfig device,
+        BmsDeviceReading reading,
+        DeviceInfoPacket? deviceInfo = null,
+        string? settingsPasswordChangeStatus = null)
     {
         EnsureDefinition(device, reading, deviceInfo);
         var voltage = reading.TotalVoltageMv / 1000d;
@@ -69,16 +108,31 @@ public sealed class JkBmsHomeAssistantProjection
             ["discharging"] = JsonSerializer.SerializeToElement(reading.CurrentMa < 0),
             ["alarm"] = JsonSerializer.SerializeToElement(reading.HasAlarms),
             ["alarm_bitmask"] = JsonSerializer.SerializeToElement(reading.AlarmBitmask),
+            ["active_alarms"] = JsonSerializer.SerializeToElement(DecodeAlarms(reading.AlarmBitmask)),
             ["remaining_capacity"] = JsonSerializer.SerializeToElement(reading.RemainingCapacityMah / 1000d),
             ["nominal_capacity"] = JsonSerializer.SerializeToElement(reading.NominalCapacityMah / 1000d),
             ["state_of_health"] = JsonSerializer.SerializeToElement(reading.StateOfHealthPercent),
             ["cycle_count"] = JsonSerializer.SerializeToElement(reading.CycleCount),
             ["cycle_capacity"] = JsonSerializer.SerializeToElement(reading.CycleCapacityMah / 1000d),
         };
+        if (!string.IsNullOrWhiteSpace(device.SettingsPasswordSecret))
+            values["settings_password_change_status"] = JsonSerializer.SerializeToElement(
+                settingsPasswordChangeStatus ?? "idle");
         if (reading.CellVoltagesMv.Count > 0)
         {
-            values["max_cell_voltage"] = JsonSerializer.SerializeToElement(reading.CellVoltagesMv.Max() / 1000d);
-            values["min_cell_voltage"] = JsonSerializer.SerializeToElement(reading.CellVoltagesMv.Min() / 1000d);
+            var minIndex = 0;
+            var maxIndex = 0;
+            for (var index = 1; index < reading.CellVoltagesMv.Count; index++)
+            {
+                if (reading.CellVoltagesMv[index] < reading.CellVoltagesMv[minIndex])
+                    minIndex = index;
+                if (reading.CellVoltagesMv[index] > reading.CellVoltagesMv[maxIndex])
+                    maxIndex = index;
+            }
+            values["max_cell_voltage"] = JsonSerializer.SerializeToElement(reading.CellVoltagesMv[maxIndex] / 1000d);
+            values["max_voltage_cell"] = JsonSerializer.SerializeToElement(maxIndex + 1);
+            values["min_cell_voltage"] = JsonSerializer.SerializeToElement(reading.CellVoltagesMv[minIndex] / 1000d);
+            values["min_voltage_cell"] = JsonSerializer.SerializeToElement(minIndex + 1);
         }
         return projection.PublishCurrentState(new(
             Key(device),
@@ -126,13 +180,13 @@ public sealed class JkBmsHomeAssistantProjection
     private HomeAssistantDeviceDefinition CreateDefinition(BmsDeviceConfig device, DeviceMetadata metadata) => new(
         Key(device),
         metadata.Name,
-        Entities(),
+        Entities(!string.IsNullOrWhiteSpace(device.SettingsPasswordSecret)),
         manufacturer: "Jikong",
         model: metadata.Model,
         softwareVersion: metadata.SoftwareVersion,
         hardwareVersion: metadata.HardwareVersion);
 
-    private static IEnumerable<HomeAssistantEntityDefinition> Entities()
+    private static IEnumerable<HomeAssistantEntityDefinition> Entities(bool allowSettingsPasswordChange)
     {
         var entities = new List<HomeAssistantEntityDefinition>
         {
@@ -156,17 +210,48 @@ public sealed class JkBmsHomeAssistantProjection
             new HomeAssistantBinarySensorDefinition("discharging", "Discharging", icon: "mdi:battery-minus"),
             new HomeAssistantBinarySensorDefinition("alarm", "Alarm", deviceClass: "problem"),
             new HomeAssistantSensorDefinition("alarm_bitmask", "Alarm bitmask", entityCategory: "diagnostic", suggestedDisplayPrecision: 0),
+            new HomeAssistantSensorDefinition("active_alarms", "Active alarms", icon: "mdi:alert-circle-outline", entityCategory: "diagnostic"),
             new HomeAssistantSensorDefinition("remaining_capacity", "Remaining capacity", "Ah", stateClass: Measurement, suggestedDisplayPrecision: 3),
             new HomeAssistantSensorDefinition("nominal_capacity", "Nominal capacity", "Ah", stateClass: Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 3),
             new HomeAssistantSensorDefinition("state_of_health", "State of health", "%", stateClass: Measurement, entityCategory: "diagnostic", suggestedDisplayPrecision: 0),
             new HomeAssistantSensorDefinition("cycle_count", "Cycle count", stateClass: "total_increasing", entityCategory: "diagnostic", suggestedDisplayPrecision: 0),
             new HomeAssistantSensorDefinition("cycle_capacity", "Cumulative cycle capacity", "Ah", stateClass: "total_increasing", entityCategory: "diagnostic", suggestedDisplayPrecision: 3),
         };
+        if (allowSettingsPasswordChange)
+        {
+            entities.Add(new HomeAssistantSensorDefinition(
+                "settings_password_change_status",
+                "Settings password change status",
+                icon: "mdi:shield-key-outline",
+                entityCategory: "diagnostic"));
+            entities.Add(new HomeAssistantButtonDefinition(
+                "change_settings_password",
+                "Change settings password",
+                deviceClass: "update",
+                icon: "mdi:key-change",
+                entityCategory: "config"));
+        }
         return entities;
     }
 
     private HomeAssistantDeviceKey Key(BmsDeviceConfig device) =>
         new(siteId, identity.GatewayId, device.DeviceId);
+
+    public HomeAssistantDeviceKey KeyFor(BmsDeviceConfig device) => Key(device);
+
+    private static string DecodeAlarms(uint alarmBitmask)
+    {
+        if (alarmBitmask == 0)
+            return "No active alarms";
+
+        var alarms = new List<string>();
+        for (var bit = 0; bit < AlarmNames.Length; bit++)
+        {
+            if ((alarmBitmask & (1u << bit)) != 0)
+                alarms.Add(AlarmNames[bit] ?? $"Unknown alarm bit {bit}");
+        }
+        return string.Join("; ", alarms);
+    }
 
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

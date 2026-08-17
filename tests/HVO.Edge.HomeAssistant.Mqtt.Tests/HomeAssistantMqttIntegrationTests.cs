@@ -35,7 +35,13 @@ public sealed class HomeAssistantMqttIntegrationTests
                 TestSupport.Topics.GatewayAvailability(TestSupport.Key))
         };
         using var worker = new HomeAssistantMqttWorker(
-            projection, session, credentials, options, new CapturedLogger());
+            projection,
+            new HomeAssistantMqttCommandRouter(options),
+            session,
+            credentials,
+            TestSupport.Identity(),
+            options,
+            new CapturedLogger());
 
         projection.UpsertDevice(TestSupport.Device());
         projection.PublishCurrentState(TestSupport.State(DateTimeOffset.UtcNow, 52.4));

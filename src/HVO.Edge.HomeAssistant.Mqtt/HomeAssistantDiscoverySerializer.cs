@@ -29,10 +29,6 @@ internal static class HomeAssistantDiscoverySerializer
                 ["unique_id"] = uniqueId,
                 ["default_entity_id"] = entity.DefaultEntityId
                     ?? $"{platform}.{HomeAssistantMqttIdentity.ReadableEntityId(definition.Key, entity.ComponentId)}",
-                ["state_topic"] = topics.State(definition.Key),
-                ["value_template"] = entity.Platform == HomeAssistantEntityPlatform.BinarySensor
-                    ? $"{{% if {stateValue} %}}ON{{% else %}}OFF{{% endif %}}"
-                    : $"{{{{ {stateValue} }}}}",
                 ["availability_mode"] = "all",
                 ["availability"] = new JsonArray
                 {
@@ -41,6 +37,18 @@ internal static class HomeAssistantDiscoverySerializer
                 },
                 ["enabled_by_default"] = entity.EnabledByDefault
             };
+            if (entity.Platform == HomeAssistantEntityPlatform.Button)
+            {
+                component["command_topic"] = topics.Command(definition.Key, entity.ComponentId);
+                component["payload_press"] = "PRESS";
+            }
+            else
+            {
+                component["state_topic"] = topics.State(definition.Key);
+                component["value_template"] = entity.Platform == HomeAssistantEntityPlatform.BinarySensor
+                    ? $"{{% if {stateValue} %}}ON{{% else %}}OFF{{% endif %}}"
+                    : $"{{{{ {stateValue} }}}}";
+            }
 
             AddOptional(component, "device_class", entity.DeviceClass);
             AddOptional(component, "icon", entity.Icon);
@@ -139,6 +147,7 @@ internal static class HomeAssistantDiscoverySerializer
     {
         HomeAssistantEntityPlatform.Sensor => "sensor",
         HomeAssistantEntityPlatform.BinarySensor => "binary_sensor",
+        HomeAssistantEntityPlatform.Button => "button",
         _ => throw new ArgumentOutOfRangeException(nameof(platform))
     };
 

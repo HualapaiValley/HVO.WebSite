@@ -6,9 +6,11 @@ using HVO.Hardware.JkBms.Bms;
 using HVO.Hardware.JkBms.Configuration;
 using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.HomeAssistant;
+using HVO.Hardware.JkBms.Hosting;
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Packets;
 using HVO.Hardware.JkBms.Protocol.Transport;
+using HVO.Edge.HomeAssistant.Mqtt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -53,6 +55,7 @@ public sealed class DevicePollState
     private volatile int _sessionRequestFailureCount;
     private volatile int _isSessionConnected;
     private volatile string? _lastDisconnectReason;
+    private volatile string _settingsPasswordChangeStatus = "idle";
     private volatile int _lastSessionDurationSeconds;
     private long _lastConnectedAtTicks;
     private long _lastDisconnectedAtTicks;
@@ -181,6 +184,12 @@ public sealed class DevicePollState
         set => _lastSessionDurationSeconds = value;
     }
 
+    public string SettingsPasswordChangeStatus
+    {
+        get => _settingsPasswordChangeStatus;
+        set => _settingsPasswordChangeStatus = value;
+    }
+
     public void RecordSessionEstablished(DateTime connectedAtUtc)
     {
         SessionEstablishedCount++;
@@ -246,6 +255,8 @@ public sealed class BmsPollerWorker : BackgroundService
         IServiceScopeFactory scopeFactory,
         IOptions<JkBmsOptions> options,
         JkBmsHomeAssistantProjection homeAssistant,
+        IHomeAssistantMqttCommandRouter commandRouter,
+        JkBmsSettingsPasswordCredentials settingsPasswordCredentials,
         GatewayTelemetry telemetry,
         TimeProvider timeProvider,
         ILogger<BmsPollerWorker> logger)
@@ -315,12 +326,25 @@ public sealed class BmsPollerWorker : BackgroundService
                     _loggerFactory,
                     _telemetry,
                     _timeProvider,
+                    () => settingsPasswordCredentials.Get(d.DeviceId),
                     OnSuccessfulPollAsync,
                     failedAt => _homeAssistant.PublishUnavailable(d, failedAt),
-                    static () => { },
+                    () => PublishLatestState(d, state),
                     _loggerFactory.CreateLogger<JkBmsDevice>());
             })
             .ToList();
+
+        for (var index = 0; index < enabledDevices.Count; index++)
+        {
+            var device = enabledDevices[index];
+            if (string.IsNullOrWhiteSpace(device.SettingsPasswordSecret))
+                continue;
+            var session = _sessions[index];
+            commandRouter.Register(
+                _homeAssistant.KeyFor(device),
+                "change_settings_password",
+                () => session.TryQueueSettingsPasswordChange());
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -377,7 +401,8 @@ public sealed class BmsPollerWorker : BackgroundService
         _homeAssistant.Publish(
             _options.Devices.Single(config => string.Equals(config.Address, device.Address, StringComparison.OrdinalIgnoreCase)),
             reading,
-            device.LatestDeviceInfo);
+            device.LatestDeviceInfo,
+            device.SettingsPasswordChangeStatus);
 
         var attempt = 0;
         while (true)
@@ -399,6 +424,17 @@ public sealed class BmsPollerWorker : BackgroundService
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds), _timeProvider, ct);
             }
         }
+    }
+
+    private void PublishLatestState(BmsDeviceConfig config, DevicePollState state)
+    {
+        if (state.LatestReading is null)
+            return;
+        _homeAssistant.Publish(
+            config,
+            MapToReading(state, state.LatestReading),
+            state.LatestDeviceInfo,
+            state.SettingsPasswordChangeStatus);
     }
 
     private async Task EnqueueOutboxAsync(

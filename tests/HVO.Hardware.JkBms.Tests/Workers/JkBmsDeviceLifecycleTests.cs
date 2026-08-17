@@ -12,6 +12,64 @@ namespace HVO.Hardware.JkBms.Tests.Workers;
 public sealed class JkBmsDeviceLifecycleTests
 {
     [TestMethod]
+    public async Task SettingsPasswordChange_WritesOnceAndVerifiesWithOneDeviceInfoRead()
+    {
+        var config = Device("03", "bank-c");
+        var state = State(config);
+        FakeBmsTransport? transport = null;
+        var factory = new FakeBmsTransportFactory(address => transport = new FakeBmsTransport(
+            address,
+            frameSequence:
+            [
+                TestFrameBuilder.BuildDeviceInfoFrame(setupPasscode: "123456"),
+                TestFrameBuilder.BuildCellInfoFrame32S(alarmBitmask: 0x00080000),
+                TestFrameBuilder.BuildDeviceInfoFrame(setupPasscode: "654321"),
+            ]));
+        var coordinator = new FakeBluetoothAdapterCoordinator();
+        await using var device = CreateDevice(config, state, factory, coordinator, settingsPassword: () => "654321");
+        using var cancellation = new CancellationTokenSource();
+        var run = device.RunAsync(cancellation.Token);
+        await WaitUntilAsync(() => state.LastPollAt.HasValue);
+
+        device.TryQueueSettingsPasswordChange().Should().BeTrue();
+        await WaitUntilAsync(() => state.SettingsPasswordChangeStatus == "succeeded_verified");
+        device.TryQueueSettingsPasswordChange().Should().BeFalse();
+        cancellation.Cancel();
+        await run.AwaitCancellationAsync();
+
+        transport!.LastAcknowledgedCommand.Should().Equal(JkBmsProtocol.BuildSetSettingsPasswordCommand("654321"));
+        transport.ExchangeCallCount.Should().Be(4);
+    }
+
+    [TestMethod]
+    public async Task SessionInitialization_RecognizesAlreadyAppliedSettingsPassword()
+    {
+        var config = Device("04", "bank-d");
+        var state = State(config);
+        var factory = new FakeBmsTransportFactory(address => new FakeBmsTransport(
+            address,
+            frameSequence:
+            [
+                TestFrameBuilder.BuildDeviceInfoFrame(setupPasscode: "654321"),
+                TestFrameBuilder.BuildCellInfoFrame32S(),
+            ]));
+        await using var device = CreateDevice(
+            config,
+            state,
+            factory,
+            new FakeBluetoothAdapterCoordinator(),
+            settingsPassword: () => "654321");
+        using var cancellation = new CancellationTokenSource();
+        var run = device.RunAsync(cancellation.Token);
+
+        await WaitUntilAsync(() => state.LastPollAt.HasValue);
+        state.SettingsPasswordChangeStatus.Should().Be("succeeded_verified");
+        device.TryQueueSettingsPasswordChange().Should().BeFalse();
+        cancellation.Cancel();
+        await run.AwaitCancellationAsync();
+    }
+
+    [TestMethod]
     public async Task RunAsync_ConnectFailure_IsIsolatedAndPublishesUnavailable()
     {
         var config = Device("FF", "bank-1");
@@ -87,7 +145,8 @@ public sealed class JkBmsDeviceLifecycleTests
         FakeBmsTransportFactory factory,
         FakeBluetoothAdapterCoordinator coordinator,
         Action<DateTime>? onUnavailable = null,
-        Func<DevicePollState, JkBmsClient, HVO.Hardware.JkBms.Protocol.Packets.CellInfoPacket, CancellationToken, Task>? onPoll = null)
+        Func<DevicePollState, JkBmsClient, HVO.Hardware.JkBms.Protocol.Packets.CellInfoPacket, CancellationToken, Task>? onPoll = null,
+        Func<string?>? settingsPassword = null)
     {
         return new JkBmsDevice(
             config,
@@ -99,10 +158,19 @@ public sealed class JkBmsDeviceLifecycleTests
             NullLoggerFactory.Instance,
             new GatewayTelemetry(new("jkbms-test", "jk-bms-direct")),
             TimeProvider.System,
+            settingsPassword ?? (() => null),
             onPoll ?? ((_, _, _, _) => Task.CompletedTask),
             onUnavailable ?? (_ => { }),
             () => { },
             NullLogger<JkBmsDevice>.Instance);
+    }
+
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        while (!condition())
+            await Task.Delay(10, timeout.Token);
     }
 }
 

@@ -36,8 +36,10 @@ public sealed class HomeAssistantAutomationIntegrationTests
         };
         using var worker = new HomeAssistantMqttWorker(
             projection,
+            new HomeAssistantMqttCommandRouter(options),
             session,
             credentials,
+            TestSupport.Identity(),
             options,
             NullLogger<HomeAssistantMqttWorker>.Instance);
 

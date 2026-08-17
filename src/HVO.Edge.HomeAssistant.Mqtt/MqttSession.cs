@@ -12,12 +12,13 @@ internal sealed record MqttConnectionSettings(
     string WillTopic);
 
 internal sealed record MqttPublishMessage(string Topic, string Payload, bool Retain = true, int QualityOfService = 1);
+internal sealed record MqttReceivedMessage(string Topic, string Payload, bool Retain);
 
 internal interface IMqttSession : IAsyncDisposable
 {
     bool IsConnected { get; }
     event Action? Disconnected;
-    event Action<string, string>? MessageReceived;
+    event Action<MqttReceivedMessage>? MessageReceived;
     Task ConnectAsync(MqttConnectionSettings settings, CancellationToken cancellationToken);
     Task SubscribeAsync(string topic, CancellationToken cancellationToken);
     Task PublishAsync(MqttPublishMessage message, CancellationToken cancellationToken);
@@ -39,14 +40,17 @@ internal sealed class MqttNetSession : IMqttSession
         client.ApplicationMessageReceivedAsync += arguments =>
         {
             var payload = arguments.ApplicationMessage.ConvertPayloadToString();
-            MessageReceived?.Invoke(arguments.ApplicationMessage.Topic, payload);
+            MessageReceived?.Invoke(new(
+                arguments.ApplicationMessage.Topic,
+                payload,
+                arguments.ApplicationMessage.Retain));
             return Task.CompletedTask;
         };
     }
 
     public bool IsConnected => client.IsConnected;
     public event Action? Disconnected;
-    public event Action<string, string>? MessageReceived;
+    public event Action<MqttReceivedMessage>? MessageReceived;
 
     public async Task ConnectAsync(MqttConnectionSettings settings, CancellationToken cancellationToken)
     {

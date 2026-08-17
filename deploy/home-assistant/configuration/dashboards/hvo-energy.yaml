@@ -532,12 +532,20 @@ views:
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_25xbattery_x5fnet_x5fcurrent
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_23xbattery_x5fnet_x5fpower
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_13xcell_x5fdelta
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_22xmax_x5fvoltage_x5fcell
+                name: Highest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_22xmax_x5fcell_x5fvoltage
+                name: Highest cell voltage
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_22xmin_x5fvoltage_x5fcell
+                name: Lowest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_22xmin_x5fcell_x5fvoltage
+                name: Lowest cell voltage
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_27xbattery_x5ftemperature_x5f1
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_21xmosfet_x5ftemperature
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_9xbalancing
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_20xbalancing_x5fcurrent
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_5xalarm
-              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_16xalarm_x5fbitmask
+              - sensor.hvo_jkbms_bank_1a_active_alarms_90e5a62d
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_21xremaining_x5fcapacity
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_14xcycle_x5fcount
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1a_21xstate_x5fof_x5fhealth
@@ -557,12 +565,20 @@ views:
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_25xbattery_x5fnet_x5fcurrent
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_23xbattery_x5fnet_x5fpower
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_13xcell_x5fdelta
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_22xmax_x5fvoltage_x5fcell
+                name: Highest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_22xmax_x5fcell_x5fvoltage
+                name: Highest cell voltage
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_22xmin_x5fvoltage_x5fcell
+                name: Lowest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_22xmin_x5fcell_x5fvoltage
+                name: Lowest cell voltage
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_27xbattery_x5ftemperature_x5f1
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_21xmosfet_x5ftemperature
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_9xbalancing
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_20xbalancing_x5fcurrent
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_5xalarm
-              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_16xalarm_x5fbitmask
+              - sensor.hvo_jkbms_bank_1b_active_alarms_534b16f7
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_21xremaining_x5fcapacity
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_14xcycle_x5fcount
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_21xstate_x5fof_x5fhealth
@@ -582,12 +598,20 @@ views:
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_25xbattery_x5fnet_x5fcurrent
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_23xbattery_x5fnet_x5fpower
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_13xcell_x5fdelta
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_22xmax_x5fvoltage_x5fcell
+                name: Highest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_22xmax_x5fcell_x5fvoltage
+                name: Highest cell voltage
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_22xmin_x5fvoltage_x5fcell
+                name: Lowest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_22xmin_x5fcell_x5fvoltage
+                name: Lowest cell voltage
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_27xbattery_x5ftemperature_x5f1
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_21xmosfet_x5ftemperature
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_9xbalancing
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_20xbalancing_x5fcurrent
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_5xalarm
-              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_16xalarm_x5fbitmask
+              - sensor.hvo_jkbms_bank_1c_active_alarms_663d4721
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_21xremaining_x5fcapacity
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_14xcycle_x5fcount
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_21xstate_x5fof_x5fhealth
@@ -607,12 +631,20 @@ views:
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_25xbattery_x5fnet_x5fcurrent
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_23xbattery_x5fnet_x5fpower
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_13xcell_x5fdelta
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_22xmax_x5fvoltage_x5fcell
+                name: Highest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_22xmax_x5fcell_x5fvoltage
+                name: Highest cell voltage
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_22xmin_x5fvoltage_x5fcell
+                name: Lowest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_22xmin_x5fcell_x5fvoltage
+                name: Lowest cell voltage
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_27xbattery_x5ftemperature_x5f1
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_21xmosfet_x5ftemperature
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_9xbalancing
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_20xbalancing_x5fcurrent
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_5xalarm
-              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_16xalarm_x5fbitmask
+              - sensor.hvo_jkbms_bank_1d_active_alarms_e60c357b
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_21xremaining_x5fcapacity
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_14xcycle_x5fcount
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_21xstate_x5fof_x5fhealth
@@ -632,12 +664,22 @@ views:
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_25xbattery_x5fnet_x5fcurrent
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_23xbattery_x5fnet_x5fpower
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_13xcell_x5fdelta
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_22xmax_x5fvoltage_x5fcell
+                name: Highest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_22xmax_x5fcell_x5fvoltage
+                name: Highest cell voltage
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_22xmin_x5fvoltage_x5fcell
+                name: Lowest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_22xmin_x5fcell_x5fvoltage
+                name: Lowest cell voltage
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_27xbattery_x5ftemperature_x5f1
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_21xmosfet_x5ftemperature
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_9xbalancing
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_20xbalancing_x5fcurrent
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_5xalarm
-              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_16xalarm_x5fbitmask
+              - sensor.hvo_jkbms_bank_2a_active_alarms_91902d92
+              - sensor.hvo_jkbms_bank_2a_settings_password_change_status_5a8d5b71
+              - button.hvo_jkbms_bank_2a_change_settings_password_5fd3d754
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_21xremaining_x5fcapacity
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_14xcycle_x5fcount
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_21xstate_x5fof_x5fhealth
@@ -657,12 +699,22 @@ views:
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_25xbattery_x5fnet_x5fcurrent
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_23xbattery_x5fnet_x5fpower
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_13xcell_x5fdelta
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_22xmax_x5fvoltage_x5fcell
+                name: Highest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_22xmax_x5fcell_x5fvoltage
+                name: Highest cell voltage
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_22xmin_x5fvoltage_x5fcell
+                name: Lowest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_22xmin_x5fcell_x5fvoltage
+                name: Lowest cell voltage
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_27xbattery_x5ftemperature_x5f1
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_21xmosfet_x5ftemperature
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_9xbalancing
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_20xbalancing_x5fcurrent
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_5xalarm
-              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_16xalarm_x5fbitmask
+              - sensor.hvo_jkbms_bank_2b_active_alarms_70804b8d
+              - sensor.hvo_jkbms_bank_2b_settings_password_change_status_e08e3a06
+              - button.hvo_jkbms_bank_2b_change_settings_password_3e4e8c96
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_21xremaining_x5fcapacity
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_14xcycle_x5fcount
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_21xstate_x5fof_x5fhealth
@@ -682,12 +734,22 @@ views:
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_25xbattery_x5fnet_x5fcurrent
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_23xbattery_x5fnet_x5fpower
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_13xcell_x5fdelta
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_22xmax_x5fvoltage_x5fcell
+                name: Highest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_22xmax_x5fcell_x5fvoltage
+                name: Highest cell voltage
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_22xmin_x5fvoltage_x5fcell
+                name: Lowest cell
+              - entity: sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_22xmin_x5fcell_x5fvoltage
+                name: Lowest cell voltage
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_27xbattery_x5ftemperature_x5f1
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_21xmosfet_x5ftemperature
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_9xbalancing
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_20xbalancing_x5fcurrent
               - binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_5xalarm
-              - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_16xalarm_x5fbitmask
+              - sensor.hvo_jkbms_bank_2c_active_alarms_5c03a5be
+              - sensor.hvo_jkbms_bank_2c_settings_password_change_status_5a69b3b7
+              - button.hvo_jkbms_bank_2c_change_settings_password_1abff03d
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_21xremaining_x5fcapacity
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_14xcycle_x5fcount
               - sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_21xstate_x5fof_x5fhealth
@@ -700,46 +762,46 @@ views:
                 state: "on"
             card:
               type: markdown
-              content: "**Bank 1 alarm is active.** Inspect the alarm bitmask and collector logs."
+              content: "**Bank 1:** {{ states('sensor.hvo_jkbms_bank_1a_active_alarms_90e5a62d') }}"
           - type: conditional
             conditions:
               - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1b_5xalarm
                 state: "on"
             card:
               type: markdown
-              content: "**Bank 2 alarm is active.** Inspect the alarm bitmask and collector logs."
+              content: "**Bank 2:** {{ states('sensor.hvo_jkbms_bank_1b_active_alarms_534b16f7') }}"
           - type: conditional
             conditions:
               - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1c_5xalarm
                 state: "on"
             card:
               type: markdown
-              content: "**Bank 3 alarm is active.** Inspect the alarm bitmask and collector logs."
+              content: "**Bank 3:** {{ states('sensor.hvo_jkbms_bank_1c_active_alarms_663d4721') }}"
           - type: conditional
             conditions:
               - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d1d_5xalarm
                 state: "on"
             card:
               type: markdown
-              content: "**Bank 4 alarm is active.** Inspect the alarm bitmask and collector logs."
+              content: "**Bank 4:** {{ states('sensor.hvo_jkbms_bank_1d_active_alarms_e60c357b') }}"
           - type: conditional
             conditions:
               - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2a_5xalarm
                 state: "on"
             card:
               type: markdown
-              content: "**Bank 5 alarm is active.** Inspect the alarm bitmask and collector logs."
+              content: "**Bank 5:** {{ states('sensor.hvo_jkbms_bank_2a_active_alarms_91902d92') }}"
           - type: conditional
             conditions:
               - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2b_5xalarm
                 state: "on"
             card:
               type: markdown
-              content: "**Bank 6 alarm is active.** Inspect the alarm bitmask and collector logs."
+              content: "**Bank 6:** {{ states('sensor.hvo_jkbms_bank_2b_active_alarms_70804b8d') }}"
           - type: conditional
             conditions:
               - entity: binary_sensor.hvo_3xhvo_5xjkbms_10xbank_x2d2c_5xalarm
                 state: "on"
             card:
               type: markdown
-              content: "**Bank 7 alarm is active.** Inspect the alarm bitmask and collector logs."
+              content: "**Bank 7:** {{ states('sensor.hvo_jkbms_bank_2c_active_alarms_5c03a5be') }}"

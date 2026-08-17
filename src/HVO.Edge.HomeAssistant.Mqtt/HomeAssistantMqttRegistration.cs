@@ -25,6 +25,8 @@ public static class HomeAssistantMqttRegistration
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<HomeAssistantMqttOptions>, HomeAssistantMqttOptionsValidator>());
         services.AddSingleton<HomeAssistantMqttProjection>();
         services.AddSingleton<IHomeAssistantMqttProjection>(provider => provider.GetRequiredService<HomeAssistantMqttProjection>());
+        services.AddSingleton<HomeAssistantMqttCommandRouter>();
+        services.AddSingleton<IHomeAssistantMqttCommandRouter>(provider => provider.GetRequiredService<HomeAssistantMqttCommandRouter>());
         services.TryAddSingleton<IMqttSession, MqttNetSession>();
         services.AddSingleton<MqttRuntimeCredential>();
         services.AddHostedService<HomeAssistantMqttInitializer>();

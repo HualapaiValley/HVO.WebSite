@@ -191,7 +191,10 @@
       data:
         notification_id: "hvo_jk_bms_alarm_{{ trigger.entity_id | replace('.', '_') }}"
         title: HVO battery bank alarm
-        message: "{{ trigger.to_state.name }} is active."
+        message: >-
+          {% set alarm_sensor = device_entities(device_id(trigger.entity_id))
+            | select('search', '_active_alarms_') | first | default(none) %}
+          {{ trigger.to_state.name }} is active: {{ states(alarm_sensor) }}.
 
 - id: hvo_jk_bms_alarm_cleared
   alias: HVO JK BMS alarm cleared

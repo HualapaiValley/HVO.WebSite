@@ -7,6 +7,7 @@ using HVO.Edge.Hosting.Telemetry;
 using HVO.Hardware.JkBms.Bms;
 using HVO.Hardware.JkBms.Configuration;
 using HVO.Hardware.JkBms.HomeAssistant;
+using HVO.Hardware.JkBms.Hosting;
 using HVO.Hardware.JkBms.Outbox;
 using HVO.Hardware.JkBms.Protocol;
 using HVO.Hardware.JkBms.Protocol.Packets;
@@ -159,6 +160,8 @@ public sealed class BmsPollerWorkerTests
                 services.GetRequiredService<IServiceScopeFactory>(),
                 options,
                 new JkBmsHomeAssistantProjection(mqtt, Identity(), options),
+                new FakeCommandRouter(),
+                new JkBmsSettingsPasswordCredentials(),
                 telemetry,
                 TimeProvider.System,
                 NullLogger<BmsPollerWorker>.Instance);
@@ -213,6 +216,11 @@ public sealed class BmsPollerWorkerTests
         public bool PublishCurrentState(HomeAssistantCurrentState state) { States.Add(state); return true; }
         public bool RemoveDevice(HomeAssistantDeviceKey key) => false;
         public HomeAssistantMqttStatus GetStatus() => new(false, false, 0, null, null, null);
+    }
+
+    private sealed class FakeCommandRouter : IHomeAssistantMqttCommandRouter
+    {
+        public void Register(HomeAssistantDeviceKey key, string componentId, Action handler) { }
     }
 
     private static EdgeRuntimeIdentity Identity() => new(

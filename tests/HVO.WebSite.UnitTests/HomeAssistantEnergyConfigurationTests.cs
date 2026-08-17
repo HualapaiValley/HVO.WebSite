@@ -53,9 +53,40 @@ public sealed class HomeAssistantEnergyConfigurationTests
             .And.Contain("type: statistics-graph")
             .And.Contain("type: conditional");
         Enumerable.Range(1, 7).Should().OnlyContain(bank => dashboard.Contains($"title: Bank {bank}", StringComparison.Ordinal));
+        var bankEntities = new Dictionary<string, string>
+        {
+            ["bank_x2d1a"] = "sensor.hvo_jkbms_bank_1a_active_alarms_90e5a62d",
+            ["bank_x2d1b"] = "sensor.hvo_jkbms_bank_1b_active_alarms_534b16f7",
+            ["bank_x2d1c"] = "sensor.hvo_jkbms_bank_1c_active_alarms_663d4721",
+            ["bank_x2d1d"] = "sensor.hvo_jkbms_bank_1d_active_alarms_e60c357b",
+            ["bank_x2d2a"] = "sensor.hvo_jkbms_bank_2a_active_alarms_91902d92",
+            ["bank_x2d2b"] = "sensor.hvo_jkbms_bank_2b_active_alarms_70804b8d",
+            ["bank_x2d2c"] = "sensor.hvo_jkbms_bank_2c_active_alarms_5c03a5be",
+        };
+        foreach (var (deviceId, activeAlarmEntity) in bankEntities)
+        {
+            dashboard.Should().ContainAll(
+                $"10x{deviceId}_22xmax_x5fvoltage_x5fcell",
+                $"10x{deviceId}_22xmax_x5fcell_x5fvoltage",
+                $"10x{deviceId}_22xmin_x5fvoltage_x5fcell",
+                $"10x{deviceId}_22xmin_x5fcell_x5fvoltage",
+                activeAlarmEntity);
+        }
+        dashboard.Should().NotContain("Inspect the alarm bitmask");
         dashboard.Should().NotContain("grid_energy")
             .And.NotContain("Grid Import")
             .And.NotContain("Grid Export");
+    }
+
+    [TestMethod]
+    public void JkAlarmNotification_IncludesDecodedAlarmReason()
+    {
+        var automations = File.ReadAllText(Path.Combine(ConfigurationRoot, "automations", "hvo.yaml"));
+
+        automations.Should().Contain("id: hvo_jk_bms_alarm")
+            .And.Contain("device_entities(device_id(trigger.entity_id))")
+            .And.Contain("select('search', '_active_alarms_')")
+            .And.Contain("states(alarm_sensor)");
     }
 
     [TestMethod]

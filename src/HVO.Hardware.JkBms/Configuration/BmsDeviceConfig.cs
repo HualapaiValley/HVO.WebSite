@@ -41,6 +41,12 @@ public sealed class BmsDeviceConfig
     public string? HciAdapter { get; set; }
 
     /// <summary>
+    /// Optional file name under the configured secrets directory containing a new
+    /// six-digit settings password. When configured, Home Assistant exposes a one-shot button.
+    /// </summary>
+    public string? SettingsPasswordSecret { get; set; }
+
+    /// <summary>
     /// Whether this device is enabled. Set to false to temporarily skip a device
     /// without removing it from configuration.
     /// </summary>

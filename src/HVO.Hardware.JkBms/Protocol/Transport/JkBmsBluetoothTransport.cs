@@ -36,6 +36,8 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
     private readonly List<byte> _rxBuffer = [];
     private readonly Channel<byte[]> _frameChannel =
         Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions { SingleReader = true });
+    private readonly Channel<byte[]> _acknowledgementChannel =
+        Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions { SingleReader = true });
 
     public string DeviceAddress { get; }
     public bool IsConnected => _isConnected && _writeCharacteristic != null && _notifyCharacteristic != null;
@@ -268,6 +270,43 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
         }
     }
 
+    public async Task<byte[]> ExchangeAcknowledgedAsync(byte[] command, CancellationToken ct)
+    {
+        if (!IsConnected)
+            throw new JkBmsConnectException(DeviceAddress, 0,
+                new InvalidOperationException("Transport is not connected. Wait for the adapter coordinator to establish a new BLE session."));
+
+        while (_acknowledgementChannel.Reader.TryRead(out _)) { }
+        try
+        {
+            await _writeCharacteristic!.WriteValueAsync(command,
+                new Dictionary<string, object> { { "type", "command" } });
+            _logger.LogTrace("BLE write {Bytes} bytes to {Address}", command.Length, DeviceAddress);
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(_exchangeTimeout);
+            byte[] acknowledgement;
+            try
+            {
+                acknowledgement = await _acknowledgementChannel.Reader.ReadAsync(timeoutCts.Token);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                throw new JkBmsTimeoutException(DeviceAddress);
+            }
+
+            if (!JkBmsProtocol.ValidateAcknowledgement(acknowledgement))
+                throw new JkBmsFrameException($"Invalid write acknowledgement from {DeviceAddress}.");
+            return acknowledgement;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "BLE acknowledged exchange failed for {Address}; disconnecting", DeviceAddress);
+            await DisconnectAsync();
+            throw;
+        }
+    }
+
     private async Task<byte[]> DoExchangeAsync(byte[] command, CancellationToken ct)
     {
         lock (_rxBufferLock) { _rxBuffer.Clear(); }
@@ -335,6 +374,14 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
         {
             if (pair.Key == "Value" && pair.Value is byte[] value)
             {
+                if (value.Length == 20
+                    && value[0] == 0xAA && value[1] == 0x55
+                    && value[2] == 0x90 && value[3] == 0xEB)
+                {
+                    _ = _acknowledgementChannel.Writer.TryWrite(value);
+                    continue;
+                }
+
                 byte[]? frame = null;
                 lock (_rxBufferLock)
                 {
@@ -355,6 +402,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
             _disposed = true;
             await DisconnectAsync();
             _frameChannel.Writer.TryComplete();
+            _acknowledgementChannel.Writer.TryComplete();
         }
     }
 }

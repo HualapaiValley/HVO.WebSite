@@ -4,14 +4,12 @@ Minimal per-gateway Docker Compose deployments for Pi-class edge hosts.
 
 ## Website upstream policy
 
-Deployed Pi gateways should normally post to the public `HVO.WebSite` API, not directly to `hvo-docker`.
-
-Use `hvo-docker` as the upstream only when you are intentionally validating unpublished website/API changes, local infrastructure behavior, or end-to-end development flows before Azure is updated.
+Deployed Pi gateways post directly to the internally hosted `HVO.WebSite` API on `hvo-docker`. The public Azure address is only a proxy path into the local environment and is not a gateway ingest dependency.
 
 Practical default:
 
-- Pi deployment: `HVO_WEBSITE_PUBLIC_BASE_URL=https://www.hualapaivalleyobservatory.org`
-- Local development/integration override: `HVO_WEBSITE_PUBLIC_BASE_URL=http://<hvo-docker-or-dev-host>`
+- Pi deployment: `HVO_WEBSITE_PUBLIC_BASE_URL=http://hvo-docker.hvo.lan`
+- Local development/integration override: `HVO_WEBSITE_PUBLIC_BASE_URL=http://<dev-host>`
 
 ## API key source of truth
 
@@ -118,24 +116,24 @@ To verify deployed endpoints after rollout:
 
 - The paired direct public-GATT collector is the sole acquisition authority and central writer. Home Assistant receives only the collector's read-only MQTT projection; do not enable an HA/ESPHome acquisition or exporter mapping for this device.
 - Copy `gateway.json.example` to ignored `gateway.json`; mount diagnostics, central-ingest, and optional MQTT credentials as separate files in the ignored `secrets` directory.
-- Root Compose also requires those mounted files. It overrides only `SmartShunt:CentralIngestBaseEndpoint`, defaulting safely to `http://hvo-website:8080/`; the API key remains exclusively in `secrets/central-ingest-api-key`.
+- Root Compose also requires those mounted files. The API key remains exclusively in `secrets/central-ingest-api-key`.
 - The Compose project, service name, and `smartshunt-outbox` volume remain unchanged, preserving queued legacy summaries during migration to the shared outbox schema.
 - The deployment preflight validates direct authority, source identity, the public-GATT MAC address, shared outbox path/type, and required secret files before SSH synchronization and recreation.
 - Follow `docs/gateways/victron-smartshunt.md` for exactly-one-owner cutover, rollback, and the optional bounded `TestCategory=Live` check.
 
 ## Recommended workflow
 
-1. Develop website/API changes in the repo devcontainer on `hvo-dev` and validate them against `hvo-docker` when needed.
-2. Publish or deploy the website/API update to Azure when the gateway contract is ready.
-3. Deploy the gateway container to the Pi with `HVO_WEBSITE_PUBLIC_BASE_URL` pointed at Azure.
-4. Use a non-Azure upstream only as a temporary, explicit test configuration.
+1. Develop website/API changes in the repo devcontainer and validate them against `hvo-docker`.
+2. Deploy the website/API update to `hvo-docker` when the gateway contract is ready.
+3. Deploy the gateway container to the Pi with `HVO_WEBSITE_PUBLIC_BASE_URL` pointed at `http://hvo-docker.hvo.lan`.
+4. Keep the public Azure proxy path out of gateway ingestion so local telemetry does not depend on external routing.
 
-## Azure rollout sequence
+## Internal rollout sequence
 
-1. Confirm the website Container App can read secrets from `https://hvo-central-kv.vault.azure.net/`.
+1. Confirm the website container on `hvo-docker` can read secrets from `https://hvo-central-kv.vault.azure.net/`.
 2. Store the raw API keys in Key Vault using the secret names listed above.
 3. Restart or roll a new website revision so startup seeding runs again.
-4. Verify the keys against the live Azure website API.
+4. Verify the keys against the live internal website API.
 5. Copy only the needed raw gateway key into the Pi gateway `.env` file.
 
 ## Current local ports

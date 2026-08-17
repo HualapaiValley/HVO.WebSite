@@ -21,4 +21,5 @@ public interface IBmsTransport : IAsyncDisposable
     Task DisconnectAsync();
 
     Task<byte[]> ExchangeAsync(byte[] command, CancellationToken ct);
+    Task<byte[]> ExchangeAcknowledgedAsync(byte[] command, CancellationToken ct);
 }
