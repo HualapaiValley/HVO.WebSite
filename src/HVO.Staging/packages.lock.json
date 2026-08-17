@@ -4,9 +4,9 @@
     "net10.0": {
       "HVO.Astronomy": {
         "type": "Direct",
-        "requested": "[1.0.0, )",
-        "resolved": "1.0.0",
-        "contentHash": "8xQ+OJtefxw9yRDp2+quKKvxzZ8f032wDLwpeFFyP0LqwUQwpK3Lk55MdB5Ey6PfSkvMHNUyH3M5TsI+94ylMg=="
+        "requested": "[1.0.1, )",
+        "resolved": "1.0.1",
+        "contentHash": "+LXnkVFfdRXMwJlMg2VDchh2+JdMhfmT37w1MpfUCAJdqQBCXJVJ+EYWkIVqXK0DmdLNl7zg2jdEqLvuesYKuA=="
       },
       "HVO.Weather": {
         "type": "Direct",
