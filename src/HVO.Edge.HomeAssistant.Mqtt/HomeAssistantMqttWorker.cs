@@ -1,4 +1,5 @@
 using System.Text.Json;
+using HVO.Edge.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -7,8 +8,10 @@ namespace HVO.Edge.HomeAssistant.Mqtt;
 
 internal sealed class HomeAssistantMqttWorker(
     HomeAssistantMqttProjection projection,
+    HomeAssistantMqttCommandRouter commandRouter,
     IMqttSession session,
     MqttRuntimeCredential credential,
+    EdgeRuntimeIdentity identity,
     IOptions<HomeAssistantMqttOptions> options,
     ILogger<HomeAssistantMqttWorker> logger) : BackgroundService
 {
@@ -36,6 +39,9 @@ internal sealed class HomeAssistantMqttWorker(
                     {
                         await session.ConnectAsync(credential.Settings!, stoppingToken);
                         await session.SubscribeAsync(topics.Birth, stoppingToken);
+                        await session.SubscribeAsync(topics.CommandFilter(
+                            identity.SiteId ?? throw new InvalidOperationException("Edge:Runtime:SiteId is required for Home Assistant commands."),
+                            identity.GatewayId), stoppingToken);
                         projection.SetConnected(true);
                         projection.DiscardChanges();
                         await RepublishAllAsync(stoppingToken);
@@ -175,13 +181,24 @@ internal sealed class HomeAssistantMqttWorker(
         projection.Signal();
     }
 
-    private void OnMessageReceived(string topic, string payload)
+    private void OnMessageReceived(MqttReceivedMessage message)
     {
-        if (string.Equals(topic, topics.Birth, StringComparison.Ordinal)
-            && string.Equals(payload.Trim(), "online", StringComparison.OrdinalIgnoreCase)
+        if (string.Equals(message.Topic, topics.Birth, StringComparison.Ordinal)
+            && string.Equals(message.Payload.Trim(), "online", StringComparison.OrdinalIgnoreCase)
             && Interlocked.Exchange(ref birthPending, 1) == 0)
         {
             projection.Signal();
+        }
+        else
+        {
+            try
+            {
+                commandRouter.TryDispatch(message.Topic, message.Payload, message.Retain);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Home Assistant MQTT command handler failed.");
+            }
         }
     }
 

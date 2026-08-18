@@ -120,6 +120,15 @@ public sealed class JkBmsClient : IAsyncDisposable
         return DeviceInfoPacket.Parse(data);
     }
 
+    public async Task ChangeSettingsPasswordAsync(string password, CancellationToken ct)
+    {
+        _logger.LogInformation("Changing JK BMS settings password for {Address}", DeviceAddress);
+        var acknowledgement = await _transport.ExchangeAcknowledgedAsync(
+            JkBmsProtocol.BuildSetSettingsPasswordCommand(password), ct);
+        if (acknowledgement[6] != 0x01)
+            throw new JkBmsFrameException($"JK BMS at {DeviceAddress} rejected the settings-password change.");
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (!_disposed)

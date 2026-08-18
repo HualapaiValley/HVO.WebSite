@@ -23,7 +23,7 @@ public sealed class JkBmsHomeAssistantProjectionTests
             Options.Create(new JkBmsOptions { Devices = [Device("b"), Device("a")] }));
 
         mqtt.Definitions.Select(definition => definition.Key.DeviceId).Should().BeEquivalentTo("a", "b");
-        mqtt.Definitions.Should().OnlyContain(definition => definition.Entities.Length == 25);
+        mqtt.Definitions.Should().OnlyContain(definition => definition.Entities.Length == 26);
         mqtt.Definitions.Single(definition => definition.Key.DeviceId == "a").Name.Should().Be("JK BMS Bank 1");
         mqtt.Definitions.Single(definition => definition.Key.DeviceId == "b").Name.Should().Be("JK BMS Bank 2");
         var entities = mqtt.Definitions[0].Entities;
@@ -39,6 +39,7 @@ public sealed class JkBmsHomeAssistantProjectionTests
             .Which.DeviceClass.Should().Be("battery_charging");
         entities.Should().ContainSingle(entity => entity.ComponentId == "cycle_capacity")
             .Which.As<HomeAssistantSensorDefinition>().StateClass.Should().Be("total_increasing");
+        entities.Should().ContainSingle(entity => entity.ComponentId == "active_alarms");
         mqtt.Definitions.SelectMany(definition => definition.Entities)
             .Should().NotContain(entity => entity.ComponentId.StartsWith("cell_", StringComparison.Ordinal)
                 && entity.ComponentId.Length > "cell_".Length
@@ -147,8 +148,8 @@ public sealed class JkBmsHomeAssistantProjectionTests
             CellVoltagesMv = [3300, 3320, 3290, 3310],
             AverageCellVoltageMv = 3305,
             DeltaCellVoltageMv = 30,
-            MaxVoltageCellIndex = 2,
-            MinVoltageCellIndex = 3,
+            MaxVoltageCellIndex = 4,
+            MinVoltageCellIndex = 1,
             BalancingCurrentMa = -450,
             BalancingActive = true,
             PowerTubeTemperatureC = 42.5,
@@ -181,6 +182,7 @@ public sealed class JkBmsHomeAssistantProjectionTests
         values["state_of_health"].GetInt32().Should().Be(96);
         values["alarm"].GetBoolean().Should().BeTrue();
         values["alarm_bitmask"].GetUInt32().Should().Be(0x40);
+        values["active_alarms"].GetString().Should().Be("Charge overcurrent");
     }
 
     [TestMethod]
@@ -199,6 +201,30 @@ public sealed class JkBmsHomeAssistantProjectionTests
         values.Should().NotContainKey("max_cell_voltage").And.NotContainKey("min_cell_voltage");
         values["charging"].GetBoolean().Should().BeFalse();
         values["discharging"].GetBoolean().Should().BeFalse();
+        values["active_alarms"].GetString().Should().Be("No active alarms");
+    }
+
+    [TestMethod]
+    public void Publish_DecodesMultipleAndUnknownAlarmBits()
+    {
+        var device = Device("a");
+        var mqtt = new FakeProjection();
+        var projection = new JkBmsHomeAssistantProjection(
+            mqtt,
+            Identity(),
+            Options.Create(new JkBmsOptions { Devices = [device] }));
+        var reading = new BmsDeviceReading
+        {
+            DeviceAddress = device.Address,
+            DeviceAlias = device.Alias,
+            RecordedAtUtc = DateTime.UtcNow,
+            AlarmBitmask = (1u << 1) | (1u << 11) | (1u << 31),
+        };
+
+        projection.Publish(device, reading).Should().BeTrue();
+
+        mqtt.States.Single().ComponentValues["active_alarms"].GetString().Should()
+            .Be("MOSFET overtemperature; Cell undervoltage; Unknown alarm bit 31");
     }
 
     [TestMethod]

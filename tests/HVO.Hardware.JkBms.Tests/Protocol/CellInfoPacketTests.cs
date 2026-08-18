@@ -229,11 +229,11 @@ public class CellInfoPacketTests
     [TestMethod]
     public void Parse_NonZeroAlarmBitmask_HasAlarmsIsTrue()
     {
-        byte[] frame = TestFrameBuilder.BuildCellInfoFrame(alarmBitmask: 0x01);
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame(alarmBitmask: 0x1234);
         var data = JkBmsProtocol.GetData(frame);
         var packet = CellInfoPacket.Parse(data);
         packet.HasAlarms.Should().BeTrue();
-        packet.AlarmBitmask.Should().Be(0x01u);
+        packet.AlarmBitmask.Should().Be(0x1234u);
     }
 
     // ── Error conditions ──────────────────────────────────────────────────────
@@ -332,13 +332,12 @@ public class CellInfoPacketTests
     }
 
     [TestMethod]
-    public void Parse_32S_AlarmBitmask_ReadFromOffset0xA0_BigEndian()
+    public void Parse_32S_AlarmBitmask_ReadsAllFourLittleEndianBytesFromOffset0xA0()
     {
-        // Alarm bitmask in the 32S layout is a BE uint16 at 0xA0.
-        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(alarmBitmask: 0x0008);
+        byte[] frame = TestFrameBuilder.BuildCellInfoFrame32S(alarmBitmask: 0x0800_0040);
         var data = JkBmsProtocol.GetData(frame);
         var packet = CellInfoPacket.Parse(data);
-        packet.AlarmBitmask.Should().Be(0x0008u);
+        packet.AlarmBitmask.Should().Be(0x0800_0040u);
         packet.HasAlarms.Should().BeTrue();
     }
 

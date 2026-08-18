@@ -305,6 +305,22 @@ for mapping in \
 	sync_secret_file "deploy/pi-gateways/$gateway/secrets/mqtt-password" HomeAssistant--MqttPassword
 done
 
+jkbms_config=deploy/pi-gateways/jkbms/gateway.json.example
+if [[ -f "$repo_root/$jkbms_config" ]]; then
+	command -v jq >/dev/null 2>&1 || fail "jq is required to inspect $jkbms_config."
+	for mapping in \
+		'bank-2a:jkbms-bank-2a-settings-password:Edge--JkBms--Bank2ASettingsPassword' \
+		'bank-2b:jkbms-bank-2b-settings-password:Edge--JkBms--Bank2BSettingsPassword' \
+		'bank-2c:jkbms-bank-2c-settings-password:Edge--JkBms--Bank2CSettingsPassword'; do
+		IFS=: read -r device_id file_name vault_secret <<< "$mapping"
+		if jq -e --arg device_id "$device_id" --arg file_name "$file_name" \
+			'.JkBms.Devices[] | select(.DeviceId == $device_id and .Enabled == true and .SettingsPasswordSecret == $file_name)' \
+			"$repo_root/$jkbms_config" >/dev/null; then
+			sync_secret_file "deploy/pi-gateways/jkbms/secrets/$file_name" "$vault_secret"
+		fi
+	done
+fi
+
 davis_config=deploy/pi-gateways/davis/gateway.json
 if [[ ! -f "$repo_root/$davis_config" ]]; then
 	printf 'skipped deploy/pi-gateways/davis/secrets/weather-underground-station-key (Davis gateway.json not materialized)\n'

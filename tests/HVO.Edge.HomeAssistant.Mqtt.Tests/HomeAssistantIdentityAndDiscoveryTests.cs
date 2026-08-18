@@ -96,6 +96,38 @@ public sealed class HomeAssistantIdentityAndDiscoveryTests
     }
 
     [TestMethod]
+    public void Discovery_Button_UsesNonSecretCommandTopicAndConstantPayload()
+    {
+        var definition = TestSupport.Device(
+            TestSupport.Key,
+            new HomeAssistantButtonDefinition("change_settings_password", "Change settings password"));
+
+        using var document = JsonDocument.Parse(HomeAssistantDiscoverySerializer.Serialize(definition, TestSupport.Topics));
+        var button = document.RootElement.GetProperty("components").GetProperty("change_x5fsettings_x5fpassword");
+
+        button.GetProperty("platform").GetString().Should().Be("button");
+        button.GetProperty("command_topic").GetString().Should().Be(
+            TestSupport.Topics.Command(TestSupport.Key, "change_settings_password"));
+        button.GetProperty("payload_press").GetString().Should().Be("PRESS");
+        button.TryGetProperty("state_topic", out _).Should().BeFalse();
+    }
+
+    [TestMethod]
+    public void CommandRouter_RejectsRetainedAndUnexpectedPayloads()
+    {
+        var options = Microsoft.Extensions.Options.Options.Create(TestSupport.Options());
+        var router = new HomeAssistantMqttCommandRouter(options);
+        var calls = 0;
+        router.Register(TestSupport.Key, "change", () => calls++);
+        var topic = TestSupport.Topics.Command(TestSupport.Key, "change");
+
+        router.TryDispatch(topic, "PRESS", true).Should().BeFalse();
+        router.TryDispatch(topic, "password", false).Should().BeFalse();
+        router.TryDispatch(topic, "PRESS", false).Should().BeTrue();
+        calls.Should().Be(1);
+    }
+
+    [TestMethod]
     public void Discovery_IncludesHardwareVersionInDeviceMetadata()
     {
         var definition = new HomeAssistantDeviceDefinition(

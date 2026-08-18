@@ -44,6 +44,53 @@ public class JkBmsProtocolTests
         cmd[4].Should().Be(0x97);
     }
 
+    [TestMethod]
+    public void BuildSetSettingsPasswordCommand_MatchesOfficialAppFrameLayout()
+    {
+        JkBmsProtocol.BuildSetSettingsPasswordCommand("654321").Should().Equal(
+            0xAA, 0x55, 0x90, 0xEB, 0xA0, 0x06, 0x36, 0x35,
+            0x34, 0x33, 0x32, 0x31, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x55);
+    }
+
+    [TestMethod]
+    [DataRow("12345")]
+    [DataRow("1234567")]
+    [DataRow("12A456")]
+    public void BuildSetSettingsPasswordCommand_RejectsUnsupportedValues(string password)
+    {
+        var act = () => JkBmsProtocol.BuildSetSettingsPasswordCommand(password);
+
+        act.Should().Throw<ArgumentException>()
+            .Which.Message.Should().NotContain(password);
+    }
+
+    [TestMethod]
+    public void ValidateAcknowledgement_AcceptsCapturedSuccessFrame()
+    {
+        byte[] acknowledgement =
+        [
+            0xAA, 0x55, 0x90, 0xEB, 0xC8, 0x01, 0x01, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x44,
+        ];
+
+        JkBmsProtocol.ValidateAcknowledgement(acknowledgement).Should().BeTrue();
+    }
+
+    [TestMethod]
+    public void ValidateAcknowledgement_RejectsNormalFrameChunkWithMatchingHeader()
+    {
+        byte[] frameChunk =
+        [
+            0xAA, 0x55, 0x90, 0xEB, 0x01, 0x02, 0x03, 0x04,
+            0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+            0x0D, 0x0E, 0x0F, 0x10,
+        ];
+
+        JkBmsProtocol.ValidateAcknowledgement(frameChunk).Should().BeFalse();
+    }
+
     // ── TryAccumulateFrame — single chunk ─────────────────────────────────────
 
     [TestMethod]

@@ -15,7 +15,9 @@ public sealed class HomeAssistantMqttWorkerTests
         await harness.StartAsync();
         await TestSupport.WaitUntilAsync(() => harness.Session.Messages.Count >= 4);
 
-        harness.Session.Subscriptions.Should().ContainSingle().Which.Should().Be("homeassistant/status");
+        harness.Session.Subscriptions.Should().Equal(
+            "homeassistant/status",
+            "hvo/observatory/gateway_x2d1/+/command/+");
         harness.Session.Messages.Should().OnlyContain(message => message.Retain && message.QualityOfService == 1);
         harness.Session.Messages.Select(message => message.Topic).Should().StartWith(
             TestSupport.Topics.Discovery(TestSupport.Key),
@@ -92,7 +94,7 @@ public sealed class HomeAssistantMqttWorkerTests
 
         await harness.StartAsync();
 
-        await TestSupport.WaitUntilAsync(() => session.ConnectCount >= 2 && session.Subscriptions.Count == 1);
+        await TestSupport.WaitUntilAsync(() => session.ConnectCount >= 2 && session.Subscriptions.Count == 2);
         session.EmitBirth();
         await TestSupport.WaitUntilAsync(() => DiscoveryCount(session) >= 2);
     }

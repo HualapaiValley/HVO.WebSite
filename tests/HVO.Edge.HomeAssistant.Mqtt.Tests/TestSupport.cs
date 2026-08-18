@@ -70,12 +70,20 @@ internal static class TestSupport
     {
         var options = Microsoft.Extensions.Options.Options.Create(Options());
         var projection = new HomeAssistantMqttProjection(Identity(), options);
+        var commandRouter = new HomeAssistantMqttCommandRouter(options);
         var fake = session ?? new FakeMqttSession();
         var credential = new MqttRuntimeCredential
         {
             Settings = new("broker", 1883, "client", "user", "password", Topics.GatewayAvailability(Key))
         };
-        var worker = new HomeAssistantMqttWorker(projection, fake, credential, options, NullLogger<HomeAssistantMqttWorker>.Instance);
+        var worker = new HomeAssistantMqttWorker(
+            projection,
+            commandRouter,
+            fake,
+            credential,
+            Identity(),
+            options,
+            NullLogger<HomeAssistantMqttWorker>.Instance);
         return new(worker, projection, fake);
     }
 
@@ -133,7 +141,7 @@ internal sealed class FakeMqttSession : IMqttSession
     }
 
     public event Action? Disconnected;
-    public event Action<string, string>? MessageReceived;
+    public event Action<MqttReceivedMessage>? MessageReceived;
 
     public async Task ConnectAsync(MqttConnectionSettings settings, CancellationToken cancellationToken)
     {
@@ -172,7 +180,7 @@ internal sealed class FakeMqttSession : IMqttSession
 
     public void ReleaseConnect() => ConnectGate.TrySetResult();
 
-    public void EmitBirth() => MessageReceived?.Invoke("homeassistant/status", "online");
+    public void EmitBirth() => MessageReceived?.Invoke(new("homeassistant/status", "online", false));
 
     public void DropConnection()
     {

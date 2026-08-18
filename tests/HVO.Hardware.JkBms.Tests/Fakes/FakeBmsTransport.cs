@@ -32,6 +32,7 @@ public sealed class FakeBmsTransport : IBmsTransport
     public int ConnectCallCount { get; private set; }
     public int DisconnectCallCount { get; private set; }
     public int ExchangeCallCount { get; private set; }
+    public byte[]? LastAcknowledgedCommand { get; private set; }
     public int DisposeCallCount { get; private set; }
 
     /// <summary>
@@ -88,6 +89,23 @@ public sealed class FakeBmsTransport : IBmsTransport
             ? _frameQueue.Dequeue()
             : _responseFrame ?? TestFrameBuilder.BuildCellInfoFrame(cellCount: 15);
         return Task.FromResult(frame);
+    }
+
+    public Task<byte[]> ExchangeAcknowledgedAsync(byte[] command, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        ExchangeCallCount++;
+        LastAcknowledgedCommand = command.ToArray();
+        if (_exchangeException is not null)
+            throw _exchangeException;
+
+        byte[] acknowledgement =
+        [
+            0xAA, 0x55, 0x90, 0xEB, 0xC8, 0x01, 0x01, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x44,
+        ];
+        return Task.FromResult(acknowledgement);
     }
 
     public ValueTask DisposeAsync()

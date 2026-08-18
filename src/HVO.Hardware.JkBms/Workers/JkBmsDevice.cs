@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Threading.Channels;
 using HVO.Edge.Hosting.Telemetry;
 using HVO.Hardware.JkBms.Configuration;
 using HVO.Hardware.JkBms.Protocol;
@@ -30,12 +31,21 @@ public sealed class JkBmsDevice : IAsyncDisposable
     private readonly ILoggerFactory _loggerFactory;
     private readonly GatewayTelemetry _telemetry;
     private readonly TimeProvider _timeProvider;
+    private readonly Func<string?> _getSettingsPassword;
     private readonly Func<DevicePollState, JkBmsClient, CellInfoPacket, CancellationToken, Task> _onSuccessfulPoll;
     private readonly Action<DateTime> _onUnavailable;
     private readonly Action _onStateChanged;
     private readonly ILogger<JkBmsDevice> _logger;
 
     private JkBmsClient _client;
+    private int _settingsPasswordCommandPending;
+    private readonly Channel<bool> _settingsPasswordCommands = Channel.CreateBounded<bool>(
+        new BoundedChannelOptions(1)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait,
+        });
 
     public DevicePollState State { get; }
     public string Address => _config.Address;
@@ -53,6 +63,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
         ILoggerFactory loggerFactory,
         GatewayTelemetry telemetry,
         TimeProvider timeProvider,
+        Func<string?> getSettingsPassword,
         Func<DevicePollState, JkBmsClient, CellInfoPacket, CancellationToken, Task> onSuccessfulPoll,
         Action<DateTime> onUnavailable,
         Action onStateChanged,
@@ -67,6 +78,7 @@ public sealed class JkBmsDevice : IAsyncDisposable
         _loggerFactory = loggerFactory;
         _telemetry = telemetry;
         _timeProvider = timeProvider;
+        _getSettingsPassword = getSettingsPassword;
         _onSuccessfulPoll = onSuccessfulPoll;
         _onUnavailable = onUnavailable;
         _onStateChanged = onStateChanged;
@@ -177,6 +189,21 @@ public sealed class JkBmsDevice : IAsyncDisposable
     {
         while (!ct.IsCancellationRequested && _client.IsConnected)
         {
+            if (_settingsPasswordCommands.Reader.TryRead(out _))
+            {
+                await ExecuteSettingsPasswordChangeAsync(ct);
+                if (!_client.IsConnected)
+                {
+                    var reason = State.LastError ?? "Transport disconnected during settings-password change.";
+                    State.RecordSessionDisconnected(DateTime.UtcNow, reason);
+                    _onUnavailable(_timeProvider.GetUtcNow().UtcDateTime);
+                    _onStateChanged();
+                    await ResetClientAsync();
+                    return;
+                }
+                continue;
+            }
+
             var wait = State.NextPollAt - DateTime.UtcNow;
             if (wait > TimeSpan.Zero)
                 await Task.Delay(wait > TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : wait, ct);
@@ -201,12 +228,89 @@ public sealed class JkBmsDevice : IAsyncDisposable
         }
     }
 
+    public bool TryQueueSettingsPasswordChange()
+    {
+        if (string.Equals(State.SettingsPasswordChangeStatus, "succeeded_verified", StringComparison.Ordinal))
+            return false;
+        if (!_client.IsConnected)
+        {
+            State.SettingsPasswordChangeStatus = "rejected_offline";
+            _onStateChanged();
+            return false;
+        }
+        if (Interlocked.CompareExchange(ref _settingsPasswordCommandPending, 1, 0) != 0)
+        {
+            State.SettingsPasswordChangeStatus = "rejected_busy";
+            _onStateChanged();
+            return false;
+        }
+        if (!_settingsPasswordCommands.Writer.TryWrite(true))
+        {
+            Interlocked.Exchange(ref _settingsPasswordCommandPending, 0);
+            State.SettingsPasswordChangeStatus = "rejected_busy";
+            _onStateChanged();
+            return false;
+        }
+
+        State.SettingsPasswordChangeStatus = "queued";
+        _onStateChanged();
+        return true;
+    }
+
+    private async Task ExecuteSettingsPasswordChangeAsync(CancellationToken ct)
+    {
+        State.SettingsPasswordChangeStatus = "running";
+        _onStateChanged();
+        try
+        {
+            var password = _getSettingsPassword()
+                ?? throw new InvalidOperationException("The settings-password credential is unavailable.");
+            await _client.ChangeSettingsPasswordAsync(password, ct);
+            var deviceInfo = await _client.PollDeviceInfoAsync(ct);
+            State.LatestDeviceInfo = deviceInfo;
+            State.SettingsPasswordChangeStatus = string.Equals(
+                deviceInfo.SetupPasscode,
+                password,
+                StringComparison.Ordinal)
+                ? "succeeded_verified"
+                : "failed_unverified";
+            _logger.LogInformation(
+                "Settings-password change completed for {Alias} ({Address}) with status {Status}",
+                State.Alias,
+                State.Address,
+                State.SettingsPasswordChangeStatus);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            State.SettingsPasswordChangeStatus = "failed";
+            State.LastError = "Settings-password change failed.";
+            _logger.LogWarning(
+                ex,
+                "Settings-password change failed for {Alias} ({Address}); the command will not be retried",
+                State.Alias,
+                State.Address);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _settingsPasswordCommandPending, 0);
+            _onStateChanged();
+        }
+    }
+
     private async Task InitializeSessionMetadataAsync(CancellationToken ct)
     {
         try
         {
             var deviceInfo = await _client.PollDeviceInfoAsync(ct);
             State.LatestDeviceInfo = deviceInfo;
+            var configuredPassword = _getSettingsPassword();
+            if (configuredPassword is not null
+                && string.Equals(deviceInfo.SetupPasscode, configuredPassword, StringComparison.Ordinal))
+                State.SettingsPasswordChangeStatus = "succeeded_verified";
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

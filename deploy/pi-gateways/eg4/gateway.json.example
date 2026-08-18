@@ -14,7 +14,8 @@
   "Eg4": {
     "DefaultPollIntervalSeconds": 15,
     "SimulationEnabled": false,
-    "CentralIngestEndpoint": "https://www.hualapaivalleyobservatory.org/",
+    "CentralIngestEndpoint": "http://hvo-docker.hvo.lan/",
+    "AllowInsecureCentralIngest": true,
     "CentralApiKeySecret": "central-ingest-api-key",
     "RetryExhaustedRequeueMinutes": 15,
     "Devices": [

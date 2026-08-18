@@ -16,7 +16,7 @@
       "Enabled": false,
       "Endpoint": "ws://192.168.1.113:8123/api/websocket",
       "AccessTokenSecret": "home-assistant-token",
-      "CentralIngestEndpoint": "https://www.hualapaivalleyobservatory.org/",
+      "CentralIngestEndpoint": "http://hvo-docker.hvo.lan/",
       "CentralApiKeySecret": "central-ingest-api-key",
       "RetryExhaustedRequeueMinutes": 15,
       "Mappings": []

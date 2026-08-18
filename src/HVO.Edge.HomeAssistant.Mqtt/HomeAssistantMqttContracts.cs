@@ -8,7 +8,8 @@ public sealed record HomeAssistantDeviceKey(string SiteId, string GatewayId, str
 public enum HomeAssistantEntityPlatform
 {
     Sensor,
-    BinarySensor
+    BinarySensor,
+    Button
 }
 
 public abstract record HomeAssistantEntityDefinition
@@ -83,6 +84,21 @@ public sealed record HomeAssistantBinarySensorDefinition : HomeAssistantEntityDe
     }
 }
 
+public sealed record HomeAssistantButtonDefinition : HomeAssistantEntityDefinition
+{
+    public HomeAssistantButtonDefinition(
+        string componentId,
+        string name,
+        string? deviceClass = null,
+        string? icon = null,
+        string? entityCategory = null,
+        bool enabledByDefault = true,
+        string? defaultEntityId = null)
+        : base(componentId, name, HomeAssistantEntityPlatform.Button, deviceClass, icon, entityCategory, enabledByDefault, defaultEntityId)
+    {
+    }
+}
+
 public sealed record HomeAssistantDeviceDefinition
 {
     public HomeAssistantDeviceDefinition(
@@ -146,4 +162,9 @@ public interface IHomeAssistantMqttProjection
     bool PublishCurrentState(HomeAssistantCurrentState state);
     bool RemoveDevice(HomeAssistantDeviceKey key);
     HomeAssistantMqttStatus GetStatus();
+}
+
+public interface IHomeAssistantMqttCommandRouter
+{
+    void Register(HomeAssistantDeviceKey key, string componentId, Action handler);
 }

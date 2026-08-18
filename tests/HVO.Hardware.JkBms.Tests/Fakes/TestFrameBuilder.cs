@@ -5,8 +5,7 @@ namespace HVO.Hardware.JkBms.Tests.Fakes;
 
 /// <summary>
 /// Builds synthetic JK BMS response frames for use in unit tests.
-/// All multi-byte integers are little-endian following the JK BMS protocol specification,
-/// except AlarmBitmask which is big-endian.
+/// All multi-byte integers are little-endian following the JK BMS protocol specification.
 /// </summary>
 public static class TestFrameBuilder
 {
@@ -68,9 +67,8 @@ public static class TestFrameBuilder
         WriteI16Le(data, 0x7E, battTemp2Raw);
         WriteI16Le(data, 0x80, powerTubeRaw);
 
-        // AlarmBitmask at 0x82 — big-endian uint16
-        data[0x82] = (byte)((alarmBitmask >> 8) & 0xFF);
-        data[0x83] = (byte)(alarmBitmask & 0xFF);
+        // AlarmBitmask at 0x82 - little-endian uint16
+        WriteU16Le(data, 0x82, (ushort)alarmBitmask);
 
         WriteI16Le(data, 0x84, (short)balancingCurrentMa);
         data[0x86] = balancingActive;
@@ -223,7 +221,7 @@ public static class TestFrameBuilder
         uint cycleCount = 10,
         uint cycleMah = 500_000,
         byte sohPercent = 100,
-        ushort alarmBitmask = 0)
+        uint alarmBitmask = 0)
     {
         const int dataLength = 293;
         byte[] data = new byte[dataLength];
@@ -257,9 +255,8 @@ public static class TestFrameBuilder
         WriteI16Le(data, 0x9C, battTemp1Raw);
         WriteI16Le(data, 0x9E, battTemp2Raw);
 
-        // AlarmBitmask at 0xA0 — big-endian uint16
-        data[0xA0] = (byte)((alarmBitmask >> 8) & 0xFF);
-        data[0xA1] = (byte)(alarmBitmask & 0xFF);
+        // AlarmBitmask at 0xA0 - little-endian uint32
+        WriteU32Le(data, 0xA0, alarmBitmask);
 
         WriteI16Le(data, 0xA4, (short)balancingCurrentMa);
         data[0xA6] = balancingActive;

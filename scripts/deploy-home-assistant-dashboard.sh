@@ -17,6 +17,7 @@ frontend_root="$configuration_root/frontend"
 managed_entities_file="$configuration_root/managed-entities.txt"
 ha_url="${HVO_HOME_ASSISTANT_URL:-http://192.168.1.113}"
 proxmox_host="${HVO_PROXMOX_HOST:-root@192.168.1.240}"
+proxmox_identity_file="${HVO_PROXMOX_SSH_IDENTITY_FILE:-}"
 ha_vmid="${HVO_HOME_ASSISTANT_VMID:-101}"
 guest_config_root="/mnt/data/supervisor/homeassistant"
 
@@ -83,8 +84,12 @@ guest_exec() {
     local command="$1"
     local quoted_command
     local response
+    local ssh_args=(-o BatchMode=yes)
+    if [[ -n "$proxmox_identity_file" ]]; then
+        ssh_args+=(-i "$proxmox_identity_file" -o IdentitiesOnly=yes)
+    fi
     printf -v quoted_command '%q' "$command"
-    response="$(ssh -o BatchMode=yes "$proxmox_host" \
+    response="$(ssh "${ssh_args[@]}" "$proxmox_host" \
         "qm guest exec '$ha_vmid' -- /bin/sh -c $quoted_command" </dev/null)"
 
     if ! jq -e '.exitcode == 0' >/dev/null <<<"$response"; then

@@ -373,6 +373,11 @@ deploy_target() {
 				[[ -s "${jkbms_secrets_path}/${secret_name}" ]] || fail "JK BMS required MQTT secret file is missing or empty: ${secret_name}"
 			done
 		fi
+		while IFS= read -r secret_name; do
+			[[ -s "${jkbms_secrets_path}/${secret_name}" ]] || fail "JK BMS settings-password secret file is missing or empty: ${secret_name}"
+			[[ "$(tr -d '\r\n' < "${jkbms_secrets_path}/${secret_name}")" =~ ^[0-9]{6}$ ]] \
+				|| fail "JK BMS settings-password secret must contain exactly six digits: ${secret_name}"
+		done < <(jq -r '.JkBms.Devices[] | select(.Enabled == true and (.SettingsPasswordSecret | type == "string" and length > 0)) | .SettingsPasswordSecret' "${jkbms_config_path}")
 		jkbms_remote_config="$(read_env_value "${env_file}" JKBMS_REMOTE_CONFIG_FILE)"
 		[[ -n "${jkbms_remote_config}" ]] || fail "JKBMS_REMOTE_CONFIG_FILE is required in the JK BMS .env file."
 		jkbms_remote_secrets="$(read_env_value "${env_file}" JKBMS_REMOTE_SECRETS_DIRECTORY)"

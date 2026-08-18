@@ -579,6 +579,26 @@ public class BmsControllerTests
     }
 
     [TestMethod]
+    public async Task IngestReadings_AlarmChangesAndClearsWithinOneBatch_PersistsAlarmHistory()
+    {
+        var result = await _ctrl.IngestReadings(
+            ToJsonElement([
+                MakeRequest(DeviceA, "2026-01-01T15:00:00Z", alarmBitmask: 0x01),
+                MakeRequest(DeviceA, "2026-01-01T15:00:30Z", alarmBitmask: 0x04),
+                MakeRequest(DeviceA, "2026-01-01T15:01:00Z", alarmBitmask: 0x00),
+            ]),
+            CancellationToken.None);
+
+        result.Result.Should().BeOfType<CreatedAtActionResult>();
+        var alarms = _db.BmsAlarms.OrderBy(alarm => alarm.ActivatedAt).ToList();
+        alarms.Should().HaveCount(2);
+        alarms.Select(alarm => alarm.AlarmBitmask).Should().Equal(0x01, 0x04);
+        alarms.Should().OnlyContain(alarm => alarm.ClearedAt != null);
+        alarms[0].ClearedAt.Should().Be(DateTime.Parse("2026-01-01T15:00:30Z").ToUniversalTime());
+        alarms[1].ClearedAt.Should().Be(DateTime.Parse("2026-01-01T15:01:00Z").ToUniversalTime());
+    }
+
+    [TestMethod]
     public async Task IngestReadings_OversizedBatch_ReturnsBadRequest()
     {
         var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
