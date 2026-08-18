@@ -81,9 +81,9 @@
       },
       "HVO.Core": {
         "type": "Direct",
-        "requested": "[1.1.1, )",
-        "resolved": "1.1.1",
-        "contentHash": "mzcVkIA49cLC8QQtfQznS8EbBWfhqOq3cpTnGBlP2Iz6VilrmlKRZH/RFapNR/GPyg4uMFyCxOHMJKbWWTxuyg=="
+        "requested": "[1.1.2, )",
+        "resolved": "1.1.2",
+        "contentHash": "XXp3VrowHxj4na3DdRt9Jf3CgOk8duOpK7sT8jVUIRtYD7HgDIzofdkkJLlfL9iApst8JQJl8CE1pk2zHYOyMg=="
       },
       "HVO.Enterprise.Telemetry": {
         "type": "Direct",
@@ -203,9 +203,9 @@
       },
       "Scalar.AspNetCore": {
         "type": "Direct",
-        "requested": "[2.16.19, )",
-        "resolved": "2.16.19",
-        "contentHash": "tH8eASXahjJszeW0ZprKsNUzxatpW1E+t/pahMF6LOuOGPZjQ1/9do0ljWstiXOS06U2GWYgo1ZTyLDd8C22NQ=="
+        "requested": "[2.16.20, )",
+        "resolved": "2.16.20",
+        "contentHash": "pSmyME4FCnYocbLmn9lmAUTVVSEPb5E6noqRcmJYpO65eaum68gw17yMORbeckW+gMksiL04m+zXoTxOKv0+kQ=="
       },
       "Serilog.AspNetCore": {
         "type": "Direct",
