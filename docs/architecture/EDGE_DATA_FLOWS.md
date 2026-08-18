@@ -154,7 +154,9 @@ flowchart LR
 
 ## Govee Bluetooth Sensors
 
-**Authority:** Home Assistant through an ESPHome Bluetooth proxy.
+**Authority:** Home Assistant through remote Bluetooth proxy transport. The
+current isolated Pi `hci1` bridge is temporary; issue #385 owns the permanent
+supported proxy cutover.
 
 **Historical data:** approved temperature and humidity observations. Celsius values are normalized to Fahrenheit for the existing canonical weather contract.
 
@@ -162,7 +164,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    GOVEE[Govee BLE sensor] -->|Bluetooth advertisements| PROXY[ESPHome Bluetooth proxy]
+    GOVEE[Govee BLE sensor] -->|Bluetooth advertisements| PROXY[Remote Bluetooth proxy]
     PROXY -->|Bluetooth proxy transport| HA[Home Assistant Govee entities]
     HA --> PRESENT[Native Home Assistant presentation]
     HA -. exporter disabled; no mapping or source claim .-> EXP[HA WebSocket exporter]

@@ -440,6 +440,15 @@ HA. Keep the native Victron integration and HA exporter mapping disabled while
 the direct collector owns `smartshunt-main`. Issue #352 governs any future
 exactly-one-writer migration.
 
+Issue #323 completed the Home Assistant platform and agent-managed setup:
+Mosquitto, dedicated credentials, Kasa, managed YAML deployment/validation, the
+reviewed ESPHome proxy definition, and native Govee H5074/H5075 presentation are
+operational. The ESPHome transport path and restart recovery were validated on
+the Home Development board, while the HVO Govee commissioning used the isolated
+temporary `hci1` bridge. Issue #385 owns the remaining physical placement,
+permanent supported proxy cutover, HOME fallback-credential cleanup, temporary
+bridge removal, and H5179 commissioning when that device is observable.
+
 ## Recovery notes
 
 A Home Assistant Core/app backup restores Mosquitto, ESPHome, integrations, and
