@@ -374,9 +374,7 @@ internal sealed class JkBmsBluetoothTransport : IBmsTransport
         {
             if (pair.Key == "Value" && pair.Value is byte[] value)
             {
-                if (value.Length == 20
-                    && value[0] == 0xAA && value[1] == 0x55
-                    && value[2] == 0x90 && value[3] == 0xEB)
+                if (JkBmsProtocol.ValidateAcknowledgement(value))
                 {
                     _ = _acknowledgementChannel.Writer.TryWrite(value);
                     continue;
