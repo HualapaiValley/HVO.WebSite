@@ -1247,7 +1247,7 @@
           "MudBlazor": "[9.8.0, )",
           "OpenTelemetry.Api": "[1.17.0, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.17.0, )",
-          "Scalar.AspNetCore": "[2.16.19, )",
+          "Scalar.AspNetCore": "[2.16.20, )",
           "Serilog.AspNetCore": "[10.0.0, )"
         }
       },
@@ -1645,9 +1645,9 @@
       },
       "Scalar.AspNetCore": {
         "type": "CentralTransitive",
-        "requested": "[2.16.19, )",
-        "resolved": "2.16.19",
-        "contentHash": "tH8eASXahjJszeW0ZprKsNUzxatpW1E+t/pahMF6LOuOGPZjQ1/9do0ljWstiXOS06U2GWYgo1ZTyLDd8C22NQ=="
+        "requested": "[2.16.20, )",
+        "resolved": "2.16.20",
+        "contentHash": "pSmyME4FCnYocbLmn9lmAUTVVSEPb5E6noqRcmJYpO65eaum68gw17yMORbeckW+gMksiL04m+zXoTxOKv0+kQ=="
       },
       "Serilog": {
         "type": "CentralTransitive",
