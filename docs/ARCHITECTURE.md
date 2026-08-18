@@ -220,7 +220,7 @@ Collectors are edge services. They should run on hardware that can reach the phy
 | JK BMS BLE | Host with Bluetooth adapter and BlueZ access |
 | EG4 USB HID/serial | Host with the stable mapped inverter and MPPT device paths |
 | SmartShunt BLE | Host with Bluetooth adapter, BlueZ access, and paired public-GATT device ownership |
-| Home Assistant | Same LAN as HA-owned Kasa devices and reachable from the Govee ESPHome Bluetooth proxy |
+| Home Assistant | Same LAN as HA-owned Kasa devices and reachable from the Govee Bluetooth proxy transport; permanent HVO proxy cutover is tracked by #385 |
 
 The website should not require inbound access to edge collectors for telemetry ingest. Edge collectors initiate outbound API calls to the website.
 
@@ -266,7 +266,7 @@ Future integrations should fit into the existing edge collector model.
 | EG4 6500EX / MPPT100 | Implemented direct read-only headless collector with typed power streams and bounded HA MQTT presentation |
 | Victron SmartShunt | Implemented direct BLE headless collector; public paired GATT is the production baseline |
 | TP-Link/Kasa outlets and lights | Home Assistant owns acquisition and presentation; the retired direct HVO gateway is not a deployment option |
-| Govee BLE sensors | Home Assistant owns acquisition and presentation through the ESPHome Bluetooth proxy |
+| Govee BLE sensors | Home Assistant owns acquisition and presentation through remote Bluetooth proxy transport; the current isolated Pi bridge is temporary pending #385 |
 | ESPHome nodes | Treat as edge decoders that expose values through MQTT or ESPHome native API to a provider-specific gateway, not as a generic transparent BLE adapter |
 
 Power domains should remain distinct where the underlying meaning is distinct. Direct EG4 inverter/load/charge data is not the same as HA-owned Kasa per-device outlet usage, even when both produce watts or watt-hours.

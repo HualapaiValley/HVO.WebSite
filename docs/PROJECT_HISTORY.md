@@ -48,6 +48,12 @@ Avoid:
 
 ## 2026-08-18
 
+### Home Assistant Core Setup Completion
+
+- Closed the broad Home Assistant setup scope after validating Mosquitto, dedicated credentials, 15 Kasa parent integrations, managed YAML deployment, the reviewed ESPHome proxy definition and transport, and native H5074/H5075 `govee_ble` entities.
+- Kept the HA telemetry exporter disabled with no production mappings or source claims.
+- Moved permanent HVO Bluetooth proxy placement, temporary bridge retirement, HOME fallback-credential cleanup, and H5179 commissioning to focused follow-up issue #385.
+
 ### Direct Gateway Retirement Completion
 
 - Archived the retired SolarAssistant outbox and data-protection volumes to `/home/roys/backups/hvo-issue-330` on `devPi5`.

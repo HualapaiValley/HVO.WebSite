@@ -177,7 +177,7 @@ issue #321.
 | Davis Vantage Pro 2 | Direct Davis collector |
 | SmartShunt | Paired direct public-GATT SmartShunt collector |
 | Kasa | Home Assistant Core owns acquisition/presentation; HA exporter disabled with no production mapping/source claim |
-| Govee | Home Assistant through an ESPHome Bluetooth proxy owns acquisition/presentation; HA exporter disabled with no production mapping/source claim |
+| Govee | Home Assistant through remote Bluetooth proxy transport owns acquisition/presentation; permanent HVO proxy cutover remains tracked by #385; HA exporter disabled with no production mapping/source claim |
 | SolarAssistant | No HVO vNext collector or canonical writer |
 
 No migration may run two acquisition authorities or two central writers for the
