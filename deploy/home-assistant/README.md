@@ -442,7 +442,7 @@ exactly-one-writer migration.
 
 Issue #323 completed the Home Assistant platform and agent-managed setup:
 Mosquitto, dedicated credentials, Kasa, managed YAML deployment/validation, the
-reviewed ESPHome proxy definition, and native Govee H5074/H5075 presentation are
+reviewed ESPHome proxy definition, and native Govee H5074/H5075 entities are
 operational. The ESPHome transport path and restart recovery were validated on
 the Home Development board, while the HVO Govee commissioning used the isolated
 temporary `hci1` bridge. Issue #385 owns the remaining physical placement,
