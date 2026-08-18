@@ -44,7 +44,7 @@ JK BMS devices (Bluetooth LE)                                  ▼
 
 The active direct headless vNext collectors are Davis, JK BMS, EG4, and SmartShunt. Home Assistant owns Kasa and Govee acquisition and presentation. The HA exporter exists for a future approved canonical-history path, but it is intentionally disabled and has no production mappings or source claims.
 
-The retired direct SolarAssistant and TP-Link/Kasa containers and images have been removed. Their applications are not deployable repository targets. The old SolarAssistant outbox and data-protection volumes remain preserved pending an explicit disposition decision.
+The retired direct SolarAssistant and TP-Link/Kasa containers, images, and Docker volumes have been removed. Their applications are not deployable repository targets. A checksum-verified SolarAssistant volume archive is retained outside Docker storage for historical recovery only.
 
 ## Edge Deployment Direction
 

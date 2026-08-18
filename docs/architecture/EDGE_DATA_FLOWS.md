@@ -132,7 +132,7 @@ flowchart LR
 
 **Current authority:** None. There is no HVO SolarAssistant collector or canonical writer.
 
-The direct SolarAssistant application, tests, deployment definition, container, and image were removed after direct EG4 became the production authority for the applicable physical observations. Historical SolarAssistant comparisons remain valid only as evidence used during EG4 shadow validation. The old SolarAssistant outbox and data-protection volumes remain preserved pending explicit disposition.
+The direct SolarAssistant application, tests, deployment definition, container, image, and Docker volumes were removed after direct EG4 became the production authority for the applicable physical observations. Historical SolarAssistant comparisons remain valid only as evidence used during EG4 shadow validation. The retired volumes were checksum-archived outside Docker storage before removal.
 
 ## TP-Link Kasa
 
@@ -179,7 +179,7 @@ The Bluetooth proxy does not use MQTT for this path. Home Assistant owns Govee a
 | JK BMS | Direct HVO collector | JK collector | JK SQLite | Collector -> MQTT -> HA |
 | EG4 | Direct HVO collector | EG4 collector | EG4 SQLite | Collector -> MQTT -> HA |
 | SmartShunt | Direct HVO public-GATT collector | SmartShunt collector | SmartShunt SQLite | Collector -> MQTT -> HA |
-| SolarAssistant | None; retired | None | Preserved legacy volumes pending disposition | None |
+| SolarAssistant | None; retired | None | None; historical archive only | None |
 | Kasa | Home Assistant | None; exporter disabled | None active | Native HA integration |
 | Govee | Home Assistant | None; exporter disabled | None active | Native HA integration through BT proxy |
 

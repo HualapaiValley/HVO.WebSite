@@ -1,6 +1,6 @@
 # HVO Architecture Baseline
 
-Last updated: 2026-08-14
+Last updated: 2026-08-18
 
 This document captures the current architecture baseline for HVO.WebSite and the expected direction for near-term hardware integrations. It is a current-state reference, not a full implementation plan. Use `docs/PROJECT_HISTORY.md` for recent session context and decision notes. The validated RabbitMQ/Service Bus ingest POC was removed from the active repo after being deferred and remains available in git history if needed.
 
@@ -30,7 +30,7 @@ The central website should stay focused on ingest, persistence, dashboards, admi
 | Data models | `src/HVO.DataModels` | Shared library | EF Core DbContexts, entities, migrations |
 | Theme assets | `src/HVO.WebSite.Themes` | Shared Razor class library | Shared visual theme assets |
 
-Local application orchestration is defined in `docker-compose.yml` and per-gateway compose files under `deploy/pi-gateways/`. Each active direct collector owns its local data directory, SQLite outbox, and hardware configuration. Gateway logs are structured stdout/stderr managed by the container runtime and are optionally exported through OTLP to central Loki; gateways do not own application log files. The retired direct SolarAssistant and TP-Link/Kasa containers and images have been removed. The old SolarAssistant outbox and data-protection volumes remain preserved pending disposition.
+Local application orchestration is defined in `docker-compose.yml` and per-gateway compose files under `deploy/pi-gateways/`. Each active direct collector owns its local data directory, SQLite outbox, and hardware configuration. Gateway logs are structured stdout/stderr managed by the container runtime and are optionally exported through OTLP to central Loki; gateways do not own application log files. The retired direct SolarAssistant and TP-Link/Kasa containers, images, and Docker volumes have been removed. A checksum-verified SolarAssistant archive remains outside Docker storage for historical recovery only.
 
 ## High-Level Data Flow
 
@@ -343,7 +343,7 @@ rules in `docs/architecture/EDGE_VNEXT_RUNTIME.md`.
 | Weather and BMS aggregates are incomplete | Some minute/hourly tables exist but are not fully populated by website workers | Ongoing |
 | Collector health is not domain-rich enough | Process health can pass while device polling or forwarding is unhealthy | Ongoing |
 | Shared HTTP forwarding abstractions remain gateway-owned | The shared outbox exists, but each gateway still owns destination routing/response mapping | Ongoing; extract only if repetition becomes costly |
-| Retired SolarAssistant volumes | The direct container and image are removed, but its outbox and data-protection volumes remain preserved | Pending explicit archive/delete disposition |
+| Retired SolarAssistant volumes | The outbox and data-protection volumes were checksum-archived outside Docker storage and removed | Resolved |
 | Victron SmartShunt integration | Public paired GATT telemetry working; private enrichment read-only; writes deferred | Resolved |
 | Command/control is not designed in code yet | Future control operations need security, audit, queueing, and edge execution semantics | Not started |
 | Additional ESPHome integrations | Govee transport is active through Home Assistant; any other ESPHome-backed source needs source-specific evidence and authority design | Deferred |
@@ -361,7 +361,7 @@ Use `docs/FUTURE_WORK.md` for the current prioritized roadmap. Near-term work sh
 | Delivery reliability | Per-edge SQLite outboxes with website API retry/backoff |
 | Domain ingest | Prefer normalized domain APIs over vendor-specific central models |
 | Power model | Keep inverter/load/charge and per-device outlet power distinct where needed |
-| Retired direct gateways | SolarAssistant and TP-Link/Kasa source, tests, deploy definitions, containers, and images are removed; SolarAssistant volumes remain preserved pending disposition |
+| Retired direct gateways | SolarAssistant and TP-Link/Kasa source, tests, deploy definitions, containers, images, and Docker volumes are removed; a checksum-verified SolarAssistant archive is retained outside Docker storage |
 | HA-owned sources | Home Assistant owns Kasa/Govee acquisition and presentation; the implemented exporter remains disabled with no production mappings or source claims |
 | BLE gateways | Use ESPHome as edge decoder, not transparent BLE relay |
 | Command/control | Use cloud inbox plus edge polling when implemented |
