@@ -2,7 +2,7 @@
 
 Status: current forward-looking roadmap after the vNext collector migrations and direct SolarAssistant/TP-Link gateway retirement.
 
-Last updated: 2026-08-14
+Last updated: 2026-08-18
 
 This document is the single place for future planning items that are not yet implemented. Completed outbox migration plans were removed or replaced by current standards and reference docs.
 

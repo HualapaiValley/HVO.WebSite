@@ -1,6 +1,6 @@
 # HVO Architecture Baseline
 
-Last updated: 2026-08-14
+Last updated: 2026-08-18
 
 This document captures the current architecture baseline for HVO.WebSite and the expected direction for near-term hardware integrations. It is a current-state reference, not a full implementation plan. Use `docs/PROJECT_HISTORY.md` for recent session context and decision notes. The validated RabbitMQ/Service Bus ingest POC was removed from the active repo after being deferred and remains available in git history if needed.
 
