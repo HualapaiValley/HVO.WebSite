@@ -46,6 +46,14 @@ Avoid:
 - Immediate context worth knowing before resuming work
 ```
 
+## 2026-08-18
+
+### Direct Gateway Retirement Completion
+
+- Archived the retired SolarAssistant outbox and data-protection volumes to `/home/roys/backups/hvo-issue-330` on `devPi5`.
+- Verified both archives by SHA-256 and tar listing before deleting only the two explicitly named SolarAssistant Docker volumes.
+- Confirmed Davis, JK BMS, EG4, and SmartShunt remained healthy and retained all active outbox and data-protection volumes.
+
 ## 2026-08-14
 
 ### Direct Gateway Retirement
@@ -54,10 +62,6 @@ Avoid:
 - Confirmed the active direct headless vNext collectors are Davis, JK BMS, EG4, and SmartShunt.
 - Confirmed Home Assistant owns Kasa and Govee acquisition and presentation.
 - Kept the implemented HA exporter intentionally disabled with no production mappings or source claims.
-
-### Deferred Or Open
-
-- Decide the explicit archive/delete disposition for the preserved SolarAssistant outbox and data-protection volumes; do not remove them through broad volume cleanup.
 
 ## 2026-05-24
 

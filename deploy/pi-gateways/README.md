@@ -60,7 +60,7 @@ Important:
 
 Each gateway is deployed independently so Pi rollouts do not depend on the main repo-level compose stack.
 
-`deploy/pi-gateways/home-assistant-exporter` retains the implemented exporter deployment template, but the exporter is intentionally disabled in production with no mappings or source claims. Do not deploy or enable it without a separately approved source-authority change. The retired direct SolarAssistant and TP-Link/Kasa deployment stacks, containers, and images have been removed. SolarAssistant's old outbox and data-protection volumes remain preserved pending disposition.
+`deploy/pi-gateways/home-assistant-exporter` retains the implemented exporter deployment template, but the exporter is intentionally disabled in production with no mappings or source claims. Do not deploy or enable it without a separately approved source-authority change. The retired direct SolarAssistant and TP-Link/Kasa deployment stacks, containers, images, and Docker volumes have been removed. A checksum-verified SolarAssistant archive is retained outside Docker storage.
 
 ## Davis deployment notes
 

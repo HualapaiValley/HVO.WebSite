@@ -47,7 +47,7 @@ Use the Pi Docker context:
 ./scripts/outbox-maintenance.sh --remote --context devpi5 summary eg4
 ```
 
-The retired direct SolarAssistant and TP-Link/Kasa services are not valid maintenance targets. SolarAssistant's old outbox and data-protection volumes remain preserved pending an explicit archive/delete decision; do not mutate or remove them as routine outbox maintenance.
+The retired direct SolarAssistant and TP-Link/Kasa services are not valid maintenance targets. Their Docker volumes have been removed. The checksum-verified SolarAssistant archive under `/home/roys/backups/hvo-issue-330` on `devPi5` is historical recovery evidence, not an active outbox maintenance target.
 
 Outboxes are delivery queues, not historical databases. Active vNext gateways
 retain delivered rows for one day, retain failed rows for their configured

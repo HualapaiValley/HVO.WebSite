@@ -2,7 +2,7 @@
 
 This directory holds current reference, operational notes, discovery findings, and the consolidated future-work roadmap.
 
-Production currently uses direct headless vNext collectors for Davis, JK BMS, EG4, and SmartShunt. Home Assistant owns Kasa and Govee acquisition and presentation. The implemented HA exporter is intentionally disabled with no production mappings or source claims. The direct SolarAssistant and TP-Link/Kasa applications, containers, and images have been retired; preserved SolarAssistant volumes remain pending disposition.
+Production currently uses direct headless vNext collectors for Davis, JK BMS, EG4, and SmartShunt. Home Assistant owns Kasa and Govee acquisition and presentation. The implemented HA exporter is intentionally disabled with no production mappings or source claims. The direct SolarAssistant and TP-Link/Kasa applications, containers, images, and Docker volumes have been retired.
 
 ## Current Reference
 
