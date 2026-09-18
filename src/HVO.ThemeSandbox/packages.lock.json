@@ -10,14 +10,14 @@
       },
       "MudBlazor": {
         "type": "Direct",
-        "requested": "[9.8.0, )",
-        "resolved": "9.8.0",
-        "contentHash": "JLJ81j6cn5RUTbgpYAtjRfB3bTNweX0q8lkMS6B9v1oGzZsjVTxDDnWahD+rOtzJWPU6D9svsymiETe4G8bSLw=="
+        "requested": "[9.10.0, )",
+        "resolved": "9.10.0",
+        "contentHash": "1TzwlootgzINmTBJn03YAF8GStLz73oLQff383MSDIQexjhPnlryatsynYSvnQ9TJmUfAJo0wsnufyGY76oXOw=="
       },
       "hvo.website.themes": {
         "type": "Project",
         "dependencies": {
-          "MudBlazor": "[9.8.0, )"
+          "MudBlazor": "[9.10.0, )"
         }
       }
     }
