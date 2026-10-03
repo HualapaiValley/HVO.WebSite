@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { evaluate, record, phase, check, preflight, GitHub, PHASES } from './pr-process.mjs';
-import { reconcile, replacePhase, currentCI } from './pr-process-control.mjs';
+import { execFileSync } from 'node:child_process';
+import { runInNewContext } from 'node:vm';
+import { evaluate, record, phase, check, preflight, GitHub, PHASES, LOCAL_IDS, CI_JOBS, ciTitle } from './pr-process.mjs';
+import { reconcile, replacePhase, currentCI, runBinding } from './pr-process-control.mjs';
 
 const examples = JSON.parse(await readFile(new URL('./pr-process-fixture.json', import.meta.url), 'utf8'));
 const body = value => `Readable evidence.\n<!-- hvo-pr-process\n${JSON.stringify(value)}\n-->`;
@@ -10,8 +12,8 @@ const authorized = publisher => ({ login: publisher, verified: true, permission:
 function fixture() {
   const values = structuredClone(examples);
   const snapshot = {
-    pr: { number: 1, node_id: 'PR_1', body: '', user: { login: values.author.publisher }, head: { sha: values.author.headSha, ref: 'feature/pilot' }, base: { sha: values.author.baseSha }, draft: false, state: 'open', labels: [], html_url: 'https://example.test/pull/1' },
-    comments: [], threads: [],
+    pr: { number: 1, node_id: 'PR_1', body: '', user: { login: values.author.publisher }, head: { sha: values.author.headSha, ref: 'feature/pilot' }, base: { sha: values.author.baseSha, ref: 'main' }, merge_commit_sha: '3'.repeat(40), draft: false, state: 'open', labels: [], html_url: 'https://example.test/pull/1' },
+    comments: [], threads: [], files: [{ filename: 'tools/pr-process.mjs' }], mergeBinding: { verified: true, headSha: values.author.headSha, baseSha: values.author.baseSha, mergeSha: '3'.repeat(40) },
   };
   function sync() {
     snapshot.pr.body = body(values.author);
@@ -101,6 +103,8 @@ test('snapshot paginates native reviews and normalizes authenticated source/subm
     if (url.includes('/graphql')) data = { data: { repository: { pullRequest: { reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } } } } } };
     else if (url.includes('/reviews?')) data = url.includes('page=2') ? [{ id: 200, body: body(f.values.review), user: { login: 'example-owner' }, submitted_at: '2026-01-02T00:00:00Z', commit_id: f.snapshot.pr.head.sha, state: 'COMMENTED', html_url: 'https://example.test/pull/1#pullrequestreview-200' }] : Array(100).fill({ id: 1, body: '', state: 'COMMENTED' });
     else if (url.includes('/comments?')) data = [{ id: 200, body: 'General discussion', user: { login: 'example-owner' }, created_at: '2026-01-01T00:00:00Z' }];
+    else if (url.includes('/files?')) data = f.snapshot.files;
+    else if (url.includes('/git/commits/')) data = { sha: f.snapshot.pr.merge_commit_sha, parents: [{ sha: f.snapshot.pr.base.sha }, { sha: f.snapshot.pr.head.sha }] };
     else if (url.includes('/collaborators/')) data = { permission: 'write', role_name: 'maintain', user: { login: 'example-owner' } };
     else data = f.snapshot.pr;
     return { ok: true, status: 200, json: async () => data };
@@ -172,7 +176,7 @@ test('malformed record field types return negative evidence without a controller
   for (const patch of [{ contributors: [null] }, { validation: [null] }, { reviewPolicy: { ...examples.author.reviewPolicy, models: [null] } }]) { const f = fixture(); Object.assign(f.values.author, patch); assert.equal(evaluate(f.sync()).eligible, false); }
 });
 test('a later changes-required decision invalidates old approval from that session', () => {
-  const f = fixture(); f.sync(); f.snapshot.comments.push({ ...f.snapshot.comments[0], id: 11, body: body({ ...f.values.review, verdict: 'CHANGES_REQUIRED' }) }); rejected(f.snapshot, /outstanding changes/);
+  const f = fixture(); f.sync(); f.snapshot.comments.push({ ...f.snapshot.comments[0], id: 11, created_at: '2026-01-01T00:00:01Z', body: body({ ...f.values.review, verdict: 'CHANGES_REQUIRED' }) }); rejected(f.snapshot, /outstanding changes/);
 });
 test('editing an older comment to changes-required supersedes a newer-created approval', () => {
   const f = fixture(); f.sync(); f.snapshot.comments[0].body = body({ ...f.values.review, verdict: 'CHANGES_REQUIRED' }); f.snapshot.comments[0].updated_at = '2026-01-03T00:00:00Z'; f.snapshot.comments.push({ ...f.snapshot.comments[0], id: 11, body: body(f.values.review), updated_at: '2026-01-02T00:00:00Z' }); rejected(f.snapshot, /outstanding changes/);
@@ -226,7 +230,7 @@ test('draft and mid-check source races reject pipeline admission', async () => {
 test('phase selection rejects unsuccessful CI and distinguishes ready/closed outcomes', () => {
   const f = fixture(); const pr = f.sync().pr; const evidence = evaluate(f.snapshot);
   assert.equal(phase({ pr, evidence }), 'workflow:ci');
-  assert.equal(phase({ pr, evidence, ci: { status: 'completed', conclusion: 'success' } }), 'workflow:ready-to-merge');
+  assert.equal(phase({ pr, evidence, ci: { status: 'completed', conclusion: 'success', qualified: true } }), 'workflow:ready-to-merge');
   for (const conclusion of ['failure', 'cancelled', 'timed_out', 'skipped']) assert.equal(phase({ pr, evidence, ci: { status: 'completed', conclusion } }), 'workflow:changes-required');
   assert.equal(phase({ pr, evidence, action: 'synchronize' }), 'workflow:review');
   assert.equal(phase({ pr: { ...pr, state: 'closed', merged: true }, evidence }), 'workflow:complete');
@@ -254,9 +258,91 @@ test('manual draft transition cancels active standard CI even if review remains 
 test('API pagination fails closed instead of silently omitting evidence', async () => {
   const api = new GitHub('test/repo', 'test-token', async () => ({ ok: true, status: 200, json: async () => Array(100).fill({}) })); await assert.rejects(() => api.list('/comments'), /Pagination limit/);
 });
-test('CI evidence accepts only associated current-head attempts started after review', async () => {
-  const f = fixture(); f.sync(); const common = { head_sha: f.snapshot.pr.head.sha, pull_requests: [{ number: 1 }], created_at: '2025-01-01T00:00:00Z' };
-  const api = { repository: 'test/repo', request: async () => ({ workflow_runs: [{ ...common, id: 1, run_started_at: '2025-01-01T00:00:00Z' }, { ...common, id: 2, run_started_at: '2026-01-03T00:00:00Z', pull_requests: [{ number: 2 }] }, { ...common, id: 3, run_started_at: '2026-01-02T00:00:00Z' }, { ...common, id: 4, run_started_at: '2026-01-04T00:00:00Z', head_sha: 'wrong' }] }) };
-  assert.equal((await currentCI(api, f.snapshot.pr, [{ publishedAt: '2026-01-01T00:00:00Z' }])).id, 3);
-  assert.equal(await currentCI(api, f.snapshot.pr, [{ publishedAt: '2026-01-05T00:00:00Z' }]), null);
+function ciFixture() {
+  const f = fixture(); f.sync();
+  const run = { id: 99, event: 'pull_request_target', path: '.github/workflows/ci.yml', display_title: ciTitle(f.snapshot.pr), head_sha: f.snapshot.pr.base.sha, pull_requests: [{ number: 1 }], created_at: '2026-01-01T00:00:01Z', run_attempt: 1, status: 'completed', conclusion: 'success', html_url: 'https://example.test/actions/runs/99' };
+  const jobs = CI_JOBS.map(name => ({ name, run_id: 99, run_attempt: 1, head_sha: f.snapshot.pr.base.sha, status: 'completed', conclusion: 'success' }));
+  const calls = []; const api = { repository: 'test/repo', request: async path => { calls.push(path); return path.includes('/attempts/1/jobs') ? { jobs } : path.endsWith(`/actions/runs/${run.id}`) ? run : { workflow_runs: [run] }; } };
+  return { ...f, run, jobs, api, calls };
+}
+test('CI accepts an immutable GitHub-origin current tuple with all first-attempt jobs', async () => {
+  const f = ciFixture(); const result = await currentCI(f.api, f.snapshot.pr, [{ publishedAt: '2026-01-01T00:00:00Z' }]); assert.equal(result.qualified, true); assert.ok(f.calls[0].includes(`event=pull_request_target&head_sha=${f.snapshot.pr.base.sha}`)); assert.equal(runBinding(f.run).mergeSha, f.snapshot.pr.merge_commit_sha);
+});
+test('F1/F2 trusted workflow admission cannot use candidate code and predicates stop on cancellation', () => {
+  const workflow = JSON.parse(execFileSync('ruby', ['-rjson', '-ryaml', '-e', 'v=YAML.load_file(".github/workflows/ci.yml"); v["on"]=v.delete(true) if v.key?(true); puts JSON.generate(v)'], { encoding: 'utf8' }));
+  assert.ok(workflow.on.pull_request_target); assert.equal(workflow.on.pull_request, undefined);
+  const gate = workflow.jobs['review-evidence']; assert.equal(gate.steps[0].with.ref, '${{ github.event.pull_request.base.sha }}'); assert.equal(gate.steps[0].with['persist-credentials'], false); assert.ok(Object.values(workflow.permissions).every(x => x === 'read'));
+  for (const name of ['build-and-test', 'docker-smoke']) {
+    const job = workflow.jobs[name]; assert.ok(job.steps[0].with.ref.includes('needs.review-evidence.outputs.merge')); assert.equal(job.steps[0].with['persist-credentials'], false);
+    const expr = job.if.slice(3, -2).replaceAll('needs.review-evidence', 'needs.review_evidence');
+    const context = { github: { event_name: 'pull_request_target', event: { pull_request: { draft: false } }, run_attempt: 1 }, needs: { review_evidence: { result: 'success', outputs: { eligible: 'true' } } }, cancelled: () => false };
+    assert.equal(runInNewContext(expr, context), true); context.cancelled = () => true; assert.equal(runInNewContext(expr, context), false);
+    context.cancelled = () => false; context.github.event_name = 'push'; context.needs.review_evidence.result = 'skipped'; assert.equal(runInNewContext(expr, context), true);
+    context.github.event_name = 'schedule'; assert.equal(runInNewContext(expr, context), true);
+    context.github.event_name = 'pull_request_target'; context.needs.review_evidence.result = 'success'; context.github.run_attempt = 2; assert.equal(runInNewContext(expr, context), false);
+    context.github.run_attempt = 1; context.github.event.pull_request.draft = true; assert.equal(runInNewContext(expr, context), false);
+  }
+});
+test('F3 old target/merge and re-run original creation cannot qualify the current candidate', async () => {
+  for (const change of ['base', 'merge', 'original-time', 'candidate-workflow', 'wrong-path']) {
+    const f = ciFixture();
+    if (change === 'base') { f.run.head_sha = '4'.repeat(40); f.run.display_title = ciTitle({ ...f.snapshot.pr, base: { sha: '4'.repeat(40) } }); }
+    if (change === 'merge') f.run.display_title = ciTitle({ ...f.snapshot.pr, merge_commit_sha: '4'.repeat(40) });
+    if (change === 'original-time') { f.run.created_at = '2025-01-01T00:00:00Z'; f.run.run_started_at = '2026-01-02T00:00:00Z'; f.run.run_attempt = 2; }
+    if (change === 'candidate-workflow') { f.run.event = 'pull_request'; f.run.head_sha = f.snapshot.pr.head.sha; }
+    if (change === 'wrong-path') f.run.path = '.github/workflows/untrusted.yml';
+    assert.equal(await currentCI(f.api, f.snapshot.pr, [{ publishedAt: '2026-01-01T00:00:00Z' }]), null, change);
+  }
+});
+test('F3 partial/full reruns and incomplete/skipped required jobs cannot qualify', async () => {
+  for (const change of ['attempt', 'missing-gate', 'skipped-smoke', 'wrong-attempt', 'wrong-job-base']) {
+    const f = ciFixture(); if (change === 'attempt') f.run.run_attempt = 2; if (change === 'missing-gate') f.jobs.shift(); if (change === 'skipped-smoke') f.jobs[2].conclusion = 'skipped'; if (change === 'wrong-attempt') f.jobs[0].run_attempt = 2; if (change === 'wrong-job-base') f.jobs[0].head_sha = '4'.repeat(40);
+    const result = await currentCI(f.api, f.snapshot.pr, [{ publishedAt: '2026-01-01T00:00:00Z' }]); assert.equal(result.qualified, false, change); assert.equal(result.invalid, true, change);
+  }
+});
+test('F3 verified merge parents and immutable expected merge are required for admission', async () => {
+  const f = fixture(); f.sync(); const api = { snapshot: async () => f.snapshot, pull: async () => f.snapshot.pr };
+  assert.equal((await check(api, 1, { head: f.snapshot.pr.head.sha, base: f.snapshot.pr.base.sha, merge: f.snapshot.pr.merge_commit_sha })).eligible, true);
+  assert.equal((await check(api, 1, { merge: '' })).eligible, false); f.snapshot.mergeBinding.verified = false; assert.equal((await check(api, 1)).eligible, false);
+  const malformed = new GitHub('test/repo', 'test-token', async () => ({ ok: true, status: 200, json: async () => ({ sha: f.snapshot.pr.merge_commit_sha, parents: [{ sha: '4'.repeat(40) }, { sha: f.snapshot.pr.head.sha }] }) })); assert.equal((await malformed.mergeBinding(f.snapshot.pr)).verified, false);
+});
+test('F3 a rerun or metadata change during job verification cannot publish green', async () => {
+  for (const change of ['attempt', 'status', 'tuple', 'creation']) {
+    const f = ciFixture(); const fresh = { ...f.run };
+    if (change === 'attempt') fresh.run_attempt = 2;
+    if (change === 'status') fresh.status = 'in_progress';
+    if (change === 'tuple') fresh.display_title = ciTitle({ ...f.snapshot.pr, base: { sha: '4'.repeat(40) } });
+    if (change === 'creation') fresh.created_at = '2025-01-01T00:00:00Z';
+    const api = { ...f.api, request: async path => path.endsWith('/actions/runs/99') ? fresh : f.api.request(path) };
+    const result = await currentCI(api, f.snapshot.pr, [{ publishedAt: '2026-01-01T00:00:00Z' }]); assert.equal(result.qualified, false, change); assert.equal(result.invalid, true, change);
+  }
+});
+test('F3 controller publishes head statuses only after current tuple jobs qualify', async () => {
+  for (const qualified of [true, false]) {
+    const f = ciFixture(); if (!qualified) f.run.display_title = ciTitle({ ...f.snapshot.pr, base: { sha: '4'.repeat(40) } }); const calls = [];
+    const api = { ...f.api, snapshot: async () => f.snapshot, pull: async () => f.snapshot.pr, request: async (...args) => { if (args[1]) { calls.push(args); return {}; } return f.api.request(args[0]); } };
+    const result = await reconcile(api, 1); assert.equal(result.phase, qualified ? 'workflow:ready-to-merge' : 'workflow:ci');
+    const statuses = calls.filter(x => x[0].includes(`/statuses/${f.snapshot.pr.head.sha}`)); for (const name of ['build-and-test', 'docker-smoke']) assert.equal(statuses.find(x => x[2].context === name)[2].state, qualified ? 'success' : 'pending');
+  }
+});
+test('F4 same-second native/conversation conflicting decisions fail closed in either order', () => {
+  for (const reverse of [false, true]) for (const nativeVerdict of ['APPROVE', 'CHANGES_REQUIRED']) {
+    const f = fixture(); f.sync(); const native = { ...f.snapshot.comments[0], id: 'review:100', body: body({ ...f.values.review, verdict: nativeVerdict }), publication: { type: 'native-review', id: 100, state: 'COMMENTED', commitSha: f.snapshot.pr.head.sha } }; const conversation = { ...f.snapshot.comments[0], id: 'comment:200', body: body({ ...f.values.review, verdict: nativeVerdict === 'APPROVE' ? 'CHANGES_REQUIRED' : 'APPROVE' }) }; f.snapshot.comments = reverse ? [conversation, native] : [native, conversation]; rejected(f.snapshot, /Ambiguous same-time/);
+    f.snapshot.comments.push({ ...conversation, id: 'comment:300', created_at: '2026-01-01T00:00:01Z', body: body(f.values.review) }); assert.equal(evaluate(f.snapshot).eligible, true);
+  }
+});
+test('F5 mandatory local profile evidence cannot be waived or replaced with post-review checks', () => {
+  for (const change of ['missing', 'blocked', 'fail', 'stale', 'ci-stage', 'warning-baseline', 'wrong-sdk']) {
+    const f = fixture(); const build = f.values.author.validation[0]; if (change === 'missing') f.values.author.validation.shift(); if (change === 'blocked') { build.result = 'blocked'; build.reason = 'Required zero-warning build unresolved'; build.required = false; } if (change === 'fail') build.result = 'fail'; if (change === 'stale') build.headSha = '4'.repeat(40); if (change === 'ci-stage') build.stage = 'ci'; if (change === 'warning-baseline') build.metrics.warnings = 778; if (change === 'wrong-sdk') build.sdk = '10.0.401'; rejected(f.sync(), /Mandatory local prerequisite/);
+  }
+});
+test('F5 required local checks pass while explicitly pending CI checks remain post-gate', () => {
+  const f = fixture(); assert.equal(evaluate(f.sync()).eligible, true); f.values.author.validation = f.values.author.validation.filter(x => x.id !== LOCAL_IDS.process); rejected(f.sync(), /local:pr-process-tests/); f.snapshot.files = [{ filename: 'src/HVO.WebSite.v9/Example.cs' }]; assert.equal(evaluate(f.sync()).eligible, true);
+});
+test('F6 every preferred reviewer needs an independently permitted model or recorded fallback', () => {
+  for (const fallback of ['none', 'listed-only', 'any-eligible']) {
+    const f = fixture(); const policy = f.values.author.reviewPolicy; policy.minReviewers = 2; policy.selection = 'preferred'; policy.models = [{ provider: 'example-provider', model: 'review-model' }]; policy.fallback = fallback; policy.fallbackModels = [{ provider: 'example-provider', model: 'permitted-fallback' }]; f.sync(); const other = { ...f.values.review, identity: { ...f.values.review.identity, session: 'second-review', model: 'outside-list' } }; const comment = { ...f.snapshot.comments[0], id: 12, body: body(other) }; f.snapshot.comments.push(comment); assert.equal(evaluate(f.snapshot).eligible, false, fallback);
+    other.identity.model = 'permitted-fallback'; other.selectionNote = 'Preferred route unavailable; selected the explicitly permitted fallback'; comment.body = body(other); assert.equal(evaluate(f.snapshot).eligible, fallback !== 'none', fallback);
+    other.identity.model = 'review-model'; delete other.selectionNote; comment.body = body(other); assert.equal(evaluate(f.snapshot).eligible, true, fallback);
+  }
 });

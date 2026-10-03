@@ -5,6 +5,10 @@ export const MARKER = 'hvo-pr-process';
 export const PHASES = ['draft', 'review', 'changes-required', 'ci', 'ready-to-merge', 'complete', 'cancelled'].map(x => `workflow:${x}`);
 export const DEPTHS = ['mechanical', 'standard', 'deep'];
 export const TERMINAL = ['CORRECTED', 'DEFERRED', 'NON_ACTIONABLE', 'SUPERSEDED'];
+export const LOCAL_IDS = { build: 'local:pinned-sdk-build-zero-warnings', tests: 'local:non-live-tests', process: 'local:pr-process-tests' };
+export const PINNED_SDK = '10.0.400';
+export const CI_JOBS = ['review-evidence', 'build-and-test', 'docker-smoke'];
+export const ciTitle = pr => `HVO-PR-CI v1 pr=${pr.number} head=${pr.head.sha} base=${pr.base.sha} merge=${pr.merge_commit_sha}`;
 const unknown = value => !value || /^(unknown|unavailable|provider-managed|auto|n\/a)$/i.test(value);
 const login = value => String(value ?? '').toLowerCase();
 const human = identity => login(identity.provider) === 'human' && login(identity.model) === 'n/a' && login(identity.effort) === 'n/a';
@@ -54,7 +58,26 @@ function selected(identity, selector) {
   return !unknown(identity.provider) && !unknown(identity.model) && login(identity.provider) === login(selector.provider) && identity.model === selector.model && (!selector.effort || (!unknown(identity.effort) && identity.effort === selector.effort));
 }
 
-export function evaluate({ pr, comments = [], threads = [] }) {
+export function localEvidenceErrors(author, pr, files) {
+  const errors = [];
+  const needed = [LOCAL_IDS.build, LOCAL_IDS.tests];
+  if (!Array.isArray(files)) errors.push('Changed-file metadata is required to select trusted local prerequisites');
+  else if (files.some(x => /^(\.github\/workflows\/|tools\/pr-process)/.test(x.filename))) needed.push(LOCAL_IDS.process);
+  const validation = Array.isArray(author.validation) ? author.validation : [];
+  for (const id of needed) {
+    const checks = validation.filter(x => x?.id === id && x.stage === 'local');
+    if (checks.length !== 1) { errors.push(`Mandatory local prerequisite ${id} requires exactly one local result`); continue; }
+    const value = checks[0];
+    if (!sourceMatches(value, pr) || value.result !== 'pass') errors.push(`Mandatory local prerequisite ${id} must pass on the current head/base`);
+    if (id === LOCAL_IDS.build && (value.sdk !== PINNED_SDK || value.metrics?.warnings !== 0 || value.metrics?.errors !== 0)) errors.push(`Mandatory local prerequisite ${id} requires SDK ${PINNED_SDK}, zero warnings and zero errors`);
+    if (id !== LOCAL_IDS.build && (value.metrics?.failed !== 0 || !Number.isInteger(value.metrics?.passed) || value.metrics.passed < 1)) errors.push(`Mandatory local prerequisite ${id} requires nonempty passing tests and zero failures`);
+  }
+  return errors;
+}
+
+const decisionSignature = value => JSON.stringify([value.verdict, value.depth, value.coverageComplete, value.findings, fields.map(key => value.identity[key]), value.selectionNote ?? null]);
+
+export function evaluate({ pr, comments = [], threads = [], files }) {
   const errors = [];
   const rejectedPublications = [];
   let author;
@@ -71,8 +94,9 @@ export function evaluate({ pr, comments = [], threads = [] }) {
   if (!Array.isArray(author.validation) || !author.validation.length) errors.push('Local validation and performer provenance are required');
   for (const [i, check] of (Array.isArray(author.validation) ? author.validation : []).entries()) {
     errors.push(...identityErrors(check?.performer, `validation[${i}].performer`));
-    if (!nonempty(check?.command) || !['pass', 'blocked'].includes(check?.result) || (check?.result === 'blocked' && !nonempty(check?.reason))) errors.push(`validation[${i}] requires command, pass/blocked result and blocker explanation`);
+    if (!nonempty(check?.command) || !['pass', 'fail', 'blocked', 'pending'].includes(check?.result) || !['local', 'ci'].includes(check?.stage) || !sourceMatches(check, pr) || (['blocked', 'pending'].includes(check?.result) && !nonempty(check?.reason))) errors.push(`validation[${i}] requires command, stage, current source, outcome and blocker/pending explanation`);
   }
+  errors.push(...localEvidenceErrors(author, pr, files));
   const policy = author.reviewPolicy ?? {};
   if (!DEPTHS.includes(policy.depth)) errors.push('Review depth must be mechanical, standard or deep');
   if (!['auto', 'preferred', 'required'].includes(policy.selection)) errors.push('Reviewer selection must be auto, preferred or required');
@@ -89,6 +113,7 @@ export function evaluate({ pr, comments = [], threads = [] }) {
 
   // Keep the latest current-source decision from each distinct reviewing session.
   const latest = new Map();
+  let ambiguous = [];
   for (const comment of comments) {
     if (!String(comment.body).includes(MARKER)) continue;
     // Public comments cannot grant approval or retract an authorized decision.
@@ -110,11 +135,18 @@ export function evaluate({ pr, comments = [], threads = [] }) {
     if (!independent(review.identity, author, policy)) { errors.push(`Review session ${review.identity.session} is not independent under this policy`); continue; }
     const entry = { ...review, commentId: comment.id, publication: comment.publication ?? { type: 'issue-comment', id: comment.id, url: comment.html_url }, publishedAt: comment.updated_at ?? comment.created_at };
     const previous = [...latest.values()].find(x => sameSession(x.identity, review.identity));
-    if (!previous || Date.parse(entry.publishedAt) > Date.parse(previous.publishedAt) || (Date.parse(entry.publishedAt) === Date.parse(previous.publishedAt) && entry.commentId > previous.commentId)) {
+    if (!Number.isFinite(Date.parse(entry.publishedAt))) { errors.push('Review publication timestamp is unavailable'); continue; }
+    if (previous && Date.parse(entry.publishedAt) === Date.parse(previous.publishedAt) && decisionSignature(entry) !== decisionSignature(previous)) {
+      ambiguous.push(entry.identity);
+      continue;
+    }
+    if (!previous || Date.parse(entry.publishedAt) > Date.parse(previous.publishedAt)) {
       if (previous) latest.delete(previous.commentId);
       latest.set(entry.commentId, entry);
+      ambiguous = ambiguous.filter(x => !sameSession(x, entry.identity));
     }
   }
+  if (ambiguous.length) errors.push('Ambiguous same-time conflicting review decisions; publish an unambiguously newer decision');
   const reviews = [...latest.values()];
   if (!reviews.length) errors.push('No current-source independent review');
   if (reviews.some(x => x.verdict !== 'APPROVE')) errors.push('Current-source review has outstanding changes or is incomplete');
@@ -124,15 +156,16 @@ export function evaluate({ pr, comments = [], threads = [] }) {
     ? policy.models.every(selector => reviews.some(x => selected(x.identity, selector)))
     : reviews.some(x => policy.models.some(selector => selected(x.identity, selector)));
   if (policy.selection === 'required' && !modelSatisfied) errors.push('Required review model/effort selection is not satisfied');
-  if (policy.selection === 'preferred' && !modelSatisfied) {
-    if (policy.fallback === 'none') errors.push('Preferred model unavailable and fallback is not authorized');
-    if (!reviews.some(x => nonempty(x.selectionNote))) errors.push('Actual preferred-model substitution and reason must be recorded');
-    for (const review of reviews) {
-      if (policy.models.some(selector => selected(review.identity, selector))) continue;
-      if (!nonempty(review.selectionNote)) errors.push('Actual preferred-model substitution and reason must be recorded');
+  for (const review of reviews) {
+    if (policy.selection === 'auto' || policy.models.some(selector => selected(review.identity, selector))) continue;
+    if (policy.selection === 'required') errors.push(`Reviewer ${review.identity.session} is outside the required model choices`);
+    else {
+      if (policy.fallback === 'none') errors.push('Preferred model unavailable and fallback is not authorized');
+      if (!nonempty(review.selectionNote)) errors.push('Actual preferred-model substitution and reason must be recorded for each substituted reviewer');
       if (policy.fallback === 'listed-only' && !policy.fallbackModels.some(selector => selected(review.identity, selector))) errors.push('Reviewer is outside the explicitly permitted fallback models');
     }
   }
+  if (policy.selection === 'preferred' && policy.modelMode === 'all-of' && !modelSatisfied && !reviews.every(x => nonempty(x.selectionNote))) errors.push('Incomplete preferred panel substitution must be recorded by every participating reviewer');
 
   const indexed = new Map();
   for (const review of reviews) {
@@ -201,8 +234,8 @@ export function evaluate({ pr, comments = [], threads = [] }) {
 export function phase({ pr, evidence, ci, action }) {
   if (pr.state === 'closed') return pr.merged ? 'workflow:complete' : 'workflow:cancelled';
   if (action === 'synchronize') return 'workflow:review';
-  if (ci?.status === 'completed' && ci.conclusion !== 'success' && action !== 'ready_for_review') return 'workflow:changes-required';
-  if (!pr.draft && evidence.eligible) return ci?.status === 'completed' && ci.conclusion === 'success' ? 'workflow:ready-to-merge' : 'workflow:ci';
+  if ((ci?.invalid || (ci?.status === 'completed' && (ci.conclusion !== 'success' || !ci.qualified))) && action !== 'ready_for_review') return 'workflow:changes-required';
+  if (!pr.draft && evidence.eligible) return action !== 'ready_for_review' && ci?.status === 'completed' && ci.conclusion === 'success' && ci.qualified ? 'workflow:ready-to-merge' : 'workflow:ci';
   if (evidence.reviews?.some(x => x.verdict === 'CHANGES_REQUIRED')) return 'workflow:changes-required';
   return evidence.depth ? 'workflow:review' : 'workflow:draft';
 }
@@ -234,6 +267,14 @@ export class GitHub {
     return value.data;
   }
   async pull(number) { return this.request(`/repos/${this.repository}/pulls/${number}`); }
+  async mergeBinding(pr) {
+    const binding = { verified: false, headSha: pr.head.sha, baseSha: pr.base.sha, mergeSha: pr.merge_commit_sha };
+    if (!/^[a-f0-9]{40}$/.test(pr.merge_commit_sha ?? '')) { binding.reason = 'Current GitHub merge SHA is unavailable'; return binding; }
+    const commit = await this.request(`/repos/${this.repository}/git/commits/${pr.merge_commit_sha}`);
+    binding.verified = commit.sha === pr.merge_commit_sha && commit.parents?.length === 2 && commit.parents[0].sha === pr.base.sha && commit.parents[1].sha === pr.head.sha;
+    if (!binding.verified) binding.reason = 'GitHub merge commit does not bind the current base/head parents';
+    return binding;
+  }
   async publisherPermission(publisher) {
     const key = login(publisher);
     if (this.permissionCache.has(key)) return this.permissionCache.get(key);
@@ -255,9 +296,11 @@ export class GitHub {
   async snapshot(number) {
     this.permissionCache.clear();
     const pr = await this.pull(number);
-    const [issueComments, nativeReviews] = await Promise.all([
+    const [issueComments, nativeReviews, files, mergeBinding] = await Promise.all([
       this.list(`/repos/${this.repository}/issues/${number}/comments`),
       this.list(`/repos/${this.repository}/pulls/${number}/reviews`),
+      this.list(`/repos/${this.repository}/pulls/${number}/files`),
+      this.mergeBinding(pr),
     ]);
     const comments = [
       ...issueComments.map(x => ({ ...x, id: `comment:${x.id}`, publication: { type: 'issue-comment', id: x.id, url: x.html_url } })),
@@ -273,7 +316,7 @@ export class GitHub {
         if (thread.comments.pageInfo.hasNextPage) throw new Error('Thread exceeds 100 comments; evidence is incomplete');
         threads.push({ ...thread, comments: thread.comments.nodes });
       }
-      if (!connection.pageInfo.hasNextPage) { await this.authorizePublications(comments, threads); return { pr, comments, threads }; }
+      if (!connection.pageInfo.hasNextPage) { await this.authorizePublications(comments, threads); return { pr, comments, threads, files, mergeBinding }; }
       cursor = connection.pageInfo.endCursor;
     }
     throw new Error('Thread pagination limit exceeded; evidence is incomplete');
@@ -303,7 +346,7 @@ export async function preflight(api, number) {
     if (!Array.isArray(author.validation)) errors.push('Validation must be an array, even before checks are completed');
     for (const [i, value] of (Array.isArray(author.validation) ? author.validation : []).entries()) {
       errors.push(...identityErrors(value?.performer, `validation[${i}].performer`));
-      if (!nonempty(value?.command) || !['pass', 'fail', 'blocked'].includes(value?.result) || (value?.result === 'blocked' && !nonempty(value?.reason))) errors.push(`validation[${i}] requires a command, pass/fail/blocked outcome and blocker explanation`);
+      if (!nonempty(value?.command) || !['pass', 'fail', 'blocked', 'pending'].includes(value?.result) || !['local', 'ci'].includes(value?.stage) || !sourceMatches(value, pr) || (['blocked', 'pending'].includes(value?.result) && !nonempty(value?.reason))) errors.push(`validation[${i}] requires a command, stage, current source, outcome and blocker/pending explanation`);
     }
     if (!DEPTHS.includes(author.reviewPolicy?.depth)) errors.push('Required review depth is missing or invalid');
   }
@@ -322,11 +365,12 @@ export async function check(api, number, expected = {}) {
   if (snapshot.pr.draft) evidence.errors.push('PR is still draft');
   if (snapshot.pr.state !== 'open') evidence.errors.push('PR is no longer open');
   if ((expected.head && expected.head !== snapshot.pr.head.sha) || (expected.base && expected.base !== snapshot.pr.base.sha)) evidence.errors.push('Workflow source does not match the current candidate');
+  if (!snapshot.mergeBinding?.verified || (expected.merge !== undefined && expected.merge !== snapshot.pr.merge_commit_sha)) evidence.errors.push('Tested merge does not match the current GitHub head/base binding');
   const fresh = await api.pull(number);
-  if (fresh.head.sha !== snapshot.pr.head.sha || fresh.base.sha !== snapshot.pr.base.sha || fresh.draft || fresh.body !== snapshot.pr.body) evidence.errors.push('Candidate moved, provenance changed or PR returned to draft during validation');
+  if (fresh.head.sha !== snapshot.pr.head.sha || fresh.base.sha !== snapshot.pr.base.sha || fresh.merge_commit_sha !== snapshot.pr.merge_commit_sha || fresh.draft || fresh.body !== snapshot.pr.body) evidence.errors.push('Candidate moved, provenance changed or PR returned to draft during validation');
   if (fresh.state !== 'open') evidence.errors.push('PR closed during validation');
   evidence.eligible = evidence.errors.length === 0;
-  return { ...evidence, headSha: snapshot.pr.head.sha, baseSha: snapshot.pr.base.sha };
+  return { ...evidence, headSha: snapshot.pr.head.sha, baseSha: snapshot.pr.base.sha, mergeSha: snapshot.mergeBinding?.verified ? snapshot.pr.merge_commit_sha : undefined };
 }
 
 async function main() {
@@ -334,9 +378,9 @@ async function main() {
   const number = Number(process.env.PR_NUMBER);
   if (!Number.isInteger(number) || number < 1) throw new Error('PR_NUMBER is required');
   const mode = process.argv[2] === 'preflight' ? 'PR Preflight' : 'Review Evidence';
-  const result = mode === 'PR Preflight' ? await preflight(api, number) : await check(api, number, { head: process.env.EXPECTED_HEAD, base: process.env.EXPECTED_BASE });
-  if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `eligible=${result.eligible}\nhead=${result.headSha}\nbase=${result.baseSha}\n`);
-  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${mode} for #${number}\n\nHead: ${result.headSha}\nBase: ${result.baseSha}\nTested merge: ${process.env.GITHUB_SHA ?? 'local/read-only inspection'}\n\n${result.eligible ? (mode === 'PR Preflight' ? 'Title, issue, description and source/provenance fields accepted; this is not review approval.' : 'Current-source independent review and finding verification accepted.') : result.errors.map(x => `- ${x}`).join('\n')}\n`);
+  const result = mode === 'PR Preflight' ? await preflight(api, number) : await check(api, number, { head: process.env.EXPECTED_HEAD, base: process.env.EXPECTED_BASE, merge: process.env.EXPECTED_MERGE });
+  if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `eligible=${result.eligible}\nhead=${result.headSha}\nbase=${result.baseSha}\nmerge=${result.mergeSha ?? ''}\n`);
+  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${mode} for #${number}\n\nHead: ${result.headSha}\nBase: ${result.baseSha}\nWorkflow SHA: ${process.env.GITHUB_SHA ?? 'local/read-only inspection'}${mode === 'PR Preflight' ? '' : `\nTested merge: ${result.mergeSha ?? 'unavailable'}`}\n\n${result.eligible ? (mode === 'PR Preflight' ? 'Title, issue, description and source/provenance fields accepted; this is not review approval.' : 'Current-source independent review and finding verification accepted.') : result.errors.map(x => `- ${x}`).join('\n')}\n`);
   console.log(JSON.stringify(result, null, 2));
   if (!result.eligible) process.exitCode = 1;
 }

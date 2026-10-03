@@ -69,7 +69,7 @@ A failed, cancelled, timed-out or otherwise invalid standard run cannot satisfy 
 
 For a code defect, correct it, run affected local checks and request correction review of the previous reviewed head to the new head. Carry all outstanding findings and the CI failure evidence. After independent verification and thread resolution, mark ready and start standard CI again.
 
-For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head. Return to draft, document the infrastructure correction and re-establish the ready conditions; a single bounded same-candidate rerun need not invent a code correction or a redundant code review. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
+For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head/target. Return to draft, document the infrastructure correction and re-establish ready conditions; one fresh complete CI run for the same tuple need not invent a code correction or redundant code review. Partial reruns of old admission do not qualify in this profile. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
 
 Any new source commit after review, including a correction made after CI passed, invalidates the relevant current-head approval and readiness. Return to draft before pushing where possible. The guard must also catch a push made while still ready, block standard jobs for the unreviewed head, clear `workflow:ready-to-merge`, and route the candidate back to review. Source synchronization follows the same applicable review rules.
 

@@ -5,11 +5,134 @@
     "publisher": "example-owner",
     "headSha": "1111111111111111111111111111111111111111",
     "baseSha": "2222222222222222222222222222222222222222",
-    "identity": { "account": "example-owner", "session": "implementation-session", "system": "example-harness", "provider": "example-provider", "model": "implementation-model", "effort": "high", "host": "example-host", "instance": "example-instance", "workspace": "/example/checkout" },
-    "contributors": [ { "account": "example-owner", "session": "implementation-session", "system": "example-harness", "provider": "example-provider", "model": "implementation-model", "effort": "high", "host": "example-host", "instance": "example-instance", "workspace": "/example/checkout" } ],
-    "validation": [ { "command": "node --test tools/pr-process.test.mjs", "result": "pass", "performer": { "account": "example-owner", "session": "implementation-session", "system": "example-harness", "provider": "example-provider", "model": "implementation-model", "effort": "high", "host": "example-host", "instance": "example-instance", "workspace": "/example/checkout" } } ],
+    "identity": {
+      "account": "example-owner",
+      "session": "implementation-session",
+      "system": "example-harness",
+      "provider": "example-provider",
+      "model": "implementation-model",
+      "effort": "high",
+      "host": "example-host",
+      "instance": "example-instance",
+      "workspace": "/example/checkout"
+    },
+    "contributors": [
+      {
+        "account": "example-owner",
+        "session": "implementation-session",
+        "system": "example-harness",
+        "provider": "example-provider",
+        "model": "implementation-model",
+        "effort": "high",
+        "host": "example-host",
+        "instance": "example-instance",
+        "workspace": "/example/checkout"
+      }
+    ],
+    "validation": [
+      {
+        "id": "local:pinned-sdk-build-zero-warnings",
+        "stage": "local",
+        "headSha": "1111111111111111111111111111111111111111",
+        "baseSha": "2222222222222222222222222222222222222222",
+        "command": "dotnet build HVO.WebSite.sln --no-restore --nologo",
+        "result": "pass",
+        "sdk": "10.0.400",
+        "metrics": {
+          "warnings": 0,
+          "errors": 0
+        },
+        "performer": {
+          "account": "example-owner",
+          "session": "implementation-session",
+          "system": "example-harness",
+          "provider": "example-provider",
+          "model": "implementation-model",
+          "effort": "high",
+          "host": "example-host",
+          "instance": "example-instance",
+          "workspace": "/example/checkout"
+        }
+      },
+      {
+        "id": "local:non-live-tests",
+        "stage": "local",
+        "headSha": "1111111111111111111111111111111111111111",
+        "baseSha": "2222222222222222222222222222222222222222",
+        "command": "dotnet test HVO.WebSite.sln --no-build --filter \"TestCategory!=Integration&TestCategory!=Live\"",
+        "result": "pass",
+        "metrics": {
+          "passed": 10,
+          "failed": 0
+        },
+        "performer": {
+          "account": "example-owner",
+          "session": "implementation-session",
+          "system": "example-harness",
+          "provider": "example-provider",
+          "model": "implementation-model",
+          "effort": "high",
+          "host": "example-host",
+          "instance": "example-instance",
+          "workspace": "/example/checkout"
+        }
+      },
+      {
+        "id": "local:pr-process-tests",
+        "stage": "local",
+        "headSha": "1111111111111111111111111111111111111111",
+        "baseSha": "2222222222222222222222222222222222222222",
+        "command": "node --test tools/pr-process.test.mjs",
+        "result": "pass",
+        "metrics": {
+          "passed": 10,
+          "failed": 0
+        },
+        "performer": {
+          "account": "example-owner",
+          "session": "implementation-session",
+          "system": "example-harness",
+          "provider": "example-provider",
+          "model": "implementation-model",
+          "effort": "high",
+          "host": "example-host",
+          "instance": "example-instance",
+          "workspace": "/example/checkout"
+        }
+      },
+      {
+        "id": "ci:integration",
+        "stage": "ci",
+        "headSha": "1111111111111111111111111111111111111111",
+        "baseSha": "2222222222222222222222222222222222222222",
+        "command": "bash tools/run-home-assistant-integration-tests.sh",
+        "result": "pending",
+        "reason": "Runs only after trusted admission in standard CI",
+        "performer": {
+          "account": "example-owner",
+          "session": "implementation-session",
+          "system": "example-harness",
+          "provider": "example-provider",
+          "model": "implementation-model",
+          "effort": "high",
+          "host": "example-host",
+          "instance": "example-instance",
+          "workspace": "/example/checkout"
+        }
+      }
+    ],
     "allowedDeferrals": [],
-    "reviewPolicy": { "depth": "deep", "selection": "auto", "minReviewers": 1, "differentAccount": false, "differentModel": true, "modelComparison": "all-contributors", "models": [], "modelMode": "one-of", "fallback": "any-eligible" }
+    "reviewPolicy": {
+      "depth": "deep",
+      "selection": "auto",
+      "minReviewers": 1,
+      "differentAccount": false,
+      "differentModel": true,
+      "modelComparison": "all-contributors",
+      "models": [],
+      "modelMode": "one-of",
+      "fallback": "any-eligible"
+    }
   },
   "review": {
     "version": 1,
@@ -17,7 +140,17 @@
     "publisher": "example-owner",
     "headSha": "1111111111111111111111111111111111111111",
     "baseSha": "2222222222222222222222222222222222222222",
-    "identity": { "account": "example-owner", "session": "review-session", "system": "example-review-harness", "provider": "example-provider", "model": "review-model", "effort": "high", "host": "example-host", "instance": "example-instance", "workspace": "/example/checkout" },
+    "identity": {
+      "account": "example-owner",
+      "session": "review-session",
+      "system": "example-review-harness",
+      "provider": "example-provider",
+      "model": "review-model",
+      "effort": "high",
+      "host": "example-host",
+      "instance": "example-instance",
+      "workspace": "/example/checkout"
+    },
     "verdict": "APPROVE",
     "depth": "deep",
     "coverageComplete": true,
@@ -25,14 +158,29 @@
     "coverage": "Reviewed requirements, source delta, failure recovery, trust boundaries and validation evidence.",
     "findings": []
   },
-  "finding": { "version": 1, "kind": "finding", "id": "F1", "severity": "P1" },
+  "finding": {
+    "version": 1,
+    "kind": "finding",
+    "id": "F1",
+    "severity": "P1"
+  },
   "verification": {
     "version": 1,
     "kind": "verification",
     "publisher": "example-owner",
     "headSha": "1111111111111111111111111111111111111111",
     "baseSha": "2222222222222222222222222222222222222222",
-    "identity": { "account": "example-owner", "session": "review-session", "system": "example-review-harness", "provider": "example-provider", "model": "review-model", "effort": "high", "host": "example-host", "instance": "example-instance", "workspace": "/example/checkout" },
+    "identity": {
+      "account": "example-owner",
+      "session": "review-session",
+      "system": "example-review-harness",
+      "provider": "example-provider",
+      "model": "review-model",
+      "effort": "high",
+      "host": "example-host",
+      "instance": "example-instance",
+      "workspace": "/example/checkout"
+    },
     "findingId": "F1",
     "disposition": "CORRECTED",
     "evidence": "Reproduced the original failure, inspected the fix and reran the affected check."

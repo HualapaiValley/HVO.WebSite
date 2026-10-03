@@ -1,16 +1,18 @@
 name: CI
+run-name: ${{ github.event_name == 'pull_request_target' && format('HVO-PR-CI v1 pr={0} head={1} base={2} merge={3}', github.event.pull_request.number, github.event.pull_request.head.sha, github.event.pull_request.base.sha, github.event.pull_request.merge_commit_sha) || format('CI {0} {1}', github.event_name, github.sha) }}
 
 on:
   push:
     branches: [ main ]
-  pull_request:
+  # Trusted base workflow admits a candidate before any candidate code executes.
+  pull_request_target:
     branches: [ main ]
     types: [ready_for_review, synchronize, reopened]
   schedule:
     - cron: '0 2 * * *'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -19,16 +21,18 @@ permissions:
 
 jobs:
   review-evidence:
-    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    if: github.event_name == 'pull_request_target' && !github.event.pull_request.draft && github.run_attempt == 1
     runs-on: ubuntu-latest
     timeout-minutes: 3
     outputs:
       eligible: ${{ steps.evidence.outputs.eligible }}
+      merge: ${{ steps.evidence.outputs.merge }}
     steps:
-      # Read-only candidate gate also supports the first adoption PR. The separate
-      # trusted metadata controller/status is live only after adoption on main.
+      # This is immutable trusted base code, never the candidate evaluator.
+      # First adoption activates only after this workflow/helper reaches main.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
@@ -40,11 +44,12 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
           EXPECTED_BASE: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_MERGE: ${{ github.event.pull_request.merge_commit_sha }}
         run: node tools/pr-process.mjs
 
   build-and-test:
     needs: review-evidence
-    if: always() && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && needs.review-evidence.result == 'success' && needs.review-evidence.outputs.eligible == 'true'))
+    if: ${{ !cancelled() && (github.event_name != 'pull_request_target' || (!github.event.pull_request.draft && github.run_attempt == 1 && needs.review-evidence.result == 'success' && needs.review-evidence.outputs.eligible == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -53,6 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.event_name == 'pull_request_target' && needs.review-evidence.outputs.merge || github.sha }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -79,7 +85,7 @@ jobs:
             --logger "trx;LogFileName=tests.trx"
             --results-directory TestResults
           )
-          if [[ "${{ github.event_name }}" != pull_request ]]; then
+          if [[ "${{ github.event_name }}" != pull_request_target ]]; then
             test_args+=(--collect:"XPlat Code Coverage")
           fi
           dotnet test "${test_args[@]}"
@@ -119,7 +125,7 @@ jobs:
 
   docker-smoke:
     needs: review-evidence
-    if: always() && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && needs.review-evidence.result == 'success' && needs.review-evidence.outputs.eligible == 'true'))
+    if: ${{ !cancelled() && (github.event_name != 'pull_request_target' || (!github.event.pull_request.draft && github.run_attempt == 1 && needs.review-evidence.result == 'success' && needs.review-evidence.outputs.eligible == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -127,6 +133,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.event_name == 'pull_request_target' && needs.review-evidence.outputs.merge || github.sha }}
           fetch-depth: 1
           persist-credentials: false
 

@@ -82,7 +82,7 @@ The independent reviewer does not edit the implementation branch. Review budgets
 
 **Reviewer metadata**
 
-Every parent summary records:
+Every parent summary records the following in its expandable **Agent details**, rather than leading with a long metadata list:
 
 - Reviewer: the actual person or distinct agent/session that performed the review.
 - Review-performing account, and a different publication account if its report was relayed.
@@ -97,35 +97,17 @@ For human reviews, model and effort are `N/A`. For agent values the system does 
 
 **Summary format**
 
-Use one short parent summary per review round. Each finding has a one-line bullet grouped by P0/P1/P2/P3, with its stable ID, current disposition and link to its code comment. Detailed evidence, reproductions and solutions remain in that comment. Empty priority groups can be omitted because the counts expose them.
+Use one short parent summary per review round. Lead with the verdict, a plain-language coverage sentence and priority counts. Follow immediately with one-line finding bullets grouped by P0/P1/P2/P3: stable ID, short observable problem, current disposition and code-thread link. Detailed evidence, reproductions and solutions remain in that thread. Empty priority groups can be omitted because the counts expose them.
+
+Keep validation and remaining limits to a few short bullets. Put exact commands and extensive coverage/history in a second expandable block when needed. Put all reviewer provenance, actual model/effort, selection/separation and source details together in Agent details; do not scatter some above and some inside that block. The visible summary should be understandable without opening it. Clean reviews use the same layout, with a brief no-actionable-findings statement.
 
 ```markdown
 ## Code review summary
 
-- Reviewer: <person or distinct session>
-- Reviewer account / publisher: <actual performing account / publisher if different>
-- System: <application/harness and known version>
-- Provider / model / effort: <actual values or explicitly unknown>
-- Required depth / selection: <Mechanical | Standard | Deep> / <Auto | Preferred | Required; request or link>
-- Selection compliance: <MET | UNMET | UNVERIFIED; substitution or visibility limit when relevant>
-- Author comparison / independence: <author provenance IDs; requested account/session/model separation and actual compliance>
-- Runtime evidence: <available session/task/model evidence or explicit visibility limit>
-- Mode / time: <Initial | Correction | Synchronization> / <UTC>
-- Reviewed range: `<full left SHA>..<full head SHA>`
-- Verdict: <APPROVE | CHANGES_REQUIRED | INCOMPLETE>
-- Checks examined: <short acceptance/test coverage; distinguish run from inspected>
-- Coverage limits: <material omissions and unmet requirements, or None>
-- Finding counts: P0 <n>, P1 <n>, P2 <n>, P3 <n>.
+**<Changes required | Approved | Incomplete>** — <one sentence describing the result>.
 
-<details>
-<summary>Agent details</summary>
-
-- Host/server: <actual host identifier or accurately unknown/provider-managed>
-- Harness instance: <known ID or unknown>
-- Checkout/worktree / branch: <exact path and branch, or unknown when unavailable>
-- Session / runtime evidence: <distinct session and available task link>
-
-</details>
+Reviewed <complete change/correction scope and relevant context>.
+**Counts:** P0 <n> · P1 <n> · P2 <n> · P3 <n>.
 
 ### P0 Critical
 
@@ -142,11 +124,55 @@ Use one short parent summary per review round. Each finding has a one-line bulle
 ### P3 Low
 
 - **F4 — <short observable problem>** — OPEN — [code comment](<thread URL>)
+
+### Validation and limits
+
+- **Run by reviewer:** <short result, useful counts and evidence link>.
+- **Inspected author/CI evidence:** <short result; distinguish skipped/pending from green>.
+- **Remaining limits:** <material omissions or unmet acceptance, or None>.
+
+<details>
+<summary>Agent details</summary>
+
+| Field | Actual review details |
+|---|---|
+| Reviewer / operator | <actual person or distinct agent; performing account> |
+| Publisher / route | <authenticated publisher; native review/comment or faithful relay> |
+| System / version | <application/harness; version or unknown> |
+| Provider | <actual provider; human when applicable> |
+| Model | <actual underlying model ID; N/A for human, unknown if hidden> |
+| Reasoning effort | <actual executed setting; N/A for human, unknown if hidden> |
+| Session / task | <distinct reviewing session and available task/runtime link> |
+| Host/server / platform | <actual host identifier and relevant OS/architecture, or unknown> |
+| Harness instance | <actual instance ID, or unknown when not exposed> |
+| Checkout/worktree | <exact absolute path, or unknown if unavailable> |
+| Branch / target | <actual source branch and integration target> |
+| Review mode / UTC time | <Initial, Correction or Synchronization; timestamp> |
+| Depth / actual coverage | <required coverage level; completed scope and risk lenses> |
+| Required reviewers | <count and any panel requirements> |
+| Selection / fallback | <Auto, Preferred or Required; choices and actual substitution/reason> |
+| Independence / compliance | <author provenance comparison; constraints; MET, UNMET or UNVERIFIED> |
+| Runtime evidence / limits | <execution evidence; declarations and unavailable facts stay explicit> |
+| Reviewed head | <full immutable raw PR head SHA> |
+| Target tip / merge base | <full immutable target and merge-base SHAs> |
+| Reviewed range | <full immutable initial or correction range> |
+
+</details>
+
+<details>
+<summary>Validation and coverage details</summary>
+
+<Exact commands and results personally run; evidence inspected; coverage omissions;
+prior finding/review history when needed. Keep source and performer attribution explicit.>
+
+</details>
 ```
 
 The template's rows are illustrative; publish only real findings. A clean review still includes identity, source range, actual coverage, counts and verdict, followed by a brief statement that no actionable findings were found. Missing required acceptance evidence, coverage or reviewer-selection compliance yields `INCOMPLETE`, not an implied clean result. Unknown model metadata is a declared limitation; it fails an exact-model requirement but does not automatically invalidate a policy that permits a managed reviewer.
 
 Where the publishing tool allows it, submit the summary as a native GitHub review with individual line comments. A qualified distinct account may use the native approve/request-changes state. Same-account sessions can publish comments with provenance; they must not pretend to have submitted an independent native self-approval. If tooling requires separate publication calls, create the finding comments first and then publish the summary with their actual links. Failed publication is reported as a gap.
+
+Presentation-only edits may improve an existing summary while preserving its source, verdict, findings, reviewer identity and machine record. Identify a faithful formatting relay in the details when another session makes that edit. Publish a new source-bound summary for a new decision, correction round or changed verdict; presentation edits must never reorder native review decisions.
 
 **Individual code comment format**
 

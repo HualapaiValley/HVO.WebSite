@@ -45,6 +45,10 @@ Validated commit or source fingerprint: <!-- full SHA or reproducible fingerprin
 Record exact commands, actual results and useful counts. Link lengthy output separately.
 For unavailable checks, state not run and the reason. Attach applicable UI/browser evidence. -->
 
+<!-- Identify profile-required local prerequisites separately from post-review CI.
+Required local checks must pass on the current source; explained blocked results remain
+visible but do not qualify readiness. Use the profile's stable validation IDs in the record. -->
+
 | Command or check | Result | Performed by | Evidence |
 |---|---|---|---|
 | | | <!-- provenance ID; add a validation contributor row when needed --> | |
