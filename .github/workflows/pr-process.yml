@@ -1,0 +1,53 @@
+name: PR Process
+
+# These are metadata-only events. Never check out the PR/merge ref, consume PR
+# artifacts or interpolate comment/PR text into shell commands in this workflow.
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft, closed, labeled, unlabeled]
+  issue_comment:
+    types: [created, edited, deleted]
+  workflow_run:
+    # Dependabot's pull_request_target token can be read-only. The follow-up to
+    # its inexpensive preflight uses trusted main and performs the draft write.
+    workflows: [CI, PR Preflight]
+    types: [requested, completed]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to reconcile after thread-only changes
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  statuses: write
+  actions: write
+
+concurrency:
+  group: pr-process-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.event.inputs.pr_number || 'repository' }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    if: (github.event_name != 'issue_comment' || github.event.issue.pull_request) && !(github.event_name == 'pull_request_target' && github.event.pull_request.user.login == 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Always trusted main, including issue_comment/workflow_run events.
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Reconcile source evidence, labels and draft state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/pr-process-control.mjs

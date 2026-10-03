@@ -1,0 +1,43 @@
+name: PR Preflight
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+concurrency:
+  group: pr-preflight-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  simple-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Check patch whitespace
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git diff --check "$BASE_SHA...$HEAD_SHA"
+      - name: Validate PR process helpers
+        run: |
+          node --check tools/pr-process.mjs
+          node --check tools/pr-process-control.mjs
+          node --test tools/pr-process.test.mjs
+      - name: Validate title, linked issue and author evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node tools/pr-process.mjs preflight

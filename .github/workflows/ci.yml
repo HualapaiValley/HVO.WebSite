@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    types: [ready_for_review, synchronize, reopened]
   schedule:
     - cron: '0 2 * * *'
 
@@ -14,10 +15,37 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  review-evidence:
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      eligible: ${{ steps.evidence.outputs.eligible }}
+    steps:
+      # Read-only candidate gate also supports the first adoption PR. The separate
+      # trusted metadata controller/status is live only after adoption on main.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Validate current-source independent review
+        id: evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: node tools/pr-process.mjs
+
   build-and-test:
-    runs-on: [self-hosted, Linux, X64, hvo-website]
+    needs: review-evidence
+    if: always() && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && needs.review-evidence.result == 'success' && needs.review-evidence.outputs.eligible == 'true'))
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -26,6 +54,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -39,7 +68,7 @@ jobs:
         run: dotnet build HVO.WebSite.sln --no-restore -c Debug --nologo -v minimal /p:ContinuousIntegrationBuild=true
 
       - name: Install Playwright Chromium
-        run: pwsh tests/HVO.WebSite.PlaywrightTests/bin/Debug/net10.0/playwright.ps1 install chromium
+        run: pwsh tests/HVO.WebSite.PlaywrightTests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
 
       - name: Test (Unit)
         shell: bash
@@ -89,14 +118,17 @@ jobs:
           retention-days: 7
 
   docker-smoke:
-    runs-on: [self-hosted, Linux, X64, hvo-website]
+    needs: review-evidence
+    if: always() && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && needs.review-evidence.result == 'success' && needs.review-evidence.outputs.eligible == 'true'))
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      DOCKER_SMOKE_CACHE_MODE: persistent
+      DOCKER_SMOKE_CACHE_MODE: ephemeral
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Validate Docker smoke cleanup
         run: bash tools/verify-docker-build-smoke.sh

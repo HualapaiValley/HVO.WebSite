@@ -1,0 +1,40 @@
+{
+  "author": {
+    "version": 1,
+    "kind": "author",
+    "publisher": "example-owner",
+    "headSha": "1111111111111111111111111111111111111111",
+    "baseSha": "2222222222222222222222222222222222222222",
+    "identity": { "account": "example-owner", "session": "implementation-session", "system": "example-harness", "provider": "example-provider", "model": "implementation-model", "effort": "high", "host": "example-host", "instance": "example-instance", "workspace": "/example/checkout" },
+    "contributors": [ { "account": "example-owner", "session": "implementation-session", "system": "example-harness", "provider": "example-provider", "model": "implementation-model", "effort": "high", "host": "example-host", "instance": "example-instance", "workspace": "/example/checkout" } ],
+    "validation": [ { "command": "node --test tools/pr-process.test.mjs", "result": "pass", "performer": { "account": "example-owner", "session": "implementation-session", "system": "example-harness", "provider": "example-provider", "model": "implementation-model", "effort": "high", "host": "example-host", "instance": "example-instance", "workspace": "/example/checkout" } } ],
+    "allowedDeferrals": [],
+    "reviewPolicy": { "depth": "deep", "selection": "auto", "minReviewers": 1, "differentAccount": false, "differentModel": true, "modelComparison": "all-contributors", "models": [], "modelMode": "one-of", "fallback": "any-eligible" }
+  },
+  "review": {
+    "version": 1,
+    "kind": "review",
+    "publisher": "example-owner",
+    "headSha": "1111111111111111111111111111111111111111",
+    "baseSha": "2222222222222222222222222222222222222222",
+    "identity": { "account": "example-owner", "session": "review-session", "system": "example-review-harness", "provider": "example-provider", "model": "review-model", "effort": "high", "host": "example-host", "instance": "example-instance", "workspace": "/example/checkout" },
+    "verdict": "APPROVE",
+    "depth": "deep",
+    "coverageComplete": true,
+    "limitations": [],
+    "coverage": "Reviewed requirements, source delta, failure recovery, trust boundaries and validation evidence.",
+    "findings": []
+  },
+  "finding": { "version": 1, "kind": "finding", "id": "F1", "severity": "P1" },
+  "verification": {
+    "version": 1,
+    "kind": "verification",
+    "publisher": "example-owner",
+    "headSha": "1111111111111111111111111111111111111111",
+    "baseSha": "2222222222222222222222222222222222222222",
+    "identity": { "account": "example-owner", "session": "review-session", "system": "example-review-harness", "provider": "example-provider", "model": "review-model", "effort": "high", "host": "example-host", "instance": "example-instance", "workspace": "/example/checkout" },
+    "findingId": "F1",
+    "disposition": "CORRECTED",
+    "evidence": "Reproduced the original failure, inspected the fix and reran the affected check."
+  }
+}

@@ -46,6 +46,14 @@ Avoid:
 - Immediate context worth knowing before resuming work
 ```
 
+## 2026-10-03
+
+### Shared Development Process Pilot
+
+- Added the shared issue/epic/review/PR procedures and explicit AGENTS/Claude/Copilot routing while preserving project engineering guidance in `docs/AGENT_PROJECT_GUIDANCE.md`.
+- Standardized actual author/reviewer/model/effort provenance, validation performers, independently verified finding threads, and the draft -> review -> gated CI lifecycle.
+- Kept main/squash and operational authorization boundaries; archived the fixed #187–#198 campaign instructions as history. Adoption is tracked by #394; metadata automation becomes active once adopted on main.
+
 ## 2026-08-18
 
 ### Home Assistant Core Setup Completion
