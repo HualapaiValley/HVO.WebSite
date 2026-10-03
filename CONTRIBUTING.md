@@ -1,111 +1,27 @@
-# Contributing
+# Contributing to WebSite
 
-Thank you for your interest in contributing to HVO.WebSite! This document outlines the workflow, standards, and expectations for contributions.
+Use the same [development process](docs/development/PROCESS.md) as agent contributors. The [repository profile](docs/development/repository-profile.md) defines local validation, `main`, squash merging and the available review route. [Project guidance](docs/AGENT_PROJECT_GUIDANCE.md) and [CSS governance](docs/CSS_GOVERNANCE.md) retain WebSite-specific requirements.
 
-## Table of Contents
+## Issue work
 
-- [Getting Started](#getting-started)
-- [Branch Naming](#branch-naming)
-- [Development Workflow](#development-workflow)
-- [Coding Standards](#coding-standards)
-- [Pull Request Process](#pull-request-process)
-- [PR Checklist](#pr-checklist)
-- [Issue & PR Labels](#issue--pr-labels)
+Read the complete issue, comments, acceptance and dependencies. Check assignees, claims and linked PRs before taking ownership. Assign the accountable owner, apply `workflow:in-progress` and one review-depth label, and post a friendly [Work started comment](docs/development/PROCESS.md#work-started-comment) with the plan, branch, review needs, delivery boundary and next checkpoint. Keep technical provenance in expandable details. Re-read the record to catch competing claims; age alone does not authorize takeover.
 
----
+Use a dedicated branch from `main`, preferably `<type>/<issue>-<description>` (`feat`, `fix`, `docs`, `test`, `refactor`, `chore`; existing `feature/` branches are accepted). Implement the defined acceptance, run applicable validation and keep progress/handoff durable. Retain ownership through review and CI. An authorized epic includes dependency-ready child work and final epic acceptance; avoid automatically taking unrelated issues.
 
-## Getting Started
+## PR and review
 
-1. Clone the repository and open in the dev container (recommended).
-2. Verify the build: `dotnet build` — expect **zero warnings, zero errors**.
+Every PR opens draft with `<type>(<component>): <observable change> (#<issue>)` and the [PR template](.github/PULL_REQUEST_TEMPLATE.md). Record actual author/session/system/provider/model/effort and validation performers; include source-bound commands/results and explicit limitations. Human model/effort is N/A.
 
----
+Mechanical, Standard and Deep specify review coverage, independently of runtime effort or reviewer count. Declare Auto/Preferred/Required selection and any account/session/model separation. The [review procedure](.agents/skills/hvo-code-review/references/review-format.md) defines evidence, per-finding comments, P0–P3 summaries, author replies, independent verification and thread resolution. Same-account reviewer sessions use attributed comments when native self-approval is unavailable.
 
-## Branch Naming
+Draft -> review -> corrections/verification -> ready -> standard CI -> green -> authorized merge. Drafts run only bounded preflight. Failed CI or changed source returns to draft and invalidates readiness; code corrections require focused independent review before another standard run. Reaching a review budget is never approval. Use the [state and label rules](.agents/skills/hvo-pr-lifecycle/references/pr-states-and-labels.md).
 
-| Pattern | Use For |
-|---------|---------|
-| `feature/<issue#>-<short-desc>` | New features and enhancements (e.g., `feature/34-weather-dashboard`) |
-| `fix/<issue#>-<short-desc>` | Bug fixes and corrective changes (e.g., `fix/42-null-ref-on-sensor-data`) |
+PRs squash into `main` only after current-source review, terminal finding verification, resolved actionable threads and current required CI. Merge must be authorized by the assignment. Verify issue closure and publish closeout; cleanup only the completed branch/workspace. Release/deployment remains separately scoped.
 
-Always branch from `main`. Use the `feature/` or `fix/` pattern for all work, including documentation-only and refactor-only changes.
+## Local validation and history
 
----
+`global.json` pins the SDK. Build the solution with zero warnings/errors and run the applicable non-live tests. Follow the profile for integration/UI/container checks. Document commands, environment, source, performer and actual results. Never report a missing, skipped or failed result as passing.
 
-## Development Workflow
+Update `docs/PROJECT_HISTORY.md` for structural, architectural or deployment-assumption changes with a concise outcome/decision/follow-up entry. Image-version/publish changes retain their existing `.env`, gist synchronization and CHANGELOG requirements; do not apply that deployment procedure to ordinary documentation/CI work.
 
-1. **Create a feature branch** from `main`:
-   ```bash
-   git checkout main && git pull origin main
-   git checkout -b feature/{issue-number}-{short-description}
-   ```
-
-2. **Make incremental commits** with [Conventional Commits](https://www.conventionalcommits.org/):
-   ```
-   feat: add weather station dashboard (#34)
-   fix: handle null sensor reading (#42)
-   docs: update configuration reference (#50)
-   test: add data model validation tests (#38)
-   refactor: extract theme variables (#45)
-   ```
-
-3. **Run build** before pushing:
-   ```bash
-   dotnet build
-   ```
-
-4. **Push and create a PR** targeting `main`.
-
----
-
-## Coding Standards
-
-- **Language**: C# / .NET 10
-- **Style**: Follow existing conventions in the codebase
-- **Warnings**: Build must produce **zero warnings and zero errors**
-- **Blazor Components**: Follow file structure conventions (`.razor`, `.razor.cs`, `.razor.css`)
-- **Documentation**: Update docs if the change adds or modifies features, configuration, or components
-- **Project History**: Update `docs/PROJECT_HISTORY.md` when a session changes repo structure, architecture direction, deployment assumptions, or leaves important follow-up context for later work
-- **Container Publishing**: If a change updates image version metadata or publish workflow, update `.env`, sync the private `.env` gist, and document the published version in `CHANGELOG.md`
-
-Project history entries should stay short and curated. Record outcomes, decisions, and next-session context. Do not use `docs/PROJECT_HISTORY.md` as a step-by-step transcript.
-
----
-
-## Pull Request Process
-
-1. **Verify** the build passes with zero warnings.
-2. **Create the PR** with a clear title and description:
-   - Summary of what the PR does
-   - Which issue it resolves (`Resolves #N`)
-   - Key implementation details
-   - Files changed
-3. **Address all review comments** — fix code, respond, or discuss.
-4. **Re-run build** after any review-driven changes.
-5. PRs are **squash-merged** into `main`.
-
----
-
-## PR Checklist
-
-Before requesting review, verify:
-
-- [ ] Feature branch created from `main` with correct naming
-- [ ] `dotnet build` — 0 errors, 0 warnings
-- [ ] No new warnings introduced
-- [ ] Documentation updated (if applicable)
-- [ ] Issue linked in PR description (`Resolves #N`)
-
----
-
-## Issue & PR Labels
-
-| Label | Description |
-|-------|-------------|
-| `bug` | Something isn't working |
-| `enhancement` | New feature or improvement |
-| `documentation` | Documentation changes only |
-| `refactor` | Code refactoring with no behavior change |
-| `in-progress` | Work is actively being done |
-| `help wanted` | Looking for contributors |
-| `good first issue` | Good for newcomers |
+Keep existing type, priority and domain labels. `workflow:in-progress` is the issue claim; each PR has exactly one lifecycle label. `workflow:blocked` is an overlay, not a new owner or an approval. The historical #187–#198 review campaign is [archived context](docs/archive/2026-review-campaign-process.md), not a quota for new work.
