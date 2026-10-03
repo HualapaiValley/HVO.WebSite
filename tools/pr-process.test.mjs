@@ -346,3 +346,53 @@ test('F6 every preferred reviewer needs an independently permitted model or reco
     other.identity.model = 'review-model'; delete other.selectionNote; comment.body = body(other); assert.equal(evaluate(f.snapshot).eligible, true, fallback);
   }
 });
+
+function preferredPanel(fallback, reviewers, models = ['review-model', 'panel-model']) {
+  const f = fixture();
+  Object.assign(f.values.author.reviewPolicy, { selection: 'preferred', modelMode: 'all-of', minReviewers: 2, fallback, models: models.map(model => ({ provider: 'example-provider', model })), fallbackModels: [{ provider: 'example-provider', model: 'permitted-fallback' }] });
+  f.sync();
+  f.snapshot.comments = reviewers.map((reviewer, index) => ({ ...f.snapshot.comments[0], id: 10 + index, body: body({ ...f.values.review, ...reviewer, identity: { ...f.values.review.identity, ...reviewer.identity, session: `panel-review-${index}` } }) }));
+  return f;
+}
+test('F7 prohibited panel fallback rejects duplicate A reviewers even with substitution notes', () => {
+  for (const selectionNote of [undefined, 'B unavailable; using another A reviewer']) {
+    const f = preferredPanel('none', [{ selectionNote }, { selectionNote }]);
+    rejected(f.snapshot, /fallback is not authorized|Incomplete preferred panel/);
+  }
+  for (const fallback of ['none', 'listed-only', 'any-eligible']) {
+    const f = preferredPanel(fallback, [{}, { identity: { model: 'panel-model' } }]);
+    assert.equal(evaluate(f.snapshot).eligible, true, fallback);
+    f.values.author.reviewPolicy.selection = 'required'; f.snapshot.pr.body = body(f.values.author);
+    assert.equal(evaluate(f.snapshot).eligible, true, fallback);
+  }
+});
+test('F7 every missing panel slot needs its own authorized and recorded substitution', () => {
+  for (const fallback of ['any-eligible', 'listed-only']) for (const model of ['review-model', 'permitted-fallback', 'outside-list']) for (const noted of [false, true]) {
+    const f = preferredPanel(fallback, [{}, { identity: { model }, ...(noted ? { selectionNote: 'B unavailable; this session substitutes for its panel slot' } : {}) }]);
+    assert.equal(evaluate(f.snapshot).eligible, noted && (fallback === 'any-eligible' || model === 'permitted-fallback'), `${fallback}: ${model}, noted=${noted}`);
+  }
+  const f = preferredPanel('listed-only', [{}, { selectionNote: 'B unavailable; explicitly permitted A substitution' }]);
+  f.values.author.reviewPolicy.fallbackModels = [{ provider: 'example-provider', model: 'review-model' }]; f.snapshot.pr.body = body(f.values.author);
+  assert.equal(evaluate(f.snapshot).eligible, true);
+});
+test('F7 one review cannot fill multiple panel slots, including overlapping selectors', () => {
+  const f = preferredPanel('any-eligible', [{}, { selectionNote: 'Missing panel routes unavailable' }], ['review-model', 'panel-model', 'third-model']);
+  rejected(f.snapshot, /Incomplete preferred panel/);
+  f.values.author.reviewPolicy.selection = 'required'; f.values.author.reviewPolicy.minReviewers = 1; f.values.author.reviewPolicy.models = [{ provider: 'example-provider', model: 'review-model' }, { provider: 'example-provider', model: 'review-model', effort: 'high' }];
+  f.snapshot.pr.body = body(f.values.author); f.snapshot.comments.length = 1;
+  rejected(f.snapshot, /Required review model/);
+});
+test('F7 panel matching preserves complete overlapping panels independent of order', () => {
+  for (const reverse of [false, true]) {
+    const reviewers = [{ identity: { effort: 'high' } }, { identity: { effort: 'xhigh' } }];
+    const f = preferredPanel('none', reverse ? reviewers.reverse() : reviewers);
+    f.values.author.reviewPolicy.models = [{ provider: 'example-provider', model: 'review-model' }, { provider: 'example-provider', model: 'review-model', effort: 'high' }];
+    f.snapshot.pr.body = body(f.values.author);
+    assert.equal(evaluate(f.snapshot).eligible, true);
+  }
+});
+test('F7 required panels never substitute, even when the preferred fallback list permits it', () => {
+  const f = preferredPanel('any-eligible', [{}, { selectionNote: 'B unavailable' }]);
+  f.values.author.reviewPolicy.selection = 'required'; f.snapshot.pr.body = body(f.values.author);
+  rejected(f.snapshot, /Required review model/);
+});

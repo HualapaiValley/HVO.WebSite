@@ -58,6 +58,24 @@ function selected(identity, selector) {
   return !unknown(identity.provider) && !unknown(identity.model) && login(identity.provider) === login(selector.provider) && identity.model === selector.model && (!selector.effort || (!unknown(identity.effort) && identity.effort === selector.effort));
 }
 
+function panelSatisfied(selectors, reviews, substitutionAllowed = () => false) {
+  // Match each requested slot to a distinct session. Reassign earlier matches
+  // when selectors overlap so publication order cannot change qualification.
+  const assignments = new Map();
+  function assign(slot, visited) {
+    for (const [index, review] of reviews.entries()) {
+      if (visited.has(index) || (!selected(review.identity, selectors[slot]) && !substitutionAllowed(review))) continue;
+      visited.add(index);
+      if (!assignments.has(index) || assign(assignments.get(index), visited)) {
+        assignments.set(index, slot);
+        return true;
+      }
+    }
+    return false;
+  }
+  return selectors.every((_, slot) => assign(slot, new Set()));
+}
+
 export function localEvidenceErrors(author, pr, files) {
   const errors = [];
   const needed = [LOCAL_IDS.build, LOCAL_IDS.tests];
@@ -153,7 +171,7 @@ export function evaluate({ pr, comments = [], threads = [], files }) {
   if (reviews.some(x => !nonempty(x.coverage) || x.coverageComplete !== true || !Array.isArray(x.limitations) || x.limitations.some(v => typeof v !== 'string') || !Array.isArray(x.findings) || DEPTHS.indexOf(x.depth) < DEPTHS.indexOf(policy.depth))) errors.push('Completed coverage at the required review depth, limitations and finding index are required');
   if (reviews.length < policy.minReviewers) errors.push(`Need ${policy.minReviewers} distinct independent reviewing sessions`);
   const modelSatisfied = policy.modelMode === 'all-of'
-    ? policy.models.every(selector => reviews.some(x => selected(x.identity, selector)))
+    ? panelSatisfied(policy.models, reviews)
     : reviews.some(x => policy.models.some(selector => selected(x.identity, selector)));
   if (policy.selection === 'required' && !modelSatisfied) errors.push('Required review model/effort selection is not satisfied');
   for (const review of reviews) {
@@ -165,7 +183,11 @@ export function evaluate({ pr, comments = [], threads = [], files }) {
       if (policy.fallback === 'listed-only' && !policy.fallbackModels.some(selector => selected(review.identity, selector))) errors.push('Reviewer is outside the explicitly permitted fallback models');
     }
   }
-  if (policy.selection === 'preferred' && policy.modelMode === 'all-of' && !modelSatisfied && !reviews.every(x => nonempty(x.selectionNote))) errors.push('Incomplete preferred panel substitution must be recorded by every participating reviewer');
+  if (policy.selection === 'preferred' && policy.modelMode === 'all-of' && !modelSatisfied) {
+    const substitutionAllowed = review => nonempty(review.selectionNote) && (policy.fallback === 'any-eligible' || (policy.fallback === 'listed-only' && policy.fallbackModels.some(selector => selected(review.identity, selector))));
+    if (policy.fallback === 'none') errors.push('Preferred all-of panel is incomplete; fallback is not authorized');
+    else if (!panelSatisfied(policy.models, reviews, substitutionAllowed)) errors.push('Incomplete preferred panel requires a distinct authorized reviewer with a recorded substitution for each missing slot');
+  }
 
   const indexed = new Map();
   for (const review of reviews) {

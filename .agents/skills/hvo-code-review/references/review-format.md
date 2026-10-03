@@ -68,6 +68,8 @@ Fallback: Another eligible configured route; retain draft if none is available
 
 An exact-model request can instead say `Required: one of <provider/model/settings A> OR <provider/model/settings B>; no other fallback`. A two-model request says `Required: two independent reviews, one from A AND one from B`. These describe selection constraints, not reviews already performed or blanket authorization to launch extra agents.
 
+An explicit all-of panel requires a distinct reviewer session for each requested selector. A Preferred panel may replace a missing slot only through its declared fallback, with a substitution reason from the reviewer filling that slot. Two A reviewers cannot satisfy A AND B when fallback is prohibited. Listed fallback applies even if the substitute matches another preferred selector; one reviewer cannot fill two slots. Required panels never substitute.
+
 **How to perform the review**
 
 1. Read the assigned issue or epic child, acceptance criteria, applicable AGENTS.md/project instructions, review procedure, required depth, reviewer-selection constraints and risk lenses. Confirm the selected route can satisfy the assignment. Establish scope from the issue and source, not merely from the author's summary.

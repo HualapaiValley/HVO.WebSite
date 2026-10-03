@@ -38,10 +38,10 @@ The review policy declares:
 - `differentAccount` and `differentModel`: required separation; `differentProvider` when a different provider is required. Distinct session is always required against every implementation contributor.
 - `modelComparison`: `all-contributors` (default recommended scope) or explicitly `primary`.
 - `models`: provider/model selectors with optional mandatory `effort`.
-- `modelMode`: `one-of` for alternative candidates, or explicit `all-of` for a required model panel.
+- `modelMode`: `one-of` for alternative candidates, or explicit `all-of` for a model panel. Each panel selector occupies one slot filled by a distinct independent reviewer session, including overlapping selectors.
 - `fallback`: `any-eligible`, `listed-only` (with `fallbackModels`) or `none`. Required exact choices cannot be silently substituted.
 
-Depth specifies coverage, not effort or reviewer count. Preferred substitution requires an actual `selectionNote` in the review. Required models/settings/separation with unverifiable values keep the role incomplete. Same operator account with a distinct reviewer session and different model is supported; switching models in the implementation session is self-review.
+Depth specifies coverage, not effort or reviewer count. Preferred substitution requires an actual `selectionNote` in the review. For an incomplete preferred panel, every missing slot needs a separate reviewer authorized by `fallback`, with that reviewer's substitution reason. A reviewer matching another preferred selector may substitute only under the same fallback rules; notes alone never authorize fallback. `none` requires the complete exact panel, while `listed-only` restricts substitutions to `fallbackModels`. Required panels accept no substitutions. Required models/settings/separation with unverifiable values keep the role incomplete. Same operator account with a distinct reviewer session and different model is supported; switching models in the implementation session is self-review.
 
 `allowedDeferrals` records explicit owner authorization for eligible finding IDs with linked follow-ups. It cannot waive P0/P1 or acceptance/security/data-loss/material-correctness blockers. Keep the authorization and residual risk visible in the finding thread.
 
