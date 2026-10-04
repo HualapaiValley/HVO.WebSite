@@ -9,6 +9,7 @@ Production currently uses direct headless vNext collectors for Davis, JK BMS, EG
 - `ARCHITECTURE.md`: current system baseline, deployment boundaries, and active data-flow direction
 - `FUTURE_WORK.md`: single consolidated list of open future work after the shared outbox migrations
 - `CONTAINER_PUBLISHING.md`: self-hosted registry publishing workflow and versioning process
+- `development/key-vault-materialization.md`: existing root-bootstrap inputs and whole-helper secret synchronization scope
 - `WEBSITE_DATA_PROTECTION.md`: website key-ring deployment, backup, restore, rotation, and rollback
 - `SHARED_INFRASTRUCTURE.md`: reusable hvo-docker infrastructure and observability stacks, storage policy, and migration guidance
 - [Self-hosted website deployment](../deploy/hvo-docker/README.md): current website prerequisites, configuration, identity/key-ring and authorized rollout

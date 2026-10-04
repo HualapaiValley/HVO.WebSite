@@ -20,7 +20,9 @@ The dedicated `hvo-website-runtime` identity needs:
 Do not reuse the development service principal. Website deployment files obtain
 the dedicated identity from `WebsiteRuntime--AzureClientId`,
 `WebsiteRuntime--AzureClientSecret`, and `WebsiteRuntime--AzureTenantId` in
-`hvo-central-kv` through `sync-secrets-from-keyvault.sh`.
+`hvo-central-kv` through `sync-secrets-from-keyvault.sh`. Before using that global
+helper, establish its [existing root-bootstrap, SQL/SSH and whole-helper prerequisites](development/key-vault-materialization.md);
+website identity materialization alone does not limit its scope.
 
 The devcontainer identity is intentionally separate and is cached in the private
 bootstrap gist for rebuild recovery. Rotations must update

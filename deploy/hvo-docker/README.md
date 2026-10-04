@@ -38,8 +38,12 @@ test ! -e deploy/hvo-docker/.env && test ! -L deploy/hvo-docker/.env
 chmod 600 deploy/hvo-docker/.env
 ```
 
-Review non-secret host/database/image values in the ignored file. Then, with
-authenticated Azure CLI and the approved Key Vault read/materialization scope:
+Review non-secret host/database/image values in the ignored file. Before the
+global sync helper below, establish the
+[existing root bootstrap, sourced SSH field, parsable root/website SQL strings
+and whole-helper vault/materialization scope](../../docs/development/key-vault-materialization.md).
+Creating this website file alone is insufficient, and `--apply` does not create
+a complete root bootstrap. Then, with the approved prerequisites satisfied:
 
 ```bash
 ./scripts/sync-secrets-from-keyvault.sh --check

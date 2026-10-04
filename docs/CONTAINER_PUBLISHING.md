@@ -41,7 +41,9 @@ Dockerfile/publisher does not consume `WEBSITE_RUNTIME`.
 1. Select and review the actual publish env file, repository and image version.
 2. Compare its managed credentials with Key Vault. `sync-secrets-from-keyvault.sh`
    defaults to read-only drift detection; `--apply` materializes approved local
-   files and does not rotate credentials in Key Vault. See
+   files and does not rotate credentials in Key Vault. Establish the
+   [root-bootstrap prerequisites and whole-helper scope](development/key-vault-materialization.md)
+   first; also review the
    [gateway secret exceptions](../deploy/pi-gateways/README.md#mounted-configuration-and-secrets).
    A custom `HVO_PUBLISH_ENV_FILE` is not automatically synchronized.
 3. Inspect the commands with `--dry-run`, then publish only the intended target.
@@ -49,7 +51,8 @@ Dockerfile/publisher does not consume `WEBSITE_RUNTIME`.
    it does not perform a registry readback or deploy the image.
 5. Record the actual image/release change in [CHANGELOG.md](../CHANGELOG.md).
 
-For an already configured deployment env file:
+For an already configured deployment env file, after satisfying the shared
+[materialization prerequisites](development/key-vault-materialization.md):
 
 ```bash
 ./scripts/sync-secrets-from-keyvault.sh --check
@@ -68,8 +71,18 @@ validation.
 
 [sync-env-gist.sh](../scripts/sync-env-gist.sh) caches **root `.env`**, not
 `deploy/hvo-docker/.env` or every deployment file, in private gist
-`f343db002d980ebe5fcc51413b0b7227`. It first checks Key Vault drift and requires
-`gh` authentication/root `.env`; `--dry-run` still performs that read-only check.
+`f343db002d980ebe5fcc51413b0b7227`. Both modes require an existing root `.env`
+and available `jq`/`curl`. `--dry-run` only previews the intended update: it
+skips Key Vault drift checking, token resolution and upload. Its success does
+not prove synchronized or usable credentials.
+
+The real update first runs the global helper's `--check`, with the
+[root-bootstrap and vault prerequisites](development/key-vault-materialization.md),
+and stops on drift/failure. It then resolves a GitHub token from `GH_PAT`,
+`GH_TOKEN`, `GITHUB_TOKEN`, `gh auth token`, or `git credential fill`, in that
+order. A usable token with private-gist update access is required; authentication
+through `gh` is one supported route. The real command uploads the entire root
+file to the private gist; it does not synchronize deployment files.
 
 ```bash
 ./scripts/sync-env-gist.sh --dry-run

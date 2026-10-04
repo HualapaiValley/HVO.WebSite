@@ -61,7 +61,10 @@ JSON. Environment overrides win; JSON reload is disabled and secrets are
 resolved at startup, so changed configuration/credentials need an approved
 restart or replacement. See the [runtime contract](../../docs/architecture/EDGE_VNEXT_RUNTIME.md).
 
-Use authenticated Azure CLI access to `hvo-central-kv`:
+First establish the [existing root bootstrap and global sync prerequisites](../../docs/development/key-vault-materialization.md),
+including its sourced SSH field, parsable SQL string and full vault-read scope.
+A gateway `.env`/`gateway.json` alone is insufficient. Then use authenticated
+Azure CLI access to `hvo-central-kv`:
 
 ```bash
 ./scripts/sync-secrets-from-keyvault.sh --check

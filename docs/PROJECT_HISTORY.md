@@ -10,6 +10,11 @@ Recovery ownership distinguishes existing procedures from missing service drills
 including the unresolved August SQL disk identity. No deployment, live hardware,
 credential rotation, schema or runtime policy change is part of this batch.
 
+Correction review added the shared [root-bootstrap/materialization prerequisites](development/key-vault-materialization.md),
+qualified gist preview versus credential checking and HA agent-backed backup
+creation, and documented the existing SQL derivation error-propagation hazard.
+The helper's runtime behavior remains a separate reviewed-change boundary.
+
 ## 2026-10-04 — Verified gateway rollback checkpoints (#414)
 
 Replaced SmartShunt's active-volume tar and destructive restore recipe with a

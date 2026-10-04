@@ -202,7 +202,7 @@ Check for:
 
 - `deploy/pi-gateways/<gateway>/docker-compose.yml` updated if the container's environment variables, ports, or volume mounts changed
 - `deploy/pi-gateways/<gateway>/.env.example` updated if new required variables were added
-- Pull credentials from `hvo-central-kv` with `./scripts/sync-secrets-from-keyvault.sh --apply`; the private gist is only a devcontainer bootstrap cache
+- Establish the [existing root-bootstrap and whole-helper prerequisites](development/key-vault-materialization.md) before approved `./scripts/sync-secrets-from-keyvault.sh --apply` materialization from `hvo-central-kv`; the private gist is only a devcontainer bootstrap cache
 - Deployment tested: `./scripts/deploy-pi-gateway.sh --context devpi5 <gateway>` followed by `./scripts/check-deployments.sh`
 
 ---

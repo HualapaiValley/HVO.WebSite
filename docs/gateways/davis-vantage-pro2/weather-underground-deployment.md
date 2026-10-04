@@ -55,7 +55,7 @@ The tracked example is disabled by default:
 }
 ```
 
-The upload credential is the Weather Underground **station key**. Azure Key Vault stores it as `WeatherUnderground--StationKey`; `scripts/sync-secrets-from-keyvault.sh --apply` writes it to the ignored local file `deploy/pi-gateways/davis/secrets/weather-underground-station-key` only when the ignored local Davis `gateway.json` exists and has `WeatherUnderground.Enabled=true`. The existing secrets directory is mounted read-only at `/run/secrets`, so the application resolves `/run/secrets/weather-underground-station-key`.
+The upload credential is the Weather Underground **station key**. Azure Key Vault stores it as `WeatherUnderground--StationKey`; `scripts/sync-secrets-from-keyvault.sh --apply` writes it to the ignored local file `deploy/pi-gateways/davis/secrets/weather-underground-station-key` only when the ignored local Davis `gateway.json` exists and has `WeatherUnderground.Enabled=true`. Establish the [existing root-bootstrap and global helper prerequisites](../../development/key-vault-materialization.md) before using either sync mode; this helper also processes its other root, website and gateway materializations. The existing secrets directory is mounted read-only at `/run/secrets`, so the application resolves `/run/secrets/weather-underground-station-key`.
 
 `WeatherUnderground--ApiKey` is a separate query API credential. The PWS upload protocol does not use it. The sync script must never retrieve it, the Davis deployment must never materialize it, and the publisher must never send it. Neither credential belongs in `.env`, Compose environment entries, tracked JSON, command output, logs, diagnostics, or exception text.
 
@@ -65,7 +65,7 @@ The upload credential is the Weather Underground **station key**. Azure Key Vaul
 2. Run `bash tools/validate-davis-weather-underground-deployment.sh` and `./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 davis`.
 3. Deploy the disabled build with `./scripts/deploy-pi-gateway.sh --context devpi5 davis`. Verify Davis acquisition, Home Assistant MQTT, central outbox delivery, and protected diagnostics remain healthy.
 4. Change only the ignored local `gateway.json` to `WeatherUnderground.Enabled=true`.
-5. Run `./scripts/sync-secrets-from-keyvault.sh --apply`. Confirm the station-key file exists and has mode `0600` without printing its contents. Do not retrieve or create a Weather Underground API-key file.
+5. Satisfy the [root-bootstrap and whole-helper prerequisites](../../development/key-vault-materialization.md), then run the separately approved `./scripts/sync-secrets-from-keyvault.sh --apply`. Confirm the station-key file exists and has mode `0600` without printing its contents. Do not retrieve or create a Weather Underground API-key file.
 6. Re-run the Davis deployment dry run. The preflight must reject an absent/empty station-key file, a station other than `KAZKINGM12`, a cadence other than five seconds, an unbounded timeout, or a different secret filename before SSH synchronization.
 7. Deploy Davis, then verify the container remains healthy, LOOP and MQTT freshness continue, the outbox drains, and Weather Underground reports fresh observations near the expected five-second cadence.
 8. Observe at least several publish intervals. Confirm diagnostics show advancing attempts/successes without any URI or credential disclosure.

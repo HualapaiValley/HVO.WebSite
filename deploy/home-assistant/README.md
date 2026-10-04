@@ -268,17 +268,29 @@ The dashboard deployment does not mutate Energy preferences. Establish URL,
 token and HTTPS (or the explicit trusted HTTP exception) through the
 [Core deployment prerequisites](#core-deployment) first. The migration tool
 requires `HVO_HOME_ASSISTANT_URL`; no default URL is inferred. Check and audit
-read live HA. Backup writes a restricted local archive; energy-apply mutates HA
-preferences and requires its own authorization. Use the supported WebSocket API:
+read live HA. `--backup` is a separately authorized live HA mutation: it queries
+`backup/agents/info`, requires at least one configured agent, then requests
+`backup/generate` for all returned agents with `include_database=true`,
+`include_homeassistant=true` and `include_all_addons=false`. It waits for reported
+completion and prints a backup ID; this branch does not export a local archive.
+[HA backup agents](https://developers.home-assistant.io/docs/core/platform/backup/)
+can store backups locally or remotely, so actual destinations depend on the
+configured agents. Verify the returned ID, storage locations, actual contents
+and recovery access through the approved backup procedure. The request flags
+and returned ID do not prove a full off-host Core/add-on recovery checkpoint,
+or recreate the host's off-node mount and schedule. `--energy-apply` separately
+mutates HA preferences and requires its own authorization. Use the supported
+WebSocket API:
 
 ```bash
 test -n "${HVO_HOME_ASSISTANT_URL:?Establish HTTPS or explicit local HTTP transport above}"
 : "${HOME_ASSISTANT_TOKEN:?Load the approved Home Assistant token}"
-dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --backup
 dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-check
+dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-audit
+# Separately authorized backup creation on the configured HA agents:
+dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --backup
 # Separately authorized preference mutation:
 dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-apply
-dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-audit
 ```
 
 The check reports managed-entry drift by name. Validation inspects solar,
