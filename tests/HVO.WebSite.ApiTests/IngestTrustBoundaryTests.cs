@@ -17,7 +17,7 @@ namespace HVO.WebSite.ApiTests;
 [TestClass]
 public sealed class IngestTrustBoundaryTests
 {
-    private static readonly string[] Routes = ["power/readings", "power/device-inventory", "power/configuration", "power/energy",
+    internal static readonly string[] Routes = ["power/readings", "power/device-inventory", "power/configuration", "power/energy",
         "power/inverter-detail", "power/inverter-detail/batch", "power/mppt-detail", "power/mppt-detail/batch",
         "power/gateway-status", "power/smartshunt-observations/batch", "weather/raw", "weather/raw/batch", "weather/archive/batch"];
     private static readonly DateTime Recorded = new(2026, 10, 4, 0, 0, 0, DateTimeKind.Utc);
@@ -111,9 +111,9 @@ public sealed class IngestTrustBoundaryTests
         await db.SaveChangesAsync();
     }
 
-    private static bool IsBatch(string route) => route.EndsWith("batch", StringComparison.Ordinal) || route == "power/readings";
-    private static object Payload(string route, string source, string system) => IsBatch(route) ? new[] { SinglePayload(route, source, system) } : SinglePayload(route, source, system);
-    private static object SinglePayload(string route, string source, string system = "solarassistant")
+    internal static bool IsBatch(string route) => route.EndsWith("batch", StringComparison.Ordinal) || route == "power/readings";
+    internal static object Payload(string route, string source, string system) => IsBatch(route) ? new[] { SinglePayload(route, source, system) } : SinglePayload(route, source, system);
+    internal static object SinglePayload(string route, string source, string system = "solarassistant")
     {
         var common = new Dictionary<string, object?> { ["sourceId"] = source, ["sourceSystem"] = system, ["deviceId"] = "total", ["recordedAtUtc"] = Recorded };
         switch (route)
@@ -130,7 +130,7 @@ public sealed class IngestTrustBoundaryTests
         return common;
     }
 
-    private static async Task<int> CountWritesAsync(HvoV9DbContext db) =>
+    internal static async Task<int> CountWritesAsync(HvoV9DbContext db) =>
         await db.PowerReadings.CountAsync() + await db.PowerDeviceInventorySnapshots.CountAsync()
         + await db.PowerConfigurationSnapshots.CountAsync() + await db.PowerEnergySnapshots.CountAsync()
         + await db.PowerInverterDetailSnapshots.CountAsync() + await db.PowerMpptDetailSnapshots.CountAsync()

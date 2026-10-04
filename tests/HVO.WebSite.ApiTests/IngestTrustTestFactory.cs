@@ -20,6 +20,7 @@ internal sealed class IngestTrustTestFactory : WebApplicationFactory<Program>
     internal IPAddress? Peer { get; init; }
     internal bool HostForwarding { get; init; }
     internal TimeProvider? Clock { get; init; }
+    internal Func<HvoV9DbContext>? ContextFactory { get; init; }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -38,7 +39,12 @@ internal sealed class IngestTrustTestFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             if (Clock is not null) { services.RemoveAll<TimeProvider>(); services.AddSingleton(Clock); }
-            Replace<HvoV9DbContext>(services, _database + "-v9");
+            if (ContextFactory is { } createContext)
+            {
+                services.RemoveAll<HvoV9DbContext>();
+                services.AddScoped(_ => createContext());
+            }
+            else Replace<HvoV9DbContext>(services, _database + "-v9");
             Replace<HvoDbContext>(services, _database + "-legacy");
             foreach (var descriptor in services.Where(d => d.ImplementationType == typeof(ApiKeySeedService)).ToArray())
                 services.Remove(descriptor);
