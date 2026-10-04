@@ -1,6 +1,6 @@
 # Selective CI
 
-Issue #411 introduces dependency-aware PR validation. [PR #426](https://github.com/HualapaiValley/HVO.WebSite/pull/426) passed the previous trusted full CI after independent Deep review and was adopted on main at `4528667e69f8f88a75a4978792f980542dbdf044`. The first full main run and fixed measurement profiles are recorded below. The SQL-provider fixture is qualified on main after [PR #421](https://github.com/HualapaiValley/HVO.WebSite/pull/421), as recorded in [SQL fixture qualification](#sql-fixture-qualification). #408 browser migration remains pending. The measurements describe the original adoption snapshot, not those later changes, and cannot authorize a PR's admission.
+Issue #411 introduces dependency-aware PR validation. [PR #426](https://github.com/HualapaiValley/HVO.WebSite/pull/426) passed the previous trusted full CI after independent Deep review and was adopted on main at `4528667e69f8f88a75a4978792f980542dbdf044`. The first full main run and fixed measurement profiles are recorded below. The SQL-provider fixture is qualified on main after [PR #421](https://github.com/HualapaiValley/HVO.WebSite/pull/421), as recorded in [SQL fixture qualification](#sql-fixture-qualification). The #408 browser migration is qualified on main after [PR #433](https://github.com/HualapaiValley/HVO.WebSite/pull/433), as recorded in [browser fixture qualification](#browser-fixture-qualification). The measurements describe the original adoption snapshot, not those later changes, and cannot authorize a PR's admission.
 
 ## Planning and ownership
 
@@ -18,7 +18,7 @@ The retained ci-plan.json includes planner version, full head/base/merge tuple, 
 
 ## Execution and aggregation
 
-The bounded jobs run independent validation, HA, SQL, browser, operational and Docker work. Selected roots are locked-restored and built before tests; test execution reuses preparation with --no-build --no-restore. Debug validation runs fast and simulator partitions plus inexpensive policy checks; selected non-test roots also receive Release builds. HA assemblies share one sequential disposable stack. The browser job installs Chromium only for selected browser work. The #409 owned API SQL fixture is qualified locally and in hosted CI. The SQL job runs the eight runner-safety checks before provisioning, discovers the actual integration category, and independently verifies the resulting reports. #408 browser migration remains pending.
+The bounded jobs run independent validation, HA, SQL, browser, operational and Docker work. Selected roots are locked-restored and built before tests; test execution reuses preparation with --no-build --no-restore. Debug validation runs fast and simulator partitions plus inexpensive policy checks; selected non-test roots also receive Release builds. HA assemblies share one sequential disposable stack. The browser job installs Chromium only for selected browser work. The #409 owned API SQL fixture is qualified locally and in hosted CI. The SQL job runs the eight runner-safety checks before provisioning, discovers the actual integration category, and independently verifies the resulting reports. The Browser lane uses owned Website, ThemeSandbox and HA wind-card fixtures, with distinct diagnostics for every case. Its report verifier accepts no ignored results.
 
 tools/ci-run.mjs executes a validated plan supplied through CI_PLAN with CI_HEAD, CI_BASE and CI_MERGE. Its jobs are validation, home-assistant, sql-server, browser, operations, docker-smoke and aggregate. It does not derive obligations or admit a PR. Use the [test-lane commands](testing.md) for full local validation; hand-written environment JSON is not trusted hosted admission evidence.
 
@@ -85,7 +85,7 @@ The reviewed implementation head was `3fd418a6801ab9948264f144db4bf3a671d8b971`;
 
 No dependency or Docker caching change is implemented here, and no cache benefit is claimed. Evaluate lock/SDK-keyed caching only after selection works, with separately measured evidence and without PR cache-write credentials.
 
-The last inspected main protection endpoint returned 404 and rulesets were empty. The intended checks are process requirements enforced through review/controller coordination; committed documentation does not activate GitHub branch protection. Do not claim repository protection is active without a new verified settings inspection.
+The read-only inspection at 2026-10-04 09:15 UTC returned 404 (Branch not protected) for main protection and an empty ruleset list. The intended checks are process requirements enforced through review/controller coordination; committed documentation does not activate GitHub branch protection. Do not claim repository protection is active without a new verified settings inspection.
 
 ## SQL fixture qualification
 
@@ -95,8 +95,22 @@ The [SQL job](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/3718217
 
 ## Browser fixture qualification
 
-Final-main qualification for #408 is pending. Its [combined development checkpoint](https://github.com/HualapaiValley/HVO.WebSite/issues/408#issuecomment-5977665435) at `7e46e33d953bb5658eb4a0e28fbeac8054a2ab52` passed the pinned build with zero warnings/errors, 1,348 Fast tests and 58 owned browser cases, with zero failures or ignored tests. This source includes the prepared website, observation-identity and history changes; it is not a merged main snapshot.
+[PR #433](https://github.com/HualapaiValley/HVO.WebSite/pull/433) merged the owned browser suite at `e01715cd401202844fb9f0b315fbc7d12fcadd88`, after the website, chart, persistence and bounded-history prerequisites. It removes the ignored setup scaffold and its report-verifier allowance. Owned hosts exercise public and authorized routes, responsive power comparison, interactive controls, real Chart.js theme/gaps, empty states and circuit recovery. Missing-script and blocked-handler negative controls must fail the normal assertions before recovery. Each Browser case retains a distinct screenshot, console log and trace; no production credentials, external application targets or hardware are required.
 
-The browser run used the planner and executor from immutable main `b9c12f0a995963c0203cf55a13dea5fd99b86193`. Only its Browser job was executed against the development snapshot. The candidate's strict report verifier separately accepted all 58 results without the legacy scaffold allowance. [Independent preparatory review](https://github.com/HualapaiValley/HVO.WebSite/issues/408#issuecomment-5977695783) also passed all 58 browser cases, including the missing-script and blocked-handler negative controls, and verified that the SQL/browser runner test union retains SQL safety checks. Neither this development run nor its review establishes hosted PR admission or activation of the new executor on main.
+[Current independent Deep review](https://github.com/HualapaiValley/HVO.WebSite/pull/433#pullrequestreview-5405182219) and [qualified PR CI](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37191237037) cover reviewed head `d145930d545e24d829191ad42290572f98469846`, base `42e9b931a2ffeb3fbacaeee2f7ee30567db9fbe9` and synthetic merge `6c493ff6f4d9f9a743078d0cb9d314ee14740272`. That full plan passed 1,553 tests across 19 reports, with zero failures or ignored results; all six images and operations passed. Its digest is `a59afafcab3a547a9f987f46f22ac78110a737cf79e84e733194248ad470c980`. This pre-adoption run used the old trusted executor and does not alone establish activation of the new executor on main.
 
-Final acceptance requires issue-only adoption after the website/history prerequisites, current-source independent review and PR CI, then a full main run that exercises the newly trusted browser executor and retains every planned lane's results. Record that merged source and hosted run here before closing #411. These later fixture checks do not replace or rebind the original timing samples above.
+The [first full main run](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37191811623) passed on that actual merged source, with head/base/merge all equal to `e01715cd401202844fb9f0b315fbc7d12fcadd88`. Its independently recomputed full-plan digest is `effd16ff4e87d7e5f5ac2c235e64eb34817c2592aa3b231c505daf97241ea775`. The newly trusted planner, executor and strict verifier all came from that immutable main source. Downloaded reports independently establish **1,553 passed, zero failed or ignored**, across 19 TRX files:
+
+| Lane | Passed tests |
+|---|---:|
+| Fast | 1,301 |
+| Simulator integration | 117 |
+| Home Assistant integration | 4 |
+| SQL Server integration | 73 |
+| Browser | 58 |
+
+The [Browser job](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37191811623/job/111405464759) retained 58 distinct screenshot/console/trace sets and 174 TRX attachments. The adopted executor builds its owned Browser project root through project references, and no longer grants the scaffold's ignored-result allowance. The changed report controls passed within 125 validation Node checks; all eight SQL runner-safety checks separately passed before the 73 actual provider tests. Trusted aggregation accepted every planned lane; only the PR-specific review-evidence job was legitimately skipped on this main push. Operational checks and all six actual image builds passed: website, Davis, JK BMS, SmartShunt, EG4 and HA exporter. Cleanup evidence consists of successful jobs and ownership-checked EXIT paths, not an independently observed hosted resource inventory.
+
+This establishes integration of both owned fixtures on the complete foundation source. These later fixture checks do not replace or rebind the original timing samples above.
+
+[Issue #408 closeout](https://github.com/HualapaiValley/HVO.WebSite/issues/408#issuecomment-5978471212) records scoped acceptance and evidence. Fixture authentication does not prove a real Entra sign-in, and provider-failure tests do not claim a physical SQL outage. Responsive comparison bounds do not assert header nonintersection; existing shared-header crowding is tracked separately in [#434](https://github.com/HualapaiValley/HVO.WebSite/issues/434). No production deployment or live-hardware acceptance is inferred from this suite.
