@@ -6,6 +6,15 @@ sends its canonical observations. `IWeatherService` remains the legacy API bound
 Registering the new service does not redirect, retire or change any existing route.
 There is no new public HTTP endpoint or change to read/ingest authorization.
 
+## Service scope and concurrency
+
+The service uses one scoped `HvoV9DbContext`, which is not thread-safe. Resolve it
+inside an operation-owned async scope and complete calls sequentially before
+disposing that scope. HTTP callers can use their existing request scope for
+sequential calls. Interactive components should inject `IServiceScopeFactory`,
+create and dispose a scope per refresh/read, and retain the returned DTOs rather
+than the service for the circuit. Do not overlap calls on the same service instance.
+
 ## Repository inventory and compatibility decision
 
 | Boundary | Source and current repository consumer | Decision |
@@ -35,20 +44,20 @@ the existing database collation and station/time unique identity.
 
 ## Query semantics
 
-- Station identifiers must be trimmed, nonempty and at most64 characters.
+- Station identifiers must be trimmed, nonempty and at most 64 characters.
 - `GetLatestAsync` returns the newest raw observation at or before the injected
   UTC clock, ordered by observation time and ID. No matching data returns null;
   future-dated rows and other stations cannot displace the latest observation.
 - `GetCurrentAsync` reports NoData, Current or Stale alongside the latest raw
-  observation and its age. The default stale threshold is5 minutes; callers may
-  choose a positive threshold up to31 days. Age equal to the threshold is stale.
+  observation and its age. The default stale threshold is 5 minutes; callers may
+  choose a positive threshold up to 31 days. Age equal to the threshold is stale.
   NoData has a null observation and age. Query/database/cancellation errors propagate;
   they are not represented as missing data. A refresh request reevaluates freshness.
 - Raw and archive histories remain separate; there is no automatic archive fallback,
   resampling or cross-table deduplication. Inputs are `DateTimeOffset` instants
-  normalized to UTC. Ranges are half-open `[start,end)`, positive and at most31 days.
+  normalized to UTC. Ranges are half-open `[start,end)`, positive and at most 31 days.
   Rows after the clock are excluded even when end is in the future.
-- Page sizes1–1000 are validated rather than silently clamped. Rows ascend by time
+- Page sizes 1–1000 are validated rather than silently clamped. Rows ascend by time
   then ID; `HasMore` and `NextAfterUtc` expose continuation explicitly. Continue with
   the same station/range and the returned exclusive timestamp cursor. Existing unique
   station/time indexes make that cursor unambiguous. Empty ranges return an empty
@@ -66,9 +75,12 @@ the existing database collation and station/time unique identity.
 SQL `datetime2` does not preserve .NET Kind. DTO `RecordedAtUtc`, query boundaries
 and checked/query timestamps explicitly have UTC Kind after materialization;
 `ConsoleRecordedAtLocal` remains Unspecified metadata. Display requires an explicit
-zone, for example:
+zone. For an interactive refresh, with an injected `IServiceScopeFactory` named
+`scopeFactory`, for example:
 
 ```csharp
+await using var scope = scopeFactory.CreateAsyncScope();
+var weather = scope.ServiceProvider.GetRequiredService<IV9WeatherQueryService>();
 var current = await weather.GetCurrentAsync(stationId, cancellationToken: ct);
 if (current.Observation is { } observation)
 {
