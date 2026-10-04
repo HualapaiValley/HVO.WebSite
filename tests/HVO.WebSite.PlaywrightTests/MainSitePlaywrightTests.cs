@@ -38,7 +38,12 @@ public sealed class MainSitePlaywrightTests
             },
         };
         try { session = await BrowserSession.OpenAsync(TestContext); }
-        catch { await application.DisposeAsync(); throw; }
+        catch
+        {
+            await application.DisposeAsync();
+            application = null!;
+            throw;
+        }
     }
 
     [TestCleanup]
@@ -52,7 +57,7 @@ public sealed class MainSitePlaywrightTests
                 finally { await session.DisposeAsync(); }
             }
         }
-        finally { await application.DisposeAsync(); }
+        finally { if (application is not null) await application.DisposeAsync(); }
     }
 
     [TestMethod]

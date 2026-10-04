@@ -18,7 +18,12 @@ public sealed class ThemeSandboxPlaywrightTests
     {
         application = new("HVO.ThemeSandbox");
         try { session = await BrowserSession.OpenAsync(TestContext); }
-        catch { await application.DisposeAsync(); throw; }
+        catch
+        {
+            await application.DisposeAsync();
+            application = null!;
+            throw;
+        }
     }
 
     [TestCleanup]
@@ -32,7 +37,7 @@ public sealed class ThemeSandboxPlaywrightTests
                 finally { await session.DisposeAsync(); }
             }
         }
-        finally { await application.DisposeAsync(); }
+        finally { if (application is not null) await application.DisposeAsync(); }
     }
 
     private async Task<IPage> OpenPageAsync(string path = "/")
