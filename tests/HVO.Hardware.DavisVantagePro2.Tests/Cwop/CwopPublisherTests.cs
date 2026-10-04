@@ -19,6 +19,31 @@ public sealed class CwopPublisherTests
     private static readonly DateTimeOffset InitialTime = new(2026, 8, 14, 12, 0, 0, TimeSpan.Zero);
 
     [TestMethod]
+    public async Task PublishLatestAsync_UsesAltimeterFromSharedMergedObservation()
+    {
+        var clock = new FakeTimeProvider(InitialTime);
+        var observation = new Loop2Packet
+        {
+            RecordedAtUtc = clock.GetUtcNow().UtcDateTime,
+            BarometricPressureInHg = 29.774,
+            PressureRawInHg = 26.947,
+            AltimeterInHg = 29.990,
+        };
+        var state = new DavisRuntimeState();
+        state.Observed(observation, clock.GetUtcNow().UtcDateTime);
+        var client = new FakeClient();
+        await using var fixture = CreateFixture(clock, state, client);
+
+        (await fixture.Publisher.PublishLatestAsync(CancellationToken.None)).Should().BeTrue();
+
+        var packet = await client.Packets.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+        packet.Should().Contain("b10156/A=");
+        client.Attempts.Should().Be(1);
+        state.GetLatestObservation()!.Observation.Should().BeSameAs(observation);
+        observation.BarometricPressureInHg.Should().Be(29.774);
+    }
+
+    [TestMethod]
     public async Task RunIterationAsync_ReturnsConfiguredCadenceAndUsesLatestObservation()
     {
         var clock = new FakeTimeProvider(InitialTime);

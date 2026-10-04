@@ -30,7 +30,8 @@ internal static class CwopPacketFormatter
         Append(packet, 'p', RainHundredths(observation.Rain24HourInches));
         Append(packet, 'P', RainHundredths(observation.DailyRainInches));
         Append(packet, 'h', Humidity(observation.OutsideHumidityPercent));
-        Append(packet, 'b', PressureTenthsMillibar(observation.BarometricPressureInHg));
+        // CWOP requires elevation-only altimeter/QNH, not the Davis NOAA-reduced sea-level barometer.
+        Append(packet, 'b', PressureTenthsMillibar(observation.AltimeterInHg));
         AppendSolar(packet, observation.SolarRadiationWm2);
         packet.Append("/A=").Append(((int)Math.Round(settings.AltitudeFeet!.Value, MidpointRounding.AwayFromZero)).ToString("000000", CultureInfo.InvariantCulture));
 
