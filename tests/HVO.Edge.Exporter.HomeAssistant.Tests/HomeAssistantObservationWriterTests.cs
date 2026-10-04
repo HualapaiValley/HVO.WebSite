@@ -36,8 +36,8 @@ public sealed class HomeAssistantObservationWriterTests
                     LoadPowerW = 100
                 });
 
-            (await writer.EnqueueAsync(observation, CancellationToken.None)).Should().BeTrue();
-            (await writer.EnqueueAsync(observation, CancellationToken.None)).Should().BeFalse();
+            (await writer.EnqueueAsync(observation, CancellationToken.None)).Should().Be(HomeAssistantPersistenceOutcome.Inserted);
+            (await writer.EnqueueAsync(observation, CancellationToken.None)).Should().Be(HomeAssistantPersistenceOutcome.IdenticalReplay);
 
             await using var verificationScope = provider.CreateAsyncScope();
             var records = await verificationScope.ServiceProvider.GetRequiredService<DefaultEdgeOutboxDbContext>()

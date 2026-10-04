@@ -32,6 +32,9 @@ internal sealed class HomeAssistantExporterDiagnosticsProvider(
         var alerts = new List<GatewayHealthAlert>();
         if (snapshot.Failure is not null)
             alerts.Add(new GatewayHealthAlert("home-assistant", GatewayAlertSeverity.Critical, snapshot.Failure));
+        if (snapshot.ConflictingMappings.Count > 0)
+            alerts.Add(new GatewayHealthAlert("home-assistant-observation-conflict", GatewayAlertSeverity.Critical,
+                $"{snapshot.ConflictingMappings.Count} mapping(s) have conflicting durable observations; intended changes remain unacknowledged."));
         if (!snapshot.LastObservationUtc.HasValue && snapshot.Connected)
             alerts.Add(new GatewayHealthAlert("home-assistant-no-valid-observation", GatewayAlertSeverity.Warning, "No complete approved observation has been persisted."));
         if (outbox.FailedCount > 0)

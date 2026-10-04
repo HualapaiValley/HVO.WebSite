@@ -16,9 +16,30 @@ See [Edge Data Flows](EDGE_DATA_FLOWS.md) for the complete per-source diagrams a
 
 ## Observation Semantics
 
-On each connection, the exporter subscribes to `state_changed` before requesting `get_states`. Events arriving during reconciliation are buffered and applied after the snapshot. A complete typed observation is persisted on initial reconciliation and whenever its normalized value tuple changes.
+On each connection, the exporter subscribes to `state_changed` before requesting `get_states`. Events arriving during reconciliation are buffered and applied after the snapshot. Snapshot and event state enter one serialized observation coordinator. A fixed receive-time window collects multi-entity bursts before projecting and persisting their final current state; continuous events do not extend that window indefinitely.
 
-The exporter uses the latest contributing HA `last_updated` timestamp. Reconnect reconciliation with unchanged values is suppressed in memory, and the SQLite key `(SourceId, PayloadType, RecordedAtUtc)` provides durable retry/restart idempotency. No unchanged heartbeat or missed-history backfill is synthesized.
+The exporter uses the latest included HA `last_updated` timestamp without adjustment. Identity remains `(SourceId, PayloadType, RecordedAtUtc)` in SQLite and the existing central endpoints. The acknowledgement signature covers the complete serialized typed payload, including source timestamp. An unchanged source value with a newer HA timestamp is a new source observation; no heartbeat timestamp or missed-history backfill is synthesized. Exact replay is suppressed only after proving intended durable content.
+
+All required fields must be present, supported, no older than `RequiredFieldFreshnessSeconds` against current UTC time, no further in the future than `MaxFutureClockSkewSeconds`, and within `MaxFieldSkewSeconds` of one another. Optional fields must meet the same age/future bounds and be within the skew bound of the newest required field; unavailable, missing, stale or skewed optional fields are omitted. Required invalid/unavailable state suppresses the whole projection. Freshness is checked again when the window closes. Per-entity older events are ignored; a same-time changed state can still participate in a not-yet-finalized burst.
+
+Settings in `HomeAssistant:Exporter` (also validated while disabled) are:
+
+| Setting | Default | Allowed range |
+|---|---:|---:|
+| `CoalescingWindowMilliseconds` | 250 | 1–5000 |
+| `RequiredFieldFreshnessSeconds` | 300 | 1–3600 |
+| `MaxFieldSkewSeconds` | 30 | 0–300 |
+| `MaxFutureClockSkewSeconds` | 30 | 0–300 |
+
+### Compatibility decision: late conflicting content
+
+A bounded window cannot prove that all arbitrarily late events have arrived. The writer distinguishes insertion, exact identical replay, and a conflicting payload under an existing identity. Only insertion or proven identical replay permits acknowledgement. Comparison includes device ID and payload version as well as the serialized typed payload, and includes sent records.
+
+Envelope source/device IDs use the same whitespace trimming as the shared outbox store for insertion, collision lookup and comparison. Existing accepted mappings with padded IDs therefore replay identically after restart. Typed payload bytes are preserved and compared exactly; normalization does not conceal differing payload content, device identity or version.
+
+Conflicts never overwrite pending or sent history, never receive invented timestamps, and are never acknowledged. They remain eligible for bounded retry and authoritative snapshot reconciliation. The exporter exposes a critical `home-assistant-observation-conflict` health alert and a warning with mapping ID/source time (no raw state/credentials). Reconnect does not clear a conflict alert; only successful persistence of a subsequent valid observation for that mapping does. On process restart, the next snapshot is compared to the retained durable row again, re-establishing the conflict before acknowledgement. Required freshness expiry can suspend attempts; later valid source state or a reconnect makes reconciliation eligible again.
+
+The correction preserves public contracts and outbox schema/indexes, so no migration is needed. A later valid source watermark can carry the current corrected values under a new identity. Exporting arbitrary same-time revisions would require an explicitly reviewed central revision contract; operators must not edit sent history or enable another writer to conceal conflicts. This reusable coalescing/freshness/durable-outcome boundary is the prerequisite for #352's future atomic SmartShunt observations, not an implementation or authorization of that physical migration.
 
 Supported mappings are:
 

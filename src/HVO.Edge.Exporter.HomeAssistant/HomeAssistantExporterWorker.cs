@@ -6,8 +6,7 @@ namespace HVO.Edge.Exporter.HomeAssistant;
 
 internal sealed class HomeAssistantExporterWorker(
     IHomeAssistantEventSource source,
-    HomeAssistantStateProjector projector,
-    IHomeAssistantObservationWriter writer,
+    HomeAssistantObservationCoordinator coordinator,
     HomeAssistantExporterState state,
     IOptions<HomeAssistantExporterOptions> options,
     TimeProvider timeProvider,
@@ -26,11 +25,24 @@ internal sealed class HomeAssistantExporterWorker(
             var reconciled = false;
             try
             {
-                await source.RunSessionAsync(async (snapshot, cancellationToken) =>
+                using var sessionCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                var session = source.RunSessionAsync(async (snapshot, cancellationToken) =>
                 {
-                    await ProcessSnapshotAsync(snapshot, cancellationToken);
+                    state.SetConnected();
+                    await coordinator.ReconcileAsync(snapshot, cancellationToken);
                     reconciled = true;
-                }, ProcessChangeAsync, stoppingToken);
+                }, coordinator.ApplyAsync, sessionCancellation.Token);
+                var flushing = FlushLoopAsync(sessionCancellation.Token);
+                try
+                {
+                    await await Task.WhenAny(session, flushing);
+                }
+                finally
+                {
+                    await sessionCancellation.CancelAsync();
+                    try { await Task.WhenAll(session, flushing); }
+                    catch (OperationCanceledException) when (sessionCancellation.IsCancellationRequested) { }
+                }
                 state.SetDisconnected("session_closed");
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -57,24 +69,13 @@ internal sealed class HomeAssistantExporterWorker(
         state.SetDisconnected("stopped");
     }
 
-    private async Task ProcessSnapshotAsync(IReadOnlyList<HomeAssistantState> snapshot, CancellationToken cancellationToken)
+    private async Task FlushLoopAsync(CancellationToken cancellationToken)
     {
-        state.SetConnected();
-        foreach (var observation in projector.Reconcile(snapshot))
-            await PersistAsync(observation, cancellationToken);
-    }
-
-    private async Task ProcessChangeAsync(HomeAssistantState changed, CancellationToken cancellationToken)
-    {
-        var observation = projector.Apply(changed);
-        if (observation is not null)
-            await PersistAsync(observation, cancellationToken);
-    }
-
-    private async Task PersistAsync(HomeAssistantMappedObservation observation, CancellationToken cancellationToken)
-    {
-        await writer.EnqueueAsync(observation, cancellationToken);
-        projector.Acknowledge(observation);
-        state.RecordObservation(observation.RecordedAtUtc.UtcDateTime);
+        var interval = TimeSpan.FromMilliseconds(Math.Min(options.CoalescingWindowMilliseconds, 100));
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await Task.Delay(interval, timeProvider, cancellationToken);
+            await coordinator.FlushAsync(cancellationToken);
+        }
     }
 }
