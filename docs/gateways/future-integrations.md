@@ -1,39 +1,22 @@
 # Future Integration Candidates
 
-This file consolidates the placeholder gateway manuals for systems not yet implemented or selected. Each section captures research targets, expected capability areas, and open questions for when integration work begins.
+Unselected systems retain research and safety questions here; Govee has a current HA owner. These are design candidates, not approved APIs, deployments or control contracts.
 
 ## Govee Environmental Sensors
 
-### Status
+Current owner: [Home Assistant](../../deploy/home-assistant/README.md), with native
+H5074/H5075 govee_ble entities and the temporary isolated Pi hci1 transport.
+[#385](https://github.com/HualapaiValley/HVO.WebSite/issues/385) owns permanent
+proxy/RF placement, H5179 commissioning and temporary/fallback cleanup.
+[#320](https://github.com/HualapaiValley/HVO.WebSite/issues/320) owns canonical HVO
+history; the exporter remains disabled, unmapped and without source claims.
+A new direct Govee gateway is not the adopted acquisition boundary.
 
-- **Phase 0 status**: Placeholder.
-- **Confidence**: Low; exact hardware not selected or confirmed.
-
-### Identity
-
-| Field | Value |
-|-------|-------|
-| HVO manual subject | Govee environmental sensors |
-| HVO integration role | Source TBD |
-| Hardware model | Needs selection/confirmation |
-| HVO project/service | None |
-| HVO safety classification | Telemetry-only unless controllable devices are selected |
-
-### Research Targets
-
-| Topic | What to find | Status |
-|-------|--------------|--------|
-| Exact model numbers | Sensor model, hardware revision, firmware | Needed |
-| Communication options | BLE advertisement, BLE GATT, LAN API, cloud API, MQTT bridge | Needed |
-| Official docs | Govee developer/API docs | Needed |
-| Community references | Reverse-engineered BLE/cloud libraries | Needed |
-| Local-only viability | Whether readings can be collected without cloud dependency | Needed |
-
-### Design Notes
-
-- Prefer hardware supporting local BLE or LAN access without mandatory cloud dependency.
-- Treat Govee as an environmental source that may not support the same field set as Davis.
-- Do not force Govee into the Davis weather schema; use capabilities or a sparse environmental observation model.
+Remaining decisions: verify exact firmware/revisions and additional model fields;
+retain official/community protocol evidence and local-only transport assumptions;
+choose a capability/sparse environmental model without pretending every sensor
+matches Davis. Any selected controllable device needs a separate safety contract.
+The earlier unselected-hardware placeholder is superseded by this actual ownership.
 
 ---
 

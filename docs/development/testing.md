@@ -26,7 +26,7 @@ The full local fast command deliberately retains all non-integration browser cas
 
 ## Selected CI partitions
 
-The planner selects whole assemblies and assigns their required non-live categories to lanes. Fast and simulator execution excludes Browser; the browser job installs Chromium only when selected. The current Playwright assembly belongs wholly to the browser job for its non-integration, non-live tests, including the isolated HA wind-card cases that predate the Browser trait.
+The planner selects whole assemblies and assigns their required non-live categories to lanes. Fast and simulator execution excludes Browser; the browser job installs Chromium only when selected. The current Playwright assembly belongs wholly to the browser job for its non-integration, non-live tests, including the isolated HA wind-card cases, which now carry the Browser trait.
 
 | Lane | Runtime selection | Settings and environment |
 |---|---|---|

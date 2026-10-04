@@ -12,6 +12,10 @@ This document shows current production acquisition authority, current-state pres
 
 Each active collector SQLite outbox is independent. A Davis outage cannot block the JK BMS outbox. The disabled HA exporter has no active production outbox flow.
 
+**Configured ingest transport:** the mounted [Davis](../../deploy/pi-gateways/davis/gateway.json.example), [JK](../../deploy/pi-gateways/jkbms/gateway.json.example), [EG4](../../deploy/pi-gateways/eg4/gateway.json.example) and [SmartShunt](../../deploy/pi-gateways/smartshunt/gateway.json.example) examples use internal `http://hvo-docker.hvo.lan/` endpoints with explicit `AllowInsecureCentralIngest=true`, matching [Pi upstream policy](../../deploy/pi-gateways/README.md#website-upstream-policy). The four direct-collector diagrams label that configured HTTP segment. Their validators also support HTTPS with valid TLS trust; an endpoint/transport change requires its own reviewed configuration. External website TLS termination is a separate hop and does not encrypt this configured internal segment.
+
+The exporter is disabled and has no production delivery. Its [own validator](../../src/HVO.Edge.Exporter.HomeAssistant/HomeAssistantExporterOptions.cs) requires HTTPS by default, with a separate explicit insecure-ingest opt-in; the [exporter contract](HA_TELEMETRY_EXPORTER.md) and disabled mounted template do not establish an active direct-collector TLS path.
+
 ## System Overview
 
 ```mermaid
@@ -55,7 +59,7 @@ flowchart LR
     MQTT --> HA[Home Assistant]
     COL -. latest merged reading, best effort .-> WU[Weather Underground PWS]
     COL -->|raw and archive weather| OUT[(Davis SQLite outbox)]
-    OUT -->|weather ingest HTTPS| API[Central Website API]
+    OUT -->|weather ingest, configured internal HTTP| API[Central Website API]
     API --> DB[(Canonical SQL database)]
     HA -. excluded from HA exporter .-> X[No second writer]
 ```
@@ -78,7 +82,7 @@ flowchart LR
     COL -->|bounded current pack, health, alarms| MQTT[Local Mosquitto]
     MQTT --> HA[Home Assistant]
     COL -->|readings, config, device info| OUT[(JK SQLite outbox)]
-    OUT -->|BMS ingest HTTPS| API[Central Website API]
+    OUT -->|BMS ingest, configured internal HTTP| API[Central Website API]
     API --> DB[(Canonical SQL database)]
     HA -. excluded from HA exporter .-> X[No second writer]
 ```
@@ -100,7 +104,7 @@ flowchart LR
     COL -->|current inverter, battery, MPPT state| MQTT[Local Mosquitto]
     MQTT --> HA[Home Assistant]
     COL -->|typed power and detail records| OUT[(EG4 SQLite outbox)]
-    OUT -->|power ingest HTTPS| API[Central Website API]
+    OUT -->|power ingest, configured internal HTTP| API[Central Website API]
     API --> DB[(Canonical SQL database)]
     HA -. excluded from HA exporter .-> X[No second writer]
 ```
@@ -109,7 +113,7 @@ flowchart LR
 
 ## Victron SmartShunt
 
-**Authority:** Paired direct public-GATT SmartShunt collector. HA/ESPHome had no validated evidence for the required field set and is not an acquisition or enrichment path.
+**Authority:** Paired direct public-GATT SmartShunt collector. The earlier no-HA/ESPHome-proof decision is historical: [#352](https://github.com/HualapaiValley/HVO.WebSite/issues/352) now retains native passive transport evidence, while key provisioning, complete public-field parity, exporter atomic summary/detail support and approved cutover remain pending. HA is not the current acquisition or enrichment authority.
 
 **Historical data:** bus voltage, current, power, state of charge, consumed amp-hours, remaining time, and device status supported by the selected read-only path.
 
@@ -121,12 +125,12 @@ flowchart LR
     COL -->|current battery-monitor state| MQTT[Local Mosquitto]
     MQTT --> HA[Home Assistant]
     COL -->|typed summary and detail| OUT[(SmartShunt SQLite outbox)]
-    OUT -->|power ingest HTTPS| API[Central Website API]
+    OUT -->|power ingest, configured internal HTTP| API[Central Website API]
     API --> DB[(Canonical SQL database)]
     HA -. excluded from HA exporter .-> X[No second writer]
 ```
 
-**Migration status:** issue #326 selected and implemented the direct authority. Production cutover must stop the legacy process before vNext starts; rollback must stop vNext before restoring the legacy process.
+**Migration status:** issue #326 selected and implemented the current direct authority. That migration is historical; new authority changes and recovery follow the [quiescent checkpoint, isolated restore and exactly-one-writer contract](../gateways/sqlite-backup-and-rollback.md), preserving later observations and schema compatibility. Historical issue rollout wording is not an executable restore sequence.
 
 ## Retired SolarAssistant Path
 

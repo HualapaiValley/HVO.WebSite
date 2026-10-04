@@ -1,43 +1,43 @@
-# Future Work
+# Future work and open decisions
 
-Status: current forward-looking roadmap after the vNext collector migrations and direct SolarAssistant/TP-Link gateway retirement.
+Current implementation belongs in [architecture](ARCHITECTURE.md). GitHub owns
+issue status; these prerequisites were open at the 2026-10-04 audit. This list
+does not authorize deployment or control.
 
-Last updated: 2026-08-18
+## Issue-owned prerequisites
 
-This document is the single place for future planning items that are not yet implemented. Completed outbox migration plans were removed or replaced by current standards and reference docs.
+| Issue | Remaining boundary |
+|---|---|
+| [#346](https://github.com/HualapaiValley/HVO.WebSite/issues/346) | Davis complete 513-page circular archive recovery, cursor/cancellation and protocol safety |
+| [#352](https://github.com/HualapaiValley/HVO.WebSite/issues/352) | Native passive SmartShunt key provisioning, parity and atomic summary/detail bundle before authority cutover |
+| [#385](https://github.com/HualapaiValley/HVO.WebSite/issues/385) | Permanent Bluetooth proxy/RF placement, H5179 and temporary bridge/fallback credential retirement |
+| [#320](https://github.com/HualapaiValley/HVO.WebSite/issues/320) | HA canonical history/exporter rollout; currently disabled, unmapped and unclaimed |
+| [#372](https://github.com/HualapaiValley/HVO.WebSite/issues/372), [SDK #82](https://github.com/RoySalisbury/HVO.SDK/issues/82) | Promote staged APIs before retiring the production-used bridge |
+| [#437](https://github.com/HualapaiValley/HVO.WebSite/issues/437) | Secret-helper SQL-derivation failure propagation and partial writes; separate runtime fix |
 
-## Completed Baseline
+For #352, current [quiescent backup and exactly-one-writer rollback](gateways/sqlite-backup-and-rollback.md)
+governs operations; historical issue ordering is not an executable runbook.
+SDK #82's old test-only claim is contradicted by the production Davis moon
+projection. Retain Staging until the consumer/package prerequisite is reconciled.
 
-The following work is complete on `main` and should be treated as the current baseline, not future work:
+## Decisions without an assigned implementation issue
 
-- `HVO.Edge.Outbox` shared durable outbox library with `EdgeOutboxFailureKind`, retry/backoff, sent and failed compaction, `RetryExhausted` auto-requeue support, and health evaluation.
-- Davis, JK BMS, EG4, and SmartShunt are the active direct headless vNext collectors and use the shared outbox path.
-- Davis local station persistence is split from its telemetry outbox.
-- JK BMS no longer has all-or-nothing behavior for per-record permanent failures.
-- Home Assistant owns Kasa and Govee acquisition and presentation.
-- The HA exporter is implemented but intentionally disabled in production with no mappings or source claims.
-- The direct SolarAssistant and TP-Link/Kasa applications, containers, and images have been removed.
-- The retired SolarAssistant volumes were checksum-archived outside Docker storage and removed.
+- Decide the first central gateway-status audience: public status, private operator
+  dashboard or both. Existing device-rich diagnostics are inputs.
+- Design selective handling of permanent dead letters; automatic RetryExhausted
+  requeue does not authorize replay of permanent failures.
+- Decide which collectors need local history separate from outboxes, and complete
+  the weather/BMS aggregates actually needed by readers.
+- Decide whether shared typed ingest DTO/client packages reduce enough real drift
+  to justify extraction; gateway sender routing/response mapping currently has owners.
+- Decide when the archived brokered ingest POC justifies its operating cost.
+- Plan separate least-privilege runtime/migration SQL/Entra identities and missing
+  service-specific DR drills, including unresolved SQL disk identity.
+- A central command inbox needs authorization, expiry, idempotency, audit, edge
+  execution and fail-safe contracts. HA Kasa switching still needs load classification
+  and operator approval; a replacement direct HVO Kasa path is not adopted.
 
-## Priority Candidates
-
-| Priority | Area | Goal | Notes |
-|----------|------|------|-------|
-| P1 | Website gateway status UI | Add simple main-site cards for gateway health, outbox status, source freshness, and protected diagnostic references. | Use `GatewayStatusPayload`/shared health concepts; active collectors have no local dashboards. |
-| P1 | Power model source precedence | Document and test measurement-point precedence across EG4, JK BMS, and SmartShunt. | PV/load/inverter branches come from EG4; per-cell health from JK BMS; whole-bus current/power from SmartShunt. |
-| P1 | Operator outbox replay tooling | Add safe operator-visible handling for permanent failures and retry-exhausted rows. | Automatic requeue is only for `RetryExhausted`; permanent dead letters need explicit operator/code/config action. |
-| P1 | Permanent HVO Bluetooth proxy (#385) | Replace the temporary isolated Pi bridge with a supported, source-controlled permanent proxy and commission H5179 when observable. | Preserve JK BMS/SmartShunt GATT ownership; remove or rotate HOME fallback credentials only after permanent-path validation. |
-| P2 | Local history separation | Decide which gateways need persistent local history separate from the outbox. | Outbox is transport durability only; local chart preload/history should be gateway-owned storage. |
-| P2 | Weather/BMS aggregates | Complete minute/hourly aggregate population where still incomplete. | Existing tables/read paths exist, but rollup coverage remains partial. |
-| P2 | Domain-rich health | Expand health checks beyond process liveness to device freshness, outbox sync, and local protocol state for every gateway. | Several gateways expose this already; central display is still minimal. |
-| P2 | Website/Azure hardening | Move SQL auth toward least-privilege Entra/managed identity separation for runtime vs migrations. | Current architecture doc keeps this as a security modernization item. |
-| P3 | Future integrations | Prototype only after real hardware/topics are available. | Keep future integrations in `docs/gateways/future-integrations.md`; avoid speculative code. |
-| P3 | HA-owned device command safety | Keep Kasa actions in HA presentation policy and require connected-load classification, confirmation, and explicit operator approval. | A replacement direct HVO Kasa command path is out of scope. |
-
-## Open Design Questions
-
-- Should every collector expose a protected operator endpoint or use shared tooling to inspect and selectively requeue dead-lettered outbox rows?
-- Which collectors, if any, need persistent local history separate from the outbox?
-- What is the first central website audience for gateway status: public observatory status, private operator dashboard, or both?
-- Should typed API client/DTO packages be extracted to reduce payload drift between gateways and website controllers?
-- When, if ever, does the archived brokered ingest path justify its added operational complexity?
+[Future candidates](gateways/future-integrations.md) retains camera/NVR/PDU/roof/
+motion research and safety. Govee currently belongs to [Home Assistant](../deploy/home-assistant/README.md).
+The [prior roadmap](archive/2026-08-18-roadmap.md) preserves old priorities and
+completed context; power observation identity and UTC queries are current reference.

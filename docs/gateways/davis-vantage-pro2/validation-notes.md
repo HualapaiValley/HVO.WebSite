@@ -1,6 +1,6 @@
 # Davis Vantage Pro2 Validation Notes
 
-This document tracks evidence, open questions, and validation steps for the Davis gateway.
+This document tracks protocol evidence and remaining validation for the current headless Davis collector. Reconciled from source on 2026-10-04; no new live validation or deployment was performed. Dated/undated earlier observations remain attributed below. The [current contracts](hvo-api-contracts.md), [field/settings reference](console-fields-and-settings.md), [testing guide](../../development/testing.md) and [#346](https://github.com/HualapaiValley/HVO.WebSite/issues/346) define actual boundaries.
 
 ## Confirmed So Far
 
@@ -28,12 +28,12 @@ This document tracks evidence, open questions, and validation steps for the Davi
 
 ## Test Strategy
 
-Use three test levels. Do not treat mock-only coverage as proof that the Davis protocol behavior is correct.
+Keep parser, orchestration, protocol simulator and live hardware evidence separate. Existing coverage below describes checked-in tests and historical observations, not results freshly run by this documentation edit. Fresh source-bound results belong in the delivery PR. Mock/simulator coverage cannot establish physical side effects.
 
 | Level | Purpose | Tooling | Should cover | Limitations |
 |-------|---------|---------|--------------|-------------|
-| Unit tests | Validate pure logic and parsing. | xUnit plus direct parser/model calls. | CRC vectors, LOOP packet parsing, archive record parsing, rain conversion, timestamp conversion, forecast mapping, settings decode helpers. | Cannot prove transport timing, command sequencing, or hardware side effects. |
-| Mocked service tests | Validate HVO orchestration around interfaces/classes. | Moq/fakes for station/outbox/database dependencies. | Worker retry behavior, outbox enqueue behavior, current-reading updates, API/controller behavior. | Mocks can accidentally encode wrong protocol assumptions. |
+| Unit tests | Validate pure logic and parsing. | MSTest, FluentAssertions and direct parser/model calls. | CRC vectors, LOOP/archive packets, rain/timestamps, forecast/settings helpers. | Cannot prove transport timing or hardware side effects. |
+| Service tests | Validate collector orchestration/durability. | MSTest with deterministic fakes and disposable local stores. | Worker failures, typed enqueue, cursor acceptance, MQTT/publication, hosting/migration and sender accounting. | Fakes can encode wrong protocol assumptions; website contracts have their own tests. |
 | Protocol simulator tests | Validate command/response sequencing without live hardware. | In-process TCP fake WeatherLink/Davis console or scripted stream. | Wakeup, ACK/NAK, LF/CR-prefixed ACK, CRC failures, `LPS 1 1`, `LPS 2`, `DMPAFT`, `SETTIME`, EEPROM read/write command flow, timeout/reconnect handling. | Simulator must be kept aligned with official protocol and live observations. |
 | Live hardware tests | Validate actual Davis console behavior. | Manual or gated integration tests against the deployed console. | Display-unit behavior, rain bucket settings, write operations, archive catchup edge cases, timezone/DST behavior, WeatherLink IP quirks. | Requires hardware, can be slow/risky, and write tests need safety controls. |
 
@@ -52,7 +52,7 @@ Use three test levels. Do not treat mock-only coverage as proof that the Davis p
 | LOOP interruption for commands | N/A | Optional | Covered | Optional | High | Fake-server coverage validates LOOP interruption and command execution while a LOOP stream is active. |
 | Worker reconnect/backoff | N/A | Needed | Needed | Optional | Medium | Simulate read failures and repeated protocol errors. |
 | Outbox enqueue/dedupe | Optional | Needed | Optional | Optional | Medium | Confirm archive/live separation and timestamp keys. |
-| Unit/display setting independence | Display conversion covered | N/A | Optional | Needed | High | Parser/outbox values stay normalized and UI/API display values convert via cached console settings; real-console raw-byte independence still needs live validation. |
+| Unit/display setting independence | Conversion helpers covered | N/A | Optional | Needed | High | Parser/outbox values retain explicit units; removed UI/API does not expose a display sub-object. Real-console raw-byte independence still needs live validation. |
 | Set console time | Covered for payload and CRC retry | Optional | Covered for current flow | Needed with safety | High | Payload format, command ACK, and CRC retry are tested; live write still requires explicit approval. |
 | EEPROM writes | Covered for current write helpers | Optional | Covered for current flow | Needed with safety | High | Includes payload shape and CRC-protected payload retry; read-back verification plan is still needed for live writes. |
 | Alarm writes/clears | Covered for current encode/command flow | Optional | Covered for current flow | Needed with safety | Medium | High-risk behavior; keep local-only. |
@@ -64,7 +64,7 @@ Use three test levels. Do not treat mock-only coverage as proof that the Davis p
 |-----|------|------|---------------------|--------|
 | Command-by-command Davis protocol coverage needed official review. | Spec | We may think we support more of the protocol than we do. | Maintain the Rev 2.6.1 command summary coverage table in `manufacturer-protocol.md`; add rows if deeper manual review finds commands outside the summary. | Covered for extracted command summary |
 | Write paths are structurally implemented and simulator-covered for current flows but not live-validated. | Implementation/test | Incorrect writes could change console settings or corrupt expected behavior. | Keep live write tests gated; add read-back verification and final safety gates before exposing writes. | In progress |
-| Unit normalization is implicit in legacy property names. | API design | Future local/cloud consumers may confuse raw protocol units, normalized units, and console display settings. | Current weather API adds display settings/display sub-object; versioned DTO redesign still needed before lock-in. | Partially addressed |
+| Unit/display provenance | Contract design | Future consumers may confuse normalized observations and console display settings. | Preserve typed unit suffixes; any new display DTO is a separate proposal. | No current local display API |
 | Mock-only tests would not catch protocol sequencing defects. | Test design | False confidence in transport/command behavior. | Keep extending the fake TCP protocol simulator for every supported flow. | In progress |
 | Cursor-based DMPAFT returns the 513-page full circular buffer. | Implementation/live validation | Scanning the buffer delays live LOOP acquisition and causes transient timeouts. | Keep production catch-up disabled and implement bounded recovery in #346. | Measured live; deferred to v2 |
 | Destructive/config writes lack final exposure policy. | Safety | Unsafe UI/cloud exposure. | Local auth, confirmation, audit logging, read-back, and command allowlist. | Open |
@@ -81,8 +81,8 @@ Do not mark Davis logic as fully implemented until these criteria are satisfied 
 | Every HVO-supported write operation is simulator-tested. | Yes | In progress | Current write helpers and common commands have payload/ACK coverage; destructive writes still need explicit read-back/safety policy before live validation. |
 | Risky writes are live-tested or marked unsupported/deferred. | Yes | Open | Time, barometer, archive interval, EEPROM, alarms, archive clear. |
 | Unit/display behavior is live-validated. | Yes | Open | Temperature, wind, barometer, rain display units vs raw protocol units. |
-| Local DTO/API model separates raw/vendor, HVO-normalized, and display settings. | Yes before API lock | Partially addressed | Current weather API keeps normalized suffix fields and adds display settings/display sub-object; broader versioned schema still needed. |
-| Live and archive contracts are reviewed separately. | Yes before cloud schema lock | Open | Archive interval records should not be collapsed into live observations without preserving semantics. |
+| Any future display DTO separates vendor/normalized/display values. | Yes before new API exposure | Proposed | No current local weather/display API; preserve reusable conversion design without presenting it as deployed. |
+| Live and archive contracts remain separate. | Yes | Implemented in source | Typed live/archive payloads, separate endpoints/entity and both archive timestamps already preserve interval semantics; broader schema changes require review. |
 | Rain semantics are explicitly modeled. | Yes before cloud schema lock | Open | Rate, daily, storm, rolling windows, monthly/yearly, and archive interval fields remain distinct. |
 | Safety gates exist for destructive/configuration writes. | Yes before UI exposure | Open | Local auth, confirmation, audit log, read-back verification, and allowlist. |
 | Reconnect/interruption behavior is simulator-tested. | Yes | In progress | Covers command interruption during LOOP and recovery from unknown console mode; repeated live reconnect stress remains adapter-sensitive/manual. |
@@ -95,19 +95,19 @@ Do not mark Davis logic as fully implemented until these criteria are satisfied 
 | Documentation is split into manufacturer protocol, HVO implementation, HVO API contracts, and validation notes. | Done | Current docs follow the gateway documentation set pattern. |
 | Manufacturer protocol doc avoids HVO design decisions except provenance/support status. | In progress | Command coverage still needs full official transcription. |
 | HVO implementation doc includes project layout, classes, public methods, samples, worker flow, command flow, and decision log. | Done | Keep updated as implementation changes. |
-| HVO API contracts doc lists local endpoints, outbox payloads, central mappings, and stream decisions. | Seeded | Needs final API/outbox versioning once design is locked. |
+| HVO API contracts doc lists local endpoints, outbox payloads, central mappings, and proposed streams. | Current source reconciled | Shared health/diagnostics and typed live/archive v1; proposed display/config/alarm contracts stay labeled. |
 | Validation notes include unit, mocked, simulator, and live test expectations. | Done | Convert open items to tests/work items during implementation. |
 
 ## Known Issues And Quirks
 
 | Issue | Evidence | Impact | Workaround | Validation needed |
 |-------|----------|--------|------------|-------------------|
-| HVO unit-specific property names may hide protocol/display-unit nuance | Parser/outbox exposes `*F`, `*Mph`, `*Inches` while console stores display unit bits; UI/API now add display conversion. | Public API consumers may confuse protocol units, console display preferences, and HVO-normalized units if they ignore display fields. | Keep normalized and display values explicit in docs/API. | Live test display-unit changes on the real console before locking public local API. |
+| Unit/display nuance | Parser/outbox exposes `*F`, `*Mph`, `*Inches`; EEPROM separately holds display bits. | Observation suffixes do not describe a console screen preference. | Preserve explicit observation units and separate display metadata in any approved new API. | Controlled live byte comparison remains open. |
 | Rain fields have different semantics | LOOP exposes rate, daily, 15-min, hour, 24-hour, storm, monthly, yearly; archive exposes interval rain. | Cannot map all to one `RainfallInches` column. | Keep separate fields/streams. | Decide central schema names and reset/cadence semantics. |
 | LOOP1/LOOP2 have complementary fields | Worker merges LOOP1 cache with LOOP2. | Missing LOOP1 refresh can affect battery/forecast/monthly totals. | Cache LOOP1 per batch. | Validate stale behavior. |
 | Console local time differs from host timezone | Archive conversion code strips `DateTimeKind.Local`. | Wrong archive UTC if offset is wrong. | Use console UTC offset. | Validate timezone/DST settings. |
 | WeatherLink IP/TCP has timing quirks | Current client adds a 50 ms send delay and handles LF/CR-prefixed ACK. | Without pacing/prefix handling commands can fail intermittently. | Preserve pacing and prefix tolerance. | Validate after any transport refactor. |
-| Live console can become unstable during repeated connect/stress-test cycles | Live test runs observed intermittent wakeup/read timeouts after multiple tests and after simultaneous-client attempts. A safe read-only subset passed 10/12 twice, with failures in EEPROM setup ACK/wakeup during `ConnectAsync`. | Full live test suite can fail even when individual read paths work. | Run focused live subsets; avoid simultaneous-client/reconnect stress in routine validation; keep EEPROM command/data retries. | Decide whether to add adapter cooldown/reset handling or keep stress tests manual. |
+| Repeated live connect/stress instability | Earlier notes reported wakeup/read failures and a read-only subset passing 10/12 twice. The original observation date is unknown; [source notes](https://github.com/HualapaiValley/HVO.WebSite/blob/19c274dbeb60a70ea53dd51af428918b8c367a73/docs/gateways/davis-vantage-pro2/validation-notes.md) preserve provenance. | Historical adapter evidence, not current-suite acceptance. | Avoid simultaneous clients; separately authorize focused physical checks and retain retry behavior. | Cooldown/reset design remains unsettled. |
 | `DMPAFT` full circular-buffer response | Live protocol diagnostics returned 513 pages with start index 1 for an exact durable cursor. | Routine scanning interrupts live LOOP acquisition. | Production archive catch-up is disabled; cursor/data are preserved and bounded recovery is tracked in #346. | Implement and live-validate #346 in a controlled maintenance window. |
 
 ## HVO-Derived Weather Calculation Candidates
@@ -134,9 +134,19 @@ Rules for derived values:
 | Question | Why it matters | Status |
 |----------|----------------|--------|
 | Which Davis fields belong in central historical weather vs local-only diagnostics? | Prevents oversized or ambiguous central schema. | Open |
-| Should archive records get a separate central payload/table from live LOOP records? | Archive interval semantics differ from live readings. | Open |
+| Should live and archive ever be combined? | Interval/high/low/aggregate semantics differ. | Current source already separates payload/endpoint/entity; any consolidation is unapproved. |
 | Which console write operations should HVO support long-term? | Safety and audit requirements. | Open |
 | Do real-console display-unit changes leave raw LOOP/archive bytes unchanged as documented? | Confirms the PDF/open-source-driver interpretation on HVO hardware. | Needs live validation |
 | Should the local API expose both raw protocol values and normalized values? | Helps future-proof against unit/display setting changes. | Open |
 | Should HVO calculate archive dew point, heat index, wind chill, dew spread, or dew risk? | These are useful but not Davis archive protocol fields. | Open |
 | Should periodic archive catchup retain DMPAFT full-archive fallback on zero-page responses? | Could improve recovery but the live console returns disruptive 513-page scans. | Deferred to #346; production v1 catch-up is disabled and cancels cursor-triggered full-buffer responses. |
+
+## Safe local entry point
+
+From the repository root, after the exact pinned SDK restore/build described in [testing](../../development/testing.md), run only the non-live Davis cases:
+
+```bash
+dotnet test tests/HVO.Hardware.DavisVantagePro2.Tests --filter "TestCategory!=Integration&TestCategory!=Live"
+```
+
+The solution's required local validation remains broader. Simulator `Integration` cases need their documented owned fixture; `Live` cases need explicit physical authority. Display-unit/clock/EEPROM/alarm/archive-clear changes are excluded from ordinary local/CI checks; library existence and a simulated ACK do not authorize a write or prove readback on installed hardware.

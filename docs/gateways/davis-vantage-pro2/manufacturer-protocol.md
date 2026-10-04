@@ -4,9 +4,11 @@ This document describes the Davis-defined protocol and data model. It should rea
 
 ## Provenance
 
+The Rev 2.6.1 PDF and manufacturer facts remain separate from HVO runtime support. The prior command/support table is preserved below; its live-test labels describe earlier notes, not new execution by the 2026-10-04 documentation reconciliation. Selected station write methods exist but the current headless host exposes no management UI or generic command endpoint. See [current implementation](hvo-implementation.md), [field/settings extraction](console-fields-and-settings.md) and [validation boundaries](validation-notes.md).
+
 | Source | Use |
 |--------|-----|
-| `../../VantageSerialProtocolDocs_v261.pdf` | Authoritative command, packet, EEPROM, CRC, and unit reference. |
+| [Local vendor PDF](../../VantageSerialProtocolDocs_v261.pdf) | Authoritative command, packet, EEPROM, CRC and unit reference; preserved unchanged. |
 | Official PDF URL | `https://cdn.shopify.com/s/files/1/0515/5992/3873/files/VantageSerialProtocolDocs_v261.pdf` |
 | WeeWX `vantage.py` | Cross-check for wakeup, LOOP/LPS, DMPAFT, archive pages, EEPROM, rain bucket handling, and operational quirks. |
 | WeeWX `crc16.py` | Cross-check for Davis CRC-CCITT behavior and example. |

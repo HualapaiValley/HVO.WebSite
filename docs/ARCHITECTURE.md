@@ -1,378 +1,119 @@
-# HVO Architecture Baseline
+# Current architecture
 
-Last updated: 2026-08-18
+Source baseline: 2026-10-04. This is an ownership and data-flow reference. Detailed
+protocols, configuration and recovery belong to linked owners; GitHub issues own
+the status of proposed work.
 
-This document captures the current architecture baseline for HVO.WebSite and the expected direction for near-term hardware integrations. It is a current-state reference, not a full implementation plan. Use `docs/PROJECT_HISTORY.md` for recent session context and decision notes. The validated RabbitMQ/Service Bus ingest POC was removed from the active repo after being deferred and remains available in git history if needed.
+## Runtime and source authority
 
-The headless target for new and migrated edge executables is defined in
-`docs/architecture/EDGE_VNEXT_RUNTIME.md`. The active direct collectors have
-completed that migration.
+| Unit | Current responsibility | Canonical owner |
+|---|---|---|
+| Website on hvo-docker | Interactive UI, Entra browser auth, scoped ingest/read keys and SQL persistence | [website](../src/HVO.WebSite.v9/README.md), [deployment](../deploy/hvo-docker/README.md) |
+| Davis | TCP LOOP/archive acquisition, local station state and durable delivery | [Davis manual](gateways/davis-vantage-pro2/README.md) |
+| JK BMS | Persistent BLE sessions, complete readings and bounded HA presentation | [JK manual](gateways/jk-bms.md) |
+| EG4 | Read-only USB HID/serial inverter/MPPT acquisition | [EG4 manual](gateways/eg4/deployment-and-shadow-validation.md) |
+| SmartShunt | Paired public-GATT summary/detail observations | [SmartShunt manual](gateways/victron-smartshunt.md) |
+| Home Assistant | Native Kasa/Govee acquisition and presentation | [HA operations](../deploy/home-assistant/README.md) |
+| HA exporter | Implemented allowlisted bridge; disabled, unmapped, no production source claims | [exporter](../src/HVO.Edge.Exporter.HomeAssistant/README.md) |
 
-## System Purpose
-
-HVO.WebSite is the central observatory monitor for Hualapai Valley Observatory. The system collects hardware telemetry from local edge services, stores normalized observatory data in Azure SQL, and presents web dashboards through the Blazor website.
-
-The central website should stay focused on ingest, persistence, dashboards, administration, and read APIs. Hardware-specific device access should stay in edge collectors that run near the equipment.
-
-## Current Deployment Units
-
-| Unit | Project | Runtime Location | Primary Responsibility |
-|------|---------|------------------|------------------------|
-| Website | `src/HVO.WebSite.v9` | Azure Container Apps or local Docker | Blazor UI, read/admin APIs, auth, dashboards |
-| Davis collector | `src/HVO.Hardware.DavisVantagePro2` | Local edge Docker host | Davis console TCP protocol, weather polling/archive catchup, gateway-owned local station persistence, shared SQLite outbox, protected diagnostics, website API forwarding |
-| JK BMS collector | `src/HVO.Hardware.JkBms` | Local edge Docker host with BLE access | Headless persistent JK BMS BLE sessions, durable shared outbox forwarding, standard diagnostics, and bounded HA MQTT current state |
-| EG4 collector | `src/HVO.Hardware.Eg4` | Local edge Docker host with USB HID/serial access | Headless read-only EG4 6500EX and MPPT100 acquisition, durable shared outbox forwarding, standard diagnostics, and bounded HA MQTT current state |
-| SmartShunt collector | `src/HVO.Hardware.VictronSmartShunt` | Local edge Docker host with BLE access | Headless paired public-GATT telemetry, durable shared outbox forwarding, standard diagnostics, and bounded HA MQTT current state |
-| HA telemetry exporter | `src/HVO.Edge.Exporter.HomeAssistant` | Local edge Docker host | Implemented allowlisted export path for HA-owned sources; intentionally disabled in production with no mappings or source claims |
-| Edge contracts | `src/HVO.Edge.Contracts` | Shared library | Gateway status, health, runtime, and payload contracts |
-| Edge hosting | `src/HVO.Edge.Hosting` | Shared library | vNext host composition, identity, mounted configuration, secret files, structured logging, standard OpenTelemetry, health, and diagnostics |
-| Edge outbox | `src/HVO.Edge.Outbox` | Shared library | Durable SQLite registration/initialization, forwarding orchestration, retry, dead-letter/requeue, compaction, and diagnostics |
-| Data models | `src/HVO.DataModels` | Shared library | EF Core DbContexts, entities, migrations |
-| Theme assets | `src/HVO.WebSite.Themes` | Shared Razor class library | Shared visual theme assets |
-
-Local application orchestration is defined in `docker-compose.yml` and per-gateway compose files under `deploy/pi-gateways/`. Each active direct collector owns its local data directory, SQLite outbox, and hardware configuration. Gateway logs are structured stdout/stderr managed by the container runtime and are optionally exported through OTLP to central Loki; gateways do not own application log files. The retired direct SolarAssistant and TP-Link/Kasa containers, images, and Docker volumes have been removed. A checksum-verified SolarAssistant archive remains outside Docker storage for historical recovery only.
-
-## High-Level Data Flow
-
-```text
-Local Davis, JK BMS, EG4, and SmartShunt hardware
-  -> source-specific direct headless collector
-  -> local SQLite outbox
-  -> typed HVO.WebSite ingest API
-  -> Azure SQL v9 schema
-  -> HVO.WebSite dashboards and read/admin APIs
-
-Kasa and Govee devices
-  -> Home Assistant integrations
-  -> Home Assistant presentation
+```mermaid
+flowchart LR
+  Devices[Davis / JK / EG4 / SmartShunt] --> Direct[Source-owned direct collector]
+  Direct --> Outbox[Per-service SQLite outbox]
+  Outbox --> API[Typed website ingest]
+  API --> SQL[SQL Server v9]
+  SQL --> UI[Website queries and dashboards]
+  KasaGovee[Kasa / Govee] --> HA[Home Assistant acquisition and presentation]
 ```
 
-The local reliability boundary for active direct collectors is a per-service SQLite outbox. The website API is the central validation and persistence boundary for Azure SQL. Edge services initiate outbound HTTP calls and retry from the outbox when connectivity or the website is unavailable. The HA exporter could provide the same boundary for approved HA-owned sources, but it is intentionally disabled and has no production mappings or source claims; Kasa and Govee therefore have no active canonical HVO writer.
-
-The RabbitMQ -> Azure Service Bus -> Azure Functions path was validated as a POC and archived. It remains a future option if observatory scale or integration needs justify the added operational complexity.
-
-OpenTelemetry is used for operational telemetry such as logs, traces, and metrics. It is not the primary domain-data ingest path.
-
-## Central Website
-
-`HVO.WebSite.v9` owns the central website surface:
-
-| Area | Current State |
-|------|---------------|
-| UI | Blazor Server dashboard and admin pages |
-| Browser auth | Microsoft Entra ID OIDC and app roles |
-| Hardware auth | Scoped API keys for REST ingest paths |
-| API versioning | URL segment routes under `/api/v{version}/...` |
-| Persistence | Website APIs and services own v9 reads and writes through EF Core |
-| Legacy data | `HvoDbContext` can read legacy `dbo` schema where needed |
-| Health | Liveness, readiness, and full health endpoints |
-| API docs | OpenAPI JSON and Scalar UI in development |
-
-The website should not directly connect to LAN hardware, BLE devices, serial devices, or local MQTT brokers. Those dependencies belong in edge collectors and local gateways. The website is the central API, persistence, read/admin, and future command/control surface.
-
-### Interactive dashboard lifecycle
-
-`App` gives `Routes` and `HeadOutlet` an interactive server owner. Public/authenticated SSR and Entra policies remain in the real host; layouts receive their render fragments inside that owner. Shell callbacks stay disabled until their first interactive render so early SSR clicks cannot be lost. The power card renders a loading shell during SSR and starts reads after its first interactive render, avoiding duplicate initialization queries. A dashboard `ErrorBoundary` contains unexpected rendering failures while shell controls remain usable.
-
-`IPowerDashboardQuery` returns independent typed current/detail/history sections. Each operation owns an async service scope and resolves the existing scoped providers there; reads sharing a DbContext are sequential. No circuit retains a DbContext. Provider failures after their retry policy become section errors, with successful and previously loaded sections retained until recovery.
-
-The component owns and disposes `PowerDashboardSession`: one serialized, cancellation-aware load path, a one-second freshness tick, current queries every five seconds and history queries every sixty seconds by default. `PowerStatus:RefreshSeconds` is bounded to 1–300 seconds, `HistoryRefreshSeconds` to the current interval–3600 seconds, and the existing `HistoryHours` to 1–48 hours. Retry uses the same gate. Disposal cancels active and queued loads and joins the loop. Presentation ages actual source timestamps against `TimeProvider`, using the composition freshness/future limits. History revision follows changed content or query window rather than row count.
-
-History queries select deterministic per-source/bucket representative IDs before loading detail JSON. The pure presenter retains both UTC window boundaries and emits every five-minute bucket, with explicit null acquisition gaps and at most 577 aligned values per stream over 48 hours. Stored datetime2 timestamps regain UTC kind without host-local conversion. Display follows the existing `HvoDisplayTimeZone` policy, optionally selected by `PowerStatus:DisplayTimeZoneId`, and visibly names the zone. [History query and UTC notes](development/power-history-utc.md) document payload-work bounds, invalid-payload fallback, source/device isolation and compatibility.
-
-## Authentication And Authorization
-
-Browser users authenticate with Microsoft Entra ID. The current app roles are `Admin` and `User`.
-
-The current REST ingest path authenticates hardware services with scoped API keys:
-
-| Scope | Current Meaning |
-|-------|-----------------|
-| `ingest:weather` | Weather ingest from the Davis collector |
-| `ingest:bms` | BMS ingest from the JK BMS collector |
-| `ingest:images` | Reserved for image ingest |
-| `ingest:power` | Power ingest from the active EG4 and SmartShunt collectors |
-| `read:weather` | Weather read API access |
-| `read:api` | Reserved API read access |
-
-Raw API keys are runtime secrets. The website stores only SHA-256 hashes in the `v9.ApiKey` tables. Local edge collectors receive raw keys through environment variables or another local secret mechanism.
-
-Future SQL authentication should move away from shared SQL password auth toward least-privilege Entra identities. Runtime website access and EF migrations should eventually use separate identities.
-
-## Data Ownership
-
-New development targets the EF-owned `v9` schema through `HvoV9DbContext`. The legacy `dbo` schema is retained as a reference and compatibility source, but new features should not extend the legacy schema.
-
-Current v9 domains:
-
-| Domain | Current Status |
-|--------|----------------|
-| Weather | Implemented raw ingest and recent read endpoints |
-| BMS | Implemented batch ingest, device upsert, readings, cells, config/info snapshots, alarms |
-| Power | Implemented typed ingest/read support for power readings, energy, inverter detail, device inventory/configuration, and gateway status snapshots; submitted snapshot confirmations use source/time replay identity rather than historical content uniqueness (see [observation semantics and rollout](development/power-observation-identity.md)) |
-| Images | Scope and some image metadata model support exist, but ingest is not the current focus |
-| Commands | Not implemented |
-
-Minute and hourly aggregate entities exist for weather and BMS, but the website does not yet have a complete rollup worker populating all aggregate tables.
-
-## Existing REST Ingest APIs
-
-| Route | Auth | Purpose |
-|-------|------|---------|
-| `POST /api/v1/weather/raw` | `ingest:weather` | Single weather reading ingest |
-| `POST /api/v1/weather/raw/batch` | `ingest:weather` | Batch weather ingest |
-| `GET /api/v1/weather/raw/recent` | `read:weather` | Recent raw weather readings |
-| `GET /api/v1/weather/hourly/recent` | `read:weather` | Recent hourly weather aggregates |
-| `POST /api/v1/bms/readings` | `ingest:bms` | Batch BMS readings with related cell/config/info/alarm data |
-| `POST /api/v1/power/readings` | `ingest:power` | Batch power readings from general power sources |
-| `POST /api/v1/power/smartshunt-observations/batch` | `ingest:power` + exact `source` claim | Atomic SmartShunt summary and public-GATT detail observations |
-| `POST /api/v1/power/device-inventory` | `ingest:power` | Power/gateway inventory snapshot ingest |
-| `POST /api/v1/power/configuration` | `ingest:power` | Power/gateway configuration snapshot ingest |
-| `POST /api/v1/power/energy` | `ingest:power` | Power energy-counter snapshot ingest |
-| `POST /api/v1/power/inverter-detail` | `ingest:power` | Power inverter-detail snapshot ingest |
-| `POST /api/v1/power/gateway-status` | `ingest:power` | Gateway health/runtime/outbox status snapshot ingest |
-
-These APIs are the current production ingest boundary. Future domain persistence should stay normalized rather than vendor-oriented, with vendor/provider adapters living in edge services.
-
-## Deferred Brokered Ingest Option
-
-The brokered ingest POC proved this path end-to-end for `hvo.weather.raw.v1`:
-
-```text
-Davis collector -> RabbitMQ -> Azure Service Bus -> Azure Functions -> Azure SQL
-```
-
-The design is deferred because the current system can meet reliability and operational needs with a simpler per-edge SQLite outbox and typed website APIs. The old POC artifacts were removed from the active repo and remain only in git history.
-
-If brokered ingest is revived later, the same general responsibilities apply:
-
-| Layer | Responsibility |
-|-------|----------------|
-| Local publishers | Historically included Davis, JK BMS, ESPHome, SolarAssistant, TPLink, and prospective collectors publishing MQTT or AMQP |
-| RabbitMQ on `hvo-docker` | Local broker, durable queues, local dead-lettering, shovel runtime |
-| Local normalizers | Convert fragmented/vendor MQTT topics into canonical HVO packets when needed |
-| Azure Service Bus `hvoobs` | Cloud broker, retry, subscriptions, dead-lettering |
-| Azure Functions | Validate, deserialize, write to Azure SQL, publish SignalR updates |
-| HVO.WebSite.v9 | Read dashboards, admin UI, command/control APIs |
-
-Canonical schemas start with:
-
-| Schema | Purpose |
-|--------|---------|
-| `hvo.weather.raw.v1` | Davis raw weather observation |
-| `hvo.weather.sensor.v1` | Weather auxiliary sensor event |
-| `hvo.weather.alarm.v1` | Weather-station alarm/event |
-| `hvo.environment.reading.v1` | Temperature/humidity/battery environment reading |
-| `hvo.power.reading.v1` | Inverter/load/charge/battery power reading |
-| `hvo.bms.reading.v1` | JK BMS pack/cell reading |
-
-## Edge Collector Pattern
-
-The gateway applications are independent ASP.NET Core applications. They share the same architectural shape:
-
-| Layer | Responsibility |
-|-------|----------------|
-| Device protocol | Talk to the local hardware using TCP, BLE, serial, MQTT, or vendor API |
-| Poller/worker | Schedule reads, manage reconnect/backoff, map device payloads to HVO records |
-| Local SQLite outbox | Store telemetry durably before API transfer |
-| API forwarder | POST batches to typed website ingest endpoints with retry/backoff |
-| Diagnostics | Expose standard health, device, outbox, and forwarding state without a local UI |
-| Health endpoint | Support container/runtime health checks |
-| Telemetry | Emit operational logs, traces, and metrics |
-
-New collectors and gateways should use the local SQLite outbox + website API pattern unless there is a concrete need for a brokered path.
-
-## Davis Collector
-
-`HVO.Hardware.DavisVantagePro2` is a headless vNext collector that connects to the Davis Vantage Pro 2 console through the WeatherLink IP TCP bridge. It implements Davis protocol commands, LOOP packet parsing, durable archive continuity, gateway-owned local station persistence, shared SQLite outbox storage, protected diagnostics, bounded Home Assistant MQTT current-state projection, and disabled-by-default best-effort Weather Underground publication from the same latest merged observation.
-
-Current responsibilities:
-
-| Responsibility | Current State |
-|----------------|---------------|
-| TCP protocol | Implemented in `DavisConsoleClient` and related protocol classes |
-| Weather polling | Implemented in `WeatherStationWorker` |
-| Archive handling | Full available-console bootstrap when no cursor exists, then overlapped DMPAFT top-off on startup, reconnect, and periodically between finite LOOP batches |
-| Local outbox | SQLite durable queue |
-| Forwarding | Partitions typed live and complete archive batches to separate website endpoints |
-| Weather Underground | Optional non-durable PWS rapid-fire projection to `KAZKINGM12`; five-second cadence, no replay, and no additional console polling |
-| Local UI | None; standard protected diagnostics only |
-
-The collector preserves the deployed `davis-outbox` volume across the vNext migration; legacy schema and payload identifiers are upgraded before shared outbox initialization.
-
-## JK BMS Collector
-
-`HVO.Hardware.JkBms` is a headless vNext collector that connects to JK BMS units over Bluetooth LE through the host BlueZ stack. One persistent session owns each device, adapter connection attempts remain coordinated, and device failures/reconnect backoff are isolated. Complete central-ingress records are committed to the shared durable outbox before forwarding, while bounded current state and availability are projected to Home Assistant through MQTT.
-
-Current responsibilities:
-
-| Responsibility | Current State |
-|----------------|---------------|
-| BLE transport | Implemented through a transport abstraction and BlueZ-backed transport |
-| Protocol parsing | Implemented for cell info, settings/config, and device info |
-| Multi-device polling | Implemented with per-device state and backoff |
-| Local outbox | Standard `HVO.Edge.Outbox` SQLite durable queue with legacy-volume migration |
-| Forwarding | Strictly accounted batch sender to the website BMS ingest API |
-| Local presentation | Ten-entity HA MQTT current-state projection; no local UI |
-| Diagnostics | Standard vNext health and protected diagnostics contract |
-
-The collector uses the shared vNext hosting, outbox, and Home Assistant MQTT infrastructure established by the EG4 reference implementation.
-
-## Deployment Baseline
-
-The website can run locally or in Azure Container Apps. In Azure, the website should listen on HTTP and let ACA ingress terminate TLS. Locally, Docker Compose can enable HTTPS with a local certificate while keeping HTTP available for service-to-service calls.
-
-Collectors are edge services. They should run on hardware that can reach the physical devices or local protocols they depend on:
-
-| Collector Type | Expected Runtime Location |
-|----------------|---------------------------|
-| Davis TCP | Same LAN as the WeatherLink IP adapter |
-| JK BMS BLE | Host with Bluetooth adapter and BlueZ access |
-| EG4 USB HID/serial | Host with the stable mapped inverter and MPPT device paths |
-| SmartShunt BLE | Host with Bluetooth adapter, BlueZ access, and paired public-GATT device ownership |
-| Home Assistant | Same LAN as HA-owned Kasa devices and reachable from the Govee Bluetooth proxy transport; permanent HVO proxy cutover is tracked by #385 |
-
-The website should not require inbound access to edge collectors for telemetry ingest. Edge collectors initiate outbound API calls to the website.
-
-## Secrets And Configuration
-
-Configuration is split by purpose:
-
-| Kind | Preferred Storage |
-|------|-------------------|
-| Cloud secrets | Azure Key Vault |
-| Local edge secrets | Local `.env`, Docker secrets, or host secret store on `hvo-docker` |
-| Runtime non-secret settings | `v9.SiteConfiguration` when central editing is needed |
-| Build/runtime image settings | `appsettings.json` plus environment overrides |
-
-Raw API keys, Azure client secrets, SQL connection strings, MQTT credentials, and device control credentials are secrets. RabbitMQ and Service Bus credentials are also secrets if the archived brokered pattern is revived. The Weather Underground PWS upload station key is a mounted edge secret sourced from Key Vault `WeatherUnderground--StationKey`; it is distinct from the unused Weather Underground query `ApiKey` and must not enter environment configuration. Mounted gateway secret directories remain read-only in containers.
-
-## Observability And Health
-
-Each deployable service should expose a health endpoint and emit structured logs. The website has liveness and readiness endpoints. The collectors currently expose health, but their readiness is still mostly process-oriented rather than domain-oriented.
-
-Recommended health baseline for collectors:
-
-| Signal | Purpose |
-|--------|---------|
-| Process liveness | Container/runtime restart decisions |
-| Device freshness | Detect stale hardware polling |
-| SQLite outbox depth | Detect local backlog or website/API forwarding problems |
-| Last API forward result | Detect authentication, validation, or connectivity failures |
-| Last device error | Surface protocol or connectivity failures |
-
-## Testing Baseline
-
-Routine tests should use mocks, fakes, simulators, or local test servers. Live hardware tests should be explicitly categorized as `TestCategory=Live` and excluded from normal CI/test loops unless specifically requested.
-
-The repo has `test.runsettings` with a test session timeout. Test runs should also use hang protection such as `--blame-hang-timeout` when appropriate.
-
-## Future Hardware Integration Baseline
-
-Future integrations should fit into the existing edge collector model.
-
-| Integration | Recommended Boundary |
-|-------------|----------------------|
-| EG4 6500EX / MPPT100 | Implemented direct read-only headless collector with typed power streams and bounded HA MQTT presentation |
-| Victron SmartShunt | Implemented direct BLE headless collector; public paired GATT is the production baseline |
-| TP-Link/Kasa outlets and lights | Home Assistant owns acquisition and presentation; the retired direct HVO gateway is not a deployment option |
-| Govee BLE sensors | Home Assistant owns acquisition and presentation through remote Bluetooth proxy transport; the current isolated Pi bridge is temporary pending #385 |
-| ESPHome nodes | Treat as edge decoders that expose values through MQTT or ESPHome native API to a provider-specific gateway, not as a generic transparent BLE adapter |
-
-Power domains should remain distinct where the underlying meaning is distinct. Direct EG4 inverter/load/charge data is not the same as HA-owned Kasa per-device outlet usage, even when both produce watts or watt-hours.
-
-## ESPHome And BLE Baseline
-
-ESPHome is useful as a distributed edge BLE decoder. It should not be assumed to be a transparent BLE relay for arbitrary .NET clients.
-
-Preferred ESPHome patterns:
-
-| Pattern | Fit |
-|---------|-----|
-| BLE advertisement decoding | Good for simple sensors such as many temperature/humidity beacons |
-| ESPHome `ble_client` | Good for fixed known devices with known GATT services and characteristics |
-| MQTT publishing | Good boundary for normalized edge telemetry into a .NET gateway |
-| Home Assistant Bluetooth Proxy | Good if Home Assistant owns BLE integrations, but it adds Home Assistant as a dependency |
-| Transparent BLE adapter | Not the recommended path |
-
-For HVO, the practical path is ESPHome nodes near BLE devices, decoded values published through MQTT, and a local gateway that maps those values into typed API payloads with its own outbox.
-
-## Command And Control Baseline
-
-The current architecture is ingest-first. Command/control is not implemented yet.
-
-If command/control is added, the preferred model is a cloud-side command inbox plus edge-side polling and acknowledgements:
-
-```text
-Website/admin action
-  -> command inbox row
-  -> edge collector polls for pending commands
-  -> edge collector executes against local hardware
-  -> edge collector posts acknowledgement/result
-  -> website records audit/status
-```
-
-This avoids requiring inbound network access from the cloud website to local observatory hardware.
-
-Expected command/control additions:
-
-| Area | Expected Addition |
-|------|-------------------|
-| Scopes | New control scopes such as `control:command`, or domain-specific control scopes |
-| Data model | `CommandInbox`, command status, command result/audit rows |
-| Website API | Enqueue, claim/poll, acknowledge, complete/fail endpoints |
-| Edge collectors | Background command worker separate from telemetry forwarding |
-| Security | Strong authorization, audit trail, command expiry, idempotency |
-
-## Shared Collector Infrastructure
-
-The current direct collectors use the shared headless vNext runtime established
-by issue #332.
-
-Shared edge projects:
-
-| Candidate | Reason |
-|-----------|--------|
-| `HVO.Edge.Outbox` | Shared SQLite registration, initialization, durable delivery, pluggable forwarding, retry, compaction, idempotency, requeue, and diagnostics |
-| `HVO.Edge.Hosting` | Shared headless host, mounted configuration, secret files, identity, logging, OpenTelemetry, resilient HTTP, health, and protected diagnostics |
-| Ingest DTO/client package | Reduce payload drift between collectors and website |
-| Ingest sender adapters | Device-owned mapping from shared outbox records to typed central endpoints |
-| Collector options | Shared vNext path, outbox, identity, diagnostics, and secret-reference settings |
-| Health checks | Shared process/readiness endpoints plus device-owned health snapshots |
-| Status state models | Common protected diagnostics and health patterns |
-
-New edge infrastructure abstractions must follow the dependency and ownership
-rules in `docs/architecture/EDGE_VNEXT_RUNTIME.md`.
-
-## Known Gaps
-
-| Gap | Impact | Status |
-|-----|--------|--------|
-| Brokered ingest is archived, not active | The POC is available for future reference, but active collectors should not depend on it | Will remain archived unless scale justifies revival |
-| v9 power persistence gaps | Aggregated power readings, energy counters, inverter detail, device inventory, and gateway status snapshots are implemented; remaining detail/inventory streams need normalized targets | Partially resolved (power.reading, power.energy, power.inverter-detail, gateway.status are live) |
-| Weather and BMS aggregates are incomplete | Some minute/hourly tables exist but are not fully populated by website workers | Ongoing |
-| Collector health is not domain-rich enough | Process health can pass while device polling or forwarding is unhealthy | Ongoing |
-| Shared HTTP forwarding abstractions remain gateway-owned | The shared outbox exists, but each gateway still owns destination routing/response mapping | Ongoing; extract only if repetition becomes costly |
-| Retired SolarAssistant volumes | The outbox and data-protection volumes were checksum-archived outside Docker storage and removed | Resolved |
-| Victron SmartShunt integration | Public paired GATT telemetry working; private enrichment read-only; writes deferred | Resolved |
-| Command/control is not designed in code yet | Future control operations need security, audit, queueing, and edge execution semantics | Not started |
-| Additional ESPHome integrations | Govee transport is active through Home Assistant; any other ESPHome-backed source needs source-specific evidence and authority design | Deferred |
-
-## Near-Term Recommended Sequence
-
-Use `docs/FUTURE_WORK.md` for the current prioritized roadmap. Near-term work should keep PR-sized changes small and preserve the current outbox-first reliability model.
-
-## Architectural Decisions Captured Here
-
-| Decision | Baseline |
-|----------|----------|
-| Central website role | Ingest, persistence, dashboards, auth, and admin |
-| Hardware access | Edge collectors near devices |
-| Delivery reliability | Per-edge SQLite outboxes with website API retry/backoff |
-| Domain ingest | Prefer normalized domain APIs over vendor-specific central models |
-| Power model | Keep inverter/load/charge and per-device outlet power distinct where needed |
-| Retired direct gateways | SolarAssistant and TP-Link/Kasa source, tests, deploy definitions, containers, images, and Docker volumes are removed; a checksum-verified SolarAssistant archive is retained outside Docker storage |
-| HA-owned sources | Home Assistant owns Kasa/Govee acquisition and presentation; the implemented exporter remains disabled with no production mappings or source claims |
-| BLE gateways | Use ESPHome as edge decoder, not transparent BLE relay |
-| Command/control | Use cloud inbox plus edge polling when implemented |
-| Tests | Mock/simulated by default, live hardware only by explicit category |
+Each direct collector is the sole current HVO writer for its approved source.
+The exporter is a future alternate authority, not a duplicate writer. Cutover
+follows [exactly-one-writer and quiescent rollback](gateways/sqlite-backup-and-rollback.md).
+Outboxes provide transport retry, not indefinite chart history. OTLP operational
+logs/traces/metrics are separate from observations. Gateways emit structured
+stdout/stderr and optional OTLP, not application-owned log files.
+
+Kasa/Govee have no active canonical HVO writer. Govee H5074/H5075 uses the temporary
+isolated `hci1` HA bridge; permanent proxy/RF placement, H5179 and fallback credential
+cleanup remain [#385](https://github.com/HualapaiValley/HVO.WebSite/issues/385).
+JK/SmartShunt retain direct GATT ownership. Retired SolarAssistant/Kasa collectors
+are not deployment choices; [history](PROJECT_HISTORY.md) retains archive evidence.
+
+## Shared code ownership
+
+| Project | Role and dependencies |
+|---|---|
+| [Contracts](../src/HVO.Edge.Contracts/README.md) | Typed envelopes, weather/power payloads and diagnostics; no process configuration |
+| [Outbox](../src/HVO.Edge.Outbox/README.md) | Contracts plus EF/SQLite durability, initializer, retry/compaction and diagnostics |
+| [Hosting](../src/HVO.Edge.Hosting/README.md) | Contracts/Outbox plus mounted config/secrets, identity, resilient HTTP, logging/OTLP and endpoints |
+| [HA MQTT](../src/HVO.Edge.HomeAssistant.Mqtt/README.md) | Hosting plus MQTTnet current-state/discovery and registered command routing |
+| [DataModels](../src/HVO.DataModels/README.md) | SQL Server EF entities, legacy dbo compatibility and authoritative v9 migrations |
+| [Staging](../src/HVO.Staging/README.md) | Astronomy/weather package bridge; Davis production moon projection consumes it |
+| [Themes](../src/HVO.WebSite.Themes/README.md) | Shared static assets used by website and [ThemeSandbox](../src/HVO.ThemeSandbox/README.md) |
+
+[All 32 projects](README.md#project-documentation-owners) includes 13 MSTest
+assemblies, Hosting.TestHost fixture and four tools. Archived `HVO.Database.sqlproj`
+is outside the solution, but its SQL files remain direct schema-test inputs.
+EF migrations govern current schema changes.
+
+## Website persistence and presentation
+
+The website owns canonical writes and bounded reads through `HvoV9DbContext`.
+Weather raw/full archive are distinct; BMS includes child cells/config/info/alarms;
+power includes readings, energy, inverter detail, inventory/configuration, gateway
+status and atomic SmartShunt summary/detail bundles. Entities/context/migrations
+are [schema authority](../src/HVO.DataModels/README.md), not copied DDL.
+Legacy `HvoDbContext` and stored-procedure reads remain compatible; new features
+use v9. Existing aggregate entities do not prove complete rollup population.
+
+The real host retains public/authenticated SSR and Entra policy. Routes owns
+interactive shell callbacks; dashboard queries begin after interactive render.
+Typed scoped operations keep DbContexts out of circuits, retain successful
+sections on provider failure and serialize cancellable refresh/disposal.
+[UTC history](development/power-history-utc.md) retains complete bounded windows
+and explicit gaps. [Weather queries](development/canonical-weather-queries.md),
+[retry durability](development/canonical-ingest-retries.md),
+[observation identity](development/power-observation-identity.md) and
+[ingest trust boundaries](development/ingest-trust-boundaries.md) own detailed
+freshness/replay/source reservation/collation/proxy rules.
+
+Browser auth uses Entra Admin/User roles; scoped ingest/read keys are hashed in
+SQL. Raw keys remain runtime secrets. [Website configuration](../deploy/hvo-docker/README.md)
+separates deployment shape, Key Vault and runtime SiteConfiguration.
+Separate runtime/migration Entra identities remain an open modernization decision.
+
+## Edge configuration and health
+
+[Headless runtime](architecture/EDGE_VNEXT_RUNTIME.md) and
+[data flows](architecture/EDGE_DATA_FLOWS.md) define dependencies, mounted
+gateway.json, environment precedence and startup-only secret files. Secret mounts
+are read-only; ingest/MQTT/vendor credentials are not ordinary settings.
+[Materialization prerequisites and #437](development/key-vault-materialization.md)
+remain visible; this documentation does not repair that runtime helper.
+
+`/health/live` reports process liveness. `/health` and `/health/ready` evaluate
+device/outbox snapshots; critical health returns 503. Protected
+`/diagnostics/health`, `/diagnostics/outbox` and `/diagnostics/status` expose device
+freshness, retries/forwarding and external-delivery state. Edge health is richer
+than process liveness; central presentation can improve.
+[Gateway standards](gateways/common-gateway-standards.md) own the contract.
+
+## Capabilities and future decisions
+
+The central cloud command inbox/poll/ack model is proposed, not a website control
+API. JK already has a separate bounded secret-backed HA password operation:
+registered non-retained PRESS, configured six ASCII digits, offline/busy/verified
+guards, positive ACK and DeviceInfo password readback.
+[JK lifecycle/safety](gateways/jk-bms.md) owns that exception; generic BMS control
+and explicit settings queries are not implemented by these docs.
+SmartShunt public paired GATT is current; private enrichment is
+[historical research](archive/2026-05-25-smartshunt-plan.md).
+
+The RabbitMQ/Service Bus/Functions POC was removed after deferral. Its proposed
+schemas/layer responsibilities are preserved in [historical architecture](archive/2026-08-18-architecture-baseline.md).
+Revival requires a scale/operational decision. ESPHome is a source-specific decoder
+or HA proxy, not a transparent BLE adapter for arbitrary .NET clients.
+[Open decisions](FUTURE_WORK.md) and [future candidates](gateways/future-integrations.md)
+retain camera/NVR/PDU/roof/motion questions and safety boundaries.
+[Tests](../tests/README.md) use owned fakes, loopback and disposable services;
+live hardware and deployment remain separately authorized.

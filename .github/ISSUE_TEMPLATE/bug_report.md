@@ -9,8 +9,8 @@ assignees: ''
 ## Environment
 
 - **Browser**: <!-- e.g., Chrome 130, Firefox 133, Safari 18 -->
-- **Deployment**: <!-- local / Docker / App Service -->
-- **.NET version**: <!-- e.g., .NET 9.0.x -->
+- **Deployment**: <!-- local fixture / self-hosted website Docker / direct Pi gateway / HA environment -->
+- **.NET SDK/runtime**: <!-- exact global.json SDK and installed runtime; currently .NET 10 -->
 - **Commit/version**: <!-- e.g., latest main, commit abc1234 -->
 
 ## Description

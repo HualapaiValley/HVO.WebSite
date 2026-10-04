@@ -36,6 +36,14 @@ timestamp. Use an explicit reviewed version for reproducibility. `--push-latest`
 also updates the mutable `latest` tag and needs that release intent. The current
 Dockerfile/publisher does not consume `WEBSITE_RUNTIME`.
 
+Historical failure lesson (observation date unrecorded): the
+[original publishing notes](https://github.com/HualapaiValley/HVO.WebSite/blob/8a27b3f512ce8ef6425b93b6c7f52dea16df7bcb/docs/CONTAINER_PUBLISHING.md)
+reported a malformed repository such as `hvo-websiteatest` while constructing a
+`latest` reference. Preserve braces around repository variables when assembling
+tags. The current [publisher](../scripts/publish-image.sh) uses explicit braced
+components for both version and latest references; this is retained historical
+failure context, not a newly observed publisher defect or publish proof.
+
 ## Authorized publish sequence
 
 1. Select and review the actual publish env file, repository and image version.

@@ -2,10 +2,9 @@
 
 ## Status
 
-- Runtime status: headless vNext port implemented by issue #328; production cutover pending bounded endurance validation.
-- Last updated: 2026-08-11
-- Confidence: medium for implemented read paths; lower for settings-query/write paths.
-- Primary references: `src/HVO.Hardware.JkBms`, `docs/JKBMS_SESSION_LIFECYCLE.md`, code reference to `https://github.com/syssi/esphome-jk-bms`.
+- Runtime status: headless persistent-device collector implemented by [#328](https://github.com/HualapaiValley/HVO.WebSite/issues/328); [#356](https://github.com/HualapaiValley/HVO.WebSite/issues/356) completed the cutover/MQTT validation recorded on August 12/13. This is historical production evidence, not a new live attestation.
+- Documentation reconciled: 2026-10-04. Telemetry and the bounded [password-change command](#bounded-settings-password-command) are implemented; explicit settings-query/general BMS control remain unsupported or unproven.
+- Source owner: [collector project](../../src/HVO.Hardware.JkBms/README.md), [protocol](../../src/HVO.Hardware.JkBms/Protocol/JkBmsProtocol.cs), [persistent device sessions](../../src/HVO.Hardware.JkBms/Workers/JkBmsDevice.cs). The complete [undated lifecycle proposal](../archive/jkbms-session-lifecycle.md) is superseded research, not an active refactor instruction.
 - Cutover/endurance history: [deployment and endurance](jkbms/deployment-and-endurance.md). New backup/rollback checkpoints use the [canonical SQLite backup contract](sqlite-backup-and-rollback.md), preserving the current volume and post-checkpoint observations.
 
 ## Identity
@@ -22,7 +21,7 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 | Native UI exists | Vendor mobile app |
 | Native UI is primary | For vendor writes/settings until HVO paths are proven |
 | HVO presentation responsibility | Standard protected diagnostics plus bounded HA MQTT current state; no local UI |
-| HVO safety classification | Telemetry-only currently; write/control paths are unapproved high-risk |
+| HVO safety classification | Telemetry plus a secret-gated one-shot settings-password write; no generic control/settings-write surface |
 
 ## Communication Summary
 
@@ -34,7 +33,7 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 | Notify/RX characteristic | `0000ffe1-0000-1000-8000-00805f9b34fb` |
 | Documented TX characteristic | `0000ffe2-0000-1000-8000-00805f9b34fb` |
 | Implementation write characteristic | FFE1 for targeted old-module devices; FFE2 produced no response in current implementation notes |
-| Authentication | BLE pairing/connection only in current implementation; no app passcode write path used |
+| Authentication/credentials | BLE connection for telemetry; separately configured startup secret gates the optional settings-password command |
 | Polling model | Connect sessions and poll cell-info per configured interval |
 | Reconnect model | Coordinate connection attempts per adapter, keep healthy persistent sessions polling, and reconnect failed sessions independently |
 
@@ -42,8 +41,8 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 
 | Type | Reference | Status | Notes |
 |------|-----------|--------|-------|
-| Existing HVO code | `JkBmsProtocol.cs`, packet parsers, worker/session code | Found | Current implemented behavior. |
-| HVO design doc | `docs/JKBMS_SESSION_LIFECYCLE.md` | Found | Target session model and known unknowns. |
+| Existing HVO code | [Protocol](../../src/HVO.Hardware.JkBms/Protocol), [workers](../../src/HVO.Hardware.JkBms/Workers) | Current | Implementation authority; source reading does not run installed-device commands. |
+| HVO design evidence | [Archived lifecycle proposal](../archive/jkbms-session-lifecycle.md) | Superseded | Per-adapter fairness/hot-warm-cool rationale and settings-query uncertainty retained. |
 | Source repo | `https://github.com/syssi/esphome-jk-bms` | Needs validation | Referenced by code comments for frame layouts. |
 | Vendor docs/manuals | exact installed JK model docs | Needed | Needed before any writes/settings control. |
 | BLE captures | installed devices | Needed | Needed for validating settings query and any write behavior. |
@@ -75,10 +74,19 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 | Get cell info | Host to BMS | command code `0x96` | frame type `0x02` | BLE connection | None | Exchange timeout | Hot-lane steady telemetry. |
 | Get device info | Host to BMS | command code `0x97` | frame type `0x03` | BLE connection | None | Exchange timeout | Used on connect/reconnect. |
 | Settings frame | BMS to host | spontaneous frame | frame type `0x01` | BLE connection | None | Captured opportunistically | Explicit settings-query behavior not proven. |
+| Change settings password | Host to BMS | 20-byte `0xA0` command, six secret-derived ASCII digits | Positive acknowledgement then `0x97` DeviceInfo readback | Configured device secret plus registered MQTT topic | Changes device credential | Bounded one-shot; no automatic command retry | Requires `SetupPasscode` match for `succeeded_verified`; not an explicit settings query. |
+
+## Persistent sessions and metadata
+
+`JkBmsDevice` owns each transport/poll/reconnect state. The adapter coordinator serializes connection setup per adapter with bounded attempts while healthy device sessions continue polling independently. Failed sessions reset/back off; the fleet does not require every bank to share one state or a permanent scan-loop control plane.
+
+The preserved hot/warm/cool design distinction remains useful: cell-info telemetry and alarms are the hot lane; initialization/reconnect explicitly requests DeviceInfo and opportunistically captures spontaneous settings frames; arbitrary stale/operator-refresh scheduling is a proposal, not a promised current control endpoint. Missing settings do not prove a successful refresh. Changed config/device-info snapshots are embedded in the durable reading lane rather than separate competing writer streams. Explicit device-info query, spontaneous `0x01` settings capture and unproven explicit settings query are distinct capabilities.
 
 ## Fields: Cell Info Frame `0x02`
 
-| Name | Type | Unit | Source offset | Access | Semantics | Possible values/range | Local UI | Outbox | Cloud storage | Notes |
+The field tables retain protocol/outbox/schema facts and former UI coverage for research. A `Former UI` Yes/Candidate cell describes retired presentation only; no current local UI exists. Actual bounded MQTT fields are in the [projection](../../src/HVO.Hardware.JkBms/HomeAssistant/JkBmsHomeAssistantProjection.cs). Storage ownership is [EF models](../../src/HVO.DataModels/README.md); historical alias/schema notes do not authorize a new mapping.
+
+| Name | Type | Unit | Source offset | Access | Semantics | Possible values/range | Former UI | Outbox | Cloud storage | Notes |
 |------|------|------|---------------|--------|-----------|-----------------------|----------|--------|---------------|-------|
 | CellVoltagesMv | list ushort | mV | `0x00` slots | Read-only | Instantaneous | 1-32 cells | Yes | Yes | Yes child rows | 24S/32S aware. |
 | CellCount | byte | count | bitmask/voltage count | Read-only | Metadata | 1-32 | Yes | Yes | Partly config | Derived. |
@@ -104,9 +112,9 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 
 ## Fields: Settings Frame `0x01`
 
-| Name | Type | Unit | Access | Semantics | Local UI | Outbox | Cloud storage | Notes |
+| Name | Type | Unit | Access | Semantics | Former UI | Outbox | Cloud storage | Notes |
 |------|------|------|--------|-----------|----------|--------|---------------|-------|
-| CellOvervoltageProtectionMv | uint | mV | Read-only currently | Configuration | Candidate | On change | Yes config snapshot | Write path not approved. |
+| CellOvervoltageProtectionMv | uint | mV | Read-only field | Configuration | Candidate | On change | Yes config snapshot | No generic protection-setting write; bounded password command is separate. |
 | CellOvervoltageRecoveryMv | uint | mV | Read-only currently | Configuration | Candidate | On change | Yes config snapshot | |
 | CellUndervoltageProtectionMv | uint | mV | Read-only currently | Configuration | Candidate | On change | Yes config snapshot | |
 | CellUndervoltageRecoveryMv | uint | mV | Read-only currently | Configuration | Candidate | On change | Yes config snapshot | |
@@ -123,7 +131,7 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 
 ## Fields: Device Info Frame `0x03`
 
-| Name | Type | Access | Semantics | Local UI | Outbox | Cloud storage | Notes |
+| Name | Type | Access | Semantics | Former UI | Outbox | Cloud storage | Notes |
 |------|------|--------|-----------|----------|--------|---------------|-------|
 | ManufacturerName | string | Read-only | Metadata | Yes | On change | Device info snapshot | Vendor/model ID. |
 | HardwareName | string | Read-only | Metadata | Yes | On change | Device info snapshot | Hardware version. |
@@ -134,9 +142,11 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 | ManufacturingDate | string | Read-only | Metadata | Yes | On change | Device info snapshot | Raw string. |
 | SerialNumber | string | Read-only | Metadata | Yes | On change | Device info snapshot | Treat as potentially sensitive. |
 | UserData | string | Read-only | Metadata | Candidate | On change | Device info snapshot | Free-form. |
-| SetupPasscode | string | Read-only in parser | Secret | Do not show | Do not send | Never central | Parser can decode but central payload excludes it. |
+| SetupPasscode | string | Read-only parser field | Secret | Do not show | Do not send | Never central | Used internally for bounded password verification; excluded from public telemetry/outbox payload. |
 
 ## Local Configuration
+
+Production loads non-secret mounted `/app/config/gateway.json`, then reapplies environment overrides; reload is disabled. Startup-only secret filenames resolve under `/run/secrets`. [Mounted example](../../deploy/pi-gateways/jkbms/gateway.json.example) and [shared runtime configuration](../AGENT_PROJECT_GUIDANCE.md#headless-runtime-configuration-and-health) own the full contract. Configuration/secret changes require an approved restart/replacement.
 
 | Setting | Type | Required | Secret | Runtime editable | Default | Notes |
 |---------|------|----------|--------|------------------|---------|-------|
@@ -145,7 +155,9 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 | `JkBms.DefaultPollIntervalSeconds` | int | Yes | No | App config | 60 | 10-3600. |
 | `JkBms.HciAdapter` | string | Yes | No | App config | hci0 | Shared BLE contention risk. |
 | `JkBms.Devices[]` | list | Yes | No | Mounted config | empty | Address, stable DeviceId, alias, adapter/poll overrides. |
-| `JkBms.CentralIngestEndpoint` | URI | Yes | No | Mounted config | none | Absolute HTTPS BMS readings endpoint. |
+| `JkBms.Devices[].SettingsPasswordSecret` | file name | Optional | Yes | Startup only | absent | Gates password button/status; resolved value must contain exactly six ASCII digits. |
+| `JkBms.CentralIngestEndpoint` | URI | Yes | No | Mounted config | none | Absolute approved HTTP(S) base URI, no credentials/query/fragment; HTTPS unless explicit internal/testing opt-in. |
+| `JkBms.AllowInsecureCentralIngest` | bool | No | No | Mounted config | false | Explicit HTTP opt-in; does not bypass TLS or grant deployment authority. |
 | `JkBms.CentralApiKeySecret` | file name | Yes | Yes | Mounted config/secret file | `central-ingest-api-key` | Resolved under `/run/secrets`. |
 | `JkBms.RetryExhaustedRequeueMinutes` | int | Yes | No | Mounted config | 15 | Requeues transient retry-exhausted rows. |
 | `Outbox.*` | object | Yes | No | Mounted config | shared defaults | Must use `/app/data/outbox.db` and `com.hvo.bms.reading.v1`. |
@@ -154,9 +166,9 @@ This table is HVO documentation metadata unless a row explicitly references a JK
 
 The vNext collector intentionally has no Razor, Blazor, or static UI. Operators use:
 
-- `/health/live`, `/health`, and `/health/ready` for health checks;
-- protected `/diagnostics/status` and `/diagnostics/outbox` for runtime/outbox state;
-- Home Assistant MQTT Discovery for a bounded 25-entity current-state view per bank: pack voltage/current/power, state of charge and health, capacity/cycles, aggregate cell health, temperatures, balancing, charge/discharge state, alarms, and availability.
+- `/health/live` for process liveness; `/health` and `/health/ready` for the actual health snapshot (Critical → 503; degraded/noncritical can be 200);
+- key-protected GET `/diagnostics/health`, `/diagnostics/status`, `/diagnostics/outbox`, plus PUT `/diagnostics/outbox/settings` for runtime batch/sweep overrides that reset on restart; missing/wrong credentials return 403;
+- Home Assistant MQTT Discovery for bounded bank telemetry/availability: pack voltage/current/power, charge/health, capacity/cycles, aggregate cell health, temperatures, balancing, charge/discharge state and alarms. Configured password devices additionally expose the bounded button/status below. Devices are inside `/diagnostics/status`; no separate `/diagnostics/devices` exists.
 
 Home Assistant device identifiers remain the stable configured `DeviceId` values. Display names are updated after the first poll to include the source-reported JK model, nominal capacity, and stable bank number; device metadata also includes the reported firmware and hardware revision. Decimal display precision follows protocol resolution without rounding source state: 3 decimals for V/A/Ah, 2 for W, 1 for temperature, and 0 for integer protocol fields such as SOC, SOH, counts, indexes, and alarm masks.
 
@@ -166,6 +178,14 @@ JK current and derived power preserve the device protocol sign: positive is char
 
 Diagnostics expose stable device IDs and categorized health without Bluetooth addresses,
 secret values, or mounted filesystem paths.
+
+## Bounded settings-password command
+
+[PR #383](https://github.com/HualapaiValley/HVO.WebSite/pull/383) implemented `change_settings_password` only for an enabled device with `SettingsPasswordSecret`. [Startup initialization](../../src/HVO.Hardware.JkBms/Hosting/JkBmsServiceCollectionExtensions.cs) resolves its file and rejects anything other than six ASCII digits; the [worker](../../src/HVO.Hardware.JkBms/Workers/BmsPollerWorker.cs) registers only that device's exact command topic. The [shared router](../../src/HVO.Edge.HomeAssistant.Mqtt/HomeAssistantMqttCommandRouter.cs) rejects retained messages, requires `PRESS` after trimming and dispatches only registered topics. MQTT carries the button press, never a password.
+
+The [device session](../../src/HVO.Hardware.JkBms/Workers/JkBmsDevice.cs) rejects offline/busy/already-verified requests, queues one bounded command in its serialized session and performs no automatic command retry after failure. [JkBmsClient](../../src/HVO.Hardware.JkBms/Protocol/JkBmsClient.cs) requires a positive protocol ACK; the session then polls DeviceInfo and reports `succeeded_verified` only when `SetupPasscode` equals the configured secret. ACK without matching readback is `failed_unverified`; failures remain visible. Initialization recognizes an already matching password without writing it again.
+
+This is an existing credential-write capability, not arbitrary BMS control or proof of explicit settings-query support. Source/simulated tests and attributed historical PR evidence are distinct from permission to press the button or change a physical credential. Ordinary local tests perform neither. Keep decoded/configured passwords out of logs, diagnostics, public state and central payloads; broker/device access and secret rotation follow separately authorized operations.
 
 ## Outbox / Cloud Candidate Streams
 
@@ -178,16 +198,16 @@ secret values, or mounted filesystem paths.
 | Issue | Evidence | Impact | Workaround | Validation needed |
 |-------|----------|--------|------------|-------------------|
 | FFE2 documented write characteristic produced no response for targeted devices | `JkBmsProtocol.cs` comments | Must write commands to FFE1 for current devices | Current transport writes to working characteristic | Validate against exact models/firmware. |
-| Settings frame explicit query not proven | `JKBMS_SESSION_LIFECYCLE.md` | Cannot rely on on-demand config refresh | Capture spontaneous settings frame on connect/poll | Research protocol and capture. |
+| Settings frame explicit query not proven | [Preserved lifecycle research](../archive/jkbms-session-lifecycle.md) and current session flow | Cannot rely on on-demand config refresh | Capture spontaneous settings frame on connect/poll; password readback is a different DeviceInfo query | Research exact installed firmware/protocol under separate scope. |
 | Shared BLE adapter contention | SmartShunt docs and JK session notes | JK/SmartShunt can interfere on `hci0` | Sequential sessions; avoid mixed unstable workloads | Hardware adapter validation. |
 | Some emitted fields were not persisted centrally | Recent field audit | Lost diagnostic data | Decide schema/UI before mapping | Average/max/min cell index decision. |
-| Central BMS history retention and rollups are not operating | SQL inspection on 2026-08-04 found `v9.BmsReading` ending 2026-07-03, while the Pi outbox continued through 2026-08-04; `v9.BmsReadingMinute` and `v9.BmsReadingHourly` both contained zero rows | Central history has a multi-week gap and no long-range trend source | Restore ingest continuity, then add a scheduled retention/rollup worker | Preserve raw readings for at least 30-60 days, hourly rollups for 6-12 months, and daily rollups beyond that; add monitoring for ingest gaps and rollup freshness. |
+| Historical BMS gap / unproven rollup operation | The 2026-08-04 SQL inspection found `v9.BmsReading` ending July 3 and both minute/hourly rollups empty, while the Pi outbox continued through August 4 | Historical gap evidence remains; source docs cannot attest current completeness or a live retention worker | Preserve original rows/outbox evidence and verify continuity/retention separately | The old 30–60-day raw/6–12-month hourly/daily policy is proposed, not an implemented retention promise. |
 
 ## Security And Safety Notes
 
-- Do not implement settings writes until protocol, safety constraints, and rollback/readback are validated.
+- Preserve the narrow password command's secret gating, one-shot serialization, positive ACK and readback; do not broaden it into generic settings/control without a separate reviewed safety contract.
 - Do not send decoded setup passcodes to cloud or logs.
-- Treat any command/control operation as local-only until explicit safety/auth/audit design exists.
+- No central/cloud generic command/control path exists. The implemented broker-local button is the bounded exception, not a telemetry-only interface.
 
 ## Open Questions
 

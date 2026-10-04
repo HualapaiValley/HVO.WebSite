@@ -1,5 +1,6 @@
-# Blue Iris Gateway Manual
+# Blue Iris camera and NVR
 
-This placeholder has been consolidated into [future-integrations.md](future-integrations.md).
-
-All Blue Iris research targets, capability expectations, and open questions are documented there.
+Compatibility redirect retained because external bookmarks are unknown.
+Current research, ownership and safety questions live in
+[future integration candidates](future-integrations.md#blue-iris-camera--nvr).
+No implemented gateway or control authority is implied.

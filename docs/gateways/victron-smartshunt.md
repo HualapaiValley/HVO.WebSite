@@ -2,7 +2,9 @@
 
 ## Authority Decision
 
-Issue #326 selects the existing validated paired public-GATT session as the sole SmartShunt acquisition authority. There is no validated HA/ESPHome evidence for the complete required field set, pairing stability, or update cadence. vNext therefore contains no HA acquisition, private-GATT enrichment, write/sync path, local UI, or competing central writer.
+[Issue #326](https://github.com/HualapaiValley/HVO.WebSite/issues/326) selected the paired public-GATT session as sole SmartShunt acquisition authority when native HA evidence was unavailable. That decision's context is historical: [#352](https://github.com/HualapaiValley/HVO.WebSite/issues/352) now records native passive Instant Readout advertisement transport through the isolated temporary `hci1` proxy. The per-device encryption key, live field/sign/cadence parity, atomic exporter bundle and exactly-one-writer cutover/soak remain pending. The direct public-GATT collector therefore remains the implemented authority on `hci0`; native transport evidence does not complete migration.
+
+Current source has no private-GATT enrichment, battery settings/synchronization writes, local UI or competing central writer. This 2026-10-04 documentation reconciliation is not new hardware/deployment verification. The complete [May 25 plan](../archive/2026-05-25-smartshunt-plan.md) preserves earlier private product/history/coarse-current/SoC-overlay interpretations and former UI/adapter observations as historical research.
 
 Home Assistant is presentation only. The collector publishes read-only current state and availability through `HVO.Edge.HomeAssistant.Mqtt`; HVO-owned MQTT entities must remain excluded from the HA WebSocket exporter.
 
@@ -22,21 +24,33 @@ The collector owns one paired BLE connection through BlueZ and the public `6597.
 | Temperature | `65970383-...` | signed deg C | Typed SmartShunt detail when device-available |
 | Device availability | session/sample state | boolean | HA retained availability plus standard health diagnostics |
 
+[SmartShuntPublicProtocol](../../src/HVO.Hardware.VictronSmartShunt/SmartShunt/SmartShuntPublicProtocol.cs) is the exact UUID/decoder/sentinel authority. Every table UUID above shares suffix `4bda-4c1e-af4b-551c4cf74769`. The public keepalive characteristic is `6597ffff-4bda-4c1e-af4b-551c4cf74769`, with bounded payload bytes `20 4e`; it is the existing session keepalive, not a battery settings/sync command. Missing-value payloads are `ffff` for unsigned SOC/minutes, `ff7f` for signed 16-bit voltage/power/starter/temperature, and `ffffff7f` for signed 32-bit current/consumed Ah. Preserve null optional values. Internal public `val2`/`val3` reads remain unlabeled data and are not promoted to a supported physical measurement. No private or coarse fallback repairs a public sentinel in the current collector.
+
+The [paired public session](../../src/HVO.Hardware.VictronSmartShunt/SmartShunt/SmartShuntPublicSession.cs) and [worker](../../src/HVO.Hardware.VictronSmartShunt/Workers/SmartShuntWorker.cs) own initial reads, notifications, bounded reconnect and stale-state rejection. Default configured cadence is 5-second sampling, 15-second durable snapshot and 10-second keepalive; [options](../../src/HVO.Hardware.VictronSmartShunt/Configuration/SmartShuntOptions.cs) and mounted config define actual values. The [preserved BLE transcript](../archive/2026-10-04-project-history-source.md) distinguishes an idle connection hold from active GATT reads disturbing the historical seven-bank workload; it does not prove every current adapter arrangement is unusable.
+
 The central `PowerReading` remains the summary contract. `SmartShuntDetailPayload` and `v9.SmartShuntDetailSnapshot` carry consumed Ah, remaining minutes, starter voltage, and temperature independently. Both payloads share source/device/timestamp identity. The local outbox persists one `com.hvo.smartshunt.observation.v1` bundle and marks it sent only after the transactional protected endpoint returns strict per-record accounting.
 
 ## Runtime And Deployment
 
-- Configuration: read-only `/app/config/gateway.json`.
-- Secrets: individual files under read-only `/run/secrets`.
+- Configuration: non-secret read-only `/app/config/gateway.json`, required in Production; environment overrides win, JSON reload is disabled.
+- Secrets: distinct startup-read filenames under read-only `/run/secrets`; configuration/secret changes require an approved restart/replacement.
 - Durable state: `/app/data/outbox.db` on the unchanged `smartshunt-outbox` Compose volume.
-- Liveness: `GET /health/live`.
-- Readiness: `GET /health` and `GET /health/ready`.
-- Protected diagnostics: `/diagnostics/health`, `/diagnostics/status`, `/diagnostics/outbox`, and `/diagnostics/outbox/settings`.
+- Liveness: `GET /health/live` proves process liveness only.
+- Health snapshot: `GET /health` and `GET /health/ready`; Critical returns 503, noncritical degraded health can return 200.
+- Protected GET diagnostics: `/diagnostics/health`, `/diagnostics/status`, `/diagnostics/outbox`; PUT `/diagnostics/outbox/settings` changes only runtime batch/sweep overrides that reset on restart. Missing/wrong diagnostics credentials return 403; devices are in status, not `/diagnostics/devices`.
 - Central endpoint: `POST /api/v1/power/smartshunt-observations/batch`, protected by `PowerIngest` and an exact source claim. Each envelope persists summary and detail atomically.
 
 The website must configure `Seeding:SmartShuntApiKey` and `Seeding:SmartShuntSourceId`. In Azure Key Vault these are `Seeding--SmartShuntApiKey` and `Seeding--SmartShuntSourceId`. The source value must exactly match `SmartShunt:SourceId`; a broad power-ingest key is intentionally forbidden from this endpoint.
 
 Legacy `smartshunt.reading` and `com.hvo.smartshunt.reading.v1` rows are converted in place to typed bundles before the shared outbox initializer runs. Existing summary fields and pending/sent status are preserved; unavailable historical detail remains null. HTTP 401/403 are transient so replacing a credential or correcting source authority can recover queued records.
+
+[Project setup](../../src/HVO.Hardware.VictronSmartShunt/README.md), [mounted example](../../deploy/pi-gateways/smartshunt/gateway.json.example), [gateway operations](../GATEWAY_OPERATIONS.md), [sender outcomes](common-gateway-standards.md#sender-http-outcome-and-recovery-matrix) and [SQLite recovery](sqlite-backup-and-rollback.md) remain canonical prerequisites. The HA exporter is disabled in production and currently supports Kasa/Govee rather than this atomic SmartShunt contract.
+
+## Preserved private research
+
+The [May 25 plan](../archive/2026-05-25-smartshunt-plan.md) retains exact private product IDs (`0x00`, `0x02`, `0x09`, `0x0a`, `0x50`), history `0x00–0x0b`, `0x0e–0x11`, runtime `0x8f`, `0x87`, `0x5a`, `0x0e`, `0x0f` interpretations, firmware/serial values and coarse-current/SoC-overlay designs. The separate [BLE transcript archive](../archive/2026-10-04-project-history-source.md) preserves private `306b...` startup/ACK, `9758...` reads, `f941` disconnect, adapter-power/kernel observations and active-traffic contention. Manufacturer screenshots remain unchanged. These are historical observations, not current private enrichment or safe write framing; VE.Direct register knowledge does not establish BLE settings/sync support. A separately reviewed capture/parity decision is needed before changing authority or capabilities.
+
+For a future #352 rollback, stop/disable the failed native mapping and release its source authority before restoring the direct writer; retain both durable checkpoints and post-checkpoint observations. The existing [canonical rollback contract](sqlite-backup-and-rollback.md#preserve-current-state-during-rollback) governs consistency and exactly-one-owner ordering. An older issue checklist sentence cannot authorize overlapping writers.
 
 ## Exactly-One-Owner Cutover
 
