@@ -204,7 +204,15 @@ These are instantaneous measurements and operational state. Do not derive durabl
 
 ## Rollback
 
-Rollback affects only EG4:
+Rollback affects only EG4 and requires applicable operational approval. Follow
+the [canonical quiescent checkpoint and isolated recovery contract](../sqlite-backup-and-rollback.md#preserve-current-state-during-rollback).
+Prepare its utility image, durable archive destination and recorded immutable
+image/Compose/configuration contract before stopping acquisition. Keep other
+collectors unchanged and any alternate EG4 authority disabled.
+
+1. Stop the candidate acquisition/writer process and prove that it no longer owns
+   the hardware or writes the volume. The stop/remove example below is only the
+   container step; it does not prove volume quiescence or a usable checkpoint.
 
 ```bash
 eg4_container="$(docker --context devpi5 ps -aq \
@@ -215,7 +223,54 @@ docker --context devpi5 stop "${eg4_container}"
 docker --context devpi5 rm "${eg4_container}"
 ```
 
-Preserve the `eg4_eg4-outbox` volume, `.env`, `gateway.json`, and mounted secrets. Restore the prior image/configuration if one exists, then recreate only `hvo-eg4`. Do not run `down -v` or perform broad volume pruning. Before the vNext upgrade, stop acquisition and drain legacy reading/detail rows because the new bundle forwarder selects only `com.hvo.eg4.observation.v1`; never strand old payload types in place.
+2. Qualify a new verified archive of the **current** stopped `eg4_eg4-outbox`
+   volume, including all post-checkpoint observations, pending/failed rows and
+   metadata. Preserve that named volume intact, together with `.env`,
+   `gateway.json`, mounted secrets and the runtime manifest. Verify the durable
+   archive and disposable restore using the canonical contract; an older
+   pre-cutover backup is not a checkpoint of today's state. Never use `down -v`,
+   overwrite the current store or perform broad volume pruning.
+3. Establish compatibility of the exact preserved binary with the current SQLite
+   schema **and every payload type/version and delivery selector** before
+   mounting the current volume. The [current initializer](../../../src/HVO.Hardware.Eg4/Hosting/Eg4ServiceCollectionExtensions.cs)
+   requires `com.hvo.eg4.observation.v1`, version `1`; the [writer](../../../src/HVO.Hardware.Eg4/Outbox/PowerOutboxWriter.cs)
+   stores reading/MPPT/inverter-detail bundles. The actual
+   [pre-vNext forwarder](https://github.com/HualapaiValley/HVO.WebSite/blob/3c3300ff7de9ba968e8a016bbed36141e5a1e439/src/HVO.Hardware.Eg4/Outbox/PowerApiForwarder.cs#L108-L117)
+   selects legacy readings and
+   [counts only legacy reading/detail types](https://github.com/HualapaiValley/HVO.WebSite/blob/3c3300ff7de9ba968e8a016bbed36141e5a1e439/src/HVO.Hardware.Eg4/Outbox/PowerApiForwarder.cs#L238-L243).
+   Opening the database therefore does not prove that an older image will
+   deliver current bundles. Treat that legacy selector as incompatible with v1
+   bundles. Do not start it against the current store or relabel payloads.
+4. Use the current volume only when binary/schema/payload compatibility is
+   established. Otherwise restore a qualified compatible earlier checkpoint to
+   a **new isolated recovery volume**, retaining the untouched current volume
+   and its new archive. A separately reviewed Compose/runtime override must
+   explicitly mount the recovery volume at `/app/data`; this guide does not
+   change the shipped mounts. Never start a proof clone as a gateway.
+5. Before enabling a writer in either branch, reconcile snapshot and central
+   history by source/device/timestamp with strict per-record outcomes. Identify
+   every post-checkpoint observation absent from an older clone, including
+   pending/failed data. Establish a source-compatible recovery plan for that
+   interval; an old checkpoint cannot deliver later observations by itself. Do
+   not merge SQLite schemas casually, discard current rows or mark absent rows
+   as duplicates. If compatibility or recovery cannot be proven, keep the
+   evidence and report rollback/history recovery incomplete instead of starting
+   an incompatible writer.
+6. Confirm the central endpoint, ingest schema, payload contract and exact source
+   claims accept the preserved writer. Only then recreate `hvo-eg4` with the
+   recorded immutable image/configuration and proven mount contract, enabling
+   exactly one acquisition authority and canonical writer. Verify sole hardware
+   ownership, actual health, fresh central timestamps, strict inserted/skipped/
+   failed accounting and queue drain, plus MQTT presentation. Liveness alone is
+   not recovery. Keep the failed candidate stopped and all original volumes and
+   archives until separate retention/deletion authorization.
+
+For a forward vNext upgrade, stop acquisition and drain/account for legacy
+reading/detail rows before switching: the new bundle forwarder selects only
+`com.hvo.eg4.observation.v1`. This guards the opposite payload boundary and does
+not qualify a rollback. The dated 2026-08-12 cutover evidence above remains a
+historical observation, not a new restore drill or proof of compatibility with
+every later image.
 
 ## References
 

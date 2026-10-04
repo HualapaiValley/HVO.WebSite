@@ -1,8 +1,10 @@
 # HVO.Hardware.Eg4
 
-Headless .NET 10 direct collector for allowlisted EG4 6500EX inverter and MPPT100-48HV telemetry. [Program.cs](Program.cs) composes [registration](Hosting/Eg4ServiceCollectionExtensions.cs), Edge.Hosting config/diagnostics, Edge.Outbox durability, Edge.Contracts typed summary/detail/energy bundles and optional Edge.HomeAssistant.Mqtt current presentation. System.IO.Ports supports serial; no local UI or generic hardware control exists.
+Headless .NET 10 direct collector for allowlisted EG4 6500EX inverter and MPPT100-48HV telemetry. [Program.cs](Program.cs) composes [registration](Hosting/Eg4ServiceCollectionExtensions.cs), Edge.Hosting config/diagnostics, Edge.Outbox durability, Edge.Contracts typed power readings with optional MPPT/inverter detail and optional Edge.HomeAssistant.Mqtt current presentation. System.IO.Ports supports serial; no local UI or generic hardware control exists.
 
 6500EX uses the reviewed PI30 inquiry allowlist through stable HID paths; MPPT uses one fixed Modbus holding-register read. Request writes are read inquiries, not configuration changes. Separate [6500EX](../../docs/gateways/eg4/6500ex-protocol.md) and [MPPT](../../docs/gateways/eg4/mppt100-48hv-protocol.md) references preserve CRC/layout/capture provenance. Durable `com.hvo.eg4.observation.v1` bundles preserve measurement point and native signs; do not sum branch, whole-bus and bank values as independent loads.
+
+The [persisted bundle](Outbox/PowerOutboxWriter.cs) contains a power reading and optional MPPT/inverter detail; the [fleet worker](Workers/Eg4FleetWorker.cs) enqueues those members and the [sender](Outbox/Eg4OutboxBatchSender.cs) forwards their three endpoints. 6500EX [QET/QLT acquisition and caching](Telemetry/Eg46500ExTelemetrySource.cs) produce source-native energy-counter samples, but the current bundle and sender do not persist or forward them. A shared energy contract does not establish durable central energy history from this collector; see [observation identity and energy boundaries](../../docs/development/power-observation-identity.md).
 
 ## Configuration and prerequisites
 
