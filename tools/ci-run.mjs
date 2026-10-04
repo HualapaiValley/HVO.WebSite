@@ -64,11 +64,7 @@ function testProjects(plan, lane) {
       '--filter', testFilter(lane, project), '--logger', 'trx', '--results-directory', results];
     if (process.env.CI_COVERAGE === 'true') args.push('--collect:XPlat Code Coverage');
     run('dotnet', args);
-    // Existing ignored scaffold is owned by #408. Moving this assembly to its
-    // browser lane permits that exact class/method once across all reports,
-    // preserving the visible baseline without admitting other or duplicate skips.
-    const baselineIgnore = project === BROWSER_TESTS ? ['--allow-ignored-test', 'HVO.WebSite.PlaywrightTests.PlaywrightTestSetupTests.PlaywrightSuite_IsConfiguredButDisabledByDefault'] : [];
-    run('python3', [resolve(directory, 'ci-results.py'), results, ...baselineIgnore]);
+    run('python3', [resolve(directory, 'ci-results.py'), results]);
   }
 }
 
@@ -116,9 +112,8 @@ function main() {
     verifyFixtureReports(fixture.reports);
   } else if (job === 'browser') {
     if (!plan.lanes[job].length) throw new Error('Unexpected empty browser execution');
-    // Baseline browser fixtures launch apps without ProjectReference. Building
-    // both targets is explicit ownership until those references are introduced.
-    build([...plan.lanes[job], 'src/HVO.WebSite.v9/HVO.WebSite.v9.csproj', 'src/HVO.ThemeSandbox/HVO.ThemeSandbox.csproj']);
+    // The browser assembly references and builds both owned application targets.
+    build(plan.lanes[job]);
     for (const project of plan.lanes[job]) run('pwsh', [resolve(dirname(projectPath(project)), 'bin/Debug/net10.0/playwright.ps1'), 'install', '--with-deps', 'chromium']);
     testProjects(plan, job);
   } else if (job === 'operations') {

@@ -40,7 +40,7 @@ function fixtureExecution(lane, mode, { stale = false, missingSafety = false } =
     mkdirSync(resolve(root, 'tools'));
     mkdirSync(resolve(root, 'bin'));
     const source = { head: 'a'.repeat(40), base: 'a'.repeat(40), merge: 'a'.repeat(40) };
-    const projects = lane === 'home-assistant' ? haProjects : [sqlProject];
+    const projects = lane === 'home-assistant' ? haProjects : lane === 'browser' ? [BROWSER_TESTS] : [sqlProject];
     const graph = { projects: projects.map(path => ({ path, test: true, lanes: [lane], references: [], inputs: [] })) };
     const plan = planWork({ source, baseGraph: graph, candidateGraph: graph, changes: [{ status: 'M', path: projects[0] }], complete: true, full: true });
     const resultsRoot = resolve(root, 'TestResults', lane === 'home-assistant' ? 'integration/home-assistant' : lane);
@@ -52,7 +52,7 @@ function fixtureExecution(lane, mode, { stale = false, missingSafety = false } =
     // Preparation is inert; the actual trusted Node runner and Python verifier run.
     writeFileSync(resolve(root, 'bin/dotnet'), '#!/usr/bin/env bash\npython3 tools/fixture-build-report.py "$@"\n', { mode: 0o755 });
     writeFileSync(resolve(root, 'tools/fixture-build-report.py'), `
-import os,sys
+import os,sys,subprocess
 from pathlib import Path
 Path('build-called').touch()
 if os.environ['FIXTURE_MODE']=='build-stale' and sys.argv[1]=='build':
@@ -61,6 +61,8 @@ if os.environ['FIXTURE_MODE']=='build-stale' and sys.argv[1]=='build':
     directory=root/Path(sys.argv[2]).stem
     directory.mkdir(parents=True,exist_ok=True)
     (directory/'stale.trx').write_text('${passingReport}')
+if os.environ['FIXTURE_LANE']=='browser' and sys.argv[1]=='test':
+    subprocess.run([sys.executable,'tools/fixture-helper.py',*sys.argv[1:]],check=True)
 `);
     if (lane === 'sql-server' && !missingSafety) writeFileSync(resolve(root, 'tools/sql-server-integration.test.mjs'), `
 import test from 'node:test';
@@ -71,6 +73,7 @@ test('owned SQL safety check', () => {
   assert.notEqual(process.env.FIXTURE_MODE, 'safety-failed', 'SQL safety failure');
 });
 `);
+    writeFileSync(resolve(root, 'bin/pwsh'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
     writeFileSync(resolve(root, 'bin/git'), `#!/usr/bin/env bash\nprintf '%s\\n' '${source.merge}'\n`, { mode: 0o755 });
     writeFileSync(resolve(root, 'tools/ci-results.py'), "from pathlib import Path\nPath('candidate-verifier-called').touch()\n");
     writeFileSync(resolve(root, 'tools/fixture-helper.py'), `
@@ -85,6 +88,8 @@ if os.environ['FIXTURE_LANE']=='home-assistant':
     projects=args[start:end]
     root=Path(args[args.index('--results-directory')+1])
     directories=[root/Path(project).stem for project in projects]
+elif os.environ['FIXTURE_LANE']=='browser':
+    directories=[Path(args[args.index('--results-directory')+1])]
 else:
     directories=[Path(os.environ['HVO_SQL_TEST_RESULTS_DIRECTORY'])]
 if any(list(directory.glob('*.trx')) for directory in directories):
@@ -125,7 +130,7 @@ if mode not in ('none','candidate-verifier','build-stale'):
   }
 }
 
-for (const lane of ['home-assistant', 'sql-server']) {
+for (const lane of ['home-assistant', 'sql-server', 'browser']) {
   test(`${lane}: helper exit zero without fresh tests cannot qualify`, () => {
     const result = fixtureExecution(lane, 'none');
     assert.notEqual(result.status, 0);
