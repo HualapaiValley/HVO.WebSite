@@ -1,6 +1,7 @@
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Configuration;
 using HVO.WebSite.v9.Models;
+using HVO.WebSite.Themes.Components.Format;
 
 namespace HVO.WebSite.v9.Services;
 
@@ -15,12 +16,14 @@ public sealed record PowerDashboardCurrentResult(
     DashboardSection<PowerInverterDetailSnapshotResponse> Inverter,
     DashboardSection<PowerMpptDetailSnapshotResponse> Controller);
 
-public sealed record PowerDashboardHistoryResult(DateTime WindowStartUtc, DashboardSection<PowerTelemetryHistoryResponse> History);
+public sealed record PowerDashboardHistoryResult(DateTime WindowStartUtc, DashboardSection<PowerTelemetryHistoryResponse> History, DateTime? WindowEndUtc = null);
 
 public interface IPowerDashboardQuery
 {
     Task<PowerDashboardCurrentResult> GetCurrentAsync(CancellationToken cancellationToken);
     Task<PowerDashboardHistoryResult> GetHistoryAsync(DateTime windowStartUtc, CancellationToken cancellationToken);
+    Task<PowerDashboardHistoryResult> GetHistoryAsync(DateTime windowStartUtc, DateTime windowEndUtc, CancellationToken cancellationToken)
+        => GetHistoryAsync(windowStartUtc, cancellationToken);
 }
 
 public sealed class PowerDashboardSettings
@@ -31,6 +34,7 @@ public sealed class PowerDashboardSettings
     public string InverterSourceId { get; init; } = "eg4-6500ex-a";
     public string ControllerSourceId { get; init; } = "eg4-mppt100-48hv-a";
     public PowerCompositionOptions Composition { get; init; } = new();
+    public HvoDisplayTimeZone DisplayTimeZone { get; init; } = new();
 
     public static PowerDashboardSettings FromConfiguration(IConfiguration configuration, PowerCompositionOptions composition)
     {
@@ -43,6 +47,7 @@ public sealed class PowerDashboardSettings
             InverterSourceId = configuration["PowerStatus:Eg4InverterSourceId"] ?? "eg4-6500ex-a",
             ControllerSourceId = configuration["PowerStatus:Eg4MpptSourceId"] ?? "eg4-mppt100-48hv-a",
             Composition = composition,
+            DisplayTimeZone = new(configuration["PowerStatus:DisplayTimeZoneId"]),
         };
     }
 }
@@ -51,7 +56,8 @@ public sealed class PowerDashboardSettings
 public sealed class PowerDashboardQuery(
     IServiceScopeFactory scopeFactory,
     PowerDashboardSettings settings,
-    ILogger<PowerDashboardQuery> logger) : IPowerDashboardQuery
+    ILogger<PowerDashboardQuery> logger,
+    TimeProvider? clock = null) : IPowerDashboardQuery
 {
     public async Task<PowerDashboardCurrentResult> GetCurrentAsync(CancellationToken cancellationToken)
     {
@@ -66,13 +72,16 @@ public sealed class PowerDashboardQuery(
         return new(snapshot, inverter, controller);
     }
 
-    public async Task<PowerDashboardHistoryResult> GetHistoryAsync(DateTime windowStartUtc, CancellationToken cancellationToken)
+    public Task<PowerDashboardHistoryResult> GetHistoryAsync(DateTime windowStartUtc, CancellationToken cancellationToken)
+        => GetHistoryAsync(windowStartUtc, (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime, cancellationToken);
+
+    public async Task<PowerDashboardHistoryResult> GetHistoryAsync(DateTime windowStartUtc, DateTime windowEndUtc, CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var history = await ReadAsync("Power history", () => scope.ServiceProvider.GetRequiredService<IPowerInventoryConfigurationProvider>()
-            .GetRecentTelemetryAsync(settings.Composition.ExpectedPvTrackerIds.Select(TrackerSourceId).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                [settings.InverterSourceId, settings.ControllerSourceId], windowStartUtc, cancellationToken), cancellationToken);
-        return new(windowStartUtc, history);
+            .GetTelemetryWindowAsync(settings.Composition.ExpectedPvTrackerIds.Select(TrackerSourceId).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                [settings.InverterSourceId, settings.ControllerSourceId], windowStartUtc, windowEndUtc, cancellationToken), cancellationToken);
+        return new(DateTime.SpecifyKind(windowStartUtc, DateTimeKind.Utc), history, windowEndUtc);
     }
 
     private async Task<DashboardSection<T>> ReadAsync<T>(string section, Func<Task<T>> read, CancellationToken cancellationToken)

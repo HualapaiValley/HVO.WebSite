@@ -222,13 +222,14 @@ public sealed class PowerStatusCardTests : BunitContext
             })
             .Build());
 
-        RegisterDashboard(observedAt);
+        RegisterDashboard(observedAt.AddMinutes(1));
         var component = Render<PowerStatusCard>();
 
         var chart = component.FindComponent<HvoChart>();
-        chart.Instance.Datasets.Single(dataset => dataset.Label == "5-minute PV subtotal").Data.Should().ContainSingle().Which.Should().BeNull();
+        chart.Instance.Datasets.Single(dataset => dataset.Label == "5-minute PV subtotal").Data.Should().HaveCount(73)
+            .And.OnlyContain(value => value == null, "the complete six-hour grid must preserve null subtotal gaps when source times exceed derivation skew");
         chart.Instance.Datasets.Where(dataset => dataset.Label != "5-minute PV subtotal")
-            .Should().OnlyContain(dataset => dataset.Data.Single().HasValue);
+            .Should().OnlyContain(dataset => dataset.Data.Count(value => value.HasValue) == 1);
     }
 
     [TestCleanup]

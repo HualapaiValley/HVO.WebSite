@@ -47,12 +47,13 @@ public sealed record PowerStatusViewModel(
         ObservedAt: "Waiting for power telemetry",
         SnapshotState: "Waiting");
 
-    public static PowerStatusViewModel FromSnapshot(PowerSystemSnapshot? snapshot, PowerCompositionOptions? options = null, DateTime? nowUtc = null)
+    public static PowerStatusViewModel FromSnapshot(PowerSystemSnapshot? snapshot, PowerCompositionOptions? options = null, DateTime? nowUtc = null, HvoDisplayTimeZone? displayTimeZone = null)
     {
         if (snapshot is null)
             return Empty;
 
         options ??= new PowerCompositionOptions();
+        displayTimeZone ??= new();
         var batteryPower = snapshot.Battery?.PowerW;
 
         var referenceUtc = nowUtc ?? snapshot.ObservedAtUtc;
@@ -81,7 +82,7 @@ public sealed record PowerStatusViewModel(
                 .Where(note => !string.IsNullOrWhiteSpace(note))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray() ?? [],
-            ObservedAt: $"Observed {HvoFormat.Timestamp(snapshot.ObservedAtUtc, "dd MMM yyyy - h:mm tt")}",
+            ObservedAt: $"Observed {HvoFormat.Timestamp(snapshot.ObservedAtUtc, displayTimeZone.TimeZone, "dd MMM yyyy - h:mm tt")} ({displayTimeZone.Label})",
             SnapshotState: nowUtc.HasValue ? CurrentState(snapshot, options, referenceUtc) : "Live");
     }
 

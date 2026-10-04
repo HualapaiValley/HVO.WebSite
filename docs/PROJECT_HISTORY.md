@@ -20,6 +20,16 @@ Purpose: keep a lightweight working history that explains what changed, what was
 - Coordinate snapshot content proof with #402 while retaining public contracts.
   [Behavior and compatibility](development/canonical-ingest-retries.md) describe the boundary.
 
+## 2026-10-04 — Complete UTC power-history windows (#405)
+
+- Select deterministic source/bucket representatives before loading detail JSON, retaining
+  the full requested range instead of silently capping newest raw rows.
+- Emit complete bounded UTC grids with explicit null outage gaps; preserve PV skew/subtotal,
+  source/device isolation and battery-facing signs. Capture and retain both query boundaries.
+- Restore stored UTC timestamp kinds, use the injected clock and existing visible display
+  zone policy. [Query and compatibility notes](development/power-history-utc.md) explain
+  payload-work bounds, malformed-data fallback and timezone behavior.
+
 ## 2026-10-04 — Power snapshot observation identity (#402)
 
 - Replaced historical source/content uniqueness with submitted source/time observation

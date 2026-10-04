@@ -39,8 +39,10 @@ public sealed class PowerDashboardSession : IAsyncDisposable
     public PowerMpptDetailSnapshotResponse Controller { get; private set; } = new();
     public PowerTelemetryHistoryResponse History { get; private set; } = PowerTelemetryHistoryResponse.Empty;
     public int HistoryRevision { get; private set; }
+    public DateTime HistoryWindowStartUtc { get; private set; }
+    public DateTime HistoryWindowEndUtc { get; private set; }
     public IReadOnlyDictionary<string, string> Errors => _errors;
-    public PowerStatusViewModel ViewModel => PowerStatusViewModel.FromSnapshot(Snapshot, settings.Composition, clock.GetUtcNow().UtcDateTime);
+    public PowerStatusViewModel ViewModel => PowerStatusViewModel.FromSnapshot(Snapshot, settings.Composition, clock.GetUtcNow().UtcDateTime, settings.DisplayTimeZone);
     public PowerEg4EquipmentViewModel Equipment => PowerEg4EquipmentViewModel.FromSnapshots(Inverter, Controller, clock.GetUtcNow().UtcDateTime, settings.Composition);
 
     public async Task StartAsync()
@@ -109,16 +111,20 @@ public sealed class PowerDashboardSession : IAsyncDisposable
                 ThrowIfCancelled(token);
                 try
                 {
-                    var result = await query.GetHistoryAsync(clock.GetUtcNow().UtcDateTime.AddHours(-settings.HistoryHours), token);
+                    var windowEndUtc = clock.GetUtcNow().UtcDateTime;
+                    var result = await query.GetHistoryAsync(windowEndUtc.AddHours(-settings.HistoryHours), windowEndUtc, token);
                     ThrowIfCancelled(token);
                     Apply("history", result.History, value =>
                     {
                         var history = value ?? PowerTelemetryHistoryResponse.Empty;
                         // Compare content and the query window, never row count. Work only on the slower history cadence.
-                        var fingerprint = JsonSerializer.Serialize(new { result.WindowStartUtc, History = history });
+                        var endUtc = result.WindowEndUtc ?? windowEndUtc;
+                        var fingerprint = JsonSerializer.Serialize(new { result.WindowStartUtc, WindowEndUtc = endUtc, History = history });
                         if (fingerprint != _historyFingerprint)
                         {
                             History = history;
+                            HistoryWindowStartUtc = DateTime.SpecifyKind(result.WindowStartUtc, DateTimeKind.Utc);
+                            HistoryWindowEndUtc = DateTime.SpecifyKind(endUtc, DateTimeKind.Utc);
                             _historyFingerprint = fingerprint;
                             HistoryRevision++;
                         }
