@@ -62,8 +62,9 @@
         <section class="power-inventory" aria-labelledby="power-history-heading">
             <div class="power-bank__header">
                 <h3 id="power-history-heading">Power History</h3>
-                <span>Last @_historyHours hour(s)</span>
+                <span>Last @_historyHours hour(s) · @Settings.DisplayTimeZone.Label</span>
             </div>
+            <p>@HistoryCoverage Five-minute intervals are aligned in UTC.</p>
             <div class="power-history-grid">
                 @if (PvHistoryDatasets.Count > 0)
                 {

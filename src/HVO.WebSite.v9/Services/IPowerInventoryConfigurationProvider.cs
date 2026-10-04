@@ -24,4 +24,14 @@ public interface IPowerInventoryConfigurationProvider
         IReadOnlyCollection<string> batterySourceIds,
         DateTime sinceUtc,
         CancellationToken ct = default);
+
+    // Existing implementations remain compatible; the production provider uses both
+    // boundaries so a dashboard load has one clock instant throughout its query/grid.
+    Task<PowerTelemetryHistoryResponse> GetTelemetryWindowAsync(
+        IReadOnlyCollection<string> mpptSourceIds,
+        IReadOnlyCollection<string> batterySourceIds,
+        DateTime sinceUtc,
+        DateTime untilUtc,
+        CancellationToken ct = default)
+        => GetRecentTelemetryAsync(mpptSourceIds, batterySourceIds, sinceUtc, ct);
 }

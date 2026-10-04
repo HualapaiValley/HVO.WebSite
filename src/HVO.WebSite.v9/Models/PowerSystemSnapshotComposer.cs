@@ -311,7 +311,7 @@ public static class PowerSystemSnapshotComposer
 
                 return new PowerSystemBatteryBankSnapshot(
                     BankId: bankId,
-                    RecordedAtUtc: reading.RecordedAt,
+                    RecordedAtUtc: DateTime.SpecifyKind(reading.RecordedAt, DateTimeKind.Utc),
                     Source: PowerMetricSource.JkBms,
                     SourceId: reading.Device?.Address,
                     DeviceId: bankId,
@@ -352,26 +352,26 @@ public static class PowerSystemSnapshotComposer
     private static SourcedValue<T>? Sourced<T>(T? value, PowerMetricSource source, PowerReading? reading, string? confidence = null)
         where T : struct
         => value.HasValue && reading is not null
-            ? new SourcedValue<T>(value.Value, source, reading.RecordedAt, reading.SourceId, reading.DeviceId, confidence)
+            ? new SourcedValue<T>(value.Value, source, DateTime.SpecifyKind(reading.RecordedAt, DateTimeKind.Utc), reading.SourceId, reading.DeviceId, confidence)
             : null;
 
     private static SourcedValue<T>? Sourced<T>(T? value, PowerMetricSource source, DateTime recordedAt, string? sourceId = null, string? deviceId = null)
         where T : struct
-        => value.HasValue ? new SourcedValue<T>(value.Value, source, recordedAt, sourceId, deviceId) : null;
+        => value.HasValue ? new SourcedValue<T>(value.Value, source, DateTime.SpecifyKind(recordedAt, DateTimeKind.Utc), sourceId, deviceId) : null;
 
     private static SourcedValue<T> Sourced<T>(T value, PowerMetricSource source, DateTime recordedAt, string? sourceId = null, string? deviceId = null)
         where T : struct
-        => new(value, source, recordedAt, sourceId, deviceId);
+        => new(value, source, DateTime.SpecifyKind(recordedAt, DateTimeKind.Utc), sourceId, deviceId);
 
     private static SourcedValue<T>? Sourced<T>(T? value, PowerInverterDetailPayload detail)
         where T : struct
         => value.HasValue
-            ? new SourcedValue<T>(value.Value, PowerMetricSource.Eg46500Ex, detail.RecordedAtUtc, detail.SourceId, detail.DeviceId)
+            ? new SourcedValue<T>(value.Value, PowerMetricSource.Eg46500Ex, DateTime.SpecifyKind(detail.RecordedAtUtc, DateTimeKind.Utc), detail.SourceId, detail.DeviceId)
             : null;
 
     private static SourcedValue<string>? Sourced(string? value, PowerInverterDetailPayload detail)
         => !string.IsNullOrWhiteSpace(value)
-            ? new SourcedValue<string>(value, PowerMetricSource.Eg46500Ex, detail.RecordedAtUtc, detail.SourceId, detail.DeviceId)
+            ? new SourcedValue<string>(value, PowerMetricSource.Eg46500Ex, DateTime.SpecifyKind(detail.RecordedAtUtc, DateTimeKind.Utc), detail.SourceId, detail.DeviceId)
             : null;
 
     private static PowerFlowDirection? FlowFromSignedBatteryPower(double? batteryPowerW)

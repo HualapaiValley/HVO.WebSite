@@ -24,6 +24,7 @@ public partial class PowerStatusCard : ComponentBase, IAsyncDisposable
     private IReadOnlyList<string> HistoryLabels { get; set; } = [];
     private IReadOnlyList<HvoChartDataset> PvHistoryDatasets { get; set; } = [];
     private IReadOnlyList<HvoChartDataset> BatteryHistoryDatasets { get; set; } = [];
+    private string HistoryCoverage { get; set; } = "No observations in this window.";
 
     private string SnapshotStateChipClass => _viewModel.SnapshotState switch
     {
@@ -72,10 +73,12 @@ public partial class PowerStatusCard : ComponentBase, IAsyncDisposable
                 if (HistoryRevision != _session.HistoryRevision)
                 {
                     HistoryRevision = _session.HistoryRevision;
-                    var history = new PowerDashboardHistoryPresenter(_session.History, Settings.Composition, _historyHours);
+                    var history = new PowerDashboardHistoryPresenter(_session.History, Settings.Composition,
+                        _session.HistoryWindowStartUtc, _session.HistoryWindowEndUtc, Settings.DisplayTimeZone);
                     HistoryLabels = history.Labels;
                     PvHistoryDatasets = history.PvDatasets;
                     BatteryHistoryDatasets = history.BatteryDatasets;
+                    HistoryCoverage = history.Coverage;
                 }
                 StateHasChanged();
             });
