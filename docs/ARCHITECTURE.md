@@ -70,6 +70,14 @@ OpenTelemetry is used for operational telemetry such as logs, traces, and metric
 
 The website should not directly connect to LAN hardware, BLE devices, serial devices, or local MQTT brokers. Those dependencies belong in edge collectors and local gateways. The website is the central API, persistence, read/admin, and future command/control surface.
 
+### Interactive dashboard lifecycle
+
+`App` gives `Routes` and `HeadOutlet` an interactive server owner. Public/authenticated SSR and Entra policies remain in the real host; layouts receive their render fragments inside that owner. Shell callbacks stay disabled until their first interactive render so early SSR clicks cannot be lost. The power card renders a loading shell during SSR and starts reads after its first interactive render, avoiding duplicate initialization queries. A dashboard `ErrorBoundary` contains unexpected rendering failures while shell controls remain usable.
+
+`IPowerDashboardQuery` returns independent typed current/detail/history sections. Each operation owns an async service scope and resolves the existing scoped providers there; reads sharing a DbContext are sequential. No circuit retains a DbContext. Provider failures after their retry policy become section errors, with successful and previously loaded sections retained until recovery.
+
+The component owns and disposes `PowerDashboardSession`: one serialized, cancellation-aware load path, a one-second freshness tick, current queries every five seconds and history queries every sixty seconds by default. `PowerStatus:RefreshSeconds` is bounded to 1–300 seconds, `HistoryRefreshSeconds` to the current interval–3600 seconds, and the existing `HistoryHours` to 1–48 hours. Retry uses the same gate. Disposal cancels active and queued loads and joins the loop. Presentation ages actual source timestamps against `TimeProvider`, using the composition freshness/future limits. History revision follows changed content or query window rather than row count; existing history projection remains separate from the refresh lifecycle.
+
 ## Authentication And Authorization
 
 Browser users authenticate with Microsoft Entra ID. The current app roles are `Admin` and `User`.

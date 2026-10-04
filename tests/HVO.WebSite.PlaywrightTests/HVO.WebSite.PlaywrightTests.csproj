@@ -15,6 +15,8 @@
     <PackageReference Include="Microsoft.Playwright" />
     <PackageReference Include="Microsoft.Playwright.MSTest" />
     <PackageReference Include="Microsoft.Playwright.TestAdapter" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="coverlet.collector">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -23,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/HVO.ThemeSandbox/HVO.ThemeSandbox.csproj" />
+    <ProjectReference Include="../../src/HVO.WebSite.v9/HVO.WebSite.v9.csproj" />
   </ItemGroup>
 
   <ItemGroup>

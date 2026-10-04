@@ -8,6 +8,13 @@ public partial class HvoAdminLayout : LayoutComponentBase
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     private bool _drawerOpen = true;
+    private bool _interactive;
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) { _interactive = true; StateHasChanged(); }
+        return Task.CompletedTask;
+    }
 
     private DrawerVariant _drawerVariant = DrawerVariant.Persistent;
 

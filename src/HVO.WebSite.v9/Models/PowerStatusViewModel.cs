@@ -47,7 +47,7 @@ public sealed record PowerStatusViewModel(
         ObservedAt: "Waiting for power telemetry",
         SnapshotState: "Waiting");
 
-    public static PowerStatusViewModel FromSnapshot(PowerSystemSnapshot? snapshot, PowerCompositionOptions? options = null)
+    public static PowerStatusViewModel FromSnapshot(PowerSystemSnapshot? snapshot, PowerCompositionOptions? options = null, DateTime? nowUtc = null)
     {
         if (snapshot is null)
             return Empty;
@@ -55,9 +55,10 @@ public sealed record PowerStatusViewModel(
         options ??= new PowerCompositionOptions();
         var batteryPower = snapshot.Battery?.PowerW;
 
-        var batteryBanks = FormatBanks(snapshot.BatteryBanks, snapshot.ObservedAtUtc);
-        var batteryObservations = FormatObservations(snapshot, options);
-        var pvTrackers = FormatPvTrackers(snapshot.Pv?.Trackers, snapshot.ObservedAtUtc);
+        var referenceUtc = nowUtc ?? snapshot.ObservedAtUtc;
+        var batteryBanks = FormatBanks(snapshot.BatteryBanks, referenceUtc, nowUtc.HasValue ? options : null);
+        var batteryObservations = FormatObservations(snapshot, options, referenceUtc);
+        var pvTrackers = FormatPvTrackers(snapshot.Pv?.Trackers, referenceUtc);
 
         return new PowerStatusViewModel(
             PvPower: FormatWatts(snapshot.Pv?.PowerW?.Value),
@@ -81,7 +82,47 @@ public sealed record PowerStatusViewModel(
                 .Distinct(StringComparer.Ordinal)
                 .ToArray() ?? [],
             ObservedAt: $"Observed {HvoFormat.Timestamp(snapshot.ObservedAtUtc, "dd MMM yyyy - h:mm tt")}",
-            SnapshotState: "Live");
+            SnapshotState: nowUtc.HasValue ? CurrentState(snapshot, options, referenceUtc) : "Live");
+    }
+
+    private static string CurrentState(PowerSystemSnapshot snapshot, PowerCompositionOptions options, DateTime nowUtc)
+    {
+        var states = new List<string>();
+        void Add<T>(SourcedValue<T>? value)
+        {
+            if (value is not null) states.Add(State(value.RecordedAtUtc, value.Source));
+        }
+        string State(DateTime recordedAtUtc, PowerMetricSource source)
+        {
+            var age = nowUtc - recordedAtUtc;
+            if (age.TotalSeconds < -options.MaxFutureClockSkewSeconds) return "Invalid";
+            var threshold = source switch
+            {
+                PowerMetricSource.VictronSmartShunt => options.SmartShuntFreshnessSeconds,
+                PowerMetricSource.JkBms => options.JkBmsFreshnessSeconds,
+                _ => options.Eg4BranchFreshnessSeconds,
+            };
+            return age.TotalSeconds > threshold ? "Stale" : age.TotalSeconds >= threshold * 0.8 ? "Warning" : "Live";
+        }
+        Add(snapshot.Pv?.PowerW);
+        Add(snapshot.Ac?.LoadPowerW);
+        Add(snapshot.Ac?.InverterMode);
+        Add(snapshot.Battery?.PowerW);
+        Add(snapshot.Battery?.VoltageV);
+        Add(snapshot.Battery?.CurrentA);
+        Add(snapshot.Battery?.StateOfChargePercent);
+        Add(snapshot.Battery?.HasAlarms);
+        foreach (var bank in snapshot.BatteryBanks ?? []) states.Add(State(bank.RecordedAtUtc, bank.Source));
+        if (states.Count == 0)
+        {
+            foreach (var observation in snapshot.BatteryObservations ?? [])
+                states.Add(FormatObservationFreshness(observation, nowUtc, options).Status switch
+                { "invalid" => "Invalid", "stale" => "Stale", "warning" => "Warning", _ => "Live" });
+            foreach (var tracker in snapshot.Pv?.Trackers ?? []) states.Add(State(tracker.RecordedAtUtc, tracker.Source));
+        }
+        // ObservedAtUtc can be the composition time; it is not proof of a live source sample.
+        if (states.Count == 0) return "Waiting";
+        return states.Contains("Invalid") ? "Invalid" : states.Contains("Stale") ? "Stale" : states.Contains("Warning") ? "Warning" : "Live";
     }
 
     private static string FormatWatts(double? value)
@@ -115,7 +156,7 @@ public sealed record PowerStatusViewModel(
             _ => "Unknown",
         };
 
-    private static IReadOnlyList<PowerStatusBankViewModel> FormatBanks(IReadOnlyList<PowerSystemBatteryBankSnapshot>? banks, DateTime observedAtUtc)
+    private static IReadOnlyList<PowerStatusBankViewModel> FormatBanks(IReadOnlyList<PowerSystemBatteryBankSnapshot>? banks, DateTime observedAtUtc, PowerCompositionOptions? options)
         => banks is { Count: > 0 }
             ? banks
                 .OrderBy(b => b.BankId, StringComparer.OrdinalIgnoreCase)
@@ -133,7 +174,7 @@ public sealed record PowerStatusViewModel(
                     DeltaCellVoltage: FormatMillivolts(b.DeltaCellVoltageV?.Value),
                     Temperatures: FormatTemperatures(b.BatteryTemperature1C?.Value, b.BatteryTemperature2C?.Value, b.PowerTubeTemperatureC?.Value),
                     Balancing: FormatBalancing(b.BalancingActive?.Value, b.BalancingCurrentA?.Value),
-                    FreshnessStatus: FreshnessStatusFor(b.RecordedAtUtc, observedAtUtc),
+                    FreshnessStatus: FreshnessStatusFor(b.RecordedAtUtc, observedAtUtc, options),
                     AlarmState: FormatAlarmState(b.HasAlarms?.Value),
                     IsAlarmed: b.HasAlarms?.Value == true))
                 .ToArray()
@@ -192,9 +233,15 @@ public sealed record PowerStatusViewModel(
             : $"{age.TotalDays:0.0} days ago";
     }
 
-    private static string FreshnessStatusFor(DateTime recordedAtUtc, DateTime referenceUtc)
+    private static string FreshnessStatusFor(DateTime recordedAtUtc, DateTime referenceUtc, PowerCompositionOptions? options)
     {
         var age = referenceUtc - recordedAtUtc;
+        if (options is not null)
+        {
+            if (age.TotalSeconds < -options.MaxFutureClockSkewSeconds) return "invalid";
+            return age.TotalSeconds > options.JkBmsFreshnessSeconds ? "stale"
+                : age.TotalSeconds >= options.JkBmsFreshnessSeconds * 0.8 ? "warning" : "fresh";
+        }
         if (age < TimeSpan.Zero)
             age = TimeSpan.Zero;
 
@@ -210,6 +257,9 @@ public sealed record PowerStatusViewModel(
     {
         if (banks.Count == 0)
             return "Unknown";
+
+        var invalidCount = banks.Count(b => b.FreshnessStatus == "invalid");
+        if (invalidCount > 0) return invalidCount == 1 ? "1 invalid bank" : $"{invalidCount} invalid banks";
 
         var staleCount = banks.Count(b => b.FreshnessStatus == "stale");
         if (staleCount > 0)
@@ -235,20 +285,22 @@ public sealed record PowerStatusViewModel(
 
     private static IReadOnlyList<PowerStatusBatteryObservationViewModel> FormatObservations(
         PowerSystemSnapshot snapshot,
-        PowerCompositionOptions options)
+        PowerCompositionOptions options,
+        DateTime referenceUtc)
         => snapshot.BatteryObservations?
             .OrderBy(observation => observation.Role)
             .ThenBy(observation => observation.SourceId, StringComparer.OrdinalIgnoreCase)
             .ThenBy(observation => observation.DeviceId, StringComparer.OrdinalIgnoreCase)
-            .Select(observation => FormatObservation(observation, snapshot, options))
+            .Select(observation => FormatObservation(observation, snapshot, options, referenceUtc))
             .ToArray() ?? [];
 
     private static PowerStatusBatteryObservationViewModel FormatObservation(
         PowerBatteryObservation observation,
         PowerSystemSnapshot snapshot,
-        PowerCompositionOptions options)
+        PowerCompositionOptions options,
+        DateTime referenceUtc)
     {
-        var freshness = FormatObservationFreshness(observation, snapshot.ObservedAtUtc, options);
+        var freshness = FormatObservationFreshness(observation, referenceUtc, options);
         return new PowerStatusBatteryObservationViewModel(
             Source: FormatSourceName(observation.Source),
             SourceId: observation.SourceId,

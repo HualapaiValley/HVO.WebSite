@@ -9,7 +9,17 @@
 
         <AuthorizeView Policy="PowerStatusView">
             <Authorized>
-                <PowerStatusCard />
+                <ErrorBoundary @ref="_dashboardBoundary">
+                    <ChildContent>
+                        <PowerStatusCard />
+                    </ChildContent>
+                    <ErrorContent Context="dashboardError">
+                        <div class="hvo-state-error" role="alert">
+                            <p>The dashboard could not be displayed. The site controls remain available.</p>
+                            <MudButton OnClick="RecoverDashboard" Variant="Variant.Outlined">Reload dashboard</MudButton>
+                        </div>
+                    </ErrorContent>
+                </ErrorBoundary>
             </Authorized>
             <NotAuthorized>
                 <div class="hvo-card power-unauthenticated-card">

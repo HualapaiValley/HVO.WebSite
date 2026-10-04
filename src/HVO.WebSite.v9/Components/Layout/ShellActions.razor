@@ -1,0 +1,26 @@
+<MudIconButton Icon="@(IsDarkMode ? Icons.Material.Outlined.DarkMode : Icons.Material.Outlined.LightMode)"
+               Color="Color.Inherit" Size="Size.Medium"
+               aria-label="@(IsDarkMode ? "Switch to light theme" : "Switch to dark theme")"
+               Disabled="@(!_interactive)" OnClick="ToggleThemeAsync" />
+<AuthorizeView>
+    <Authorized Context="authentication">
+        <MudMenu Label="@(authentication.User.Identity?.Name ?? "Account")" Disabled="@(!_interactive)" Variant="Variant.Text" Color="Color.Inherit" EndIcon="Icons.Material.Outlined.ExpandMore">
+            <MudMenuItem Href="MicrosoftIdentity/Account/SignOut">Sign out</MudMenuItem>
+        </MudMenu>
+    </Authorized>
+    <NotAuthorized>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="MicrosoftIdentity/Account/SignIn">Sign in</MudButton>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter] public bool IsDarkMode { get; set; }
+    [Parameter] public EventCallback<bool> IsDarkModeChanged { get; set; }
+    private bool _interactive;
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) { _interactive = true; StateHasChanged(); }
+        return Task.CompletedTask;
+    }
+    private Task ToggleThemeAsync() => IsDarkModeChanged.InvokeAsync(!IsDarkMode);
+}

@@ -19,6 +19,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="OpenTelemetry.Api" />
     <PackageReference Include="coverlet.collector">
       <PrivateAssets>all</PrivateAssets>

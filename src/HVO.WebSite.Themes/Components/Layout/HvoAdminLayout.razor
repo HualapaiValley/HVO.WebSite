@@ -7,7 +7,7 @@
 <MudLayout Class="@LayoutThemeClass">
     <MudAppBar Fixed="true" Elevation="0" Dense="true" Class="shell-appbar">
         <div class="shell-frame shell-bar-content shell-header-frame">
-            <MudIconButton Icon="@Icons.Material.Outlined.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+            <MudIconButton Icon="@Icons.Material.Outlined.Menu" Color="Color.Inherit" Edge="Edge.Start" Disabled="@(!_interactive)" aria-label="Toggle admin navigation" OnClick="@((e) => DrawerToggle())" />
             <div class="shell-brand-block">
                 <MudText Typo="Typo.h5" Class="shell-brand-text">Hualapai Valley Observatory</MudText>
                 <MudText Typo="Typo.caption" Class="shell-brand-subtitle">ADMIN</MudText>

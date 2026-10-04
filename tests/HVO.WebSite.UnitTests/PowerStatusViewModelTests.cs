@@ -314,6 +314,25 @@ public sealed class PowerStatusViewModelTests
                 tracker.Power == "540 W" && tracker.Voltage == "400.00 V" && tracker.Current == "1.4 A" && tracker.Provenance == "Direct");
     }
 
+    [TestMethod]
+    public void CurrentPresentationUsesSourceTimes_NotCompositionTime_AndConfiguredBankFreshness()
+    {
+        var now = new DateTime(2026, 10, 4, 0, 0, 0, DateTimeKind.Utc);
+        var options = new HVO.WebSite.v9.Configuration.PowerCompositionOptions { Eg4BranchFreshnessSeconds = 10, JkBmsFreshnessSeconds = 10 };
+        var snapshot = new PowerSystemSnapshot(now,
+            BatteryObservations: [Observation("branch", "one", PowerMetricSource.Eg46500Ex, PowerMeasurementRole.InverterBranch, now.AddSeconds(-11), power: 100)]);
+        PowerStatusViewModel.FromSnapshot(snapshot, options, now).SnapshotState.Should().Be("Stale");
+        PowerStatusViewModel.FromSnapshot(new PowerSystemSnapshot(now), options, now).SnapshotState.Should().Be("Waiting");
+        var bankSnapshot = new PowerSystemSnapshot(now,
+            BatteryBanks: [new PowerSystemBatteryBankSnapshot("bank", now, PowerMetricSource.JkBms)]);
+        var aged = PowerStatusViewModel.FromSnapshot(bankSnapshot, options, now.AddSeconds(8));
+        aged.SnapshotState.Should().Be("Warning");
+        aged.BatteryBanks.Single().FreshnessStatus.Should().Be("warning");
+        PowerStatusViewModel.FromSnapshot(bankSnapshot, options, now.AddSeconds(11)).BatteryBanks.Single().FreshnessStatus.Should().Be("stale");
+        var future = new PowerSystemSnapshot(now, Battery: new(PowerW: Value(100d, PowerMetricSource.Eg46500Ex, now.AddSeconds(31))));
+        PowerStatusViewModel.FromSnapshot(future, options, now).SnapshotState.Should().Be("Invalid");
+    }
+
     private static PowerBatteryObservation Observation(
         string sourceId,
         string deviceId,
