@@ -56,9 +56,10 @@ services.AddOpenTelemetry()
 ```
 
 Register custom `ActivitySource` and `Meter` names with the tracing and metrics
-providers so application-specific telemetry is not omitted. The existing HVO
-services use the `HVO.Enterprise.Telemetry` helpers and add their custom meter
-names through that configuration.
+providers so application-specific telemetry is not omitted. The website retains
+its `HVO.Enterprise.Telemetry` helpers; current headless gateways use
+`AddHvoEdgeRuntime` and the shared `HVO.Edge.Hosting` telemetry registration.
+Do not introduce website/UI telemetry dependencies into edge executables.
 
 All gateways register the canonical `HVO.Edge` meter and activity source. Common
 instruments use the names, units, and bounded tags documented in
@@ -113,9 +114,15 @@ namespace attributes. It routes telemetry as follows:
 
 | Signal | Destination |
 | --- | --- |
-| Traces | Tempo |
-| Metrics | Prometheus |
-| Logs | Loki |
+| Traces | Tempo, collector exporter to `tempo:4317` |
+| Metrics | Collector exporter on 8889, scraped by Prometheus as `hvo-edge-metrics` |
+| Logs | Loki native OTLP at `http://loki:3100/otlp` |
+
+These routes are verified against the [checked-in collector](../deploy/hvo-docker/observability/config/otelcol-config.yaml),
+[scrape configuration](../deploy/hvo-docker/observability/prometheus/prometheus.yml)
+and [Grafana datasources](../deploy/hvo-docker/observability/grafana/provisioning/datasources/hvo.yaml),
+whose UIDs are `tempo`, `prometheus` and `loki`. They are configuration evidence,
+not a new live observation.
 
 The collector no longer exports to Azure Monitor or Application Insights. Do
 not configure Application Insights connection strings in applications solely
@@ -148,15 +155,26 @@ curl --connect-timeout 5 --max-time 10 --silent --output /dev/null \
   http://192.168.1.238:4318/v1/metrics
 ```
 
-An HTTP `200` confirms that the receiver is reachable. It does not submit a
-telemetry payload. Confirm actual application telemetry in Grafana by filtering
-on `service.name = hvo-<service-name>`.
+An HTTP `200` confirms receiver reachability for this empty request; it does not
+prove an application exported telemetry. In Grafana Explore, select Loki and
+query a bounded interval with `{service_name="hvo-jkbms"}` (or the actual gateway
+service). [Loki's default OTLP mapping](https://grafana.com/docs/loki/latest/send-data/otel/)
+stores `service.name` as the normalized `service_name` label. Central-host stdout
+through [Promtail](../deploy/hvo-docker/observability/promtail/promtail-config.yaml)
+uses its `container` label instead. Use Tempo's service/time filtering for traces
+and Prometheus `up{job="hvo-edge-metrics"}` for scrape reachability, then inspect
+the exported metric/label names before querying instruments. Health of a receiver
+or scrape target is not proof of source freshness. See
+[gateway incident investigation](GATEWAY_OPERATIONS.md#current-incident-investigation).
 
 ## Operational notes
 
-The observability Compose project is located on `hvo-docker` at
-`/opt/otel-collector`. Its services use `restart: unless-stopped`; no additional
-restart configuration is required in sending applications.
+The dated live snapshot recorded `/opt/otel-collector` ownership. The repository's
+separate [observability candidate](../deploy/hvo-docker/observability/compose.yaml)
+does not attest migration of that live project; follow
+[shared infrastructure](SHARED_INFRASTRUCTURE.md) before an authorized change.
+Services use `restart: unless-stopped`; collector reachability is not a gateway
+liveness dependency.
 
 The collector health endpoint is available only on the host:
 

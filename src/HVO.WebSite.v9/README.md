@@ -1,6 +1,6 @@
 # HVO.WebSite.v9
 
-Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET Core 10 and Blazor Server (SSR). Serves the web UI, hosts the ingest REST API for hardware collectors, and persists all data to Azure SQL via Entity Framework Core.
+Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET Core 10 and Blazor Server (SSR). Serves the web UI and central ingest API, and persists canonical history to SQL Server via Entity Framework Core. Current hosting is self-hosted Docker on `hvo-docker`.
 
 ## Purpose
 
@@ -63,10 +63,10 @@ Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET C
 
 | Key | Description |
 |-----|-------------|
-| `ASPNETCORE_URLS` | Deployment-specific listener binding. Use `http://+:8080` for ACA and `https://+:443;http://+:8080` for local container HTTPS |
-| `EnableHttpsRedirect` | Keep `false` for local sidecar traffic and for ACA when ingress owns HTTP to HTTPS behavior |
+| `ASPNETCORE_URLS` | Current self-hosted Compose uses `http://+:8080`, with external TLS/proxy ownership. Optional local HTTPS needs runtime-mounted certificate configuration |
+| `EnableHttpsRedirect` | Deliberate proxy/listener policy; self-hosted Compose defaults false |
 | `AzureAd:*` | Microsoft Entra ID OIDC settings |
-| `ConnectionStrings:HualapaiValleyObservatory` | Azure SQL connection string |
+| `ConnectionStrings:HualapaiValleyObservatory` | SQL Server target; startup seeding applies EF migrations, so a development run needs an explicitly approved database |
 | `Seeding:PowerApiKey` | Optional write-only `ingest:power` key seed for power gateways |
 | `Seeding:WeatherReadApiKey` | Optional `read:weather` key seed for weather API clients |
 | `Seeding:PowerReadApiKey` | Optional `read:power` key seed for operational power API verification |
@@ -80,6 +80,10 @@ Configuration should be split by purpose:
 
 The website now includes `ISiteConfigurationService`, which reads and caches `v9.SiteConfiguration` values for runtime use.
 
-See [docs/WEBSITE_CONTAINER_APP.md](docs/WEBSITE_CONTAINER_APP.md) for the website deployment and configuration strategy.
+See [current self-hosted deployment](../../deploy/hvo-docker/README.md),
+[Data Protection](../../docs/WEBSITE_DATA_PROTECTION.md) and
+[hardware-free build/browser orientation](../../README.md#quick-start).
+The [former ACA record](../../docs/archive/website-container-app.md) preserves
+historical identity/key migration evidence; it is not current deployment guidance.
 
 See `Program.cs` for service registration and middleware pipeline.

@@ -11,7 +11,9 @@ Production currently uses direct headless vNext collectors for Davis, JK BMS, EG
 - `CONTAINER_PUBLISHING.md`: self-hosted registry publishing workflow and versioning process
 - `WEBSITE_DATA_PROTECTION.md`: website key-ring deployment, backup, restore, rotation, and rollback
 - `SHARED_INFRASTRUCTURE.md`: reusable hvo-docker infrastructure and observability stacks, storage policy, and migration guidance
-- `WEBSITE_CONTAINER_APP.md`: current Azure Container App notes for the website deployment
+- [Self-hosted website deployment](../deploy/hvo-docker/README.md): current website prerequisites, configuration, identity/key-ring and authorized rollout
+- [Gateway operations](GATEWAY_OPERATIONS.md) and [Pi commissioning](../deploy/pi-gateways/README.md): current endpoint/auth, mounted secret and source-authority contracts
+- [CI runners](CI_RUNNERS.md): hosted execution and review admission; [testing](development/testing.md) owns lane/fixture prerequisites
 - `PROJECT_HISTORY.md`: session-by-session summary of recent work, decisions, and follow-up context
 - `CSS_GOVERNANCE.md`: active CSS and theme authoring policy for all projects
 
@@ -28,5 +30,7 @@ Project history guidance:
 - `JKBMS_SESSION_LIFECYCLE.md`: JK BMS session-lifecycle notes for the current BLE runtime direction
 
 ## Reference Assets
+
+- [Former ACA deployment](archive/website-container-app.md): historical, superseded record preserving identity/blob/wrapping-key migration evidence; old `WEBSITE_CONTAINER_APP.md` remains a redirect
 
 - `VantageSerialProtocolDocs_v261.pdf`: Davis protocol reference PDF used by the Davis collector notes

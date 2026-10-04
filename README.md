@@ -4,7 +4,7 @@
 ![.NET](https://img.shields.io/badge/.NET-10.0-blue)
 ![License](https://img.shields.io/badge/license-proprietary-lightgrey)
 
-Observatory dashboard and monitoring system built with ASP.NET Core and Blazor Server (SSR). Collects and displays real-time weather data and battery monitor readings from hardware at Hualapai Valley Observatory, persists data to Azure SQL, and provides role-based web access via Microsoft Entra ID.
+Observatory dashboard and monitoring system built with ASP.NET Core and Blazor Server (SSR). Collects and displays weather, battery and power observations, persists canonical history to SQL Server, and provides role-based web access via Microsoft Entra ID. The current website/API deployment is self-hosted on `hvo-docker`.
 
 ---
 
@@ -48,7 +48,8 @@ The retired direct SolarAssistant and TP-Link/Kasa containers, images, and Docke
 
 ## Edge Deployment Direction
 
-- Azure remains the central website/API/persistence boundary.
+- The internally hosted website/API on `hvo-docker` is the canonical ingest
+  boundary; the public Azure address is a proxy path rather than a Pi ingest dependency.
 - Pi-class ARM64 edge hosts are the primary deployment targets for hardware gateway services.
 - `devPi5` is the current validated gateway target for BLE workloads.
 - `hvo-docker` remains the preferred home for shared observability/infrastructure services such as Grafana and telemetry collectors, not direct BLE gateway polling.
@@ -113,32 +114,38 @@ See [src/HVO.WebSite.Themes/README.md](src/HVO.WebSite.Themes/README.md) for the
 
 ## Quick Start
 
-```bash
-# Run the full stack locally (requires .env with secrets)
-# Local hardware services now send OTLP telemetry to the global collector.
-# Set OTEL_COLLECTOR_ENDPOINT in .env, for example:
-# OTEL_COLLECTOR_ENDPOINT=http://192.168.1.238:4318
-docker compose up --build
+Start from the repository root with the exact SDK in `global.json` (10.0.400),
+PowerShell and the tools listed in [testing](docs/development/testing.md).
+This path builds and exercises test-owned website/ThemeSandbox fixtures without
+production secrets, a running website, SQL Server or physical gateways:
 
-# Or run the website only
-cd src/HVO.WebSite.v9
-dotnet run
+```bash
+dotnet --version
+dotnet restore HVO.WebSite.sln --locked-mode --nologo
+dotnet build HVO.WebSite.sln --no-restore --nologo
+pwsh tests/HVO.WebSite.PlaywrightTests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+dotnet test HVO.WebSite.sln --no-build --no-restore --filter "TestCategory!=Integration&TestCategory!=Live" --logger trx --results-directory TestResults/fast
 ```
+
+Browser tests start real application hosts on test-owned loopback ports and
+retain screenshots, traces and console evidence. Follow [owned browser fixtures](docs/development/testing.md#owned-website-and-themesandbox-browser-fixtures)
+for the focused website first-success command. Provisioned SQL/HA integration
+and simulator lanes have separate documented prerequisites.
+
+A bare website `dotnet run` is not a secrets-free demo: its startup configuration
+needs explicit SQL/Entra settings and Key Vault access when enabled. Startup
+seeding applies EF migrations to its configured SQL target, so use only an
+approved development database. There is no root `.env.example`; `.env` alone
+does not configure mounted gateway files or physical interfaces. See
+[current website deployment](deploy/hvo-docker/README.md) for an authorized runtime
+and [Pi commissioning](deploy/pi-gateways/README.md) for hardware prerequisites.
 
 ## Container Publishing
 
-The deployable images are published independently to the self-hosted registry on `hvo-docker`, and each image keeps its own version in `.env`.
-
-Use the repo script to build, tag, push, and verify one image at a time:
-
-```bash
-./scripts/sync-secrets-from-keyvault.sh --apply
-./scripts/sync-env-gist.sh
-./scripts/publish-image.sh website
-./scripts/publish-image.sh davis
-./scripts/publish-image.sh jkbms
-./scripts/publish-image.sh smartshunt
-```
+Images publish independently to the self-hosted registry. The publisher defaults
+to `deploy/hvo-docker/.env` or explicit `HVO_PUBLISH_ENV_FILE`; root `.env` is a
+separate bootstrap/gist cache. Build/push/materialization require their own
+operational authorization and are unnecessary for the hardware-free quick start.
 
 EG4 is built natively through the remote Pi Docker context. The retired `hvo-solarassistant` and `hvo-tplinkkasa` images are not active publishing targets.
 
@@ -155,16 +162,19 @@ This repository includes a [dev container](.devcontainer/) configuration for a c
 Recommended workflow:
 
 - Use the repo devcontainer on `hvo-dev` as the primary development environment.
-- Deploy hardware gateway containers to Pi targets for BLE/runtime validation.
+- Use owned non-live fixtures first; physical Pi validation/deployment needs
+  separate applicable authorization and the commissioning runbook.
 - Keep direct Pi development available for host-level diagnostics, but treat Pi systems primarily as edge deployment targets.
 
 Docker contexts:
 
 ```bash
 docker context ls
-docker --context devpi5 ps
-docker --context devpi5 compose up -d --build
 ```
+
+Inspect the selected context before Docker work. Use the named deployment
+scripts/runbooks when a rollout is authorized; a generic root Compose command
+does not establish gateway config/secret/device prerequisites.
 
 ---
 
@@ -179,7 +189,8 @@ docker --context devpi5 compose up -d --build
 | [Architecture](docs/ARCHITECTURE.md) | Current system baseline, data flow, collector pattern, and future integration direction |
 | [Container Publishing](docs/CONTAINER_PUBLISHING.md) | Self-hosted registry inventory, versioning workflow, publish script usage |
 | [Website Data Protection](docs/WEBSITE_DATA_PROTECTION.md) | Durable encrypted key-ring deployment, backup, restore, and rollback |
-| [Website Container App](docs/WEBSITE_CONTAINER_APP.md) | Azure Container App deployment decisions and runtime requirements for `HVO.WebSite` |
+| [Website Deployment](deploy/hvo-docker/README.md) | Current self-hosted configuration, identity, key-ring and rollout prerequisites |
+| [Former ACA Record](docs/archive/website-container-app.md) | Historical Azure deployment and cryptographic migration evidence |
 
 ---
 

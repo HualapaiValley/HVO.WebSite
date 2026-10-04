@@ -1,37 +1,59 @@
 # Shared Infrastructure Deployment
 
-`hvo-docker` hosts two reusable infrastructure stacks that are independent of the website and gateway application deployments.
+The repository defines two reusable deployment candidates for `hvo-docker`,
+independent of website/gateway application deployments. Checked-in configuration
+is not proof that every live service has migrated to these stacks. The
+[dated August snapshot](#historical-live-snapshot-2026-08-09) records different
+service ownership and an unresolved SQL disk identity. No live state was
+re-attested for #415.
 
 | Stack | Services | Compose file |
 |---|---|---|
 | Shared infrastructure | SQL Server, Redis, MinIO, Docker Registry, RabbitMQ | `deploy/hvo-docker/shared-infrastructure/compose.yaml` |
 | Observability | OpenTelemetry Collector, Grafana, Prometheus, Loki, Tempo, Promtail, node exporter | `deploy/hvo-docker/observability/compose.yaml` |
 
-Each stack has its own Compose project, network, environment file, and persistent storage. Deploy one stack without deploying the other or any HVO application.
+Each candidate has its own project, network, env file and persistent storage.
+Launching it with empty stores beside an existing service is not an upgrade.
+Follow [migration rules](#migration-rules) and the
+[recovery inventory](#recovery-ownership-and-evidence-gaps) before an authorized
+service-specific transition. The [website entry](../deploy/hvo-docker/README.md)
+owns the current website's separate network/identity/key-ring prerequisites.
 
 ## Configuration Files
 
-Each stack reads only its colocated `.env` file. Create it from the checked-in template before deployment:
+The deploy helper selects each stack's colocated `.env`; exported shell values
+can override Compose interpolation. Initialize only on **first install**. Refuse
+existing files/symlinks, preserve operators' credentials, and use restricted modes:
 
 ```bash
-cp deploy/hvo-docker/shared-infrastructure/.env.example deploy/hvo-docker/shared-infrastructure/.env
-cp deploy/hvo-docker/observability/.env.example deploy/hvo-docker/observability/.env
+set -euo pipefail
+for stack in shared-infrastructure observability; do
+  candidate_env="deploy/hvo-docker/$stack/.env"
+  test ! -e "$candidate_env" && test ! -L "$candidate_env"
+  (umask 077; set -o noclobber; cat "$candidate_env.example" > "$candidate_env")
+done
 ```
 
 Do not commit `.env` files. They contain the credentials and host-specific addresses for a deployment. The `.env.example` files are the publishable parameter contract: they contain every supported setting with non-secret placeholders.
 
 ## Storage Policy
 
-Stateful services use separate storage locations. Loki and the collector queue use fail-closed bind mounts below `HVO_OBSERVABILITY_DATA_ROOT`; all other stack data uses service-specific named volumes. On `hvo-docker`, `/var/lib/docker` is a required XFS mount on the dedicated 100 GB virtual disk backed by the Proxmox `tank` pool. It is not the root filesystem and has no `nofail` option, so `local-fs.target` and Docker do not start successfully when the disk is unavailable.
+The candidates use separate storage: Loki/collector queues have fail-closed
+binds below `HVO_OBSERVABILITY_DATA_ROOT`; other state uses service-specific named
+volumes. The recorded `hvo-docker` layout requires an XFS mount at
+`/var/lib/docker`, backed by a dedicated 100 GB Proxmox `tank` virtual disk,
+without `nofail`. This is a required preflight invariant, not a newly observed
+mount. Verify the actual device/UUID/mount before any migration; do not infer SQL's
+device from the contradictory historical snapshot.
 
 Set `HVO_OBSERVABILITY_DATA_ROOT=/var/lib/docker/hvo-observability`. The deploy script verifies that the resolved path is below Docker's data root, resolves to the `/var/lib/docker` XFS mount, exists, and is owned by runtime UID/GID `10001:10001`. Compose uses `bind.create_host_path: false`; missing paths fail rather than silently creating storage on another filesystem.
 
 ## Deploying A Stack
 
-```bash
-cp deploy/hvo-docker/shared-infrastructure/.env.example deploy/hvo-docker/shared-infrastructure/.env
-cp deploy/hvo-docker/observability/.env.example deploy/hvo-docker/observability/.env
+After first-install initialization, reviewed credentials/storage/network values,
+service-specific backups and separate rollout authorization:
 
+```bash
 ./scripts/deploy-shared-stack.sh --context hvo-docker infrastructure
 ./scripts/deploy-shared-stack.sh --context hvo-docker observability
 ```
@@ -44,7 +66,24 @@ Use `all` only when both stacks are intended:
 
 `HVO_INFRA_BIND_ADDRESS` and `HVO_OBSERVABILITY_BIND_ADDRESS` default to `127.0.0.1`. Set them to the hvo-docker LAN address only for services that must be reachable by gateways or other hosts. In particular, gateways that export telemetry need the collector OTLP port exposed on the LAN address.
 
-Applications can attach to the explicitly named `hvo-infrastructure` or `hvo-observability` Docker network when in-container service discovery is needed. Prefer published host endpoints for services deployed from unrelated Compose projects.
+Applications can attach to `hvo-infrastructure` or `hvo-observability` when
+in-container discovery is needed. Unrelated projects need explicit connectivity.
+`config --quiet` establishes syntax/interpolation validity only; for example,
+after choosing a restricted env file, assert expected non-secret infrastructure
+binding without printing its environment:
+
+```bash
+set -euo pipefail
+docker compose --env-file deploy/hvo-docker/shared-infrastructure/.env \
+  -f deploy/hvo-docker/shared-infrastructure/compose.yaml config --quiet
+docker compose --env-file deploy/hvo-docker/shared-infrastructure/.env \
+  -f deploy/hvo-docker/shared-infrastructure/compose.yaml config --format json |
+  jq -e '.services.mssql.ports | any(.host_ip == "127.0.0.1" and .target == 1433)' >/dev/null
+```
+
+This example asserts the default loopback policy. For an approved LAN exposure,
+replace the expected address deliberately and verify firewall/TLS/auth separately.
+Do not dump the rendered JSON: service environments contain credentials.
 
 ## Shared Infrastructure Parameters
 
@@ -128,15 +167,23 @@ docker --context hvo-docker run --rm -v "${LOKI_SOURCE_VOLUME}:/from:ro" -v /var
 
 The Loki source must contain data, the destination must be empty before copying, and the post-copy file count must match. Do not delete old volumes until historical Loki queries, collector queue metrics, and a backup are verified. If deployment preflight reports the wrong mount, source device, missing directory, or wrong owner, stop and correct storage; do not bypass the check.
 
-Safe inspection and validation:
+Authorized read-only remote inspection (actual address/access required):
 
 ```bash
 docker --context hvo-docker logs --since 30m loki
 docker --context hvo-docker logs --since 30m otel-collector
 curl -fsS http://192.168.1.238:9090/api/v1/alerts
+```
+
+Non-live configuration/log-buffer verification uses test-owned local resources:
+
+```bash
 bash tools/verify-local-log-budget.sh
 bash tools/verify-log-outage-recovery.sh
 ```
+
+The latter demonstrates bounded log-outage/queue recovery under its local test
+conditions. It does not prove a full production host or service restore.
 
 Safe cleanup is limited to normal Docker rotation and Loki retention. Never remove files below `/var/lib/docker` manually. If emergency space recovery is required, stop the observability stack, back it up, and remove only confirmed expired Loki data through Loki-supported retention/deletion procedures. Never target `/app/data`, outbox volumes, Prometheus, Grafana, or Tempo storage.
 
@@ -170,11 +217,13 @@ These two stack directories can be moved to a public infrastructure repository t
 4. Document the network exposure decision for every published port.
 5. Provide service-specific backup and restore procedures before presenting the repository as a production template.
 
-## Verified Live State (2026-08-09)
+## Historical Live Snapshot (2026-08-09)
 
-The existing services are persistent, but they are not currently a pair of neutral reusable stacks:
+Preserved dated observation from this guide's pre-#415 source, not re-attested
+current state. The recorded services did not form a pair of neutral reusable
+stacks:
 
-| Service group | Current Compose ownership | Current data location |
+| Service group | Recorded Compose ownership | Recorded data location |
 |---|---|---|
 | SQL Server | `mssql` | `/data/mssql` bind mount on `/dev/sda1` |
 | Registry | `registry` | Docker local volume under `/var/lib/docker` on dedicated XFS `/dev/sdb1` |
@@ -182,7 +231,14 @@ The existing services are persistent, but they are not currently a pair of neutr
 | OpenTelemetry, Grafana, Prometheus, Loki, Tempo, Promtail | `otel-collector` | Mix of `/opt/otel-collector` configuration and Docker local volumes under `/var/lib/docker` on `/dev/sdb1` |
 | MinIO and Redis | `hvo-docker` project owned by SkyMonitor | Docker local volumes under `/var/lib/docker` on dedicated XFS `/dev/sdb1` |
 
-The VM has no literal `/tank` path. Its Docker data root is `/dev/sdb1`, a dedicated XFS virtual disk backed by the Proxmox `tank` pool. `/etc/fstab` requires its UUID at `/var/lib/docker` without `nofail`, and systemd orders the generated mount before `local-fs.target`. SQL Server is separate at `/data/mssql` on `/dev/sdc`. The observability deployment additionally verifies the configured source device, mount, paths, and ownership before starting Loki.
+The same record's prose said Docker's data root was `/dev/sdb1` on XFS,
+backed by `tank`, with its UUID required at `/var/lib/docker` and no literal
+`/tank` guest path. It identified SQL at `/data/mssql` on **`/dev/sdc`**, whereas
+the table above identified **`/dev/sda1`**. This contradiction is **unresolved**;
+neither value is an accepted current source identity. Resolve it with authorized
+mount/UUID/storage evidence before migration, retaining the original conflicting
+record. The observability deploy preflight checks its own source device, mount,
+paths and ownership; those checks do not resolve SQL's disk identity.
 
 ## Migration Rules
 
@@ -196,4 +252,41 @@ For each service group:
 4. Configure the new stack `.env` with newly managed credentials and required LAN bindings.
 5. Start the replacement stack, run service-specific health and data checks, then reconnect dependent applications.
 
-Migrate one service group at a time. SQL Server, MinIO, RabbitMQ, and Grafana require application-aware backup/restore or export procedures in addition to filesystem copies.
+Migrate one group at a time. SQL Server, MinIO, RabbitMQ and Grafana require
+application-aware backups/exports in addition to filesystem copies. The generic
+sequence is not a completed service recovery procedure or permission to rotate
+credentials. Retain existing stores through verified restore/data checks.
+
+## Recovery ownership and evidence gaps
+
+Assign a named accountable operator for each role before commissioning or
+changing the service. The roles below identify the required responsibility;
+this repository does not assign a person, backup schedule or recovery objective
+by implication. An env/Compose file and a healthy restart are insufficient
+backup/restore evidence.
+
+| State / accountable role | Preserve and validate | Existing reference / remaining evidence gap |
+|---|---|---|
+| Canonical SQL / database owner | Application-aware full/log backups as selected by recovery objectives, schema/migration state, keys/permissions and continuity across delayed ingest | `HVO.DataModels` owns EF migrations. [Disposable SQL fixtures](development/sql-server-integration-tests.md) prove test behavior, not production DR. Service backup, off-host retention, restored data/query and recovery-point drill records are missing from this repository |
+| Website Data Protection / website and identity owners | `hvo-website-data-protection`, application name, dedicated runtime identity and unwrap access for every retained protector version; restricted former plaintext/ACA rollback archives | [Key-ring procedure](WEBSITE_DATA_PROTECTION.md) and container verifier exist. Completed off-host payload-unprotect/auth-continuity restore and host-loss drill evidence is not supplied here. Do not delete old wrapping keys/roles on archival status |
+| Gateway SQLite / collector and source-authority owners | Full outbox volume including WAL, device/config registries, Davis station/cursor companions, mounted non-secret config and restricted secret recovery references; later observations and central idempotency | [Canonical checkpoint/isolated restore contract](gateways/sqlite-backup-and-rollback.md) includes #414's disposable proof qualification. It is not a new live gateway drill. Preserve [Davis recovery](gateways/davis-vantage-pro2/cutover-and-rollback.md), JK evidence and retired SolarAssistant archive |
+| HA Core/apps / HA owner | Supported HA backup for Core, Mosquitto, ESPHome, integrations, managed tree and registry; recheck retained discovery/entity continuity | [HA recovery notes](../deploy/home-assistant/README.md#recovery-notes) retain restore checks. A source-bound full host-loss restore/drill record is missing here |
+| HA off-node backups / host/storage owner | The off-node host mount, credentials, schedule and external archive retention, separately from Core/app backup | HA OS restore does not recreate this mount/schedule. Re-add and test them; the actual current schedule/mount/off-node drill evidence is not recorded here |
+| Registry / registry owner | Image manifests/blobs, tag/digest inventory and auth/TLS configuration; restore then verify consumers can obtain pinned images | Candidate volume is defined, but service-specific off-host backup/restore and digest-readback drill are missing |
+| Redis / service-data owner | Chosen persistence files/configuration and explicit decision whether its actual consumers permit reconstruction | Candidate storage is defined; consumer inventory, persistence policy and restore/reconstruction drill are missing. Do not assume it is disposable cache |
+| MinIO / object-storage owner | Application-aware objects, metadata, bucket policy and credentials; verify representative readback | Candidate volume is defined; supported backup/restore procedure and off-host object readback drill are missing |
+| RabbitMQ / messaging owner | Definitions, credentials/cookie and appropriate durable queue/message backup policy; consumer/message continuity | Candidate volume is defined; service-specific export/restore and message-continuity drill are missing |
+| Grafana / observability owner | Provisioned plus UI-managed dashboards/datasources/alerts and database; restore authenticated access and dashboard references | Provisioning files exist; UI export inventory, backup/restore and drill evidence are missing. Preserve legacy metric aliases until externally stored dashboards are checked |
+| Prometheus / observability owner | Configuration/rules and supported TSDB backup as required by retention/recovery objectives | Candidate volume/rules exist; supported snapshot/restore and historical-query drill are missing |
+| Loki and Tempo / observability owner | Loki chunks/index/compactor markers, Tempo trace storage, configuration and retention policy | Loki bind-layout migration/outage checks are documented, but are not full off-host Loki/Tempo restore drills; service-specific archive/restore and historical-query evidence are missing |
+| Collector queues / observability and host owners | Persistent `file_storage` queues plus exact pipeline/configuration/ownership; restart delivery and overflow/loss accounting | Checked-in persistent queues and bounded outage test exist; full off-host queue restore and loss-reconciliation drill are missing |
+
+Protect source authority during recovery: direct SmartShunt remains the sole
+collector/writer until [#352](https://github.com/HualapaiValley/HVO.WebSite/issues/352)
+authorizes a parity/ownership migration; do not invent unvalidated private fields.
+[#385](https://github.com/HualapaiValley/HVO.WebSite/issues/385) owns permanent
+Govee proxy placement/cutover and temporary-bridge retirement.
+[#320](https://github.com/HualapaiValley/HVO.WebSite/issues/320) owns the approved
+HA-history/source-claim path. Keep the exporter disabled with no production
+mappings/claims. Recovering HA or a gateway does not authorize a second central
+writer, enabling the exporter or destroying historical recovery archives.

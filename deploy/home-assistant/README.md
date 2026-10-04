@@ -163,27 +163,50 @@ slice using the commissioned TP-Link entities on `192.168.1.0/24`.
 The deployment script uses the Proxmox QEMU guest agent to copy the tracked
 files into the HA OS configuration volume. It never writes `.storage`.
 
-Prerequisites:
+Establish the endpoint, token and transport before **either** mode, including
+read-only checks. Prefer an approved HTTPS endpoint with valid trust; do not use
+`curl -k` or bypass the script's transport guard. Load the token securely from
+the approved ignored root `.env` or environment without echoing it. For example,
+after secure token loading and replacing the example host:
 
-- SSH access to the Proxmox host.
-- `HOME_ASSISTANT_TOKEN` in the ignored root `.env` or current environment.
-- HA OS VM `101` running with the QEMU guest agent.
+```bash
+export HVO_HOME_ASSISTANT_URL=https://ha.example.internal
+: "${HOME_ASSISTANT_TOKEN:?Load the approved Home Assistant token}"
+```
+
+The script defaults to `http://192.168.1.113`, which is refused unless the
+trusted-local-network HTTP exception is explicitly enabled **even for --check**:
+
+```bash
+export HVO_HOME_ASSISTANT_URL=http://192.168.1.113
+export HVO_HOME_ASSISTANT_ALLOW_INSECURE=true
+: "${HOME_ASSISTANT_TOKEN:?Load the approved Home Assistant token}"
+```
+
+Both modes need curl/jq/rg, Docker for the pinned local configuration validator,
+the tracked managed tree and live HA API read access. `--check` reads live HA
+state and validates files; it is not an offline source-only check. `--apply`
+additionally needs authorized SSH access to the Proxmox host and running HA OS
+VM `101` with the QEMU guest agent. It writes managed configuration, requests a
+Core restart and restores the prior tree if the transaction fails.
 
 Validate entity references and the complete managed configuration without
 changing HA:
 
 ```bash
+test -n "${HVO_HOME_ASSISTANT_URL:?Establish HTTPS or explicit local HTTP transport above}"
 ./scripts/deploy-home-assistant-dashboard.sh --check
 ```
 
 Deploy, run Home Assistant configuration validation, and restart Core:
 
 ```bash
-export HVO_HOME_ASSISTANT_ALLOW_INSECURE=true
+test -n "${HVO_HOME_ASSISTANT_URL:?Establish HTTPS or explicit local HTTP transport above}"
 ./scripts/deploy-home-assistant-dashboard.sh --apply
 ```
 
-Optional overrides:
+Optional apply overrides, after securely loading `HOME_ASSISTANT_TOKEN`. This
+example explicitly opts into trusted local HTTP and performs writes/restart:
 
 ```bash
 HVO_PROXMOX_HOST=root@192.168.1.240 \
@@ -213,11 +236,12 @@ tree. If a different top-level `lovelace:` or `homeassistant:` key exists,
 deployment stops and requires a manual merge instead of creating a duplicate
 YAML key. The script never writes `.storage`.
 
-After deployment, run the focused live Playwright test with:
+After authorized deployment, run the read-only focused live Playwright test
+with the token already loaded; this is excluded from routine non-live checks:
 
 ```bash
 HVO_HOME_ASSISTANT_URL=http://192.168.1.113 \
-HOME_ASSISTANT_TOKEN=<long-lived-token> \
+HVO_HOME_ASSISTANT_ALLOW_INSECURE=true \
 dotnet test tests/HVO.WebSite.PlaywrightTests \
   --filter "FullyQualifiedName~HomeAssistantKasaDashboardPlaywrightTests"
 ```
@@ -240,14 +264,19 @@ battery, gateway-health, and outbox-backlog transitions:
 
 ## Energy preferences
 
-The dashboard deployment does not mutate Energy preferences. Check or apply the
-managed off-grid manifest transactionally through the supported WebSocket API:
+The dashboard deployment does not mutate Energy preferences. Establish URL,
+token and HTTPS (or the explicit trusted HTTP exception) through the
+[Core deployment prerequisites](#core-deployment) first. The migration tool
+requires `HVO_HOME_ASSISTANT_URL`; no default URL is inferred. Check and audit
+read live HA. Backup writes a restricted local archive; energy-apply mutates HA
+preferences and requires its own authorization. Use the supported WebSocket API:
 
 ```bash
-set -a && source .env && set +a
-export HVO_HOME_ASSISTANT_ALLOW_INSECURE=true
+test -n "${HVO_HOME_ASSISTANT_URL:?Establish HTTPS or explicit local HTTP transport above}"
+: "${HOME_ASSISTANT_TOKEN:?Load the approved Home Assistant token}"
 dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --backup
 dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-check
+# Separately authorized preference mutation:
 dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-apply
 dotnet run --project tools/HVO.Tools.HomeAssistantEntityMigration -- --energy-audit
 ```
@@ -368,8 +397,9 @@ not available to CI.
 3. Do not invoke switch, light, LED, outlet, or restart actions during discovery.
 4. Confirm each config entry is loaded and preserve entity IDs referenced by
    `configuration/dashboards/hvo-kasa.yaml`.
-5. Run `./scripts/deploy-home-assistant-dashboard.sh --check` after entity
-   renames. Missing dashboard entities fail validation.
+5. After entity renames, re-establish the URL/token/HTTPS or explicit HTTP opt-in
+   in [Core deployment prerequisites](#core-deployment), then use its `--check`
+   example. It reads the HA API without changing HA; missing entities fail.
 
 The observatory instance currently has 15 loaded TP-Link parent entries and 57
 registered parent/child devices. Kasa remains an HA-owned acquisition and
