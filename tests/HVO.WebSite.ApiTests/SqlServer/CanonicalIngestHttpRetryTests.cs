@@ -30,25 +30,30 @@ public sealed class CanonicalIngestHttpRetryTests
     private static readonly DateTime At = new(2026, 8, 12, 17, 30, 0, DateTimeKind.Utc);
 
     [TestMethod]
-    [DataRow("power")]
-    [DataRow("weather")]
-    [DataRow("bms")]
-    public async Task PartialOverlap_HttpDoesNotRetireMissingRecordsAndRetryAccountsForEveryAlias(string kind)
+    [DataRow("power", false)]
+    [DataRow("weather", false)]
+    [DataRow("bms", false)]
+    [DataRow("power", true)]
+    [DataRow("weather", true)]
+    public async Task PartialOverlap_HttpDoesNotRetireMissingRecordsAndRetryAccountsForEveryAlias(string kind, bool ownedSource)
     {
         await using var database = await SqlServerDatabase.CreateAsync();
         int deviceId;
         await using (var seed = database.CreateContext())
         {
+            var claims = new List<ApiKeyClaim>
+            {
+                new() { ClaimType = "scope", ClaimValue = ApiScopes.PowerIngest },
+                new() { ClaimType = "scope", ClaimValue = ApiScopes.WeatherIngest },
+                new() { ClaimType = "scope", ClaimValue = ApiScopes.BmsIngest }
+            };
+            if (ownedSource)
+                claims.Add(new ApiKeyClaim { ClaimType = "source", ClaimValue = kind == "weather" ? "http-weather" : "http-power" });
             seed.ApiKeys.Add(new ApiKey
             {
                 Id = Guid.NewGuid(), Name = "isolated-ingest", KeyHash = ApiKeyAuthMiddleware.HashKey(Key),
                 Type = ApiKeyType.System, IsActive = true, CreatedAt = At,
-                Claims =
-                [
-                    new ApiKeyClaim { ClaimType = "scope", ClaimValue = ApiScopes.PowerIngest },
-                    new ApiKeyClaim { ClaimType = "scope", ClaimValue = ApiScopes.WeatherIngest },
-                    new ApiKeyClaim { ClaimType = "scope", ClaimValue = ApiScopes.BmsIngest }
-                ]
+                Claims = claims
             });
             var device = new BmsDevice { Address = Device, Alias = "test", FirstSeenAt = At };
             seed.BmsDevices.Add(device);
@@ -94,7 +99,7 @@ public sealed class CanonicalIngestHttpRetryTests
             {
                 new() { StationId = "http-weather", RecordedAt = At },
                 new() { StationId = "http-weather", RecordedAt = At.AddMinutes(1) },
-                new() { StationId = "http-weather", RecordedAt = At.AddMinutes(1) }
+                new() { StationId = " http-weather ", RecordedAt = At.AddMinutes(1) }
             },
             _ => new[] { Request(0), Request(1), Request(1) }
         };
