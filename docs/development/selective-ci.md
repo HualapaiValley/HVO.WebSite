@@ -1,6 +1,6 @@
 # Selective CI
 
-Issue #411 introduces dependency-aware PR validation and is merged on main. Hosted snapshot/profile measurements remain separate source-bound evidence; candidate workflow changes cannot authorize their own admission. The #409 provider fixture is available and locally qualified below, with hosted candidate/main qualification still required. #408 browser migration remains pending.
+Issue #411 introduces dependency-aware PR validation. [PR #426](https://github.com/HualapaiValley/HVO.WebSite/pull/426) passed the previous trusted full CI after independent Deep review and was adopted on main at `4528667e69f8f88a75a4978792f980542dbdf044`. The first full main run and fixed measurement profiles are recorded below. The SQL-provider fixture is qualified on main after [PR #421](https://github.com/HualapaiValley/HVO.WebSite/pull/421), as recorded in [SQL fixture qualification](#sql-fixture-qualification). The #408 browser migration is qualified on main after [PR #433](https://github.com/HualapaiValley/HVO.WebSite/pull/433), as recorded in [browser fixture qualification](#browser-fixture-qualification). The measurements describe the original adoption snapshot, not those later changes, and cannot authorize a PR's admission.
 
 ## Planning and ownership
 
@@ -18,7 +18,7 @@ The retained ci-plan.json includes planner version, full head/base/merge tuple, 
 
 ## Execution and aggregation
 
-The bounded jobs run independent validation, HA, SQL, browser, operational and Docker work. Selected roots are locked-restored and built before tests; test execution reuses preparation with --no-build --no-restore. Debug validation runs fast and simulator partitions plus inexpensive policy checks; selected non-test roots also receive Release builds. HA assemblies share one sequential disposable stack. The browser job installs Chromium only for selected browser work. The #409 owned API SQL fixture is now available and locally qualified; the existing SQL job discovers its real categories and independently verifies its reports. Hosted candidate/main qualification remains source-bound CI evidence, and #408 browser migration remains pending.
+The bounded jobs run independent validation, HA, SQL, browser, operational and Docker work. Selected roots are locked-restored and built before tests; test execution reuses preparation with --no-build --no-restore. Debug validation runs fast and simulator partitions plus inexpensive policy checks; selected non-test roots also receive Release builds. HA assemblies share one sequential disposable stack. The browser job installs Chromium only for selected browser work. The #409 owned API SQL fixture is qualified locally and in hosted CI. The SQL job runs the eight runner-safety checks before provisioning, discovers the actual integration category, and independently verifies the resulting reports. The Browser lane uses owned Website, ThemeSandbox and HA wind-card fixtures, with distinct diagnostics for every case. Its report verifier accepts no ignored results.
 
 tools/ci-run.mjs executes a validated plan supplied through CI_PLAN with CI_HEAD, CI_BASE and CI_MERGE. Its jobs are validation, home-assistant, sql-server, browser, operations, docker-smoke and aggregate. It does not derive obligations or admit a PR. Use the [test-lane commands](testing.md) for full local validation; hand-written environment JSON is not trusted hosted admission evidence.
 
@@ -36,10 +36,81 @@ Main pushes, nightly snapshots and the default manual full profile use complete 
 
 Manual workflow profiles run only on trusted main. The fixed jkbms, website and shared profiles model a JK leaf, website and shared-contract input respectively; the full profile validates the complete snapshot. These profiles measure execution against one trusted main SHA, with equal head/base/merge values. They do not create a PR candidate, exercise a new PR admission or prove omitted work is safe for a real changed source.
 
-After adoption, invoke a fixed measurement profile with `gh workflow run ci.yml --ref main -f profile=jkbms`, substituting website or shared as needed. Omitting profile, or selecting full, requests the full snapshot. Retain the resulting run URL and immutable plan with the measurements.
+Invoke a fixed measurement profile with `gh workflow run ci.yml --ref main -f profile=jkbms`, substituting website or shared as needed. Omitting profile, or selecting full, requests the full snapshot. Run these profiles sequentially: they share main's workflow concurrency group, so overlapping dispatches cancel earlier runs. Retain the resulting run URL and immutable plan with the measurements.
 
-Hosted before/after measurements are pending. Retain the plan and source tuple for representative leaf, website, shared and full runs. Report wall elapsed time as the earliest job start to the latest job end, excluding queue time, and report summed runner duration separately in minutes. Parallel job durations overlap and must not be added to claim PR elapsed time. Compare the same validation obligations and explain omitted jobs from the dependency/input closure. Record failures and unavailable lanes rather than inventing a speed table.
+Report wall elapsed time as the earliest executed job start to the latest executed job end, excluding the initial queue. This includes gaps between dependent jobs; those gaps are not runner duration. Report summed executed-job duration separately. Parallel job durations overlap and must not be added to claim PR elapsed time. Compare the same validation obligations and explain omitted jobs from the dependency/input closure. Record failures and unavailable lanes rather than inventing a speed table.
+
+### Hosted measurements: 2026-10-04
+
+The before sample is the last full main run at `150607c6ccfa4aaf7ef7e354ea893cdd6e2b39b0`. Every after sample uses the same adopted snapshot, `4528667e69f8f88a75a4978792f980542dbdf044`, with identical head/base/merge values in its version-1 plan. All are hosted Ubuntu runs with coverage enabled. The fixed profiles model input paths against that snapshot; no application change was made between profiles.
+
+| Sample / retained run | Wall time | Summed runner time | Actual test results |
+|---|---:|---:|---|
+| [Before: full main](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37178384532) | 9m26s (566s) | 13m31s (811s) | 1,066 passed; one legacy ignored |
+| [After: full main](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37180483240) | 4m54s (294s) | 15m57s (957s) | 1,066 passed; one legacy ignored |
+| [After: JK leaf](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37180766829) | 1m22s (82s) | 2m11s (131s) | 142 passed |
+| [After: website](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37180864706) | 2m59s (179s) | 4m58s (298s) | 324 passed; one legacy ignored |
+| [After: shared contracts](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37181033514) | 5m28s (328s) | 16m15s (975s) | 1,066 passed; one legacy ignored |
+
+The old workflow ran the full solution and all images for these input types, so its full run is the observed before reference for each selected profile. There are no separately measured old leaf/website/shared runs and no paired real-PR comparison. These are single observations, not repeated trials or a performance guarantee. Full validation gave faster feedback while consuming more summed runner time; selection reduces the work for narrow inputs. The shared sample was slower than the after-full sample despite omitting operational work: its Docker job took 317s versus 255s. One hosted observation cannot attribute that variation to the planner or establish a stable speedup.
+
+| Profile | Modeled input and required closure | Work omitted with a verified reason |
+|---|---|---|
+| JK leaf | `src/HVO.Hardware.JkBms/Program.cs`; JK Debug test root and Release application root, their forward dependencies, JK Fast/simulator tests and the `jkbms` image | Other applications are not reverse consumers of JK. Its test assembly owns no HA, SQL or browser cases; no operational input changed. Shared dependencies are built without selecting every unrelated application that also references them. |
+| Website | `src/HVO.WebSite.v9/Program.cs`; API/Unit/Playwright roots, website Release build and forward dependencies, Fast/browser cases and the `website` image | Gateways/exporter are not reverse consumers of the website. The affected test assemblies own no simulator/HA/SQL cases at this snapshot; no operational input changed. Browser coverage is explicitly owned at this snapshot, before the later owned-fixture project references. |
+| Shared contracts | `src/HVO.Edge.Contracts/Contract.cs`; old/new reverse consumers plus forward dependencies, all 13 test assemblies across Fast/simulator/HA/browser and all six images | Unrelated standalone tools and ThemeSandbox are not affected build roots. The baseline browser executor still explicitly builds ThemeSandbox as a fixture. No operational input changed. SQL ownership is empty before #409. |
+| Full main | Every active build project, every non-live test lane present in the snapshot, all six images and operational checks | SQL ownership is empty before #409; Live tests remain opt-in. |
+
+The shared path is a fixed modeled input name, not a claim that a file with that name changed in Git. The plans retain their complete affected-project and build-dependency lists, roots, per-lane assemblies and empty reasons. Inexpensive policy checks still execute for every profile. Full main includes the operational checks omitted from all three fixed profiles.
+
+The before and after full TRX artifacts both contain 1,066 actual passes. Before retained 29 reports, including eleven zero-match simulator reports from the legacy solution-wide invocation. After retained 18 reports: 1,048 validation passes, four HA passes and fourteen browser passes. Selected reports must have actual passing tests; they do not use the legacy empty-report allowance. The one ignored browser scaffold is explicitly tracked by #408 and is never counted as acceptance. SQL and migrated website/browser tests are not claimed by this adoption snapshot; qualify those on their own merged source.
+
+<details>
+<summary>Reproduction and retained plan identities</summary>
+
+Each linked after run retains `ci-plan-<run-id>` and the selected `test-results-<lane>-<run-id>` artifacts. The before run retains `test-results-37178384532`. Test counts above come from individual TRX `UnitTestResult` outcomes, not a command exit or filter count. The workflow's other Node/Python/shell checks are additional and are not included in these .NET test totals.
+
+Use `gh run view <run-id> --json jobs` to retrieve job timestamps. Exclude skipped jobs; subtract each executed job's start from its completion and sum those durations for runner time. Wall time spans the earliest executed-job start through the latest completion. Verify the run/source and every executed job's success before reporting a qualifying result. The initial GitHub queue and billing multipliers are outside these measurements.
+
+| Profile / run | Plan digest |
+|---|---|
+| Full / 37180483240 | `5123fa13d2eb558111797457429eada84d5e8c363dba053039f5847fd7421889` |
+| JK / 37180766829 | `3956d411cb169f816d841677e826aeb296d41c90f4dcc0556bff62f4cd8ba3a5` |
+| Website / 37180864706 | `3b5713b5a1a04475923cd862035d8eb8f06b39fbb082d8e10904c6547c0e5e7b` |
+| Shared / 37181033514 | `631de3b6b505e6a8a272e8172807aac00d0328db9f53f491f394fb426e6b774d` |
+
+The reviewed implementation head was `3fd418a6801ab9948264f144db4bf3a671d8b971`; its [qualified pre-adoption PR CI](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37179975304) tested merge `f5774730d968901e21316c86170e114d3940f6de` against base `150607c6ccfa4aaf7ef7e354ea893cdd6e2b39b0`. That fresh run and the [independent correction approval](https://github.com/HualapaiValley/HVO.WebSite/pull/426#issuecomment-5976923639) establish the implementation's admission under the old trusted policy. The fixed profiles above do not replace PR review or admission evidence.
+
+</details>
 
 No dependency or Docker caching change is implemented here, and no cache benefit is claimed. Evaluate lock/SDK-keyed caching only after selection works, with separately measured evidence and without PR cache-write credentials.
 
-The last inspected main protection endpoint returned 404 and rulesets were empty. The intended checks are process requirements enforced through review/controller coordination; committed documentation does not activate GitHub branch protection. Do not claim repository protection is active without a new verified settings inspection.
+The read-only inspection at 2026-10-04 09:15 UTC returned 404 (Branch not protected) for main protection and an empty ruleset list. The intended checks are process requirements enforced through review/controller coordination; committed documentation does not activate GitHub branch protection. Do not claim repository protection is active without a new verified settings inspection.
+
+## SQL fixture qualification
+
+[PR #421](https://github.com/HualapaiValley/HVO.WebSite/pull/421) integrated the production-provider fixture at `31297abd3d2156ebf1280418fb86082e6dc38a85`. Its [first full main CI run](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37182172545) passed every planned lane and Docker smoke. Downloaded reports contain 1,084 passed tests, zero failures and one existing ignored browser scaffold across 19 TRX files; this later source includes both the SQL fixture and the chart tests from #406.
+
+The [SQL job](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37182172545/job/111376792359) ran all eight runner-safety checks successfully before provisioning, then passed all eight actual SQL Server tests with zero skips and a retained qualifying report. This verifies the newly adopted executor step on trusted main; premerge CI used the older trusted executor. [Issue #409 closeout](https://github.com/HualapaiValley/HVO.WebSite/issues/409#issuecomment-5977278554) records migration, query, fault and ownership acceptance. The original timing samples above remain tied to their earlier `4528667e` source; this later qualification is not a replacement benchmark.
+
+## Browser fixture qualification
+
+[PR #433](https://github.com/HualapaiValley/HVO.WebSite/pull/433) merged the owned browser suite at `e01715cd401202844fb9f0b315fbc7d12fcadd88`, after the website, chart, persistence and bounded-history prerequisites. It removes the ignored setup scaffold and its report-verifier allowance. Owned hosts exercise public and authorized routes, responsive power comparison, interactive controls, real Chart.js theme/gaps, empty states and circuit recovery. Missing-script and blocked-handler negative controls must fail the normal assertions before recovery. Each Browser case retains a distinct screenshot, console log and trace; no production credentials, external application targets or hardware are required.
+
+[Current independent Deep review](https://github.com/HualapaiValley/HVO.WebSite/pull/433#pullrequestreview-5405182219) and [qualified PR CI](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37191237037) cover reviewed head `d145930d545e24d829191ad42290572f98469846`, base `42e9b931a2ffeb3fbacaeee2f7ee30567db9fbe9` and synthetic merge `6c493ff6f4d9f9a743078d0cb9d314ee14740272`. That full plan passed 1,553 tests across 19 reports, with zero failures or ignored results; all six images and operations passed. Its digest is `a59afafcab3a547a9f987f46f22ac78110a737cf79e84e733194248ad470c980`. This pre-adoption run used the old trusted executor and does not alone establish activation of the new executor on main.
+
+The [first full main run](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37191811623) passed on that actual merged source, with head/base/merge all equal to `e01715cd401202844fb9f0b315fbc7d12fcadd88`. Its independently recomputed full-plan digest is `effd16ff4e87d7e5f5ac2c235e64eb34817c2592aa3b231c505daf97241ea775`. The newly trusted planner, executor and strict verifier all came from that immutable main source. Downloaded reports independently establish **1,553 passed, zero failed or ignored**, across 19 TRX files:
+
+| Lane | Passed tests |
+|---|---:|
+| Fast | 1,301 |
+| Simulator integration | 117 |
+| Home Assistant integration | 4 |
+| SQL Server integration | 73 |
+| Browser | 58 |
+
+The [Browser job](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/37191811623/job/111405464759) retained 58 distinct screenshot/console/trace sets and 174 TRX attachments. The adopted executor builds its owned Browser project root through project references, and no longer grants the scaffold's ignored-result allowance. The changed report controls passed within 125 validation Node checks; all eight SQL runner-safety checks separately passed before the 73 actual provider tests. Trusted aggregation accepted every planned lane; only the PR-specific review-evidence job was legitimately skipped on this main push. Operational checks and all six actual image builds passed: website, Davis, JK BMS, SmartShunt, EG4 and HA exporter. Cleanup evidence consists of successful jobs and ownership-checked EXIT paths, not an independently observed hosted resource inventory.
+
+This establishes integration of both owned fixtures on the complete foundation source. These later fixture checks do not replace or rebind the original timing samples above.
+
+[Issue #408 closeout](https://github.com/HualapaiValley/HVO.WebSite/issues/408#issuecomment-5978471212) records scoped acceptance and evidence. Fixture authentication does not prove a real Entra sign-in, and provider-failure tests do not claim a physical SQL outage. Responsive comparison bounds do not assert header nonintersection; existing shared-header crowding is tracked separately in [#434](https://github.com/HualapaiValley/HVO.WebSite/issues/434). No production deployment or live-hardware acceptance is inferred from this suite.
