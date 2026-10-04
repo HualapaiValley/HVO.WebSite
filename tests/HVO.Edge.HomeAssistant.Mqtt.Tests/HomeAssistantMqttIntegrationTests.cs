@@ -155,9 +155,9 @@ public sealed class HomeAssistantMqttIntegrationTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await session.DisconnectAsync(timeout.Token);
         await TestSupport.WaitUntilAsync(() => !projection.GetStatus().Connected, TimeSpan.FromSeconds(30));
-        // Starting the container is not a broker-readiness boundary. Wait for
-        // its MQTT health check before querying the rebound port or reconnecting.
-        await RunComposeAsync("start", "--wait", "--wait-timeout", "30", "mosquitto");
+        // Compose 2.x supports health waiting on up, but not on start. Retain the
+        // existing broker/container and wait before reading its rebound port.
+        await RunComposeAsync("up", "--detach", "--no-recreate", "--no-deps", "--wait", "--wait-timeout", "30", "mosquitto");
         var brokerAddress = (await RunComposeAsync("port", "mosquitto", "1883")).Trim();
         options.Port = PublishedPort(brokerAddress);
         credential.Settings = credential.Settings! with { Port = options.Port };
