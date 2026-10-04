@@ -1,5 +1,14 @@
 # Project History
 
+## 2026-10-04 — Canonical v9 weather query boundary (#410)
+
+Added a separate scoped, typed weather query service for new website features over
+v9 Davis raw/archive observations. Queries require a station, explicit UTC ranges,
+bounded continuation and freshness/no-data handling. Existing legacy weather APIs
+and stored-procedure historical access remain unchanged; external production writers
+and consumers remain an explicit operational inventory rather than an absence claim.
+See [canonical weather queries](development/canonical-weather-queries.md).
+
 Purpose: keep a lightweight working history that explains what changed, what was decided, and what to revisit later. This is not a release changelog.
 
 ## 2026-10-04 — Canonical retry durability and BMS event-time history (#400)
