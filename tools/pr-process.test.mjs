@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { runInNewContext } from 'node:vm';
 import { evaluate, record, phase, check, preflight, GitHub, PHASES, LOCAL_IDS, CI_JOBS, ciTitle } from './pr-process.mjs';
-import { reconcile, replacePhase, currentCI, runBinding } from './pr-process-control.mjs';
+import { reconcile, replacePhase, currentCI, runBinding, returnDraft } from './pr-process-control.mjs';
 
 const examples = JSON.parse(await readFile(new URL('./pr-process-fixture.json', import.meta.url), 'utf8'));
 const body = value => `Readable evidence.\n<!-- hvo-pr-process\n${JSON.stringify(value)}\n-->`;
@@ -24,6 +24,20 @@ function fixture() {
   return { values, snapshot, sync };
 }
 function rejected(state, pattern) { const result = evaluate(state); assert.equal(result.eligible, false); assert.match(result.errors.join('\n'), pattern); }
+test('obsolete run cancellation tolerates only a verified terminal conflict', async () => {
+  const pr = { number: 1, draft: true };
+  const run = { id: 99, status: 'in_progress', pull_requests: [{ number: 1 }] };
+  const api = (status, fresh) => ({ repository: 'owner/repo', request: async path => {
+    if (path.includes('/runs?')) return { workflow_runs: [run] };
+    if (path.endsWith('/cancel')) throw Object.assign(new Error('cancel rejected'), { status });
+    if (fresh instanceof Error) throw fresh;
+    return fresh;
+  } });
+  await returnDraft(api(409, { id: 99, status: 'completed' }), pr);
+  for (const [status, fresh] of [[409, { id: 99, status: 'in_progress' }], [409, { id: 100, status: 'completed' }], [403, { id: 99, status: 'completed' }], [409, new Error('unavailable')]]) {
+    await assert.rejects(returnDraft(api(status, fresh), pr));
+  }
+});
 function withFinding(f) {
   f.values.review.findings = [{ id: 'F1', severity: 'P1', threadId: 'PRRT_1', disposition: 'CORRECTED' }];
   f.snapshot.threads = [{ id: 'PRRT_1', isResolved: true, comments: [{ body: body(f.values.finding), author: { login: 'example-owner' } }, { body: body(f.values.verification), author: { login: 'example-owner' } }] }];
@@ -301,8 +315,14 @@ test('F1/F2 trusted workflow admission cannot use candidate code and predicates 
   const workflow = JSON.parse(execFileSync('ruby', ['-rjson', '-ryaml', '-e', 'v=YAML.load_file(".github/workflows/ci.yml"); v["on"]=v.delete(true) if v.key?(true); puts JSON.generate(v)'], { encoding: 'utf8' }));
   assert.ok(workflow.on.pull_request_target); assert.equal(workflow.on.pull_request, undefined);
   const gate = workflow.jobs['review-evidence']; assert.equal(gate.steps[0].with.ref, '${{ github.event.pull_request.base.sha }}'); assert.equal(gate.steps[0].with['persist-credentials'], false); assert.ok(Object.values(workflow.permissions).every(x => x === 'read'));
-  for (const name of ['build-and-test', 'docker-smoke']) {
-    const job = workflow.jobs[name]; assert.ok(job.steps[0].with.ref.includes('needs.review-evidence.outputs.merge')); assert.equal(job.steps[0].with['persist-credentials'], false);
+  for (const name of ['plan']) {
+    const job = workflow.jobs[name];
+    const candidate = job.steps.find(step => step.with?.path === 'candidate');
+    assert.ok(candidate.with.ref.includes('needs.review-evidence.outputs.merge'));
+    assert.equal(candidate.with['persist-credentials'], false);
+    assert.ok(job.steps[0].with.ref.includes('github.event.pull_request.base.sha'));
+    assert.equal(job.steps[0].with['persist-credentials'], false);
+    assert.equal(job.steps.find(step => step.id === 'plan').run, 'node ../trusted/tools/ci-source.mjs');
     const expr = job.if.slice(3, -2).replaceAll('needs.review-evidence', 'needs.review_evidence');
     const context = { github: { event_name: 'pull_request_target', event: { pull_request: { draft: false } }, run_attempt: 1 }, needs: { review_evidence: { result: 'success', outputs: { eligible: 'true' } } }, cancelled: () => false };
     assert.equal(runInNewContext(expr, context), true); context.cancelled = () => true; assert.equal(runInNewContext(expr, context), false);
@@ -310,6 +330,25 @@ test('F1/F2 trusted workflow admission cannot use candidate code and predicates 
     context.github.event_name = 'schedule'; assert.equal(runInNewContext(expr, context), true);
     context.github.event_name = 'pull_request_target'; context.needs.review_evidence.result = 'success'; context.github.run_attempt = 2; assert.equal(runInNewContext(expr, context), false);
     context.github.run_attempt = 1; context.github.event.pull_request.draft = true; assert.equal(runInNewContext(expr, context), false);
+  }
+  for (const name of ['validation', 'home-assistant', 'sql-server', 'browser', 'operations', 'docker-smoke']) {
+    const job = workflow.jobs[name];
+    assert.equal(job.needs, 'plan');
+    assert.ok(job.if.includes("needs.plan.result == 'success'"));
+    assert.ok(job.if.includes('!cancelled()'));
+    const candidate = job.steps.find(step => step.with?.path === 'candidate');
+    assert.equal(candidate.with.ref, '${{ fromJSON(needs.plan.outputs.plan).source.merge }}');
+    assert.equal(candidate.with['persist-credentials'], false);
+    assert.ok(job.steps.find(step => step.run)?.run.startsWith('node ../trusted/tools/ci-run.mjs '));
+  }
+  const aggregate = workflow.jobs['build-and-test'];
+  assert.deepEqual(aggregate.needs, ['plan', 'validation', 'home-assistant', 'sql-server', 'browser', 'operations']);
+  assert.ok(!aggregate.steps.some(step => step.with?.path === 'candidate'));
+  assert.ok(aggregate.steps[0].with.ref.includes('github.event.pull_request.base.sha'));
+  assert.equal(aggregate.steps.at(-1).run, 'node trusted/tools/ci-run.mjs aggregate');
+  for (const status of ['failure', 'cancelled', 'skipped']) {
+    const context = { needs: { plan: { result: status } }, cancelled: () => false };
+    assert.equal(runInNewContext(aggregate.if.slice(3, -2), context), false);
   }
 });
 test('F3 old target/merge and re-run original creation cannot qualify the current candidate', async () => {

@@ -61,7 +61,15 @@ export async function returnDraft(api, pr) {
   const data = await api.request(`/repos/${api.repository}/actions/workflows/ci.yml/runs?event=pull_request_target&per_page=100`);
   for (const run of data.workflow_runs) {
     if (!['queued', 'in_progress', 'waiting', 'pending', 'requested'].includes(run.status) || (runBinding(run)?.number !== pr.number && !run.pull_requests?.some(x => x.number === pr.number))) continue;
-    await api.request(`/repos/${api.repository}/actions/runs/${run.id}/cancel`, 'POST');
+    try {
+      await api.request(`/repos/${api.repository}/actions/runs/${run.id}/cancel`, 'POST');
+    } catch (error) {
+      // A queued draft run can finish between listing and cancellation. Only
+      // this conflict plus a fresh, matching terminal record satisfies cleanup.
+      if (error.status !== 409) throw error;
+      const fresh = await api.request(`/repos/${api.repository}/actions/runs/${run.id}`);
+      if (fresh.id !== run.id || fresh.status !== 'completed') throw error;
+    }
   }
 }
 

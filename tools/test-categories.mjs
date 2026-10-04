@@ -1,4 +1,5 @@
-// A convention check for literal MSTest attributes, not a C# compiler or test selector.
+// Literal MSTest conventions, not a C# compiler. CI may use the declared category
+// groups conservatively; unsupported syntax never establishes an empty test lane.
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve, relative, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -12,6 +13,7 @@ export function validateSource(source, file) {
   const scopes = [{ categories: [], testClass: false }];
   let attributes = [], header = [];
   let methods = 0;
+  const declarations = [], testClasses = [];
   const parsedCategories = () => {
     const values = [];
     for (let i = 0; i < attributes.length; i++) {
@@ -33,6 +35,7 @@ export function validateSource(source, file) {
     const scope = scopes.at(-1);
     const names = new Set([...scope.categories, ...parsedCategories()]);
     const method = header[header.indexOf('(') - 1] ?? '<test>';
+    declarations.push({ method, categories: [...names].sort() });
     const report = message => errors.push(`${file}:${method}: ${message}`);
     if (!scope.testClass) report('test method requires an owning [TestClass]');
     if (/(^|\/)Integration\//.test(file) || /IntegrationTests\.cs$/.test(file)) {
@@ -60,6 +63,14 @@ export function validateSource(source, file) {
     if (token === '{') {
       const parent = scopes.at(-1);
       const isClass = header.includes('class');
+      if (isClass && attributes.includes('TestClass')) {
+        const inheritance = header.indexOf(':');
+        testClasses.push({
+          name: header[header.indexOf('class') + 1],
+          partial: header.includes('partial'),
+          bases: inheritance < 0 ? [] : header.slice(inheritance + 1).join('').split(',')
+        });
+      }
       checkMethod();
       scopes.push(isClass ? { categories: parsedCategories(), testClass: attributes.includes('TestClass') } : parent);
       attributes = []; header = [];
@@ -73,7 +84,7 @@ export function validateSource(source, file) {
       header.push(token);
     }
   }
-  return { methods, errors };
+  return { methods, errors, declarations, testClasses };
 }
 
 async function files(root) {
