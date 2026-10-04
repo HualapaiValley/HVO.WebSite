@@ -45,7 +45,7 @@ def read_projects(files):
                 raise ValueError(f"{path}: unsupported test source selection: explicit {tag} can change test identity")
             if tag == "PackageReference" and any(character in (element.get("Include") or element.get("Update") or "") for character in "$@%;"):
                 raise ValueError(f"{path}: dynamic package test identity")
-            if tag == "PackageReference" and (element.get("Include") or element.get("Update")) in ("Microsoft.NET.Test.Sdk", "MSTest.TestFramework", "MSTest"):
+            if tag == "PackageReference" and (element.get("Include") or element.get("Update") or "").casefold() in ("microsoft.net.test.sdk", "mstest.testframework", "mstest"):
                 if conditional or element.get("Remove") or element.get("Update"):
                     raise ValueError(f"{path}: conditional/modified test SDK identity")
                 test_package = True

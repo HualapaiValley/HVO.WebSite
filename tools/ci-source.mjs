@@ -53,14 +53,31 @@ export function classifyTests(source, path, project) {
 
 export function readGraph(commit) {
   sha(commit);
-  const paths = git(['ls-tree', '-r', '--name-only', '-z', commit]).split('\0').filter(Boolean);
+  // Git stores a symlink's target text rather than the source MSBuild sees on
+  // disk. Retain modes so project/source/input links cannot hide requirements.
+  const entries = git(['ls-tree', '-r', '--full-tree', '-z', commit]).split('\0').filter(Boolean).map(entry => {
+    const match = /^(100644|100755|120000) blob [a-f0-9]{40}\t([^\u0000-\u001f]+)$/.exec(entry);
+    if (!match) throw new Error('Unsupported Git entry: unmodelled object or submodule');
+    return { path: match[2], regular: match[1] !== '120000' };
+  });
+  const paths = entries.map(entry => entry.path);
   const files = {};
-  for (const path of paths.filter(path => path === 'HVO.WebSite.sln' || path.endsWith('.csproj') || /^Directory\.Build\.(props|targets)$/.test(posix.basename(path)))) {
+  for (const { path, regular } of entries.filter(({ path }) => path === 'HVO.WebSite.sln' || path.endsWith('.csproj') || /^Directory\.Build\.(props|targets)$/.test(posix.basename(path)))) {
+    if (!regular) throw new Error(`Unsupported Git entry: linked build metadata ${path}`);
     files[path] = git(['show', `${commit}:${path}`]);
   }
   const graph = JSON.parse(execFileSync('python3', [new URL('./ci-projects.py', import.meta.url).pathname], {
     input: JSON.stringify(files), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024
   }));
+  for (const project of graph.projects) for (const { path } of entries.filter(entry => !entry.regular)) {
+    const mayTraverse = pattern => {
+      const prefix = pattern.split(/[*?]/, 1)[0];
+      return path.startsWith(prefix) || prefix.startsWith(`${path}/`);
+    };
+    if (path.startsWith(`${posix.dirname(project.path)}/`) || project.inputs.some(mayTraverse)) {
+      throw new Error(`Unsupported Git entry: ${project.path} may consume symlink ${path}`);
+    }
+  }
   for (const project of graph.projects.filter(project => project.test)) {
     const lanes = new Set();
     let methods = 0;

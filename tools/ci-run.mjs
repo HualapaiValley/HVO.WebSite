@@ -101,7 +101,7 @@ function main() {
     if (!plan.lanes[job].length) throw new Error('Unexpected empty HA execution');
     build(plan.lanes[job]);
     const fixture = prepareFixtureReports(job, plan.lanes[job]);
-    run('bash', ['tools/run-home-assistant-integration-tests.sh', '--prebuilt', '--projects', ...plan.lanes[job].map(projectPath), '--results-directory', fixture.root, ...(process.env.CI_COVERAGE === 'true' ? ['--coverage'] : [])]);
+    run('bash', ['tools/run-home-assistant-integration-tests.sh', '--ha-only', '--prebuilt', '--projects', ...plan.lanes[job].map(projectPath), '--results-directory', fixture.root, ...(process.env.CI_COVERAGE === 'true' ? ['--coverage'] : [])]);
     verifyFixtureReports(fixture.reports);
   } else if (job === 'sql-server') {
     if (!plan.lanes[job].length) throw new Error('Unexpected empty SQL execution');

@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 NS = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
 
 
-def verify(directory, allowed_ignored=()):
+def verify(directory, allowed_ignored=(), allow_empty_reports=False):
     allowed = set(allowed_ignored)
     if any(not identity.rpartition(".")[0] or not identity.rpartition(".")[2] for identity in allowed):
         raise ValueError("Ignored-test allowances require the full class.method identity")
@@ -19,8 +19,12 @@ def verify(directory, allowed_ignored=()):
         root = ET.parse(report).getroot()
         counters = root.find("t:ResultSummary/t:Counters", NS)
         results = root.findall("t:Results/t:UnitTestResult", NS)
-        if counters is None or not results:
+        if counters is None:
             raise ValueError(f"Empty/incomplete selected test report: {report}")
+        if not results:
+            if not allow_empty_reports or int(counters.get("total", "-1")) != 0 or int(counters.get("passed", "-1")) != 0 or any(int(value) != 0 for value in counters.attrib.values()):
+                raise ValueError(f"Empty/incomplete selected test report: {report}")
+            continue
         if any(int(counters.get(key, "0")) != 0 for key in ("failed", "error", "timeout", "aborted", "inconclusive", "notRunnable", "disconnected", "pending", "inProgress")):
             raise ValueError(f"Selected test report contains failures: {report}")
         successful = sum(result.get("outcome") == "Passed" for result in results)
@@ -52,6 +56,8 @@ def verify(directory, allowed_ignored=()):
             raise ValueError(f"TRX counters disagree with actual results: {report}")
         passed += successful
         ignored += skipped
+    if passed < 1:
+        raise ValueError(f"No actual passing tests in selected invocation: {directory}")
     return {"reports": len(reports), "passed": passed, "ignored": ignored}
 
 
@@ -59,5 +65,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory")
     parser.add_argument("--allow-ignored-test", action="append", default=[], metavar="CLASS.METHOD")
+    parser.add_argument("--allow-empty-reports", action="store_true", help="Legacy solution filters only; invocation still requires actual passing tests")
     args = parser.parse_args()
-    print(verify(args.directory, args.allow_ignored_test))
+    print(verify(args.directory, args.allow_ignored_test, args.allow_empty_reports))

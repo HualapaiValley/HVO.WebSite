@@ -143,5 +143,33 @@ class ResultsTests(unittest.TestCase):
                     results.verify(folder, [BASELINE])
 
 
+    def test_legacy_solution_allows_empty_assemblies_only_with_actual_passing_tests(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.report(folder, [], filename="empty.trx")
+            self.report(folder, ["Passed"], filename="passing.trx")
+            with self.assertRaises(ValueError):
+                results.verify(folder)
+            self.assertEqual(results.verify(folder, allow_empty_reports=True), {"reports": 2, "passed": 1, "ignored": 0})
+
+    def test_legacy_all_empty_or_inconsistent_empty_reports_fail(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.report(folder, [])
+            with self.assertRaisesRegex(ValueError, "No actual passing"):
+                results.verify(folder, allow_empty_reports=True)
+            self.report(folder, ["Passed"], filename="passing.trx")
+            for counters in ({"total": 1}, {"passed": 1}):
+                self.report(folder, [], **counters)
+                with self.assertRaises(ValueError):
+                    results.verify(folder, allow_empty_reports=True)
+
+    def test_legacy_empty_allowance_does_not_accept_failures_or_ignored_results(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.report(folder, ["Passed"], filename="passing.trx")
+            for outcomes in (["Failed"], ["Inconclusive"], ["Passed", "NotExecuted"]):
+                self.report(folder, outcomes)
+                with self.assertRaises(ValueError):
+                    results.verify(folder, allow_empty_reports=True)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -29,13 +29,13 @@ class ProjectTests(unittest.TestCase):
             self.assertTrue(self.graph(xml)['unsupported'])
 
     def test_sdk_package_identity_is_preserved_without_redundant_property(self):
-        for package in ('Microsoft.NET.Test.Sdk', 'MSTest.TestFramework', 'MSTest'):
+        for package in ('Microsoft.NET.Test.Sdk', 'MSTest.TestFramework', 'MSTest', 'microsoft.net.test.sdk', 'mstest', 'mStEsT.tEsTfRaMeWoRk'):
             with self.subTest(package=package):
                 graph = self.graph(f'<Project><ItemGroup><PackageReference Include="{package}"/></ItemGroup></Project>')
                 self.assertTrue(graph['projects'][0]['test'])
         for metadata in (
-            '<ItemGroup Condition="condition"><PackageReference Include="Microsoft.NET.Test.Sdk"/></ItemGroup>',
-            '<PropertyGroup><IsTestProject>false</IsTestProject></PropertyGroup><ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk"/></ItemGroup>',
+            '<ItemGroup Condition="condition"><PackageReference Include="microsoft.net.test.sdk"/></ItemGroup>',
+            '<PropertyGroup><IsTestProject>false</IsTestProject></PropertyGroup><ItemGroup><PackageReference Include="mStEsT"/></ItemGroup>',
             '<Import Project="hidden-test-identity.props"/>',
         ):
             with self.subTest(metadata=metadata), self.assertRaisesRegex(ValueError, 'test identity|test SDK identity'):

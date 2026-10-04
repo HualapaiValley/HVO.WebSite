@@ -10,12 +10,14 @@ allowed_projects=(
 )
 projects=("${allowed_projects[@]}")
 prebuilt=0
+ha_only=0
 coverage=()
 configuration=Debug
 results_root="$repo_root/TestResults/integration/home-assistant"
 projects_seen=0
 while (( $# )); do
     case "$1" in
+        --ha-only) [[ "$ha_only" == 0 ]] || { printf 'Repeated --ha-only.\n' >&2; exit 2; }; ha_only=1; shift ;;
         --prebuilt) [[ "$prebuilt" == 0 ]] || { printf 'Repeated --prebuilt.\n' >&2; exit 2; }; prebuilt=1; shift ;;
         --coverage) (( ${#coverage[@]} == 0 )) || { printf 'Repeated --coverage.\n' >&2; exit 2; }; coverage=(--collect:"XPlat Code Coverage"); shift ;;
         --projects)
@@ -41,13 +43,29 @@ for project in "${projects[@]}"; do
     [[ -z "${selected_projects[$project]:-}" ]] || { printf 'Repeated HA project: %s\n' "$project" >&2; exit 2; }
     selected_projects[$project]=1
 done
-# Standalone convenience prepares selected whole assemblies before any provisioning.
-# CI explicitly reuses its prior locked restore/build with --prebuilt.
+# Keep the trusted pre-adoption no-argument call complete: simulators and HA.
+# Planned CI explicitly requests --ha-only and reuses preparation with --prebuilt.
 if (( prebuilt == 0 )); then
-    for project in "${projects[@]}"; do
-        dotnet restore "$repo_root/$project" --locked-mode --nologo
-        dotnet build "$repo_root/$project" -c "$configuration" --no-restore --nologo
-    done
+    if (( ha_only == 0 )); then
+        dotnet restore "$repo_root/HVO.WebSite.sln" --locked-mode --nologo
+        dotnet build "$repo_root/HVO.WebSite.sln" -c "$configuration" --no-restore --nologo
+    else
+        for project in "${projects[@]}"; do
+            dotnet restore "$repo_root/$project" --locked-mode --nologo
+            dotnet build "$repo_root/$project" -c "$configuration" --no-restore --nologo
+        done
+    fi
+fi
+if (( ha_only == 0 )); then
+    simulator_results="$repo_root/TestResults/integration/simulators"
+    mkdir -p "$simulator_results"
+    find "$simulator_results" -type f -name '*.trx' -delete
+    dotnet test "$repo_root/HVO.WebSite.sln" -c "$configuration" --no-build --no-restore --nologo -v minimal \
+        --filter "TestCategory=Integration&TestCategory!=HomeAssistantIntegration&TestCategory!=SqlServerIntegration&TestCategory!=Browser&TestCategory!=Live" \
+        --settings "$repo_root/integration.runsettings" --logger trx "${coverage[@]}" --results-directory "$simulator_results"
+    # No-match assemblies may emit valid zero-result reports, but the complete
+    # legacy invocation must contain actual passing simulator tests.
+    python3 "$repo_root/tools/ci-results.py" "$simulator_results" --allow-empty-reports
 fi
 curl() { command curl --connect-timeout 5 --max-time 20 "$@"; }
 project_name="hvo-ha-integration-${GITHUB_RUN_ID:-local}-$$"

@@ -79,7 +79,8 @@ export function planWork({ source, baseGraph, candidateGraph, changes, complete,
   const requireFull = reason => { full = true; reasons.push(reason); };
   if (trigger !== 'pull_request_target' && trigger !== 'benchmark') requireFull(`Full validation for ${trigger}`);
   if (full) reasons.push('Explicit full validation requested');
-  for (const reason of [...(baseGraph.unsupported || []), ...(candidateGraph.unsupported || [])]) requireFull(reason);
+  const unsupported = [...(baseGraph.unsupported || []), ...(candidateGraph.unsupported || [])];
+  for (const reason of unsupported) requireFull(reason);
   const inputs = [];
   for (const change of changes) {
     if (!/^(A|M|D|T|R\d*|C\d*)$/.test(change.status || '') || !change.path || (change.status.startsWith('R') && !change.previousPath)) throw new Error('Malformed changed-file record');
@@ -125,7 +126,10 @@ export function planWork({ source, baseGraph, candidateGraph, changes, complete,
     for (const lane of kinds) lanes[lane].push(path);
   }
   const buildDependencies = sorted(closure(affectedProjects, forward));
-  const roots = candidates => candidates.filter(path => !candidates.some(other => other !== path && closure([other], forward).has(path)));
+  // A conditional reference may not exist in the actual build. Its conservative
+  // graph edge cannot prove another root will build that project; build every
+  // active project when metadata requires fallback.
+  const roots = candidates => unsupported.length ? candidates : candidates.filter(path => !candidates.some(other => other !== path && closure([other], forward).has(path)));
   const debugRoots = roots(affectedProjects);
   const releaseProjects = affectedProjects.filter(path => !current.get(path).test);
   const releaseRoots = roots(releaseProjects);

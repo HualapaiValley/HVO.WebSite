@@ -12,8 +12,8 @@ dotnet build HVO.WebSite.sln --no-restore --nologo
 pwsh tests/HVO.WebSite.PlaywrightTests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
 dotnet test HVO.WebSite.sln --no-build --no-restore --filter "TestCategory!=Integration&TestCategory!=Live" --logger trx --results-directory TestResults/fast
 dotnet test HVO.WebSite.sln --no-build --no-restore --settings integration.runsettings --filter "TestCategory=Integration&TestCategory!=HomeAssistantIntegration&TestCategory!=SqlServerIntegration&TestCategory!=Browser&TestCategory!=Live" --logger trx --results-directory TestResults/integration/simulators
-bash tools/run-home-assistant-integration-tests.sh
-node --test tools/pr-process.test.mjs tools/test-categories.test.mjs tools/ci-plan.test.mjs tools/ci-run.test.mjs
+bash tools/run-home-assistant-integration-tests.sh --ha-only
+node --test tools/pr-process.test.mjs tools/test-categories.test.mjs tools/ci-plan.test.mjs tools/ci-source.test.mjs tools/ci-run.test.mjs
 python3 -m unittest discover -s tools -p 'ci_*_test.py'
 python3 tools/verify-home-assistant-runner.py
 bash tools/verify-docker-build-smoke.sh
@@ -41,25 +41,29 @@ Directory.Build.targets applies the default RunSettingsFilePath after IsTestProj
 
 ## Home Assistant execution
 
-The HA runner runs only the provisioned HA category. Simulators run independently and do not require Docker or HA credentials. Standalone HA execution performs locked restores and builds its three allowlisted assemblies before provisioning:
+Explicit HA execution runs only the provisioned HA category. Simulators run independently and do not require Docker or HA credentials. Standalone HA execution performs locked restores and builds its three allowlisted assemblies before provisioning:
 
 ```bash
-bash tools/run-home-assistant-integration-tests.sh
+bash tools/run-home-assistant-integration-tests.sh --ha-only
 ```
 
 CI prepares selected whole assemblies and explicitly reuses that work:
 
 ```bash
-bash tools/run-home-assistant-integration-tests.sh --prebuilt --projects tests/HVO.Edge.HomeAssistant.Mqtt.Tests/HVO.Edge.HomeAssistant.Mqtt.Tests.csproj
+bash tools/run-home-assistant-integration-tests.sh --ha-only --prebuilt --projects tests/HVO.Edge.HomeAssistant.Mqtt.Tests/HVO.Edge.HomeAssistant.Mqtt.Tests.csproj
 ```
 
 --projects accepts one or more exact repository-relative paths for the MQTT, HA exporter and HA entity-migration test projects. Omission selects all three; explicit empty, unknown or duplicate selections fail before provisioning. --prebuilt skips preparation, and all test invocations use --no-build --no-restore. --configuration Debug|Release and --results-directory ROOT control configuration and report location. --coverage explicitly enables XPlat Code Coverage; PR execution omits collection, while main/nightly/manual runs request it.
+
+For compatibility with the trusted CI workflow during adoption, invoking the runner without --ha-only runs the complete simulator partition before provisioning HA. Without --prebuilt, that mode restores and builds the whole solution. Simulator reports use TestResults/integration/simulators; --results-directory controls only HA reports. Selected CI explicitly supplies --ha-only so it does not repeat the independent simulator lane.
 
 Assemblies remain sequential because tests restart the shared stack. Every invocation retains the 15-minute integration session setting. The runner bounds readiness, records broker diagnostics on failure, and removes its stack and temporary Docker configuration. Missing services or reports cannot count as passing acceptance.
 
 ## Reports and source-bound evidence
 
 Selected execution gives every lane/project its own TestResults directory and removes that invocation's prior TRX before testing. tools/ci-results.py requires fresh, nonempty reports with actual passing results and consistent counters. Failures, aborted/incomplete/inconclusive results and unexpected ignored cases fail the invocation; a zero-test filter is not success.
+
+The legacy whole-solution simulator invocation alone uses --allow-empty-reports because assemblies without simulator tests can emit zero-result TRX. Those reports must have all-zero counters, and the complete invocation must still contain actual passing tests. Selected per-project execution never enables that exception.
 
 The only ignored-test allowance is the actual existing HVO.WebSite.PlaywrightTests.PlaywrightTestSetupTests.PlaywrightSuite_IsConfiguredButDisabledByDefault result observed in the #407 baseline TRX. The verifier requires a matching class/method definition and permits that identity at most once across all reports in the invocation. It is reported as ignored, never as browser acceptance. The separate HomePage_ShouldRenderMainHeading scaffold was not discovered in that baseline and receives no allowance. #408 must replace both misleading scaffolds with meaningful coverage. Missing or mismatched definitions, duplicate ignored results and other ignored cases fail; pending browser migration must be reconciled before qualification.
 

@@ -47,8 +47,16 @@ elif name=='curl':
 elif name=='dotnet':
     if args[0]=='build' and os.environ.get('FAIL_BUILD'): sys.exit(19)
     if args[0]=='test':
+        simulator=args[1].endswith('.sln')
         if os.environ.get('FAIL_TEST'): sys.exit(37)
         directory=Path(args[args.index('--results-directory')+1]);directory.mkdir(parents=True,exist_ok=True)
+        if simulator:
+            if not os.environ.get('NO_SIMULATOR_REPORT'):
+                outcome='Failed' if os.environ.get('FAIL_SIMULATOR_REPORT') else 'Passed'
+                passed=0 if outcome=='Failed' else 1
+                (directory/'simulator.trx').write_text(f'<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010"><Results><UnitTestResult outcome="{outcome}"/></Results><ResultSummary><Counters total="1" passed="{passed}"/></ResultSummary></TestRun>')
+                (directory/'no-match.trx').write_text('<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010"><Results/><ResultSummary><Counters total="0" passed="0"/></ResultSummary></TestRun>')
+            sys.exit(0)
         if not os.environ.get('NO_REPORT'):
             outcome='NotExecuted' if os.environ.get('IGNORED_REPORT') else 'Passed'
             passed=0 if outcome=='NotExecuted' else 1
@@ -84,8 +92,9 @@ class HomeAssistantRunnerTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def run_script(self, *arguments, **environment):
-        result = subprocess.run(["bash", str(self.root / "tools/run-home-assistant-integration-tests.sh"), *arguments],
+    def run_script(self, *arguments, legacy=False, **environment):
+        flags = [] if legacy else ["--ha-only"]
+        result = subprocess.run(["bash", str(self.root / "tools/run-home-assistant-integration-tests.sh"), *flags, *arguments],
                                 env={**self.env, **environment}, capture_output=True, text=True, timeout=15)
         self.commands = [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
         return result
@@ -117,6 +126,30 @@ class HomeAssistantRunnerTests(unittest.TestCase):
         self.assertEqual(len({args[args.index("--results-directory") + 1] for args in tests}), 3)
         docker_index = next(i for i, args in enumerate(self.commands) if args[0] == "docker")
         self.assertTrue(all(self.commands.index(args) < docker_index for args in builds))
+
+    def test_legacy_no_argument_adoption_call_runs_simulators_then_all_ha(self):
+        result = self.run_script(legacy=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        restores = [args for args in self.commands if args[:2] == ["dotnet", "restore"]]
+        self.assertEqual(len(restores), 1)
+        self.assertTrue(restores[0][2].endswith('/HVO.WebSite.sln'))
+        self.assertIn('--locked-mode', restores[0])
+        tests = [args for args in self.commands if args[:2] == ["dotnet", "test"]]
+        self.assertEqual(len(tests), 4)
+        self.assertTrue(tests[0][2].endswith('/HVO.WebSite.sln'))
+        self.assertIn('TestCategory=Integration&TestCategory!=HomeAssistantIntegration&TestCategory!=SqlServerIntegration&TestCategory!=Browser&TestCategory!=Live', tests[0])
+        self.assertTrue(all('--no-build' in args and '--no-restore' in args for args in tests))
+        docker_index = next(i for i, args in enumerate(self.commands) if args[0] == 'docker')
+        self.assertLess(self.commands.index(tests[0]), docker_index)
+        self.assertEqual(len({args[args.index('--results-directory') + 1] for args in tests}), 4)
+
+    def test_legacy_missing_or_failed_simulators_stop_before_docker(self):
+        for environment in ({'NO_SIMULATOR_REPORT': '1'}, {'FAIL_SIMULATOR_REPORT': '1'}):
+            with self.subTest(environment=environment):
+                self.log.unlink(missing_ok=True)
+                result = self.run_script(legacy=True, **environment)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(any(args[0] == 'docker' for args in self.commands))
 
     def test_coverage_is_explicit_and_configuration_results_are_preserved(self):
         directory = str(self.root / "custom-results")
@@ -186,7 +219,7 @@ class HomeAssistantRunnerTests(unittest.TestCase):
         process = None
         try:
             process = subprocess.Popen(
-                ["bash", str(self.root / "tools/run-home-assistant-integration-tests.sh"), "--prebuilt", "--projects", MQTT],
+                ["bash", str(self.root / "tools/run-home-assistant-integration-tests.sh"), "--ha-only", "--prebuilt", "--projects", MQTT],
                 env={**self.env, "FIXTURE_SIGNAL_READY_FD": str(ready_write)},
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                 start_new_session=True, pass_fds=(ready_write,))

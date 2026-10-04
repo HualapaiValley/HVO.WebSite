@@ -146,6 +146,7 @@ for (const lane of ['home-assistant', 'sql-server']) {
     assert.equal(result.candidateVerifierCalled, false);
     if (lane === 'home-assistant') {
       assert.ok(result.args.includes('--prebuilt'));
+      assert.ok(result.args.includes('--ha-only'));
       assert.ok(result.args.includes('--results-directory'));
       assert.ok(haProjects.every(project => result.args.includes(project)));
     }

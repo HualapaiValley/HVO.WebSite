@@ -87,6 +87,14 @@ test('base and candidate references, rename sides and deleted source remain cove
   assert.deepEqual(plan([], { changes: [{ status: 'D', path: 'src/HVO.Hardware.JkBms/Old.cs' }] }).images, ['jkbms']);
   assert.equal(plan(['src/NewApp/NewApp.csproj']).mode, 'full');
 });
+test('unsupported reference evaluation cannot prune full build obligations', () => {
+  const candidateGraph = structuredClone(graph);
+  candidateGraph.unsupported = ['App: conditional ProjectReference to Lib'];
+  const result = plan(['README.md'], { candidateGraph });
+  assert.equal(result.mode, 'full');
+  assert.deepEqual(result.debugRoots, graph.projects.map(project => project.path).sort());
+  assert.deepEqual(result.releaseRoots, graph.projects.filter(project => !project.test).map(project => project.path).sort());
+});
 test('copied documentation takes precedence over prose classification', () => {
   const candidateGraph = structuredClone(graph);
   candidateGraph.projects.find(x => x.path === WEBSITE_TESTS).inputs.push('docs/fixture.md');
