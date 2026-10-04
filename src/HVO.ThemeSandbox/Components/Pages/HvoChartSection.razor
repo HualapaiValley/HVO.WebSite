@@ -33,6 +33,19 @@
                   YAxisSuggestedMin="0"
                   Labels="@_labels"
                   Datasets="@_sparseDatasets" />
+
+        <MudDivider Class="my-4" />
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Scoped theme colors with unchanged data</MudText>
+        <MudText Class="mb-2">Switch themes to update the axes, legend and default or CSS-variable series colors.</MudText>
+        <HvoChart ChartId="sandbox-chart-themed"
+                  Title="Theme-aware temperature"
+                  XAxisLabel="Sample"
+                  YAxisLabel="Celsius"
+                  ShowFahrenheitAxis="true"
+                  Height="260"
+                  Labels="@(new[] { "1", "2", "3", "4" })"
+                  Datasets="@_themeDatasets" />
     </MudCardContent>
 </MudCard>
 
@@ -57,5 +70,17 @@
             "#7ae0ff", Tension: 0.3),
         new("10-min gust", new double?[] { 14, 11, null, null, 18, 24, 31, null, 26, 22, 16, 13 },
             "#ff9f5a", Tension: 0.3)
+    ];
+
+    private static readonly HvoChartDataset[] _themeDatasets =
+    [
+        new("Defaults", new double?[] { 10, null, 16, 20 }),
+        new("CSS variable", new double?[] { 12, 14, 18, 22 },
+            "var(--shell-chart-axis-color)", "var(--shell-chart-marker-fill)"),
+        new("Color array", new double?[] { 14, 16, 20, 24 },
+            BorderColors: ["var(--shell-chart-label-color)", "var(--shell-chart-axis-color)",
+                           "var(--shell-chart-label-color)", "var(--shell-chart-axis-color)"],
+            BackgroundColors: ["var(--shell-chart-marker-fill)", "var(--shell-chart-label-color)",
+                               "var(--shell-chart-marker-fill)", "var(--shell-chart-label-color)"])
     ];
 }
