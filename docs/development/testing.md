@@ -22,7 +22,7 @@ bash tools/verify-docker-build-smoke.sh
 bash tools/validate-test-categories.sh
 ```
 
-The full local fast command deliberately retains all non-integration browser cases, so install Chromium before running it. The owned #409 SQL fixture is available and locally qualified against the actual production provider; use its provisioned command rather than including SQL categories in an unprovisioned solution run. Local qualification does not establish a passing hosted candidate/main run. #408's browser migration remains pending. The full exact-SDK build and applicable local tests remain required before review.
+The full local fast command deliberately retains all non-integration browser cases, so install Chromium before running it. The owned #409 SQL fixture is available and locally qualified against the actual production provider; use its provisioned command rather than including SQL categories in an unprovisioned solution run. Local qualification does not establish a passing hosted candidate/main run. The website and ThemeSandbox browser migration uses test-owned hosts; all non-Live browser cases retain diagnostics and run in the selected browser lane. The full exact-SDK build and applicable local tests remain required before review.
 
 ## Selected CI partitions
 
@@ -37,7 +37,20 @@ The planner selects whole assemblies and assigns their required non-live categor
 | Browser | `TestCategory=Browser&TestCategory!=Live`; Playwright assembly uses `TestCategory!=Integration&TestCategory!=Live` | Owned browser fixtures and Chromium; integration.runsettings |
 | Live | `TestCategory=Live` | Explicit opt-in physical/deployed targets; excluded from routine validation |
 
-HomeAssistantIntegration and SqlServerIntegration require Integration and cannot be combined. Browser cannot combine with Integration; unsupported Playwright integration ownership also fails visibly. Live cannot carry a required non-live category. Literal category validation checks each method's effective class/method categories; unknown or dynamic names fail. Conditional test declarations, attribute aliases and unsupported test-class inheritance fail planning visibly until their ownership convention is supported. A full build cannot repair an unknown test partition. #408 owns browser migration and removal of legacy scaffolds.
+HomeAssistantIntegration and SqlServerIntegration require Integration and cannot be combined. Browser cannot combine with Integration; unsupported Playwright integration ownership also fails visibly. Live cannot carry a required non-live category. Literal category validation checks each method's effective class/method categories; unknown or dynamic names fail. Conditional test declarations, attribute aliases and unsupported test-class inheritance fail planning visibly until their ownership convention is supported. A full build cannot repair an unknown test partition.
+
+## Owned website and ThemeSandbox browser fixtures
+
+Website and ThemeSandbox checks run against actual application hosts on OS-assigned loopback ports. The website replaces only test services with deterministic in-memory data, a fake clock and request authentication; the real authorization/challenge path remains exercised while the identity-provider redirect is intercepted. No production keys, external base URL or running application are required. The application project references build both targets. Each test owns its browser context and host, with bounded actions and teardown.
+
+```bash
+dotnet test tests/HVO.WebSite.PlaywrightTests/HVO.WebSite.PlaywrightTests.csproj --no-build --no-restore --settings integration.runsettings --filter "TestCategory!=Integration&TestCategory!=Live" --logger trx --results-directory TestResults/browser/HVO.WebSite.PlaywrightTests
+python3 tools/ci-results.py TestResults/browser/HVO.WebSite.PlaywrightTests
+```
+
+This runs every non-Live case in the Playwright assembly, including the isolated HA wind-card fixture. The 22 migrated main-site/sandbox cases retain public, authorized, responsive, control, style and reference-route assertions. Dashboard and scoped-chart suites add real Chart.js creation/theme/gap/lifecycle, provider failure recovery and empty-state checks. The instrument suite verifies the generated scoped stylesheet and compact layout in both themes; power-history cases assert actual UTC grids, sparse gaps, proportional spacing and visible display-zone labels. BrowserFailureQualificationTests inject a missing chart script and a blocked theme handler; the same assertions used by positive checks must fail and then pass after recovery. A visible canvas or button is insufficient.
+
+BrowserSession retains console/page errors, a screenshot and a trace under TestResults/browser by default, with unique test directories and TRX attachments. HVO_BROWSER_ARTIFACTS overrides that root for local evidence. CI uploads TestResults/** even on failure. Unexpected browser errors fail the migrated cases; intentional failure cases retain their expected diagnostics. Deployed Home Assistant/physical target checks retain Live and explicit opt-in configuration.
 
 Directory.Build.targets applies the default RunSettingsFilePath after IsTestProject is known. Non-test projects receive no default; an explicit property or --settings overrides it. The timeout is per assembly session, not per method. integration.runsettings provides 900000ms and maps inconclusive results to failure. Do not lengthen real-time waits to repair fake-time races.
 
@@ -85,7 +98,7 @@ Selected execution gives every lane/project its own TestResults directory and re
 
 The legacy whole-solution simulator invocation alone uses --allow-empty-reports because assemblies without simulator tests can emit zero-result TRX. Those reports must have all-zero counters, and the complete invocation must still contain actual passing tests. Selected per-project execution never enables that exception.
 
-The only ignored-test allowance is the actual existing HVO.WebSite.PlaywrightTests.PlaywrightTestSetupTests.PlaywrightSuite_IsConfiguredButDisabledByDefault result observed in the #407 baseline TRX. The verifier requires a matching class/method definition and permits that identity at most once across all reports in the invocation. It is reported as ignored, never as browser acceptance. The separate HomePage_ShouldRenderMainHeading scaffold was not discovered in that baseline and receives no allowance. #408 must replace both misleading scaffolds with meaningful coverage. Missing or mismatched definitions, duplicate ignored results and other ignored cases fail; pending browser migration must be reconciled before qualification.
+The two obsolete ignored website scaffolds have been removed: the home heading is asserted by MainSite_ShouldRenderPublicHomeShell, and the disabled-configuration scaffold had no behavior assertion. Selected browser execution has no ignored-test allowance. Failed, ignored, inconclusive, empty or stale browser reports fail qualification, including when a helper exits successfully. The runner fixtures exercise those failure paths without launching real applications.
 
 Solution testing uses generated TRX filenames rather than one shared LogFileName. HA reports retain `TestResults/integration/home-assistant/<project>`; selected direct lanes use `TestResults/<lane>/<project>`. Workflow artifact uploads retain reports after failure for validation, HA, SQL and browser jobs. Browser fixtures also retain their applicable screenshots, traces and console diagnostics.
 

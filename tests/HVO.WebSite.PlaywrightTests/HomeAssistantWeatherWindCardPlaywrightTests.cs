@@ -1,11 +1,27 @@
 using FluentAssertions;
+using HVO.WebSite.PlaywrightTests.Infrastructure;
 using Microsoft.Playwright;
 
 namespace HVO.WebSite.PlaywrightTests;
 
 [TestClass]
+[TestCategory("Browser")]
 public sealed class HomeAssistantWeatherWindCardPlaywrightTests
 {
+    public TestContext TestContext { get; set; } = null!;
+    private BrowserSession session = null!;
+
+    [TestInitialize]
+    public async Task Open() => session = await BrowserSession.OpenAsync(TestContext);
+
+    [TestCleanup]
+    public async Task Close()
+    {
+        if (session is null) return;
+        try { session.AssertNoUnexpectedErrors(); }
+        finally { await session.DisposeAsync(); }
+    }
+
     private static string CardPath =>
         Path.Combine(AppContext.BaseDirectory, "Fixtures", "HomeAssistant", "hvo-weather-wind-card.js");
 
@@ -17,9 +33,7 @@ public sealed class HomeAssistantWeatherWindCardPlaywrightTests
     [DataRow(359, "N")]
     public async Task WindCard_RendersNumericAndCardinalDirection(int degrees, string cardinal)
     {
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
-        var page = await browser.NewPageAsync();
+        var page = session.Page;
         await RenderCardAsync(page, degrees, DateTimeOffset.UtcNow, "live");
 
         await Assertions.Expect(page.GetByTestId("wind-cardinal")).ToHaveTextAsync(cardinal);
@@ -38,9 +52,7 @@ public sealed class HomeAssistantWeatherWindCardPlaywrightTests
     [DataRow("unavailable", "Unavailable")]
     public async Task WindCard_UsesAuthoritativeCollectorFreshness(string freshness, string expected)
     {
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
-        var page = await browser.NewPageAsync();
+        var page = session.Page;
         await RenderCardAsync(page, 180, DateTimeOffset.UtcNow, freshness);
 
         await Assertions.Expect(page.GetByTestId("wind-status")).ToHaveTextAsync(expected);
@@ -49,9 +61,7 @@ public sealed class HomeAssistantWeatherWindCardPlaywrightTests
     [TestMethod]
     public async Task WindCard_ObservationAgeIsSupportingDetailAndDoesNotOverrideLiveFreshness()
     {
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
-        var page = await browser.NewPageAsync();
+        var page = session.Page;
         await RenderCardAsync(page, 180, DateTimeOffset.UtcNow.AddMinutes(-10), "live");
 
         await Assertions.Expect(page.GetByTestId("wind-status")).ToHaveTextAsync("Current");
@@ -61,9 +71,7 @@ public sealed class HomeAssistantWeatherWindCardPlaywrightTests
     [TestMethod]
     public async Task WindCard_MissingReadingsDegradeWithoutOverridingCollectorFreshness()
     {
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
-        var page = await browser.NewPageAsync();
+        var page = session.Page;
         await RenderCardAsync(page, null, DateTimeOffset.UtcNow, "live");
 
         await Assertions.Expect(page.GetByTestId("wind-status")).ToHaveTextAsync("Current");
@@ -74,9 +82,8 @@ public sealed class HomeAssistantWeatherWindCardPlaywrightTests
     [TestMethod]
     public async Task WindCard_FitsHostShadowCardAndContentAtPhoneWidth()
     {
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
-        var page = await browser.NewPageAsync(new() { ViewportSize = new() { Width = 320, Height = 700 } });
+        var page = session.Page;
+        await page.SetViewportSizeAsync(320, 700);
         await RenderCardAsync(page, 180, DateTimeOffset.UtcNow, "stale");
 
         await Assertions.Expect(page.GetByTestId("wind-status")).ToHaveTextAsync("Stale");
