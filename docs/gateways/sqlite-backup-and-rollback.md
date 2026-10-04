@@ -95,8 +95,10 @@ docker --context "$backup_context" volume inspect "$source_volume" > "$backup_di
 docker --context "$backup_context" inspect "$writer_container" \
   --format '{{.Id}} {{.Config.Image}} {{.Image}}' > "$backup_dir/$checkpoint_id.image.txt"
 docker --context "$backup_context" stop --timeout 60 "$writer_container"
-test "$(docker --context "$backup_context" inspect "$writer_container" --format '{{.State.Running}}')" = false
-test -z "$(docker --context "$backup_context" ps -q --filter "volume=$source_volume")"
+writer_running=$(docker --context "$backup_context" inspect "$writer_container" --format '{{.State.Running}}')
+test "$writer_running" = false
+volume_users=$(docker --context "$backup_context" ps -q --filter "volume=$source_volume")
+test -z "$volume_users"
 ```
 
 Hold the maintenance window: no orchestrator, operator or alternate collector may
@@ -116,7 +118,8 @@ docker --context "$backup_context" run --rm --network none \
   --mount "type=volume,src=$source_volume,dst=/source,readonly" "$backup_helper" \
   tar -C /source -czf - . > "$archive.part"
 test -s "$archive.part"
-test -z "$(docker --context "$backup_context" ps -q --filter "volume=$source_volume")"
+volume_users=$(docker --context "$backup_context" ps -q --filter "volume=$source_volume")
+test -z "$volume_users"
 tar -tzf "$archive.part" > "$backup_dir/$checkpoint_id.members.txt"
 mv "$archive.part" "$archive"
 chmod 0600 "$archive"
@@ -136,21 +139,38 @@ listing and checksum prove transport/readability, not SQLite consistency.
 Choose a **new**, explicitly test-owned proof volume on the same inspected daemon.
 It has no gateway, device, network, secrets, exporter or central-ingest connection.
 Fail if the name already exists; never extract into the current gateway volume.
+Reserve the unique name for this attempt throughout creation and extraction;
+Docker volume creation is idempotent, not an exclusive-create operation. Every
+inventory/inspection query must succeed before its output is used as evidence.
 
 ```bash
 : "${proof_volume:?new test-owned proof volume name required}"
-if docker --context "$backup_context" volume inspect "$proof_volume" >/dev/null 2>&1; then
-  printf 'Proof volume already exists; choose a new name.\n' >&2
-  exit 1
-fi
-docker --context "$backup_context" volume create --label hvo.backup-proof=true "$proof_volume"
+proof_inventory=$(docker --context "$backup_context" volume ls --format '{{.Name}}')
+while IFS= read -r listed_volume; do
+  if test "$listed_volume" = "$proof_volume"; then
+    printf 'Proof volume already exists; choose a new name.\n' >&2
+    exit 1
+  fi
+done <<< "$proof_inventory"
+docker --context "$backup_context" volume create --label hvo.backup-proof=true \
+  --label "hvo.backup-checkpoint=$checkpoint_id" "$proof_volume"
+created_checkpoint=$(docker --context "$backup_context" volume inspect "$proof_volume" \
+  --format '{{index .Labels "hvo.backup-checkpoint"}}')
+test "$created_checkpoint" = "$checkpoint_id"
 sha256sum --check "$archive.sha256"
 docker --context "$backup_context" run --rm -i --network none \
   --mount "type=volume,src=$proof_volume,dst=/restore" "$backup_helper" \
   tar -C /restore -xzf - < "$archive"
 docker --context "$backup_context" run --rm --network none \
   --mount "type=volume,src=$proof_volume,dst=/restore" "$backup_helper" \
-  sh -ec 'test -s /restore/outbox.db; test "$(sqlite3 -readonly /restore/outbox.db "PRAGMA integrity_check; PRAGMA foreign_key_check;")" = ok; sqlite3 -readonly /restore/outbox.db "PRAGMA user_version; SELECT COUNT(*) FROM OutboxRecords;"' \
+  sh -ec '
+    test -s /restore/outbox.db
+    integrity_result=$(sqlite3 -readonly /restore/outbox.db "PRAGMA integrity_check;")
+    test "$integrity_result" = ok
+    foreign_key_result=$(sqlite3 -readonly /restore/outbox.db "PRAGMA foreign_key_check;")
+    test -z "$foreign_key_result"
+    sqlite3 -readonly /restore/outbox.db "PRAGMA user_version; SELECT COUNT(*) FROM OutboxRecords;"
+  ' \
   > "$backup_dir/$checkpoint_id.sqlite-proof.txt"
 ```
 
