@@ -6,6 +6,7 @@ internal sealed class HomeAssistantExporterState
     private bool connected;
     private DateTime? lastObservationUtc;
     private string? failure;
+    private readonly Dictionary<string, string> conflicts = new(StringComparer.Ordinal);
 
     public void SetConnected()
     {
@@ -25,15 +26,28 @@ internal sealed class HomeAssistantExporterState
         }
     }
 
-    public void RecordObservation(DateTime observedAtUtc)
+    public bool RecordConflict(string mappingId, string signature)
     {
         lock (sync)
-            lastObservationUtc = observedAtUtc;
+        {
+            var changed = !conflicts.TryGetValue(mappingId, out var previous) || previous != signature;
+            conflicts[mappingId] = signature;
+            return changed;
+        }
     }
 
-    public (bool Connected, DateTime? LastObservationUtc, string? Failure) Snapshot()
+    public void RecordObservation(string mappingId, DateTime observedAtUtc)
     {
         lock (sync)
-            return (connected, lastObservationUtc, failure);
+        {
+            lastObservationUtc = observedAtUtc;
+            conflicts.Remove(mappingId);
+        }
+    }
+
+    public (bool Connected, DateTime? LastObservationUtc, string? Failure, IReadOnlyList<string> ConflictingMappings) Snapshot()
+    {
+        lock (sync)
+            return (connected, lastObservationUtc, failure, conflicts.Keys.ToArray());
     }
 }

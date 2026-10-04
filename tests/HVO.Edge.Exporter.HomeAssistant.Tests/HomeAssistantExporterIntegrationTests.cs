@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace HVO.Edge.Exporter.HomeAssistant.Tests;
 
@@ -32,7 +33,7 @@ public sealed class HomeAssistantExporterIntegrationTests
 
         var options = Options.Create(CreateOptions(haUrl.Replace("http://", "ws://", StringComparison.Ordinal)));
         new HomeAssistantExporterOptionsValidator().Validate(null, options.Value).Succeeded.Should().BeTrue();
-        var projector = new HomeAssistantStateProjector(options);
+        var projector = new HomeAssistantStateProjector(options, TimeProvider.System);
         var source = new HomeAssistantWebSocketClient(options, new HomeAssistantExporterCredential { AccessToken = token });
         var directory = Path.Combine(Path.GetTempPath(), "hvo-ha-exporter-integration", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -56,53 +57,35 @@ public sealed class HomeAssistantExporterIntegrationTests
         });
         hostBuilder.Services.AddSingleton<IEdgeOutboxBatchSender, HomeAssistantOutboxBatchSender>();
         hostBuilder.Services.AddHostedService<HomeAssistantRetryRequeueWorker>();
+        hostBuilder.Services.AddSingleton(projector);
+        hostBuilder.Services.AddSingleton<IHomeAssistantEventSource>(source);
+        hostBuilder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+        hostBuilder.Services.AddSingleton<HomeAssistantExporterState>();
+        hostBuilder.Services.AddSingleton<IHomeAssistantObservationWriter, HomeAssistantObservationWriter>();
+        hostBuilder.Services.AddSingleton<HomeAssistantObservationCoordinator>();
+        hostBuilder.Services.AddHostedService<HomeAssistantExporterWorker>();
         using var host = hostBuilder.Build();
         await SetIngestStateAsync("unavailable");
         await host.StartAsync();
-        var writer = new HomeAssistantObservationWriter(host.Services.GetRequiredService<IServiceScopeFactory>());
-        var observations = new List<HomeAssistantMappedObservation>();
-        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        var session = source.RunSessionAsync(
-            async (snapshot, cancellationToken) =>
-            {
-                foreach (var observation in projector.Reconcile(snapshot))
-                {
-                    await writer.EnqueueAsync(observation, cancellationToken);
-                    projector.Acknowledge(observation);
-                    observations.Add(observation);
-                }
-            },
-            async (state, cancellationToken) =>
-            {
-                if (projector.Apply(state) is { } observation)
-                {
-                    await writer.EnqueueAsync(observation, cancellationToken);
-                    projector.Acknowledge(observation);
-                    observations.Add(observation);
-                    if (observation.Contract == HomeAssistantExportContract.PowerReading)
-                        changed.TrySetResult();
-                }
-            },
-            cancellation.Token);
-
-        await WaitUntilAsync(() => observations.Count >= 2, cancellation.Token);
         await WaitForRetryExhaustedCountAsync(host.Services, minimum: 2, cancellation.Token);
         await SetIngestStateAsync("available");
         var requeueWorker = host.Services.GetServices<IHostedService>().OfType<HomeAssistantRetryRequeueWorker>().Single();
         (await requeueWorker.RequeueAsync(cancellation.Token)).Should().BeGreaterThanOrEqualTo(2);
         await WaitForDrainAsync(host.Services, sentMinimum: 2, cancellation.Token);
         await SetValueAsync(http, "input_number.hvo_test_kasa_power_input", 321);
-        await changed.Task.WaitAsync(cancellation.Token);
         await WaitForDrainAsync(host.Services, sentMinimum: 3, cancellation.Token);
         await AssertCanonicalRequestsAsync();
         await cancellation.CancelAsync();
-        await session.Invoking(task => task).Should().ThrowAsync<OperationCanceledException>();
         await host.StopAsync();
-
-        observations.Should().Contain(observation => observation.Contract == HomeAssistantExportContract.PowerReading);
-        observations.Should().Contain(observation => observation.Contract == HomeAssistantExportContract.WeatherRaw);
-        observations.Count(observation => observation.Contract == HomeAssistantExportContract.PowerReading).Should().Be(2);
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            var records = await scope.ServiceProvider.GetRequiredService<DefaultEdgeOutboxDbContext>()
+                .OutboxRecords.AsNoTracking().ToListAsync();
+            records.Should().HaveCount(3);
+            records.Count(record => record.SourceId == "kasa:test").Should().Be(2);
+            records.Count(record => record.SourceId == "govee:test").Should().Be(1);
+        }
         Directory.Delete(directory, recursive: true);
     }
 

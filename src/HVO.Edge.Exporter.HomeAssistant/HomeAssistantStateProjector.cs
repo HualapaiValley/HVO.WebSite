@@ -1,12 +1,14 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.Edge.Contracts.Weather;
 using Microsoft.Extensions.Options;
 
 namespace HVO.Edge.Exporter.HomeAssistant;
 
-internal sealed class HomeAssistantStateProjector(IOptions<HomeAssistantExporterOptions> options)
+internal sealed class HomeAssistantStateProjector(IOptions<HomeAssistantExporterOptions> options, TimeProvider timeProvider)
 {
     private readonly HomeAssistantExporterOptions options = options.Value;
     private readonly Dictionary<string, HomeAssistantState> states = new(StringComparer.Ordinal);
@@ -35,15 +37,31 @@ internal sealed class HomeAssistantStateProjector(IOptions<HomeAssistantExporter
     public void Acknowledge(HomeAssistantMappedObservation observation) =>
         signatures[observation.MappingId] = observation.Signature;
 
+    public HomeAssistantMappedObservation? Project(string mappingId) =>
+        TryMap(options.Mappings.Single(mapping => mapping.Id == mappingId));
+
     private bool IsMapped(string entityId) => options.Mappings.Any(mapping => mapping.Entities.Any(binding => binding.EntityId == entityId));
 
     private HomeAssistantMappedObservation? TryMap(HomeAssistantExportMapping mapping)
     {
         var values = new Dictionary<HomeAssistantMetric, double>();
         var timestamp = DateTimeOffset.MinValue;
+        var now = timeProvider.GetUtcNow();
+        var requiredStates = mapping.Entities.Where(static binding => binding.Required)
+            .Select(binding => states.GetValueOrDefault(binding.EntityId!)).ToArray();
+        if (requiredStates.Any(state => state is null || !IsFresh(state, now))
+            || requiredStates.Max(state => state!.LastUpdatedUtc) - requiredStates.Min(state => state!.LastUpdatedUtc)
+                > TimeSpan.FromSeconds(options.MaxFieldSkewSeconds))
+        {
+            signatures.Remove(mapping.Id!);
+            return null;
+        }
+        var requiredTimestamp = requiredStates.Max(state => state!.LastUpdatedUtc);
         foreach (var binding in mapping.Entities)
         {
             if (!states.TryGetValue(binding.EntityId!, out var state)
+                || !IsFresh(state, now)
+                || (state.LastUpdatedUtc - requiredTimestamp).Duration() > TimeSpan.FromSeconds(options.MaxFieldSkewSeconds)
                 || !TryNormalize(state, binding.Metric, out var value))
             {
                 if (binding.Required)
@@ -58,9 +76,6 @@ internal sealed class HomeAssistantStateProjector(IOptions<HomeAssistantExporter
                 timestamp = state.LastUpdatedUtc;
         }
 
-        var signature = string.Join('|', values.OrderBy(static pair => pair.Key).Select(static pair => $"{pair.Key}:{pair.Value:R}"));
-        if (signatures.TryGetValue(mapping.Id!, out var previous) && previous == signature)
-            return null;
         object payload = mapping.Contract switch
         {
             HomeAssistantExportContract.PowerReading => new PowerReadingPayload
@@ -81,8 +96,16 @@ internal sealed class HomeAssistantStateProjector(IOptions<HomeAssistantExporter
             },
             _ => throw new InvalidOperationException("Unsupported Home Assistant export contract.")
         };
+        var signature = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            HomeAssistantObservationSerialization.Serialize(mapping.Contract, payload))));
+        if (signatures.TryGetValue(mapping.Id!, out var previous) && previous == signature)
+            return null;
         return new(mapping.Id!, signature, mapping.SourceId!, mapping.DeviceId!, timestamp, mapping.Contract, payload);
     }
+
+    private bool IsFresh(HomeAssistantState state, DateTimeOffset now) =>
+        now - state.LastUpdatedUtc <= TimeSpan.FromSeconds(options.RequiredFieldFreshnessSeconds)
+        && state.LastUpdatedUtc - now <= TimeSpan.FromSeconds(options.MaxFutureClockSkewSeconds);
 
     private static bool TryNormalize(HomeAssistantState state, HomeAssistantMetric metric, out double value)
     {

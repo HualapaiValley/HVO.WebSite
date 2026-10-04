@@ -23,6 +23,7 @@ internal static class HomeAssistantExporterRegistration
         services.AddSingleton<HomeAssistantStateProjector>();
         services.AddSingleton<IHomeAssistantEventSource, HomeAssistantWebSocketClient>();
         services.AddSingleton<IHomeAssistantObservationWriter, HomeAssistantObservationWriter>();
+        services.AddSingleton<HomeAssistantObservationCoordinator>();
         services.AddSingleton<IEdgeOutboxBatchSender, HomeAssistantOutboxBatchSender>();
         services.AddHostedService<HomeAssistantRetryRequeueWorker>();
         services.RemoveAll<IEdgeDiagnosticsSnapshotProvider>();

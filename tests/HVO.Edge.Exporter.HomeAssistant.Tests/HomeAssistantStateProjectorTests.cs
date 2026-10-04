@@ -12,7 +12,7 @@ public sealed class HomeAssistantStateProjectorTests
     [TestMethod]
     public void Reconcile_MapsTypedPowerAndWeatherContractsWithUnitConversion()
     {
-        var projector = new HomeAssistantStateProjector(Options.Create(TestOptions.Create()));
+        var projector = new HomeAssistantStateProjector(Options.Create(TestOptions.Create()), Clock());
         var now = DateTimeOffset.Parse("2026-08-11T10:00:00Z");
 
         var observations = projector.Reconcile([
@@ -34,12 +34,13 @@ public sealed class HomeAssistantStateProjectorTests
     [TestMethod]
     public void Apply_SuppressesUnchangedAndOlderStates()
     {
-        var projector = new HomeAssistantStateProjector(Options.Create(TestOptions.PowerOnly()));
+        var projector = new HomeAssistantStateProjector(Options.Create(TestOptions.PowerOnly()), Clock());
         var now = DateTimeOffset.Parse("2026-08-11T10:00:00Z");
         var initial = projector.Reconcile([State("sensor.kasa_power", "100", "W", "power", now)]).Should().ContainSingle().Which;
         projector.Acknowledge(initial);
 
-        projector.Apply(State("sensor.kasa_power", "100", "W", "power", now.AddSeconds(1))).Should().BeNull();
+        projector.Apply(State("sensor.kasa_power", "100", "W", "power", now)).Should().BeNull();
+        projector.Apply(State("sensor.kasa_power", "100", "W", "power", now.AddSeconds(1))).Should().NotBeNull();
         projector.Apply(State("sensor.kasa_power", "90", "W", "power", now.AddSeconds(-1))).Should().BeNull();
         projector.Apply(State("sensor.kasa_power", "90", "W", "power", now.AddSeconds(2))).Should().NotBeNull();
     }
@@ -47,8 +48,8 @@ public sealed class HomeAssistantStateProjectorTests
     [TestMethod]
     public void Reconcile_SuppressesMissingOrUnavailableRequiredValues()
     {
-        var projector = new HomeAssistantStateProjector(Options.Create(TestOptions.Create()));
-        var now = DateTimeOffset.UtcNow;
+        var projector = new HomeAssistantStateProjector(Options.Create(TestOptions.Create()), Clock());
+        var now = Clock().GetUtcNow();
 
         projector.Reconcile([
             State("sensor.kasa_power", "unavailable", "W", "power", now),
@@ -59,7 +60,7 @@ public sealed class HomeAssistantStateProjectorTests
     [TestMethod]
     public void Reconcile_RetriesUnacknowledgedObservationAndEmitsAfterSameValueRecovery()
     {
-        var projector = new HomeAssistantStateProjector(Options.Create(TestOptions.PowerOnly()));
+        var projector = new HomeAssistantStateProjector(Options.Create(TestOptions.PowerOnly()), Clock());
         var now = DateTimeOffset.Parse("2026-08-11T10:00:00Z");
         var available = State("sensor.kasa_power", "100", "W", "power", now);
 
@@ -73,7 +74,7 @@ public sealed class HomeAssistantStateProjectorTests
     [TestMethod]
     public void Reconcile_RemovesStateMissingFromAuthoritativeSnapshot()
     {
-        var projector = new HomeAssistantStateProjector(Options.Create(TestOptions.PowerOnly()));
+        var projector = new HomeAssistantStateProjector(Options.Create(TestOptions.PowerOnly()), Clock());
         var now = DateTimeOffset.Parse("2026-08-11T10:00:00Z");
         var initial = projector.Reconcile([State("sensor.kasa_power", "100", "W", "power", now)]).Single();
         projector.Acknowledge(initial);
@@ -87,4 +88,6 @@ public sealed class HomeAssistantStateProjectorTests
         value,
         JsonSerializer.SerializeToElement(new { unit_of_measurement = unit, device_class = deviceClass }),
         updated);
+
+    private static TestTimeProvider Clock() => new(DateTimeOffset.Parse("2026-08-11T10:00:00Z"));
 }

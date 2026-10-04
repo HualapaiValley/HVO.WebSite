@@ -16,6 +16,10 @@ public sealed class HomeAssistantExporterOptions
     public int MaxReconnectDelaySeconds { get; set; } = 30;
     public int MaxMessageBytes { get; set; } = 8 * 1024 * 1024;
     public int RetryExhaustedRequeueMinutes { get; set; } = 15;
+    public int CoalescingWindowMilliseconds { get; set; } = 250;
+    public int RequiredFieldFreshnessSeconds { get; set; } = 300;
+    public int MaxFieldSkewSeconds { get; set; } = 30;
+    public int MaxFutureClockSkewSeconds { get; set; } = 30;
     public bool AllowInsecureCentralIngest { get; set; }
     public bool AllowTestPlatforms { get; set; }
     public List<HomeAssistantExportMapping> Mappings { get; set; } = [];
@@ -55,6 +59,11 @@ internal sealed class HomeAssistantExporterOptionsValidator : IValidateOptions<H
             return ValidateOptionsResult.Fail("The central ingest secret file name is required.");
         if (options.RetryExhaustedRequeueMinutes is < 1 or > 1440)
             return ValidateOptionsResult.Fail("The retry-exhausted requeue interval is outside supported bounds.");
+        if (options.CoalescingWindowMilliseconds is < 1 or > 5000
+            || options.RequiredFieldFreshnessSeconds is < 1 or > 3600
+            || options.MaxFieldSkewSeconds is < 0 or > 300
+            || options.MaxFutureClockSkewSeconds is < 0 or > 300)
+            return ValidateOptionsResult.Fail("Home Assistant observation coalescing, freshness, or clock-skew settings are outside supported bounds.");
         if (!options.Enabled)
             return ValidateOptionsResult.Success;
         if (!Uri.TryCreate(options.Endpoint, UriKind.Absolute, out var endpoint)
