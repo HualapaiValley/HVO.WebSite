@@ -275,6 +275,7 @@ namespace HVO.WebSite.v9
 
             // Add application services
             services.AddScoped<HVO.WebSite.v9.Services.IWeatherService, HVO.WebSite.v9.Services.WeatherService>();
+            services.AddScoped<IV9WeatherQueryService, V9WeatherQueryService>();
             services.AddScoped<HVO.WebSite.v9.Services.ISiteConfigurationService, HVO.WebSite.v9.Services.SiteConfigurationService>();
             services.AddSingleton<PowerIngestTelemetry>();
 
