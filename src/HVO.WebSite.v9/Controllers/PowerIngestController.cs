@@ -993,7 +993,8 @@ public class PowerIngestController : ControllerBase
         string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
     private static DateTime NormalizeRecordedAt(DateTime recordedAt) =>
-        recordedAt.ToUniversalTime();
+        // Preserve the required-input sentinel before local conversion can give it a nonzero offset.
+        recordedAt == default ? default : recordedAt.ToUniversalTime();
 
     private static void ValidateRequiredTimestamp(
         List<ValidationResult> results,

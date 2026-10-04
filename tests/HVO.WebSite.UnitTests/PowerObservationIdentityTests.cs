@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FluentAssertions;
 using HVO.DataModels.Data;
 using HVO.Edge.Contracts;
@@ -98,6 +99,54 @@ public sealed class PowerObservationIdentityTests
         (await fixture.LatestAsync(kind, "source")).GetProperty("isStale").GetBoolean().Should().BeTrue();
     }
 
+    [TestMethod]
+    [DataRow("inventory"), DataRow("configuration"), DataRow("energy")]
+    [DataRow("inverter"), DataRow("mppt"), DataRow("gateway")]
+    public async Task OmittedAndDefaultTimestampsAreRejectedBeforeLocalNormalization_WithoutPersistence(string kind)
+    {
+        await using var fixture = new Fixture();
+        Console.WriteLine($"Host zone: {TimeZoneInfo.Local.Id}; snapshot route: {kind}");
+        foreach (var dateKind in new[] { DateTimeKind.Unspecified, DateTimeKind.Utc, DateTimeKind.Local })
+        {
+            var result = await fixture.IngestAsync(kind, "source", DateTime.SpecifyKind(default, dateKind), 100);
+            AssertMissingTimestamp(result);
+        }
+
+        var omitted = JsonNode.Parse(Payload(kind, "source", fixture.Clock.Now.UtcDateTime, 100).GetRawText())!.AsObject();
+        omitted.Remove("recordedAtUtc").Should().BeTrue();
+        AssertMissingTimestamp(await fixture.IngestAsync(kind, JsonSerializer.SerializeToElement(omitted)));
+        (await fixture.CountAsync(kind)).Should().Be(0, "invalid timestamp inputs must never be stored or acknowledged");
+        (await fixture.LatestAsync(kind, "source")).GetProperty("isPresent").GetBoolean().Should().BeFalse();
+    }
+
+    [TestMethod]
+    [DataRow("inventory"), DataRow("configuration"), DataRow("energy")]
+    [DataRow("inverter"), DataRow("mppt"), DataRow("gateway")]
+    public async Task ValidUtcLocalAndUnspecifiedInstantsRetainExistingNormalizationAndReplay(string kind)
+    {
+        await using var fixture = new Fixture();
+        var instant = fixture.Clock.Now.UtcDateTime.AddMinutes(-1);
+        var local = instant.ToLocalTime();
+        Console.WriteLine($"Host zone: {TimeZoneInfo.Local.Id}; UTC: {instant:o}; local: {local:o}");
+        foreach (var submitted in new[] { instant, local, DateTime.SpecifyKind(local, DateTimeKind.Unspecified) })
+        {
+            var source = $"source-{submitted.Kind}";
+            AssertInserted(await fixture.IngestAsync(kind, source, submitted, 100));
+            var latest = await fixture.LatestAsync(kind, source);
+            latest.GetProperty("recordedAtUtc").GetDateTime().Should().Be(instant);
+            latest.GetProperty("isStale").GetBoolean().Should().BeFalse();
+            AssertSkipped(await fixture.IngestAsync(kind, source, submitted, 100));
+        }
+        (await fixture.CountAsync(kind)).Should().Be(3);
+    }
+
+    private static void AssertMissingTimestamp(ActionResult<PowerSnapshotIngestResponse> result)
+    {
+        var rejected = result.Result.Should().BeOfType<BadRequestObjectResult>().Which;
+        rejected.Value.Should().BeOfType<ValidationProblemDetails>().Which.Errors
+            .Should().ContainKey("RecordedAtUtc").WhoseValue.Should().Contain("The RecordedAtUtc field is required.");
+    }
+
     private static void AssertInserted(ActionResult<PowerSnapshotIngestResponse> result) =>
         result.Result.Should().BeOfType<CreatedAtActionResult>().Which.Value.Should().BeEquivalentTo(new { Inserted = true, Skipped = false });
     private static void AssertSkipped(ActionResult<PowerSnapshotIngestResponse> result) =>
@@ -155,8 +204,10 @@ public sealed class PowerObservationIdentityTests
             };
         }
         public Task<ActionResult<PowerSnapshotIngestResponse>> IngestAsync(string kind, string source, DateTime at, int value)
+            => IngestAsync(kind, Payload(kind, source, at, value));
+
+        public Task<ActionResult<PowerSnapshotIngestResponse>> IngestAsync(string kind, JsonElement payload)
         {
-            var payload = Payload(kind, source, at, value);
             return kind switch
             {
                 "inventory" => controller.IngestDeviceInventory(payload.Deserialize<PowerDeviceInventoryPayload>(JsonSerializerOptions.Web)!, default),
