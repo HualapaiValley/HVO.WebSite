@@ -12,6 +12,11 @@ ThemeSandbox consumers. Adoption/failure history remains source-bound and separa
 from current authority; no workflow gate, application behavior, live operation or
 repository protection setting changes in this batch.
 
+Current JK MQTT documentation explicitly retains its existing secret-gated
+settings-password button/command, positive ACK and DeviceInfo password readback.
+That bounded credential-write exception does not imply generic BMS control,
+explicit settings-query support or new live hardware qualification.
+
 ## 2026-10-04 — Source-backed operations and recovery ownership (#415)
 
 Current runbooks now follow shared endpoint/auth and per-sender retry behavior,
