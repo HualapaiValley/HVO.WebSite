@@ -11,6 +11,11 @@ export DOCKER_CONFIG="$docker_config"
 cleanup() {
     exit_status=$?
     trap - EXIT
+    if (( exit_status != 0 )); then
+        # Preserve fixture state before teardown; never print credentials/env.
+        docker compose -p "$project_name" -f "$compose_file" ps --all >&2 || true
+        docker compose -p "$project_name" -f "$compose_file" logs --no-color --tail 80 mosquitto >&2 || true
+    fi
     if ! docker compose -p "$project_name" -f "$compose_file" down --volumes --remove-orphans --rmi local; then
         printf 'Failed to remove the Home Assistant integration environment.\n' >&2
         (( exit_status == 0 )) && exit_status=1
