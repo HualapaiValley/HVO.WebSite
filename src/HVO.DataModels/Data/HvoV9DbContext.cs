@@ -274,7 +274,6 @@ public class HvoV9DbContext : DbContext
         {
             entity.HasIndex(e => e.RecordedAt);
             entity.HasIndex(e => new { e.SourceId, e.RecordedAt }).IsUnique();
-            entity.HasIndex(e => new { e.SourceId, e.PayloadHash }).IsUnique();
             entity.Property(e => e.RecordedAt).HasColumnType("datetime2");
             entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
             entity.Property(e => e.SourceId).IsRequired();
@@ -286,7 +285,6 @@ public class HvoV9DbContext : DbContext
         {
             entity.HasIndex(e => e.RecordedAt);
             entity.HasIndex(e => new { e.SourceId, e.RecordedAt }).IsUnique();
-            entity.HasIndex(e => new { e.SourceId, e.PayloadHash }).IsUnique();
             entity.Property(e => e.RecordedAt).HasColumnType("datetime2");
             entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
             entity.Property(e => e.SourceId).IsRequired();
@@ -299,7 +297,6 @@ public class HvoV9DbContext : DbContext
             entity.ToTable("PowerEnergySnapshot");
             entity.HasIndex(e => e.RecordedAt);
             entity.HasIndex(e => new { e.SourceId, e.RecordedAt }).IsUnique();
-            entity.HasIndex(e => new { e.SourceId, e.PayloadHash }).IsUnique();
             entity.Property(e => e.RecordedAt).HasColumnType("datetime2");
             entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
             entity.Property(e => e.SourceId).IsRequired();
@@ -312,7 +309,6 @@ public class HvoV9DbContext : DbContext
             entity.ToTable("PowerInverterDetailSnapshot");
             entity.HasIndex(e => e.RecordedAt);
             entity.HasIndex(e => new { e.SourceId, e.RecordedAt }).IsUnique();
-            entity.HasIndex(e => new { e.SourceId, e.PayloadHash }).IsUnique();
             entity.Property(e => e.RecordedAt).HasColumnType("datetime2");
             entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
             entity.Property(e => e.SourceId).IsRequired();
@@ -345,7 +341,6 @@ public class HvoV9DbContext : DbContext
         {
             entity.HasIndex(e => e.RecordedAt);
             entity.HasIndex(e => new { e.SourceId, e.RecordedAt }).IsUnique();
-            entity.HasIndex(e => new { e.SourceId, e.PayloadHash }).IsUnique();
             entity.Property(e => e.RecordedAt).HasColumnType("datetime2");
             entity.Property(e => e.CreatedAt).HasColumnType("datetime2");
             entity.Property(e => e.SourceId).IsRequired();

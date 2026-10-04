@@ -20,6 +20,19 @@ Purpose: keep a lightweight working history that explains what changed, what was
 - Coordinate snapshot content proof with #402 while retaining public contracts.
   [Behavior and compatibility](development/canonical-ingest-retries.md) describe the boundary.
 
+## 2026-10-04 — Power snapshot observation identity (#402)
+
+- Replaced historical source/content uniqueness with submitted source/time observation
+  identity, retaining recurring states and fresh unchanged confirmations without rewriting
+  old rows. Inventory/configuration remain producer-driven observed snapshots; no new
+  periodic producer or confirmation timestamp is invented.
+- Kept content proof for identical replay and rejected different content at an immutable
+  identity. Latest/freshness queries retain source chronology and exclude impossible
+  future/default timestamps. #400 owns matching uniqueness-race acknowledgement proof.
+- Added the non-destructive index migration and actual SQL upgrade/downgrade coverage;
+  [semantics and rollout guidance](development/power-observation-identity.md) documents
+  per-type producer/reader evidence, storage growth and rollback limits.
+
 ## 2026-10-04 — Canonical SQL Server test boundary (#409)
 
 - Added a disposable, owned SQL Server lane using the actual production EF registration,

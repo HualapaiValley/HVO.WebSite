@@ -40,7 +40,7 @@ public sealed class PowerInventoryConfigurationProvider(
         var futureCutoffUtc = FutureCutoffUtc();
         var rows = await _db.PowerInverterDetailSnapshots
             .AsNoTracking()
-            .Where(item => item.SourceId == normalized && item.RecordedAt <= futureCutoffUtc)
+            .Where(item => item.SourceId == normalized && item.RecordedAt > DateTime.MinValue && item.RecordedAt <= futureCutoffUtc)
             .OrderByDescending(item => item.RecordedAt)
             .ThenByDescending(item => item.Id)
             .Take(100)
@@ -60,7 +60,7 @@ public sealed class PowerInventoryConfigurationProvider(
         var futureCutoffUtc = FutureCutoffUtc();
         var rows = await _db.PowerMpptDetailSnapshots
             .AsNoTracking()
-            .Where(item => item.SourceId == normalized && item.RecordedAt <= futureCutoffUtc)
+            .Where(item => item.SourceId == normalized && item.RecordedAt > DateTime.MinValue && item.RecordedAt <= futureCutoffUtc)
             .OrderByDescending(item => item.RecordedAt)
             .ThenByDescending(item => item.Id)
             .Take(100)
@@ -125,18 +125,18 @@ public sealed class PowerInventoryConfigurationProvider(
     private Task<DataModels.Models.V9.PowerDeviceInventorySnapshot?> GetLatestInventoryRowAsync(string sourceId, CancellationToken ct) =>
         _db.PowerDeviceInventorySnapshots
             .AsNoTracking()
-            .Where(r => r.SourceId == sourceId)
+            .Where(r => r.SourceId == sourceId && r.RecordedAt > DateTime.MinValue && r.RecordedAt <= FutureCutoffUtc())
             .OrderByDescending(r => r.RecordedAt)
             .FirstOrDefaultAsync(ct);
 
     private Task<DataModels.Models.V9.PowerConfigurationSnapshot?> GetLatestConfigurationRowAsync(string sourceId, CancellationToken ct) =>
         _db.PowerConfigurationSnapshots
             .AsNoTracking()
-            .Where(r => r.SourceId == sourceId)
+            .Where(r => r.SourceId == sourceId && r.RecordedAt > DateTime.MinValue && r.RecordedAt <= FutureCutoffUtc())
             .OrderByDescending(r => r.RecordedAt)
             .FirstOrDefaultAsync(ct);
 
-    private static PowerDeviceInventorySnapshotResponse MapInventory(string sourceId, DataModels.Models.V9.PowerDeviceInventorySnapshot? row, int staleAfterMinutes)
+    private PowerDeviceInventorySnapshotResponse MapInventory(string sourceId, DataModels.Models.V9.PowerDeviceInventorySnapshot? row, int staleAfterMinutes)
     {
         if (row is null)
             return new PowerDeviceInventorySnapshotResponse { SourceId = sourceId, IsPresent = false, IsStale = true };
@@ -147,9 +147,9 @@ public sealed class PowerInventoryConfigurationProvider(
             SourceId = row.SourceId,
             SourceSystem = row.SourceSystem,
             DeviceId = row.DeviceId,
-            RecordedAtUtc = row.RecordedAt,
+            RecordedAtUtc = DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc),
             IsPresent = true,
-            IsStale = DateTime.UtcNow - row.RecordedAt.ToUniversalTime() > TimeSpan.FromMinutes(staleAfterMinutes),
+            IsStale = timeProvider.GetUtcNow().UtcDateTime - DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc) > TimeSpan.FromMinutes(staleAfterMinutes),
             RestMetricCount = row.RestMetricCount,
             MqttEntityCount = row.MqttEntityCount,
             MqttStateTopicCount = row.MqttStateTopicCount,
@@ -157,7 +157,7 @@ public sealed class PowerInventoryConfigurationProvider(
         };
     }
 
-    private static PowerConfigurationSnapshotResponse MapConfiguration(string sourceId, DataModels.Models.V9.PowerConfigurationSnapshot? row, int staleAfterMinutes)
+    private PowerConfigurationSnapshotResponse MapConfiguration(string sourceId, DataModels.Models.V9.PowerConfigurationSnapshot? row, int staleAfterMinutes)
     {
         if (row is null)
             return new PowerConfigurationSnapshotResponse { SourceId = sourceId, IsPresent = false, IsStale = true };
@@ -168,15 +168,15 @@ public sealed class PowerInventoryConfigurationProvider(
             SourceId = row.SourceId,
             SourceSystem = row.SourceSystem,
             DeviceId = row.DeviceId,
-            RecordedAtUtc = row.RecordedAt,
+            RecordedAtUtc = DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc),
             IsPresent = true,
-            IsStale = DateTime.UtcNow - row.RecordedAt.ToUniversalTime() > TimeSpan.FromMinutes(staleAfterMinutes),
+            IsStale = timeProvider.GetUtcNow().UtcDateTime - DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc) > TimeSpan.FromMinutes(staleAfterMinutes),
             Settings = payload?.Settings ?? [],
             CommandCapabilities = payload?.CommandCapabilities ?? [],
         };
     }
 
-    private static PowerInverterDetailSnapshotResponse MapInverterDetail(
+    private PowerInverterDetailSnapshotResponse MapInverterDetail(
         string sourceId,
         DataModels.Models.V9.PowerInverterDetailSnapshot? row,
         int staleAfterMinutes,
@@ -190,9 +190,9 @@ public sealed class PowerInventoryConfigurationProvider(
             SourceId = row.SourceId,
             SourceSystem = row.SourceSystem,
             DeviceId = row.DeviceId,
-            RecordedAtUtc = row.RecordedAt,
+            RecordedAtUtc = DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc),
             IsPresent = true,
-            IsStale = DateTime.UtcNow - row.RecordedAt.ToUniversalTime() > TimeSpan.FromMinutes(staleAfterMinutes),
+            IsStale = timeProvider.GetUtcNow().UtcDateTime - DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc) > TimeSpan.FromMinutes(staleAfterMinutes),
             PvStrings = payload?.PvStrings ?? [],
             Ac = payload?.Ac,
             Load = payload?.Load,
@@ -204,7 +204,7 @@ public sealed class PowerInventoryConfigurationProvider(
         };
     }
 
-    private static PowerMpptDetailSnapshotResponse MapMpptDetail(
+    private PowerMpptDetailSnapshotResponse MapMpptDetail(
         string sourceId,
         DataModels.Models.V9.PowerMpptDetailSnapshot? row,
         int staleAfterMinutes,
@@ -219,9 +219,9 @@ public sealed class PowerInventoryConfigurationProvider(
             SourceId = row.SourceId,
             SourceSystem = row.SourceSystem,
             DeviceId = row.DeviceId,
-            RecordedAtUtc = row.RecordedAt,
+            RecordedAtUtc = DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc),
             IsPresent = true,
-            IsStale = DateTime.UtcNow - row.RecordedAt.ToUniversalTime() > TimeSpan.FromMinutes(staleAfterMinutes),
+            IsStale = timeProvider.GetUtcNow().UtcDateTime - DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc) > TimeSpan.FromMinutes(staleAfterMinutes),
             Trackers = payload?.Trackers ?? [],
             BatteryOutput = payload?.BatteryOutput,
             Temperatures = payload?.Temperatures ?? [],
