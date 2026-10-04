@@ -23,15 +23,18 @@ public class ApiKeyAuthMiddleware
     private readonly RequestDelegate _next;
     private readonly IMemoryCache _cache;
     private readonly ILogger<ApiKeyAuthMiddleware> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public ApiKeyAuthMiddleware(
         RequestDelegate next,
         IMemoryCache cache,
-        ILogger<ApiKeyAuthMiddleware> logger)
+        ILogger<ApiKeyAuthMiddleware> logger,
+        TimeProvider timeProvider)
     {
         _next = next;
         _cache = cache;
         _logger = logger;
+        _timeProvider = timeProvider;
     }
 
     public async Task InvokeAsync(HttpContext context, HvoV9DbContext db)
@@ -52,22 +55,29 @@ public class ApiKeyAuthMiddleware
         var keyHash = HashKey(rawKey.ToString().Trim());
         var cacheKey = $"apikey:{keyHash}";
 
-        if (!_cache.TryGetValue(cacheKey, out ClaimsPrincipal? principal))
+        if (!_cache.TryGetValue(cacheKey, out CachedAuthentication? authentication)
+            || authentication is null
+            || authentication.ValidUntil <= _timeProvider.GetUtcNow())
         {
-            principal = await BuildPrincipalAsync(db, keyHash, context.RequestAborted);
+            authentication = await BuildAuthenticationAsync(db, keyHash, context.RequestAborted);
 
-            if (principal is not null)
+            // MemoryCache may use a different clock. The explicit deadline above is
+            // authoritative, including in tests that advance only the injected clock.
+            var remaining = authentication.ValidUntil - _timeProvider.GetUtcNow();
+            if (remaining > TimeSpan.Zero)
             {
-                _cache.Set(cacheKey, principal, CacheTtl);
+                _cache.Set(cacheKey, authentication, remaining);
             }
             else
             {
-                // Cache negative result briefly to reduce DB load from invalid keys
-                _cache.Set(cacheKey, (ClaimsPrincipal?)null, TimeSpan.FromSeconds(30));
+                _cache.Remove(cacheKey);
             }
         }
 
-        if (principal is null)
+        // Recheck after the database work too: a credential may expire while its
+        // principal/LastUsedAt is being loaded, and equality means expired.
+        if (authentication.Principal is null
+            || authentication.ExpiresAt is { } expiry && expiry <= _timeProvider.GetUtcNow())
         {
             _logger.LogWarning("Invalid or inactive API key presented from {RemoteIp}", context.Connection.RemoteIpAddress);
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -75,22 +85,24 @@ public class ApiKeyAuthMiddleware
             return;
         }
 
-        context.User = principal;
+        context.User = authentication.Principal;
         await _next(context);
     }
 
-    private async Task<ClaimsPrincipal?> BuildPrincipalAsync(HvoV9DbContext db, string keyHash, CancellationToken ct)
+    private async Task<CachedAuthentication> BuildAuthenticationAsync(HvoV9DbContext db, string keyHash, CancellationToken ct)
     {
         var apiKey = await db.ApiKeys
             .Include(k => k.Claims)
             .Include(k => k.Owner)
             .FirstOrDefaultAsync(k => k.KeyHash == keyHash && k.IsActive, ct);
 
-        if (apiKey is null)
-            return null;
-
-        if (apiKey.ExpiresAt.HasValue && apiKey.ExpiresAt.Value < DateTime.UtcNow)
-            return null;
+        var now = _timeProvider.GetUtcNow();
+        // ExpiresAt is stored UTC; SQL datetime2 materializes it as Unspecified.
+        DateTimeOffset? expiresAt = apiKey?.ExpiresAt is { } value
+            ? new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc))
+            : null;
+        if (apiKey is null || expiresAt is { } expiry && expiry <= now)
+            return new(null, expiresAt, now.AddSeconds(30));
 
         await UpdateLastUsedAsync(db, apiKey.Id, ct);
 
@@ -117,16 +129,20 @@ public class ApiKeyAuthMiddleware
         }
 
         var identity = new ClaimsIdentity(claims, AuthScheme);
-        return new ClaimsPrincipal(identity);
+        var validUntil = now.Add(CacheTtl);
+        if (expiresAt is { } deadline && deadline < validUntil)
+            validUntil = deadline;
+        return new(new ClaimsPrincipal(identity), expiresAt, validUntil);
     }
 
     private async Task UpdateLastUsedAsync(HvoV9DbContext db, Guid keyId, CancellationToken ct)
     {
         try
         {
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
             await db.ApiKeys
                 .Where(k => k.Id == keyId)
-                .ExecuteUpdateAsync(s => s.SetProperty(k => k.LastUsedAt, DateTime.UtcNow), ct);
+                .ExecuteUpdateAsync(s => s.SetProperty(k => k.LastUsedAt, now), ct);
         }
         catch (Exception ex)
         {
@@ -140,6 +156,11 @@ public class ApiKeyAuthMiddleware
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawKey));
         return Convert.ToHexStringLower(bytes);
     }
+
+    private sealed record CachedAuthentication(
+        ClaimsPrincipal? Principal,
+        DateTimeOffset? ExpiresAt,
+        DateTimeOffset ValidUntil);
 
     private static bool RequiresApiKeyForProtectedApiEndpoint(HttpContext context)
     {

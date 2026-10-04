@@ -23,7 +23,8 @@ public class WeatherV9ControllerTests
             .Options);
 
     private static WeatherIngestController CreateController(HvoV9DbContext db) =>
-        new(db, NullLogger<WeatherIngestController>.Instance);
+        new(db, NullLogger<WeatherIngestController>.Instance)
+        { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
 
     private static WeatherRaw MakeRaw(string stationId, DateTime recordedAt, double tempF = 70.0) =>
         new()

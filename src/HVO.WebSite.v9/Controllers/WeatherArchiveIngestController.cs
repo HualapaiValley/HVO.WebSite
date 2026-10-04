@@ -18,7 +18,8 @@ namespace HVO.WebSite.v9.Controllers;
 [Tags("Weather")]
 public sealed class WeatherArchiveIngestController(
     HvoV9DbContext db,
-    ILogger<WeatherArchiveIngestController> logger) : ControllerBase
+    ILogger<WeatherArchiveIngestController> logger,
+    TimeProvider? clock = null) : ControllerBase
 {
     [HttpPost("batch")]
     [Authorize(Policy = "WeatherIngest")]
@@ -66,6 +67,7 @@ public sealed class WeatherArchiveIngestController(
                 continue;
             }
 
+            item = item with { StationId = item.StationId.Trim() };
             var key = (item.StationId, item.RecordedAtUtc);
             if (!seen.Add(key))
             {
@@ -76,7 +78,7 @@ public sealed class WeatherArchiveIngestController(
         }
 
         if (!await IngestSourceAuthority.CanWriteAllAsync(
-            db, User, valid.Select(static item => ((string?)item.StationId, (string?)"davis-vantage-pro2")), cancellationToken))
+            db, User, valid.Select(static item => ((string?)item.StationId, (string?)"davis-vantage-pro2")), clock ?? TimeProvider.System, cancellationToken))
             return Forbid();
 
         var stationIds = valid.Select(static item => item.StationId).Distinct().ToArray();

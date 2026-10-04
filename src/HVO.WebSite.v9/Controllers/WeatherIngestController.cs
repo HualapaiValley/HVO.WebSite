@@ -30,11 +30,13 @@ public class WeatherIngestController : ControllerBase
     /// </summary>
     public const int MaxBatchSize = 500;
 
+    private readonly TimeProvider _clock;
     private readonly HvoV9DbContext _db;
     private readonly ILogger<WeatherIngestController> _logger;
 
-    public WeatherIngestController(HvoV9DbContext db, ILogger<WeatherIngestController> logger)
+    public WeatherIngestController(HvoV9DbContext db, ILogger<WeatherIngestController> logger, TimeProvider? clock = null)
     {
+        _clock = clock ?? TimeProvider.System;
         _db = db;
         _logger = logger;
     }
@@ -78,10 +80,15 @@ public class WeatherIngestController : ControllerBase
         [FromBody] IngestWeatherRawRequest request,
         CancellationToken ct)
     {
+        var stationId = request.StationId.Trim();
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, [(stationId, request.SourceSystem)], _clock, ct))
+            return Forbid();
+
         var record = new WeatherRaw
         {
             RecordedAt = request.RecordedAt?.ToUniversalTime() ?? DateTime.UtcNow,
-            StationId = request.StationId,
+            StationId = stationId,
             TemperatureF = request.TemperatureF,
             HumidityPercent = request.HumidityPercent,
             DewPointF = request.DewPointF,
@@ -217,15 +224,15 @@ public class WeatherIngestController : ControllerBase
                 new WeatherRawBatchResponse { Inserted = 0, Skipped = 0, Failed = deserErrors });
         }
 
+        // Resolve canonical identities once for authority, deduplication and storage.
+        var resolved = requests.Select(r => (Request: r, StationId: r.StationId?.Trim() ?? string.Empty,
+            RecordedAt: r.RecordedAt?.ToUniversalTime() ?? DateTime.UtcNow)).ToList();
         if (!await IngestSourceAuthority.CanWriteAllAsync(
-            _db, User, requests.Select(static request => ((string?)request.StationId, request.SourceSystem)), ct))
+            _db, User, resolved.Select(static row => ((string?)row.StationId, row.Request.SourceSystem)), _clock, ct))
             return Forbid();
 
-        // Resolve timestamps up-front (null RecordedAt → server time)
-        var resolved = requests.Select(r => (Request: r, RecordedAt: r.RecordedAt?.ToUniversalTime() ?? DateTime.UtcNow)).ToList();
-
         // One query to find which (StationId, RecordedAt) pairs already exist
-        var stationIds = resolved.Select(x => x.Request.StationId).Distinct().ToList();
+        var stationIds = resolved.Select(x => x.StationId).Distinct().ToList();
         var timestamps = resolved.Select(x => x.RecordedAt).Distinct().ToList();
         var existing = await _db.WeatherRaw
             .Where(r => r.StationId != null && stationIds.Contains(r.StationId) && timestamps.Contains(r.RecordedAt))
@@ -238,17 +245,17 @@ public class WeatherIngestController : ControllerBase
         int skipped = 0;
         var seenInBatch = new HashSet<(string?, DateTime)>();
 
-        foreach (var (request, recordedAt) in resolved)
+        foreach (var (request, stationId, recordedAt) in resolved)
         {
             // Skip duplicates — already in DB, treat as success
-            if (existingKeys.Contains((request.StationId, recordedAt)))
+            if (existingKeys.Contains((stationId, recordedAt)))
             {
                 skipped++;
                 continue;
             }
 
             // Skip intra-batch duplicates by (StationId, RecordedAt)
-            if (!seenInBatch.Add((request.StationId, recordedAt)))
+            if (!seenInBatch.Add((stationId, recordedAt)))
             {
                 skipped++;
                 continue;
@@ -260,7 +267,7 @@ public class WeatherIngestController : ControllerBase
             {
                 failures.Add(new WeatherRawBatchFailure
                 {
-                    StationId = request.StationId,
+                    StationId = stationId,
                     RecordedAt = recordedAt,
                     Error = string.Join("; ", validationResults.Select(r => r.ErrorMessage))
                 });
@@ -270,7 +277,7 @@ public class WeatherIngestController : ControllerBase
             toInsert.Add(new WeatherRaw
             {
                 RecordedAt = recordedAt,
-                StationId = request.StationId,
+                StationId = stationId,
                 TemperatureF = request.TemperatureF,
                 HumidityPercent = request.HumidityPercent,
                 DewPointF = request.DewPointF,
@@ -301,7 +308,7 @@ public class WeatherIngestController : ControllerBase
             }
             catch (DbUpdateException ex)
             {
-                var distinctStations = string.Join(", ", resolved.Select(x => x.Request.StationId).Distinct());
+                var distinctStations = string.Join(", ", resolved.Select(x => x.StationId).Distinct());
                 _logger.LogError(ex, "Batch ingest failed during SaveChanges for stations {StationIds}", distinctStations);
                 return Problem(
                     detail: "An error occurred while persisting the batch. Retry is safe — duplicate records will be skipped.",
@@ -310,7 +317,7 @@ public class WeatherIngestController : ControllerBase
             }
         }
 
-        var logStations = string.Join(", ", resolved.Select(x => x.Request.StationId).Distinct());
+        var logStations = string.Join(", ", resolved.Select(x => x.StationId).Distinct());
         _logger.LogInformation(
             "Batch ingest: {Inserted} inserted, {Skipped} skipped, {Failed} failed. Stations: {StationIds}",
             toInsert.Count, skipped, failures.Count, logStations);
