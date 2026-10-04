@@ -1,6 +1,6 @@
 # Shared issue and PR process
 
-Revision `2026-10-03.1`, initially piloted in WebSite. Shared procedure lives in the repository-local `.agents/skills` packages; the [repository profile](repository-profile.md) supplies branches, validation and operational rules. No AgentControl bot or fleet enrollment is required.
+Shared procedures were initially piloted at revision `2026-10-03.1`. The current [repository profile](repository-profile.md), revision `2026-10-04.1`, supplies branches, validation and operational rules; procedure source lives in `.agents/skills`. No AgentControl bot or fleet enrollment is required.
 
 ## Task routing
 
@@ -11,7 +11,13 @@ Revision `2026-10-03.1`, initially piloted in WebSite. Shared procedure lives in
 | Epic | [Epic work](../../.agents/skills/hvo-epic-work/SKILL.md) plus issue/PR work for children and final epic acceptance |
 | Independent review/corrections | [Code review](../../.agents/skills/hvo-code-review/SKILL.md) |
 
-AGENTS, Claude and Copilot entry points name these routes explicitly. Automatic skill discovery alone cannot guarantee compliance; the source-bound evidence gate checks observable records. Every task still respects its actual assignment scope.
+AGENTS, Claude, Copilot and OpenCode entry points route to these same procedures/profile. `.claude/skills` is a symlink to the canonical packages. OpenCode has one preparation role with shared [discovery/risk guidance](../../.agents/skills/hvo-code-review/references/review-preparation.md); its review and resolution skills are adapters, not competing formats. Supporting [correction preparation](../../.agents/skills/hvo-pr-lifecycle/references/correction-preparation.md) preserves focused triage/similarity checks. Automatic discovery alone cannot guarantee compliance; the source-bound gate checks observable records. Every task respects its actual assignment scope.
+
+## Current authority and historical qualification
+
+Use the current profile and [automation evidence](automation-evidence.md) for immutable trusted-target admission, actual contributor/reviewer provenance, current-source local prerequisites and fresh complete post-review CI. Candidate procedure edits cannot authorize themselves or alter the trusted workflow/controller. Labels and Markdown do not configure GitHub protection or prove deployed activation.
+
+The profile's [adoption history](repository-profile.md#pilot-adoption-history) and automation's [running/reconciling history](automation-evidence.md#running-and-reconciling) retain the original #395 bootstrap boundary, #396 token/draft-mutation failure and successful workflow-token verification, and #422 CI-failure recoveries. [Selective-CI adoption](automation-evidence.md#selective-ci-evidence-and-adoption) records the actually merged #411/PR #426 trust transition and the #409 SQL/#408 browser first-main qualifications. These source-bound historical results do not stand in for current-candidate review, checks or a fresh inspection of protection settings.
 
 ## Ownership and delivery
 

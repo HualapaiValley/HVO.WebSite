@@ -34,7 +34,7 @@ The trusted WebSite gate requires source-bound local evidence with stable IDs: `
 
 Keep CSS/theme/offline-gateway, Key Vault, logging, hardware, contract and curated project-history rules from [project guidance](../AGENT_PROJECT_GUIDANCE.md). The exporter remains disabled in production and retired collector apps are not deployment targets.
 
-## Pilot adoption
+## Pilot adoption history
 
 The original pilot was introduced by issue #394. Its adoption PR could not make its own evaluator or controller an approval authority; the owner performed state writes manually until the trusted code reached main. The same boundary applied to #411: the existing trusted full policy validated the selective-CI implementation before the new planner/workflow/controller became authoritative. Keep historical adoption evidence separate from current qualification.
 
@@ -42,12 +42,20 @@ The original CI required an `hvo-website` self-hosted Linux x64 runner; GitHub r
 
 The pilot moved standard CI to hosted Ubuntu, using ephemeral Docker smoke resources and installing Chromium's required system dependencies. All existing application/integration/deployment-policy checks remain. The trusted `Review Evidence` status and standard `build-and-test` / `docker-smoke` checks, plus required conversation resolution and an up-to-date candidate, are the intended main-branch protection profile after adoption. Required native approval count can remain zero for attributed same-account independent sessions. Do not claim these repository settings are active until their GitHub state is verified.
 
+## Current CI authority
+
 PR CI uses a read-only `pull_request_target` workflow whose admission evaluator, planner and aggregation code come from the immutable trusted target tip. Standard execution checks out the verified immutable GitHub merge SHA, with no write credentials or secret environment. The controller accepts only the matching PR/head/target/merge tuple, a fresh complete first attempt created after approval, and four successful internal jobs: review-evidence, plan, build-and-test and docker-smoke. Build-and-test verifies the complete planned execution union, including explicit reasons for skipped empty lanes. It publishes candidate-head statuses for the intended required checks; native target-workflow checks alone do not establish readiness. Partial or old-target reruns cannot qualify. An unchanged-source infrastructure recovery uses one fresh complete run.
 
+## Source-bound adoption qualification
+
 The #411 implementation passed the previously adopted full CI in [PR #426](https://github.com/HualapaiValley/HVO.WebSite/pull/426) before selective execution became trusted on main at `4528667e69f8f88a75a4978792f980542dbdf044`. Its first full main run passed; see [hosted measurements](selective-ci.md#hosted-measurements-2026-10-04) for source, scope, results and timing. The #409 SQL fixture and its runner-safety step passed [first-main qualification](selective-ci.md#sql-fixture-qualification) at `31297abd3d2156ebf1280418fb86082e6dc38a85`. The #408 browser migration passed [first-main qualification](selective-ci.md#browser-fixture-qualification) after [PR #433](https://github.com/HualapaiValley/HVO.WebSite/pull/433), at `e01715cd401202844fb9f0b315fbc7d12fcadd88`, with zero ignored results across the integrated suite. Manual main benchmark profiles measure selected execution but do not establish PR admission. No caching change or measured cache gain is claimed. The read-only inspection at 2026-10-04 09:15 UTC returned 404 (Branch not protected) for main protection and an empty ruleset list; intended protection settings remain unconfigured and must not be described as active.
+
+## Current Actions and archive policy
 
 The repository requires Actions to be pinned to full commit SHAs. Keep readable version comments beside the immutable references and verify each replacement against its official Action repository. Tagged references alone fail job preparation even if workflow YAML is valid.
 
 `src/HVO.Database` is an archive of SQL stored procedures and table definitions, not an active build/deployment project. The owner confirmed its exclusion during this pilot. Keep `HVO.Database.sqlproj` outside `HVO.WebSite.sln` and active project references; retain the files for historical reference and direct file-reading tests. EF Core migrations in `HVO.DataModels` remain the schema source of truth. The active solution still requires zero warnings and zero errors; do not suppress warnings or repair archive schema to satisfy its build.
+
+## Historical environment checks
 
 Initial exact-SDK 10.0.400 Linux ARM64 validation accidentally included that archived SQL project and reported 778 SQL warnings with zero errors. Missing jq/Chromium caused environment-only test failures that passed after installing those dependencies. Revalidate the active solution after exclusion and report actual results; the historical run does not establish current acceptance.

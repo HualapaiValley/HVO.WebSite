@@ -1,5 +1,17 @@
 # Project History
 
+## 2026-10-04 — Unified agent guidance and current UI consumers (#417)
+
+OpenCode review/correction skills now route to the canonical `.agents` lifecycle;
+one preparation role uses shared risk/disproof/context and correction checklists.
+Claude/Copilot adapters share that profile without a competing review format or
+fixed-model claim. Project instructions follow headless mounted-config/secret-file
+collectors and owned MSTest/browser fixtures. CSS governance retains token/font/
+palette/layout and sandbox sign-off requirements for the actual website and
+ThemeSandbox consumers. Adoption/failure history remains source-bound and separate
+from current authority; no workflow gate, application behavior, live operation or
+repository protection setting changes in this batch.
+
 ## 2026-10-04 — Source-backed operations and recovery ownership (#415)
 
 Current runbooks now follow shared endpoint/auth and per-sender retry behavior,
@@ -404,6 +416,13 @@ Avoid:
 ## 2026-06-13
 
 ### Hybrid Multi-Model Code Review Infrastructure
+
+Historical session record: the June availability, prices, model choices and
+next-session instructions below describe that experiment. They are not current
+review policy or a live catalog. #417 consolidates the prep roles into the
+current [OpenCode adapter](../.opencode/agents/review-prep.md); assign final review
+through the [canonical procedure](../.agents/skills/hvo-code-review/SKILL.md)
+using actual live capabilities/settings and required independence.
 
 - Built a hybrid review workflow (low-cost prep + GPT validation) with skill files and subagents.
 - Added OpenCode Zen free prep agents: DeepSeek V4 Flash, Nemotron 3 Ultra, MiMo V2.5.

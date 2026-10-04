@@ -15,6 +15,8 @@ Retain issue ownership. Maintain one PR lifecycle label; preserve other labels. 
 
 Before ready, verify current-source completed review, required reviewer count/selection/separation, terminal finding verification, resolved actionable threads, acceptance and synchronization evidence. Missing/stale/unknown mandatory facts keep the PR draft. A model preference uses only its declared fallback; Required choices are not silently substituted. Publication under an account does not confer merge authority.
 
+Use the supporting [correction checklist](references/correction-preparation.md) for triage, focused fixes and similar-pattern searches. It adds no self-verification or thread-resolution exception to those gates.
+
 ## CI recovery and merge
 
 Mark ready/apply `workflow:ci` only after the evidence gate qualifies the candidate. Understand the tested head/base or synthetic-merge binding. Green CI must match the current reviewed source. On source change or invalid/failed/cancelled CI, return draft, cancel obsolete runs, apply changes-required, diagnose and review source corrections before the next ready/run. Proven infrastructure failure with unchanged source may retain source review through one bounded documented retry.

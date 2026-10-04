@@ -1,320 +1,103 @@
 # WebSite project guidance
 
-These are WebSite-specific engineering requirements. The shared issue/PR/review lifecycle is defined in [the development process](development/PROCESS.md). Read the applicable project sections before editing or reviewing; read CSS_GOVERNANCE.md before CSS or Blazor markup work.
+Read [AGENTS.md](../AGENTS.md), the [repository profile](development/repository-profile.md) and the applicable canonical [.agents procedures](development/PROCESS.md#task-routing) before implementation or review. These are WebSite engineering requirements; they do not introduce another issue/review/CI lifecycle. Read [CSS governance](CSS_GOVERNANCE.md) before CSS or Blazor markup work.
 
----
+## Current projects and ownership
 
-## Repository structure
+| Area | Current owner and contract |
+|---|---|
+| Website | `src/HVO.WebSite.v9`: ASP.NET Core API and Blazor SSR/Interactive Server with MudBlazor; internally hosted on hvo-docker. [Website setup](../src/HVO.WebSite.v9/README.md) and [self-hosted deployment](../deploy/hvo-docker/README.md) state SQL/identity prerequisites. |
+| Shared UI | `src/HVO.WebSite.Themes` Razor Class Library owns tokens, local fonts/Chart.js, reusable components/layouts, ShellLayoutState and HvoFormat. Website and `src/HVO.ThemeSandbox` are the active UI consumers; sandbox is a reference/validation app, not a production deployment. |
+| Data | `src/HVO.DataModels` owns EF Core contexts/models/migrations. Keep async queries and explicit provider/schema contracts; archived `src/HVO.Database` is outside the active solution, retained for history/direct file-reading tests. |
+| Direct collectors | Headless Davis, JK BMS, EG4 and Victron SmartShunt use shared Edge.Contracts/Hosting/Outbox and optional read-only Home Assistant MQTT projections. Davis also consumes Staging celestial calculations. No App.razor, chart UI or gateway theme-load requirement exists for these collectors. |
+| HA ownership | Home Assistant owns Kasa/Govee acquisition/presentation. Edge.Exporter.HomeAssistant is implemented but disabled in production with no mappings/source claims. Retired direct SolarAssistant/Kasa apps, containers and images are not deployment targets. |
+| Deployment | `deploy/hvo-docker` owns website Compose; `deploy/pi-gateways` owns per-collector mounted configuration/secrets and durable volumes. [Gateway operations](GATEWAY_OPERATIONS.md) and [Pi deployment guidance](../deploy/pi-gateways/README.md) are canonical operational references. |
 
+The SDK is pinned by [global.json](../global.json), with roll-forward disabled. Tests use MSTest, FluentAssertions, bUnit and MSTest/Playwright; discover counts from current reports rather than a fixed instruction count. [Testing](development/testing.md) identifies actual projects, filters, prerequisites, owned browser/SQL/HA fixtures and evidence. The current UI assets bundle Chart.js locally; inspect the pinned asset/package source when changing versions rather than infer one from old prose.
+
+## Shared theme and Blazor
+
+[CSS governance](CSS_GOVERNANCE.md) owns every token/font/color/layout rule and the cross-consumer sandbox/sign-off process. Review per-app CSS and Razor inline styles, shared RCL changes and their consumers. Preserve these priority checks:
+
+- P0: fonts declared outside `hvo-shared-shell.css`; per-app hardcoded colors; per-app `--shell-*`/`--hvo-*` global token redefinitions outside the designated background hook; CDN dependence in any future offline edge UI.
+- P1: copied shared classes/layouts, pass-through token aliases, hardcoded inline colors and redefined base shell classes.
+- P2: spacing/font literals replacing available tokens, C# chart palette literals without canonical-variable comments, or new shared styles without a sandbox demo. A missing mandatory demo/sign-off still prevents acceptance.
+
+Shared components belong in Themes RCL; use HvoGatewayLayout/HvoPublicLayout/HvoAdminLayout and ShellLayoutState from that library rather than copies. Use HvoFormat for formatted UI output (SVG coordinates are the existing exception), and HvoChart rather than bespoke canvas wrappers or direct Chart.js calls. Keep the Razor/code-behind/isolated-CSS triad for substantial logic/styles. Declare InteractiveServer where JS interop or live UI interaction needs it; SSR-only surfaces should remain SSR.
+
+[Website App.razor](../src/HVO.WebSite.v9/Components/App.razor) loads MudBlazor, shared shell, shared components, app overrides, then scoped CSS. It does not load the deprecated `hvo-dark.css` or require a `data-theme="hvo-dark"` attribute. [ThemeSandbox App.razor](../src/HVO.ThemeSandbox/Components/App.razor) retains its existing compatibility stylesheet before MudBlazor; do not prescribe that legacy stylesheet for new consumers. Reuse actual shared theme state and verify both light/dark themes.
+
+Guard OnAfterRenderAsync/refresh interop so exceptions cannot kill a circuit; preserve logging/diagnostics for failure. Do not capture scoped services in singletons. Avoid unnecessary StateHasChanged on every timer tick; dispose and await timers/JS object references through IAsyncDisposable. Use error boundaries where a critical UI section should not take down the page.
+
+Every edge UI, if introduced in separately scoped work, must serve CSS/JS/fonts/images locally without internet. Use Themes RCL assets, including `_content/HVO.WebSite.Themes/js/chart.min.js`; add approved dependencies locally to the RCL rather than CDN links. The website's internet reachability is not permission to duplicate shared assets or weaken offline consumers.
+
+## Headless runtime, configuration and health
+
+Current collectors call [AddHvoEdgeRuntime](../src/HVO.Edge.Hosting/EdgeWebApplicationBuilderExtensions.cs) and [MapHvoEdgeRuntimeEndpoints](../src/HVO.Edge.Hosting/Diagnostics/EdgeDiagnosticsEndpointRouteBuilderExtensions.cs). Inspect collector-specific registration, options, migration and workers as well as shared hosting before changing a contract.
+
+- [Mounted configuration](../src/HVO.Edge.Hosting/Configuration/EdgeConfigurationBuilderExtensions.cs): non-secret `gateway.json` defaults to `/app/config/gateway.json`, required in Production. `HVO_EDGE_CONFIG_FILE` selects an absolute path under `Edge:Paths:ConfigDirectory`. Environment overrides are reapplied after mounted JSON and win. JSON reload is disabled.
+- [SecretFileResolver](../src/HVO.Edge.Hosting/Configuration/SecretFileResolver.cs) resolves configured filenames under `Edge:Paths:SecretsDirectory` (default `/run/secrets`), rejects traversal/symlinks/missing/empty/placeholder values, and reads credentials at startup. Keep device identity/address in approved non-secret mounted config or supported environment overrides, not embedded in code. Keep diagnostics, central-ingest and optional MQTT credentials distinct. Configuration/secret changes need an approved restart/replacement, not hot reload.
+- Durable state belongs in the collector's named `/app/data` volume. Preserve identity/deduplication/outbox contracts and use the [quiescent SQLite backup/rollback procedure](gateways/sqlite-backup-and-rollback.md) for an authorized recovery. MQTT projections do not replace central outbox delivery or authorize a second acquisition owner.
+- Public `/health/live` is process liveness. `/health` and `/health/ready` return the real snapshot and HTTP 503 only for Critical; a noncritical degraded result can be HTTP 200. Do not equate liveness/200 with device connectivity, all backlog delivered or operational readiness.
+- Protected `/diagnostics/health`, `/diagnostics/outbox`, `/diagnostics/status` and PUT `/diagnostics/outbox/settings` require the configured diagnostics credential. [Authorization filter](../src/HVO.Edge.Hosting/Diagnostics/EdgeDiagnosticsAuthorizationFilter.cs) returns 403 for missing or incorrect credentials. Devices are included in status; no `/diagnostics/devices` endpoint exists. Runtime outbox overrides reset on restart.
+- Current Compose probes are target-specific: Davis/EG4 use `/health`; JK/SmartShunt use `/health/live`. The disabled exporter template uses `/health`. Ports/paths/restart/logging/core limits and rollout preflight follow [operations](GATEWAY_OPERATIONS.md), not a blanket connectivity probe requirement.
+
+Propagate CancellationToken and bound MQTT/HTTP/TCP/BLE polling, retry and shutdown work; a device failure should not crash all acquisition. Inspect each sender's actual retry/acknowledgement behavior, including 401/403 differences, in the [sender/recovery contract](gateways/common-gateway-standards.md#sender-http-outcome-and-recovery-matrix). Do not invent maintenance subcommands or Azure-forwarding env requirements.
+
+## Security, secrets and transport
+
+Azure Key Vault remains the credential authority. Use [global materialization prerequisites](development/key-vault-materialization.md) for root bootstrap, sourced SSH input, parsable SQL and whole-helper vault scope. The private gist is a devcontainer recovery cache, not the credential authority. Secret files/approved secret stores are valid locations; obsolete ".env only" rules do not describe current mounts.
+
+The existing helper's SQL derivation/partial-write/exit-code hazard remains tracked separately in [#437](https://github.com/HualapaiValley/HVO.WebSite/issues/437). Neither this guidance nor a successful drift check proves materialization, authentication, rotation or deployment. Apply, secret rotation and operational restarts require applicable authorization. Preserve owner files and never print values through Compose output, shell tracing, logs or verification.
+
+Review ignored local env/config/secret paths and narrowly scoped identities, reject sensitive logging/raw exception detail, and test trust-boundary validation. The website uses Entra OIDC/cookies for UI roles and X-Api-Key/scope policies for protected APIs. [ApiKeyAuthMiddleware](../src/HVO.WebSite.v9/Middleware/ApiKeyAuthMiddleware.cs) returns 401 for missing keys on protected /api endpoints and invalid/inactive/expired presented keys; policy authorization is distinct. Read route metadata/policies and [ingest trust boundaries](development/ingest-trust-boundaries.md), not a blanket assertion that every endpoint is authenticated.
+
+[Website Program.cs](../src/HVO.WebSite.v9/Program.cs) maps public health probes: liveness checks no dependencies; readiness selects database-tagged checks; aggregate health exposes minimal production output unless detailed health is explicitly enabled. Preserve those information boundaries. Its role/scope policies are not roof/hardware tag requirements.
+
+Transport must match the reviewed deployment: website forwarding/HTTPS settings and trusted proxy configuration, Pi internal upstream/HA HTTP opt-in, TLS trust, URL composition and safe non-secret assertions follow the canonical [website](../deploy/hvo-docker/README.md) / [gateway](GATEWAY_OPERATIONS.md) runbooks. A historical Azure-hosted deployment does not establish the current host or authorize certificate bypass.
+
+## C#, data and durability checks
+
+- Keep endpoints/components → services → domain → data/infrastructure ownership; keep business rules out of rendering/controllers/config helpers. Use strong types and justified nullable suppressions.
+- Use appropriate DI lifetimes and correct IDisposable/IAsyncDisposable ownership. Avoid sync-over-async (`.Result`, `.Wait()`, `GetAwaiter().GetResult()`) in request/I/O paths and unobserved tasks; async void belongs only to required event-handler signatures.
+- Pass cancellation through EF/HTTP/device I/O and workers; bound retries/results/history/pagination. Broad catches must retain meaningful failure behavior and telemetry, rather than silently swallow errors.
+- Use EF async APIs (ToListAsync/FirstOrDefaultAsync/SaveChangesAsync), scoped HvoV9DbContext from DI, DTO projection and pagination. Do not use AsEnumerable before filtering, SaveChanges loops without explicit transaction reasoning, or relational InMemory tests as provider proof.
+- Every schema change needs the matching EF migration and compatibility/rollback evidence. Current EF models/context/migrations are schema authority; archived SQL is historical. Verify race/deduplication/partial-write/transaction behavior against actual SQL fixtures when affected.
+- Build the active solution at zero warnings/errors. Do not hide legitimate warnings with suppressions, add unrelated packages/frameworks or change public/config contracts without a focused explanation and compatibility evidence.
+
+## Validation and meaningful browser evidence
+
+[Repository profile](development/repository-profile.md) keeps the required exact-SDK full local checks, even when post-review CI selects affected work:
+
+```text
+dotnet restore HVO.WebSite.sln --locked-mode --nologo
+dotnet build HVO.WebSite.sln --no-restore --nologo
+dotnet test HVO.WebSite.sln --no-build --no-restore --filter "TestCategory!=Integration&TestCategory!=Live"
 ```
-src/
-  HVO.WebSite.v9/               Main observatory site (Blazor SSR + ASP.NET Core API)
-  HVO.WebSite.Themes/           Shared Razor Class Library — CSS tokens, components, layouts, fonts
-  HVO.DataModels/               EF Core models and DbContext
-  HVO.Hardware.DavisVantagePro2/  Davis weather station gateway
-  HVO.Hardware.JkBms/           JK BMS battery monitor gateway
-  HVO.Hardware.Eg4/             EG4 6500EX and MPPT100 gateway
-  HVO.Hardware.VictronSmartShunt/ Victron SmartShunt gateway
-  HVO.Edge.Exporter.HomeAssistant/ Implemented HA telemetry exporter (disabled in production)
-  HVO.ThemeSandbox/             CSS/component reference app (not deployed to production)
-deploy/
-  hvo-docker/                   Docker Compose + .env for the website host (hvo-docker)
-  pi-gateways/                  Per-gateway Docker Compose + .env for devpi5
-scripts/
-  deploy-hvo-website.sh         Deploys the website to hvo-docker via Docker SSH context
-  deploy-pi-gateway.sh          Deploys one or all gateways to devpi5 via Docker SSH context
-  publish-image.sh              Builds and pushes images to self-hosted container registry
-  sync-env-gist.sh              Syncs root .env to private GitHub gist (devcontainer bootstrap)
-docs/
-  CSS_GOVERNANCE.md             Full CSS authoring policy (read before touching any CSS)
-tests/
-  HVO.WebSite.UnitTests/        MSTest + FluentAssertions + bUnit application tests
-  HVO.*.Tests/                 Contract, gateway, outbox, API and provider tests
-  HVO.WebSite.PlaywrightTests/  Playwright end-to-end tests
-```
 
----
+Use [testing](development/testing.md) for report options, Chromium/system dependencies and owned simulator/HA/SQL/browser commands. The full local non-live filter includes non-integration browser cases. Do not run an unprovisioned `TestCategory!=Live` solution command as if it supplied SQL/HA fixtures; Live physical/deployed targets remain explicit opt-in. MSTest class/method categories and the validator establish partition ownership; counts come from fresh actual TRX.
 
-## Tech stack
+Add tests for changed behavior, failures and boundaries; documentation-only work does not need invented tests. Preserve deterministic/fake-time behavior rather than Thread.Sleep or longer real waits. HvoChartDataset tests retain nullable gap entries, Tension and Data_AllowsNullEntries_RepresentingGaps coverage.
 
-| Layer | Technology |
-|-------|-----------|
-| Runtime | .NET 10, ASP.NET Core, Blazor Server SSR |
-| UI components | MudBlazor 8.x |
-| Shared theme | HVO.WebSite.Themes RCL — `hvo-shared-shell.css`, `hvo-components.css` |
-| Charts | Chart.js 4.4.0, bundled locally at `_content/HVO.WebSite.Themes/js/chart.min.js` |
-| ORM | Entity Framework Core (async-only: `ToListAsync`, `FirstOrDefaultAsync`, etc.) |
-| Testing | MSTest + FluentAssertions; bUnit component tests; MSTest/Playwright browser tests |
-| Containers | Docker + `docker --context devpi5` / `docker --context hvo-docker` SSH remote contexts |
-| CI | GitHub Actions |
-| Hosting | Self-hosted Docker (hvo-docker for website + registry + SQL Server; devpi5 for gateways) |
-| Registry | Self-hosted Docker Registry (registry:2 on hvo-docker, exposed as registry.hualapaivalleyobservatory.org) |
-| Secrets | Azure Key Vault (`hvo-central-kv`) — primary source of truth |
+Website/ThemeSandbox browser tests use owned local application hosts and deterministic services; no deployed gateway is needed. For affected UI, exercise actual rendered behavior in both themes and relevant responsive layouts:
 
----
+- Circuit stays alive and no unexpected console/page errors occur; retain a distinct screenshot, console log and trace for each Browser case.
+- Charts have real Chart.js instances/datasets/configuration and expected data/gaps/theme changes, not merely a canvas with width. Preserve `stripNulls()` for optional config while preserving data-array null gaps and guarded HvoChart render/refresh; verify recovery after script/handler failures.
+- Assert meaningful control interactions and computed styles: datetime-local/control theming, card surface, contrast/sizing, scoped stylesheet/instrument layout, navigation/auth challenge and current reference routes. No legacy proto-/action-btn/card-shell/archive-table classes.
+- Confirm expected local asset requests/Chart.js readiness. A canvas or loaded stylesheet alone cannot prove chart/theme/control behavior. Existing BrowserFailureQualificationTests demonstrate assertion failure and recovery.
 
----
+Run relevant policy/planner/transition/runner/syntax checks for workflow/helper changes. Draft automated checks stay bounded preflight; distinct current-source independent review, verified finding dispositions and resolved actionable threads precede ready and standard CI. Required checks/green matching source and assignment authority precede merge. All actual contributors, check performers, unavailable results, source and runtime facts remain attributed per [automation evidence](development/automation-evidence.md). No new gate or controller behavior is defined here.
 
-## CSS and theme review — P0/P1 hard rules
+## Deployment and documentation boundaries
 
-> Full policy: `docs/CSS_GOVERNANCE.md`. Violations here are **P0 or P1** findings — not style nits.
+Update affected Compose/env examples/mounted-config schema and docs when ports, environment, volumes, public contracts or integration behavior change. Use [publishing](CONTAINER_PUBLISHING.md), [Pi deployment](../deploy/pi-gateways/README.md), [gateway operations](GATEWAY_OPERATIONS.md) and [website deployment](../deploy/hvo-docker/README.md) for their exact prerequisites/check-versus-apply/rollout semantics. Safe local render/dry-run checks do not prove live deployment; do not execute publish/restart/hardware validation as ordinary issue tests. Preserve exactly one acquisition authority and writer.
 
-Check every `.razor.css`, `app.css`, and inline `style=""` attribute:
+Document meaningful setup/config/API/MQTT/runtime changes and sandbox demos for shared tokens/components; avoid documentation for obvious code. Add a curated [project history](PROJECT_HISTORY.md) entry for structural/architectural/deployment assumptions. Preserve source/date/issue evidence and open follow-ups; future hardware/roadmap and historical recovery documents do not become active contracts.
 
-**P0 — Must fix before merge:**
-- `@font-face` block outside `src/HVO.WebSite.Themes/wwwroot/css/themes/hvo-shared-shell.css`
-- CDN URL (`cdn.jsdelivr.net`, `fonts.googleapis.com`, `unpkg.com`, etc.) in any gateway `App.razor` — all gateway apps run offline
-- Hardcoded color value (`#hex`, `rgb()`, `rgba()`) in a `.razor.css` file — must use `var(--shell-*)`, `var(--hvo-series-*)`, `var(--hvo-accent-*)`, or `color-mix()` from those vars
-- `:root` redefinition of `--shell-*` or `--hvo-*` tokens in a per-project file (changes the token globally)
+Stabilize safety/security/circuit/build failures first, then missing auth/failure handling/theme correctness, meaningful regressions, telemetry and bounded duplication/dependency improvements. Severity and merge implications follow the canonical [review procedure](../.agents/skills/hvo-code-review/references/review-format.md); priorities here do not authorize finding deferral.
 
-**P1 — Should fix before merge:**
-- Local copy of a class already defined in `hvo-components.css` or `hvo-shared-shell.css` (duplicates diverge silently)
-- Pass-through alias variable: `--my-text: var(--shell-page-text)` — use the theme var directly
-- `style=""` attribute with hardcoded color in a `.razor` file (use `var(--hvo-*)` or a CSS class)
-- Redefinition of `.shell-brand-mark`, `.shell-page-stack`, or any other base shell class in per-project CSS
+## Development tools
 
-**P2 — Should plan:**
-- `gap: 12px` instead of `var(--shell-card-gap)`
-- `font-family: "Open Sans..."` instead of `var(--shell-font-family)`
-- Chart.js C# hex literal without `// --hvo-*` comment identifying the canonical palette variable
-- New class in `hvo-components.css` or `hvo-shared-shell.css` without a ThemeSandbox demo
+Use rg for searches; bash/zsh, gh, dotnet and az for applicable authorized work; jq/System.Text.Json/Python for focused JSON checks. Use repository tooling for browser/test setup and record actual prerequisites. Azure-resource commands or deployment contexts are tools, not automatic authority for remote changes.
 
----
-
-## Blazor and MudBlazor guidelines
-
-Check for:
-
-- `.razor` / `.razor.cs` / `.razor.css` file triad — all three should exist for pages and components with significant logic or styles
-- `@rendermode InteractiveServer` on components that use JS interop or need real-time updates; SSR-only pages should not declare a render mode
-- Shared layouts (`HvoGatewayLayout`, `HvoPublicLayout`, `HvoAdminLayout`) used from `HVO.WebSite.Themes` — never local copies
-- `HvoFormat` used for all formatted output — no raw `ToString("F1")`, `ToString("F2")`, or `CultureInfo.InvariantCulture` in `.razor` files (exception: SVG coordinate rendering)
-- `HvoChart` used for all charting — no bespoke `<canvas>` wrappers or direct Chart.js calls outside the shared component
-- `OnAfterRenderAsync` JS interop wrapped in try-catch so a JS exception does not crash the Blazor circuit
-- `@inject` services have appropriate lifetimes — scoped services not captured into singleton-lived objects
-- `StateHasChanged()` called appropriately — not on every tick of a background timer
-- `IAsyncDisposable` implemented and `DisposeAsync` awaited for components that start timers or hold JS object references
-- Blazor error boundary (`<ErrorBoundary>`) used for critical UI sections that should not take down the whole page
-
----
-
-## EF Core and data access guidelines
-
-Check for:
-
-- All EF Core queries use async methods: `ToListAsync`, `FirstOrDefaultAsync`, `SaveChangesAsync`, etc.
-- No `.Result` or `.Wait()` on EF tasks
-- Queries projected to DTOs or view models where possible — no returning full entity graphs to UI layers
-- No `SaveChangesAsync` inside a loop without explicit transaction handling
-- Pagination applied to queries that could return large result sets
-- No client-side evaluation (verify no `AsEnumerable()` before a filter)
-- Migrations: every schema change has a corresponding EF Core migration; no manual SQL without a migration
-- `HVO.DataModels.DbContext` used via DI with scoped lifetime
-
----
-
-## Gateway-specific guidelines
-
-The active direct Pi collectors are Davis, JK BMS, EG4, and SmartShunt. Home Assistant owns Kasa and Govee acquisition/presentation. The HA exporter is implemented but intentionally disabled in production with no mappings or source claims. The retired direct SolarAssistant and TP-Link/Kasa applications, containers, and images are not deployment targets.
-
-Check for:
-
-- `App.razor` loads all resources locally — no CDN URLs. Chart.js must be `_content/HVO.WebSite.Themes/js/chart.min.js`
-- Required stylesheet load order in `App.razor`: `hvo-dark.css` → `MudBlazor.min.css` → `hvo-shared-shell.css` → `hvo-components.css` → project scoped CSS
-- Health check endpoint (`/health`) wired and returning meaningful status — must reflect actual device connectivity, not just process liveness
-- Outbox pattern: data forwarded to Azure via `Outbox__ApiEndpoint` and `Outbox__ApiKey` from environment; never hardcoded
-- Device IP/hostname in `.env` only — never hardcoded in `appsettings.json` or source code
-- MQTT and REST polling wrapped with timeouts and error handling — a single device failure must not crash the worker
-- Background workers use `CancellationToken` throughout and honor it during shutdown
-- `docker-compose.yml` has `restart: unless-stopped` for all gateway services
-
-**Deployment variables override precedence** (critical for deploy scripts):
-Docker Compose resolves environment variables in this order: shell environment > `--env-file`. A stale shell variable WILL override the `.env` file. Always verify with `docker compose config | grep <var>` before deploying.
-
----
-
-## Security guidelines
-
-Check for:
-
-- API keys, passwords, and connection strings in `.env` files only — not in source code, `appsettings.json`, or docker-compose
-- `.env` files are in `.gitignore` — verify with `git check-ignore -v deploy/pi-gateways/*/.env`
-- Authentication and authorization on all API endpoints in `HVO.WebSite.v9` — check `[Authorize]` attributes and policy requirements
-- No sensitive data (API keys, user credentials, PII) in log output
-- No exception detail leaked in API error responses to clients
-- `X-Api-Key` header validated on gateway ingest endpoints; reject missing or invalid keys with 401
-- HTTPS enforced for Azure-hosted main site; gateways on local network may use HTTP
-
----
-
----
-
-## C# and .NET guidelines
-
-Check for:
-
-- Clear separation: endpoints/components → services → domain logic → data access → infrastructure
-- Business logic not embedded in Blazor components, controllers, or config helpers
-- Appropriate DI lifetime management — no scoped services in singletons, no captive dependencies
-- Correct disposal of `IDisposable` and `IAsyncDisposable`
-- No sync-over-async: `.Result`, `.Wait()`, or `GetAwaiter().GetResult()` in request paths
-- Correct `async`/`await` usage; `async void` only on Blazor event handlers
-- `CancellationToken` passed through to EF Core, HTTP calls, and background workers
-- Guard clauses and validation at trust boundaries (API controllers, ingest endpoints)
-- No overly broad `catch (Exception)` blocks that swallow failures silently
-- Strong typing over magic strings — use `record` types for value objects, `enum` for state machines
-- Consistent nullable reference types — no unchecked `!` suppressions without clear justification
-- Zero compiler warnings — all warnings in this repo are treated as P2 or higher
-
----
-
-## Testing guidelines
-
-See [test lanes and runner prerequisites](development/testing.md) for exact filters, settings, report paths and supported local commands. The category validator checks each MSTest method using its class/method attributes, including root-level `*IntegrationTests.cs` and `*LiveTests.cs`; comment text or a sibling test's category cannot satisfy the requirement. Test helpers are not required to carry test categories.
-
-Treat test coverage as a core quality requirement:
-
-- Tests for new or modified business logic — no coverage, no merge
-- Tests for error paths and edge cases on gateway ingest and data processing
-- Unit tests for `HvoChartDataset`, `StatusChartBuckets`, `HvoFormat`, view models, and data-transformation logic
-- Playwright tests for UI behavior: Blazor circuit alive (`#blazor-error-ui` not visible), charts rendered, no legacy CSS class names, themed controls
-- Live Playwright tests that require a running gateway must be tagged `TestCategory=Live` so the standard `--filter "TestCategory!=Live"` CI run skips them
-- Tests must be deterministic — no `Thread.Sleep`, no dependency on wall-clock time without abstraction
-- `HvoChartDataset` unit test checklist: null entries accepted and preserved; `Tension` parameter stored; `Data_AllowsNullEntries_RepresentingGaps` test passes
-
----
-
-## Build and CI guidelines
-
-Check for:
-
-- `dotnet build` (all projects) passes at **zero warnings, zero errors** — this is a hard gate
-- `dotnet test --filter "TestCategory!=Live"` passes at **zero failures**
-- No `#pragma warning disable` that hides a legitimate issue
-- No new NuGet packages added without a reason documented in the PR
-- No CDN URLs introduced in gateway `App.razor` files
-
----
-
-## Deployment guidelines
-
-Check for:
-
-- `deploy/pi-gateways/<gateway>/docker-compose.yml` updated if the container's environment variables, ports, or volume mounts changed
-- `deploy/pi-gateways/<gateway>/.env.example` updated if new required variables were added
-- Establish the [existing root-bootstrap and whole-helper prerequisites](development/key-vault-materialization.md) before approved `./scripts/sync-secrets-from-keyvault.sh --apply` materialization from `hvo-central-kv`; the private gist is only a devcontainer bootstrap cache
-- Deployment tested: `./scripts/deploy-pi-gateway.sh --context devpi5 <gateway>` followed by `./scripts/check-deployments.sh`
-
----
-
-## Documentation expectations
-
-Flag missing documentation when it affects:
-
-- Build or setup (new environment variables, new required services)
-- Deployment (new gateway or changed deploy sequence)
-- CSS token additions (ThemeSandbox demo required by `docs/CSS_GOVERNANCE.md`)
-- New shared components (usage examples in ThemeSandbox `/css-reference` or `/instruments`)
-- External integrations or MQTT/REST contract changes
-
-Do not require documentation for obvious code.
-
----
-
-## Preferred remediation sequence
-
-When recommending fixes, suggest this order:
-
-1. Stabilize P0 items — circuit crashes, security issues, broken builds, offline gateway CDN references
-2. Stabilize P1 items — CSS theme violations that break dark/light switching, missing auth, swallowed exceptions
-3. Add or restore tests around risky behavior
-4. Improve logging and telemetry for production diagnosability
-5. Reduce CSS/code duplication and resolve P2 compliance gaps
-6. Modernize dependencies and deprecated patterns incrementally
-
----
-
----
-
-## Shared Theme & Layout
-
-The repo uses the unified shared theme/layout system in `HVO.WebSite.Themes`.
-
-**Key rules:**
-- **All shared components** go in `HVO.WebSite.Themes`, not per-app projects
-- **HvoFormat** is the single formatting utility — no raw `ToString("F*")` in razor files
-- **ShellLayoutState** is shared from Themes RCL — never copy-pasted
-- Theme changes must be demonstrated in ThemeSandbox before production use
-
----
-
-## Dev Container Tool Policy
-
-The dev container includes the baseline CLI and diagnostic tools used by this repo, including .NET, Docker CLI access, GitHub CLI, Azure CLI, `jq`, `rg`, Node.js/npm, and Python 3.
-
-- **Scripting & automation**: Prefer `bash`/`zsh` shell scripts, `gh` CLI, `dotnet` CLI, or `az` CLI
-- **JSON processing**: Use `jq`, .NET `System.Text.Json`, or Python for focused validation scripts
-- **Issue/PR management**: Use `gh issue create`, `gh pr create`, etc.
-- **Azure resources**: Use `az` CLI for Entra ID, App Service, Container Apps, subscriptions, etc.
-- **Search**: Use `rg` (ripgrep) for text search
-- **Frontend/browser tooling**: Use the repo-pinned Node/npm tooling only when the task requires it, such as Playwright browser installation or MCP support
-
-### Heredoc / Multi-Line String Warning
-
-**Do NOT use `cat << 'EOF'` or any heredoc syntax in terminal commands.** Heredocs are unreliable in this environment — content frequently gets corrupted, garbled, or truncated. Instead:
-
-1. Write multi-line content to a file using the file-creation tool (e.g., `create_file`).
-2. Reference that file in the terminal command (e.g., `gh issue create --body-file /tmp/issue-body.md`).
-
-This applies to **all** cases where you need to pass multi-line text to a CLI command.
-
----
-
-## Offline-First Resource Policy
-
-Any edge application with a web UI runs on a **local network with no internet access**. Every CSS, JS, font, and image resource must be served from within the app or from the shared `HVO.WebSite.Themes` RCL static assets. The active Davis, JK BMS, EG4, and SmartShunt collectors are headless.
-
-- **Never** add CDN URLs (`cdn.jsdelivr.net`, `fonts.googleapis.com`, `unpkg.com`, etc.) to any gateway `App.razor` file.
-- Chart.js is bundled at `src/HVO.WebSite.Themes/wwwroot/js/chart.min.js` — reference it as `_content/HVO.WebSite.Themes/js/chart.min.js`.
-- `HVO.WebSite.v9` (Azure-hosted main site) may use external resources.
-- When adding new JS/CSS libraries, download them and add to `HVO.WebSite.Themes/wwwroot/`.
-
-## HvoChart — Testing Standards
-
-### Known Failure Modes to Prevent with Tests
-
-**1. Blazor circuit crash from Chart.js interop**
-- **Symptom:** "Blazor circuit interrupted" banner — entire page goes non-interactive.
-- **Root cause:** C# anonymous types serialize `null` properties to JSON `null`. Chart.js 4.x requires absent properties (undefined), not `null`, for optional config like `title`, `suggestedMin`, `suggestedMax`, `animation`. JS throws → interop exception → circuit dies.
-- **Fix in place:** `hvo-chart.js` `stripNulls()` removes all `null`/`undefined` keys from the config before passing to `new Chart()`. Data-array `null` values are preserved (they represent gaps). `HvoChart.razor` `OnAfterRenderAsync` wraps `RenderChartAsync` in try-catch so any JS error never propagates to the Blazor circuit.
-- **Test:** Playwright — after page load, assert `#blazor-error-ui` is **not** visible.
-
-**2. Charts blank because scripts are missing (offline gateways)**
-- **Symptom:** Canvas elements present in DOM but no lines drawn.
-- **Root cause:** chart.js loaded from CDN; gateway machine has no internet.
-- **Fix in place:** `chart.min.js` bundled locally in Themes RCL.
-- **Test:** Playwright — assert `chart.min.js` in Network responses contains no CDN URL; OR assert canvas `.clientWidth > 0`.
-
-**3. Null data points not rendering as gaps**
-- **Symptom:** Line connects across missing data instead of breaking.
-- **Root cause:** `HvoChartDataset.Data` uses `IReadOnlyList<double>` (no nulls) or `spanGaps=true`.
-- **Fix in place:** `HvoChartDataset.Data` is `IReadOnlyList<double?>`. Default `SpanGaps=false`.
-- **Test:** Unit test asserts `HvoChartDataset` accepts and stores `null` entries. Playwright — assert that a chart with known null slots shows a visual break (canvas pixel check or element count check).
-
-### Unit Test Checklist (`HvoChartDatasetTests`)
-
-Ensure these are covered:
-- `HvoChartDataset` constructor accepts `double?[]` with `null` entries.
-- `null` entries are preserved (not converted to `0` or stripped).
-- `Tension` per-dataset parameter is stored correctly.
-- `Data_AllowsNullEntries_RepresentingGaps` test passes.
-
-### Playwright Test Checklist
-
-Apply these checks to current website or ThemeSandbox chart surfaces:
-- No `#blazor-error-ui` visible after page settles (circuit alive).
-- Expected chart canvases are present and have `clientWidth > 0`.
-- `datetime-local` inputs have themed styling (not browser default white).
-- `hvo-card-shell` cards have non-transparent backgrounds.
-- No legacy class names (`proto-*`, `action-btn`, `card-shell`, `archive-table`) on live pages.
-- `hvo-components.css` served from `_content/HVO.WebSite.Themes/` (not CDN).
+Do not use terminal heredocs. Write multiline issue/PR/comment bodies with a file tool and pass the exact file through `--body-file`, or use a structured connector argument. Preserve literal content/newlines and never expose secrets through shell interpolation.

@@ -1,24 +1,5 @@
-```instructions
-# Copilot Instructions for HVO.WebSite.v9
+# Website Copilot adapter
 
-## Project Overview
-This project delivers the main HVO v9 Blazor Server + ASP.NET Core site. It hosts the production UI, versioned REST APIs, health probes, and OpenAPI docs backed by `HVO.DataModels`.
+Read root [AGENTS.md](../../../AGENTS.md), the [repository profile](../../../docs/development/repository-profile.md) and [project guidance](../../../docs/AGENT_PROJECT_GUIDANCE.md). Use the canonical [.agents procedures](../../../.agents/skills/hvo-issue-work/SKILL.md) for issue work and their PR/review routes. This file adds no separate lifecycle, API, theme or configuration contract.
 
-## Key Reminders
-- Follow the global theme guidance: load `_content/HVO.WebSite.Themes/css/themes/hvo-dark.css`, set `data-theme="hvo-dark"`, and reuse theme variables instead of hard-coded colors.
-- API controllers must use URL-segment versioning (`/api/v1.0/...`) and return `Result<T>`-aware responses. Keep controller logic thin; push business rules into services under `Services/`.
-- Register dependencies in `Program.cs` using extension methods when logic grows. Keep health checks tagged (`roof`, `hardware`, etc.) and update documentation when new tags appear.
-- Maintain parity between the REST contract and any docs living under `docs/projects/roof-controller-v4-rpi` or other project folders when endpoints overlap.
-
-## Documentation
-- Primary reference: `src/HVO.WebSite.v9/README.md`.
-- Related guides: `docs/skymonitor-v5-operations-runbook.md`, `docs/skymonitor-v5-json-migration-guide.md`, and other entries under `docs/projects/` depending on the feature.
-
-## Testing Expectations
-- Use MSTest or integration tests built on `WebApplicationFactory<HVO.WebSite.v9.Program>`. Cover health checks, API behavior, and UI endpoints.
-- Ensure new APIs have both success and failure path tests, including ProblemDetails responses for errors.
-
-## Security & Configuration
-- Keep HTTPS toggles (`EnableHttpsRedirect`, `TrustDevCertificates`) in sync with deployment needs. Document changes in `README.md` and `docs/`.
-- Sanitize user input via model binding + data annotations. Never expose raw exceptions; rely on `HvoServiceExceptionHandler` for uniform error output.
-```
+For website work, read its [README](../README.md), [CSS governance](../../../docs/CSS_GOVERNANCE.md) for CSS/Blazor markup, and [testing](../../../docs/development/testing.md) for MSTest/bUnit/API and owned website/ThemeSandbox browser fixtures. Follow actual routes/policies/startup and shared theme resources in source; do not infer requirements from retired gateway UIs or proposed hardware documents. Configuration, mounted secrets and operational prerequisites follow the canonical guidance linked by the project instructions.
