@@ -1,34 +1,50 @@
 using FluentAssertions;
+using HVO.WebSite.PlaywrightTests.Infrastructure;
 using Microsoft.Playwright;
 
 namespace HVO.WebSite.PlaywrightTests;
 
 [TestClass]
+[TestCategory("Browser")]
 public sealed class ThemeSandboxPlaywrightTests
 {
-    private static string BaseUrl =>
-        Environment.GetEnvironmentVariable("HVO_THEMESANDBOX_BASE_URL") ?? "http://localhost:5199";
+    public TestContext TestContext { get; set; } = null!;
+    private BrowserApplication<HVO.ThemeSandbox.Components.App> application = null!;
+    private BrowserSession session = null!;
+    private string BaseUrl => application.Address.ToString().TrimEnd('/');
 
-    private static async Task<(IBrowser Browser, IPage Page)> OpenPageAsync(IPlaywright playwright, string path = "/")
+    [TestInitialize]
+    public async Task Open()
     {
-        var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
-        var page = await browser.NewPageAsync(new BrowserNewPageOptions
+        application = new("HVO.ThemeSandbox");
+        try { session = await BrowserSession.OpenAsync(TestContext); }
+        catch { await application.DisposeAsync(); throw; }
+    }
+
+    [TestCleanup]
+    public async Task Close()
+    {
+        try
         {
-            ViewportSize = new ViewportSize { Width = 1600, Height = 1000 }
-        });
-        await page.GotoAsync($"{BaseUrl}{path}");
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        return (browser, page);
+            if (session is not null)
+            {
+                try { session.AssertNoUnexpectedErrors(); }
+                finally { await session.DisposeAsync(); }
+            }
+        }
+        finally { await application.DisposeAsync(); }
+    }
+
+    private async Task<IPage> OpenPageAsync(string path = "/")
+    {
+        await session.Page.GotoAsync(new Uri(application.Address, path).ToString());
+        return session.Page;
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_GatewayLayout_RendersBrandText()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright);
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync();
 
         await Assertions.Expect(page.GetByText("Hualapai Valley Observatory", new() { Exact = true })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByText("THEME SANDBOX", new() { Exact = true })).ToBeVisibleAsync();
@@ -36,13 +52,9 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_GatewayLayout_HasFooterSlots()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright);
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync();
 
         var footer = page.Locator(".shell-footer-layout");
         await Assertions.Expect(footer).ToContainTextAsync("Theme Sandbox");
@@ -51,26 +63,18 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_GatewayLayout_RendersDarkThemeInitially()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright);
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync();
 
         await Assertions.Expect(page.Locator(".shell-theme-dark")).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Switch to light theme" })).ToBeVisibleAsync();
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_FormatPage_ShowsMetricByDefault()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright);
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync();
 
         await Assertions.Expect(page.GetByText("Metric Units")).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByText("22.5 °C")).ToBeVisibleAsync();
@@ -84,43 +88,36 @@ public sealed class ThemeSandboxPlaywrightTests
         await Assertions.Expect(page.GetByText("78 %")).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByText("02:30:00")).ToBeVisibleAsync();
 
-        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Toggle unit system" })).ToBeVisibleAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Toggle unit system" }).ClickAsync();
+        await Assertions.Expect(page.GetByText("Imperial Units")).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByText("72.5 °F")).ToBeVisibleAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Toggle unit system" }).ClickAsync();
+        await Assertions.Expect(page.GetByText("22.5 °C")).ToBeVisibleAsync();
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_HvoChart_RendersCanvas()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright);
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync();
 
-        var canvas = page.Locator("#sandbox-chart-dense");
-        await Assertions.Expect(canvas).ToBeVisibleAsync();
+        await AssertChartRenderedAsync(page, "sandbox-chart-dense");
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_NavPills_HighlightActivePage()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright);
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync("/dashboard");
 
-        var gatewayPill = page.Locator(".shell-nav-link-current");
-        await Assertions.Expect(gatewayPill).ToContainTextAsync("Gateway");
+        var gatewayPill = page.Locator("a.shell-nav-link-current");
+        await Assertions.Expect(gatewayPill).ToHaveTextAsync("Dashboard");
+        await page.GetByRole(AriaRole.Link, new() { Name = "Palette", Exact = true }).ClickAsync();
+        await Assertions.Expect(gatewayPill).ToHaveTextAsync("Palette");
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_AdminLayout_HasSidebar()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright, "/admin-layout");
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync("/admin-layout");
 
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Dashboard" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Admin Panel" })).ToBeVisibleAsync();
@@ -128,26 +125,18 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_PublicLayout_RendersWithBrand()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright, "/public-layout");
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync("/public-layout");
 
         await Assertions.Expect(page.GetByText("Hualapai Valley Observatory", new() { Exact = true })).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator(".shell-brand-subtitle")).ToContainTextAsync("THEME SANDBOX");
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_HvoCss_SharedClassesRender()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright);
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync();
 
         await Assertions.Expect(page.Locator(".hvo-card").First).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator(".hvo-card-primary").First).ToBeVisibleAsync();
@@ -158,13 +147,9 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_NullValues_DisplayDashDash()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright);
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync();
 
         var nullEntries = page.GetByText("--");
         var count = await nullEntries.CountAsync();
@@ -172,13 +157,9 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_Showcase_RendersCardPatterns()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright, "/theme-showcase");
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync("/theme-showcase");
 
         await Assertions.Expect(page.Locator(".hvo-ring-gauge").First).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator(".hvo-cell-grid")).ToBeVisibleAsync();
@@ -186,13 +167,9 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_HvoChart_RendersDenseAndSparseCharts()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright);
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync();
 
         await AssertChartRenderedAsync(page, "sandbox-chart-dense");
         await AssertChartRenderedAsync(page, "sandbox-chart-sparse");
@@ -200,13 +177,9 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_ShouldKeepCircuitAliveAcrossAllReferenceRoutes()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright);
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync();
 
         foreach (var route in new[] { "/", "/dashboard", "/controls", "/instruments", "/css-reference", "/theme-showcase", "/palette", "/states", "/responsive", "/admin-layout", "/public-layout" })
         {
@@ -218,14 +191,10 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_ShouldLoadOnlyLocalChartAndThemeResources()
     {
         var requestedUrls = new List<string>();
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright);
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync();
         page.Request += (_, request) => requestedUrls.Add(request.Url);
 
         await page.GotoAsync(BaseUrl);
@@ -244,30 +213,22 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_CssReference_ShouldValidateControlsAndCardsStyling()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright, "/css-reference");
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync("/css-reference");
 
         await AssertThemedSurfaceAsync(page.Locator(".hvo-card-shell").First, "CSS reference card shell");
         await AssertThemedSurfaceAsync(page.Locator(".hvo-card").First, "CSS reference card");
         await AssertThemedSurfaceAsync(page.Locator(".hvo-control").First, "CSS reference form control");
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "hvo-button-primary" })).ToBeVisibleAsync();
-        await Assertions.Expect(page.Locator(".hvo-chip-success")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".hvo-chip-success").Filter(new() { HasText = "hvo-chip-success" })).ToBeVisibleAsync();
         await AssertNoBlazorErrorAsync(page);
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task ThemeSandbox_Palette_ShouldRenderCanonicalTokens()
     {
-        using var playwright = await Playwright.CreateAsync();
-        var session = await OpenPageAsync(playwright, "/palette");
-        await using var browser = session.Browser;
-        var page = session.Page;
+        var page = await OpenPageAsync("/palette");
 
         await Assertions.Expect(page.GetByText("--hvo-series-1", new() { Exact = true })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByText("--hvo-series-8", new() { Exact = true })).ToBeVisibleAsync();
@@ -282,13 +243,16 @@ public sealed class ThemeSandboxPlaywrightTests
     {
         var canvas = page.Locator($"#{chartId}");
         await Assertions.Expect(canvas).ToBeVisibleAsync();
-        await page.WaitForFunctionAsync($"() => Boolean(window.hvoChart?._instances?.['{chartId}'])");
+        await BrowserBehaviorAssertions.ChartInitializedAsync(page, chartId);
         var chartWidth = await canvas.EvaluateAsync<int>("canvas => canvas.clientWidth");
         chartWidth.Should().BeGreaterThan(0);
     }
 
-    private static async Task AssertNoBlazorErrorAsync(IPage page) =>
+    private async Task AssertNoBlazorErrorAsync(IPage page)
+    {
         await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
+        session.AssertNoUnexpectedErrors();
+    }
 
     private static async Task AssertThemedSurfaceAsync(ILocator locator, string label)
     {

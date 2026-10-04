@@ -1,24 +1,68 @@
 using FluentAssertions;
+using HVO.WebSite.PlaywrightTests.Infrastructure;
+using HVO.WebSite.v9;
+using HVO.Edge.Contracts.PowerSystem;
 using Microsoft.Playwright;
 using System.Text.RegularExpressions;
 
 namespace HVO.WebSite.PlaywrightTests;
 
 [TestClass]
+[TestCategory("Browser")]
 public sealed class MainSitePlaywrightTests
 {
+    public TestContext TestContext { get; set; } = null!;
+    private WebsiteBrowserApplication application = null!;
+    private BrowserSession session = null!;
+
+    [TestInitialize]
+    public async Task Open()
+    {
+        application = new WebsiteBrowserApplication();
+        var observed = application.Clock.GetUtcNow().UtcDateTime;
+        var data = WebsitePowerState.Populated(observed);
+        application.Power.Data = data with
+        {
+            Snapshot = data.Snapshot! with
+            {
+                Pv = data.Snapshot.Pv! with
+                {
+                    Trackers =
+                    [
+                        new("eg4-6500ex-a/mppt-1", "Inverter PV 1", "eg4-6500ex-a", "inverter", observed, PowerMetricSource.Eg46500Ex, PowerW: 400),
+                        new("eg4-6500ex-a/mppt-2", "Inverter PV 2", "eg4-6500ex-a", "inverter", observed, PowerMetricSource.Eg46500Ex, PowerW: 300),
+                        new("eg4-mppt100-48hv-a/mppt-1", "External PV", "eg4-mppt100-48hv-a", "controller", observed, PowerMetricSource.Eg4Mppt10048Hv, PowerW: 300),
+                    ],
+                    ExpectedTrackerCount = 3, ReportedTrackerCount = 3,
+                },
+            },
+        };
+        try { session = await BrowserSession.OpenAsync(TestContext); }
+        catch { await application.DisposeAsync(); throw; }
+    }
+
+    [TestCleanup]
+    public async Task Close()
+    {
+        try
+        {
+            if (session is not null)
+            {
+                try { session.AssertNoUnexpectedErrors(); }
+                finally { await session.DisposeAsync(); }
+            }
+        }
+        finally { await application.DisposeAsync(); }
+    }
+
     [TestMethod]
-    [TestCategory("Live")]
     public async Task MainSite_ShouldRenderPublicHomeShell()
     {
-        var session = await CreatePageAsync();
-        using var playwright = session.Playwright;
-        await using var browser = session.Browser;
         var page = session.Page;
 
         await page.GotoAsync(BuildUrl("/"));
 
-        await Assertions.Expect(page.GetByText("Hualapai Valley Observatory", new() { Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Hualapai Valley Observatory", Exact = true })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Home" })).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByText("Current observatory power telemetry")).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Home" })).ToBeVisibleAsync();
@@ -26,12 +70,8 @@ public sealed class MainSitePlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task MainSite_ShouldShowUnauthenticatedPowerCardMessage()
     {
-        var session = await CreatePageAsync();
-        using var playwright = session.Playwright;
-        await using var browser = session.Browser;
         var page = session.Page;
 
         await page.GotoAsync(BuildUrl("/"));
@@ -43,33 +83,27 @@ public sealed class MainSitePlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task MainSite_AdminRoute_ShouldRedirectUnauthenticatedUserToLogin()
     {
-        var session = await CreatePageAsync();
-        using var playwright = session.Playwright;
-        await using var browser = session.Browser;
         var page = session.Page;
 
+        await page.RouteAsync("https://login.microsoftonline.com/**", route => route.FulfillAsync(new()
+        { Status = 200, ContentType = "text/plain", Body = "Test-owned identity provider landing page" }));
         await page.GotoAsync(BuildUrl("/admin"));
 
-        await Assertions.Expect(page).ToHaveURLAsync(new Regex("MicrosoftIdentity/Account/SignIn", RegexOptions.IgnoreCase));
-        page.Url.Should().Contain("redirectUri");
+        await Assertions.Expect(page).ToHaveURLAsync(new Regex("https://login.microsoftonline.com/", RegexOptions.IgnoreCase));
+        page.Url.Should().Contain("redirect_uri=");
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task MainSite_ShouldToggleThemeWithoutCircuitError()
     {
-        var session = await CreatePageAsync();
-        using var playwright = session.Playwright;
-        await using var browser = session.Browser;
         var page = session.Page;
 
         await page.GotoAsync(BuildUrl("/"));
         await Assertions.Expect(page.Locator(".shell-theme-dark")).ToBeVisibleAsync();
 
-        await page.GetByRole(AriaRole.Button, new() { Name = "Switch to light theme" }).ClickAsync();
+        await BrowserBehaviorAssertions.SwitchToLightAsync(page);
         await Assertions.Expect(page.Locator(".shell-theme-light")).ToBeVisibleAsync();
         await AssertNoBlazorErrorAsync(page);
 
@@ -79,13 +113,9 @@ public sealed class MainSitePlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task MainSite_ShouldRenderSharedThemeCss()
     {
         var requestedUrls = new List<string>();
-        var session = await CreatePageAsync();
-        using var playwright = session.Playwright;
-        await using var browser = session.Browser;
         var page = session.Page;
         page.Request += (_, request) => requestedUrls.Add(request.Url);
 
@@ -100,17 +130,11 @@ public sealed class MainSitePlaywrightTests
     }
 
     [TestMethod]
-    [TestCategory("Live")]
     public async Task MainSite_AuthorizedBatteryComparison_ShouldRemainContainedOnDesktopAndMobile()
     {
-        var apiKey = Environment.GetEnvironmentVariable("HVO_WEBSITE_POWER_READ_API_KEY");
-        if (string.IsNullOrWhiteSpace(apiKey))
-            Assert.Inconclusive("Set HVO_WEBSITE_POWER_READ_API_KEY to run the authorized battery comparison test.");
-
-        var session = await CreatePageAsync(1440, 900, apiKey);
-        using var playwright = session.Playwright;
-        await using var browser = session.Browser;
         var page = session.Page;
+        await page.SetViewportSizeAsync(1440, 900);
+        await page.Context.SetExtraHTTPHeadersAsync(new Dictionary<string, string> { ["X-Test-Role"] = AppRoles.User });
 
         await page.GotoAsync(BuildUrl("/"));
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Battery Source Comparison" })).ToBeVisibleAsync();
@@ -122,9 +146,7 @@ public sealed class MainSitePlaywrightTests
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "EG4 Equipment Detail" })).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator("#site-pv-history-chart")).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator("#site-eg4-battery-history-chart")).ToBeVisibleAsync();
-        (await page.Locator("#site-pv-history-chart").EvaluateAsync<bool>(
-            "canvas => canvas.clientWidth > 0 && canvas.clientHeight > 0 && Boolean(window.Chart?.getChart(canvas.id))"))
-            .Should().BeTrue("Chart.js should create the persisted PV history instance");
+        await BrowserBehaviorAssertions.ChartInitializedAsync(page, "site-pv-history-chart");
         await AssertThemedSurfaceAsync(page.Locator(".power-status-card"), "power status card");
         await AssertNoPageOverflowAsync(page, "desktop battery comparison");
         await AssertNoBlazorErrorAsync(page);
@@ -143,50 +165,7 @@ public sealed class MainSitePlaywrightTests
         await AssertNoBlazorErrorAsync(page);
     }
 
-    private static Task<(IPlaywright Playwright, IBrowser Browser, IPage Page)> CreatePageAsync()
-        => CreatePageAsync(1440, 900);
-
-    private static async Task<(IPlaywright Playwright, IBrowser Browser, IPage Page)> CreatePageAsync(
-        int width,
-        int height,
-        string? apiKey = null)
-    {
-        var baseUrl = Environment.GetEnvironmentVariable("HVO_WEBSITE_BASE_URL");
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            Assert.Inconclusive("Set HVO_WEBSITE_BASE_URL to run the main site UI Playwright tests.");
-        }
-
-        var playwright = await Playwright.CreateAsync();
-        try
-        {
-            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
-            var page = await browser.NewPageAsync(new BrowserNewPageOptions
-            {
-                ViewportSize = new ViewportSize { Width = width, Height = height },
-                ExtraHTTPHeaders = string.IsNullOrWhiteSpace(apiKey)
-                    ? null
-                    : new Dictionary<string, string> { ["X-Api-Key"] = apiKey },
-            });
-            return (playwright, browser, page);
-        }
-        catch
-        {
-            playwright.Dispose();
-            throw;
-        }
-    }
-
-    private static string BuildUrl(string route)
-    {
-        var baseUrl = Environment.GetEnvironmentVariable("HVO_WEBSITE_BASE_URL");
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            Assert.Inconclusive("Set HVO_WEBSITE_BASE_URL to run the main site UI Playwright tests.");
-        }
-
-        return new Uri(new Uri(baseUrl.TrimEnd('/') + "/"), route.TrimStart('/')).ToString();
-    }
+    private string BuildUrl(string route) => new Uri(application.Address, route).ToString();
 
     private static async Task AssertNoBlazorErrorAsync(IPage page) =>
         await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
