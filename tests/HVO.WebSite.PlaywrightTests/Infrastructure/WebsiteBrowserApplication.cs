@@ -25,7 +25,7 @@ namespace HVO.WebSite.PlaywrightTests.Infrastructure;
 internal sealed class WebsiteBrowserApplication : IAsyncDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "hvo-website-browser-" + Guid.NewGuid().ToString("N"));
-    private readonly BrowserApplication<Program> _application;
+    private readonly BrowserApplication<HVO.WebSite.v9.Components.App> _application;
     public WebsitePowerState Power { get; } = new();
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 10, 4, 0, 0, 0, TimeSpan.Zero));
     public Uri Address => _application.Address;
