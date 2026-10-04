@@ -6,6 +6,7 @@
 - Last updated: 2026-08-11
 - Confidence: medium for implemented read paths; lower for settings-query/write paths.
 - Primary references: `src/HVO.Hardware.JkBms`, `docs/JKBMS_SESSION_LIFECYCLE.md`, code reference to `https://github.com/syssi/esphome-jk-bms`.
+- Cutover/endurance history: [deployment and endurance](jkbms/deployment-and-endurance.md). New backup/rollback checkpoints use the [canonical SQLite backup contract](sqlite-backup-and-rollback.md), preserving the current volume and post-checkpoint observations.
 
 ## Identity
 

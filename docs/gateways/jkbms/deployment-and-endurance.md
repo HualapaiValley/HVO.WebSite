@@ -5,6 +5,13 @@ runtime. This document is a cutover checklist, not authorization to deploy.
 
 ## Preflight
 
+For any new cutover or rollback checkpoint, use the
+[canonical SQLite backup contract](../sqlite-backup-and-rollback.md). It requires
+stopped/proven-quiescent volumes, a durable operator-workstation archive streamed
+from the explicit Docker daemon, checksum, database integrity and a disposable
+restore proof. Preserve current volumes and post-checkpoint observations. The
+August evidence below is historical and is not a claim of new qualification.
+
 1. Keep the current production container running while preparing configuration.
 2. Copy `deploy/pi-gateways/jkbms/gateway.json.example` to ignored `gateway.json`.
 3. Confirm every physical BMS has the same address and alias as production plus a
@@ -48,9 +55,14 @@ Perform this once before production cutover, not on every PR:
    and `/diagnostics/outbox` expose no secrets, Bluetooth addresses, or file paths.
 
 Record the window, device count, reconnects, failed polls, maximum outbox depth,
-drain result, and any BlueZ anomalies before approving cutover. Roll back by
-restarting the preserved prior image against the same named outbox volume; never
-run old and new collectors simultaneously.
+drain result, and any BlueZ anomalies before approving cutover. Verify the central
+schema/ingest contract and source authority first, then stop the old collector and
+qualify its quiescent checkpoint before the new collector starts. Never run old
+and new collectors simultaneously. On rollback, stop the candidate and follow
+[canonical preservation and reconciliation](../sqlite-backup-and-rollback.md#preserve-current-state-during-rollback):
+keep the current volume and all later observations, use it only with a compatible
+preserved image, or restore the qualified older archive into a new recovery volume
+with a reviewed mount override and a plan for the post-checkpoint interval.
 
 ## Production Validation: 2026-08-12/13
 

@@ -40,16 +40,14 @@ Legacy `smartshunt.reading` and `com.hvo.smartshunt.reading.v1` rows are convert
 
 ## Exactly-One-Owner Cutover
 
-1. Deploy the website migration and protected observation endpoint first. Verify the dedicated seeded API key owns the configured source.
-2. Record the current image and back up the complete named volume without stopping or deleting it:
+This is the historical #326 direct-collector vNext cutover. Future native-HA
+replacement is tracked separately by [#352](https://github.com/HualapaiValley/HVO.WebSite/issues/352)
+and its parity, exporter and soak gates; it is not this procedure's deployment target.
 
-```bash
-docker --context devpi5 inspect smartshunt-hvo-smartshunt-1 --format '{{.Config.Image}}' > /tmp/smartshunt-image.txt
-docker --context devpi5 run --rm -v smartshunt_smartshunt-outbox:/source:ro -v /tmp:/backup alpine:3.22 \
-  tar -C /source -czf /backup/smartshunt-outbox-before-vnext.tgz .
-```
+1. Deploy the website migration and protected observation endpoint first. Verify the dedicated seeded API key owns the configured source.
+2. Follow the [canonical SQLite backup contract](sqlite-backup-and-rollback.md): record the current immutable image/runtime contract, inspected volume names, outbox counts and latest central source timestamp. Prepare the utility image and a durable operator-workstation backup directory before shutdown. The `smartshunt_smartshunt-outbox` volume is owned by the `devpi5` Docker daemon; streamed archives and checksums are owned by the workstation, not a remote `/tmp` bind.
 3. Confirm no HA/ESPHome SmartShunt integration is acquiring the device and no HA exporter mapping owns `smartshunt-main`.
-4. Stop the legacy SmartShunt container. Confirm it no longer owns the Bluetooth connection or writes centrally.
+4. Stop the legacy SmartShunt container. Confirm it no longer owns the Bluetooth connection or writes centrally, and prove no process writes the volume. Archive the entire quiescent volume, retain a durable checksum-verified copy, and verify SQLite integrity plus a disposable restore before calling it a usable checkpoint. Preserve the current named volume; do not proceed with an unqualified checkpoint.
 5. Place `gateway.json` and separate secrets on the deployment workstation, then run `./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt`. The script validates and synchronizes mounted files over the Docker context's SSH endpoint.
 6. Verify `/health`, protected diagnostics, MQTT availability/state, outbox drainage, and one summary/detail row for the same source timestamp. Reconcile counts before promotion:
 
@@ -64,16 +62,9 @@ curl -fsS -H "X-Api-Key: $(<deploy/pi-gateways/smartshunt/secrets/diagnostics-ap
 ## Rollback
 
 1. Stop vNext before starting any legacy process.
-2. Preserve the current outbox volume and database for diagnosis; do not delete or recreate it. Never use `docker compose down -v`.
-3. Restore the pre-cutover outbox backup only if the legacy binary cannot read the migrated schema. Doing so intentionally discards records created after that backup and requires central duplicate review:
-
-```bash
-docker --context devpi5 compose --env-file deploy/pi-gateways/smartshunt/.env \
-  -f deploy/pi-gateways/smartshunt/docker-compose.yml stop hvo-smartshunt
-docker --context devpi5 run --rm -v smartshunt_smartshunt-outbox:/target -v /tmp:/backup alpine:3.22 \
-  sh -c 'rm -rf /target/* && tar -C /target -xzf /backup/smartshunt-outbox-before-vnext.tgz'
-```
-4. Restore the image recorded in `/tmp/smartshunt-image.txt`, start exactly one legacy collector, and confirm sole Bluetooth ownership and central writing. Compare the last central source timestamp with the restored outbox before enabling forwarding; duplicates are safe, missing post-backup records require explicit reconciliation.
+2. Follow the [canonical rollback preservation and reconciliation steps](sqlite-backup-and-rollback.md#preserve-current-state-during-rollback). Qualify a new archive of the stopped current volume and keep that volume intact with every post-checkpoint observation. Never use `docker compose down -v` or restore over its files.
+3. If the preserved binary can read the current schema, use the current volume. Otherwise restore the qualified pre-cutover archive to a new recovery volume with an explicitly reviewed mount override; retain the original volume and reconcile the post-checkpoint interval with central history before forwarding. An old checkpoint does not recover newer records by itself.
+4. Use the immutable image/runtime contract recorded in the durable checkpoint manifest. Start exactly one legacy collector only after schema/source compatibility and the post-checkpoint recovery plan are established. Confirm sole Bluetooth ownership, strict central accounting, queue drain and fresh central timestamps; report incomplete history recovery honestly.
 5. Keep HA/ESPHome acquisition/export disabled throughout rollback.
 
 ## Bounded Live Validation

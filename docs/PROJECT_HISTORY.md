@@ -1,5 +1,15 @@
 # Project History
 
+## 2026-10-04 — Verified gateway rollback checkpoints (#414)
+
+Replaced SmartShunt's active-volume tar and destructive restore recipe with a
+shared quiescent full-volume backup contract. A usable checkpoint now requires a
+durable, explicitly owned archive, checksum, SQLite integrity and isolated restore
+proof. Rollback preserves the current volume and later observations, restoring an
+incompatible older schema only into a separate recovery volume with explicit
+reconciliation. Davis/JK historical cutover evidence is retained; future #352 HA
+authority migration stays separate. See [backup and rollback](gateways/sqlite-backup-and-rollback.md).
+
 ## 2026-10-04 — Canonical v9 weather query boundary (#410)
 
 Added a separate scoped, typed weather query service for new website features over
