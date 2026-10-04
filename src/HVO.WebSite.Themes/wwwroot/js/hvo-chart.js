@@ -1,7 +1,7 @@
 window.hvoChart = window.hvoChart || {};
 
-window.hvoChart.getThemeColors = function () {
-    const style = getComputedStyle(document.documentElement);
+window.hvoChart.getThemeColors = function (canvas) {
+    const style = getComputedStyle(canvas || document.documentElement);
     return {
         // --shell-chart-grid-color
         gridColor: style.getPropertyValue('--shell-chart-grid-color').trim() || 'rgba(126, 157, 196, 0.12)',
@@ -29,6 +29,7 @@ window.hvoChart.getThemeColors = function () {
  * to document.documentElement when no element is provided.
  */
 window.hvoChart.resolveCssVar = function (value, element) {
+    if (Array.isArray(value)) return value.map(color => window.hvoChart.resolveCssVar(color, element));
     if (typeof value !== 'string' || !value.startsWith('var(')) return value;
     var style = getComputedStyle(element || document.documentElement);
     // Extract the property name from var(--xxx) or var(--xxx, fallback)
@@ -69,50 +70,32 @@ window.hvoChart.stripNulls = function stripNulls(obj) {
 
 window.hvoChart.render = function (chartId, config) {
     try {
+        // Replacements own a new chart and observer, including after failed renders.
+        window.hvoChart.destroy(chartId);
         const canvas = document.getElementById(chartId);
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        const existing = window.hvoChart._instances && window.hvoChart._instances[chartId];
-        if (existing) {
-            existing.destroy();
-        }
-
-        const colors = window.hvoChart.getThemeColors();
-
         // Strip nulls first so Chart.js only sees valid or absent properties.
         const cleanConfig = window.hvoChart.stripNulls(config);
-
-        // Resolve CSS var() defaults in dataset colors to computed values.
-        // Canvas 2D cannot resolve CSS custom properties, so dataset fallbacks
-        // like "var(--shell-chart-label-color)" must be resolved here.
-        // Resolve against the canvas element so theme overrides from ancestor
-        // classes (e.g. .shell-theme-light) are honoured.
-        if (cleanConfig.data && cleanConfig.data.datasets) {
-            cleanConfig.data.datasets.forEach(function (ds) {
-                if (ds.borderColor) ds.borderColor = window.hvoChart.resolveCssVar(ds.borderColor, canvas);
-                if (ds.backgroundColor) ds.backgroundColor = window.hvoChart.resolveCssVar(ds.backgroundColor, canvas);
-            });
-        }
+        // Keep the original scalar/array specifications outside Chart.js's mutable
+        // config. Resolving them in place would lose the vars after the first theme.
+        const datasetColors = (cleanConfig.data?.datasets || []).map(dataset => ({
+            borderColor: dataset.borderColor,
+            backgroundColor: dataset.backgroundColor
+        }));
 
         // Inject theme colours into scale axes.
         const defaultScales = cleanConfig.options && cleanConfig.options.scales;
         if (defaultScales) {
             if (defaultScales.x) {
-                defaultScales.x.grid = { color: colors.gridColor };
                 const callerTicks = defaultScales.x.ticks || {};
                 defaultScales.x.ticks = Object.assign(
                     { maxTicksLimit: 7, autoSkip: true, maxRotation: 0 },
-                    callerTicks,
-                    { color: colors.labelColor }
+                    callerTicks
                 );
-            }
-            if (defaultScales.y) {
-                defaultScales.y.grid = { color: colors.gridColor };
-                const callerYTicks = defaultScales.y.ticks || {};
-                defaultScales.y.ticks = Object.assign(callerYTicks, { color: colors.labelColor });
             }
 
             const showFahrenheitAxis = defaultScales.fahrenheitAxis;
@@ -148,64 +131,112 @@ window.hvoChart.render = function (chartId, config) {
                     grid: { drawOnChartArea: false },
                     title: { display: true, text: 'Fahrenheit' },
                     ticks: {
-                        color: colors.labelColor,
                         callback: value => `${((Number(value) * 9 / 5) + 32).toFixed(0)} °F`
                     }
                 };
             }
         }
 
-        if (cleanConfig.options && cleanConfig.options.plugins) {
-            cleanConfig.options.plugins.legend = cleanConfig.options.plugins.legend || {};
-            cleanConfig.options.plugins.legend.labels = cleanConfig.options.plugins.legend.labels || {};
-            cleanConfig.options.plugins.legend.labels.color = colors.labelColor;
+        const theme = window.hvoChart.readTheme(canvas, datasetColors);
+        cleanConfig.options = cleanConfig.options || {};
+        if (cleanConfig.type === 'polarArea' && !cleanConfig.options.scales) {
+            cleanConfig.options.scales = { r: {} };
         }
-
+        window.hvoChart.setTheme(cleanConfig, theme);
         const instance = new Chart(ctx, cleanConfig);
 
         window.hvoChart._instances = window.hvoChart._instances || {};
         window.hvoChart._instances[chartId] = instance;
+        window.hvoChart._themes = window.hvoChart._themes || {};
+        const state = { canvas, datasetColors, signature: JSON.stringify(theme) };
+        window.hvoChart._themes[chartId] = state;
+        state.observer = new MutationObserver(() => {
+            if (window.hvoChart._themes[chartId] === state) window.hvoChart.applyTheme(chartId);
+        });
+        // Shell theme classes are scoped to layouts, not necessarily the HTML root.
+        // Attribute-only observation avoids watching chart/page child mutations.
+        for (let element = canvas; element; element = element.parentElement) {
+            state.observer.observe(element, { attributes: true, attributeFilter: ['class', 'style'] });
+        }
 
         return instance;
     } catch (e) {
+        try {
+            window.hvoChart.destroy(chartId);
+            // Chart.js can register a partial instance before a constructor error.
+            const canvas = document.getElementById(chartId);
+            const partial = canvas && typeof Chart !== 'undefined' && Chart.getChart?.(canvas);
+            if (partial) partial.destroy();
+        } catch (cleanupError) {
+            console.error('[HvoChart] failed-render cleanup failed for "' + chartId + '":', cleanupError);
+        }
         console.error('[HvoChart] render failed for "' + chartId + '":', e);
     }
 };
 
+window.hvoChart.readTheme = function (canvas, datasetColors) {
+    return {
+        colors: window.hvoChart.getThemeColors(canvas),
+        datasets: datasetColors.map(specification => ({
+            borderColor: window.hvoChart.resolveCssVar(specification.borderColor, canvas),
+            backgroundColor: window.hvoChart.resolveCssVar(specification.backgroundColor, canvas)
+        }))
+    };
+};
+
+window.hvoChart.setTheme = function (chart, theme) {
+    const colors = theme.colors;
+    for (const scale of Object.values(chart.options.scales || {})) {
+        if (!scale) continue;
+        scale.grid = scale.grid || {};
+        scale.grid.color = colors.gridColor;
+        scale.border = scale.border || {};
+        scale.border.color = colors.axisColor;
+        scale.ticks = scale.ticks || {};
+        scale.ticks.color = colors.labelColor;
+        if (scale.title) scale.title.color = colors.labelColor;
+        if (scale.pointLabels) scale.pointLabels.color = colors.labelColor;
+    }
+    chart.options.plugins = chart.options.plugins || {};
+    const plugins = chart.options.plugins;
+    if (plugins.legend !== false) {
+        plugins.legend = plugins.legend || {};
+        plugins.legend.labels = plugins.legend.labels || {};
+        plugins.legend.labels.color = colors.labelColor;
+    }
+    if (plugins.title) plugins.title.color = colors.labelColor;
+    (chart.data?.datasets || []).forEach((dataset, index) => {
+        for (const [property, value] of Object.entries(theme.datasets[index] || {})) {
+            if (value !== undefined) dataset[property] = value;
+        }
+    });
+};
+
 window.hvoChart.applyTheme = function (chartId) {
-    const instance = window.hvoChart._instances && window.hvoChart._instances[chartId];
-    if (!instance) return;
-
-    const colors = window.hvoChart.getThemeColors();
-
-    if (instance.options.scales) {
-        if (instance.options.scales.x) {
-            instance.options.scales.x.grid.color = colors.gridColor;
-            instance.options.scales.x.ticks.color = colors.labelColor;
-        }
-        if (instance.options.scales.y) {
-            instance.options.scales.y.grid.color = colors.gridColor;
-            instance.options.scales.y.ticks.color = colors.labelColor;
-        }
-        if (instance.options.scales.yF) {
-            instance.options.scales.yF.ticks.color = colors.labelColor;
-            if (instance.options.scales.yF.title) {
-                instance.options.scales.yF.title.color = colors.labelColor;
-            }
-        }
+    const instance = window.hvoChart._instances?.[chartId];
+    const state = window.hvoChart._themes?.[chartId];
+    if (!instance || !state) return;
+    try {
+        const theme = window.hvoChart.readTheme(state.canvas, state.datasetColors);
+        const signature = JSON.stringify(theme);
+        if (signature === state.signature) return;
+        // Mutate the caller configuration, not Chart.js's resolved options proxy.
+        // Enumerating that proxy can pass symbol keys into scriptable resolvers.
+        window.hvoChart.setTheme(instance.config, theme);
+        instance.update('none');
+        state.signature = signature;
+    } catch (e) {
+        console.error('[HvoChart] theme update failed for "' + chartId + '":', e);
     }
-
-    if (instance.options.plugins && instance.options.plugins.legend) {
-        instance.options.plugins.legend.labels.color = colors.labelColor;
-    }
-
-    instance.update();
 };
 
 window.hvoChart.destroy = function (chartId) {
-    const instance = window.hvoChart._instances && window.hvoChart._instances[chartId];
+    const state = window.hvoChart._themes?.[chartId];
+    state?.observer?.disconnect();
+    if (window.hvoChart._themes) delete window.hvoChart._themes[chartId];
+    const instance = window.hvoChart._instances?.[chartId];
+    if (window.hvoChart._instances) delete window.hvoChart._instances[chartId];
     if (instance) {
         instance.destroy();
-        delete window.hvoChart._instances[chartId];
     }
 };
