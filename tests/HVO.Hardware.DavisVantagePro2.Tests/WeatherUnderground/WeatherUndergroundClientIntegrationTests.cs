@@ -15,6 +15,7 @@ using Microsoft.Extensions.Time.Testing;
 namespace HVO.Hardware.DavisVantagePro2.Tests.WeatherUnderground;
 
 [TestClass]
+[TestCategory("Integration")]
 public sealed class WeatherUndergroundClientIntegrationTests
 {
     [TestMethod]

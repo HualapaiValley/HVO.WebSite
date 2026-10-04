@@ -82,8 +82,8 @@ jobs:
           test_args=(
             HVO.WebSite.sln --no-build -c Debug --nologo -v minimal
             --filter "TestCategory!=Integration&TestCategory!=Live"
-            --logger "trx;LogFileName=tests.trx"
-            --results-directory TestResults
+            --logger trx
+            --results-directory TestResults/fast
           )
           if [[ "${{ github.event_name }}" != pull_request_target ]]; then
             test_args+=(--collect:"XPlat Code Coverage")
@@ -94,7 +94,9 @@ jobs:
         run: bash tools/run-home-assistant-integration-tests.sh
 
       - name: Validate test category conventions
-        run: bash tools/validate-test-categories.sh
+        run: |
+          node --test tools/test-categories.test.mjs
+          bash tools/validate-test-categories.sh
 
       - name: Validate observability policy
         run: |

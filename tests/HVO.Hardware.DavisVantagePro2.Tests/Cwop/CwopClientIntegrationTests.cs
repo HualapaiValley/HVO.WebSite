@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 namespace HVO.Hardware.DavisVantagePro2.Tests.Cwop;
 
 [TestClass]
+[TestCategory("Integration")]
 public sealed class CwopClientIntegrationTests
 {
     [TestMethod]

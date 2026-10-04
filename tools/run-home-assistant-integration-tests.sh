@@ -108,9 +108,10 @@ HVO_HA_TEST_BROKER_PORT="$broker_port" \
 HVO_HA_TEST_COMPOSE_FILE="$compose_file" \
 HVO_HA_TEST_COMPOSE_PROJECT="$project_name" \
 dotnet test "$repo_root/HVO.WebSite.sln" \
-    -c Debug --nologo -v minimal --filter "TestCategory=Integration&TestCategory!=HomeAssistantIntegration" \
+    -c Debug --nologo -v minimal --filter "TestCategory=Integration&TestCategory!=HomeAssistantIntegration&TestCategory!=Live" \
+    --settings "$repo_root/integration.runsettings" \
     --logger trx --collect:"XPlat Code Coverage" \
-    --results-directory "$repo_root/TestResults"
+    --results-directory "$repo_root/TestResults/integration/simulators"
 
 for project in \
     "$repo_root/tests/HVO.Edge.HomeAssistant.Mqtt.Tests/HVO.Edge.HomeAssistant.Mqtt.Tests.csproj" \
@@ -124,9 +125,10 @@ for project in \
     HVO_HA_TEST_COMPOSE_FILE="$compose_file" \
     HVO_HA_TEST_COMPOSE_PROJECT="$project_name" \
     dotnet test "$project" -c Debug --nologo -v minimal \
-        --filter "TestCategory=HomeAssistantIntegration" \
+        --filter "TestCategory=HomeAssistantIntegration&TestCategory!=Live" \
+        --settings "$repo_root/integration.runsettings" \
         --logger trx --collect:"XPlat Code Coverage" \
-        --results-directory "$repo_root/TestResults"
+        --results-directory "$repo_root/TestResults/integration/home-assistant/$(basename "$project" .csproj)"
 
     ha_address="$(docker compose -p "$project_name" -f "$compose_file" port home-assistant 8123)"
     ha_port="${ha_address##*:}"

@@ -33,9 +33,16 @@ jobs:
         run: git diff --check "$BASE_SHA...$HEAD_SHA"
       - name: Validate PR process helpers
         run: |
+          # Ruby's stdlib YAML parser is used by the workflow syntax fixtures.
+          if ! command -v ruby >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends ruby
+          fi
           node --check tools/pr-process.mjs
           node --check tools/pr-process-control.mjs
           node --test tools/pr-process.test.mjs
+          node --check tools/test-categories.mjs
+          node --test tools/test-categories.test.mjs
       - name: Validate title, linked issue and author evidence
         env:
           GH_TOKEN: ${{ github.token }}
