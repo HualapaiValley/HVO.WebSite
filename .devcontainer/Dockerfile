@@ -30,6 +30,7 @@ RUN apt-get update \
         python3-pip \
         python3-venv \
         ripgrep \
+        ruby \
         sqlite3 \
         unzip \
         zip \

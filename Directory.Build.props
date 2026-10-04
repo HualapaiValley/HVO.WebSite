@@ -5,8 +5,4 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
-
-  <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
-    <RunSettingsFilePath>$(MSBuildThisFileDirectory)test.runsettings</RunSettingsFilePath>
-  </PropertyGroup>
 </Project>

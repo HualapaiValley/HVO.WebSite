@@ -28,7 +28,8 @@ scripts/
 docs/
   CSS_GOVERNANCE.md             Full CSS authoring policy (read before touching any CSS)
 tests/
-  HVO.WebSite.UnitTests/        Unit tests (188 tests)
+  HVO.WebSite.UnitTests/        MSTest + FluentAssertions + bUnit application tests
+  HVO.*.Tests/                 Contract, gateway, outbox, API and provider tests
   HVO.WebSite.PlaywrightTests/  Playwright end-to-end tests
 ```
 
@@ -43,7 +44,7 @@ tests/
 | Shared theme | HVO.WebSite.Themes RCL — `hvo-shared-shell.css`, `hvo-components.css` |
 | Charts | Chart.js 4.4.0, bundled locally at `_content/HVO.WebSite.Themes/js/chart.min.js` |
 | ORM | Entity Framework Core (async-only: `ToListAsync`, `FirstOrDefaultAsync`, etc.) |
-| Testing | xUnit + FluentAssertions (unit); Playwright (E2E) |
+| Testing | MSTest + FluentAssertions; bUnit component tests; MSTest/Playwright browser tests |
 | Containers | Docker + `docker --context devpi5` / `docker --context hvo-docker` SSH remote contexts |
 | CI | GitHub Actions |
 | Hosting | Self-hosted Docker (hvo-docker for website + registry + SQL Server; devpi5 for gateways) |
@@ -168,6 +169,8 @@ Check for:
 ---
 
 ## Testing guidelines
+
+See [test lanes and runner prerequisites](development/testing.md) for exact filters, settings, report paths and supported local commands. The category validator checks each MSTest method using its class/method attributes, including root-level `*IntegrationTests.cs` and `*LiveTests.cs`; comment text or a sibling test's category cannot satisfy the requirement. Test helpers are not required to carry test categories.
 
 Treat test coverage as a core quality requirement:
 

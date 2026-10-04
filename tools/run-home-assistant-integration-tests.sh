@@ -11,6 +11,11 @@ export DOCKER_CONFIG="$docker_config"
 cleanup() {
     exit_status=$?
     trap - EXIT
+    if (( exit_status != 0 )); then
+        # Preserve fixture state before teardown; never print credentials/env.
+        docker compose -p "$project_name" -f "$compose_file" ps --all >&2 || true
+        docker compose -p "$project_name" -f "$compose_file" logs --no-color --tail 80 mosquitto >&2 || true
+    fi
     if ! docker compose -p "$project_name" -f "$compose_file" down --volumes --remove-orphans --rmi local; then
         printf 'Failed to remove the Home Assistant integration environment.\n' >&2
         (( exit_status == 0 )) && exit_status=1
@@ -30,6 +35,7 @@ cleanup() {
 trap cleanup EXIT
 
 "$repo_root/tools/validate-home-assistant-managed-config.sh"
+docker compose version
 docker compose -p "$project_name" -f "$compose_file" up -d --wait
 ha_address="$(docker compose -p "$project_name" -f "$compose_file" port home-assistant 8123)"
 broker_address="$(docker compose -p "$project_name" -f "$compose_file" port mosquitto 1883)"
@@ -108,9 +114,10 @@ HVO_HA_TEST_BROKER_PORT="$broker_port" \
 HVO_HA_TEST_COMPOSE_FILE="$compose_file" \
 HVO_HA_TEST_COMPOSE_PROJECT="$project_name" \
 dotnet test "$repo_root/HVO.WebSite.sln" \
-    -c Debug --nologo -v minimal --filter "TestCategory=Integration&TestCategory!=HomeAssistantIntegration" \
+    -c Debug --nologo -v minimal --filter "TestCategory=Integration&TestCategory!=HomeAssistantIntegration&TestCategory!=Live" \
+    --settings "$repo_root/integration.runsettings" \
     --logger trx --collect:"XPlat Code Coverage" \
-    --results-directory "$repo_root/TestResults"
+    --results-directory "$repo_root/TestResults/integration/simulators"
 
 for project in \
     "$repo_root/tests/HVO.Edge.HomeAssistant.Mqtt.Tests/HVO.Edge.HomeAssistant.Mqtt.Tests.csproj" \
@@ -124,9 +131,10 @@ for project in \
     HVO_HA_TEST_COMPOSE_FILE="$compose_file" \
     HVO_HA_TEST_COMPOSE_PROJECT="$project_name" \
     dotnet test "$project" -c Debug --nologo -v minimal \
-        --filter "TestCategory=HomeAssistantIntegration" \
+        --filter "TestCategory=HomeAssistantIntegration&TestCategory!=Live" \
+        --settings "$repo_root/integration.runsettings" \
         --logger trx --collect:"XPlat Code Coverage" \
-        --results-directory "$repo_root/TestResults"
+        --results-directory "$repo_root/TestResults/integration/home-assistant/$(basename "$project" .csproj)"
 
     ha_address="$(docker compose -p "$project_name" -f "$compose_file" port home-assistant 8123)"
     ha_port="${ha_address##*:}"
