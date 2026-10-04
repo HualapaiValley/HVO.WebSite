@@ -97,4 +97,28 @@ remove_failure_status="$?"
 set -e
 [[ "${remove_failure_status}" == 1 ]] || { printf 'Expected image cleanup failure to fail a successful smoke suite.\n' >&2; exit 1; }
 
-printf 'Verified bounded Docker smoke build cleanup for all six images.\n'
+: > "${log_file}"
+DOCKER_COMMAND="${fake_docker}" DOCKER_SMOKE_TEST_LOG="${log_file}" \
+    DOCKER_SMOKE_RUN_KEY=selected DOCKER_SMOKE_CACHE_MODE=ephemeral \
+    bash "${repo_root}/tools/docker-build-smoke.sh" --images jkbms eg4
+[[ "$(grep -c '^build ' "${log_file}")" == 2 ]] || { printf 'Expected only two selected images.\n' >&2; exit 1; }
+grep -q 'src/HVO.Hardware.JkBms/Dockerfile' "${log_file}"
+grep -q 'src/HVO.Hardware.Eg4/Dockerfile' "${log_file}"
+[[ "$(grep -c '^image rm --force ' "${log_file}")" == 2 ]]
+[[ "$(grep -c '^builder prune --all --force$' "${log_file}")" == 4 ]]
+
+: > "${log_file}"
+DOCKER_COMMAND="${fake_docker}" DOCKER_SMOKE_TEST_LOG="${log_file}" \
+    bash "${repo_root}/tools/docker-build-smoke.sh" --images
+[[ ! -s "${log_file}" ]] || { printf 'Empty image selection must not invoke Docker/pruning.\n' >&2; exit 1; }
+for arguments in '--images unknown' '--images jkbms jkbms' '--unknown'; do
+    : > "${log_file}"
+    read -r -a invalid_args <<< "$arguments"
+    if DOCKER_COMMAND="${fake_docker}" DOCKER_SMOKE_TEST_LOG="${log_file}" \
+        bash "${repo_root}/tools/docker-build-smoke.sh" "${invalid_args[@]}"; then
+        printf 'Invalid selection unexpectedly succeeded: %s\n' "$arguments" >&2; exit 1
+    fi
+    [[ ! -s "${log_file}" ]] || { printf 'Invalid selection invoked Docker.\n' >&2; exit 1; }
+done
+
+printf 'Verified selected/empty image execution and bounded Docker cleanup for all six images.\n'

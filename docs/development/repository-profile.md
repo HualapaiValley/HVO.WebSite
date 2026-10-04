@@ -1,6 +1,6 @@
 # WebSite process profile
 
-Process revision: `2026-10-03.1` (WebSite pilot).
+Process revision: `2026-10-04.1` (selective CI implementation awaiting adoption).
 
 | Setting | WebSite value |
 |---|---|
@@ -12,7 +12,7 @@ Process revision: `2026-10-03.1` (WebSite pilot).
 | Independent reviewer default | One distinct non-implementation person/session; qualified human or configured eligible agent route |
 | Default selection | Auto; explicit Preferred/Required and separation constraints override within authorized scope |
 | Publication | Direct GitHub comments/reviews; faithful attributed relay when needed; no mandatory bot |
-| CI | Bounded draft preflight, review gate, then standard build/test and Docker smoke |
+| CI | Bounded draft preflight, immutable-source review gate and trusted affected-work plan, then selected execution with stable build/test and Docker aggregation; main/nightly/default manual runs remain full |
 | Finalization reservation | None |
 | Release/deployment | Separate authorization; no production/hardware action implied by issue work |
 
@@ -25,10 +25,10 @@ Local application checks:
 ```text
 dotnet restore HVO.WebSite.sln --locked-mode --nologo
 dotnet build HVO.WebSite.sln --no-restore --nologo
-dotnet test HVO.WebSite.sln --no-build --filter "TestCategory!=Integration&TestCategory!=Live"
+dotnet test HVO.WebSite.sln --no-build --no-restore --filter "TestCategory!=Integration&TestCategory!=Live"
 ```
 
-Standard post-review CI also runs `bash tools/run-home-assistant-integration-tests.sh` and the full Docker smoke checks. The integration runner and live Playwright checks need their documented services/environment. UI changes include applicable Playwright/screenshots. Workflow changes require focused transition/gate tests and workflow syntax checks in addition to the existing build expectations. Record an unavailable check with its cause and remaining acceptance; do not hide it. A container using the exact pinned SDK is valid local evidence when the host's SDK differs.
+Dependency-aware post-review PR CI selects whole test assemblies, provisioned lanes, application builds and Docker images from both base and candidate graphs plus explicit input ownership. Main/nightly/default manual runs retain all work, and the ci:full PR label broadens selection. Full local solution validation remains required. The HA runner provisions only its HA category; simulator execution is separate. Integration and browser lanes need their documented fixtures. UI changes include applicable Playwright/screenshots. Workflow changes require focused planner, transition/gate, runner and workflow-syntax checks. Record unavailable checks and their remaining acceptance. A container using the exact pinned SDK is valid local evidence when the host differs. See [testing](testing.md) and [selective CI](selective-ci.md) for commands, partitions, source binding and pending adoption/measurement status.
 
 The trusted WebSite gate requires source-bound local evidence with stable IDs: `local:pinned-sdk-build-zero-warnings`, `local:non-live-tests`, and, for workflow/helper changes, `local:pr-process-tests`. Required local evidence must pass; the build records SDK 10.0.400, zero errors and zero warnings. An author cannot waive these prerequisites with a `required: false` field or an explained blocked result. Post-review integration/container CI is a separate stage and does not become a prerequisite to start itself. Draft preflight still permits honest failing or blocked preparation.
 
@@ -36,13 +36,15 @@ Keep CSS/theme/offline-gateway, Key Vault, logging, hardware, contract and curat
 
 ## Pilot adoption
 
-This revision is first adopted by issue #394. The trusted workflow/evaluator and metadata controller become active after adoption on main. During the adoption PR, the owner performs state writes manually; bounded preflight and local adversarial/controller fixtures exercise the proposed rules. The initial candidate cannot make itself an approval authority. Full live trusted PR CI therefore awaits adoption; record that activation boundary rather than claiming bootstrap CI is fully qualified or bypassing review.
+The original pilot was introduced by issue #394. Its adoption PR could not make its own evaluator or controller an approval authority; the owner performed state writes manually until the trusted code reached main. The same boundary applies to #411: the existing trusted full policy validates the selective-CI implementation before the new planner/workflow/controller can become authoritative. Keep historical adoption evidence separate from current qualification.
 
 The original CI requires an `hvo-website` self-hosted Linux x64 runner; GitHub reported none when this pilot started. Any hosted-runner migration must preserve the standard checks and be stated in the reviewed PR. Repository-required-check configuration is a separate GitHub setting and must be recorded when changed; committed policy alone does not activate protection.
 
 The pilot moves standard CI to hosted Ubuntu, uses ephemeral Docker smoke resources and installs Chromium's required system dependencies. All existing application/integration/deployment-policy checks remain. The trusted `Review Evidence` status and standard `build-and-test` / `docker-smoke` checks, plus required conversation resolution and an up-to-date candidate, are the intended main-branch protection profile after adoption. Required native approval count can remain zero for attributed same-account independent sessions. Do not claim these repository settings are active until their GitHub state is verified.
 
-PR CI uses a read-only `pull_request_target` workflow whose admission evaluator comes from the immutable trusted target tip. Standard jobs then check out the verified immutable GitHub merge SHA, with no write credentials or secret environment. The controller accepts only the matching PR/head/target/merge tuple, a fresh complete attempt created after approval, and successful gate/build/smoke jobs. It publishes candidate-head statuses for the intended required checks; native target-workflow checks alone do not establish candidate readiness. Partial or old-target reruns cannot qualify. An unchanged-source infrastructure recovery uses one fresh complete run, not a partial rerun of old admission.
+PR CI uses a read-only `pull_request_target` workflow whose admission evaluator, planner and aggregation code come from the immutable trusted target tip. Standard execution checks out the verified immutable GitHub merge SHA, with no write credentials or secret environment. The controller accepts only the matching PR/head/target/merge tuple, a fresh complete first attempt created after approval, and four successful internal jobs: review-evidence, plan, build-and-test and docker-smoke. Build-and-test verifies the complete planned execution union, including explicit reasons for skipped empty lanes. It publishes candidate-head statuses for the intended required checks; native target-workflow checks alone do not establish readiness. Partial or old-target reruns cannot qualify. An unchanged-source infrastructure recovery uses one fresh complete run.
+
+The #411 implementation PR must pass the previously adopted full CI before selective execution becomes trusted on main. Its full current-source local checks, hosted activation and representative timing measurements are pending. Manual main benchmark profiles measure selected execution but do not establish PR admission. No caching change or measured cache gain is claimed. The last inspected main protection endpoint returned 404 and rulesets were empty; intended protection settings remain unconfigured and must not be described as active.
 
 The repository requires Actions to be pinned to full commit SHAs. Keep readable version comments beside the immutable references and verify each replacement against its official Action repository. Tagged references alone fail job preparation even if workflow YAML is valid.
 

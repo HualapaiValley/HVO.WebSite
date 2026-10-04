@@ -1,15 +1,22 @@
 name: CI
-run-name: ${{ github.event_name == 'pull_request_target' && format('HVO-PR-CI v1 pr={0} head={1} base={2} merge={3}', github.event.pull_request.number, github.event.pull_request.head.sha, github.event.pull_request.base.sha, github.event.pull_request.merge_commit_sha) || format('CI {0} {1}', github.event_name, github.sha) }}
+run-name: ${{ github.event_name == 'pull_request_target' && format('HVO-PR-CI v1 pr={0} head={1} base={2} merge={3}', github.event.pull_request.number, github.event.pull_request.head.sha, github.event.pull_request.base.sha, github.event.pull_request.merge_commit_sha) || format('CI {0} {1} {2}', github.event_name, github.sha, inputs.profile || 'full') }}
 
 on:
   push:
     branches: [ main ]
-  # Trusted base workflow admits a candidate before any candidate code executes.
+  # The immutable target workflow admits and plans before executing PR code.
   pull_request_target:
     branches: [ main ]
     types: [ready_for_review, synchronize, reopened]
   schedule:
     - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Full validation, or a measured selection on trusted main'
+        type: choice
+        default: full
+        options: [full, jkbms, website, shared]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -18,6 +25,14 @@ concurrency:
 permissions:
   contents: read
   pull-requests: read
+
+env:
+  CI_HEAD: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+  CI_BASE: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+  CI_MERGE: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.merge_commit_sha || github.sha }}
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  CI_COVERAGE: ${{ github.event_name != 'pull_request_target' }}
 
 jobs:
   review-evidence:
@@ -28,8 +43,6 @@ jobs:
       eligible: ${{ steps.evidence.outputs.eligible }}
       merge: ${{ steps.evidence.outputs.merge }}
     steps:
-      # This is immutable trusted base code, never the candidate evaluator.
-      # First adoption activates only after this workflow/helper reaches main.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
@@ -47,100 +60,257 @@ jobs:
           EXPECTED_MERGE: ${{ github.event.pull_request.merge_commit_sha }}
         run: node tools/pr-process.mjs
 
-  build-and-test:
+  plan:
     needs: review-evidence
     if: ${{ !cancelled() && (github.event_name != 'pull_request_target' || (!github.event.pull_request.draft && github.run_attempt == 1 && needs.review-evidence.result == 'success' && needs.review-evidence.outputs.eligible == 'true')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      DOTNET_CLI_TELEMETRY_OPTOUT: 1
-      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+    timeout-minutes: 5
+    outputs:
+      plan: ${{ steps.plan.outputs.plan }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event_name == 'pull_request_target' && needs.review-evidence.outputs.merge || github.sha }}
-          fetch-depth: 1
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+          path: trusted
           persist-credentials: false
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          global-json-file: global.json
-
-      - name: Restore
-        run: dotnet restore HVO.WebSite.sln --locked-mode --nologo -v minimal
-
-      - name: Build (Debug)
-        run: dotnet build HVO.WebSite.sln --no-restore -c Debug --nologo -v minimal /p:ContinuousIntegrationBuild=true
-
-      - name: Install Playwright Chromium
-        run: pwsh tests/HVO.WebSite.PlaywrightTests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
-
-      - name: Test (Unit)
-        shell: bash
-        run: |
-          test_args=(
-            HVO.WebSite.sln --no-build -c Debug --nologo -v minimal
-            --filter "TestCategory!=Integration&TestCategory!=Live"
-            --logger trx
-            --results-directory TestResults/fast
-          )
-          if [[ "${{ github.event_name }}" != pull_request_target ]]; then
-            test_args+=(--collect:"XPlat Code Coverage")
-          fi
-          dotnet test "${test_args[@]}"
-
-      - name: Test (Integration)
-        run: bash tools/run-home-assistant-integration-tests.sh
-
-      - name: Validate test category conventions
-        run: |
-          node --test tools/test-categories.test.mjs
-          bash tools/validate-test-categories.sh
-
-      - name: Validate observability policy
-        run: |
-          bash tools/validate-observability-policy.sh
-          bash tools/validate-davis-weather-underground-deployment.sh
-          bash tools/validate-eg4-deployment.sh
-          bash tools/validate-smartshunt-deployment.sh
-          bash tools/verify-alert-rules.sh
-
-      - name: Verify bounded logging and outage recovery
-        run: |
-          bash tools/verify-local-log-budget.sh
-          bash tools/verify-log-outage-recovery.sh
-
-      - name: Build (Release)
-        run: dotnet build HVO.WebSite.sln --no-restore -c Release --nologo -v minimal /p:ContinuousIntegrationBuild=true
-
-      - name: Publish script dry run
-        run: bash tools/validate-publish-dry-run.sh
-
-      - name: Upload test results
+          node-version: '24'
+      # Git objects are data only. Never run candidate MSBuild in this job.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && needs.review-evidence.outputs.merge || github.sha }}
+          path: candidate
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Derive affected work from trusted base
+        id: plan
+        working-directory: candidate
+        env:
+          CI_TRIGGER: ${{ github.event_name == 'workflow_dispatch' && inputs.profile != 'full' && 'benchmark' || github.event_name }}
+          CI_BENCHMARK: ${{ github.event_name == 'workflow_dispatch' && inputs.profile != 'full' && inputs.profile || '' }}
+          CI_FULL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+          CI_PLAN_PATH: ${{ github.workspace }}/ci-plan.json
+        run: node ../trusted/tools/ci-source.mjs
+      - name: Retain immutable plan
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: test-results-${{ github.run_id }}
-          path: TestResults/**
-          retention-days: 7
+          name: ci-plan-${{ github.run_id }}
+          path: ci-plan.json
+          retention-days: 14
 
-  docker-smoke:
-    needs: review-evidence
-    if: ${{ !cancelled() && (github.event_name != 'pull_request_target' || (!github.event.pull_request.draft && github.run_attempt == 1 && needs.review-evidence.result == 'success' && needs.review-evidence.outputs.eligible == 'true')) }}
+  validation:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (true) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      DOCKER_SMOKE_CACHE_MODE: ephemeral
+      CI_PLAN: ${{ needs.plan.outputs.plan }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event_name == 'pull_request_target' && needs.review-evidence.outputs.merge || github.sha }}
-          fetch-depth: 1
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+          path: trusted
           persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ fromJSON(needs.plan.outputs.plan).source.merge }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: candidate/global.json
+      - name: Run planned validation work
+        working-directory: candidate
+        run: node ../trusted/tools/ci-run.mjs validation
+      - name: Retain validation results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: test-results-validation-${{ github.run_id }}
+          path: candidate/TestResults/**
+          retention-days: 7
 
-      - name: Validate Docker smoke cleanup
-        run: bash tools/verify-docker-build-smoke.sh
+  home-assistant:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (toJSON(fromJSON(needs.plan.outputs.plan).lanes['home-assistant']) != '[]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI_PLAN: ${{ needs.plan.outputs.plan }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ fromJSON(needs.plan.outputs.plan).source.merge }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: candidate/global.json
+      - name: Run planned home-assistant work
+        working-directory: candidate
+        run: node ../trusted/tools/ci-run.mjs home-assistant
+      - name: Retain home-assistant results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: test-results-home-assistant-${{ github.run_id }}
+          path: candidate/TestResults/**
+          retention-days: 7
 
-      - name: Docker build smoke
-        run: bash tools/docker-build-smoke.sh
+  sql-server:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (toJSON(fromJSON(needs.plan.outputs.plan).lanes['sql-server']) != '[]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI_PLAN: ${{ needs.plan.outputs.plan }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ fromJSON(needs.plan.outputs.plan).source.merge }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: candidate/global.json
+      - name: Run planned sql-server work
+        working-directory: candidate
+        run: node ../trusted/tools/ci-run.mjs sql-server
+      - name: Retain sql-server results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: test-results-sql-server-${{ github.run_id }}
+          path: candidate/TestResults/**
+          retention-days: 7
+
+  browser:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (toJSON(fromJSON(needs.plan.outputs.plan).lanes.browser) != '[]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI_PLAN: ${{ needs.plan.outputs.plan }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ fromJSON(needs.plan.outputs.plan).source.merge }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: candidate/global.json
+      - name: Run planned browser work
+        working-directory: candidate
+        run: node ../trusted/tools/ci-run.mjs browser
+      - name: Retain browser results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: test-results-browser-${{ github.run_id }}
+          path: candidate/TestResults/**
+          retention-days: 7
+
+  operations:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (fromJSON(needs.plan.outputs.plan).operations) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI_PLAN: ${{ needs.plan.outputs.plan }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ fromJSON(needs.plan.outputs.plan).source.merge }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: candidate/global.json
+      - name: Run planned operations work
+        working-directory: candidate
+        run: node ../trusted/tools/ci-run.mjs operations
+
+  # Stable required status: only trusted code judges the complete planned union.
+  build-and-test:
+    needs: [plan, validation, home-assistant, sql-server, browser, operations]
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      CI_PLAN: ${{ needs.plan.outputs.plan }}
+      CI_JOB_RESULTS: >-
+        {"validation":"${{ needs.validation.result }}","home-assistant":"${{ needs.home-assistant.result }}","sql-server":"${{ needs.sql-server.result }}","browser":"${{ needs.browser.result }}","operations":"${{ needs.operations.result }}"}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Verify every planned job and legitimate empty lane
+        run: node trusted/tools/ci-run.mjs aggregate
+
+  docker-smoke:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (true) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI_PLAN: ${{ needs.plan.outputs.plan }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ fromJSON(needs.plan.outputs.plan).source.merge }}
+          path: candidate
+          persist-credentials: false
+      - name: Run planned docker-smoke work
+        working-directory: candidate
+        run: node ../trusted/tools/ci-run.mjs docker-smoke

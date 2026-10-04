@@ -7,7 +7,7 @@ export const DEPTHS = ['mechanical', 'standard', 'deep'];
 export const TERMINAL = ['CORRECTED', 'DEFERRED', 'NON_ACTIONABLE', 'SUPERSEDED'];
 export const LOCAL_IDS = { build: 'local:pinned-sdk-build-zero-warnings', tests: 'local:non-live-tests', process: 'local:pr-process-tests' };
 export const PINNED_SDK = '10.0.400';
-export const CI_JOBS = ['review-evidence', 'build-and-test', 'docker-smoke'];
+export const CI_JOBS = ['review-evidence', 'plan', 'build-and-test', 'docker-smoke'];
 export const ciTitle = pr => `HVO-PR-CI v1 pr=${pr.number} head=${pr.head.sha} base=${pr.base.sha} merge=${pr.merge_commit_sha}`;
 const unknown = value => !value || /^(unknown|unavailable|provider-managed|auto|n\/a)$/i.test(value);
 const login = value => String(value ?? '').toLowerCase();
@@ -271,7 +271,7 @@ export class GitHub {
   }
   async request(path, method = 'GET', body) {
     const response = await this.fetcher(`${this.root}${path}`, { method, headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
-    if (!response.ok) throw new Error(`GitHub ${method} ${path}: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw Object.assign(new Error(`GitHub ${method} ${path}: ${response.status} ${await response.text()}`), { status: response.status });
     return response.status === 204 ? null : response.json();
   }
   async list(path) {

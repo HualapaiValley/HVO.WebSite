@@ -9,6 +9,23 @@ cache_mode="${DOCKER_SMOKE_CACHE_MODE:-ephemeral}"
 run_key="${DOCKER_SMOKE_RUN_KEY:-${GITHUB_RUN_ID:-local}-${GITHUB_JOB:-smoke}-$$}"
 run_key="${run_key//[^a-zA-Z0-9_.-]/-}"
 smoke_image=""
+images=(website davis jkbms smartshunt eg4 ha-exporter)
+if (( $# )); then
+	[[ "$1" == --images ]] || { printf 'Usage: %s [--images [website davis jkbms smartshunt eg4 ha-exporter ...]]\n' "$0" >&2; exit 2; }
+	shift
+	images=("$@")
+fi
+declare -A selected_images=()
+for image_id in "${images[@]}"; do
+	case "$image_id" in website|davis|jkbms|smartshunt|eg4|ha-exporter) ;; *) printf 'Unknown Docker smoke image: %s\n' "$image_id" >&2; exit 2 ;; esac
+	[[ -z "${selected_images[$image_id]:-}" ]] || { printf 'Repeated Docker smoke image: %s\n' "$image_id" >&2; exit 2; }
+	selected_images[$image_id]=1
+done
+if (( ${#images[@]} == 0 )); then
+	printf 'Verified empty Docker image selection; no Docker work requested.\n'
+	exit 0
+fi
+[[ "$cache_mode" == ephemeral || "$cache_mode" == persistent ]] || { printf 'Unknown Docker smoke cache mode: %s\n' "$cache_mode" >&2; exit 2; }
 
 remove_smoke_image() {
 	if [[ -n "${smoke_image}" ]]; then
@@ -65,9 +82,14 @@ build_smoke_image() {
 # layers at a time. The self-hosted runner retains recent layers within a bounded
 # cache so repeated PR builds do not restore and compile every image from scratch.
 prune_cache
-build_smoke_image src/HVO.WebSite.v9/Dockerfile "hvo-website-ci:${run_key}"
-build_smoke_image src/HVO.Hardware.DavisVantagePro2/Dockerfile "hvo-davis-ci:${run_key}"
-build_smoke_image src/HVO.Hardware.JkBms/Dockerfile "hvo-jkbms-ci:${run_key}"
-build_smoke_image src/HVO.Hardware.VictronSmartShunt/Dockerfile "hvo-smartshunt-ci:${run_key}"
-build_smoke_image src/HVO.Hardware.Eg4/Dockerfile "hvo-eg4-ci:${run_key}"
-build_smoke_image src/HVO.Edge.Exporter.HomeAssistant/Dockerfile "hvo-ha-exporter-ci:${run_key}"
+for image_id in "${images[@]}"; do
+	case "$image_id" in
+		website) project=HVO.WebSite.v9 ;;
+		davis) project=HVO.Hardware.DavisVantagePro2 ;;
+		jkbms) project=HVO.Hardware.JkBms ;;
+		smartshunt) project=HVO.Hardware.VictronSmartShunt ;;
+		eg4) project=HVO.Hardware.Eg4 ;;
+		ha-exporter) project=HVO.Edge.Exporter.HomeAssistant ;;
+	esac
+	build_smoke_image "src/$project/Dockerfile" "hvo-$image_id-ci:${run_key}"
+done
