@@ -1,6 +1,15 @@
 # Home Assistant Exporter Deployment
 
-Copy `gateway.json.example` to the ignored `gateway.json`, add only approved HA-owned Kasa/Govee mappings, and create these secret files under the ignored `secrets/` directory:
+**Implemented deployment template, disabled in production with no mappings or
+source claims.** Configuration preparation does not authorize enablement. Follow
+[mounted config/secret commissioning](../README.md#mounted-configuration-and-secrets)
+for first-install guards and Key Vault behavior. The sync helper can materialize
+the HA token/diagnostics files but intentionally omits the ingest key until exact
+source claims are approved.
+
+Only for a separately authorized exporter/source migration, initialize ignored
+`gateway.json` from the template without overwriting an existing file, add the
+approved HA-owned Kasa/Govee mappings and securely materialize:
 
 - `home-assistant-token`
 - `central-ingest-api-key`

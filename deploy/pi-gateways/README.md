@@ -49,7 +49,59 @@ Important:
 
 - The database stores only key hashes, not the raw values.
 - After a raw key is lost, it cannot be recovered from SQL.
-- Keep the raw values only in approved secret stores and deployment env files.
+- Keep raw values in approved secret stores and the target's ignored mounted
+  secret files. Legacy root/handoff env copies are not current gateway mounts.
+
+## Mounted configuration and secrets
+
+Current collectors require non-secret `gateway.json` mounted read-only at
+`/app/config/gateway.json`, secret files read-only at `/run/secrets` and their
+durable named volume at `/app/data`. Production startup requires the mounted
+JSON. Environment overrides win; JSON reload is disabled and secrets are
+resolved at startup, so changed configuration/credentials need an approved
+restart or replacement. See the [runtime contract](../../docs/architecture/EDGE_VNEXT_RUNTIME.md).
+
+First establish the [existing root bootstrap and global sync prerequisites](../../docs/development/key-vault-materialization.md),
+including its sourced SSH field, parsable SQL string and full vault-read scope.
+A gateway `.env`/`gateway.json` alone is insufficient. Then use authenticated
+Azure CLI access to `hvo-central-kv`:
+
+```bash
+./scripts/sync-secrets-from-keyvault.sh --check
+# Writes approved local materializations; does not rotate vault credentials:
+./scripts/sync-secrets-from-keyvault.sh --apply
+```
+
+`--check` is the default and reads vault values to detect drift without changing
+files. `--apply` operates across its fixed root/website/gateway materializations,
+not just the gateway being deployed. Review that scope before using it. The
+script writes under `deploy/pi-gateways/<gateway>/secrets`, with directory mode
+700/file mode 600; it does not discover custom `*_SECRETS_DIRECTORY` values.
+Custom local paths or secret filenames require an explicit secure transfer or
+materialization plan, followed by preflight. Never print values to verify them.
+
+| Target | Required mounted files / exceptions |
+|---|---|
+| Davis | `diagnostics-api-key` and `central-ingest-api-key`; `mqtt-username`/`mqtt-password` when MQTT is enabled; station-key/passcode files only for enabled external delivery as described below |
+| SmartShunt | `diagnostics-api-key` and `central-ingest-api-key`; MQTT pair when enabled |
+| JK BMS | Diagnostics/ingest pair; MQTT pair when enabled; each enabled device's configured six-digit settings-password file. The sync script's known-bank selection reads `gateway.json.example`; altered local device/file mappings require explicit materialization |
+| EG4 | Diagnostics/ingest pair and both MQTT files required by deploy preflight |
+| HA exporter template | Disabled, no production mappings/claims. Sync can materialize `home-assistant-token` and diagnostics, but deliberately does **not** materialize its ingest key; that requires approved exact website source claims. Token materialization alone does not authorize deployment |
+
+Diagnostics is configured by `Edge:Runtime:DiagnosticsApiKeySecret`; central
+ingest uses the separate `central-ingest-api-key`. Vault mappings are Davis
+`Seeding--DavisApiKey`/`Edge--Davis--DiagnosticsApiKey`, JK
+`Seeding--BmsApiKey`/`Edge--JkBms--DiagnosticsApiKey`, EG4
+`Seeding--PowerApiKey`/`Edge--Eg4--DiagnosticsApiKey`, and SmartShunt
+`Seeding--SmartShuntApiKey`/`Edge--SmartShunt--DiagnosticsApiKey`.
+The MQTT pair comes from `HomeAssistant--MqttUsername`/`HomeAssistant--MqttPassword`.
+
+Credential rotation is a separate approved vault/website/gateway lifecycle:
+materialize the intended version, synchronize the actual mounted paths, restart
+the affected runtime and verify auth/source claims/queue continuity before
+retiring an old credential. Updating an unused `.env` key is insufficient. See
+the [sender recovery matrix](../../docs/gateways/common-gateway-standards.md#sender-http-outcome-and-recovery-matrix)
+before assuming old failures will retry.
 
 ## Current targets
 
@@ -73,10 +125,47 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 
 ## Common workflow
 
-1. Copy `.env.example` to `.env` and `gateway.json.example` to `gateway.json` where provided.
+1. Initialize `.env` and `gateway.json` only on first install, refusing existing
+   files/symlinks. For example, from the repository root for Davis:
+
+```bash
+set -euo pipefail
+test ! -e deploy/pi-gateways/davis/.env && test ! -L deploy/pi-gateways/davis/.env
+test ! -e deploy/pi-gateways/davis/gateway.json && test ! -L deploy/pi-gateways/davis/gateway.json
+(umask 077; set -o noclobber; cat deploy/pi-gateways/davis/.env.example > deploy/pi-gateways/davis/.env)
+(umask 077; set -o noclobber; cat deploy/pi-gateways/davis/gateway.json.example > deploy/pi-gateways/davis/gateway.json)
+chmod 600 deploy/pi-gateways/davis/.env deploy/pi-gateways/davis/gateway.json
+```
+
 2. Keep device endpoints such as `DAVIS_STATION_HOST` in `.env`; fill mounted gateway configuration and create the required files under the configured local secrets directory.
 3. Set the absolute `*_REMOTE_CONFIG_FILE` and `*_REMOTE_SECRETS_DIRECTORY` paths from `.env.example`. For SSH Docker contexts, the deploy script copies the local files to those daemon-host paths with owner-only permissions before Compose starts the container.
-4. Deploy with the Pi Docker context:
+4. Validate syntax and expected non-secret mount/probe facts. `config --quiet`
+   alone does not establish effective values. Shell exports override `--env-file`:
+
+```bash
+set -euo pipefail
+docker compose --env-file deploy/pi-gateways/davis/.env \
+  -f deploy/pi-gateways/davis/docker-compose.yml config --quiet
+docker compose --env-file deploy/pi-gateways/davis/.env \
+  -f deploy/pi-gateways/davis/docker-compose.yml config --format json |
+  jq -e '.services["hvo-davis"] as $s |
+    $s.environment.DOTNET_ENVIRONMENT == "Production" and
+    any($s.volumes[]; .target == "/app/config/gateway.json" and .read_only == true) and
+    any($s.volumes[]; .target == "/run/secrets" and .read_only == true) and
+    any($s.volumes[]; .target == "/app/data" and .type == "volume") and
+    $s.healthcheck.test[-1] == "http://localhost:8080/health"' >/dev/null
+```
+
+5. Run the named gateway's deployment preflight/dry run after device identities,
+   mounts, checkpoint and secret files are satisfied. `--dry-run` still validates
+   local prerequisites, but prints rather than executes SSH/container writes.
+   Inspect that output for the intended daemon-host paths.
+
+```bash
+./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 davis
+```
+
+6. Only with rollout authorization, deploy the selected Pi collector:
 
 ```bash
 ./scripts/deploy-pi-gateway.sh --context devpi5 davis
@@ -134,7 +223,17 @@ To verify deployed endpoints after rollout:
 2. Store the raw API keys in Key Vault using the secret names listed above.
 3. Restart or roll a new website revision so startup seeding runs again.
 4. Verify the keys against the live internal website API.
-5. Copy only the needed raw gateway key into the Pi gateway `.env` file.
+5. Synchronize the approved gateway key into its actual mounted
+   `secrets/central-ingest-api-key`, with the separate diagnostics credential and
+   any target-specific files; perform preflight, deploy and verify continuity.
+
+This sequence is an authorized rollout, not a hardware-free development quick
+start. Preserve exactly one acquisition authority and central writer per source.
+#352 governs any SmartShunt migration; #385 owns the permanent Govee proxy path,
+and #320 governs HA-owned history/source authority. Keep the exporter disabled
+without approved mappings/claims. Use the
+[SQLite checkpoint/restore contract](../../docs/gateways/sqlite-backup-and-rollback.md)
+and retain retired recovery archives.
 
 ## Current local ports
 

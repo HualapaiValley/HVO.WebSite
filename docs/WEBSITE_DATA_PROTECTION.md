@@ -20,7 +20,9 @@ The dedicated `hvo-website-runtime` identity needs:
 Do not reuse the development service principal. Website deployment files obtain
 the dedicated identity from `WebsiteRuntime--AzureClientId`,
 `WebsiteRuntime--AzureClientSecret`, and `WebsiteRuntime--AzureTenantId` in
-`hvo-central-kv` through `sync-secrets-from-keyvault.sh`.
+`hvo-central-kv` through `sync-secrets-from-keyvault.sh`. Before using that global
+helper, establish its [existing root-bootstrap, SQL/SSH and whole-helper prerequisites](development/key-vault-materialization.md);
+website identity materialization alone does not limit its scope.
 
 The devcontainer identity is intentionally separate and is cached in the private
 bootstrap gist for rebuild recovery. Rotations must update
@@ -44,8 +46,11 @@ one user reauthentication. Do not copy the old plaintext key into the new ring.
 Before rollout, preserve it only as a restricted rollback archive and record its
 checksum.
 
-Render Compose before deployment and confirm that stale shell variables do not
-override the deployment environment:
+Render Compose before deployment. `config --quiet` proves syntax/interpolation
+validity only. Confirm effective non-secret mount/application-name/listener values
+with the secret-safe assertion in the [current website entry](../deploy/hvo-docker/README.md#safe-configuration-checks),
+removing stale shell overrides before rollout. The startup seeder applies EF
+migrations to the configured SQL target; verify its approved target first.
 
 ```bash
 docker --context hvo-docker compose \
@@ -77,6 +82,13 @@ A host restart test must confirm:
 - `hvo-website-data-protection` is still mounted at the configured directory
 - `verify-website-data-protection.sh` passes
 - an authenticated session created after the first rollout remains valid
+
+These are required recovery checks, not proof that a production restore/host
+restart drill has been completed. The repository contains a running-container
+policy/encryption verifier but no source-bound completed payload-unprotect or
+off-host disaster-recovery drill record. The website/identity owners must retain
+restricted archives, old protector access, restoration evidence and a named
+maintenance window. See [recovery ownership and evidence gaps](SHARED_INFRASTRUCTURE.md#recovery-ownership-and-evidence-gaps).
 
 ## Rotation And Rollback
 

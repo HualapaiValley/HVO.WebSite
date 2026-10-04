@@ -92,8 +92,32 @@ APIs may expose both the UTC instant and the display timezone metadata, for exam
 | FailureKind | Retry by default | Meaning |
 |-------------|------------------|---------|
 | `None` | N/A | No failure classification. Pending/sent records should normally use this. |
-| `Permanent` | No | Dead-lettered record caused by local invalid payload, remote validation rejection, authentication/authorization failure, unsupported endpoint, or unsupported payload version. Requires code/configuration/operator action. |
-| `RetryExhausted` | Yes, automatically after recovery | A retryable cloud/network failure exceeded the configured retry limit. These rows may be moved back to `Pending` after a successful forward proves connectivity has recovered. |
+| `Permanent` | No | Dead-lettered record caused by local invalid payload, explicit remote rejection or a sender-specific permanent HTTP outcome. Requires code/configuration/operator action. |
+| `RetryExhausted` | Periodically | A transient failure reached the configured retry limit. Gateway requeue workers return these rows to `Pending` periodically, without requiring a prior successful forward. |
+
+### Sender HTTP outcome and recovery matrix
+
+This table describes current source behavior, rather than a proposed uniform
+policy. HTTP success must also pass the sender's batch acknowledgement validation.
+
+| Sender | HTTP 401/403 | HTTP 408/429/5xx | Other unsuccessful HTTP | Invalid successful ACK | Explicit per-record rejection |
+|---|---|---|---|---|---|
+| [Davis](../../src/HVO.Hardware.DavisVantagePro2/Outbox/DavisOutboxBatchSender.cs) | Transient | Transient | Permanent | Transient | Permanent |
+| [SmartShunt](../../src/HVO.Hardware.VictronSmartShunt/Outbox/SmartShuntOutboxBatchSender.cs) | Transient | Transient | Permanent | Transient | Permanent |
+| [JK BMS](../../src/HVO.Hardware.JkBms/Outbox/JkBmsOutboxBatchSender.cs) | **Permanent** | Transient | Permanent | Transient | Permanent |
+| [EG4](../../src/HVO.Hardware.Eg4/Outbox/Eg4OutboxBatchSender.cs) | **Permanent** | Transient | Permanent | Transient | Permanent |
+| [HA exporter](../../src/HVO.Edge.Exporter.HomeAssistant/HomeAssistantOutboxBatchSender.cs), disabled in production | Permanent | Transient | Permanent | Transient | Permanent |
+
+Transport exceptions and request timeouts are transient; locally invalid payloads
+and unsupported payload contracts are permanent. Missing, duplicate or unknown
+per-record outcomes are scheduled for retry by the shared forwarder.
+
+After a Davis/SmartShunt credential correction, pending rows retry, and
+retry-exhausted rows return through periodic requeue. Correcting JK/EG4 credentials
+allows new observations to forward, but does **not** automatically requeue rows
+already dead-lettered as `Permanent`. Observe failure kinds and counts before
+claiming backlog recovery. Any desired alignment of these classifications needs
+a separate reviewed code issue and regression tests; #415 changes no sender policy.
 
 ### Retry Rules
 
@@ -102,15 +126,31 @@ APIs may expose both the UTC instant and the display timezone metadata, for exam
 - When retry attempts are exhausted, set `Status=Failed`, `FailureKind=RetryExhausted`, and preserve a useful `LastError`.
 - Remote validation failures from the cloud are dead letters. Set `Status=Failed`, `FailureKind=Permanent`, and store the cloud-provided reason.
 - Locally invalid payload JSON is a dead letter. Set `Status=Failed`, `FailureKind=Permanent`, and avoid sending the batch until malformed records are removed from it.
-- Authentication/configuration failures should not burn through thousands of retries silently. Classify HTTP 400/401/403/404 as `Permanent` and surface the error.
+- HTTP classification is sender-specific as listed above; surface authentication
+  failures instead of assuming every sender treats them identically.
 - Requeue operations must only automatically target `RetryExhausted`; permanent dead letters require operator/code/configuration action.
 
 ### Requeue Rules
 
-- Safe automatic requeue: `RetryExhausted` rows may be moved back to `Pending` after a successful forward proves the cloud endpoint or network is healthy.
-- Safe operator requeue: `RetryExhausted` rows may also be moved back to `Pending` after operator review.
+- Each gateway's retry-requeue worker calls
+  [RequeueRetryExhaustedAsync](../../src/HVO.Edge.Outbox/EdgeOutboxStore.cs)
+  at startup and periodically (default `RetryExhaustedRequeueMinutes=15`). It does
+  not check last-success state first. Only `Failed` + `RetryExhausted` rows qualify.
+- Requeue resets status to `Pending`, attempt count to zero, failure kind to
+  `None`, next retry to `DateTime.MinValue`, and appends a bounded UTC note.
 - Unsafe automatic requeue: `Permanent` rows should not automatically return to `Pending` without a code/configuration fix and operator decision.
-- Requeue should reset `FailureKind=None`, set `NextRetryAtUtc=DateTime.MinValue`, and append a bounded note to `LastError` explaining why the record was requeued.
+- `outbox-maintenance.sh` provides `summary`, `schema`, `archive` and `compact`;
+  there is no requeue subcommand or published blanket SQL recovery recipe.
+  Permanent-row recovery requires a separately approved, backed-up, reviewed
+  operation selecting the affected source/records, correcting the actual reason,
+  and proving central idempotency/continuity. Use the
+  [SQLite checkpoint/isolated restore contract](sqlite-backup-and-rollback.md)
+  before any such mutation. Preserve the original store and post-checkpoint data;
+  do not bulk-requeue validation failures or bypass source-authority claims.
+
+Shared [forwarder options](../../src/HVO.Edge.Outbox/EdgeOutboxOptions.cs) default
+to 10 attempts and a 300-second maximum exponential backoff, with one-day sent
+retention and 30-day failed retention. Gateway configuration can override them.
 
 #### Compaction
 
@@ -132,12 +172,15 @@ tuning forwarding throughput.
 - **API endpoint** (API-key protected): `PUT /diagnostics/outbox/settings`
   - Body: `{"batchSize": 500, "sweepIntervalSeconds": 1}`
   - Body: `{"reset": true}` — reverts to configured defaults
-- **Defaults**: `OUTBOX_BATCH_SIZE=500`, `OUTBOX_SWEEP_INTERVAL_SECONDS=1` in `.env`
+- **Shared defaults**: `Outbox:BatchSize=50`, `Outbox:SweepIntervalSeconds=5`;
+  mounted gateway examples/Compose overrides can select different values.
 - The forwarder skips the sweep interval delay entirely when the queue has work,
   so backlog draining proceeds at maximum rate.
-- **HTTP timeouts**: All gateways configure the resilience handler with 60s
-  attempt timeout, 120s total request timeout, and 120s circuit breaker sampling.
-  The `HttpClient.Timeout` is set to 120s for all outbox forwarding clients.
+- **HTTP policy**: Current senders use the named `HvoEdge` client registered with
+  `AddStandardResilienceHandler()` by
+  [the shared runtime](../../src/HVO.Edge.Hosting/EdgeWebApplicationBuilderExtensions.cs).
+  It does not set the older claimed 60/120-second overrides. Changing client
+  timeout/resilience behavior needs reviewed code, not runtime outbox tuning.
 
 ## Cloud Batch Semantics
 
@@ -249,13 +292,12 @@ Required status concepts:
 - last batch count.
 - whether historical failures are present but current forwarding is healthy.
 
-Health states should distinguish these cases:
-
-- `Healthy`: sampling and forwarding are current.
-- `Degraded`: sampling or forwarding has a warning condition, but current telemetry may still be flowing.
-- `Offline`: local device/protocol is unavailable or sample age is beyond the critical threshold.
-- `Misconfigured`: required configuration is missing, placeholder, or unauthorized.
-- `Starting`: process is running but has not completed initialization.
+The current shared health states are `Unknown`, `Healthy`, `Warning` and `Critical`.
+Reasons/device snapshots supply context such as startup, stale acquisition,
+configuration or forwarding failure. See the
+[endpoint/probe/auth table](../GATEWAY_OPERATIONS.md#health-contract) for actual
+HTTP mappings; `Warning` does not itself produce 503. Older prose using
+`Degraded` does not name a current shared enum value.
 
 ## Shared Code Direction
 

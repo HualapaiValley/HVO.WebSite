@@ -73,8 +73,12 @@ resolve under the secret root. Runtime code creates only the data directory; it
 never creates mounted configuration or secret files.
 
 Configuration precedence is application defaults, mounted `gateway.json`, then
-environment-variable overrides. `HVO_EDGE_CONFIG_FILE` can select a different
-mounted file for commissioning and tests.
+environment-variable overrides. Production requires the mounted file; it is
+optional outside Production. JSON reload is disabled, and secret files are
+resolved at startup: changing either requires an approved container restart or
+replacement. `HVO_EDGE_CONFIG_FILE` can select a different mounted file for
+commissioning and tests. Follow [gateway commissioning](../../deploy/pi-gateways/README.md)
+for Key Vault materialization and daemon-host mount synchronization.
 
 ## Runtime Identity
 
@@ -100,7 +104,14 @@ forwarder. The device-specific sender returns one outcome per local record:
 
 - `Sent` for accepted or idempotently skipped observations;
 - `TransientFailure` for retryable transport/service failures;
-- `PermanentFailure` for invalid payload or unsupported-contract errors. HTTP 401/403 are transient so corrected credential or source-authority configuration can recover without losing durable records.
+- `PermanentFailure` for invalid payload, explicit record rejection or a
+  sender-specific permanent HTTP outcome.
+
+The [canonical HTTP outcome/recovery matrix](../gateways/common-gateway-standards.md#sender-http-outcome-and-recovery-matrix)
+records the current compatibility difference: Davis/SmartShunt retry 401/403,
+while JK/EG4 and the disabled HA exporter dead-letter them. Credential correction
+does not automatically recover existing permanent rows. Periodic requeue targets
+only `RetryExhausted` and has no prior-success prerequisite.
 
 The shared worker owns attempts, exponential retry, retry exhaustion,
 dead-letter state, cancellation-aware sweeps, and daily retention compaction.
@@ -124,7 +135,12 @@ Public endpoints:
 
 The API key is loaded from the secret file named by
 `Edge:Runtime:DiagnosticsApiKeySecret`. Diagnostic responses expose no secret,
-secret path, configuration path, or SQLite path.
+secret path, configuration path, or SQLite path. It is distinct from the central
+ingest key. Missing/wrong diagnostics credentials return 403. Shared readiness
+returns 503 only for `Critical`; `Unknown`/`Healthy`/`Warning` return 200. Devices are in
+`/diagnostics/status`, with no separate devices route. See
+[operations](../GATEWAY_OPERATIONS.md#health-contract) for the actual per-stack
+Compose probes and read-only versus mutating operations.
 
 ## Home Assistant MQTT Contract
 
