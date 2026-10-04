@@ -41,6 +41,7 @@ export function classifyTests(source, path, project) {
   for (const declaration of result.declarations) {
     const categories = new Set(declaration.categories);
     if (categories.has('Live')) continue;
+    if (project === BROWSER_TESTS && categories.has('Integration')) throw new Error(`${path}: Playwright integration requires explicit combined fixture ownership`);
     if (categories.has('HomeAssistantIntegration')) lanes.add('home-assistant');
     else if (categories.has('SqlServerIntegration')) lanes.add('sql-server');
     else if (categories.has('Browser') || project === BROWSER_TESTS) lanes.add('browser');

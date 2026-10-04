@@ -51,7 +51,7 @@ function testProjects(plan, lane) {
     run('dotnet', args);
     // Existing ignored scaffold is owned by #408. Moving this assembly to its
     // browser lane must preserve that visible baseline, not permit new skips.
-    const baselineIgnore = project === BROWSER_TESTS ? ['--allow-ignored-test', 'HomePage_ShouldRenderMainHeading'] : [];
+    const baselineIgnore = project === BROWSER_TESTS ? ['--allow-ignored-test', 'PlaywrightSuite_IsConfiguredButDisabledByDefault'] : [];
     run('python3', [resolve(directory, 'ci-results.py'), results, ...baselineIgnore]);
   }
 }

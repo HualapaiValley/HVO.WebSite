@@ -117,6 +117,9 @@ test('literal categories partition required work and preserve browser assembly r
   assert.deepEqual(classifyTests(code('[TestCategory("Live")]'), 'T.cs', 'tests/T/T.csproj').lanes, []);
   assert.throws(() => classifyTests(code('[TestCategory(Category)]'), 'T.cs', 'tests/T/T.csproj'), /literal/);
   assert.equal(classifyTests('using Crc = Library.Crc; ' + code(''), 'T.cs', 'tests/T/T.csproj').unsupported, false);
+  assert.throws(() => classifyTests(code('[TestCategory("Integration")]'), 'T.cs', BROWSER_TESTS), /combined fixture/);
+  assert.throws(() => classifyTests(code('[TestCategory("Integration"), TestCategory("Browser")]'), 'T.cs', 'tests/T/T.csproj'), /separate fixture/);
+  assert.throws(() => classifyTests(code('[TestCategory("Integration"), TestCategory("HomeAssistantIntegration"), TestCategory("SqlServerIntegration")]'), 'T.cs', 'tests/T/T.csproj'), /both provisioned/);
 });
 test('helper inheritance does not broaden selection but unknown test inheritance does', () => {
   const classify = code => classifyTests(code, 'T.cs', 'tests/T/T.csproj');

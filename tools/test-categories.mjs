@@ -47,6 +47,8 @@ export function validateSource(source, file) {
     for (const required of ['HomeAssistantIntegration', 'SqlServerIntegration']) {
       if (names.has(required) && !names.has('Integration')) report(`${required} requires Integration`);
     }
+    if (names.has('HomeAssistantIntegration') && names.has('SqlServerIntegration')) report('a test cannot require both provisioned fixture lanes');
+    if (names.has('Browser') && names.has('Integration')) report('Browser and Integration require separate fixture ownership');
     if (names.has('Live') && [...names].some(x => x !== 'Live')) report('Live cannot also belong to a required non-live lane');
   };
   for (let i = 0; i < tokens.length; i++) {
