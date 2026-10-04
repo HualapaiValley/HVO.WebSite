@@ -23,13 +23,14 @@ The HA exporter must exclude HVO-owned Davis MQTT entities. MQTT state is curren
 - The shared SQLite outbox uses WAL mode and a bounded lock timeout. Do not copy an active database as a rollback backup.
 - Keep the legacy `davis_davis-data-protection` volume while the legacy image remains a rollback option.
 - Runtime `gateway.json`, mounted secrets, databases, and backup archives are ignored operational material. Do not commit or print them.
+- Use the [canonical SQLite backup and rollback contract](../sqlite-backup-and-rollback.md) for new checkpoints: durable workstation-owned archives streamed from the explicit Docker daemon, checksum, every database's integrity and a disposable restore proof. Include metadata/archive cursor and the retained legacy data-protection volume. This does not extend the historical production evidence below.
 
 ## Cutover Sequence
 
 1. Record the running legacy image ID, container name, named volumes, outbox counts, and latest central raw timestamp.
 2. Run `./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 davis` with stale shell overrides unset.
 3. Stop the legacy collector and confirm it has exited before vNext starts.
-4. Back up the quiescent named volumes to an operator-owned directory with directory mode `0700` and files mode `0600`; verify the archive checksum.
+4. Prove all named-volume writers are quiescent and qualify their backups with the [canonical contract](../sqlite-backup-and-rollback.md). Store durable archives on the identified operator workstation with directory mode `0700` and files mode `0600`; verify checksum, database integrity, cursor/metadata and disposable restoration before promotion. The website migration/endpoints/source authority must be compatible before the new central writer starts.
 5. Deploy vNext with `./scripts/deploy-pi-gateway.sh --context devpi5 davis` against the existing `davis_davis-outbox` volume.
 6. Verify the container is healthy with restart count zero and is the only WeatherLink client.
 7. Verify `/diagnostics/status` reports one online device, a compatible outbox schema, no failed records, and current forwarding.
@@ -58,9 +59,9 @@ When #346 re-enables backlog recovery, verify that the cursor moves forward acro
 Rollback preserves the one-owner invariant:
 
 1. Stop vNext and confirm the container is not running.
-2. Preserve the current vNext volume before modifying it. Never restore into a mounted, active volume.
-3. If the shared-schema migration must be undone, restore the verified quiescent pre-cutover volume backup. The legacy image is not expected to understand every vNext schema change.
-4. Restore the preserved legacy image and its original Compose/runtime contract with the `davis_davis-outbox` and `davis_davis-data-protection` volumes.
+2. Qualify a backup of the stopped current vNext volume and preserve it intact, including post-checkpoint rows and the archive cursor. Follow [canonical rollback preservation](../sqlite-backup-and-rollback.md#preserve-current-state-during-rollback); never overwrite the original volume.
+3. Use the current volume only if the preserved legacy image understands its schema. Otherwise restore the qualified pre-cutover archive to a new recovery volume and reconcile later observations/cursor state with central raw/archive history before forwarding; the legacy image is not expected to understand every vNext schema change.
+4. Restore the preserved legacy image and its original Compose/runtime contract, keeping the original `davis_davis-outbox` and `davis_davis-data-protection` volumes. Any recovery-volume mount override must be reviewed explicitly and retain the required data-protection mount.
 5. Start only the legacy collector.
 6. Verify one WeatherLink owner, live central raw timestamps, outbox drainage, and legacy health before declaring rollback complete.
 7. Keep vNext stopped until a new controlled cutover.

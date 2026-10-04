@@ -68,6 +68,16 @@ verify health, outbox drainage, and central continuity afterward.
 
 ## Safe Re-Baselining
 
+New cutover, maintenance and rollback checkpoints follow the
+[canonical SQLite backup contract](gateways/sqlite-backup-and-rollback.md): prove
+quiescence, preserve the current volume, stream a full archive to a named durable
+operator-workstation path, verify checksum/database integrity and demonstrate an
+isolated disposable restore. A helper's tar listing or compaction backup alone
+does not qualify the full rollback contract. Preserve gateway metadata/companion
+volumes and post-checkpoint observations, and reconcile central history before
+enabling a restored older writer. Remote bind paths belong to the Docker daemon
+host; the canonical recipe uses streams so backup paths belong to the workstation.
+
 Archive only after confirming the central API has current data and the outbox contains old sent/failed records or a legacy incompatible schema. Stop the gateway before archiving so SQLite cannot keep writing to the renamed database or race WAL/SHM moves. The script refuses to archive when the target gateway service appears to be running, renames `outbox.db*` files inside the Docker volume, and never deletes them:
 
 ```bash
