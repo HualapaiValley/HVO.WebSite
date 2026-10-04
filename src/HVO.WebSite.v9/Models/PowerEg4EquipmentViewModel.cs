@@ -1,6 +1,7 @@
 using System.Globalization;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.Themes.Components.Format;
+using HVO.WebSite.v9.Configuration;
 
 namespace HVO.WebSite.v9.Models;
 
@@ -26,7 +27,9 @@ public sealed record PowerEg4EquipmentViewModel(
 
     public static PowerEg4EquipmentViewModel FromSnapshots(
         PowerInverterDetailSnapshotResponse inverter,
-        PowerMpptDetailSnapshotResponse controller)
+        PowerMpptDetailSnapshotResponse controller,
+        DateTime? nowUtc = null,
+        PowerCompositionOptions? options = null)
     {
         if (!inverter.IsPresent && !controller.IsPresent)
             return Empty;
@@ -39,9 +42,13 @@ public sealed record PowerEg4EquipmentViewModel(
             .OrderBy(tracker => tracker.TrackerId, StringComparer.OrdinalIgnoreCase)
             .Select(tracker => Tracker(tracker.Name, tracker.PowerW, tracker.VoltageV, tracker.CurrentA))
             .ToArray();
+        options ??= new();
+        bool IsAged(DateTime timestamp) => nowUtc.HasValue &&
+            (nowUtc.Value - timestamp > TimeSpan.FromSeconds(options.Eg4BranchFreshnessSeconds)
+             || timestamp - nowUtc.Value > TimeSpan.FromSeconds(options.MaxFutureClockSkewSeconds));
         var state = !inverter.IsPresent || !controller.IsPresent
             ? "Partial"
-            : inverter.IsStale || controller.IsStale ? "Stale" : "Current";
+            : inverter.IsStale || controller.IsStale || IsAged(inverter.RecordedAtUtc) || IsAged(controller.RecordedAtUtc) ? "Stale" : "Current";
 
         return new PowerEg4EquipmentViewModel(
             State: state,

@@ -1,5 +1,3 @@
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
-
 <section class="power-status-card" aria-labelledby="power-status-heading">
     <div class="power-status-card__header">
         <div>
@@ -8,6 +6,29 @@
         </div>
         <span class="hvo-chip @SnapshotStateChipClass">@_viewModel.SnapshotState</span>
     </div>
+
+    @if (_isLoading)
+    {
+        <div class="hvo-callout hvo-callout-info" role="status">Loading power telemetry…</div>
+    }
+    @if (_errors.Count > 0)
+    {
+        <div class="hvo-state-error" role="alert">
+            @foreach (var error in _errors)
+            {
+                <p data-section-error="@error.Key">@error.Value</p>
+            }
+            <MudButton OnClick="RetryAsync" Variant="Variant.Outlined" Disabled="_isLoading">Retry power telemetry</MudButton>
+        </div>
+    }
+    else if (_hasLoaded && _viewModel.SnapshotState == "Waiting")
+    {
+        <div class="hvo-state-empty" role="status">Waiting for power telemetry. This dashboard refreshes automatically.</div>
+    }
+    @if (_hasLoaded && PvHistoryDatasets.Count == 0 && BatteryHistoryDatasets.Count == 0)
+    {
+        <div class="hvo-state-empty" role="status">No power history is available yet.</div>
+    }
 
     <section class="power-inventory power-pv-inputs" aria-labelledby="power-pv-inputs-heading">
         <div class="power-bank__header">

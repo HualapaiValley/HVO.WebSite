@@ -87,6 +87,15 @@ Avoid:
 - Immediate context worth knowing before resuming work
 ```
 
+## 2026-10-04
+
+### Interactive website foundation
+
+- Established a Routes-owned interactive shell while retaining public/authenticated SSR and Entra policy handling. Dashboard reads begin after interactive render; shared layouts no longer retain anonymous navigation-event handlers.
+- Added scoped typed dashboard operations and a cancellable, serialized refresh lifecycle. Current readings and history have independent cadences; current-time presentation and content/window history revisions continue updating without new row counts.
+- Provider failures retain independently successful sections and expose retry; an interactive dashboard boundary contains unexpected rendering failures. Browser fixtures use the actual host with test-owned clock/providers/authentication, without production testing switches.
+- #405 owns history projection refinements. Deployment, hardware and exporter enablement remain separately authorized work.
+
 ## 2026-10-03
 
 ### Shared Development Process Pilot

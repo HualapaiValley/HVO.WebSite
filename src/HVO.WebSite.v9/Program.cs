@@ -171,6 +171,9 @@ namespace HVO.WebSite.v9
             services.AddScoped<IBmsIngestService, BmsIngestService>();
             services.AddScoped<IPowerSystemSnapshotProvider, PowerSystemSnapshotProvider>();
             services.AddScoped<IPowerInventoryConfigurationProvider, PowerInventoryConfigurationProvider>();
+            services.AddSingleton(sp => PowerDashboardSettings.FromConfiguration(configuration,
+                sp.GetRequiredService<IOptions<PowerCompositionOptions>>().Value));
+            services.AddSingleton<IPowerDashboardQuery, PowerDashboardQuery>();
 
             // Add MVC controllers (includes Microsoft Identity UI controllers for sign-in/sign-out)
             services.AddControllersWithViews()

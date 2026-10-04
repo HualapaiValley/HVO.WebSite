@@ -7,6 +7,8 @@ using HVO.WebSite.v9.Services;
 using HVO.WebSite.Themes.Components.Charts;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
+using HVO.WebSite.v9.Configuration;
 
 namespace HVO.WebSite.UnitTests;
 
@@ -127,6 +129,7 @@ public sealed class PowerStatusCardTests : BunitContext
             })
             .Build());
 
+        RegisterDashboard(observedAt);
         var component = Render<PowerStatusCard>();
 
         component.Markup.Should().Contain("Live Power Snapshot");
@@ -186,6 +189,7 @@ public sealed class PowerStatusCardTests : BunitContext
             new PowerConfigurationSnapshotResponse()));
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
 
+        RegisterDashboard(observedAt);
         var component = Render<PowerStatusCard>();
 
         component.Markup.Should().Contain("-250 W");
@@ -218,12 +222,25 @@ public sealed class PowerStatusCardTests : BunitContext
             })
             .Build());
 
+        RegisterDashboard(observedAt);
         var component = Render<PowerStatusCard>();
 
         var chart = component.FindComponent<HvoChart>();
         chart.Instance.Datasets.Single(dataset => dataset.Label == "5-minute PV subtotal").Data.Should().ContainSingle().Which.Should().BeNull();
         chart.Instance.Datasets.Where(dataset => dataset.Label != "5-minute PV subtotal")
             .Should().OnlyContain(dataset => dataset.Data.Single().HasValue);
+    }
+
+    [TestCleanup]
+    public async Task CleanupAsync() => await DisposeAsync();
+
+    private void RegisterDashboard(DateTime observedAt)
+    {
+        var configuration = (IConfiguration)Services.Last(item => item.ServiceType == typeof(IConfiguration)).ImplementationInstance!;
+        var composition = configuration.GetSection(PowerCompositionOptions.SectionName).Get<PowerCompositionOptions>() ?? new();
+        Services.AddSingleton(PowerDashboardSettings.FromConfiguration(configuration, composition));
+        Services.AddSingleton<TimeProvider>(new FakeTimeProvider(new DateTimeOffset(observedAt)));
+        Services.AddSingleton<IPowerDashboardQuery, PowerDashboardQuery>();
     }
 
     private static SourcedValue<T> Value<T>(
