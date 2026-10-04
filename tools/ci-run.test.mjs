@@ -170,8 +170,10 @@ for (const lane of ['home-assistant', 'sql-server', 'browser']) {
       assert.ok(result.args.includes('--ha-only'));
       assert.ok(result.args.includes('--results-directory'));
       assert.ok(haProjects.every(project => result.args.includes(project)));
-    } else {
+    } else if (lane === 'sql-server') {
       assert.equal(result.safetyCalled, true);
+    } else {
+      assert.equal(result.safetyCalled, false, 'Browser execution does not provision SQL');
     }
   });
 

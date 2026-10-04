@@ -22,7 +22,7 @@ bash tools/verify-docker-build-smoke.sh
 bash tools/validate-test-categories.sh
 ```
 
-The full local fast command deliberately retains all non-integration browser cases, so install Chromium before running it. The owned #409 SQL fixture is available and locally qualified against the actual production provider; use its provisioned command rather than including SQL categories in an unprovisioned solution run. Local qualification does not establish a passing hosted candidate/main run. #408's browser migration remains pending. The full exact-SDK build and applicable local tests remain required before review.
+The full local fast command deliberately retains all non-integration browser cases, so install Chromium before running it. The owned #409 SQL fixture is available and locally qualified against the actual production provider; use its provisioned command rather than including SQL categories in an unprovisioned solution run. Local qualification does not establish a passing hosted candidate/main run. The website and ThemeSandbox browser migration uses test-owned hosts; all non-Live browser cases retain diagnostics and run in the selected browser lane. The full exact-SDK build and applicable local tests remain required before review.
 
 ## Selected CI partitions
 
@@ -48,7 +48,7 @@ dotnet test tests/HVO.WebSite.PlaywrightTests/HVO.WebSite.PlaywrightTests.csproj
 python3 tools/ci-results.py TestResults/browser/HVO.WebSite.PlaywrightTests
 ```
 
-This runs every non-Live case in the Playwright assembly, including the isolated HA wind-card fixture. The 22 migrated main-site/sandbox cases retain public, authorized, responsive, control, style and reference-route assertions. Dashboard and scoped-chart suites add real Chart.js creation/theme/gap/lifecycle, provider failure recovery and empty-state checks. BrowserFailureQualificationTests inject a missing chart script and a blocked theme handler; the same assertions used by positive checks must fail and then pass after recovery. A visible canvas or button is insufficient.
+This runs every non-Live case in the Playwright assembly, including the isolated HA wind-card fixture. The 22 migrated main-site/sandbox cases retain public, authorized, responsive, control, style and reference-route assertions. Dashboard and scoped-chart suites add real Chart.js creation/theme/gap/lifecycle, provider failure recovery and empty-state checks. The instrument suite verifies the generated scoped stylesheet and compact layout in both themes; power-history cases assert actual UTC grids, sparse gaps, proportional spacing and visible display-zone labels. BrowserFailureQualificationTests inject a missing chart script and a blocked theme handler; the same assertions used by positive checks must fail and then pass after recovery. A visible canvas or button is insufficient.
 
 BrowserSession retains console/page errors, a screenshot and a trace under TestResults/browser by default, with unique test directories and TRX attachments. HVO_BROWSER_ARTIFACTS overrides that root for local evidence. CI uploads TestResults/** even on failure. Unexpected browser errors fail the migrated cases; intentional failure cases retain their expected diagnostics. Deployed Home Assistant/physical target checks retain Live and explicit opt-in configuration.
 
