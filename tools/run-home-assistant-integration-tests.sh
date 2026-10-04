@@ -80,6 +80,8 @@ cleanup() {
     exit "$exit_status"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 "$repo_root/tools/validate-home-assistant-managed-config.sh"
 docker compose version

@@ -3,6 +3,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import select
+import signal
 import subprocess
 import tempfile
 import unittest
@@ -13,16 +15,23 @@ EXPORTER = "tests/HVO.Edge.Exporter.HomeAssistant.Tests/HVO.Edge.Exporter.HomeAs
 MIGRATION = "tests/HVO.Tools.HomeAssistantEntityMigration.Tests/HVO.Tools.HomeAssistantEntityMigration.Tests.csproj"
 
 FAKE = r'''#!/usr/bin/env python3
-import json,os,sys
+import json,os,sys,signal
 from pathlib import Path
 name=Path(sys.argv[0]).name
 args=sys.argv[1:]
 with open(os.environ['FIXTURE_LOG'],'a') as log: log.write(json.dumps([name,*args])+'\n')
 if name=='docker':
+    resources=Path(os.environ['FIXTURE_RESOURCES'])
+    if 'up' in args:
+        resources.write_text(args[args.index('-p')+1])
+        if os.environ.get('FIXTURE_SIGNAL_READY_FD'):
+            os.write(int(os.environ['FIXTURE_SIGNAL_READY_FD']),b'ready')
+            signal.pause()
     if 'up' in args and os.environ.get('FAIL_UP'): sys.exit(23)
     if 'down' in args and os.environ.get('FAIL_DOWN'): sys.exit(43)
+    if 'down' in args: resources.unlink(missing_ok=True)
     if 'port' in args: print('127.0.0.1:12345')
-    if args[:2]==['ps','-aq'] and os.environ.get('REMAINING'): print('owned-resource')
+    if args[:2]==['ps','-aq'] and (resources.exists() or os.environ.get('REMAINING')): print('owned-resource')
 elif name=='openssl': print('fixture-password')
 elif name=='curl':
     url=next(arg for arg in args if arg.startswith('http:'))
@@ -69,6 +78,7 @@ class HomeAssistantRunnerTests(unittest.TestCase):
         (self.root / "temporary-config").mkdir()
         self.env = {**os.environ, "PATH": f"{bin_directory}:{os.environ['PATH']}",
                     "FIXTURE_LOG": str(self.log), "FIXTURE_STATE": str(self.root / "ingest-state"),
+                    "FIXTURE_RESOURCES": str(self.root / "owned-resources"),
                     "TMPDIR": str(self.root / "temporary-config")}
 
     def tearDown(self):
@@ -170,6 +180,49 @@ class HomeAssistantRunnerTests(unittest.TestCase):
         result = self.run_script("--prebuilt", "--projects", MIGRATION, REMAINING="1")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("resources remain", result.stderr)
+
+    def assert_signal_cleanup(self, termination_signal, expected_status):
+        ready_read, ready_write = os.pipe()
+        process = None
+        try:
+            process = subprocess.Popen(
+                ["bash", str(self.root / "tools/run-home-assistant-integration-tests.sh"), "--prebuilt", "--projects", MQTT],
+                env={**self.env, "FIXTURE_SIGNAL_READY_FD": str(ready_write)},
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                start_new_session=True, pass_fds=(ready_write,))
+            os.close(ready_write)
+            ready_write = None
+            self.assertTrue(select.select([ready_read], [], [], 5)[0], "fake provisioning must signal readiness")
+            self.assertEqual(os.read(ready_read, 5), b"ready")
+            self.assertTrue((self.root / "owned-resources").exists())
+            os.killpg(process.pid, termination_signal)
+            _, stderr = process.communicate(timeout=10)
+            self.assertEqual(process.returncode, expected_status, stderr)
+            commands = [json.loads(line) for line in self.log.read_text().splitlines()]
+            down = [args for args in commands if "down" in args]
+            self.assertEqual(len(down), 1, "signal cleanup must run once")
+            project = down[0][down[0].index("-p") + 1]
+            self.assertTrue(project.startswith("hvo-ha-integration-"))
+            self.assertTrue(all(option in down[0] for option in ["--volumes", "--remove-orphans", "--rmi", "local"]))
+            self.assertTrue(any("logs" in args and "mosquitto" in args for args in commands))
+            for prefix in (["docker", "ps", "-aq"], ["docker", "volume", "ls", "-q"], ["docker", "network", "ls", "-q"]):
+                self.assertTrue(any(args[:len(prefix)] == prefix and f"label=com.docker.compose.project={project}" in args for args in commands))
+            self.assertFalse((self.root / "owned-resources").exists())
+            self.assertEqual(list((self.root / "temporary-config").iterdir()), [])
+            self.assertFalse(any(args[0] == "dotnet" for args in commands))
+        finally:
+            if process is not None and process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.communicate(timeout=5)
+            os.close(ready_read)
+            if ready_write is not None:
+                os.close(ready_write)
+
+    def test_sigterm_preserves_143_and_cleans_owned_stack(self):
+        self.assert_signal_cleanup(signal.SIGTERM, 143)
+
+    def test_sigint_preserves_130_and_cleans_owned_stack(self):
+        self.assert_signal_cleanup(signal.SIGINT, 130)
 
 
 if __name__ == "__main__":
