@@ -140,7 +140,14 @@ export logs directly, which prevents duplicate Loki records.
 
 ### Log Budgets And Retention
 
-Every checked-in service uses Docker's `local` driver with 10 MB per file, three files, compression, non-blocking delivery, and a 4 MB memory buffer. The nominal retained plus transient budget is 34 MB per container. This is 170 MB for the five-service Pi host, 204 MB for the six-service root development stack, and 442 MB for `hvo-docker` when the website, seven observability services, and five shared-infrastructure services all run there. When the 4 MB non-blocking buffer fills, Docker drops new stdout records rather than blocking the application. `docker logs` remains supported; do not read or delete the driver's internal files directly.
+Checked-in services use Docker's `local` driver with 10 MB per file, three files,
+compression, non-blocking delivery and a 4 MB memory buffer: a nominal 34 MB
+retained/transient budget per instantiated container. Sum only the services
+actually running on the target. Four active direct Pi collectors give a nominal
+136 MB; the disabled HA exporter template is not a fifth production service.
+This configured bound is not a measured compressed disk footprint. When the
+non-blocking buffer fills, new stdout is dropped rather than blocking the app.
+Use `docker logs`; do not manipulate the driver's storage files directly.
 
 Pi gateway OTLP sinks hold at most 5,000 events, send batches of at most 256 every two seconds, and retry for at most ten minutes. Events beyond the queue limit or retry window are dropped; the bounded Docker log remains the local diagnostic record. The central collector uses a persistent 64 MiB log queue, retries Loki for up to six hours, and rejects new records when full. Collector enqueue/refusal counters drive the dropped-log alerts.
 

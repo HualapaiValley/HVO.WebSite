@@ -70,6 +70,7 @@ docker compose --env-file deploy/hvo-docker/.env \
     $s.environment.ASPNETCORE_URLS == "http://+:8080" and
     $s.environment.DataProtection__ApplicationName == "HVO.WebSite.v9" and
     $s.environment.DataProtection__KeysDirectory == "/root/.aspnet/DataProtection-Keys" and
+    $s.environment.DataProtection__BlobUri == "" and
     any($s.volumes[]; .type == "volume" and .source == "hvo-website-data-protection" and
       .target == "/root/.aspnet/DataProtection-Keys") and
     .networks.website.name == "website_default" and .networks.mssql.name == "mssql_default"' >/dev/null
