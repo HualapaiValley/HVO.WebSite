@@ -35,11 +35,13 @@ Values retain the Davis/HVO normalized units expected by the PWS protocol. Optio
 | Dew point | `dewptf` | degrees F |
 | Hourly rain | `rainin` | inches |
 | Daily rain | `dailyrainin` | inches |
-| Corrected barometer | `baromin` | inHg |
+| Davis NOAA-reduced sea-level barometer | `baromin` | inHg |
 | Solar radiation | `solarradiation` | W/m2 |
 | UV index | `UV` | index |
 
 The request also carries non-measurement protocol fields `ID=KAZKINGM12`, `action=updateraw`, `realtime=1`, and `rtfreq=5`.
+
+The upload contract names `baromin` as barometric pressure in inches. HVO sends the merged observation's `BarometricPressureInHg` unchanged, rather than LOOP2's distinct `AltimeterInHg` or `PressureRawInHg`. This deliberately differs from CWOP's altimeter/QNH requirement. Missing/non-finite barometer values are omitted without substituting another pressure quantity. Neither publisher recalculates elevation or adds a calibration offset, and both consume the shared acquisition state.
 
 ## Configuration And Credentials
 

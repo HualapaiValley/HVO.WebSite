@@ -35,6 +35,7 @@ internal static class WeatherUndergroundQueryBuilder
         Add(values, "windgustdir_10m", observation.WindGust10MinDirectionDegrees);
         Add(values, "rainin", observation.HourRainInches);
         Add(values, "dailyrainin", observation.DailyRainInches);
+        // Weather Underground requests the barometer in inHg; CWOP separately requires altimeter/QNH.
         Add(values, "baromin", observation.BarometricPressureInHg);
         Add(values, "solarradiation", observation.SolarRadiationWm2);
         Add(values, "UV", observation.UvIndex);

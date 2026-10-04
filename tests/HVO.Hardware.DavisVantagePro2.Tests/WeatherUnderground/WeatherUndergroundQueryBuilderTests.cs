@@ -27,6 +27,8 @@ public sealed class WeatherUndergroundQueryBuilderTests
             HourRainInches = 0.12,
             DailyRainInches = 0.34,
             BarometricPressureInHg = 29.92,
+            PressureRawInHg = 26.947,
+            AltimeterInHg = 30.15,
             SolarRadiationWm2 = 845,
             UvIndex = 7.2,
         };
@@ -81,6 +83,40 @@ public sealed class WeatherUndergroundQueryBuilderTests
 
         query.Keys.Should().NotContain(["tempf", "windspeedmph", "UV"]);
         query.Keys.Should().Contain(["ID", "PASSWORD", "dateutc", "action", "realtime", "rtfreq"]);
+    }
+
+    [TestMethod]
+    [DataRow(null)]
+    [DataRow(double.NaN)]
+    [DataRow(double.PositiveInfinity)]
+    [DataRow(double.NegativeInfinity)]
+    public void BuildRelativeUri_MissingOrInvalidBarometerDoesNotSubstituteAltimeter(double? barometer)
+    {
+        var uri = WeatherUndergroundQueryBuilder.BuildRelativeUri(
+            "KAZKINGM12", "synthetic-key", new Loop2Packet
+            {
+                RecordedAtUtc = new DateTime(2026, 10, 3, 20, 51, 0, DateTimeKind.Utc),
+                BarometricPressureInHg = barometer,
+                PressureRawInHg = 26.947,
+                AltimeterInHg = 29.990,
+            }, 5);
+
+        QueryHelpers.ParseQuery(uri.OriginalString).Keys.Should().NotContain("baromin");
+    }
+
+    [TestMethod]
+    public void BuildRelativeUri_UsesBarometerFromObservedPressureSample()
+    {
+        var uri = WeatherUndergroundQueryBuilder.BuildRelativeUri(
+            "KAZKINGM12", "synthetic-key", new Loop2Packet
+            {
+                RecordedAtUtc = new DateTime(2026, 10, 3, 20, 51, 0, DateTimeKind.Utc),
+                BarometricPressureInHg = 29.774,
+                PressureRawInHg = 26.947,
+                AltimeterInHg = 29.990,
+            }, 5);
+
+        QueryHelpers.ParseQuery(uri.OriginalString)["baromin"].ToString().Should().Be("29.774");
     }
 
     [TestMethod]

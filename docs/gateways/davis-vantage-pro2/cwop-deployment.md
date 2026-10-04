@@ -22,10 +22,12 @@ Generic APRS-IS documentation describes `-1` as receive-only, while the establis
 | Rolling 24-hour rain | `p` hundredths of an inch |
 | Daily rain | `P` hundredths of an inch |
 | Outside humidity | `h` percent (`00` means 100%) |
-| Corrected barometer | `b` tenths of a millibar |
+| LOOP2 altimeter/QNH | `b` tenths of a millibar |
 | Solar radiation | `L`/`l` W/m2 |
 
 Unavailable required wind/temperature values use APRS dots; unavailable optional fields are omitted or dotted as required by their fixed format. Invalid latitude, longitude, elevation, or observations older than `StaleAfterSeconds` are rejected locally.
+
+CWOP's [pressure contract](https://weather.gladstonefamily.net/aprswxnet.html) and [official guide](https://www.weather.gov/media/epz/mesonet/CWOP-OfficialGuide.pdf) require altimeter/QNH, adjusted for station elevation without the Davis NOAA sea-level barometer's temperature reduction. The publisher uses the merged observation's `AltimeterInHg` and converts it once with 33.8638866667 mb/inHg, rounding to tenths of a millibar. Missing, non-finite, nonpositive or unencodable altimeter values produce `b.....`; the barometer and raw sensor pressure are never substituted. Publication does not poll the console or apply an additional elevation/calibration offset. Weather Underground and central history retain their separately named barometer quantity.
 
 The Davis LOOP2 packet provides two-minute average wind speed but does not provide a matching averaged/dominant direction. It provides current wind direction and a separate ten-minute gust direction. APRS `ddd` therefore uses current `WindDirectionDegrees` as the best protocol-supported direction and deliberately does not substitute gust direction. This limitation is covered by formatter tests.
 

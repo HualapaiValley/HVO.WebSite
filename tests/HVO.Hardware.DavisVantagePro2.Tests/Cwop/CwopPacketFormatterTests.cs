@@ -30,7 +30,9 @@ public sealed class CwopPacketFormatterTests
             Rain24HourInches = 0.87,
             DailyRainInches = 1.23,
             OutsideHumidityPercent = 100,
-            BarometricPressureInHg = 29.92,
+            BarometricPressureInHg = 29.70,
+            PressureRawInHg = 26.90,
+            AltimeterInHg = 29.92,
             SolarRadiationWm2 = 1234,
         }, Settings());
 
@@ -47,6 +49,46 @@ public sealed class CwopPacketFormatterTests
 
         packet.Should().Contain("_.../...g...t...r...p...P...h..b...../A=004567");
         packet.Should().NotContain("L000");
+    }
+
+    [TestMethod]
+    [DataRow(null)]
+    [DataRow(0.0)]
+    [DataRow(double.NaN)]
+    [DataRow(29.774)]
+    public void FormatPacket_UsesAltimeterRegardlessOfBarometer(double? barometer)
+    {
+        var packet = CwopPacketFormatter.FormatPacket("DW4515", new Loop2Packet
+        {
+            RecordedAtUtc = new DateTime(2026, 10, 3, 20, 51, 0, DateTimeKind.Utc),
+            BarometricPressureInHg = barometer,
+            PressureRawInHg = 26.947,
+            AltimeterInHg = 29.990,
+        }, Settings());
+
+        packet.Should().Contain("b10156/A=");
+        packet.Should().NotContain("b10083");
+    }
+
+    [TestMethod]
+    [DataRow(null)]
+    [DataRow(0.0)]
+    [DataRow(-1.0)]
+    [DataRow(double.NaN)]
+    [DataRow(double.PositiveInfinity)]
+    [DataRow(double.NegativeInfinity)]
+    [DataRow(3000.0)]
+    public void FormatPacket_MissingOrInvalidAltimeterDoesNotFallBackToOtherPressure(double? altimeter)
+    {
+        var packet = CwopPacketFormatter.FormatPacket("DW4515", new Loop2Packet
+        {
+            RecordedAtUtc = new DateTime(2026, 10, 3, 20, 51, 0, DateTimeKind.Utc),
+            BarometricPressureInHg = 29.774,
+            PressureRawInHg = 26.947,
+            AltimeterInHg = altimeter,
+        }, Settings());
+
+        packet.Should().Contain("b...../A=");
     }
 
     [TestMethod]
