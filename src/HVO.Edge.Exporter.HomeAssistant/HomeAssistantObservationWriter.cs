@@ -31,25 +31,29 @@ internal sealed class HomeAssistantObservationWriter(IServiceScopeFactory scopeF
     public async Task<HomeAssistantPersistenceOutcome> EnqueueAsync(HomeAssistantMappedObservation observation, CancellationToken cancellationToken)
     {
         var payload = HomeAssistantObservationSerialization.Serialize(observation.Contract, observation.Payload);
+        // Match EdgeOutboxStore's envelope normalization for insertion and replay.
+        // Preserve the typed payload bytes so a real content change remains a conflict.
+        var sourceId = observation.SourceId.Trim();
+        var deviceId = string.IsNullOrWhiteSpace(observation.DeviceId) ? null : observation.DeviceId.Trim();
         await using var scope = scopeFactory.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<EdgeOutboxStore<DefaultEdgeOutboxDbContext>>();
         var inserted = await store.EnqueueAsync(new EdgeOutboxMessage(
-            observation.SourceId,
+            sourceId,
             observation.RecordedAtUtc.UtcDateTime,
             EdgePayloadTypes.HomeAssistantObservation,
             "1",
             payload,
-            observation.DeviceId), cancellationToken);
+            deviceId), cancellationToken);
         if (inserted)
             return HomeAssistantPersistenceOutcome.Inserted;
 
         // A uniqueness collision proves identity only, never equality of intended data.
         // Read both pending and sent rows without replacing canonical history.
         var existing = await store.Db.OutboxRecords.AsNoTracking().SingleOrDefaultAsync(record =>
-            record.SourceId == observation.SourceId
+            record.SourceId == sourceId
             && record.PayloadType == EdgePayloadTypes.HomeAssistantObservation
             && record.RecordedAtUtc == observation.RecordedAtUtc.UtcDateTime, cancellationToken);
-        return existing is not null && existing.DeviceId == observation.DeviceId
+        return existing is not null && existing.DeviceId == deviceId
             && existing.PayloadVersion == "1" && existing.PayloadJson == payload
                 ? HomeAssistantPersistenceOutcome.IdenticalReplay
                 : HomeAssistantPersistenceOutcome.Conflict;

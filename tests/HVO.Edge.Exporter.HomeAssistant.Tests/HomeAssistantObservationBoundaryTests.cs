@@ -203,6 +203,45 @@ public sealed class HomeAssistantObservationBoundaryTests
     }
 
     [TestMethod]
+    [DataRow("source")]
+    [DataRow("device")]
+    public async Task AcceptedPaddedIdentifier_RestartReplayAcknowledgesExactContent_WhileChangedContentConflicts(string paddedIdentifier)
+    {
+        var options = TestOptions.PowerOnly();
+        if (paddedIdentifier == "source")
+            options.Mappings[0].SourceId += " \t";
+        else
+            options.Mappings[0].DeviceId = " \t" + options.Mappings[0].DeviceId + " \t";
+        new HomeAssistantExporterOptionsValidator().Validate(null, options).Succeeded.Should().BeTrue();
+        await using var fixture = await Fixture.CreateAsync(options);
+        var timestamp = fixture.Clock.GetUtcNow();
+        var snapshot = new[] { Power("100", timestamp) };
+        await fixture.Coordinator.ReconcileAsync(snapshot, CancellationToken.None);
+        await fixture.FlushAsync();
+        fixture.Writer.Attempts.Single().Outcome.Should().Be(HomeAssistantPersistenceOutcome.Inserted);
+        fixture.Projector.Project("kasa").Should().BeNull();
+        await fixture.AssertAcknowledgedDataAsync();
+        var original = (await fixture.RecordsAsync()).Single();
+        original.SourceId.Should().Be(options.Mappings[0].SourceId!.Trim());
+        original.DeviceId.Should().Be(options.Mappings[0].DeviceId!.Trim());
+
+        fixture.Restart();
+        await fixture.Coordinator.ReconcileAsync(snapshot, CancellationToken.None);
+        await fixture.FlushAsync();
+        fixture.Writer.Attempts.Single().Outcome.Should().Be(HomeAssistantPersistenceOutcome.IdenticalReplay);
+        fixture.Projector.Project("kasa").Should().BeNull("exact durable replay is acknowledged after restart");
+        fixture.State.Snapshot().ConflictingMappings.Should().BeEmpty();
+        await fixture.AssertAcknowledgedDataAsync();
+
+        await fixture.Coordinator.ApplyAsync(Power("200", timestamp), CancellationToken.None);
+        await fixture.FlushAsync();
+        fixture.Writer.Attempts.Last().Outcome.Should().Be(HomeAssistantPersistenceOutcome.Conflict);
+        fixture.Projector.Project("kasa").Should().NotBeNull("normalization cannot acknowledge different content");
+        fixture.State.Snapshot().ConflictingMappings.Should().Contain("kasa");
+        (await fixture.RecordsAsync()).Should().ContainSingle().Which.PayloadJson.Should().Be(original.PayloadJson);
+    }
+
+    [TestMethod]
     public async Task CancelledFlush_DoesNotAcknowledgeAndCanBeRetried()
     {
         await using var fixture = await Fixture.CreateAsync(TestOptions.PowerOnly());
@@ -363,7 +402,7 @@ public sealed class HomeAssistantObservationBoundaryTests
             Writer.Attempts.Where(attempt => attempt.Outcome != HomeAssistantPersistenceOutcome.Conflict).Should().NotBeEmpty();
             foreach (var attempt in Writer.Attempts.Where(attempt => attempt.Outcome != HomeAssistantPersistenceOutcome.Conflict))
             {
-                var row = records.Single(record => record.SourceId == attempt.Observation.SourceId
+                var row = records.Single(record => record.SourceId == attempt.Observation.SourceId.Trim()
                     && record.RecordedAtUtc == attempt.Observation.RecordedAtUtc.UtcDateTime);
                 row.PayloadJson.Should().Be(HomeAssistantObservationSerialization.Serialize(attempt.Observation.Contract, attempt.Observation.Payload));
             }
