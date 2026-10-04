@@ -2,7 +2,7 @@
 
 **Status**: Active policy (established after full CSS audit, June 2026)
 
-This document defines the rules every developer and AI agent must follow when writing or modifying CSS or Blazor markup across any HVO.WebSite project. Violations found during code review must be fixed before merge.
+This document defines the rules every developer and AI agent must follow when writing or modifying CSS or Blazor markup across HVO.WebSite. The active UI consumers are `HVO.WebSite.v9` and `HVO.ThemeSandbox`; `HVO.WebSite.Themes` is their shared Razor Class Library, not a deployed app. Davis, JK BMS, EG4 and SmartShunt collectors are headless. Violations found during code review must be fixed before merge. The [repository profile](development/repository-profile.md) and canonical [review procedure](../.agents/skills/hvo-code-review/SKILL.md) own validation/review gates.
 
 ---
 
@@ -170,16 +170,16 @@ When the palette changes, both `hvo-shared-shell.css` and all C# hex literals mu
 
 ## 4. The Global CSS Change Process
 
-Changes to `hvo-shared-shell.css` or `hvo-components.css` affect **all six projects** simultaneously. The following process is mandatory.
+Changes to `hvo-shared-shell.css` or `hvo-components.css` affect the **website and ThemeSandbox through Themes RCL**. Inspect all references/usages, including future consumers introduced by the assigned change. Headless collectors have no live gateway UI to inspect. The following process is mandatory; it does not authorize a deployment or hardware operation.
 
 ### 4.1 Adding a new CSS class or token
 
-1. **Propose in ThemeSandbox first.** Add a live demo to `/css-reference` (for component classes) or `/palette` (for new tokens) in `HVO.ThemeSandbox`. A class that has no sandbox demo is not ready for production.
+1. **Propose in ThemeSandbox first.** Add a working demo to `/css-reference` (for component classes) or `/palette` (for new tokens) in `HVO.ThemeSandbox`; register/render new component or instrument demos in the appropriate catalog/page and navigation when needed (for example `/instruments` or `/controls`). A class that has no reachable sandbox demo is not ready for production.
 2. **Document the intended use.** Add a comment in the CSS file:
    ```css
    /* ── New component: hvo-alert ─────────────────────────────────────
       Use for dismissible callout banners. Modifier: hvo-alert-danger.
-      Consumed by: DavisVantagePro2/AlarmActive, future apps. ──────── */
+      Consumed by: WebSite.v9/PowerStatus, ThemeSandbox demo. ──────── */
    ```
 3. **Get agreement before touching production.** The sandbox demo is the "sign-off artifact." No new class goes into `hvo-components.css` without a demo and explicit sign-off.
 4. **Validate the build.** Run `dotnet build` from the solution root — zero warnings, zero errors across **all** projects.
@@ -190,7 +190,7 @@ Changes to `hvo-shared-shell.css` or `hvo-components.css` affect **all six proje
    ```bash
    rg "hvo-chip-success|--hvo-accent-success" src/
    ```
-2. **Assess the visual impact.** If the change affects rendering (not just a comment or structural refactor), do a visual check against the ThemeSandbox `/css-reference` page and at least one live gateway.
+2. **Assess the visual impact.** If the change affects rendering (not just a comment or structural refactor), check the relevant ThemeSandbox reference/demo and affected website surfaces in light and dark themes, including applicable responsive states. Use [owned browser fixtures](development/testing.md#owned-website-and-themesandbox-browser-fixtures), not a deployed headless collector; retain screenshots, console diagnostics and traces. Assert actual chart/control/theme behavior and computed styles, rather than only canvas presence or a loaded stylesheet.
 3. **Treat it as a cross-project change.** The commit must mention which projects are affected.
 
 ### 4.3 Removing or renaming a CSS class or token
@@ -232,10 +232,20 @@ Run this checklist when reviewing any CSS-touching PR. If any item fails, reques
 - [ ] Hex values match the canonical palette in `hvo-shared-shell.css`
 
 ### Global change checks (only when `hvo-components.css` or `hvo-shared-shell.css` is modified)
-- [ ] ThemeSandbox demo exists for any new class/token
+- [ ] Reachable ThemeSandbox demo exists for any new class/token, with applicable page/catalog/navigation registration and explicit sign-off
 - [ ] All existing usages grepped and confirmed unbroken
 - [ ] `dotnet build` passes across ALL projects (not just the changed one)
-- [ ] Visual check against ThemeSandbox and at least one gateway
+- [ ] Meaningful visual/browser checks cover relevant ThemeSandbox and affected website surfaces in both themes and applicable responsive states; screenshots, console diagnostics and traces retained
+
+### Shared component and browser checks
+
+- [ ] Shared layouts/components, ShellLayoutState, HvoFormat and HvoChart are reused from Themes RCL; no per-app copies or raw formatted output (existing SVG-coordinate exception only)
+- [ ] New components/instruments have reachable registered demos and intended-use documentation
+- [ ] Interop is guarded, the Blazor circuit stays alive, and unexpected console/page errors fail checks
+- [ ] Real Chart.js instances/configuration/data/gaps/theme changes and control interactions/computed styles are asserted; visible canvas width alone is insufficient
+- [ ] Local shared assets load successfully; future offline edge UI introduces no CDN dependence
+
+See [project guidance](AGENT_PROJECT_GUIDANCE.md#validation-and-meaningful-browser-evidence) and [testing](development/testing.md) for current owned fixtures, failure qualification and report requirements. The website omits deprecated `hvo-dark.css`; ThemeSandbox's existing compatibility include does not prescribe it for new consumers. Preserve canonical tokens/font/layout/palette rules above when using either theme.
 
 ---
 

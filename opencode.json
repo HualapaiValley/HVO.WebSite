@@ -33,9 +33,6 @@
   "agent": {
     "review-prep": {
       "model": "opencode-go/deepseek-v4-pro"
-    },
-    "qwen-review-prep": {
-      "model": "opencode-go/qwen3.7-plus"
     }
   }
 }
