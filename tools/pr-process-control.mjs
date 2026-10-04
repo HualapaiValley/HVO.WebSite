@@ -19,12 +19,14 @@ async function firstAttemptJobs(api, run) {
 }
 
 export async function currentCI(api, pr, reviews = []) {
-  const data = await api.request(`/repos/${api.repository}/actions/workflows/ci.yml/runs?event=pull_request_target&head_sha=${pr.base.sha}&per_page=100`);
+  const data = await api.request(`/repos/${api.repository}/actions/workflows/ci.yml/runs?event=pull_request_target&head_sha=${pr.head.sha}&per_page=100`);
   const after = Math.max(0, ...reviews.map(x => Date.parse(x.publishedAt) || 0));
-  // The immutable GitHub-origin title binds the PR tuple; target-event head_sha
-  // identifies the trusted workflow/base commit, not the candidate raw head.
+  // Actions run/job head_sha associates this target-event run with the raw PR
+  // head; it does not identify the trusted workflow checkout. The immutable
+  // GitHub-origin title separately binds head/base/merge, and the target workflow
+  // admits that tuple using base code before checking out the verified merge.
   const run = data.workflow_runs
-    .filter(x => x.event === 'pull_request_target' && x.path === '.github/workflows/ci.yml' && x.head_sha === pr.base.sha && x.display_title === ciTitle(pr) && Date.parse(x.created_at) > after && (!x.pull_requests?.length || x.pull_requests.some(p => p.number === pr.number)))
+    .filter(x => x.event === 'pull_request_target' && x.path === '.github/workflows/ci.yml' && x.head_sha === pr.head.sha && x.display_title === ciTitle(pr) && Date.parse(x.created_at) > after && (!x.pull_requests?.length || x.pull_requests.some(p => p.number === pr.number)))
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
   if (!run) return null;
   const result = { ...run, qualified: false };
@@ -33,7 +35,7 @@ export async function currentCI(api, pr, reviews = []) {
   const jobs = await firstAttemptJobs(api, run);
   const complete = CI_JOBS.every(name => {
     const matches = jobs.filter(x => x.name === name);
-    return matches.length === 1 && matches[0].run_id === run.id && matches[0].run_attempt === 1 && matches[0].head_sha === pr.base.sha && matches[0].status === 'completed' && matches[0].conclusion === 'success';
+    return matches.length === 1 && matches[0].run_id === run.id && matches[0].run_attempt === 1 && matches[0].head_sha === pr.head.sha && matches[0].status === 'completed' && matches[0].conclusion === 'success';
   });
   if (!complete) return { ...result, invalid: true, bindingError: 'Current tuple lacks all successful first-attempt admission/build/smoke jobs' };
   // Job pagination may overlap a newly requested rerun. Re-read server metadata
