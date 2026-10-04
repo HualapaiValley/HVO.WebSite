@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFile, writeFile } from 'node:fs/promises';
 import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { BROWSER_TESTS, planWork, validSource } from './ci-plan.mjs';
+import { BROWSER_TESTS, matches, planWork, validSource } from './ci-plan.mjs';
 import { validateSource } from './test-categories.mjs';
 
 const git = args => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
@@ -55,7 +55,7 @@ export function readGraph(commit) {
   sha(commit);
   const paths = git(['ls-tree', '-r', '--name-only', '-z', commit]).split('\0').filter(Boolean);
   const files = {};
-  for (const path of paths.filter(path => path === 'HVO.WebSite.sln' || path.endsWith('.csproj'))) {
+  for (const path of paths.filter(path => path === 'HVO.WebSite.sln' || path.endsWith('.csproj') || /^Directory\.Build\.(props|targets)$/.test(posix.basename(path)))) {
     files[path] = git(['show', `${commit}:${path}`]);
   }
   const graph = JSON.parse(execFileSync('python3', [new URL('./ci-projects.py', import.meta.url).pathname], {
@@ -64,7 +64,12 @@ export function readGraph(commit) {
   for (const project of graph.projects.filter(project => project.test)) {
     const lanes = new Set();
     let methods = 0;
-    for (const path of paths.filter(path => path.startsWith(`${posix.dirname(project.path)}/`) && path.endsWith('.cs'))) {
+    for (const pattern of project.compileInputs) {
+      if (!paths.some(path => path.endsWith('.cs') && matches(pattern, path))) throw new Error(`${project.path}: Compile input has no tracked C# sources: ${pattern}`);
+    }
+    const sources = paths.filter(path => path.endsWith('.cs') && (
+      path.startsWith(`${posix.dirname(project.path)}/`) || project.compileInputs.some(pattern => matches(pattern, path))));
+    for (const path of sources) {
       const result = classifyTests(git(['show', `${commit}:${path}`]), path, project.path);
       methods += result.methods;
       for (const lane of result.lanes) lanes.add(lane);

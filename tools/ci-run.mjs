@@ -36,6 +36,21 @@ function build(projects, configuration) {
   for (const args of buildCommands(projects, configuration)) run('dotnet', args);
 }
 
+function prepareFixtureReports(lane, projects) {
+  const root = resolve('TestResults', lane === 'home-assistant' ? 'integration/home-assistant' : lane);
+  const reports = projects.map(project => resolve(root, basename(projectPath(project), '.csproj')));
+  for (const results of reports) {
+    rmSync(results, { recursive: true, force: true });
+    mkdirSync(results, { recursive: true });
+  }
+  return { root, reports };
+}
+
+function verifyFixtureReports(reports) {
+  // Candidate fixture helpers execute tests, but cannot attest their own reports.
+  for (const results of reports) run('python3', [resolve(directory, 'ci-results.py'), results]);
+}
+
 function testProjects(plan, lane) {
   for (const project of plan.lanes[lane]) {
     projectPath(project);
@@ -50,14 +65,15 @@ function testProjects(plan, lane) {
     if (process.env.CI_COVERAGE === 'true') args.push('--collect:XPlat Code Coverage');
     run('dotnet', args);
     // Existing ignored scaffold is owned by #408. Moving this assembly to its
-    // browser lane must preserve that visible baseline, not permit new skips.
-    const baselineIgnore = project === BROWSER_TESTS ? ['--allow-ignored-test', 'PlaywrightSuite_IsConfiguredButDisabledByDefault'] : [];
+    // browser lane permits that exact class/method once across all reports,
+    // preserving the visible baseline without admitting other or duplicate skips.
+    const baselineIgnore = project === BROWSER_TESTS ? ['--allow-ignored-test', 'HVO.WebSite.PlaywrightTests.PlaywrightTestSetupTests.PlaywrightSuite_IsConfiguredButDisabledByDefault'] : [];
     run('python3', [resolve(directory, 'ci-results.py'), results, ...baselineIgnore]);
   }
 }
 
 function policies() {
-  run(process.execPath, ['--test', 'tools/ci-plan.test.mjs', 'tools/ci-run.test.mjs', 'tools/pr-process.test.mjs', 'tools/test-categories.test.mjs']);
+  run(process.execPath, ['--test', 'tools/ci-plan.test.mjs', 'tools/ci-source.test.mjs', 'tools/ci-run.test.mjs', 'tools/pr-process.test.mjs', 'tools/test-categories.test.mjs']);
   run('python3', ['-m', 'unittest', 'discover', '-s', 'tools', '-p', 'ci_*_test.py']);
   run('python3', ['tools/verify-home-assistant-runner.py']);
   for (const name of ['validate-test-categories', 'validate-observability-policy', 'validate-davis-weather-underground-deployment', 'validate-eg4-deployment', 'validate-smartshunt-deployment', 'verify-alert-rules']) run('bash', [`tools/${name}.sh`]);
@@ -84,13 +100,17 @@ function main() {
   } else if (job === 'home-assistant') {
     if (!plan.lanes[job].length) throw new Error('Unexpected empty HA execution');
     build(plan.lanes[job]);
-    run('bash', ['tools/run-home-assistant-integration-tests.sh', '--prebuilt', '--projects', ...plan.lanes[job].map(projectPath), ...(process.env.CI_COVERAGE === 'true' ? ['--coverage'] : [])]);
+    const fixture = prepareFixtureReports(job, plan.lanes[job]);
+    run('bash', ['tools/run-home-assistant-integration-tests.sh', '--prebuilt', '--projects', ...plan.lanes[job].map(projectPath), '--results-directory', fixture.root, ...(process.env.CI_COVERAGE === 'true' ? ['--coverage'] : [])]);
+    verifyFixtureReports(fixture.reports);
   } else if (job === 'sql-server') {
     if (!plan.lanes[job].length) throw new Error('Unexpected empty SQL execution');
     // The owned SQL runner provisions one isolated provider for the API suite.
     if (plan.lanes[job].some(path => path !== 'tests/HVO.WebSite.ApiTests/HVO.WebSite.ApiTests.csproj')) throw new Error('SQL runner needs explicit ownership for a new assembly');
     build(plan.lanes[job]);
-    run('bash', ['tools/run-sql-server-integration-tests.sh']);
+    const fixture = prepareFixtureReports(job, plan.lanes[job]);
+    run('bash', ['tools/run-sql-server-integration-tests.sh'], { env: { ...process.env, HVO_SQL_TEST_RESULTS_DIRECTORY: fixture.reports[0] } });
+    verifyFixtureReports(fixture.reports);
   } else if (job === 'browser') {
     if (!plan.lanes[job].length) throw new Error('Unexpected empty browser execution');
     // Baseline browser fixtures launch apps without ProjectReference. Building

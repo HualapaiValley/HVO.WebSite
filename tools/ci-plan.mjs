@@ -29,7 +29,7 @@ export function validSource(source) {
   if (!source || !['head', 'base', 'merge'].every(key => /^[a-f0-9]{40}$/.test(source[key] ?? ''))) throw new Error('A complete immutable head/base/merge tuple is required');
 }
 
-function matches(pattern, path) {
+export function matches(pattern, path) {
   // MSBuild's literal repo-relative includes use * and **. Unsupported item
   // evaluation has already requested full validation in the metadata reader.
   const expression = pattern.split(/(\*\*\/|\*\*|\*|\?)/).map(part => {
@@ -64,6 +64,16 @@ export function planWork({ source, baseGraph, candidateGraph, changes, complete,
     }
   }
   for (const value of candidateGraph.projects) forward.set(value.path, value.references);
+  const visited = new Set(), visiting = new Set();
+  const visit = path => {
+    if (visiting.has(path)) throw new Error(`Cyclic project reference: ${[...visiting, path].join(' -> ')}`);
+    if (visited.has(path)) return;
+    visiting.add(path);
+    for (const dependency of forward.get(path) || []) visit(dependency);
+    visiting.delete(path);
+    visited.add(path);
+  };
+  for (const path of current.keys()) visit(path);
   const reasons = [], seeds = new Set();
   let operations = false;
   const requireFull = reason => { full = true; reasons.push(reason); };
@@ -116,11 +126,17 @@ export function planWork({ source, baseGraph, candidateGraph, changes, complete,
   }
   const buildDependencies = sorted(closure(affectedProjects, forward));
   const roots = candidates => candidates.filter(path => !candidates.some(other => other !== path && closure([other], forward).has(path)));
+  const debugRoots = roots(affectedProjects);
+  const releaseProjects = affectedProjects.filter(path => !current.get(path).test);
+  const releaseRoots = roots(releaseProjects);
+  for (const [selected, required] of [[debugRoots, affectedProjects], [releaseRoots, releaseProjects]]) {
+    const covered = closure(selected, forward);
+    if (required.some(path => !covered.has(path))) throw new Error('Build roots omit affected projects');
+  }
   const plan = {
     version: PLAN_VERSION, source: { ...source }, trigger, mode: full ? 'full' : 'selected',
     changes: changes.map(value => ({ ...value })).sort((a, b) => a.path.localeCompare(b.path)), inputs: sorted(inputs),
-    affectedProjects, buildDependencies, debugRoots: roots(affectedProjects),
-    releaseRoots: roots(affectedProjects.filter(path => !current.get(path).test)),
+    affectedProjects, buildDependencies, debugRoots, releaseRoots,
     tests, lanes,
     images: Object.entries(IMAGES).filter(([, path]) => affected.has(path)).map(([name]) => name).sort(),
     operations: full || operations, reasons: sorted(reasons), emptyReasons: {}

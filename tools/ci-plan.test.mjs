@@ -92,6 +92,23 @@ test('copied documentation takes precedence over prose classification', () => {
   candidateGraph.projects.find(x => x.path === WEBSITE_TESTS).inputs.push('docs/fixture.md');
   assert.ok(plan(['docs/fixture.md'], { candidateGraph }).tests.includes(WEBSITE_TESTS));
 });
+test('cyclic components fail visibly instead of disappearing from full build roots', () => {
+  for (const references of [[['tools/B/B.csproj'], ['tools/A/A.csproj']], [['tools/A/A.csproj'], []]]) {
+    const candidateGraph = structuredClone(graph);
+    candidateGraph.projects.push(...['A', 'B'].map((name, index) => ({
+      path: `tools/${name}/${name}.csproj`, references: references[index], inputs: [], test: false
+    })));
+    assert.throws(() => plan(['HVO.WebSite.sln'], { candidateGraph }), /Cyclic project reference/);
+  }
+  const result = plan(['HVO.WebSite.sln']);
+  const reachable = roots => {
+    const found = new Set(roots);
+    for (const path of found) for (const next of graph.projects.find(value => value.path === path)?.references || []) found.add(next);
+    return found;
+  };
+  assert.deepEqual([...reachable(result.debugRoots)].sort(), result.buildDependencies);
+  assert.ok(result.affectedProjects.filter(path => !graph.projects.find(value => value.path === path).test).every(path => reachable(result.releaseRoots).has(path)));
+});
 test('plan is deterministic and aggregation rejects stale, missing, failed or skipped work', () => {
   const result = plan(['README.md', 'src/HVO.Hardware.JkBms/Program.cs']);
   assert.deepEqual(plan(['src/HVO.Hardware.JkBms/Program.cs', 'README.md']), result);
