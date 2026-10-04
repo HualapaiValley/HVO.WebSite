@@ -363,3 +363,9 @@ Avoid:
 - Run prep agent, then GPT validate, then update `MODEL_RANKING.md`.
 - Explore-agent prep outputs saved under tool-output files (Gateways: `tool_ec257b53e001...`, Hardware: `tool_ec257e75b001...`).
 - Current ranking: DeepSeek V4 Pro > DeepSeek V4 Flash Free > Qwen3.7 Plus > MiniMax M3 > Qwen3 Coder Next > Nemotron 3 Ultra > MiMo V2.5 Free.
+
+## 2026-10-04 — Ingest trust boundaries (#401)
+
+Source authority now covers every source-bearing weather/power single, batch, archive and snapshot write through a shared check; unreserved legacy ingest remains supported and SmartShunt keeps exact ownership. Authentication cache entries carry hard UTC expiry and bounded deadlines using the injected clock. Forwarded header configuration validates explicit peers/networks at startup, preserves loopback defaults even with the framework host switch, and uses one trusted hop without a manual scheme override. Independent F1 review exposed duplicate framework/application forwarding: the application now defers to the active host startup filter so all switch combinations consume one hop, qualified by real-environment trusted multihop and OIDC regressions. The route discovery matrix and actual-host OIDC tests document the security boundary; deployment topology and Entra rollout verification remain operator work. See [ingest trust boundaries](development/ingest-trust-boundaries.md).
+
+SQL-provider acceptance reuses the same route inventory and payloads against the disposable #409 fixture. It checks actual denied/authorized persistence, mixed batches, case/accent/trim aliases, competing reservations and hard UTC expiry with primed and empty authentication caches. SmartShunt's already-trimmed payload contract is preserved. Test collation changes remain confined to owned disposable databases.

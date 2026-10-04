@@ -50,6 +50,7 @@ public class PowerIngestController : ControllerBase
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    private readonly TimeProvider _clock;
     private readonly HvoV9DbContext _db;
     private readonly ILogger<PowerIngestController> _logger;
     private readonly IPowerReadingIngestService _readingIngestService;
@@ -61,8 +62,10 @@ public class PowerIngestController : ControllerBase
         ILogger<PowerIngestController> logger,
         IPowerReadingIngestService readingIngestService,
         IPowerSystemSnapshotProvider snapshotProvider,
-        IPowerInventoryConfigurationProvider inventoryConfigurationProvider)
+        IPowerInventoryConfigurationProvider inventoryConfigurationProvider,
+        TimeProvider? clock = null)
     {
+        _clock = clock ?? TimeProvider.System;
         _db = db;
         _logger = logger;
         _readingIngestService = readingIngestService;
@@ -155,7 +158,7 @@ public class PowerIngestController : ControllerBase
         }
 
         if (!await IngestSourceAuthority.CanWriteAllAsync(
-            _db, User, requests.Select(static request => (request.SourceId, request.SourceSystem)), ct))
+            _db, User, requests.Select(static request => (request.SourceId, request.SourceSystem)), _clock, ct))
             return Forbid();
 
         var result = await _readingIngestService.IngestReadingsAsync(requests, ct);
@@ -219,6 +222,10 @@ public class PowerIngestController : ControllerBase
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
 
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, [(sourceId, request.SourceSystem)], _clock, ct))
+            return Forbid();
+
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
         var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
         if (await _db.PowerDeviceInventorySnapshots.AnyAsync(
@@ -271,6 +278,10 @@ public class PowerIngestController : ControllerBase
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
 
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, [(sourceId, request.SourceSystem)], _clock, ct))
+            return Forbid();
+
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
         var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
         if (await _db.PowerConfigurationSnapshots.AnyAsync(
@@ -321,6 +332,10 @@ public class PowerIngestController : ControllerBase
         ValidateEnergy(validationResults, request);
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, [(sourceId, request.SourceSystem)], _clock, ct))
+            return Forbid();
 
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
         var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
@@ -391,7 +406,7 @@ public class PowerIngestController : ControllerBase
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
         if (!await IngestSourceAuthority.CanWriteAllAsync(
-            _db, User, [(request.SourceId, request.SourceSystem)], ct))
+            _db, User, [(request.SourceId, request.SourceSystem)], _clock, ct))
             return Forbid();
 
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
@@ -463,7 +478,7 @@ public class PowerIngestController : ControllerBase
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
         if (!await IngestSourceAuthority.CanWriteAllAsync(
-            _db, User, [(request.SourceId, request.SourceSystem)], ct))
+            _db, User, [(request.SourceId, request.SourceSystem)], _clock, ct))
             return Forbid();
 
         if (await _db.PowerMpptDetailSnapshots.AnyAsync(
@@ -511,7 +526,7 @@ public class PowerIngestController : ControllerBase
         if (requests.Count > MaxBatchSize)
             return ValidationProblem(detail: $"Batch size {requests.Count} exceeds the maximum of {MaxBatchSize} records.");
         if (!await IngestSourceAuthority.CanWriteAllAsync(
-            _db, User, requests.Select(request => (sourceId(request), sourceSystem(request))), ct))
+            _db, User, requests.Select(request => (sourceId(request), sourceSystem(request))), _clock, ct))
             return Forbid();
 
         var inserted = 0;
@@ -564,6 +579,10 @@ public class PowerIngestController : ControllerBase
         ValidateGatewayStatus(validationResults, request);
         if (validationResults.Count > 0)
             return BadRequest(new ValidationProblemDetails(ToValidationDictionary(validationResults)));
+
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            _db, User, [(sourceId, request.SourceSystem)], _clock, ct))
+            return Forbid();
 
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
         var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));

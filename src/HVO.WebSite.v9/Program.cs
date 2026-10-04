@@ -1,3 +1,4 @@
+using HVO.WebSite.v9.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Asp.Versioning;
 using HVO.DataModels.Extensions;
@@ -356,36 +357,7 @@ namespace HVO.WebSite.v9
         }
 
         private static void ConfigureForwardedHeaders(IServiceCollection services, IConfiguration configuration)
-        {
-            var forwardedHeadersEnabled = configuration.GetValue("ForwardedHeaders:Enabled",
-                configuration.GetValue("ASPNETCORE_FORWARDEDHEADERS_ENABLED", false));
-
-            if (!forwardedHeadersEnabled)
-            {
-                return;
-            }
-
-            services.PostConfigure<ForwardedHeadersOptions>(options =>
-            {
-                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-
-                // Trust only the nearest proxy hop and let the host-level
-                // ASPNETCORE_FORWARDEDHEADERS_ENABLED switch control whether
-                // proxy forwarding is enabled for this deployment.
-                options.ForwardLimit = 1;
-
-                var configuredKnownNetworks = configuration.GetSection("ForwardedHeaders:KnownNetworks").Exists();
-                var configuredKnownProxies = configuration.GetSection("ForwardedHeaders:KnownProxies").Exists();
-                if (!configuredKnownNetworks && !configuredKnownProxies)
-                {
-                    options.KnownIPNetworks.Clear();
-#pragma warning disable ASPDEPR005
-                    options.KnownNetworks.Clear();
-#pragma warning restore ASPDEPR005
-                    options.KnownProxies.Clear();
-                }
-            });
-        }
+            => ForwardedHeadersConfiguration.Configure(services);
 
         private static void Configure(WebApplication app)
         {
@@ -403,21 +375,14 @@ namespace HVO.WebSite.v9
 
             var forwardedHeadersEnabled = app.Configuration.GetValue("ForwardedHeaders:Enabled",
                 app.Configuration.GetValue("ASPNETCORE_FORWARDEDHEADERS_ENABLED", false));
-            if (forwardedHeadersEnabled)
+            // The framework startup filter reads this normalized host key and
+            // installs forwarding before our pipeline. Adding it again would apply
+            // ForwardLimit independently and consume a second trusted hop.
+            var frameworkForwardingEnabled = string.Equals(
+                app.Configuration["ForwardedHeaders_Enabled"], "true", StringComparison.OrdinalIgnoreCase);
+            if (forwardedHeadersEnabled && !frameworkForwardingEnabled)
             {
-                // Respect proxy-provided scheme/remote IP only when the deployment
-                // explicitly opts into forwarded header processing.
                 app.UseForwardedHeaders();
-                app.Use((context, next) =>
-                {
-                    if (context.Request.Headers.TryGetValue("X-Forwarded-Proto", out var protoValues)
-                        && string.Equals(protoValues.FirstOrDefault(), "https", StringComparison.OrdinalIgnoreCase))
-                    {
-                        context.Request.Scheme = Uri.UriSchemeHttps;
-                    }
-
-                    return next(context);
-                });
             }
 
             // Add exception handling middleware

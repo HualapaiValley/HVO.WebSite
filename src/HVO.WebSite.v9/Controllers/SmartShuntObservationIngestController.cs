@@ -18,7 +18,8 @@ namespace HVO.WebSite.v9.Controllers;
 [Tags("Power")]
 public sealed class SmartShuntObservationIngestController(
     HvoV9DbContext db,
-    ILogger<SmartShuntObservationIngestController> logger) : ControllerBase
+    ILogger<SmartShuntObservationIngestController> logger,
+    TimeProvider? clock = null) : ControllerBase
 {
     private const string SourceSystem = "victron-smartshunt";
 
@@ -61,8 +62,9 @@ public sealed class SmartShuntObservationIngestController(
             valid.Add(payload);
         }
 
-        var ownedSources = User.FindAll(IngestSourceAuthority.SourceClaimType).Select(static claim => claim.Value).ToHashSet(StringComparer.Ordinal);
-        if (valid.Any(payload => !ownedSources.Contains(payload.Summary.SourceId!.Trim())))
+        if (!await IngestSourceAuthority.CanWriteAllAsync(
+            db, User, valid.Select(static payload => (payload.Summary.SourceId, payload.Summary.SourceSystem)),
+            clock ?? TimeProvider.System, cancellationToken, requireExactOwner: true))
             return Forbid();
 
         var sourceIds = valid.Select(payload => payload.Summary.SourceId!.Trim()).Distinct().ToArray();

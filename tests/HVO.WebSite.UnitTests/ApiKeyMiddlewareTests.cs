@@ -25,7 +25,8 @@ public class ApiKeyMiddlewareTests
         new MemoryCache(new MemoryCacheOptions());
 
     private static (ApiKeyAuthMiddleware middleware, WasCalledTracker tracker) BuildMiddleware(
-        IMemoryCache? cache = null)
+        IMemoryCache? cache = null,
+        TimeProvider? timeProvider = null)
     {
         var tracker = new WasCalledTracker();
         var next = new RequestDelegate(ctx =>
@@ -36,7 +37,8 @@ public class ApiKeyMiddlewareTests
         var middleware = new ApiKeyAuthMiddleware(
             next,
             cache ?? CreateCache(),
-            NullLogger<ApiKeyAuthMiddleware>.Instance);
+            NullLogger<ApiKeyAuthMiddleware>.Instance,
+            timeProvider ?? TimeProvider.System);
         return (middleware, tracker);
     }
 
@@ -87,6 +89,13 @@ public class ApiKeyMiddlewareTests
     private sealed class WasCalledTracker
     {
         public bool Called { get; set; }
+    }
+
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _now = new(2026, 10, 4, 0, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => _now;
+        public void Advance(TimeSpan interval) => _now += interval;
     }
 
     // -------------------------------------------------------------------------
@@ -314,5 +323,85 @@ public class ApiKeyMiddlewareTests
         await middleware.InvokeAsync(ctx2, db);
 
         ctx2.User.Identity!.IsAuthenticated.Should().BeTrue("cache should serve the principal");
+    }
+
+    [TestMethod]
+    [DataRow(true, 0)]
+    [DataRow(true, 1)]
+    [DataRow(false, 0)]
+    [DataRow(false, 1)]
+    public async Task InvokeAsync_RejectsAtAndAfterHardExpiry_WithWarmOrColdCache(bool warmCache, int secondsAfterExpiry)
+    {
+        var clock = new ManualTimeProvider();
+        await using var db = CreateDbContext(Guid.NewGuid().ToString());
+        // Match the Kind returned by SQL Server datetime2, independent of host time zone.
+        await SeedKeyAsync(db, "expiring-key", expiresAt:
+            DateTime.SpecifyKind(clock.GetUtcNow().AddSeconds(10).UtcDateTime, DateTimeKind.Unspecified));
+        using var cache = CreateCache();
+        var (middleware, _) = BuildMiddleware(cache, clock);
+        if (warmCache)
+        {
+            clock.Advance(TimeSpan.FromSeconds(9));
+            var before = BuildContext("expiring-key");
+            await middleware.InvokeAsync(before, db);
+            before.User.Identity!.IsAuthenticated.Should().BeTrue();
+            clock.Advance(TimeSpan.FromSeconds(1 + secondsAfterExpiry));
+        }
+        else
+        {
+            clock.Advance(TimeSpan.FromSeconds(10 + secondsAfterExpiry));
+        }
+
+        var expired = BuildContext("expiring-key");
+        await middleware.InvokeAsync(expired, db);
+
+        expired.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+        expired.User.Identity!.IsAuthenticated.Should().BeFalse();
+    }
+
+    [TestMethod]
+    public async Task InvokeAsync_NonexpiringKeyRechecksRevocationAtCacheDeadline()
+    {
+        var clock = new ManualTimeProvider();
+        await using var db = CreateDbContext(Guid.NewGuid().ToString());
+        var key = await SeedKeyAsync(db, "nonexpiring-key");
+        using var cache = CreateCache();
+        var (middleware, _) = BuildMiddleware(cache, clock);
+        var initial = BuildContext("nonexpiring-key");
+        await middleware.InvokeAsync(initial, db);
+        initial.User.Identity!.IsAuthenticated.Should().BeTrue();
+        key.IsActive = false;
+        await db.SaveChangesAsync();
+
+        clock.Advance(TimeSpan.FromMinutes(5) - TimeSpan.FromTicks(1));
+        var cached = BuildContext("nonexpiring-key");
+        await middleware.InvokeAsync(cached, db);
+        cached.User.Identity!.IsAuthenticated.Should().BeTrue("revocation has a bounded five-minute cache window");
+        clock.Advance(TimeSpan.FromTicks(1));
+        var revoked = BuildContext("nonexpiring-key");
+        await middleware.InvokeAsync(revoked, db);
+
+        revoked.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+    }
+
+    [TestMethod]
+    public async Task InvokeAsync_NegativeCacheRechecksAtThirtySecondDeadline()
+    {
+        var clock = new ManualTimeProvider();
+        await using var db = CreateDbContext(Guid.NewGuid().ToString());
+        using var cache = CreateCache();
+        var (middleware, _) = BuildMiddleware(cache, clock);
+        await middleware.InvokeAsync(BuildContext("new-key"), db);
+        await SeedKeyAsync(db, "new-key");
+
+        clock.Advance(TimeSpan.FromSeconds(30) - TimeSpan.FromTicks(1));
+        var cached = BuildContext("new-key");
+        await middleware.InvokeAsync(cached, db);
+        cached.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+        clock.Advance(TimeSpan.FromTicks(1));
+        var refreshed = BuildContext("new-key");
+        await middleware.InvokeAsync(refreshed, db);
+
+        refreshed.User.Identity!.IsAuthenticated.Should().BeTrue();
     }
 }
