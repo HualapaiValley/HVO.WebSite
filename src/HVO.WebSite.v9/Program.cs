@@ -375,12 +375,14 @@ namespace HVO.WebSite.v9
 
             var forwardedHeadersEnabled = app.Configuration.GetValue("ForwardedHeaders:Enabled",
                 app.Configuration.GetValue("ASPNETCORE_FORWARDEDHEADERS_ENABLED", false));
-            if (forwardedHeadersEnabled)
+            // The framework startup filter reads this normalized host key and
+            // installs forwarding before our pipeline. Adding it again would apply
+            // ForwardLimit independently and consume a second trusted hop.
+            var frameworkForwardingEnabled = string.Equals(
+                app.Configuration["ForwardedHeaders_Enabled"], "true", StringComparison.OrdinalIgnoreCase);
+            if (forwardedHeadersEnabled && !frameworkForwardingEnabled)
             {
-                // Respect proxy-provided scheme/remote IP only when the deployment
-                // explicitly opts into forwarded header processing.
                 app.UseForwardedHeaders();
-
             }
 
             // Add exception handling middleware
