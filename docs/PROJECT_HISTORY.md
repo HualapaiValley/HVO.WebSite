@@ -2,6 +2,15 @@
 
 Purpose: keep a lightweight working history that explains what changed, what was decided, and what to revisit later. This is not a release changelog.
 
+## 2026-10-04 — Canonical retry durability and BMS event-time history (#400)
+
+- Reconcile conflicts against committed identities and keep unresolved records retryable;
+  clear failed EF state before reuse and preserve atomic child writes.
+- Serialize BMS mutation on SQL device rows and rebuild paged event-time suffixes,
+  preserving raw observations and stable unaffected intervals across delayed delivery.
+- Coordinate snapshot content proof with #402 while retaining public contracts.
+  [Behavior and compatibility](development/canonical-ingest-retries.md) describe the boundary.
+
 ## 2026-10-04 — Canonical SQL Server test boundary (#409)
 
 - Added a disposable, owned SQL Server lane using the actual production EF registration,

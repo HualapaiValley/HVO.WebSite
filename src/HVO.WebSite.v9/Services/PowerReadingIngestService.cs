@@ -137,12 +137,28 @@ public sealed class PowerReadingIngestService : IPowerReadingIngestService
             }
             catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
             {
+                // SaveChanges rolled back the whole batch. A conflict proves only that
+                // some identity exists, not that every attempted observation committed.
+                _db.ChangeTracker.Clear();
+                var committed = await _db.PowerReadings.AsNoTracking()
+                    .Where(r => sourceIds.Contains(r.SourceId) && timestamps.Contains(r.RecordedAt))
+                    .Select(r => new { r.SourceId, r.RecordedAt })
+                    .ToListAsync(ct);
+                var committedKeys = committed.Select(r => (r.SourceId, r.RecordedAt)).ToHashSet();
+                if (!toInsert.All(r => committedKeys.Contains((r.SourceId, r.RecordedAt))))
+                {
+                    _logger.LogWarning(ex, "Power batch has an unresolved uniqueness race; retry is required");
+                    return new PowerReadingIngestResult(
+                        new PowerReadingBatchResponse { Inserted = 0, Skipped = 0, Failed = failures },
+                        PersistenceFailed: true);
+                }
+
                 skipped += toInsert.Count;
-                _logger.LogDebug(ex, "Unique constraint violation in power batch ingest; treating as idempotent duplicate batch");
                 toInsert.Clear();
             }
             catch (DbUpdateException ex)
             {
+                _db.ChangeTracker.Clear();
                 _logger.LogError(
                     ex,
                     "Power batch ingest failed during SaveChanges for {SourceCount} sources and {BatchSize} records",
