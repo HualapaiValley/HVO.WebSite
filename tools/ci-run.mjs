@@ -107,6 +107,9 @@ function main() {
     if (!plan.lanes[job].length) throw new Error('Unexpected empty SQL execution');
     // The owned SQL runner provisions one isolated provider for the API suite.
     if (plan.lanes[job].some(path => path !== 'tests/HVO.WebSite.ApiTests/HVO.WebSite.ApiTests.csproj')) throw new Error('SQL runner needs explicit ownership for a new assembly');
+    // These fixture safety checks are required whenever the SQL lane executes;
+    // a missing file or failed check stops before provisioning any provider.
+    run(process.execPath, ['--test', 'tools/sql-server-integration.test.mjs']);
     build(plan.lanes[job]);
     const fixture = prepareFixtureReports(job, plan.lanes[job]);
     run('bash', ['tools/run-sql-server-integration-tests.sh'], { env: { ...process.env, HVO_SQL_TEST_RESULTS_DIRECTORY: fixture.reports[0] } });

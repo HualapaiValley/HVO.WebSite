@@ -63,7 +63,8 @@ Assemblies remain sequential because tests restart the shared stack. Every invoc
 
 ## SQL Server execution
 
-The selected workflow's existing `sql-server` job builds the owned API test assembly,
+The selected workflow's existing `sql-server` job requires the eight SQL runner safety
+checks before building the owned API test assembly,
 then invokes [the disposable SQL runner](sql-server-integration-tests.md) and independently
 verifies fresh passing reports under `TestResults/sql-server/HVO.WebSite.ApiTests`.
 The planner discovers the actual Integration/SqlServerIntegration method categories;

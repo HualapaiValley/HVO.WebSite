@@ -62,5 +62,9 @@ and enables XPlat Code Coverage only when the inherited `CI_COVERAGE` is true. T
 preserves selected CI's PR-versus-main/nightly/manual coverage policy.
 
 Run `node --test tools/sql-server-integration.test.mjs` for runner ownership, failure,
-and result-admission tests. No schema or production runtime configuration changes are
+and result-admission tests. The owned SQL executor requires these checks before build
+or provider provisioning; missing or failed checks stop the lane. This executor
+correction first becomes trusted after merge. Local candidate execution cannot prove
+the old target handler ran it; merged hosted SQL qualification remains required.
+No schema or production runtime configuration changes are
 introduced by this fixture. No deployment or hardware acceptance follows from it.
