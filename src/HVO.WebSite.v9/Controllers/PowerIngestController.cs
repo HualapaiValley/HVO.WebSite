@@ -254,7 +254,22 @@ public class PowerIngestController : ControllerBase
         }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
+            _db.ChangeTracker.Clear();
+            if (!await _db.PowerDeviceInventorySnapshots.AsNoTracking()
+                    .AnyAsync(row => row.SourceId == sourceId && row.RecordedAt == recordedAt && row.PayloadHash == payloadHash, ct))
+            {
+                _logger.LogWarning(ex, "Power snapshot uniqueness conflict has no durable observation identity");
+                return Problem(
+                    title: "Snapshot Ingest Failed",
+                    detail: "The observation could not be fully accounted. Retry is safe.",
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
             return CreatedAtAction(nameof(GetLatestDeviceInventory), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+        catch (DbUpdateException)
+        {
+            _db.ChangeTracker.Clear();
+            throw;
         }
 
         return CreatedAtAction(nameof(GetLatestDeviceInventory), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
@@ -309,7 +324,22 @@ public class PowerIngestController : ControllerBase
         }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
+            _db.ChangeTracker.Clear();
+            if (!await _db.PowerConfigurationSnapshots.AsNoTracking()
+                    .AnyAsync(row => row.SourceId == sourceId && row.RecordedAt == recordedAt && row.PayloadHash == payloadHash, ct))
+            {
+                _logger.LogWarning(ex, "Power snapshot uniqueness conflict has no durable observation identity");
+                return Problem(
+                    title: "Snapshot Ingest Failed",
+                    detail: "The observation could not be fully accounted. Retry is safe.",
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
             return CreatedAtAction(nameof(GetLatestConfiguration), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+        catch (DbUpdateException)
+        {
+            _db.ChangeTracker.Clear();
+            throw;
         }
 
         return CreatedAtAction(nameof(GetLatestConfiguration), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
@@ -364,7 +394,22 @@ public class PowerIngestController : ControllerBase
         }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
+            _db.ChangeTracker.Clear();
+            if (!await _db.PowerEnergySnapshots.AsNoTracking()
+                    .AnyAsync(row => row.SourceId == sourceId && row.RecordedAt == recordedAt && row.PayloadHash == payloadHash, ct))
+            {
+                _logger.LogWarning(ex, "Power snapshot uniqueness conflict has no durable observation identity");
+                return Problem(
+                    title: "Snapshot Ingest Failed",
+                    detail: "The observation could not be fully accounted. Retry is safe.",
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
             return CreatedAtAction(nameof(GetLatestEnergy), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+        catch (DbUpdateException)
+        {
+            _db.ChangeTracker.Clear();
+            throw;
         }
 
         return CreatedAtAction(nameof(GetLatestEnergy), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
@@ -436,7 +481,22 @@ public class PowerIngestController : ControllerBase
         }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
+            _db.ChangeTracker.Clear();
+            if (!await _db.PowerInverterDetailSnapshots.AsNoTracking()
+                    .AnyAsync(row => row.SourceId == sourceId && row.RecordedAt == recordedAt && row.PayloadHash == payloadHash, ct))
+            {
+                _logger.LogWarning(ex, "Power snapshot uniqueness conflict has no durable observation identity");
+                return Problem(
+                    title: "Snapshot Ingest Failed",
+                    detail: "The observation could not be fully accounted. Retry is safe.",
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
             return CreatedAtAction(nameof(GetLatestInverterDetail), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+        catch (DbUpdateException)
+        {
+            _db.ChangeTracker.Clear();
+            throw;
         }
 
         return CreatedAtAction(nameof(GetLatestInverterDetail), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
@@ -506,7 +566,25 @@ public class PowerIngestController : ControllerBase
         }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
+            _db.ChangeTracker.Clear();
+            var expectedPayloadJson = JsonSerializer.Serialize(request, JsonOptions);
+            var committedPayloadJson = await _db.PowerMpptDetailSnapshots.AsNoTracking()
+                .Where(row => row.SourceId == sourceId && row.RecordedAt == recordedAt)
+                .Select(row => row.PayloadJson).FirstOrDefaultAsync(ct);
+            if (!string.Equals(committedPayloadJson, expectedPayloadJson, StringComparison.Ordinal))
+            {
+                _logger.LogWarning(ex, "Power snapshot uniqueness conflict has no durable observation identity");
+                return Problem(
+                    title: "Snapshot Ingest Failed",
+                    detail: "The observation could not be fully accounted. Retry is safe.",
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
             return CreatedAtAction(nameof(GetLatestMpptDetail), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+        catch (DbUpdateException)
+        {
+            _db.ChangeTracker.Clear();
+            throw;
         }
 
         return CreatedAtAction(nameof(GetLatestMpptDetail), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });
@@ -537,6 +615,10 @@ public class PowerIngestController : ControllerBase
             var result = await ingest(request, ct);
             if (result.Result is ForbidResult)
                 return Forbid();
+            // Persistence failures keep the whole transport batch retryable. Earlier
+            // committed details will replay; no sender may retire this item as invalid.
+            if (result.Result is ObjectResult { StatusCode: >= 500 } persistenceFailure)
+                return persistenceFailure;
             var response = (result.Result as ObjectResult)?.Value as PowerSnapshotIngestResponse
                 ?? result.Value;
             if (response?.Inserted == true)
@@ -617,7 +699,22 @@ public class PowerIngestController : ControllerBase
         }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
+            _db.ChangeTracker.Clear();
+            if (!await _db.GatewayStatusSnapshots.AsNoTracking()
+                    .AnyAsync(row => row.SourceId == sourceId && row.RecordedAt == recordedAt && row.PayloadHash == payloadHash, ct))
+            {
+                _logger.LogWarning(ex, "Power snapshot uniqueness conflict has no durable observation identity");
+                return Problem(
+                    title: "Snapshot Ingest Failed",
+                    detail: "The observation could not be fully accounted. Retry is safe.",
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
             return CreatedAtAction(nameof(GetLatestGatewayStatus), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
+        }
+        catch (DbUpdateException)
+        {
+            _db.ChangeTracker.Clear();
+            throw;
         }
 
         return CreatedAtAction(nameof(GetLatestGatewayStatus), new { sourceId }, new PowerSnapshotIngestResponse { Inserted = true });

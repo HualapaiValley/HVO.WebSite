@@ -108,10 +108,22 @@ public class WeatherIngestController : ControllerBase
         }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
-            // Duplicate record — already in DB, treat as success (idempotent)
+            _db.ChangeTracker.Clear();
+            var committed = await _db.WeatherRaw.AsNoTracking()
+                .FirstOrDefaultAsync(row => row.StationId == record.StationId && row.RecordedAt == record.RecordedAt, ct);
+            if (committed is null)
+                return Problem(
+                    title: "Raw Ingest Failed",
+                    detail: "The observation could not be fully accounted. Retry is safe.",
+                    statusCode: StatusCodes.Status500InternalServerError);
             _logger.LogDebug("Duplicate raw weather record from station {StationId} at {RecordedAt} — skipped",
                 record.StationId, record.RecordedAt);
-            return CreatedAtAction(nameof(GetRecentRaw), new { }, MapToResponse(record));
+            return CreatedAtAction(nameof(GetRecentRaw), new { }, MapToResponse(committed));
+        }
+        catch (DbUpdateException)
+        {
+            _db.ChangeTracker.Clear();
+            throw;
         }
 
         _logger.LogInformation(
@@ -254,13 +266,6 @@ public class WeatherIngestController : ControllerBase
                 continue;
             }
 
-            // Skip intra-batch duplicates by (StationId, RecordedAt)
-            if (!seenInBatch.Add((stationId, recordedAt)))
-            {
-                skipped++;
-                continue;
-            }
-
             // Validate individual record (data annotations)
             var validationResults = new List<ValidationResult>();
             if (!Validator.TryValidateObject(request, new ValidationContext(request), validationResults, validateAllProperties: true))
@@ -271,6 +276,14 @@ public class WeatherIngestController : ControllerBase
                     RecordedAt = recordedAt,
                     Error = string.Join("; ", validationResults.Select(r => r.ErrorMessage))
                 });
+                continue;
+            }
+
+            // Invalid observations do not reserve a batch identity. Repeated valid
+            // aliases are acknowledged only when their canonical insert commits.
+            if (!seenInBatch.Add((stationId, recordedAt)))
+            {
+                skipped++;
                 continue;
             }
 
@@ -300,14 +313,27 @@ public class WeatherIngestController : ControllerBase
             }
             catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
             {
-                // Race condition — another process inserted the same record between our check and insert.
-                // Treat as idempotent success; caller gets accurate counts on the next sweep.
-                _logger.LogDebug(ex, "Unique constraint violation in batch ingest (race condition) — treating as success");
+                _db.ChangeTracker.Clear();
+                var committed = await _db.WeatherRaw.AsNoTracking()
+                    .Where(r => r.StationId != null && stationIds.Contains(r.StationId) && timestamps.Contains(r.RecordedAt))
+                    .Select(r => new { r.StationId, r.RecordedAt })
+                    .ToListAsync(ct);
+                var committedKeys = committed.Select(r => (r.StationId, r.RecordedAt)).ToHashSet();
+                if (!toInsert.All(r => committedKeys.Contains((r.StationId, r.RecordedAt))))
+                {
+                    _logger.LogWarning(ex, "Weather batch has an unresolved uniqueness race; retry is required");
+                    return Problem(
+                        title: "Batch Ingest Failed",
+                        detail: "The batch could not be fully accounted. Retry is safe.",
+                        statusCode: StatusCodes.Status500InternalServerError);
+                }
+
                 skipped += toInsert.Count;
                 toInsert.Clear();
             }
             catch (DbUpdateException ex)
             {
+                _db.ChangeTracker.Clear();
                 var distinctStations = string.Join(", ", resolved.Select(x => x.StationId).Distinct());
                 _logger.LogError(ex, "Batch ingest failed during SaveChanges for stations {StationIds}", distinctStations);
                 return Problem(

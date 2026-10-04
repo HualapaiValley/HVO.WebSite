@@ -142,7 +142,19 @@ public class BmsController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        var response = await _ingestService.IngestReadingsAsync(requests, ct);
+        BmsIngestBatchResponse response;
+        try
+        {
+            response = await _ingestService.IngestReadingsAsync(requests, ct);
+        }
+        catch (IngestPersistenceException exception)
+        {
+            _logger.LogWarning(exception, "BMS batch could not be durably acknowledged");
+            return Problem(
+                title: "Batch Ingest Failed",
+                detail: "The batch could not be fully accounted. Retry is safe.",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
 
         if (deserFailures.Count > 0)
         {

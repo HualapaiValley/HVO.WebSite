@@ -613,6 +613,126 @@ public class BmsControllerTests
         objectResult.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
     }
 
+
+    [TestMethod]
+    public async Task IngestReadings_LateHealthyObservation_DoesNotClearNewerAlarm()
+    {
+        await _ctrl.IngestReadings(ToJsonElement([MakeRequest(DeviceA, "2026-01-01T02:02:00Z", alarmBitmask: 1)]), CancellationToken.None);
+        await _ctrl.IngestReadings(ToJsonElement([MakeRequest(DeviceA, "2026-01-01T02:01:00Z", alarmBitmask: 0)]), CancellationToken.None);
+        var alarm = await _db.BmsAlarms.SingleAsync();
+        alarm.ActivatedAt.Should().Be(new DateTime(2026, 1, 1, 2, 2, 0, DateTimeKind.Utc));
+        alarm.ClearedAt.Should().BeNull();
+        (await _db.BmsReadings.CountAsync()).Should().Be(2);
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_LateAlarmBeforeHealthyObservation_DoesNotReopenCurrentState()
+    {
+        await _ctrl.IngestReadings(ToJsonElement([MakeRequest(DeviceA, "2026-01-01T02:02:00Z", alarmBitmask: 0)]), CancellationToken.None);
+        await _ctrl.IngestReadings(ToJsonElement([MakeRequest(DeviceA, "2026-01-01T02:01:00Z", alarmBitmask: 1)]), CancellationToken.None);
+        var alarm = await _db.BmsAlarms.SingleAsync();
+        alarm.ActivatedAt.Should().Be(new DateTime(2026, 1, 1, 2, 1, 0, DateTimeKind.Utc));
+        alarm.ClearedAt.Should().Be(new DateTime(2026, 1, 1, 2, 2, 0, DateTimeKind.Utc));
+    }
+
+    [TestMethod]
+    [DataRow("0,1,2,3,4")]
+    [DataRow("4,3,2,1,0")]
+    [DataRow("2,4,0,3,1")]
+    public async Task IngestReadings_RequestReordering_ProducesSameEventTimeIntervals(string order)
+    {
+        long[] bits = [0, 1, 4, 0, 1];
+        var start = new DateTime(2026, 1, 1, 2, 0, 0, DateTimeKind.Utc);
+        foreach (var index in order.Split(',').Select(int.Parse))
+        {
+            var request = MakeRequest(DeviceA, start.AddMinutes(index).ToString("O"), alarmBitmask: bits[index]);
+            await _ctrl.IngestReadings(ToJsonElement([request]), CancellationToken.None);
+        }
+        var intervals = await _db.BmsAlarms.OrderBy(a => a.ActivatedAt)
+            .Select(a => new { a.ActivatedAt, a.ClearedAt, a.AlarmBitmask }).ToListAsync();
+        intervals.Should().HaveCount(3);
+        intervals[0].ActivatedAt.Should().Be(start.AddMinutes(1));
+        intervals[0].ClearedAt.Should().Be(start.AddMinutes(2));
+        intervals[0].AlarmBitmask.Should().Be(1);
+        intervals[1].ActivatedAt.Should().Be(start.AddMinutes(2));
+        intervals[1].ClearedAt.Should().Be(start.AddMinutes(3));
+        intervals[1].AlarmBitmask.Should().Be(4);
+        intervals[2].ActivatedAt.Should().Be(start.AddMinutes(4));
+        intervals[2].ClearedAt.Should().BeNull();
+        intervals[2].AlarmBitmask.Should().Be(1);
+        (await _db.BmsReadings.CountAsync()).Should().Be(5);
+    }
+
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task IngestReadings_LateConfigAndInfo_DoNotHideNewerReturnToThatValue(bool reverse)
+    {
+        await _ctrl.IngestReadings(ToJsonElement([
+            MakeRequest(DeviceA, "2026-01-01T02:10:00Z", config: MakeConfig(chargingEnabled: false), deviceInfo: MakeDeviceInfo(firmware: "B"))
+        ]), CancellationToken.None);
+        var requests = new[]
+        {
+            MakeRequest(DeviceA, "2026-01-01T02:01:00Z", config: MakeConfig(chargingEnabled: true), deviceInfo: MakeDeviceInfo(firmware: "A")),
+            MakeRequest(DeviceA, "2026-01-01T02:11:00Z", config: MakeConfig(chargingEnabled: true), deviceInfo: MakeDeviceInfo(firmware: "A"))
+        };
+        if (reverse) Array.Reverse(requests);
+        await _ctrl.IngestReadings(ToJsonElement(requests), CancellationToken.None);
+        var latestConfig = await _db.BmsDeviceConfigs.OrderByDescending(c => c.RecordedAt).FirstAsync();
+        latestConfig.RecordedAt.Should().Be(new DateTime(2026, 1, 1, 2, 11, 0, DateTimeKind.Utc));
+        latestConfig.ChargingEnabled.Should().BeTrue();
+        var latestInfo = await _db.BmsDeviceInfos.OrderByDescending(c => c.RecordedAt).FirstAsync();
+        latestInfo.RecordedAt.Should().Be(latestConfig.RecordedAt);
+        latestInfo.Firmware.Should().Be("A");
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_AliasWithAdditionalRequiredChildren_IsNotSkippedAgainstPartialSummary()
+    {
+        var empty = MakeRequest(DeviceA, "2026-01-01T02:00:00Z", cellVoltagesMv: [], cellResistancesMOhm: []);
+        await _ctrl.IngestReadings(ToJsonElement([empty]), CancellationToken.None);
+        var response = await _ctrl.IngestReadings(
+            ToJsonElement([empty, MakeRequest(DeviceA, "2026-01-01T02:00:00Z")]), CancellationToken.None);
+        ((ObjectResult)response.Result!).StatusCode.Should().Be(500);
+        (await _db.BmsReadings.CountAsync()).Should().Be(1);
+        (await _db.BmsCellVoltages.CountAsync()).Should().Be(0);
+    }
+
+    [TestMethod]
+    public async Task IngestReadings_LateObservation_RebuildsAcrossHistoryPageBoundary()
+    {
+        var start = new DateTime(2026, 1, 1, 2, 0, 0, DateTimeKind.Utc);
+        var requests = Enumerable.Range(0, 514)
+            .Select(index => MakeRequest(DeviceA, start.AddSeconds(index).ToString("O"), alarmBitmask: index == 513 ? 0 : 1))
+            .ToArray();
+        await _ctrl.IngestReadings(ToJsonElement(requests.Take(500).ToArray()), CancellationToken.None);
+        await _ctrl.IngestReadings(ToJsonElement(requests.Skip(500).ToArray()), CancellationToken.None);
+        await _ctrl.IngestReadings(
+            ToJsonElement([MakeRequest(DeviceA, start.AddSeconds(-1).ToString("O"))]), CancellationToken.None);
+        var alarm = await _db.BmsAlarms.SingleAsync();
+        alarm.ActivatedAt.Should().Be(start);
+        alarm.ClearedAt.Should().Be(start.AddSeconds(513));
+        (await _db.BmsReadings.CountAsync()).Should().Be(515);
+    }
+
+
+    [TestMethod]
+    public async Task IngestReadings_AffectedLegacyInvertedInterval_IsRebuiltFromRawPredecessor()
+    {
+        var at = new DateTime(2026, 1, 1, 2, 0, 0, DateTimeKind.Utc);
+        await _ctrl.IngestReadings(ToJsonElement([MakeRequest(DeviceA, at.AddMinutes(2).ToString("O"), alarmBitmask: 1)]), CancellationToken.None);
+        var legacy = await _db.BmsAlarms.SingleAsync();
+        var retainedId = legacy.Id;
+        legacy.ClearedAt = at.AddMinutes(1);
+        await _db.SaveChangesAsync();
+        await _ctrl.IngestReadings(ToJsonElement([MakeRequest(DeviceA, at.AddMinutes(3).ToString("O"), alarmBitmask: 0)]), CancellationToken.None);
+        var corrected = await _db.BmsAlarms.SingleAsync();
+        corrected.Id.Should().Be(retainedId);
+        corrected.ActivatedAt.Should().Be(at.AddMinutes(2));
+        corrected.ClearedAt.Should().Be(at.AddMinutes(3));
+    }
+
     private sealed class ThrowOnSecondSaveHvoV9DbContext(DbContextOptions<HvoV9DbContext> options) : HvoV9DbContext(options)
     {
         private int _saveCount;
