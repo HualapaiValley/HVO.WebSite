@@ -4,14 +4,9 @@
     box-sizing: border-box;
     color: var(--shell-page-text);
 
-    /* Compass & celestial SVG tokens — mirror Davis Status.razor.css */
+    /* Computed compass SVG tokens. */
     --demo-compass-face: color-mix(in srgb, var(--shell-card-background) 78%, var(--shell-overlay-panel) 22%);
     --demo-compass-ring-soft: color-mix(in srgb, var(--shell-overlay-panel-border) 55%, transparent 45%);
-    --demo-sun-stroke: #ffcf66;
-    --demo-sun-glow: rgba(255, 207, 102, 0.28);
-    --demo-sun-fill: #ffcf66;
-    --demo-moon-fill: #c8d8ee;
-    --demo-moon-shadow: color-mix(in srgb, var(--shell-card-background) 80%, #1a2a42 20%);
 }
 
 .id-page > .shell-page-stack { width: 100%; min-width: 0; }
