@@ -99,7 +99,7 @@ Current v9 domains:
 |--------|----------------|
 | Weather | Implemented raw ingest and recent read endpoints |
 | BMS | Implemented batch ingest, device upsert, readings, cells, config/info snapshots, alarms |
-| Power | Implemented typed ingest/read support for power readings, energy, inverter detail, device inventory/configuration, and gateway status snapshots |
+| Power | Implemented typed ingest/read support for power readings, energy, inverter detail, device inventory/configuration, and gateway status snapshots; submitted snapshot confirmations use source/time replay identity rather than historical content uniqueness (see [observation semantics and rollout](development/power-observation-identity.md)) |
 | Images | Scope and some image metadata model support exist, but ingest is not the current focus |
 | Commands | Not implemented |
 

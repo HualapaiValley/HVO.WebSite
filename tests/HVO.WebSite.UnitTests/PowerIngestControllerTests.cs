@@ -489,10 +489,10 @@ public sealed class PowerIngestControllerTests
         var latest = await _ctrl.GetLatestDeviceInventory("solarassistant-total", staleAfterMinutes: 1, CancellationToken.None);
 
         ((CreatedAtActionResult)ingest.Result!).Value.Should().BeEquivalentTo(new { Inserted = true, Skipped = false });
-        ((CreatedAtActionResult)duplicate.Result!).Value.Should().BeEquivalentTo(new { Inserted = false, Skipped = true });
+        ((CreatedAtActionResult)duplicate.Result!).Value.Should().BeEquivalentTo(new { Inserted = true, Skipped = false });
         var body = ((OkObjectResult)latest.Result!).Value.Should().BeOfType<PowerDeviceInventorySnapshotResponse>().Subject;
         body.IsPresent.Should().BeTrue();
-        body.IsStale.Should().BeTrue();
+        body.IsStale.Should().BeFalse();
         body.Devices.Single().Model.Should().Be("6500EX");
     }
 

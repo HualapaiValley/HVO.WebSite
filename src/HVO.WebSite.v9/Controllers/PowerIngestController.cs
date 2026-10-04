@@ -8,6 +8,7 @@ using HVO.DataModels.Models.V9;
 using HVO.Edge.Contracts;
 using HVO.Edge.Contracts.PowerSystem;
 using HVO.WebSite.v9.Infrastructure;
+using HVO.WebSite.v9.Configuration;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Services;
 using HVO.WebSite.v9.Telemetry;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace HVO.WebSite.v9.Controllers;
 
@@ -50,12 +52,13 @@ public class PowerIngestController : ControllerBase
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly TimeProvider _clock;
     private readonly HvoV9DbContext _db;
     private readonly ILogger<PowerIngestController> _logger;
     private readonly IPowerReadingIngestService _readingIngestService;
     private readonly IPowerSystemSnapshotProvider _snapshotProvider;
     private readonly IPowerInventoryConfigurationProvider _inventoryConfigurationProvider;
+    private readonly TimeProvider _clock;
+    private readonly PowerCompositionOptions _composition;
 
     public PowerIngestController(
         HvoV9DbContext db,
@@ -63,14 +66,16 @@ public class PowerIngestController : ControllerBase
         IPowerReadingIngestService readingIngestService,
         IPowerSystemSnapshotProvider snapshotProvider,
         IPowerInventoryConfigurationProvider inventoryConfigurationProvider,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null,
+        IOptions<PowerCompositionOptions>? composition = null)
     {
-        _clock = clock ?? TimeProvider.System;
         _db = db;
         _logger = logger;
         _readingIngestService = readingIngestService;
         _snapshotProvider = snapshotProvider;
         _inventoryConfigurationProvider = inventoryConfigurationProvider;
+        _clock = clock ?? TimeProvider.System;
+        _composition = composition?.Value ?? new();
     }
 
     /// <summary>
@@ -228,9 +233,13 @@ public class PowerIngestController : ControllerBase
 
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
         var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
-        if (await _db.PowerDeviceInventorySnapshots.AnyAsync(
-            r => r.SourceId == sourceId && (r.RecordedAt == recordedAt || r.PayloadHash == payloadHash), ct))
+        // Each submitted source-time confirmation is an observation, even when content repeats.
+        var existingHash = await _db.PowerDeviceInventorySnapshots.AsNoTracking()
+            .Where(r => r.SourceId == sourceId && r.RecordedAt == recordedAt)
+            .Select(r => r.PayloadHash).SingleOrDefaultAsync(ct);
+        if (existingHash is not null)
         {
+            if (existingHash != payloadHash) return ConflictingSnapshot(sourceId, recordedAt);
             return CreatedAtAction(nameof(GetLatestDeviceInventory), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
         }
 
@@ -299,9 +308,13 @@ public class PowerIngestController : ControllerBase
 
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
         var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
-        if (await _db.PowerConfigurationSnapshots.AnyAsync(
-            r => r.SourceId == sourceId && (r.RecordedAt == recordedAt || r.PayloadHash == payloadHash), ct))
+        // Each submitted source-time confirmation is an observation, even when content repeats.
+        var existingHash = await _db.PowerConfigurationSnapshots.AsNoTracking()
+            .Where(r => r.SourceId == sourceId && r.RecordedAt == recordedAt)
+            .Select(r => r.PayloadHash).SingleOrDefaultAsync(ct);
+        if (existingHash is not null)
         {
+            if (existingHash != payloadHash) return ConflictingSnapshot(sourceId, recordedAt);
             return CreatedAtAction(nameof(GetLatestConfiguration), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
         }
 
@@ -369,9 +382,13 @@ public class PowerIngestController : ControllerBase
 
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
         var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
-        if (await _db.PowerEnergySnapshots.AnyAsync(
-            r => r.SourceId == sourceId && (r.RecordedAt == recordedAt || r.PayloadHash == payloadHash), ct))
+        // Each submitted source-time confirmation is an observation, even when content repeats.
+        var existingHash = await _db.PowerEnergySnapshots.AsNoTracking()
+            .Where(r => r.SourceId == sourceId && r.RecordedAt == recordedAt)
+            .Select(r => r.PayloadHash).SingleOrDefaultAsync(ct);
+        if (existingHash is not null)
         {
+            if (existingHash != payloadHash) return ConflictingSnapshot(sourceId, recordedAt);
             return CreatedAtAction(nameof(GetLatestEnergy), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
         }
 
@@ -456,9 +473,13 @@ public class PowerIngestController : ControllerBase
 
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
         var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
-        if (await _db.PowerInverterDetailSnapshots.AnyAsync(
-            r => r.SourceId == sourceId && (r.RecordedAt == recordedAt || r.PayloadHash == payloadHash), ct))
+        // Each submitted source-time confirmation is an observation, even when content repeats.
+        var existingHash = await _db.PowerInverterDetailSnapshots.AsNoTracking()
+            .Where(r => r.SourceId == sourceId && r.RecordedAt == recordedAt)
+            .Select(r => r.PayloadHash).SingleOrDefaultAsync(ct);
+        if (existingHash is not null)
         {
+            if (existingHash != payloadHash) return ConflictingSnapshot(sourceId, recordedAt);
             return CreatedAtAction(nameof(GetLatestInverterDetail), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
         }
 
@@ -541,9 +562,13 @@ public class PowerIngestController : ControllerBase
             _db, User, [(request.SourceId, request.SourceSystem)], _clock, ct))
             return Forbid();
 
-        if (await _db.PowerMpptDetailSnapshots.AnyAsync(
-            r => r.SourceId == sourceId && r.RecordedAt == recordedAt, ct))
+        var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
+        var existingJson = await _db.PowerMpptDetailSnapshots.AsNoTracking()
+            .Where(r => r.SourceId == sourceId && r.RecordedAt == recordedAt)
+            .Select(r => r.PayloadJson).SingleOrDefaultAsync(ct);
+        if (existingJson is not null)
         {
+            if (existingJson != payloadJson) return ConflictingSnapshot(sourceId, recordedAt);
             return CreatedAtAction(nameof(GetLatestMpptDetail), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
         }
 
@@ -556,7 +581,7 @@ public class PowerIngestController : ControllerBase
             TrackerCount = request.Trackers.Count,
             TemperatureCount = request.Temperatures.Count,
             DiagnosticCount = request.Diagnostics.Count,
-            PayloadJson = JsonSerializer.Serialize(request, JsonOptions),
+            PayloadJson = payloadJson,
             CreatedAt = DateTime.UtcNow,
         });
 
@@ -668,9 +693,13 @@ public class PowerIngestController : ControllerBase
 
         var payloadJson = JsonSerializer.Serialize(request, JsonOptions);
         var payloadHash = ComputeHash(RemoveRecordedAt(payloadJson));
-        if (await _db.GatewayStatusSnapshots.AnyAsync(
-            r => r.SourceId == sourceId && (r.RecordedAt == recordedAt || r.PayloadHash == payloadHash), ct))
+        // Each submitted source-time confirmation is an observation, even when content repeats.
+        var existingHash = await _db.GatewayStatusSnapshots.AsNoTracking()
+            .Where(r => r.SourceId == sourceId && r.RecordedAt == recordedAt)
+            .Select(r => r.PayloadHash).SingleOrDefaultAsync(ct);
+        if (existingHash is not null)
         {
+            if (existingHash != payloadHash) return ConflictingSnapshot(sourceId, recordedAt);
             return CreatedAtAction(nameof(GetLatestGatewayStatus), new { sourceId }, new PowerSnapshotIngestResponse { Skipped = true });
         }
 
@@ -813,9 +842,10 @@ public class PowerIngestController : ControllerBase
         CancellationToken ct = default)
     {
         var normalized = NormalizeSourceId(sourceId);
+        var futureCutoff = FutureCutoffUtc();
         var row = await _db.PowerEnergySnapshots
             .AsNoTracking()
-            .Where(r => r.SourceId == normalized)
+            .Where(r => r.SourceId == normalized && r.RecordedAt > DateTime.MinValue && r.RecordedAt <= futureCutoff)
             .OrderByDescending(r => r.RecordedAt)
             .FirstOrDefaultAsync(ct);
         if (row is null)
@@ -827,9 +857,9 @@ public class PowerIngestController : ControllerBase
             SourceId = row.SourceId,
             SourceSystem = row.SourceSystem,
             DeviceId = row.DeviceId,
-            RecordedAtUtc = row.RecordedAt,
+            RecordedAtUtc = DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc),
             IsPresent = true,
-            IsStale = DateTime.UtcNow - row.RecordedAt > TimeSpan.FromMinutes(staleAfterMinutes),
+            IsStale = _clock.GetUtcNow().UtcDateTime - DateTime.SpecifyKind(row.RecordedAt, DateTimeKind.Utc) > TimeSpan.FromMinutes(staleAfterMinutes),
             CounterResetDetected = payload.CounterResetDetected,
             Counters = payload.Counters,
         });
@@ -847,32 +877,9 @@ public class PowerIngestController : ControllerBase
         CancellationToken ct = default)
     {
         var normalized = NormalizeSourceId(sourceId);
-        var row = await _db.PowerInverterDetailSnapshots
-            .AsNoTracking()
-            .Where(r => r.SourceId == normalized)
-            .OrderByDescending(r => r.RecordedAt)
-            .FirstOrDefaultAsync(ct);
-        if (row is null)
+        if (normalized.Length == 0)
             return Ok(new PowerInverterDetailSnapshotResponse { SourceId = normalized, IsPresent = false, IsStale = true });
-
-        var payload = JsonSerializer.Deserialize<PowerInverterDetailPayload>(row.PayloadJson, JsonOptions) ?? new PowerInverterDetailPayload();
-        return Ok(new PowerInverterDetailSnapshotResponse
-        {
-            SourceId = row.SourceId,
-            SourceSystem = row.SourceSystem,
-            DeviceId = row.DeviceId,
-            RecordedAtUtc = row.RecordedAt,
-            IsPresent = true,
-            IsStale = DateTime.UtcNow - row.RecordedAt > TimeSpan.FromMinutes(staleAfterMinutes),
-            PvStrings = payload.PvStrings,
-            Ac = payload.Ac,
-            Load = payload.Load,
-            Battery = payload.Battery,
-            Operating = payload.Operating,
-            TemperatureC = payload.TemperatureC,
-            Temperatures = payload.Temperatures,
-            Statuses = payload.Statuses,
-        });
+        return Ok(await _inventoryConfigurationProvider.GetLatestInverterDetailAsync(normalized, staleAfterMinutes, ct));
     }
 
     [HttpGet("mppt-detail/latest")]
@@ -891,15 +898,7 @@ public class PowerIngestController : ControllerBase
         if (normalized.Length == 0)
             return BadRequest(new ValidationProblemDetails(new Dictionary<string, string[]> { [nameof(sourceId)] = ["The sourceId field is required."] }));
 
-        var row = await _db.PowerMpptDetailSnapshots
-            .AsNoTracking()
-            .Where(r => r.SourceId == normalized)
-            .OrderByDescending(r => r.RecordedAt)
-            .FirstOrDefaultAsync(ct);
-        if (row is null)
-            return Ok(new PowerMpptDetailSnapshotResponse { SourceId = normalized, IsPresent = false, IsStale = true });
-
-        return Ok(ToMpptDetailResponse(row, staleAfterMinutes));
+        return Ok(await _inventoryConfigurationProvider.GetLatestMpptDetailAsync(normalized, staleAfterMinutes, ct));
     }
 
     [HttpGet("mppt-detail/recent")]
@@ -939,9 +938,10 @@ public class PowerIngestController : ControllerBase
         CancellationToken ct = default)
     {
         var normalized = NormalizeSourceId(sourceId);
+        var futureCutoff = FutureCutoffUtc();
         var row = await _db.GatewayStatusSnapshots
             .AsNoTracking()
-            .Where(r => r.SourceId == normalized)
+            .Where(r => r.SourceId == normalized && r.RecordedAt > DateTime.MinValue && r.RecordedAt <= futureCutoff)
             .OrderByDescending(r => r.RecordedAt)
             .FirstOrDefaultAsync(ct);
         if (row is null)
@@ -956,7 +956,7 @@ public class PowerIngestController : ControllerBase
             DeviceId = row.DeviceId,
             RecordedAtUtc = recordedAtUtc,
             IsPresent = true,
-            IsStale = DateTime.UtcNow - recordedAtUtc > TimeSpan.FromMinutes(staleAfterMinutes),
+            IsStale = _clock.GetUtcNow().UtcDateTime - recordedAtUtc > TimeSpan.FromMinutes(staleAfterMinutes),
             Identity = payload.Identity,
             Health = payload.Health,
             Rest = payload.Rest,
@@ -1373,6 +1373,16 @@ public class PowerIngestController : ControllerBase
             Temperatures = payload.Temperatures,
             Diagnostics = payload.Diagnostics,
         };
+    }
+
+    private DateTime FutureCutoffUtc() => _clock.GetUtcNow().UtcDateTime.AddSeconds(_composition.MaxFutureClockSkewSeconds);
+
+    private ObjectResult ConflictingSnapshot(string sourceId, DateTime recordedAt)
+    {
+        _logger.LogWarning("Conflicting immutable snapshot for {SourceId} at {RecordedAtUtc}; not acknowledged", sourceId, recordedAt);
+        return Problem(statusCode: StatusCodes.Status500InternalServerError,
+            title: "Snapshot observation conflicts with committed content",
+            detail: "This observation was not acknowledged. Replay the original immutable payload or submit a new observation time.");
     }
 
     private static string ComputeHash(string value)
