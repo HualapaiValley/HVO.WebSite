@@ -126,8 +126,13 @@ test('plan is deterministic and aggregation rejects stale, missing, failed or sk
   assert.throws(() => aggregate(result, { ...source, head: '4'.repeat(40) }, results), /Stale/);
   assert.throws(() => verifyPlan({ ...result, images: [] }, source), /digest/);
   const website = plan(['src/HVO.WebSite.v9/Program.cs']);
-  assert.throws(() => aggregate(website, source, results), /browser/);
-  assert.equal(aggregate(website, source, { ...results, browser: 'success' }), true);
+  // The real API graph gains the owned SQL category with #409. Satisfy that
+  // independent obligation before isolating the existing browser requirement.
+  const websiteResults = { ...results, 'sql-server': website.lanes['sql-server'].length ? 'success' : 'skipped' };
+  assert.throws(() => aggregate(website, source, websiteResults), /browser/);
+  assert.equal(aggregate(website, source, { ...websiteResults, browser: 'success' }), true);
+  if (website.lanes['sql-server'].length)
+    assert.throws(() => aggregate(website, source, { ...websiteResults, browser: 'success', 'sql-server': 'skipped' }), /sql-server/);
 });
 test('diff parser preserves renames/deletions and rejects truncation and unsupported status', () => {
   assert.deepEqual(parseDiff('R100\0old.cs\0new.cs\0D\0gone.cs\0'), [{ status: 'R100', path: 'new.cs', previousPath: 'old.cs' }, { status: 'D', path: 'gone.cs' }]);

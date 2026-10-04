@@ -13,14 +13,16 @@ pwsh tests/HVO.WebSite.PlaywrightTests/bin/Debug/net10.0/playwright.ps1 install 
 dotnet test HVO.WebSite.sln --no-build --no-restore --filter "TestCategory!=Integration&TestCategory!=Live" --logger trx --results-directory TestResults/fast
 dotnet test HVO.WebSite.sln --no-build --no-restore --settings integration.runsettings --filter "TestCategory=Integration&TestCategory!=HomeAssistantIntegration&TestCategory!=SqlServerIntegration&TestCategory!=Browser&TestCategory!=Live" --logger trx --results-directory TestResults/integration/simulators
 bash tools/run-home-assistant-integration-tests.sh --ha-only
+bash tools/run-sql-server-integration-tests.sh
 node --test tools/pr-process.test.mjs tools/test-categories.test.mjs tools/ci-plan.test.mjs tools/ci-source.test.mjs tools/ci-run.test.mjs
+node --test tools/sql-server-integration.test.mjs
 python3 -m unittest discover -s tools -p 'ci_*_test.py'
 python3 tools/verify-home-assistant-runner.py
 bash tools/verify-docker-build-smoke.sh
 bash tools/validate-test-categories.sh
 ```
 
-The full local fast command deliberately retains all non-integration browser cases, so install Chromium before running it. Add applicable provisioned SQL and other fixture checks when their owned runners are available. #409's SQL integration and qualification are pending; a declared SQL lane does not establish a passing provider run. The full exact-SDK build and applicable local tests remain required for the #411 implementation PR.
+The full local fast command deliberately retains all non-integration browser cases, so install Chromium before running it. The owned #409 SQL fixture is available and locally qualified against the actual production provider; use its provisioned command rather than including SQL categories in an unprovisioned solution run. Local qualification does not establish a passing hosted candidate/main run. #408's browser migration remains pending. The full exact-SDK build and applicable local tests remain required before review.
 
 ## Selected CI partitions
 
@@ -31,7 +33,7 @@ The planner selects whole assemblies and assigns their required non-live categor
 | Fast | `TestCategory!=Integration&TestCategory!=Browser&TestCategory!=Live`, outside the Playwright assembly | test.runsettings;120000ms session bound |
 | Simulator | `TestCategory=Integration&TestCategory!=HomeAssistantIntegration&TestCategory!=SqlServerIntegration&TestCategory!=Browser&TestCategory!=Live` | Self-contained loopback/HTTP/SQLite fixtures; integration.runsettings |
 | Home Assistant | `TestCategory=HomeAssistantIntegration&TestCategory!=Live` | Disposable HA/MQTT/fake-ingest stack; sequential assemblies; integration.runsettings |
-| SQL Server | SqlServerIntegration excluding Live | Owned provider fixture from #409; integration and qualification pending |
+| SQL Server | `TestCategory=SqlServerIntegration&TestCategory!=Live` | Owned disposable provider fixture; integration.runsettings; locally qualified migrations/queries/conflicts/atomicity |
 | Browser | `TestCategory=Browser&TestCategory!=Live`; Playwright assembly uses `TestCategory!=Integration&TestCategory!=Live` | Owned browser fixtures and Chromium; integration.runsettings |
 | Live | `TestCategory=Live` | Explicit opt-in physical/deployed targets; excluded from routine validation |
 
@@ -58,6 +60,23 @@ bash tools/run-home-assistant-integration-tests.sh --ha-only --prebuilt --projec
 For compatibility with the trusted CI workflow during adoption, invoking the runner without --ha-only runs the complete simulator partition before provisioning HA. Without --prebuilt, that mode restores and builds the whole solution. Simulator reports use TestResults/integration/simulators; --results-directory controls only HA reports. Selected CI explicitly supplies --ha-only so it does not repeat the independent simulator lane.
 
 Assemblies remain sequential because tests restart the shared stack. Every invocation retains the 15-minute integration session setting. The runner bounds readiness, records broker diagnostics on failure, and removes its stack and temporary Docker configuration. Missing services or reports cannot count as passing acceptance.
+
+## SQL Server execution
+
+The selected workflow's existing `sql-server` job builds the owned API test assembly,
+then invokes [the disposable SQL runner](sql-server-integration-tests.md) and independently
+verifies fresh passing reports under `TestResults/sql-server/HVO.WebSite.ApiTests`.
+The planner discovers the actual Integration/SqlServerIntegration method categories;
+an empty lane still needs its explicit verified empty reason. A helper exit alone
+cannot qualify the planned lane. Standalone runs default to `TestResults/sql-server`;
+`HVO_SQL_TEST_RESULTS_DIRECTORY` selects a separate evidence directory.
+
+Tests reuse preparation with --no-build --no-restore and strict integration settings.
+PR execution omits coverage, while `CI_COVERAGE=true` preserves main/nightly/manual
+XPlat collection. Missing fixture configuration fails visibly; only local default
+Docker resources and generated test-owned databases are accepted. SQL categories
+remain excluded from simulator and unprovisioned HA execution. No extra monolithic
+SQL step is added to the selected workflow.
 
 ## Reports and source-bound evidence
 
