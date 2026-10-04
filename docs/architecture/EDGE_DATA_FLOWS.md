@@ -109,7 +109,7 @@ flowchart LR
 
 ## Victron SmartShunt
 
-**Authority:** Paired direct public-GATT SmartShunt collector. HA/ESPHome had no validated evidence for the required field set and is not an acquisition or enrichment path.
+**Authority:** Paired direct public-GATT SmartShunt collector. The earlier no-HA/ESPHome-proof decision is historical: [#352](https://github.com/HualapaiValley/HVO.WebSite/issues/352) now retains native passive transport evidence, while key provisioning, complete public-field parity, exporter atomic summary/detail support and approved cutover remain pending. HA is not the current acquisition or enrichment authority.
 
 **Historical data:** bus voltage, current, power, state of charge, consumed amp-hours, remaining time, and device status supported by the selected read-only path.
 
@@ -126,7 +126,7 @@ flowchart LR
     HA -. excluded from HA exporter .-> X[No second writer]
 ```
 
-**Migration status:** issue #326 selected and implemented the direct authority. Production cutover must stop the legacy process before vNext starts; rollback must stop vNext before restoring the legacy process.
+**Migration status:** issue #326 selected and implemented the current direct authority. That migration is historical; new authority changes and recovery follow the [quiescent checkpoint, isolated restore and exactly-one-writer contract](../gateways/sqlite-backup-and-rollback.md), preserving later observations and schema compatibility. Historical issue rollout wording is not an executable restore sequence.
 
 ## Retired SolarAssistant Path
 

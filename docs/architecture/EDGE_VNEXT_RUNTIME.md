@@ -184,6 +184,12 @@ remain inside the hosted worker and cannot block acquisition or outbox delivery.
 Command entities, command topics, and command handling are intentionally outside
 issue #321.
 
+That exclusion describes the original #321 presentation scope. The current JK
+collector separately implements a bounded secret-backed settings-password HA
+command with registered non-retained PRESS, offline/busy/verified guards,
+positive ACK and DeviceInfo password readback. See [JK safety](../gateways/jk-bms.md).
+It does not create generic BMS control or an explicit settings-query API.
+
 ## Device Authority
 
 | Source | vNext acquisition and canonical writer |

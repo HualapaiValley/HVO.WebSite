@@ -1,5 +1,6 @@
-# Motion Sensors (TBD) Gateway Manual
+# Motion sensors
 
-This placeholder has been consolidated into [future-integrations.md](future-integrations.md).
-
-All motion-sensor selection criteria, capability expectations, and open questions are documented there.
+Compatibility redirect retained because external bookmarks are unknown.
+Current research, ownership and safety questions live in
+[future integration candidates](future-integrations.md#motion-sensors-tbd).
+No implemented gateway or control authority is implied.

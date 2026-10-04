@@ -1,5 +1,6 @@
-# Roof / Dome System Gateway Manual
+# Roof and dome
 
-This placeholder has been consolidated into [future-integrations.md](future-integrations.md).
-
-All roof/dome research targets, safety rules, and open questions are documented there.
+Compatibility redirect retained because external bookmarks are unknown.
+Current research, ownership and safety questions live in
+[future integration candidates](future-integrations.md#roof--dome-system).
+No implemented gateway or control authority is implied.

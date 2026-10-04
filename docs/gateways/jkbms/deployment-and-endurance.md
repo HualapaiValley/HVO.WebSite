@@ -1,7 +1,14 @@
 # JK BMS vNext Deployment And Endurance
 
-Issue #328 replaces the JK local UI/custom host with the standard headless Edge
-runtime. This document is a cutover checklist, not authorization to deploy.
+Issue #328 replaced the JK local UI/custom host with the standard headless Edge
+runtime. [#356](https://github.com/HualapaiValley/HVO.WebSite/issues/356) completed
+the production cutover recorded in the dated evidence below. This retained
+checklist applies to separately authorized future changes/recovery, not a claim
+that the original cutover remains pending or authorization to repeat it. The
+[current JK manual](../jk-bms.md) and [project setup](../../../src/HVO.Hardware.JkBms/README.md)
+describe persistent sessions and the later bounded settings-password command;
+the complete [undated lifecycle proposal](../../archive/jkbms-session-lifecycle.md)
+preserves refactor rationale and settings-query uncertainty.
 
 ## Preflight
 
@@ -34,7 +41,8 @@ forwarder's single payload lane.
 
 ## Bounded Endurance Check
 
-Perform this once before production cutover, not on every PR:
+For an independently authorized future cutover, agree a bounded window and
+perform this qualification once; do not run it as an ordinary PR check:
 
 1. Confirm no second JK acquisition authority is running.
 2. Run the candidate against all configured devices for a bounded observation
@@ -65,6 +73,11 @@ preserved image, or restore the qualified older archive into a new recovery volu
 with a reviewed mount override and a plan for the post-checkpoint interval.
 
 ## Production Validation: 2026-08-12/13
+
+The following is preserved historical production evidence. Documentation/source
+validation on 2026-10-04 performed no restart, BLE command, secret rotation,
+database edit or new endurance test. In particular, the older archive below is
+not retrospectively qualified by #414's disposable restore proof.
 
 Issue #356 completed the production vNext cutover with the existing
 `jkbms_jkbms-outbox` volume and exactly one direct BLE collector:

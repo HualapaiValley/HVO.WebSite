@@ -2,6 +2,14 @@
 
 Date: 2026-05-22
 
+The observations and setup chronology below are the dated session record, not a
+fresh installed-version or security qualification. Current checked-in owners are
+[container configuration](devcontainer.json), [startup script](start-opencode-web.sh)
+and [tool installation](post-create.sh); consult those before recovery. Model and
+review authority follows the [repository profile](../docs/development/repository-profile.md),
+not this setup session. [Development navigation](../docs/README.md#development)
+indexes the supported procedure routes.
+
 ## Goal
 
 Run `opencode web` automatically inside the devcontainer, forward the web UI through VS Code, and keep all commands, file edits, tests, and source access inside the container.

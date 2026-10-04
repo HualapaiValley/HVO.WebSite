@@ -43,6 +43,12 @@ jobs:
           node --test tools/pr-process.test.mjs
           node --check tools/test-categories.mjs
           node --test tools/test-categories.test.mjs
+      - name: Validate documentation navigation
+        run: |
+          python3 -m venv "$RUNNER_TEMP/hvo-docs-navigation"
+          "$RUNNER_TEMP/hvo-docs-navigation/bin/python" -m pip install --disable-pip-version-check --require-hashes -r tools/docs-navigation-requirements.txt
+          "$RUNNER_TEMP/hvo-docs-navigation/bin/python" -m unittest discover -s tools -p docs_navigation_test.py
+          "$RUNNER_TEMP/hvo-docs-navigation/bin/python" tools/docs-navigation.py
       - name: Validate title, linked issue and author evidence
         env:
           GH_TOKEN: ${{ github.token }}

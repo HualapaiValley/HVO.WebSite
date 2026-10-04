@@ -5,7 +5,7 @@ Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET C
 ## Purpose
 
 - Serve the HVO web UI using Blazor Server components with the HVO dark theme
-- Host versioned REST APIs for weather and BMS ingest and read access
+- Host versioned REST APIs for weather, BMS and typed power ingest/read access
 - Authenticate browser users via Microsoft Entra ID (OIDC + cookie)
 - Authenticate hardware services via API keys with scope claims
 - Provide health probes for readiness/liveness and detailed diagnostics
@@ -82,8 +82,21 @@ The website now includes `ISiteConfigurationService`, which reads and caches `v9
 
 See [current self-hosted deployment](../../deploy/hvo-docker/README.md),
 [Data Protection](../../docs/WEBSITE_DATA_PROTECTION.md) and
-[hardware-free build/browser orientation](../../README.md#quick-start).
+[hardware-free build/browser orientation](../../README.md#first-local-success).
 The [former ACA record](../../docs/archive/website-container-app.md) preserves
 historical identity/key migration evidence; it is not current deployment guidance.
 
 See `Program.cs` for service registration and middleware pipeline.
+
+Current interactive dashboards use scoped typed query operations and owned refresh/
+disposal rather than circuit-held DbContexts. [UTC power history](../../docs/development/power-history-utc.md),
+[power observation identity](../../docs/development/power-observation-identity.md),
+[weather queries](../../docs/development/canonical-weather-queries.md),
+[retry durability](../../docs/development/canonical-ingest-retries.md) and
+[source/auth/proxy trust](../../docs/development/ingest-trust-boundaries.md) own
+the detailed contracts beyond the orientation table above. Actual current routes
+live in [controllers](Controllers/), including separate full weather archive and
+atomic SmartShunt observation ingest. The [browser guide](../../tests/HVO.WebSite.PlaywrightTests/README.md)
+describes the hardware-free real-host fixture rather than an operational website run.
+
+[Grouped documentation and all project owners](../../docs/README.md#project-documentation-owners) provides the current navigation entry.

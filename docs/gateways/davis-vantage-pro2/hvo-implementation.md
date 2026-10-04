@@ -1,6 +1,6 @@
 # Davis Vantage Pro2 HVO Implementation
 
-This document describes how HVO implemented the Davis gateway. The vendor-defined protocol is documented separately in [manufacturer-protocol.md](manufacturer-protocol.md).
+This document describes the current headless Davis collector, inspected on 2026-10-04. The vendor-defined protocol is documented separately in [manufacturer-protocol.md](manufacturer-protocol.md); [console-fields-and-settings.md](console-fields-and-settings.md) extracts reusable facts from the complete [historical UI inventory](../../archive/2026-05-08-davis-console-inventory.md). Source inspection and prior evidence are not new live qualification.
 
 ## Design Summary
 
@@ -11,8 +11,10 @@ Important design choices:
 - LOOP2 is the main live source because it includes derived values and precision wind fields.
 - LOOP1 is refreshed once per worker batch for console status, forecast, sunrise/sunset, monthly/yearly totals, and extra sensors.
 - Archive records are handled separately because they are interval records, not live readings.
-- Console writes exist in HVO code but must remain local-only unless a later safety design adds auth, confirmation, and audit controls.
-- HVO keeps parser/outbox values normalized as `*F`, `*Mph`, `*Inches`, and `*InHg`, while local UI and current-weather API display fields convert those values using cached console display-unit settings.
+- Selected console-write helpers exist at the protocol/station layer. The current host maps no console-write HTTP/MQTT path or management UI; broad exposure needs a separate safety/auth/confirmation/audit/readback design.
+- Parser/outbox units remain explicit as `*F`, `*Mph`, `*Inches` and `*InHg`, independent of cached console display settings. The former display API/UI is removed.
+- [Program.cs](../../../src/HVO.Hardware.DavisVantagePro2/Program.cs) composes Edge.Hosting, Edge.Outbox and optional Edge.HomeAssistant.Mqtt, migrates legacy local/outbox state before shared schema initialization, and maps only [shared health/diagnostics](hvo-api-contracts.md#current-local-endpoints).
+- [DavisHomeAssistantProjection](../../../src/HVO.Hardware.DavisVantagePro2/HomeAssistant/DavisHomeAssistantProjection.cs) consumes Staging's `CelestialArcCalculations.BuildMoonSnapshot` in production. [#372](https://github.com/HualapaiValley/HVO.WebSite/issues/372) must migrate the actual consumer after the [SDK prerequisite](https://github.com/RoySalisbury/HVO.SDK/issues/82), not delete a supposedly test-only bridge.
 
 ## Implementation Decision Log
 
@@ -20,15 +22,15 @@ Important design choices:
 |----------|--------|-----------|--------------------------|
 | Use LOOP2 as the primary live stream. | Accepted | LOOP2 includes derived values, precision wind fields, raw pressure, altimeter pressure, and rain windows needed by HVO. | Worker keeps a repeating `LPS 2 30` loop. |
 | Refresh LOOP1 once per live batch. | Accepted | LOOP1 contains console battery, transmitter battery status, forecast, sunrise/sunset, monthly/yearly totals, and extra-sensor fields not present in LOOP2. | LOOP1 values can be slightly older than LOOP2 values. APIs should preserve source/freshness if needed. |
-| Merge LOOP1 and LOOP2 into one HVO current reading model internally. | Accepted for current implementation | Simplifies local dashboard/current payloads. | Public API should still avoid hiding provenance where freshness matters. |
-| Treat archive records as separate from live LOOP records. | Accepted | Archive records are interval/high/low/aggregate records; live LOOP records are instantaneous/current records. | Central storage may need separate archive payload/table. |
+| Merge LOOP1 and LOOP2 into one HVO current reading model internally. | Implemented | Supplies durable live payloads and bounded MQTT presentation. | Cached LOOP1 can be older when a refresh fails; consumers must preserve freshness distinctions. |
+| Treat archive records as separate from live LOOP records. | Implemented | Archive records are interval/high/low/aggregate records; live LOOP records are instantaneous/current records. | Separate typed payload, endpoint and `WeatherArchive` entity already exist. |
 | Keep live rain fields semantically separate. | Accepted | Daily, storm, rate, 15-minute, hourly, 24-hour, monthly, yearly, and archive interval rain are not interchangeable. | Do not map live totals into generic `RainfallInches`. |
 | Use rain bucket type, not rain display units, for rain conversion. | Accepted, pending live validation | Protocol and mature drivers treat bucket type as the conversion source. | Live-validate actual bucket type and display-unit independence. |
-| Treat `*F`, `*Mph`, and `*Inches` names as HVO-normalized values. | Accepted as current behavior, needs versioned API redesign | Current parser/outbox code exposes normalized-unit property names; UI/API display fields convert using console settings. | Before API lock, keep raw/vendor, normalized, and display fields explicitly separated. |
+| Treat `*F`, `*Mph`, and `*Inches` names as HVO-normalized values. | Current typed contract | Parser/outbox code exposes explicit units; no current display API. | Any future presentation must separate vendor measurements, display preferences and calculations. |
 | Serialize all console access through `VantageStation`. | Accepted | Davis console supports one active command/stream session; background LOOP and interactive commands must coordinate. | `SemaphoreSlim`, console mode tracking, and LOOP interruption are central implementation concepts. |
-| Allow interactive commands to interrupt active LOOP streaming. | Accepted | UI/API operations should not wait for a full LOOP batch when command mode is needed. | Live polling may pause briefly; long archive downloads pause longer. |
+| Allow station commands to interrupt active LOOP streaming. | Low-level implementation | Serialized station reads/writes may need command mode without waiting for an entire batch. | No current UI/API caller; long archive reads still affect live freshness. |
 | Keep write/destructive operations local-only until safety design exists. | Accepted | Time, EEPROM, alarm, barometer, archive interval, and archive clear can materially change console behavior. | Require local auth, confirmation, audit logging, read-back, and allowlist before broad UI exposure. |
-| Use local SQLite outbox for store-and-forward. | Accepted | Keeps telemetry resilient to website/API outages. | Archive/live idempotency and payload versioning need final review. |
+| Use shared SQLite outbox for store-and-forward. | Implemented | Keeps telemetry resilient to website/API outages. | Typed v1 live/archive lanes deduplicate by source/time/type; central response accounting is strict. |
 | Do not claim full Davis protocol implementation yet. | Accepted | The official command summary is covered in docs, but many commands are intentionally unsupported/deferred and some field-level tables still need deeper review. | Keep support status explicit and add tests before supporting any deferred command. |
 
 ## Project Layout
@@ -39,8 +41,10 @@ Important design choices:
 | `src/HVO.Hardware.DavisVantagePro2/Protocol/Packets` | `Loop2Packet` and `ArchiveRecord` parser/models. |
 | `src/HVO.Hardware.DavisVantagePro2/Station` | `VantageStation` high-level station API. |
 | `src/HVO.Hardware.DavisVantagePro2/Station/Models` | Station settings, info, calibration, alarm, transmitter, and diagnostic models. |
-| `src/HVO.Hardware.DavisVantagePro2/Workers` | Background polling, archive catchup, and outbox forwarding. |
-| `src/HVO.Hardware.DavisVantagePro2/Outbox` | Local SQLite outbox models/context. |
+| [Workers](../../../src/HVO.Hardware.DavisVantagePro2/Workers) | Live polling, optional bounded archive top-off and runtime state. |
+| [Outbox](../../../src/HVO.Hardware.DavisVantagePro2/Outbox) | Local settings/info/cursor store, legacy migration, typed writer/sender and retry requeue; shared Edge.Outbox owns the durable queue. |
+| [Hosting](../../../src/HVO.Hardware.DavisVantagePro2/Hosting) | Collector registration, startup credential/options checks and ordered migration. |
+| [HomeAssistant](../../../src/HVO.Hardware.DavisVantagePro2/HomeAssistant) | Bounded current presentation and staged celestial calculations. |
 | `src/HVO.Hardware.DavisVantagePro2/Configuration` | Gateway options. |
 
 ## Main Classes And Interfaces
@@ -49,17 +53,19 @@ Important design choices:
 |-----------------|----------------|---------|
 | `DavisProtocol` | Constants for control bytes, command names, packet sizes, bucket types, EEPROM addresses. | Protocol/client/parser/station code. |
 | `DavisConsoleClient` | Low-level TCP wrapper for WeatherLink IP adapter and Davis command/data primitives. | `VantageStation`. |
-| `CrcCalculator` | CRC-CCITT-16 compute, validate, and append helpers. | `DavisConsoleClient`, tests candidate. |
-| `Loop2Packet` | Decoded LOOP1/LOOP2 packet model and parser. | `VantageStation`, worker, UI/API. |
+| `CrcCalculator` | CRC-CCITT-16 compute, validate, and append helpers. | `DavisConsoleClient` and [parser tests](../../../tests/HVO.Hardware.DavisVantagePro2.Tests/Protocol/CrcCalculatorTests.cs). |
+| `Loop2Packet` | Decoded LOOP1/LOOP2 packet model and parser. | `VantageStation`, worker and MQTT/publication projection. |
 | `ArchiveRecord` | Decoded 52-byte archive record model and parser. | `VantageStation`, archive catchup worker flow. |
-| `VantageStation` | High-level serialized API over the Davis protocol. | Workers, local UI/API services. |
+| `VantageStation` | High-level serialized API over the Davis protocol. | Collector worker and direct protocol/simulator tests. |
 | `WeatherStationWorker` | Hosted service for connect/reconnect, LOOP polling, archive catchup, and outbox writes. | App host. |
-| `OutboxForwarder` | Hosted service that forwards queued outbox records to the website API. | App host. |
-| `StationSettings` | EEPROM-backed settings snapshot. | UI/API and `VantageStation` setup cache. |
-| `StationInfo` | Hardware/firmware/time identity model. | UI/API. |
-| `AlarmThresholds` | EEPROM-backed alarm threshold model. | UI/API and `VantageStation`. |
+| `DavisOutboxWriter`, `DavisOutboxBatchSender` | Typed live/archive enqueue and central partition/accounting. | Shared Edge.Outbox forwarder. |
+| `StationSettings` | EEPROM-backed settings snapshot. | Durable local metadata, MQTT astronomy and `VantageStation` setup cache. |
+| `StationInfo` | Hardware/firmware/time identity model. | Durable local metadata and station interrogation. |
+| `AlarmThresholds` | EEPROM-backed alarm threshold model. | Low-level `VantageStation` methods/tests; no current alarm UI or notification-history service. |
 
-## Public Methods And Samples
+## Low-level methods and illustrative samples
+
+These are library usage examples, not host endpoints or authorized maintenance instructions. Read samples contact the configured console; write/destructive examples require separate operator authority and a controlled recovery plan. Routine documentation validation runs none of them.
 
 ### `VantageStation.ConnectAsync`
 
@@ -218,10 +224,8 @@ flowchart TD
     B --> C[Open TCP socket]
     C --> D[Wake console]
     D --> E[Read setup from EEPROM]
-    E --> F{Startup archive catchup enabled?}
-    F -- yes --> G[Run DMPAFT catchup]
-    F -- no --> H[Start live polling]
-    G --> H
+    E --> F[Persist station metadata]
+    F --> H[Start live polling]
     H --> I[GetLoop1Async]
     I --> J[Enter command scope without loop interruption]
     J --> K[Send LPS 1 1]
@@ -232,12 +236,15 @@ flowchart TD
     O --> P[Read and CRC-check LOOP2 packet]
     P --> Q[Parse LOOP2]
     Q --> R[Merge LOOP1 cache and LOOP2]
-    R --> S[Update latest reading and UI event]
-    S --> T[Write live payload to local outbox]
-    T --> U{Batch complete?}
+    R --> T[Write typed live payload to shared outbox]
+    T --> S[Update runtime state and MQTT projection]
+    S --> U{Batch complete?}
     U -- no --> P
     U -- yes --> V[End LOOP session as command mode]
-    V --> I
+    V --> W{Archive enabled and due?}
+    W -- yes --> X[Bounded top-off or cancel full cursor response]
+    X --> I
+    W -- no --> I
 ```
 
 Key behavior:
@@ -246,12 +253,13 @@ Key behavior:
 - LOOP1 is refreshed before each LOOP2 batch so battery, forecast, sunrise/sunset, monthly/yearly totals, and extra-sensor fields stay reasonably fresh.
 - Each LOOP2 packet is written to the outbox immediately after parsing and merging.
 - A completed LOOP2 batch returns the console to command mode.
+- Enabled/due archive top-off runs after that finite batch. Connect refreshes durable station metadata; it does not perform a separate pre-LOOP startup archive scan.
 
 ### Command Processing While The Worker Is Running
 
 ```mermaid
 flowchart TD
-    A[UI/API/worker calls VantageStation command] --> B[EnterCommandScopeAsync]
+    A[Worker or separately authorized station caller] --> B[EnterCommandScopeAsync]
     B --> C{interruptLoop=true?}
     C -- yes --> D[RequestLoopInterruption]
     C -- no --> G[Wait for station semaphore]
@@ -356,10 +364,10 @@ Archive catchup notes:
 
 | Caveat | Impact | Follow-up |
 |--------|--------|-----------|
-| HVO exposes many normalized values as `*F`, `*Mph`, `*Inches`. | Public consumers can confuse protocol units, console display settings, and HVO-normalized units if only suffix fields are used. | Current weather API includes display-unit settings and a converted display sub-object; keep this separation in future contracts. |
-| Parser intentionally does not vary temperature/wind/barometer by console display settings. | Expected to be protocol-compliant; local UI/API presentation converts from normalized values using cached display settings. | Change console display units and confirm raw LOOP/archive bytes remain protocol-unit encoded. |
+| HVO exposes many normalized values as `*F`, `*Mph`, `*Inches`. | Consumers can confuse protocol units and console display preferences. | Preserve explicit units; any future display API must define its conversion/provenance separately. |
+| Parser intentionally does not vary temperature/wind/barometer by console display settings. | Expected to be protocol-compliant; the collector does not expose the former display API/UI. | Separately authorized live display-unit changes/raw-byte comparison remain uncompleted validation. |
 | Rain fields have different reset/window semantics. | Mapping them into one central `RainfallInches` field would be wrong. | Keep daily/rate/storm/rolling/archive interval fields separate. |
-| Archive and live records are different shapes. | A single weather payload/table can lose semantics. | Decide whether archive records get a separate central contract/table. |
+| Archive and live records are different shapes. | Collapsing them would lose interval semantics. | Preserve the implemented separate payload/endpoint/entity and both archive timestamps. |
 | `DMPAFT` can return zero pages or the 513-page full circular buffer for a cursor request. | Full-buffer scans interrupt live LOOP acquisition on the deployed adapter. | v1 cancels cursor-triggered full-buffer responses and leaves catch-up disabled; bounded recovery is deferred to #346. |
 
 ## Implementation Readiness Assessment
@@ -376,7 +384,7 @@ Current assessment: HVO has a good practical Davis implementation for live telem
 | Diagnostics reads | `BARDATA`, `RXCHECK`, `RECEIVERS`, firmware/hardware reads implemented with fake-server coverage for text/binary response parsing. | Good for current needs | Keep live diagnostics read-only; treat repeated live suite instability as adapter limitation unless a cooldown/reset design is added. |
 | Write operations | Many writes implemented with simulator coverage for current command/payload flows and CRC-protected payload retries. | Structurally good, not live-validated for risky writes | Add read-back verification and safety gates before broad UI exposure. |
 | Full Davis command coverage | Command summary reviewed; many commands deferred. | Documented, not fully implemented | Keep unsupported/deferred commands explicit; do not claim full driver implementation. |
-| Unit normalization | HVO-normalized parser/outbox properties exist; display conversion exists for local UI and current-weather API. | Better, still needs versioned API design before lock | Keep raw/vendor vs normalized vs display settings explicit in local API and models. |
+| Unit normalization | Explicit typed parser/outbox units; display conversion helpers remain without a UI/API. | Implemented contract with unresolved live display-unit qualification | Keep vendor/normalized/display distinctions explicit in any future presentation. |
 | Safety/audit around writes | Code paths exist; UI/safety design not complete. | Not production-exposure ready | Require local-only auth, confirmation, audit logs, and rollback/read-back strategy for risky writes. |
 
 ## Update Plan
@@ -385,6 +393,6 @@ Current assessment: HVO has a good practical Davis implementation for live telem
 2. Add an HVO operation coverage table in this document for each public `VantageStation` method, including side effects, simulator-test status, and live-test status.
 3. Continue extending protocol simulator tests for newly supported `DavisConsoleClient` and `VantageStation` flows; current core read/write flows have fake-server coverage.
 4. Continue parser field review against the official PDF; current LOOP/archive tests cover core fields, sentinels, rain bucket conversions, wind edges, and CRC framing.
-5. Redesign local/API DTOs to separate vendor/raw fields, HVO-normalized fields, and console display settings before locking external contracts.
+5. Any separately approved new display/API DTO must separate vendor/raw fields, normalized values and console display preferences; the former local API is not an active contract.
 6. Validate risky write paths on live hardware only after read-back/safety design, or explicitly mark unsupported/deferred.
 7. Add safety gates for destructive or configuration-changing writes before UI exposure.

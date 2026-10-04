@@ -17,7 +17,7 @@ Each gateway should separate vendor-defined behavior from HVO implementation dec
 
 ## Documentation Set Structure
 
-Use this structure for gateways with enough complexity to justify separate files:
+The following optional structure is useful when complexity justifies separate files:
 
 | Document | Purpose |
 |----------|---------|
@@ -27,7 +27,7 @@ Use this structure for gateways with enough complexity to justify separate files
 | `hvo-api-contracts.md` | Local endpoints, outbox payloads, central ingest mappings, aliases, idempotency, stream decisions, cloud treatment. |
 | `validation-notes.md` | Evidence, live test steps, open questions, packet captures, unresolved behavior, `Needs validation` items. |
 
-Small or placeholder systems can start as one file, but should split before APIs/contracts are locked.
+Start with one useful manual; split only when real content needs distinct owners. Empty template sections do not establish capability.
 
 ## Manuals
 
@@ -59,5 +59,9 @@ Small or placeholder systems can start as one file, but should split before APIs
 ## Supporting Documents
 
 - [Gateway documentation set template](templates/gateway-manual-template.md)
-- Existing Davis inventory: [../davis-console-nonloop-values.md](../davis-console-nonloop-values.md)
+- Current Davis field/settings reference: [console fields and settings](davis-vantage-pro2/console-fields-and-settings.md); [complete original inventory](../archive/2026-05-08-davis-console-inventory.md)
 - Current future-work roadmap: [../FUTURE_WORK.md](../FUTURE_WORK.md)
+
+Six short compatibility redirect files are retained because external bookmarks are unknown; they are omitted from the active manual list. Govee redirects to current HA first; other five point to exact future-research sections.
+
+[Grouped documentation index](../README.md) and [all project owners](../README.md#project-documentation-owners) connect manuals to source/test/deployment ownership.

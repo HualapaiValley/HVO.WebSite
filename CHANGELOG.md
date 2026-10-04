@@ -1,63 +1,44 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+One repository changelog records notable delivered behavior. Decision rationale
+belongs in [project history](docs/PROJECT_HISTORY.md); original undated release and
+deployment claims remain in the [complete historical changelog](docs/archive/undated-deployment-changelog.md).
+Dates below are verified delivery dates, not inferred deployments.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
+## Unreleased
 
-## [Unreleased]
+- Grouped navigation, useful active-project owners, corrected schema/headless
+  references and marked protocol/model/session archives are proposed by
+  [#416](https://github.com/HualapaiValley/HVO.WebSite/issues/416).
 
-### Added
+## 2026-10-04
 
-- Added a local SolarAssistant gateway monitor UI with Davis-style shell layout, basic status/settings cards, and Playwright coverage
-- Added typed SolarAssistant `gateway.status.v1` snapshots, central ingest/read APIs, outbox forwarding, and central power-card runtime status
-- Added SolarAssistant REST/MQTT discovery inventory documentation and deployed `hvo-solarassistant` container image `1.0.2` with the gateway `/inventory` endpoint
-- Added read-only SolarAssistant MQTT discovery/state inventory and deployed `hvo-solarassistant` container image `1.0.3` with the gateway `/mqtt-inventory` endpoint
-- Converted the SolarAssistant gateway monitor to the Davis-style MudBlazor shell, header, footer, and card layout
-- Added local rolling power-history chart cards for SolarAssistant PV, load, grid, and battery power
-- Added local SolarAssistant gateway health alerts for stale REST/MQTT, outbox backlog/failures, low battery, high load, and high battery discharge
-- Published `hvo-solarassistant` container image `1.0.6` to `hvoobsacr.azurecr.io`
-- Added `Seeding:PowerReadApiKey` support for production read-only power API verification
-- Added independent Azure ACR publishing scripts and documentation for `hvo-website`, `hvo-davis`, `hvo-jkbms`, and `hvo-solarassistant`
-- Added Docker and Docker Compose packaging for the `HVO.Gateway.SolarAssistant` service
-- Published `hvo-website` container image `1.0.6` to `hvoobsacr.azurecr.io` and deployed the latest power-system snapshot API to Azure Container Apps
-- Published `hvo-website` container image `1.0.8` to `hvoobsacr.azurecr.io`, fixed ACA HTTPS sign-in redirects, and verified browser sign-in to the live power snapshot card
-- Published `hvo-website` container image `1.0.11` to `hvoobsacr.azurecr.io`, deployed JK BMS bank details on the live power card, and resolved PR review feedback on BMS query efficiency and bank-card accessibility
-- Published `hvo-website` container image `1.0.12` to `hvoobsacr.azurecr.io` and deployed per-bank JK BMS freshness on the live power card
-- Published `hvo-website` container image `1.0.13` to `hvoobsacr.azurecr.io` and deployed fresh/aging/stale JK BMS bank highlighting on the live power card
-- Published `hvo-website` container image `1.0.14` to `hvoobsacr.azurecr.io` with ASP.NET Core, Azure Key Vault, and Azure Monitor OpenTelemetry package maintenance updates
-- Added website Azure Container App deployment notes and standardized the project-specific Key Vault target on `hvoobs-kv`
-- Made website container HTTPS listener configuration deployment-dependent so local Docker can keep HTTPS while ACA stays HTTP-only behind ingress
-- Documented the website configuration strategy: Key Vault for secrets, env/appsettings for deployment shape, and `v9.SiteConfiguration` for live runtime settings
-- Added a cached `ISiteConfigurationService` over `v9.SiteConfiguration` for runtime-editable website settings
-- Published `hvo-website` container image `1.0.3` to `hvoobsacr.azurecr.io`, added forwarded-header handling for ACA HTTPS, and redeployed the `hvo-website` Azure Container App in `observatory-rg`
-- Removed `.LocalPackages` directory — all HVO packages now sourced from nuget.org
-- Removed `LocalPackages` NuGet source from `NuGet.config`
-- Removed `.LocalPackages` COPY from Dockerfile
-- Repository documentation standardization
-- `CONTRIBUTING.md` with PR workflow and coding standards
-- `CHANGELOG.md` (this file)
-- `LICENSE` file
-- `.editorconfig` for consistent formatting
-- GitHub issue templates (bug report, feature request)
-- GitHub pull request template
-- `.github/copilot-instructions.md` with project context
-- `.github/dependabot.yml` for automated dependency updates
+- [#417 / PR #438](https://github.com/HualapaiValley/HVO.WebSite/pull/438):
+  canonical agent lifecycle/shared preparation references and current project/UI guidance.
+- [#415 / PR #436](https://github.com/HualapaiValley/HVO.WebSite/pull/436):
+  source-backed operations/testing, self-hosted website deployment, recovery ownership
+  and unresolved hazards.
+- [#414 / PR #435](https://github.com/HualapaiValley/HVO.WebSite/pull/435):
+  quiescent SQLite checkpoints, isolated restore proof and preservation of later observations.
+- Website/canonical foundation: interactive scoped dashboard lifecycle, disposable
+  SQL acceptance, source/time power observation identity, durable ingest retry,
+  complete UTC power windows, bounded weather queries and source/auth/proxy trust.
+  [Decision entries](docs/PROJECT_HISTORY.md) link #400–#410 contracts.
 
-### Changed
+## 2026-08-18
 
-- Rewrote `README.md` to serve as a documentation hub
+- Completed HA setup retained Kasa/Govee acquisition and presentation; permanent
+  proxy/H5179 follow-up moved to #385. Exporter stayed disabled.
+- Checksum-archived SolarAssistant outbox/data-protection volumes outside Docker
+  storage before deleting the named retired volumes.
 
-### Removed
+## 2026-08-14
 
-- Retired the direct SolarAssistant and TP-Link/Kasa gateway applications, tests, deployment definitions, containers, images, and Docker volumes after direct EG4 and Home Assistant assumed the applicable production responsibilities; a checksum-verified SolarAssistant archive is retained outside Docker storage
+- Retired direct SolarAssistant/TP-Link source, tests, deployments, containers and
+  images after EG4 and HA assumed their responsibilities.
 
-## [1.0.0]
+## Historical initial extraction - date unrecorded
 
-### Added
-
-- Initial extraction from HVOv9 monorepo
-- HVO.WebSite.v9 — main observatory website (Blazor SSR + ASP.NET Core API)
-- HVO.DataModels — Entity Framework Core data models and DbContext
-- HVO.WebSite.Themes — shared CSS themes and fonts (Razor Class Library)
-- CI/CD workflow (`ci.yml`)
-- Dev container configuration
+- Extracted website, EF layer and shared themes from the HVOv9 monorepo with CI,
+  development container and contributor metadata. The original 1.0.0 heading
+  supplied no release date; this file does not invent one.

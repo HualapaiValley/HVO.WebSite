@@ -2,11 +2,13 @@
 
 Razor Class Library providing the shared HVO shell layouts, MudBlazor theme, web assets, and reusable CSS primitives for HVO Blazor applications.
 
+The active consumers are the [website](../HVO.WebSite.v9/README.md) and [ThemeSandbox](../HVO.ThemeSandbox/README.md). This library is not a deployed app. [CSS governance](../../docs/CSS_GOVERNANCE.md) owns tokens/fonts/palette/layout rules and cross-consumer demo/sign-off; [project guidance](../../docs/AGENT_PROJECT_GUIDANCE.md#shared-theme-and-blazor) owns shared component and interop expectations.
+
 ## Package Information
 
 - **Target Framework**: .NET 10.0
 - **Type**: Razor Class Library (RCL)
-- **Static Web Assets**: CSS themes, fonts, icons
+- **Static Web Assets**: CSS themes, fonts, icons and local Chart.js/HVO chart scripts
 
 ## Purpose
 
@@ -26,8 +28,8 @@ HVO.WebSite.Themes/
 │   │       ├── hvo-shared-shell.css  # shell layout, palette variables, light/dark themes
 │   │       ├── hvo-components.css    # shared card, metric, chip, gauge, and state primitives
 │   │       └── hvo-dark.css          # deprecated compatibility stylesheet
-│   └── fonts/
-│       └── [custom-fonts]            # Self-hosted web fonts
+│   ├── fonts/                       # Self-hosted web fonts
+│   └── js/                          # chart.min.js and hvo-chart.js
 ├── Components/
 │   ├── Charts/                       # HvoChart wrapper
 │   ├── Format/                       # HvoFormat and UnitSystem
@@ -77,7 +79,7 @@ These primitives were promoted from the ThemeSandbox showcase so the production 
 <link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-components.css" />
 ```
 
-`hvo-dark.css` is retained only for older Bootstrap-era routes during migration.
+The current website loads MudBlazor, shared shell/components, app overrides, then generated scoped CSS. It omits `hvo-dark.css`. ThemeSandbox retains its existing compatibility include before MudBlazor; that deprecated include is not required for new consumers. Load shared local Chart.js and `hvo-chart.js` for HvoChart as the [application asset source](../HVO.WebSite.v9/Components/App.razor) does.
 
 ### 3. Apply Theme Classes
 
@@ -90,6 +92,8 @@ These primitives were promoted from the ThemeSandbox showcase so the production 
 
 - MudBlazor
 - Chart.js for `HvoChart` consumers
+
+Use `HvoFormat`/`UnitSystem` and `HvoDisplayTimeZone` for display output, and the shared `HvoChart` wrapper for charts. [HvoChartDataset](Components/Charts/HvoChartTypes.cs) keeps nullable data entries for real gaps and optional Tension; interop guards and chart lifecycle behavior belong to the wrapper rather than duplicated app JS. Shared [component/unit tests](../../tests/README.md#hvowebsiteunittests) and [owned browser tests](../../tests/HVO.WebSite.PlaywrightTests/README.md) verify those boundaries.
 
 ## Used By
 
@@ -115,9 +119,20 @@ The active Davis, JK BMS, EG4, and SmartShunt collectors are headless and do not
 Consuming app CSS may define layout density, grid placement, and device-specific controls. It should not redefine shared surface colors, fonts, card borders, metric rows, or status chips. Use the shared `hvo-*` classes instead.
 
 ```html
-<link rel="stylesheet" href="app.css" />
 <link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-shared-shell.css" />
 <link rel="stylesheet" href="_content/HVO.WebSite.Themes/css/themes/hvo-components.css" />
+<link rel="stylesheet" href="app.css" />
 ```
 
-Loading app CSS before the shared shell and component CSS lets the RCL remain the final authority for common theme surfaces.
+App overrides follow shared assets in the current consumers. Load order does not authorize redefining shared tokens, colors, fonts or classes; retain canonical ownership from CSS governance.
+
+## Build and shared-change validation
+
+From the repository root with the exact SDK in [global.json](../../global.json):
+
+```bash
+dotnet restore HVO.WebSite.sln --locked-mode --nologo
+dotnet build HVO.WebSite.sln --no-restore --nologo
+```
+
+The full build requires zero warnings/errors. New shared styles/components need a reachable registered [sandbox demo](../HVO.ThemeSandbox/README.md#reachable-references) and explicit sign-off before promotion. Visual changes require affected website/sandbox surfaces in both themes, meaningful control/chart/style assertions and retained screenshots/console/traces. Use [browser setup and execution](../../tests/HVO.WebSite.PlaywrightTests/README.md) and the full [local test requirements](../../docs/development/testing.md), without a running collector or live device.

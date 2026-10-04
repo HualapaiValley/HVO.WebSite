@@ -1,169 +1,85 @@
-# HVO.DataModels - Entity Framework Core Data Layer
+# HVO.DataModels
 
-Entity Framework Core data access layer providing database contexts, entity models, and repository patterns for the HVOv9 observatory suite.
+Active .NET 10 EF Core library used by the website. SQL Server/Azure SQL is the
+canonical provider. InMemory/SQLite are test doubles, not a supported replacement
+production schema. The library has no executable startup or HVO.Core dependency;
+dependencies are EF Core/SqlServer, design/tools and cryptographic XML support.
 
-## Package Information
+## Schema authority
 
-- **Target Framework**: .NET 10.0
-- **Namespace**: `HVO.DataModels`
-- **Type**: Data Access Library
-- **Database**: Azure SQL (primary), SQLite (development/test)
+- [HvoV9DbContext](Data/HvoV9DbContext.cs) owns current model configuration and indexes.
+- [V9 entities](Models/V9/) own CLR types, table attributes and unit comments.
+- [V9 migration chain](Migrations/V9/) and [model snapshot](Migrations/V9/HvoV9DbContextModelSnapshot.cs) own the generated schema.
+- [HvoDbContext](Data/HvoDbContext.cs) retains legacy dbo reads/compatibility;
+  new entities and ingest/read models use v9.
 
-## Purpose
+DbSet names are not table names. These actual singular tables replace the old
+illustrative DDL; consult the linked authority for every column/index/relationship.
 
-Centralized data access layer for:
-- Weather station telemetry storage
-- Battery management system (BMS) telemetry
-- Power system aggregate readings
-- Observatory equipment status history
-- API key authentication persistence
-- Site configuration management
+| Table/entity | Time and identity | Actual types, units and signs |
+|---|---|---|
+| [v9.WeatherRaw](Models/V9/WeatherRaw.cs) | long Id; DateTime RecordedAt; nullable string StationId | nullable double TemperatureF/DewPointF, HumidityPercent, BarometricPressureInHg, WindSpeedMph/WindGustMph, RainfallInches, SolarRadiationWm2/UvIndex; nullable int WindDirectionDegrees |
+| [v9.BmsReading](Models/V9/BmsReading.cs) | long Id; int DeviceId FK to BmsDevice; DateTime RecordedAt at source | long PackVoltageMv/capacity mAh, int CurrentMa, double PowerWatts and temperatures C, byte SocPercent/SohPercent; JK current/power positive charging, negative discharging; cell voltage/resistance are child rows |
+| [v9.PowerReading](Models/V9/PowerReading.cs) | long Id; string SourceId, nullable SourceSystem/DeviceId; DateTime RecordedAt; CreatedAt is persistence metadata | nullable double W/V/A/kWh/Hz/% fields; preserve source-native electrical signs and source provenance; do not globally invert battery current/power |
+| [v9.WeatherArchive](Models/V9/WeatherArchive.cs) | RecordedAtUtc is the explicit archive exception; ConsoleRecordedAtLocal and CreatedAtUtc are separate | full console archive rather than sparse live weather; actual mappings/scales are entity/context owned |
 
-## Structure
+The context maps observation timestamps to SQL datetime2; use UTC source times
+as required by the ingest contracts. RecordedAt is not renamed RecordedAtUtc in
+the raw/BMS/general-power tables. Weather/BMS aggregate entities do not establish
+that every rollup is populated. Power device/configuration/energy/inverter/MPPT/
+gateway and SmartShunt detail models remain separate typed records.
+[Observation identity](../../docs/development/power-observation-identity.md),
+[retry durability](../../docs/development/canonical-ingest-retries.md),
+[UTC history](../../docs/development/power-history-utc.md) and
+[weather queries](../../docs/development/canonical-weather-queries.md) govern
+replay, content proof, window and freshness behavior.
 
-```
-HVO.DataModels/
-├── Data/
-│   ├── HvoDbContext.cs            # Legacy dbo-schema DbContext (read reference)
-│   ├── HvoV9DbContext.cs          # Main v9-schema DbContext for current development
-│   └── HvoV9DbContextFactory.cs   # Design-time factory for EF migrations
-├── Extensions/
-│   └── ServiceCollectionExtensions.cs  # DI registration helpers
-├── Models/
-│   ├── AllSkyCameraRecord.cs      # Legacy all-sky camera record
-│   ├── CameraRecord.cs            # Legacy generic camera record
-│   ├── DavisVantagePro*.cs        # Legacy Davis Vantage Pro models
-│   ├── OutbackMate*.cs            # Legacy Outback Mate models
-│   ├── SecurityCameraRecord.cs    # Legacy security camera records
-│   ├── SkyMonitor.cs              # Legacy sky monitor records
-│   ├── V9/                        # Current v9 entity models
-│   │   ├── WeatherRaw.cs          # Raw weather readings
-│   │   ├── WeatherMinute.cs       # Minute-aggregated weather
-│   │   ├── WeatherHourly.cs       # Hourly-aggregated weather
-│   │   ├── BmsReading.cs          # BMS battery readings
-│   │   ├── BmsDevice.cs           # BMS device inventory
-│   │   ├── PowerReading.cs        # Power system readings
-│   │   ├── PowerEnergySnapshot.cs # Energy counter snapshots
-│   │   ├── ApiKey.cs              # API key authentication
-│   │   ├── ImageMetadata.cs       # Image metadata records
-│   │   ├── SiteConfiguration.cs   # Runtime site configuration
-│   │   ├── GatewayStatusSnapshot.cs # Gateway runtime status
-│   │   └── ...                    # Additional v9 entities
-│   ├── WeatherCameraRecord.cs     # Legacy weather camera records
-│   ├── WeatherSatelliteRecord.cs  # Legacy satellite records
-│   └── WebPowerSwitchConfiguration.cs # Legacy PDU config
-├── RawModels/
-│   ├── DavisVantageProAverage.cs  # Davis average calculations
-│   └── WeatherRecordHighLowSummary.cs # High/low summaries
-├── Repositories/
-│   ├── IRepository.cs             # Generic repository interface
-│   └── Repository.cs              # Generic repository implementation
-└── Migrations/                    # EF Core migrations
-```
+## Configuration and consumers
 
-## Key Features
+The real website receives its `HualapaiValleyObservatory` connection string from
+its approved configuration/Key Vault boundary and registers SQL Server contexts.
+See [website startup](../HVO.WebSite.v9/Program.cs) and
+[website setup](../HVO.WebSite.v9/README.md). Hardware collectors deliver through
+typed HTTP APIs and their own SQLite outbox; they do not read the legacy SQL model.
+Davis's production astronomy projection depends on [Staging](../HVO.Staging/README.md),
+not this library.
 
-### Two DbContexts
+## Generate versus apply migrations
 
-- **HvoDbContext** - Legacy `dbo` schema. Read-only reference for backward compatibility. New development targets the v9 schema.
-- **HvoV9DbContext** - Current `v9` schema. All new entities, ingest APIs, and read models use this context.
+The [design-time factory](Data/HvoV9DbContextFactory.cs) uses the literal
+`Server=.;Database=HvoV9;Trusted_Connection=True;` stub for migration generation.
+It does not select an approved application database, load website secrets or
+interpret an operational target. It must not be used as a default apply target.
 
-### Repository Pattern
-
-Optional abstraction over EF Core for:
-- Testability (easy mocking)
-- Consistent data access patterns
-- Query encapsulation
-
-## Database Schema
-
-### v9 Schema (Current)
-
-Weather tables:
-```sql
-CREATE TABLE v9.WeatherRaw (
-    Id BIGINT IDENTITY PRIMARY KEY,
-    StationId NVARCHAR(100) NOT NULL,
-    RecordedAtUtc DATETIME2 NOT NULL,
-    OutsideTemperatureF DECIMAL(9,4),
-    OutsideHumidityPercent DECIMAL(9,4),
-    -- Additional weather fields
-);
-```
-
-BMS tables:
-```sql
-CREATE TABLE v9.BmsReadings (
-    Id BIGINT IDENTITY PRIMARY KEY,
-    DeviceId NVARCHAR(100) NOT NULL,
-    RecordedAtUtc DATETIME2 NOT NULL,
-    StateOfChargePercent DECIMAL(9,4),
-    VoltageV DECIMAL(9,4),
-    -- Additional BMS fields
-);
-```
-
-Power tables:
-```sql
-CREATE TABLE v9.PowerReadings (
-    Id BIGINT IDENTITY PRIMARY KEY,
-    SourceId NVARCHAR(100) NOT NULL,
-    RecordedAtUtc DATETIME2 NOT NULL,
-    PvPowerW DECIMAL(12,4),
-    LoadPowerW DECIMAL(12,4),
-    -- Additional power fields
-);
-```
-
-## Configuration
-
-### Connection Strings
-
-```json
-{
-  "ConnectionStrings": {
-    "HualapaiValleyObservatory": "Server=tcp:<server>.database.windows.net;Database=<db>;..."
-  }
-}
-```
-
-### Dependency Injection Setup
-
-```csharp
-services.AddDbContext<HvoV9DbContext>(options =>
-    options.UseSqlServer(
-        configuration.GetConnectionString("HualapaiValleyObservatory")));
-```
-
-### Design-Time Factory
-
-```csharp
-public class HvoV9DbContextFactory : IDesignTimeDbContextFactory<HvoV9DbContext>
-{
-    public HvoV9DbContext CreateDbContext(string[] args)
-    {
-        var optionsBuilder = new DbContextOptionsBuilder<HvoV9DbContext>();
-        optionsBuilder.UseSqlServer("...");
-        return new HvoV9DbContext(optionsBuilder.Options);
-    }
-}
-```
-
-## Database Migrations
+From the repository root, use the pinned [dotnet-ef manifest](../../.config/dotnet-tools.json)
+with the exact [SDK](../../global.json). This generation-only example does not
+connect to or update a database:
 
 ```bash
-# From src/HVO.DataModels/
-dotnet ef migrations add <Name> --context HvoV9DbContext
-dotnet ef database update --context HvoV9DbContext
+dotnet tool restore
+dotnet ef migrations add MeaningfulChange --project src/HVO.DataModels --context HvoV9DbContext --output-dir Migrations/V9
 ```
 
-## Dependencies
+Inspect generated migration/snapshot diffs and compatibility before any application.
+Applying migrations is a separate approved rollout against an explicitly verified
+connection/identity with recovery planning; no generic database-update command
+here authorizes the factory stub. For a disposable proof, follow the
+[owned SQL Server fixture](../../docs/development/sql-server-integration-tests.md):
+it creates test-owned databases and applies real clean/prior migration chains
+without using application connection settings.
 
-- **Microsoft.EntityFrameworkCore.SqlServer** - SQL Server / Azure SQL provider
-- **Microsoft.EntityFrameworkCore.Tools** - Migration tools
-- **HVO.Core** - Core shared library (NuGet)
+## Local validation and references
 
-## Used By
+After the root locked restore/build, focused hardware-free validation is:
 
-- `HVO.WebSite.v9` - Main website data access (Azure SQL)
-- `HVO.Hardware.DavisVantagePro2` - Legacy schema reads
+```bash
+dotnet test tests/HVO.WebSite.UnitTests --no-build --no-restore --filter "TestCategory!=Integration&TestCategory!=Live"
+dotnet test tests/HVO.WebSite.ApiTests --no-build --no-restore --filter "TestCategory!=Integration&TestCategory!=Live"
+```
+
+The SQL category needs its separate disposable fixture. Archived
+[HVO.Database reference SQL](../HVO.Database/v9/Tables/SmartShuntDetailSnapshot.sql)
+remains a direct input to schema tests despite the sqlproj's exclusion from the
+32-project solution. Preserve those files until their test consumers are changed.
+The [project index](../../docs/README.md#project-documentation-owners) and
+[test guide](../../tests/README.md) identify all owners.

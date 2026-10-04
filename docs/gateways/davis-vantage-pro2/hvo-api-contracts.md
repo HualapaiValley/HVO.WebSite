@@ -1,25 +1,40 @@
 # Davis Vantage Pro2 HVO API Contracts
 
-This document describes HVO local APIs, outbox payloads, and central/cloud contract decisions. Vendor protocol details are in [manufacturer-protocol.md](manufacturer-protocol.md). Code structure is in [hvo-implementation.md](hvo-implementation.md).
+This document describes the current headless collector endpoints, typed outbox payloads and central mappings. [Program.cs](../../../src/HVO.Hardware.DavisVantagePro2/Program.cs) maps shared runtime endpoints only. The former `/api/weather/current` and local status/settings UI are removed; the [May 8 inventory](../../archive/2026-05-08-davis-console-inventory.md) preserves their design evidence. Vendor protocol details are in [manufacturer-protocol.md](manufacturer-protocol.md), reusable field/settings facts in [console-fields-and-settings.md](console-fields-and-settings.md), and runtime ownership in [hvo-implementation.md](hvo-implementation.md).
 
 ## Local Configuration
 
-| Setting | Type | Required | Secret | Runtime editable | Default | Notes |
-|---------|------|----------|--------|------------------|---------|-------|
-| `StationOptions.Host` | string | Yes | No | App config | none | Console/IP adapter host. |
-| `StationOptions.Port` | int | Yes | No | App config | `22222` | TCP port. |
-| `StationOptions.SocketTimeoutSeconds` | int | Yes | No | App config | code-defined | Network timeout. |
-| `StationOptions.ArchiveCatchupMode` | enum | Yes | No | App config/UI candidate | code-defined | Disabled/Enabled/Force. |
-| `StationOptions.StationId` | string | Yes | No | App config | code-defined | Sent downstream. |
-| `OutboxOptions.ApiEndpoint` | string | Yes for forwarding | No | App config | placeholder | Website weather endpoint. |
-| `OutboxOptions.ApiKey` | string | Yes for forwarding | Yes | Secret only | placeholder | Do not display/log. |
+Production requires the non-secret mounted `/app/config/gateway.json`. [Mounted configuration](../../../src/HVO.Edge.Hosting/Configuration/EdgeConfigurationBuilderExtensions.cs) loads it without hot reload, then reapplies environment overrides. `HVO_EDGE_CONFIG_FILE` may select an absolute file under the configured config directory. Credentials are filenames resolved at startup under `/run/secrets`; changes require an approved replacement/restart, not a UI save.
 
-## Local API Plan
+| Setting | Current owner/default | Notes |
+|---------|-----------------------|-------|
+| `Station:Host`, `Port` | [StationOptions](../../../src/HVO.Hardware.DavisVantagePro2/Configuration/StationOptions.cs); required host, port `22222` | Non-secret WeatherLink IP endpoint. |
+| `Station:SocketTimeoutSeconds`, `MaxConsecutiveErrors` | `8`, `5` | Bounded I/O and reconnect thresholds; validated ranges are in options/validator. |
+| `Station:StationId` | Required stable identity | Must agree with `Edge:Runtime:SourceId`. |
+| `Station:ArchiveCatchupMode` | `Disabled` | `Enabled`/`Force` exist; production recurring recovery remains disabled pending #346. |
+| `Station:ArchiveOverlapIntervals` | `2` | Legacy option retained in config; current worker requests the exact cursor, so this is not a promised overlap behavior. #346 owns removal/documentation. |
+| `Station:CentralIngestBaseEndpoint`, `AllowInsecureCentralIngest` | Required validated base URI; explicit HTTP opt-in | Sender appends live/archive routes. Follow the reviewed internal-transport configuration in operations. |
+| `Station:CentralApiKeySecret` | `central-ingest-api-key` | Secret-file name, never inline credentials in config/output. |
+| `Station:LegacyArchiveConsoleUtcOffsetHours` | Explicit required migration offset | Pre-connect migration must not guess from uninitialized console or host timezone. |
+| `Station:LocalDatabasePath` | `/app/data/davis-local.db` | Durable settings/info/cursor; separate from outbox retention. |
+| `Outbox:DatabasePath`, `PayloadTypes`, `PayloadVersion` | `/app/data/outbox.db`, live/archive v1, `1` | Shared Edge.Outbox owns retries/retention/deduplication; obsolete custom `OutboxOptions.ApiEndpoint/ApiKey` are not current configuration. |
+| `Edge:Runtime:DiagnosticsApiKeySecret` | `diagnostics-api-key` | Protected diagnostics credential, distinct from ingest. |
+| `HomeAssistant:Mqtt:*`, `WeatherUnderground:*`, `Cwop:*` | Optional projection/publication options | MQTT credentials and publication secrets remain separate; WU/CWOP default disabled. |
+
+The [mounted example](../../../deploy/pi-gateways/davis/gateway.json.example), [project setup](../../../src/HVO.Hardware.DavisVantagePro2/README.md), [operations](../../GATEWAY_OPERATIONS.md) and distinct [WU](weather-underground-deployment.md)/[CWOP](cwop-deployment.md) guides own complete prerequisites and rollout.
+
+## Current local endpoints
 
 | Endpoint | Purpose | Auth | Request | Response | Notes |
 |----------|---------|------|---------|----------|-------|
-| `/api/weather/current` | Current curated conditions | Gateway API key | none | `CurrentConditionsResponse` | Existing endpoint. |
-| `/health` | Container health | none/internal | none | health status | Existing endpoint. |
+| `GET /health/live` | Process liveness | Public | none | alive status | Does not verify device/ingest connectivity. |
+| `GET /health`, `GET /health/ready` | Actual health snapshot | Public | none | `GatewayHealthSnapshot` | Critical returns 503; degraded/noncritical can return 200. |
+| `GET /diagnostics/health` | Health snapshot | Diagnostics key | none | Health snapshot | Missing/incorrect credential returns 403. |
+| `GET /diagnostics/status` | Runtime, devices, health, outbox and external delivery state | Diagnostics key | none | `GatewayDiagnosticStatusResponse` | Device status is inside this response; no `/diagnostics/devices`. |
+| `GET /diagnostics/outbox` | Queue diagnostics | Diagnostics key | none | Outbox snapshot | Not evidence of historical completeness by itself. |
+| `PUT /diagnostics/outbox/settings` | Bounded outbox batch/sweep tuning | Diagnostics key | batch/sweep overrides or reset | Effective settings | Runtime-only overrides reset on restart; not a console configuration write. |
+
+The [route mapper](../../../src/HVO.Edge.Hosting/Diagnostics/EdgeDiagnosticsEndpointRouteBuilderExtensions.cs) and [authorization filter](../../../src/HVO.Edge.Hosting/Diagnostics/EdgeDiagnosticsAuthorizationFilter.cs) are authoritative. No dashboard, current-weather/display DTO, generic protocol passthrough or console-write HTTP/MQTT endpoint exists.
 
 ## Contract Model Principles
 
@@ -29,19 +44,19 @@ Future local/cloud contracts should preserve these distinctions. Current payload
 |---------|---------|---------------|--------------------------|
 | Davis protocol/raw value | Value exactly as encoded by the Davis command or packet after only mechanical decode. | Mostly internal to packet parsers. | Expose only when consumers need protocol fidelity; name with `Davis` or `Raw` context. |
 | HVO-normalized value | Value converted into HVO's preferred engineering units, currently deg F, mph, inches, inHg, UTC timestamps. | Most current `*F`, `*Mph`, `*Inches`, `*InHg` fields are HVO-normalized. | Keep unit suffixes explicit and avoid implying console display settings changed the raw protocol. |
-| Console display setting | User preference stored in EEPROM unit bits, such as temperature, wind, rain, or barometer display units. | Read and cached by `VantageStation`; local UI and `/api/weather/current` display fields use these settings for presentation conversion. | Publish in station-config/status streams and display sub-objects; do not mutate protocol-normalized observation fields. |
-| HVO-derived value | Value calculated by HVO from Davis fields rather than reported by the console. | Candidate only for dew/dew-risk style future values. | Include provenance such as `source=DavisConsole` or `source=HvoCalculated` if added. |
+| Console display setting | User preference stored in EEPROM unit bits, such as temperature, wind, rain, or barometer display units. | Read/cached by `VantageStation` and local metadata store; no current display API/UI. | If a new presentation contract is approved, publish display settings separately; never change observation units to match a screen preference. |
+| HVO-derived value | Value calculated by HVO rather than reported by the console. | Production HA moon phase/illumination/rise/set use Staging calculations; weather fallback/dew-risk calculations remain proposals. | Preserve provenance; do not relabel calculations as vendor measurements. |
 | Live LOOP observation | Instantaneous/current console values plus LOOP1 status cached near the LOOP2 sample time. | Current live outbox is one payload shape. | Keep separate from archive interval records. |
 | Archive interval observation | Davis archive record with interval/high/low/aggregate semantics. | Current archive outbox is separate from live outbox and maps interval rain to `RainfallInches`. | Preserve interval semantics and avoid merging blindly with live current readings. |
 
 ## Live Outbox Payload
 
-Current live outbox payload fields from `WeatherStationWorker.WriteToOutboxAsync`:
+Current [DavisWeatherLivePayload](../../../src/HVO.Edge.Contracts/Weather/DavisWeatherLivePayload.cs) is mapped by [WeatherStationWorker.MapLive](../../../src/HVO.Hardware.DavisVantagePro2/Workers/WeatherStationWorker.cs) and written by [DavisOutboxWriter](../../../src/HVO.Hardware.DavisVantagePro2/Outbox/DavisOutboxWriter.cs) as `com.hvo.weather.raw.v1`. C# `RecordedAtUtc` deliberately serializes as JSON `recordedAt`; remaining properties use web camelCase. Complete local payload coverage is broader than the central raw table.
 
 | HVO payload name | Source | Unit/shape | Notes |
 |------------------|--------|------------|-------|
 | `StationId` | `StationOptions.StationId` | string | HVO metadata, not Davis protocol. |
-| `RecordedAt` | `Loop2Packet.RecordedAtUtc` | UTC timestamp | Gateway receive/parse time. |
+| `RecordedAtUtc` (JSON `recordedAt`) | `Loop2Packet.RecordedAtUtc` | UTC timestamp | Gateway receive/parse time. |
 | `TemperatureF` | `OutsideTemperatureF` | deg F | HVO alias for outside temperature. |
 | `InsideTemperatureF` | LOOP1/LOOP2 | deg F | Console/inside reading. |
 | `DewPointF` | LOOP2 | deg F | Console-derived. |
@@ -83,12 +98,13 @@ Current live outbox payload fields from `WeatherStationWorker.WriteToOutboxAsync
 
 ## Archive Outbox Payload
 
-Current archive outbox payload fields from `WeatherStationWorker.WriteArchiveToOutboxAsync`:
+Current [DavisWeatherArchivePayload](../../../src/HVO.Edge.Contracts/Weather/DavisWeatherArchivePayload.cs) is mapped by `WeatherStationWorker.MapArchive` and stored separately as `com.hvo.weather.archive.v1`. It retains both timestamp identities and full interval semantics; web JSON uses `recordedAtUtc` and `consoleRecordedAtLocal`.
 
 | HVO payload name | Source | Unit/shape | Notes |
 |------------------|--------|------------|-------|
 | `StationId` | `StationOptions.StationId` | string | HVO metadata. |
-| `RecordedAt` | archive timestamp plus console UTC offset | UTC timestamp | Console-local archive timestamp converted to UTC. |
+| `RecordedAtUtc` | archive timestamp plus console UTC offset | UTC timestamp | Console-local archive timestamp converted to UTC. |
+| `ConsoleRecordedAtLocal` | archive date/HHMM | Unspecified-kind local timestamp | Durable console cursor and vendor timestamp remain separate from UTC. |
 | `ArchiveIntervalMinutes` | EEPROM archive interval | minutes | Values accepted by current write path are `1`, `5`, `10`, `15`, `30`, `60`, `120`. |
 | `TemperatureF` | archive outside temp | deg F | Interval outside temperature. |
 | `HighTemperatureF` | archive high outside temp | deg F | Interval high. |
@@ -111,6 +127,7 @@ Current archive outbox payload fields from `WeatherStationWorker.WriteArchiveToO
 | `EtInches` | archive ET | inches | Interval ET. |
 | `ForecastRule` | archive forecast rule | integer | Forecast rule stored in record. |
 | `ForecastString` | HVO table | string | HVO derived from forecast rule. |
+| `DownloadRecordType` | archive record | integer | Retains the Davis record discriminator. |
 | `LeafTemp1F`, `LeafTemp2F` | archive extra sensors | deg F | Byte-minus-90; null when absent. |
 | `LeafWetnessScaled` | archive extra sensors | 0-15 scale | Array from record bytes. |
 | `SoilTemperaturesF` | archive extra sensors | deg F | Byte-minus-90 array. |
@@ -118,21 +135,23 @@ Current archive outbox payload fields from `WeatherStationWorker.WriteArchiveToO
 | `ExtraTemperaturesF` | archive extra sensors | deg F | Byte-minus-90 array. |
 | `SoilMoisturesCb` | archive extra sensors | centibars | Array. |
 
-## Cloud Mapping Decisions
+## Central delivery and mapping
+
+[DavisOutboxBatchSender](../../../src/HVO.Hardware.DavisVantagePro2/Outbox/DavisOutboxBatchSender.cs) partitions live/archive rows to `POST /api/v1/weather/raw/batch` and `POST /api/v1/weather/archive/batch` using the ingest key. Live storage is [WeatherRaw](../../../src/HVO.DataModels/Models/V9/WeatherRaw.cs); archive storage/validation is owned by [WeatherArchiveIngestController](../../../src/HVO.WebSite.v9/Controllers/WeatherArchiveIngestController.cs) and [WeatherArchive](../../../src/HVO.DataModels/Models/V9/WeatherArchive.cs). These are website routes, not local collector routes. Idempotency preserves station/timestamp identity; the sender requires complete inserted/skipped/failed accounting and treats malformed accounting as retryable. See [ingest trust boundaries](../../development/ingest-trust-boundaries.md) and the [HTTP outcome/recovery matrix](../common-gateway-standards.md#sender-http-outcome-and-recovery-matrix).
 
 | Topic | Decision/status | Rationale |
 |-------|-----------------|-----------|
 | `WindGust10MinMph` | Central ingest accepts this alias as `WindGustMph`. | Clear Davis LOOP-shaped name mismatch. |
 | Live rain fields | Not mapped into generic `RainfallInches`. | Daily, storm, rate, rolling-window, and archive interval rain are different semantics. |
-| Archive rain | Currently mapped to `RainfallInches`. | Archive record rain is interval rainfall. |
+| Archive rain | `RainfallInches` on the separate typed archive entity/endpoint. | Archive record rain is interval rainfall, not a live total. |
 | Console battery/status | Candidate gateway status/config stream. | Not central weather raw today. |
 | Derived weather values | Prefer Davis console-derived live values; mark HVO calculations separately. | Avoid mixing vendor-derived and HVO-calculated values. |
 | Raw vs normalized naming | Current payload names are HVO-normalized by suffix. | Future contracts should explicitly separate protocol/raw values, normalized values, and display settings. |
-| Display unit settings | Current weather API includes normalized fields plus a display-converted sub-object. | Keeps existing unit-suffixed fields stable while allowing UI/API consumers to follow console display preferences. |
+| Display unit settings | No current local weather/display API. | The former conversion design is preserved below as historical proposal; parser/outbox units remain explicit. |
 
-## Current Weather Display Sub-Object
+## Historical display design
 
-`/api/weather/current` keeps existing HVO-normalized fields such as `OutsideTemperatureF`, `WindSpeedMph`, `DailyRainInches`, and `BarometricPressureInHg`. It also returns a `Display` object converted from those normalized values using cached console display settings.
+The former `/api/weather/current` design paired normalized fields with a converted `Display` object. It is preserved here to retain the reusable conversion distinction, not as an active endpoint. [DisplayUnitConverter](../../../src/HVO.Hardware.DavisVantagePro2/Station/DisplayUnitConverter.cs) still contains conversion helpers; current collector hosting does not expose that DTO or dashboard.
 
 | Display field group | Source normalized fields | Conversion setting |
 |---------------------|--------------------------|--------------------|
@@ -141,7 +160,7 @@ Current archive outbox payload fields from `WeatherStationWorker.WriteArchiveToO
 | Wind | `WindSpeedMph`, `WindSpeed10MinAvgMph`, `WindGust10MinMph` | `VantageStation.WindUnits` (`mph`, `m/s`, `km/h`, `knots`) |
 | Rain/ET | `*RainInches`, `DailyEtInches` | `VantageStation.RainUnits` (`inch`, `mm`) |
 
-The local status dashboard uses the same conversion layer. Parser and outbox payload units remain protocol/HVO-normalized until a deliberate versioned schema change is made.
+Any future presentation must preserve explicit units and source/freshness. The old dashboard is removed; approving a new public API or UI needs separate scope and review.
 
 ## Write Safety And Read-Back Policy
 
@@ -173,11 +192,11 @@ These rules apply before exposing any configuration-changing Davis command throu
 | Lamp | Low-risk command; ACK or text response is sufficient unless UI needs state. |
 | Archive clear | No automated read-back is sufficient; require manual verification and backup/export decision before execution. |
 
-## Candidate Streams
+## Current payload lanes and proposed streams
 
 | Stream | Payload type | Cadence | Idempotency key | Cloud treatment | Notes |
 |--------|--------------|---------|-----------------|-----------------|-------|
-| `weather.raw.live` | Weather observation | LOOP cadence | station + recordedAt | Central weather raw/current | Needs expanded schema for rain semantics. |
-| `weather.archive` | Archive observation | Archive interval | station + archive recordedAt | Central historical weather | Should likely be separate from live LOOP records. |
+| `com.hvo.weather.raw.v1` | `DavisWeatherLivePayload` | LOOP cadence | station + UTC time + payload type | Selected central raw fields | Implemented; rain windows remain distinct locally. |
+| `com.hvo.weather.archive.v1` | `DavisWeatherArchivePayload` | Archive interval when catch-up enabled | station + UTC archive time + payload type | Separate typed archive storage | Implemented; recurring acquisition disabled pending #346. |
 | `gateway.status` | Gateway runtime/health | Low frequency | gateway + recordedAt | Central gateway cards | Include source freshness/outbox state. |
 | `weather.station-config` | Station settings snapshot | On change/manual | station + recordedAt/hash | Optional config history | Keep console writes local-only until safety design. |
