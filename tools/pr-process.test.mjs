@@ -260,13 +260,42 @@ test('API pagination fails closed instead of silently omitting evidence', async 
 });
 function ciFixture() {
   const f = fixture(); f.sync();
-  const run = { id: 99, event: 'pull_request_target', path: '.github/workflows/ci.yml', display_title: ciTitle(f.snapshot.pr), head_sha: f.snapshot.pr.base.sha, pull_requests: [{ number: 1 }], created_at: '2026-01-01T00:00:01Z', run_attempt: 1, status: 'completed', conclusion: 'success', html_url: 'https://example.test/actions/runs/99' };
-  const jobs = CI_JOBS.map(name => ({ name, run_id: 99, run_attempt: 1, head_sha: f.snapshot.pr.base.sha, status: 'completed', conclusion: 'success' }));
-  const calls = []; const api = { repository: 'test/repo', request: async path => { calls.push(path); return path.includes('/attempts/1/jobs') ? { jobs } : path.endsWith(`/actions/runs/${run.id}`) ? run : { workflow_runs: [run] }; } };
+  // Observed pull_request_target REST metadata associates both runs and jobs
+  // with the PR head, independently of GITHUB_SHA and the trusted base checkout.
+  const run = { id: 99, event: 'pull_request_target', path: '.github/workflows/ci.yml', display_title: ciTitle(f.snapshot.pr), head_sha: f.snapshot.pr.head.sha, pull_requests: [{ number: 1 }], created_at: '2026-01-01T00:00:01Z', run_attempt: 1, status: 'completed', conclusion: 'success', html_url: 'https://example.test/actions/runs/99' };
+  const jobs = CI_JOBS.map(name => ({ name, run_id: 99, run_attempt: 1, head_sha: f.snapshot.pr.head.sha, status: 'completed', conclusion: 'success' }));
+  const calls = []; const api = { repository: 'test/repo', request: async path => {
+    calls.push(path);
+    if (path.includes('/attempts/1/jobs')) return { jobs };
+    if (path.endsWith(`/actions/runs/${run.id}`)) return run;
+    const head = new URL(`https://api.github.com${path}`).searchParams.get('head_sha');
+    return { workflow_runs: !head || head === run.head_sha ? [run] : [] };
+  } };
   return { ...f, run, jobs, api, calls };
 }
 test('CI accepts an immutable GitHub-origin current tuple with all first-attempt jobs', async () => {
-  const f = ciFixture(); const result = await currentCI(f.api, f.snapshot.pr, [{ publishedAt: '2026-01-01T00:00:00Z' }]); assert.equal(result.qualified, true); assert.ok(f.calls[0].includes(`event=pull_request_target&head_sha=${f.snapshot.pr.base.sha}`)); assert.equal(runBinding(f.run).mergeSha, f.snapshot.pr.merge_commit_sha);
+  const f = ciFixture(); const result = await currentCI(f.api, f.snapshot.pr, [{ publishedAt: '2026-01-01T00:00:00Z' }]); assert.equal(result.qualified, true); assert.ok(f.calls[0].includes(`event=pull_request_target&head_sha=${f.snapshot.pr.head.sha}`)); assert.equal(runBinding(f.run).mergeSha, f.snapshot.pr.merge_commit_sha);
+});
+test('PR396 F1 rejects target/merge associations even if the server returns them', async () => {
+  for (const sha of ['base', 'merge']) {
+    const f = ciFixture(); f.run.head_sha = sha === 'base' ? f.snapshot.pr.base.sha : f.snapshot.pr.merge_commit_sha;
+    const api = { ...f.api, request: async path => path.includes('/runs?') ? { workflow_runs: [f.run] } : f.api.request(path) };
+    assert.equal(await currentCI(api, f.snapshot.pr), null, sha);
+    f.run.head_sha = f.snapshot.pr.head.sha; f.jobs[0].head_sha = sha === 'base' ? f.snapshot.pr.base.sha : f.snapshot.pr.merge_commit_sha;
+    assert.equal((await currentCI(f.api, f.snapshot.pr)).invalid, true, sha);
+  }
+});
+test('PR396 F1 current failed/cancelled CI returns an eligible ready PR to draft', async () => {
+  for (const conclusion of ['failure', 'cancelled', 'timed_out', 'skipped']) {
+    const f = ciFixture(); f.run.conclusion = conclusion; const calls = [];
+    const api = { ...f.api, snapshot: async () => f.snapshot, pull: async () => f.snapshot.pr, graphql: async (...args) => calls.push(['graphql', ...args]), request: async (...args) => { if (args[1]) { calls.push(args); return {}; } return f.api.request(args[0]); } };
+    const result = await reconcile(api, 1);
+    assert.equal(result.eligible, true); assert.equal(result.ci, f.run.id); assert.equal(result.phase, 'workflow:changes-required', conclusion);
+    assert.ok(calls.some(x => x[0] === 'graphql' && x[1].includes('convertPullRequestToDraft')));
+    const statuses = calls.filter(x => x[0].includes(`/statuses/${f.snapshot.pr.head.sha}`));
+    for (const name of ['Review Evidence', 'build-and-test', 'docker-smoke']) assert.equal(statuses.find(x => x[2].context === name)[2].state, 'failure');
+    assert.ok(calls.some(x => x[0].endsWith('/comments') && x[2].body.includes(f.run.html_url)));
+  }
 });
 test('F1/F2 trusted workflow admission cannot use candidate code and predicates stop on cancellation', () => {
   const workflow = JSON.parse(execFileSync('ruby', ['-rjson', '-ryaml', '-e', 'v=YAML.load_file(".github/workflows/ci.yml"); v["on"]=v.delete(true) if v.key?(true); puts JSON.generate(v)'], { encoding: 'utf8' }));
@@ -286,7 +315,7 @@ test('F1/F2 trusted workflow admission cannot use candidate code and predicates 
 test('F3 old target/merge and re-run original creation cannot qualify the current candidate', async () => {
   for (const change of ['base', 'merge', 'original-time', 'candidate-workflow', 'wrong-path']) {
     const f = ciFixture();
-    if (change === 'base') { f.run.head_sha = '4'.repeat(40); f.run.display_title = ciTitle({ ...f.snapshot.pr, base: { sha: '4'.repeat(40) } }); }
+    if (change === 'base') f.run.display_title = ciTitle({ ...f.snapshot.pr, base: { sha: '4'.repeat(40) } });
     if (change === 'merge') f.run.display_title = ciTitle({ ...f.snapshot.pr, merge_commit_sha: '4'.repeat(40) });
     if (change === 'original-time') { f.run.created_at = '2025-01-01T00:00:00Z'; f.run.run_started_at = '2026-01-02T00:00:00Z'; f.run.run_attempt = 2; }
     if (change === 'candidate-workflow') { f.run.event = 'pull_request'; f.run.head_sha = f.snapshot.pr.head.sha; }
@@ -295,8 +324,8 @@ test('F3 old target/merge and re-run original creation cannot qualify the curren
   }
 });
 test('F3 partial/full reruns and incomplete/skipped required jobs cannot qualify', async () => {
-  for (const change of ['attempt', 'missing-gate', 'skipped-smoke', 'wrong-attempt', 'wrong-job-base']) {
-    const f = ciFixture(); if (change === 'attempt') f.run.run_attempt = 2; if (change === 'missing-gate') f.jobs.shift(); if (change === 'skipped-smoke') f.jobs[2].conclusion = 'skipped'; if (change === 'wrong-attempt') f.jobs[0].run_attempt = 2; if (change === 'wrong-job-base') f.jobs[0].head_sha = '4'.repeat(40);
+  for (const change of ['attempt', 'missing-gate', 'skipped-smoke', 'wrong-attempt', 'wrong-job-head']) {
+    const f = ciFixture(); if (change === 'attempt') f.run.run_attempt = 2; if (change === 'missing-gate') f.jobs.shift(); if (change === 'skipped-smoke') f.jobs[2].conclusion = 'skipped'; if (change === 'wrong-attempt') f.jobs[0].run_attempt = 2; if (change === 'wrong-job-head') f.jobs[0].head_sha = '4'.repeat(40);
     const result = await currentCI(f.api, f.snapshot.pr, [{ publishedAt: '2026-01-01T00:00:00Z' }]); assert.equal(result.qualified, false, change); assert.equal(result.invalid, true, change);
   }
 });

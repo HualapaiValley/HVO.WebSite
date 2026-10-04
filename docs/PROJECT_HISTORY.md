@@ -54,6 +54,7 @@ Avoid:
 - Standardized actual author/reviewer/model/effort provenance, validation performers, independently verified finding threads, and the draft -> review -> gated CI lifecycle.
 - Kept main/squash and operational authorization boundaries; archived the fixed #187–#198 campaign instructions as history. Adoption is tracked by #394; metadata automation becomes active once adopted on main.
 - Excluded the archived `HVO.Database.sqlproj` from the active solution at the owner's direction. Preserved its SQL reference files and direct file-reading tests; EF Core migrations remain authoritative. The active build retains the zero-warning requirement.
+- The owner adopted PR #395 and its first hosted main build/test and Docker smoke passed. Live controller qualification exposed GitHub's additional contents-write requirement for draft conversion; the follow-up scopes that capability to the trusted metadata job and requires a live token check. Independent follow-up review also identified that Actions run/job metadata associates target-event runs with the PR head; the controller now separates that association from trusted base admission and tested-merge binding, with realistic success/failure regression coverage. Candidate CI stays read-only; branch-protection activation remains open until qualification finishes.
 
 ## 2026-08-18
 

@@ -24,10 +24,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
-  statuses: write
-  actions: write
 
 concurrency:
   group: pr-process-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.event.inputs.pr_number || 'repository' }}
@@ -38,6 +34,14 @@ jobs:
     if: (github.event_name != 'issue_comment' || github.event.issue.pull_request) && !(github.event_name == 'pull_request_target' && github.event.pull_request.user.login == 'dependabot[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      # GitHub's draft-conversion mutation also needs contents: write. Keep this
+      # capability in the trusted metadata job; candidate CI remains read-only.
+      contents: write
+      pull-requests: write
+      issues: write
+      statuses: write
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
