@@ -23,23 +23,38 @@ public sealed class WeatherUndergroundPublisherTests
         var clock = new FakeTimeProvider(InitialTime);
         var state = CurrentState(clock, 70);
         var calls = Channel.CreateUnbounded<DateTimeOffset>();
+        var completed = Channel.CreateUnbounded<DateTimeOffset>();
+        var logger = new RecordingLogger<WeatherUndergroundPublisher>(
+            () => completed.Writer.TryWrite(clock.GetUtcNow()));
         await using var fixture = CreateFixture(
             state,
             clock,
-            (_, _) =>
+            async (_, _) =>
             {
                 calls.Writer.TryWrite(clock.GetUtcNow());
-                return SuccessResponse();
-            });
+                // Exercise an asynchronous response: handler entry is not publication completion.
+                await Task.Yield();
+                return await SuccessResponse();
+            },
+            logger: logger);
 
         await fixture.Publisher.StartAsync(CancellationToken.None);
         var first = await calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
-        state.Observed(Observation(clock, 72), clock.GetUtcNow().UtcDateTime);
-        clock.Advance(TimeSpan.FromSeconds(5));
-        var second = await calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
-
         first.Should().Be(InitialTime);
-        second.Should().Be(InitialTime.AddSeconds(5));
+        // The success log follows response parsing, timeout disposal and state updates.
+        // The periodic timer already exists before the first request, so it retains a tick
+        // even if the service has not yet called WaitForNextTickAsync.
+        (await completed.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1))).Should().Be(InitialTime);
+        for (var tick = 1; tick <= 3; tick++)
+        {
+            state.Observed(Observation(clock, 72), clock.GetUtcNow().UtcDateTime);
+            clock.Advance(TimeSpan.FromSeconds(4));
+            calls.Reader.TryRead(out _).Should().BeFalse("the five-second interval has not elapsed");
+            clock.Advance(TimeSpan.FromSeconds(1));
+            var next = await calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+            next.Should().Be(InitialTime.AddSeconds(5 * tick));
+            (await completed.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1))).Should().Be(next);
+        }
         await fixture.Publisher.StopAsync(CancellationToken.None);
     }
 
@@ -67,10 +82,9 @@ public sealed class WeatherUndergroundPublisherTests
     [TestMethod]
     public async Task PublishLatestAsync_RetryUsesLatestReadingInsteadOfReplayingOldReading()
     {
-        var clock = new FakeTimeProvider(InitialTime);
+        var clock = new RetryTimeProvider(InitialTime);
         var state = CurrentState(clock, 70);
         var requests = new ConcurrentQueue<string>();
-        var firstAttempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var attempt = 0;
         await using var fixture = CreateFixture(
             state,
@@ -80,7 +94,6 @@ public sealed class WeatherUndergroundPublisherTests
                 requests.Enqueue(request.RequestUri!.Query);
                 if (Interlocked.Increment(ref attempt) == 1)
                 {
-                    firstAttempt.TrySetResult();
                     return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
                 }
 
@@ -88,7 +101,8 @@ public sealed class WeatherUndergroundPublisherTests
             });
 
         var publish = fixture.Publisher.PublishLatestAsync(CancellationToken.None);
-        await firstAttempt.Task;
+        // A rejected HTTP handler has not necessarily registered the retry delay yet.
+        await clock.RetryRegistered.Task.WaitAsync(TimeSpan.FromSeconds(1));
         state.Observed(Observation(clock, 80), clock.GetUtcNow().UtcDateTime);
         clock.Advance(TimeSpan.FromMilliseconds(250));
         await publish;
@@ -256,7 +270,20 @@ public sealed class WeatherUndergroundPublisherTests
             CancellationToken cancellationToken) => handler(request, cancellationToken);
     }
 
-    private sealed class RecordingLogger<T> : ILogger<T>
+    private sealed class RetryTimeProvider(DateTimeOffset initialTime) : FakeTimeProvider(initialTime)
+    {
+        public TaskCompletionSource RetryRegistered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = base.CreateTimer(callback, state, dueTime, period);
+            if (dueTime == WeatherUndergroundOptions.RetryBackoff && period == Timeout.InfiniteTimeSpan)
+                RetryRegistered.TrySetResult();
+            return timer;
+        }
+    }
+
+    private sealed class RecordingLogger<T>(Action? onCompleted = null) : ILogger<T>
     {
         public List<string> Messages { get; } = [];
 
@@ -267,6 +294,11 @@ public sealed class WeatherUndergroundPublisherTests
             EventId eventId,
             TState state,
             Exception? exception,
-            Func<TState, Exception?, string> formatter) => Messages.Add(formatter(state, exception));
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
+            if (logLevel == LogLevel.Debug)
+                onCompleted?.Invoke();
+        }
     }
 }
