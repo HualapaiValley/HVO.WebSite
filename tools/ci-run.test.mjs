@@ -34,7 +34,7 @@ const haProjects = ['HVO.Edge.HomeAssistant.Mqtt.Tests', 'HVO.Edge.Exporter.Home
 const sqlProject = 'tests/HVO.WebSite.ApiTests/HVO.WebSite.ApiTests.csproj';
 const passingReport = '<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010"><Results><UnitTestResult outcome="Passed"/></Results><ResultSummary><Counters total="1" passed="1" failed="0"/></ResultSummary></TestRun>';
 
-function fixtureExecution(lane, mode, { stale = false } = {}) {
+function fixtureExecution(lane, mode, { stale = false, missingSafety = false } = {}) {
   const root = mkdtempSync(resolve(tmpdir(), 'hvo-ci-fixture-execution-'));
   try {
     mkdirSync(resolve(root, 'tools'));
@@ -54,12 +54,22 @@ function fixtureExecution(lane, mode, { stale = false } = {}) {
     writeFileSync(resolve(root, 'tools/fixture-build-report.py'), `
 import os,sys
 from pathlib import Path
+Path('build-called').touch()
 if os.environ['FIXTURE_MODE']=='build-stale' and sys.argv[1]=='build':
     lane=os.environ['FIXTURE_LANE']
     root=Path('TestResults')/('integration/home-assistant' if lane=='home-assistant' else lane)
     directory=root/Path(sys.argv[2]).stem
     directory.mkdir(parents=True,exist_ok=True)
     (directory/'stale.trx').write_text('${passingReport}')
+`);
+    if (lane === 'sql-server' && !missingSafety) writeFileSync(resolve(root, 'tools/sql-server-integration.test.mjs'), `
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+test('owned SQL safety check', () => {
+  writeFileSync('safety-called', 'checked');
+  assert.notEqual(process.env.FIXTURE_MODE, 'safety-failed', 'SQL safety failure');
+});
 `);
     writeFileSync(resolve(root, 'bin/git'), `#!/usr/bin/env bash\nprintf '%s\\n' '${source.merge}'\n`, { mode: 0o755 });
     writeFileSync(resolve(root, 'tools/ci-results.py'), "from pathlib import Path\nPath('candidate-verifier-called').touch()\n");
@@ -91,16 +101,22 @@ if mode not in ('none','candidate-verifier','build-stale'):
 `);
     const helperName = lane === 'home-assistant' ? 'run-home-assistant-integration-tests.sh' : 'run-sql-server-integration-tests.sh';
     writeFileSync(resolve(root, 'tools', helperName), '#!/usr/bin/env bash\npython3 tools/fixture-helper.py "$@"\n');
+    const executionEnvironment = { ...process.env, PATH: `${resolve(root, 'bin')}:${process.env.PATH}`, CI_HEAD: source.head,
+      CI_BASE: source.base, CI_MERGE: source.merge, CI_PLAN: JSON.stringify(plan),
+      CI_COVERAGE: 'false', FIXTURE_LANE: lane, FIXTURE_MODE: mode };
+    // Model a standalone CI process. Node otherwise suppresses nested --test
+    // execution when it inherits this parent test worker's internal context.
+    delete executionEnvironment.NODE_TEST_CONTEXT;
     const result = spawnSync(process.execPath, [trustedRunner, lane], {
       cwd: root, encoding: 'utf8', timeout: 15000,
-      env: { ...process.env, PATH: `${resolve(root, 'bin')}:${process.env.PATH}`, CI_HEAD: source.head,
-        CI_BASE: source.base, CI_MERGE: source.merge, CI_PLAN: JSON.stringify(plan),
-        CI_COVERAGE: 'false', FIXTURE_LANE: lane, FIXTURE_MODE: mode }
+      env: executionEnvironment
     });
     assert.ifError(result.error);
     const directories = projects.map(project => resolve(resultsRoot, basename(project, '.csproj')));
     return { status: result.status, output: result.stdout + result.stderr,
-      args: JSON.parse(readFileSync(resolve(root, 'helper-arguments.json'), 'utf8')),
+      args: existsSync(resolve(root, 'helper-arguments.json')) ? JSON.parse(readFileSync(resolve(root, 'helper-arguments.json'), 'utf8')) : null,
+      safetyCalled: existsSync(resolve(root, 'safety-called')),
+      buildCalled: existsSync(resolve(root, 'build-called')),
       reports: directories.map(directory => existsSync(resolve(directory, 'current.trx'))),
       stale: directories.some(directory => existsSync(resolve(directory, 'stale.trx'))),
       candidateVerifierCalled: existsSync(resolve(root, 'candidate-verifier-called')) };
@@ -149,6 +165,8 @@ for (const lane of ['home-assistant', 'sql-server']) {
       assert.ok(result.args.includes('--ha-only'));
       assert.ok(result.args.includes('--results-directory'));
       assert.ok(haProjects.every(project => result.args.includes(project)));
+    } else {
+      assert.equal(result.safetyCalled, true);
     }
   });
 
@@ -160,6 +178,24 @@ for (const lane of ['home-assistant', 'sql-server']) {
     }
   });
 }
+
+test('SQL: failed safety checks stop execution before build or provisioning', () => {
+  const result = fixtureExecution('sql-server', 'safety-failed');
+  assert.equal(result.safetyCalled, true);
+  assert.notEqual(result.status, 0);
+  assert.match(result.output, /SQL safety failure/);
+  assert.equal(result.buildCalled, false);
+  assert.equal(result.args, null);
+  assert.deepEqual(result.reports, [false]);
+});
+
+test('SQL: missing required safety checks cannot silently skip execution', () => {
+  const result = fixtureExecution('sql-server', 'all', { missingSafety: true });
+  assert.notEqual(result.status, 0);
+  assert.equal(result.safetyCalled, false);
+  assert.equal(result.buildCalled, false);
+  assert.equal(result.args, null);
+});
 
 test('HA: one passing project cannot hide another missing planned report', () => {
   const result = fixtureExecution('home-assistant', 'first-only');

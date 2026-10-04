@@ -1,6 +1,6 @@
 # Selective CI
 
-Issue #411 introduces dependency-aware PR validation. The implementation is awaiting full local validation, independent Deep review, adoption on main and hosted measurements. Its first PR must pass the existing trusted full CI; candidate workflow changes cannot authorize their own admission. #408 browser migration and #409 SQL-provider integration also need their own qualification.
+Issue #411 introduces dependency-aware PR validation and is merged on main. Hosted snapshot/profile measurements remain separate source-bound evidence; candidate workflow changes cannot authorize their own admission. The #409 provider fixture is available and locally qualified below, with hosted candidate/main qualification still required. #408 browser migration remains pending.
 
 ## Planning and ownership
 
@@ -18,7 +18,7 @@ The retained ci-plan.json includes planner version, full head/base/merge tuple, 
 
 ## Execution and aggregation
 
-The bounded jobs run independent validation, HA, SQL, browser, operational and Docker work. Selected roots are locked-restored and built before tests; test execution reuses preparation with --no-build --no-restore. Debug validation runs fast and simulator partitions plus inexpensive policy checks; selected non-test roots also receive Release builds. HA assemblies share one sequential disposable stack. The browser job installs Chromium only for selected browser work. SQL ownership is reserved for the #409 API provider fixture; its integration remains pending.
+The bounded jobs run independent validation, HA, SQL, browser, operational and Docker work. Selected roots are locked-restored and built before tests; test execution reuses preparation with --no-build --no-restore. Debug validation runs fast and simulator partitions plus inexpensive policy checks; selected non-test roots also receive Release builds. HA assemblies share one sequential disposable stack. The browser job installs Chromium only for selected browser work. The #409 owned API SQL fixture is now available and locally qualified; the existing SQL job discovers its real categories and independently verifies its reports. Hosted candidate/main qualification remains source-bound CI evidence, and #408 browser migration remains pending.
 
 tools/ci-run.mjs executes a validated plan supplied through CI_PLAN with CI_HEAD, CI_BASE and CI_MERGE. Its jobs are validation, home-assistant, sql-server, browser, operations, docker-smoke and aggregate. It does not derive obligations or admit a PR. Use the [test-lane commands](testing.md) for full local validation; hand-written environment JSON is not trusted hosted admission evidence.
 

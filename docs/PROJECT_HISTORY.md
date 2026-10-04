@@ -2,6 +2,16 @@
 
 Purpose: keep a lightweight working history that explains what changed, what was decided, and what to revisit later. This is not a release changelog.
 
+## 2026-10-04 — Canonical SQL Server test boundary (#409)
+
+- Added a disposable, owned SQL Server lane using the actual production EF registration,
+  real clean/prior migrations, canonical queries, conflict and atomicity checks.
+- Kept fast InMemory/SQLite tests and separated the provisioned SQL category from HA
+  integration. Standard reviewed CI now requires the SQL lane and retains its report.
+- Test-only databases/credentials/resources never use application connection settings.
+  [Fixture guidance](development/sql-server-integration-tests.md) records tested upgrade
+  checkpoints and reusable concurrency seams for #400/#402/#405/#410.
+
 ## How To Use This File
 
 - Add or update one entry per working session or tightly related block of work.
