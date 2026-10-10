@@ -52,7 +52,7 @@ public sealed class WeatherApiEndpointsTests
         using var client = CreateClient(factory);
         client.DefaultRequestHeaders.Add("X-Api-Key", InvalidPlaintext);
 
-        foreach (var path in WeatherReadPaths())
+        foreach (var path in WeatherReadPaths().Append("/api/v1/weather/current"))
         {
             var response = await client.GetAsync(path);
 
@@ -74,6 +74,9 @@ public sealed class WeatherApiEndpointsTests
 
             response.StatusCode.Should().Be(HttpStatusCode.Forbidden, path);
         }
+
+        var publicResponse = await client.GetAsync("/api/v1/weather/current");
+        publicResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [TestMethod]
@@ -88,7 +91,7 @@ public sealed class WeatherApiEndpointsTests
             client.DefaultRequestHeaders.Remove("X-Api-Key");
             client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
 
-            foreach (var path in WeatherReadPaths())
+            foreach (var path in WeatherReadPaths().Append("/api/v1/weather/current"))
             {
                 var response = await client.GetAsync(path);
 
@@ -113,6 +116,53 @@ public sealed class WeatherApiEndpointsTests
         payload.Should().NotBeNull();
         payload!.MachineName.Should().Be("api-test-host");
         payload.Data.Should().NotBeNull();
+    }
+
+    [TestMethod]
+    public async Task CurrentEndpoint_ReturnsLiveIngestedWeather_WithoutApiKey()
+    {
+        using var factory = new TestWebApplicationFactory(useRealWeatherService: true);
+        await factory.SeedApiKeysAsync();
+        using var client = CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+        var recordedAt = new DateTime(2026, 10, 10, 21, 0, 0, DateTimeKind.Utc);
+
+        var ingest = await client.PostAsJsonAsync("/api/v1/weather/raw", new IngestWeatherRawRequest
+        {
+            StationId = "hvo-davis-01", RecordedAt = recordedAt,
+            TemperatureF = 84.7, HumidityPercent = 26, WindSpeedMph = 15
+        });
+        ingest.StatusCode.Should().Be(HttpStatusCode.Created);
+        client.DefaultRequestHeaders.Remove("X-Api-Key");
+
+        var response = await client.GetAsync("/api/v1/weather/current");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<CurrentWeatherResponse>();
+        payload.Should().NotBeNull();
+        payload!.Current.RecordDateTime.Should().Be(new DateTimeOffset(recordedAt));
+        payload.Current.OutsideTemperature.Should().Be(84.7m);
+        payload.Current.OutsideHumidity.Should().Be(26);
+        payload.Current.WindSpeed.Should().Be(15);
+        payload.TodaysExtremes!.OutsideTemperature.High.Should().Be(84.7m);
+        payload.TodaysExtremes.OutsideTemperature.Low.Should().Be(84.7m);
+
+        var anonymousIngest = await client.PostAsJsonAsync("/api/v1/weather/raw", new IngestWeatherRawRequest
+        {
+            StationId = "hvo-davis-01", RecordedAt = recordedAt.AddMinutes(1), TemperatureF = 90
+        });
+        anonymousIngest.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [TestMethod]
+    public async Task CurrentEndpoint_Returns404WithoutApiKey_WhenNoObservationsExist()
+    {
+        using var factory = new TestWebApplicationFactory(useRealWeatherService: true);
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync("/api/v1/weather/current");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [TestMethod]
@@ -165,10 +215,11 @@ public sealed class WeatherApiEndpointsTests
     [
         "/api/v1/weather/latest",
         "/api/v1/weather/highs-lows",
-        "/api/v1/weather/current"
+        "/api/v1/weather/raw/recent",
+        "/api/v1/weather/hourly/recent"
     ];
 
-    private sealed class TestWebApplicationFactory : WebApplicationFactory<Program>
+    private sealed class TestWebApplicationFactory(bool useRealWeatherService = false) : WebApplicationFactory<Program>
     {
         private readonly string _databaseName = $"weather-read-endpoints-{Guid.NewGuid():N}";
 
@@ -192,8 +243,16 @@ public sealed class WeatherApiEndpointsTests
                 if (seedDescriptor is not null)
                     services.Remove(seedDescriptor);
 
-                services.RemoveAll<IWeatherService>();
-                services.AddScoped<IWeatherService, FakeWeatherService>();
+                if (useRealWeatherService)
+                {
+                    services.RemoveAll<TimeProvider>();
+                    services.AddSingleton<TimeProvider>(new FixedTimeProvider());
+                }
+                else
+                {
+                    services.RemoveAll<IWeatherService>();
+                    services.AddScoped<IWeatherService, FakeWeatherService>();
+                }
 
                 ReplaceWithInMemory<HvoV9DbContext>(services, _databaseName);
             });
@@ -258,6 +317,12 @@ public sealed class WeatherApiEndpointsTests
         }
     }
 
+    private sealed class FixedTimeProvider : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(2026, 10, 10, 21, 0, 0, TimeSpan.Zero);
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+    }
+
     private sealed class FakeWeatherService : IWeatherService
     {
         public Task<Result<LatestWeatherResponse>> GetLatestWeatherRecordAsync()
@@ -285,7 +350,7 @@ public sealed class WeatherApiEndpointsTests
         public Task<Result<WeatherHighsLowsResponse>> GetWeatherHighsLowsAsync(DateTimeOffset? startDate, DateTimeOffset? endDate)
             => Task.FromResult(Result<WeatherHighsLowsResponse>.Success(new WeatherHighsLowsResponse()));
 
-        public Task<Result<CurrentWeatherResponse>> GetCurrentWeatherConditionsAsync()
+        public Task<Result<CurrentWeatherResponse>> GetCurrentWeatherConditionsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(Result<CurrentWeatherResponse>.Success(new CurrentWeatherResponse()));
     }
 }

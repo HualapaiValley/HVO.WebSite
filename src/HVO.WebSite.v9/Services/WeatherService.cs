@@ -1,7 +1,6 @@
 using HVO.Core.Results;
 using HVO.DataModels.Data;
-using HVO.DataModels.Models;
-using HVO.DataModels.RawModels;
+using HVO.DataModels.Models.V9;
 using HVO.WebSite.v9.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,16 +9,26 @@ namespace HVO.WebSite.v9.Services;
 public class WeatherService : IWeatherService
 {
     private readonly HvoDbContext _context;
+    private readonly HvoV9DbContext _liveContext;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<WeatherService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the WeatherService
     /// </summary>
     /// <param name="context">Database context for weather data access</param>
+    /// <param name="liveContext">Database context for live gateway observations</param>
+    /// <param name="timeProvider">Clock and server timezone for daily extremes</param>
     /// <param name="logger">Logger for tracking weather service operations</param>
-    public WeatherService(HvoDbContext context, ILogger<WeatherService> logger)
+    public WeatherService(
+        HvoDbContext context,
+        HvoV9DbContext liveContext,
+        TimeProvider timeProvider,
+        ILogger<WeatherService> logger)
     {
         _context = context;
+        _liveContext = liveContext;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -98,16 +107,17 @@ public class WeatherService : IWeatherService
     }
 
     /// <inheritdoc />
-    public async Task<Result<CurrentWeatherResponse>> GetCurrentWeatherConditionsAsync()
+    public async Task<Result<CurrentWeatherResponse>> GetCurrentWeatherConditionsAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             _logger.LogInformation("Retrieving current weather conditions with today's highs/lows");
 
-            // Get latest weather record
-            var latestRecord = await _context.DavisVantageProConsoleRecordsNews
-                .OrderByDescending(x => x.RecordDateTime)
-                .FirstOrDefaultAsync();
+            var latestRecord = await _liveContext.WeatherRaw
+                .AsNoTracking()
+                .OrderByDescending(x => x.RecordedAt)
+                .ThenByDescending(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
 
             if (latestRecord == null)
             {
@@ -115,21 +125,29 @@ public class WeatherService : IWeatherService
                 return new InvalidOperationException("No current weather data is available in the database");
             }
 
-            // Get today's highs and lows
-            var today = DateTimeOffset.Now.Date;
-            var tomorrow = today.AddDays(1);
-            var todaysHighsLows = await _context.GetWeatherRecordHighLowSummary(today, tomorrow);
+            // Preserve the server-local definition of today; WeatherRaw stores UTC timestamps.
+            var today = _timeProvider.GetLocalNow().Date;
+            var startUtc = TimeZoneInfo.ConvertTimeToUtc(today, _timeProvider.LocalTimeZone);
+            var endUtc = TimeZoneInfo.ConvertTimeToUtc(today.AddDays(1), _timeProvider.LocalTimeZone);
+            var todaysReadings = _liveContext.WeatherRaw.AsNoTracking().Where(record =>
+                record.StationId == latestRecord.StationId
+                && record.RecordedAt >= startUtc && record.RecordedAt < endUtc);
+            var todaysExtremes = await ReadTodaysExtremesAsync(todaysReadings, cancellationToken);
 
             var response = new CurrentWeatherResponse
             {
-                Timestamp = DateTime.UtcNow,
+                Timestamp = _timeProvider.GetUtcNow().UtcDateTime,
                 MachineName = Environment.MachineName,
                 Current = MapToCurrentWeatherData(latestRecord),
-                TodaysExtremes = todaysHighsLows != null ? MapToTodaysExtremesData(todaysHighsLows) : null
+                TodaysExtremes = todaysExtremes
             };
 
             _logger.LogInformation("Successfully retrieved current weather conditions with today's extremes");
             return Result<CurrentWeatherResponse>.Success(response);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -138,119 +156,138 @@ public class WeatherService : IWeatherService
         }
     }
 
-    /// <summary>
-    /// Maps database weather record to current weather data model
-    /// </summary>
-    private static CurrentWeatherData MapToCurrentWeatherData(DavisVantageProConsoleRecordsNew record)
+    private static CurrentWeatherData MapToCurrentWeatherData(WeatherRaw record)
     {
         return new CurrentWeatherData
         {
-            RecordDateTime = record.RecordDateTime,
-            OutsideTemperature = record.OutsideTemperature,
-            OutsideHumidity = record.OutsideHumidity,
-            InsideTemperature = record.InsideTemperature,
-            InsideHumidity = record.InsideHumidity,
-            WindSpeed = record.WindSpeed,
-            WindDirection = record.WindDirection,
-            Barometer = record.Barometer,
-            BarometerTrend = record.BarometerTrend,
-            RainRate = record.RainRate,
-            DailyRainAmount = record.DailyRainAmount,
-            MonthlyRainAmount = record.MonthlyRainAmount,
-            YearlyRainAmount = record.YearlyRainAmount,
-            UvIndex = record.UvIndex,
-            SolarRadiation = record.SolarRadiation,
-            OutsideHeatIndex = record.OutsideHeatIndex,
-            OutsideWindChill = record.OutsideWindChill,
-            OutsideDewpoint = record.OutsideDewpoint,
-            SunriseTime = record.SunriseTime,
-            SunsetTime = record.SunsetTime
+            RecordDateTime = AsUtc(record.RecordedAt),
+            OutsideTemperature = (decimal?)record.TemperatureF,
+            OutsideHumidity = (decimal?)record.HumidityPercent,
+            WindSpeed = (decimal?)record.WindSpeedMph,
+            WindDirection = record.WindDirectionDegrees,
+            Barometer = (decimal?)record.BarometricPressureInHg,
+            UvIndex = (decimal?)record.UvIndex,
+            SolarRadiation = (decimal?)record.SolarRadiationWm2,
+            OutsideDewpoint = (decimal?)record.DewPointF
         };
     }
 
-    /// <summary>
-    /// Maps database highs/lows record to today's extremes data model
-    /// </summary>
-    private static TodaysExtremesData MapToTodaysExtremesData(WeatherRecordHighLowSummary summary)
+    private static async Task<TodaysExtremesData?> ReadTodaysExtremesAsync(
+        IQueryable<WeatherRaw> readings, CancellationToken cancellationToken)
     {
+        // UNION ALL of TOP(1) queries keeps the result bounded to twelve observations.
+        // Each extreme retains its acquisition time, ignores missing values, and picks
+        // the earliest observation when a value occurs more than once.
+        var extremes = await SelectExtremes(readings.Select(record => new ExtremeReading
+            { Value = record.TemperatureF, RecordedAt = record.RecordedAt, Direction = record.WindDirectionDegrees }), WeatherMetric.Temperature)
+            .Concat(SelectExtremes(readings.Select(record => new ExtremeReading
+                { Value = record.HumidityPercent, RecordedAt = record.RecordedAt, Direction = record.WindDirectionDegrees }), WeatherMetric.Humidity))
+            .Concat(SelectExtremes(readings.Select(record => new ExtremeReading
+                { Value = record.WindSpeedMph, RecordedAt = record.RecordedAt, Direction = record.WindDirectionDegrees }), WeatherMetric.WindSpeed))
+            .Concat(SelectExtremes(readings.Select(record => new ExtremeReading
+                { Value = record.BarometricPressureInHg, RecordedAt = record.RecordedAt, Direction = record.WindDirectionDegrees }), WeatherMetric.Barometer))
+            .Concat(SelectExtremes(readings.Select(record => new ExtremeReading
+                { Value = record.DewPointF, RecordedAt = record.RecordedAt, Direction = record.WindDirectionDegrees }), WeatherMetric.DewPoint))
+            .Concat(SelectExtremes(readings.Select(record => new ExtremeReading
+                { Value = record.SolarRadiationWm2, RecordedAt = record.RecordedAt, Direction = record.WindDirectionDegrees }), WeatherMetric.SolarRadiation, highOnly: true))
+            .Concat(SelectExtremes(readings.Select(record => new ExtremeReading
+                { Value = record.UvIndex, RecordedAt = record.RecordedAt, Direction = record.WindDirectionDegrees }), WeatherMetric.UvIndex, highOnly: true))
+            .ToListAsync(cancellationToken);
+
+        if (extremes.Count == 0)
+            return null;
+
+        ExtremeReading? Find(WeatherMetric metric, bool isHigh) =>
+            extremes.FirstOrDefault(reading => reading.Metric == metric && reading.IsHigh == isHigh);
+        decimal? Value(WeatherMetric metric, bool isHigh) => (decimal?)Find(metric, isHigh)?.Value;
+        DateTimeOffset? At(WeatherMetric metric, bool isHigh) =>
+            Find(metric, isHigh) is { } reading ? AsUtc(reading.RecordedAt) : null;
+
         return new TodaysExtremesData
         {
             OutsideTemperature = new TemperatureExtremes
             {
-                High = summary.OutsideTemperatureHigh,
-                HighTime = summary.OutsideTemperatureHighDateTime,
-                Low = summary.OutsideTemperatureLow,
-                LowTime = summary.OutsideTemperatureLowDateTime
-            },
-            InsideTemperature = new TemperatureExtremes
-            {
-                High = summary.InsideTemperatureHigh,
-                HighTime = summary.InsideTemperatureHighDateTime,
-                Low = summary.InsideTemperatureLow,
-                LowTime = summary.InsideTemperatureLowDateTime
+                High = Value(WeatherMetric.Temperature, true),
+                HighTime = At(WeatherMetric.Temperature, true),
+                Low = Value(WeatherMetric.Temperature, false),
+                LowTime = At(WeatherMetric.Temperature, false)
             },
             OutsideHumidity = new HumidityExtremes
             {
-                High = summary.OutsideHumidityHigh,
-                HighTime = summary.OutsideHumidityHighDateTime,
-                Low = summary.OutsideHumidityLow,
-                LowTime = summary.OutsideHumidityLowDateTime
-            },
-            InsideHumidity = new HumidityExtremes
-            {
-                High = summary.InsideHumidityHigh,
-                HighTime = summary.InsideHumidityHighDateTime,
-                Low = summary.InsideHumidityLow,
-                LowTime = summary.InsideHumidityLowDateTime
+                High = Value(WeatherMetric.Humidity, true),
+                HighTime = At(WeatherMetric.Humidity, true),
+                Low = Value(WeatherMetric.Humidity, false),
+                LowTime = At(WeatherMetric.Humidity, false)
             },
             WindSpeed = new WindSpeedExtremes
             {
-                High = summary.WindSpeedHigh,
-                HighTime = summary.WindSpeedHighDateTime,
-                HighDirection = summary.WindSpeedHighDirection,
-                Low = summary.WindSpeedLow,
-                LowTime = summary.WindSpeedLowDateTime,
-                LowDirection = summary.WindSpeedLowDirection
+                High = Value(WeatherMetric.WindSpeed, true),
+                HighTime = At(WeatherMetric.WindSpeed, true),
+                HighDirection = Find(WeatherMetric.WindSpeed, true)?.Direction,
+                Low = Value(WeatherMetric.WindSpeed, false),
+                LowTime = At(WeatherMetric.WindSpeed, false),
+                LowDirection = Find(WeatherMetric.WindSpeed, false)?.Direction
             },
             Barometer = new BarometerExtremes
             {
-                High = summary.BarometerHigh,
-                HighTime = summary.BarometerHighDateTime,
-                Low = summary.BarometerLow,
-                LowTime = summary.BarometerLowDateTime
-            },
-            HeatIndex = new TemperatureExtremes
-            {
-                High = summary.OutsideHeatIndexHigh,
-                HighTime = summary.OutsideHeatIndexHighDateTime,
-                Low = summary.OutsideHeatIndexLow,
-                LowTime = summary.OutsideHeatIndexLowDateTime
-            },
-            WindChill = new TemperatureExtremes
-            {
-                High = summary.OutsideWindChillHigh,
-                HighTime = summary.OutsideWindChillHighDateTime,
-                Low = summary.OutsideWindChillLow,
-                LowTime = summary.OutsideWindChillLowDateTime
+                High = Value(WeatherMetric.Barometer, true),
+                HighTime = At(WeatherMetric.Barometer, true),
+                Low = Value(WeatherMetric.Barometer, false),
+                LowTime = At(WeatherMetric.Barometer, false)
             },
             DewPoint = new TemperatureExtremes
             {
-                High = summary.OutsideDewpointHigh,
-                HighTime = summary.OutsideDewpointHighDateTime,
-                Low = summary.OutsideDewpointLow,
-                LowTime = summary.OutsideDewpointLowDateTime
+                High = Value(WeatherMetric.DewPoint, true),
+                HighTime = At(WeatherMetric.DewPoint, true),
+                Low = Value(WeatherMetric.DewPoint, false),
+                LowTime = At(WeatherMetric.DewPoint, false)
             },
             SolarRadiation = new SolarRadiationExtremes
             {
-                High = summary.SolarRadiationHigh,
-                HighTime = summary.SolarRadiationHighDateTime
+                High = Value(WeatherMetric.SolarRadiation, true),
+                HighTime = At(WeatherMetric.SolarRadiation, true)
             },
             UvIndex = new UVIndexExtremes
             {
-                High = summary.UVIndexHigh,
-                HighTime = summary.UVIndexHighDateTime
+                High = Value(WeatherMetric.UvIndex, true),
+                HighTime = At(WeatherMetric.UvIndex, true)
             }
         };
+    }
+
+    private static IQueryable<ExtremeReading> SelectExtremes(
+        IQueryable<ExtremeReading> readings, WeatherMetric metric, bool highOnly = false)
+    {
+        var available = readings.Where(reading => reading.Value != null);
+        var high = available.OrderByDescending(reading => reading.Value).ThenBy(reading => reading.RecordedAt)
+            .Take(1).Select(reading => new ExtremeReading
+            {
+                Metric = metric, IsHigh = true, Value = reading.Value,
+                RecordedAt = reading.RecordedAt, Direction = reading.Direction
+            });
+        if (highOnly)
+            return high;
+
+        return high.Concat(available.OrderBy(reading => reading.Value).ThenBy(reading => reading.RecordedAt)
+                .Take(1).Select(reading => new ExtremeReading
+                {
+                    Metric = metric, IsHigh = false, Value = reading.Value,
+                    RecordedAt = reading.RecordedAt, Direction = reading.Direction
+                }));
+    }
+
+    private static DateTimeOffset AsUtc(DateTime recordedAt) =>
+        new(DateTime.SpecifyKind(recordedAt, DateTimeKind.Utc));
+
+    private enum WeatherMetric { Temperature, Humidity, WindSpeed, Barometer, DewPoint, SolarRadiation, UvIndex }
+
+    private sealed class ExtremeReading
+    {
+        public WeatherMetric Metric { get; init; }
+        public bool IsHigh { get; init; }
+        public double? Value { get; init; }
+        public DateTime RecordedAt { get; init; }
+        public int? Direction { get; init; }
     }
 }
 

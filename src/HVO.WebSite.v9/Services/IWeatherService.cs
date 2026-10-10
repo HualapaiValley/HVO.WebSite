@@ -26,6 +26,6 @@ public interface IWeatherService
     /// Gets current weather conditions including today's highs and lows
     /// </summary>
     /// <returns>Result containing comprehensive current weather data or error information</returns>
-    Task<Result<CurrentWeatherResponse>> GetCurrentWeatherConditionsAsync();
+    Task<Result<CurrentWeatherResponse>> GetCurrentWeatherConditionsAsync(CancellationToken cancellationToken = default);
 }
 

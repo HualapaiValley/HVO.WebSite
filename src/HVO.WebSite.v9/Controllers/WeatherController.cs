@@ -125,34 +125,34 @@ namespace HVO.WebSite.v9.Controllers
         }
 
         /// <summary>
-        /// Gets current weather conditions including today's highs and lows
+        /// Gets public current weather conditions including today's highs and lows
         /// </summary>
         /// <returns>Current weather conditions combined with today's extremes in a single response</returns>
         /// <remarks>
         /// This endpoint provides the most comprehensive weather information by combining:
         /// - Current weather conditions (temperature, humidity, wind, pressure, etc.)
         /// - Today's high and low values with timestamps
-        /// - All weather parameters including heat index, wind chill, dew point
+        /// - Available live weather parameters, including dew point
         /// - Solar radiation and UV index data
         /// 
-        /// This is the recommended endpoint for most weather applications.
+        /// Reads live gateway observations from v9.WeatherRaw. Parameters not persisted
+        /// there are null. Today's extremes use the server's local day and the same station
+        /// as the latest observation. No API key is required.
         /// </remarks>
         /// <response code="200">Returns current weather conditions with today's highs and lows</response>
-        /// <response code="401">Missing or invalid API key.</response>
-        /// <response code="403">API key does not have the read:weather or read:api scope.</response>
+        /// <response code="401">An optional API key was supplied but is invalid.</response>
         /// <response code="404">No current weather data available</response>
         /// <response code="500">Internal server error occurred while retrieving weather data</response>
         [HttpGet("current")]
-        [Authorize(Policy = "WeatherRead")]
+        [AllowAnonymous]
         [ProducesResponseType(typeof(CurrentWeatherResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
         [Produces("application/json")]
-        public async Task<ActionResult<CurrentWeatherResponse>> GetCurrentWeatherConditions()
+        public async Task<ActionResult<CurrentWeatherResponse>> GetCurrentWeatherConditions(CancellationToken cancellationToken = default)
         {
-            var result = await _weatherService.GetCurrentWeatherConditionsAsync();
+            var result = await _weatherService.GetCurrentWeatherConditionsAsync(cancellationToken);
             
             return result.Match(
                 success: data => Ok(data),
