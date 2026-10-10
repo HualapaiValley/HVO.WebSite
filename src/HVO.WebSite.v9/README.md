@@ -37,6 +37,18 @@ Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET C
 | `GET`  | `/api/v1/weather/current` | API key `read:weather` or `read:api` | Current conditions with today's highs/lows |
 | `GET`  | `/api/v1/weather/highs-lows` | API key `read:weather` or `read:api` | Highs/lows for a date range |
 
+`/api/v1/weather/current` reads the newest live gateway observation from `v9.WeatherRaw`.
+Its response keeps the existing `current` and `todaysExtremes` fields. Daily extremes are
+computed from observations for the same station during the server's local day (UTC in
+the production container), with observation timestamps returned as UTC instants. Missing
+measurements remain `null`; indoor readings, pressure trend, rain totals/rate, heat index,
+wind chill, and sunrise/sunset are not stored in `WeatherRaw`. Raw `rainfallInches` is not
+used as a substitute for daily rainfall. If the newest observation is from an earlier
+day, its acquisition timestamp is preserved and `todaysExtremes` is `null`. An empty
+live table returns 404.
+
+`/weather/latest` and `/weather/highs-lows` still use the legacy weather database objects.
+
 ### BMS ingest
 
 | Method | Route | Auth | Description |
