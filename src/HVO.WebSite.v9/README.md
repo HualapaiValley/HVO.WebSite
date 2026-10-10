@@ -34,10 +34,13 @@ Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET C
 | `GET`  | `/api/v1/weather/raw/recent` | API key `read:weather` or `read:api` | Recent raw readings (paginated, default 100) |
 | `GET`  | `/api/v1/weather/hourly/recent` | API key `read:weather` or `read:api` | Recent hourly aggregates (paginated, default 24) |
 | `GET`  | `/api/v1/weather/latest` | API key `read:weather` or `read:api` | Latest weather record |
-| `GET`  | `/api/v1/weather/current` | API key `read:weather` or `read:api` | Current conditions with today's highs/lows |
+| `GET`  | `/api/v1/weather/current` | Anonymous | Live current conditions with today's highs/lows |
 | `GET`  | `/api/v1/weather/highs-lows` | API key `read:weather` or `read:api` | Highs/lows for a date range |
 
 `/api/v1/weather/current` reads the newest live gateway observation from `v9.WeatherRaw`.
+Clients can request `https://www.hualapaivalleyobservatory.org/api/v1/weather/current`
+without an API key. Other weather read and ingest endpoints retain their API-key policies.
+If an optional `X-Api-Key` header is supplied, it must contain a valid active key.
 Its response keeps the existing `current` and `todaysExtremes` fields. Daily extremes are
 computed from observations for the same station during the server's local day (UTC in
 the production container), with observation timestamps returned as UTC instants. Missing

@@ -52,7 +52,7 @@ public sealed class WeatherApiEndpointsTests
         using var client = CreateClient(factory);
         client.DefaultRequestHeaders.Add("X-Api-Key", InvalidPlaintext);
 
-        foreach (var path in WeatherReadPaths())
+        foreach (var path in WeatherReadPaths().Append("/api/v1/weather/current"))
         {
             var response = await client.GetAsync(path);
 
@@ -74,6 +74,9 @@ public sealed class WeatherApiEndpointsTests
 
             response.StatusCode.Should().Be(HttpStatusCode.Forbidden, path);
         }
+
+        var publicResponse = await client.GetAsync("/api/v1/weather/current");
+        publicResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [TestMethod]
@@ -88,7 +91,7 @@ public sealed class WeatherApiEndpointsTests
             client.DefaultRequestHeaders.Remove("X-Api-Key");
             client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
 
-            foreach (var path in WeatherReadPaths())
+            foreach (var path in WeatherReadPaths().Append("/api/v1/weather/current"))
             {
                 var response = await client.GetAsync(path);
 
@@ -116,7 +119,7 @@ public sealed class WeatherApiEndpointsTests
     }
 
     [TestMethod]
-    public async Task CurrentEndpoint_ReturnsLiveIngestedWeather_UsingRealWeatherService()
+    public async Task CurrentEndpoint_ReturnsLiveIngestedWeather_WithoutApiKey()
     {
         using var factory = new TestWebApplicationFactory(useRealWeatherService: true);
         await factory.SeedApiKeysAsync();
@@ -131,7 +134,6 @@ public sealed class WeatherApiEndpointsTests
         });
         ingest.StatusCode.Should().Be(HttpStatusCode.Created);
         client.DefaultRequestHeaders.Remove("X-Api-Key");
-        client.DefaultRequestHeaders.Add("X-Api-Key", ReadPlaintext);
 
         var response = await client.GetAsync("/api/v1/weather/current");
 
@@ -144,6 +146,23 @@ public sealed class WeatherApiEndpointsTests
         payload.Current.WindSpeed.Should().Be(15);
         payload.TodaysExtremes!.OutsideTemperature.High.Should().Be(84.7m);
         payload.TodaysExtremes.OutsideTemperature.Low.Should().Be(84.7m);
+
+        var anonymousIngest = await client.PostAsJsonAsync("/api/v1/weather/raw", new IngestWeatherRawRequest
+        {
+            StationId = "hvo-davis-01", RecordedAt = recordedAt.AddMinutes(1), TemperatureF = 90
+        });
+        anonymousIngest.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [TestMethod]
+    public async Task CurrentEndpoint_Returns404WithoutApiKey_WhenNoObservationsExist()
+    {
+        using var factory = new TestWebApplicationFactory(useRealWeatherService: true);
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync("/api/v1/weather/current");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [TestMethod]
@@ -196,7 +215,8 @@ public sealed class WeatherApiEndpointsTests
     [
         "/api/v1/weather/latest",
         "/api/v1/weather/highs-lows",
-        "/api/v1/weather/current"
+        "/api/v1/weather/raw/recent",
+        "/api/v1/weather/hourly/recent"
     ];
 
     private sealed class TestWebApplicationFactory(bool useRealWeatherService = false) : WebApplicationFactory<Program>
