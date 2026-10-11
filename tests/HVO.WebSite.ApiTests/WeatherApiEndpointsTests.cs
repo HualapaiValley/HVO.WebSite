@@ -52,7 +52,7 @@ public sealed class WeatherApiEndpointsTests
         using var client = CreateClient(factory);
         client.DefaultRequestHeaders.Add("X-Api-Key", InvalidPlaintext);
 
-        foreach (var path in WeatherReadPaths().Append("/api/v1/weather/current"))
+        foreach (var path in WeatherReadPaths().Concat(PublicHistoryPaths()).Append("/api/v1/weather/current"))
         {
             var response = await client.GetAsync(path);
 
@@ -91,7 +91,7 @@ public sealed class WeatherApiEndpointsTests
             client.DefaultRequestHeaders.Remove("X-Api-Key");
             client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
 
-            foreach (var path in WeatherReadPaths().Append("/api/v1/weather/current"))
+            foreach (var path in WeatherReadPaths().Concat(PublicHistoryPaths()).Append("/api/v1/weather/current"))
             {
                 var response = await client.GetAsync(path);
 
@@ -180,6 +180,68 @@ public sealed class WeatherApiEndpointsTests
     }
 
     [TestMethod]
+    public async Task PublicHistory_ReturnsRealIngestedObservationsWithoutKey_AndIngestRemainsProtected()
+    {
+        using var factory = new TestWebApplicationFactory(useRealWeatherService: true);
+        await factory.SeedApiKeysAsync();
+        using var client = CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
+        foreach (var (minutes, temperature) in new[] { (10, 70d), (5, 90d) })
+        {
+            var posted = await client.PostAsJsonAsync("/api/v1/weather/raw", new IngestWeatherRawRequest
+            {
+                StationId = "davis-history", RecordedAt = new DateTime(2026, 10, 10, 21, 0, 0, DateTimeKind.Utc).AddMinutes(-minutes),
+                TemperatureF = temperature
+            });
+            posted.StatusCode.Should().Be(HttpStatusCode.Created);
+        }
+        client.DefaultRequestHeaders.Remove("X-Api-Key");
+        var query = "?stationId=davis-history&start=2026-10-10T13%3A00%3A00-07%3A00&end=2026-10-10T21%3A00%3A00Z";
+        var raw = await client.GetAsync("/api/v1/weather/raw/recent" + query);
+        raw.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await raw.Content.ReadFromJsonAsync<List<WeatherRawResponse>>())!.Select(row => row.TemperatureF).Should().Equal(90, 70);
+        var hourly = await client.GetAsync("/api/v1/weather/hourly/recent" + query);
+        hourly.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await hourly.Content.ReadFromJsonAsync<List<WeatherHourlyResponse>>())!.Should().ContainSingle().Which.AvgTemperatureF.Should().Be(80);
+        var extremes = await client.GetAsync("/api/v1/weather/highs-lows" + query);
+        extremes.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await extremes.Content.ReadFromJsonAsync<WeatherHighsLowsResponse>())!.Data.OutsideTemperatureHigh.Should().Be(90);
+        foreach (var path in PublicHistoryPaths())
+            (await client.GetAsync(path + "?stationId=davis-history")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.PostAsJsonAsync("/api/v1/weather/raw", new IngestWeatherRawRequest
+            { StationId = "davis-history", TemperatureF = 99 })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [TestMethod]
+    [DataRow("?start=2026-10-09T00:00:00Z&end=2026-10-10T00:00:00.0000001Z")]
+    [DataRow("?start=2026-10-10T00:00:00Z&end=2026-10-09T00:00:00Z")]
+    [DataRow("?start=2026-10-10T00:00:00Z&end=2026-10-10T00:00:00Z")]
+    [DataRow("?start=invalid-date")]
+    [DataRow("?end=invalid-date")]
+    [DataRow("?start=9999-12-31T23:59:59Z")]
+    [DataRow("?end=0001-01-01T00:00:00Z")]
+    public async Task PublicHistory_Returns400ForInvalidWindowsWithoutKey(string query)
+    {
+        using var factory = new TestWebApplicationFactory(useRealWeatherService: true);
+        using var client = CreateClient(factory);
+        foreach (var path in PublicHistoryPaths())
+            (await client.GetAsync(path + query)).StatusCode.Should().Be(HttpStatusCode.BadRequest, path);
+    }
+
+    [TestMethod]
+    public async Task HighsLows_AcceptsLegacyDateAliasesAndRejectsConflicts()
+    {
+        using var factory = new TestWebApplicationFactory();
+        using var client = CreateClient(factory);
+        (await client.GetAsync("/api/v1/weather/highs-lows?startDate=2026-10-10T00:00:00Z&endDate=2026-10-11T00:00:00Z"))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.GetAsync("/api/v1/weather/highs-lows?startDate=2026-10-09T00:00:00Z&endDate=2026-10-11T00:00:00Z"))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await client.GetAsync("/api/v1/weather/highs-lows?start=2026-10-10T00:00:00Z&startDate=2026-10-10T01:00:00Z"))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [TestMethod]
     public async Task ArchiveBatch_ReturnsPerRecordFailuresInsteadOfApiControllerShortCircuit()
     {
         using var factory = new TestWebApplicationFactory();
@@ -213,7 +275,11 @@ public sealed class WeatherApiEndpointsTests
 
     private static string[] WeatherReadPaths() =>
     [
-        "/api/v1/weather/latest",
+        "/api/v1/weather/latest"
+    ];
+
+    private static string[] PublicHistoryPaths() =>
+    [
         "/api/v1/weather/highs-lows",
         "/api/v1/weather/raw/recent",
         "/api/v1/weather/hourly/recent"
@@ -347,7 +413,8 @@ public sealed class WeatherApiEndpointsTests
             return Task.FromResult(Result<LatestWeatherResponse>.Success(response));
         }
 
-        public Task<Result<WeatherHighsLowsResponse>> GetWeatherHighsLowsAsync(DateTimeOffset? startDate, DateTimeOffset? endDate)
+        public Task<Result<WeatherHighsLowsResponse>> GetWeatherHighsLowsAsync(DateTimeOffset? startDate, DateTimeOffset? endDate,
+            string? stationId = null, CancellationToken cancellationToken = default)
             => Task.FromResult(Result<WeatherHighsLowsResponse>.Success(new WeatherHighsLowsResponse()));
 
         public Task<Result<CurrentWeatherResponse>> GetCurrentWeatherConditionsAsync(CancellationToken cancellationToken = default)

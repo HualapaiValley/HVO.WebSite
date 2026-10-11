@@ -5,6 +5,7 @@ using HVO.DataModels.Data;
 using HVO.DataModels.Models.V9;
 using HVO.WebSite.v9.Infrastructure;
 using HVO.WebSite.v9.Models;
+using HVO.WebSite.v9.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -15,7 +16,7 @@ namespace HVO.WebSite.v9.Controllers;
 /// <summary>
 /// Weather ingest API — ingest raw readings from station devices and read recent data.
 /// All ingest endpoints require the <c>ingest:weather</c> scope claim.
-/// All read endpoints require the <c>read:weather</c> or <c>read:api</c> scope claim.
+/// History reads are public and bounded to a positive window of at most 24 hours.
 /// </summary>
 [ApiController]
 [ApiVersion("1.0")]
@@ -357,67 +358,115 @@ public class WeatherIngestController : ControllerBase
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Returns the most recent raw weather observations.
+    /// Returns public, paged raw weather observations within at most 24 hours.
     /// </summary>
     /// <param name="stationId">Filter by station ID (optional).</param>
     /// <param name="limit">Maximum number of records to return (1–500, default 100).</param>
+    /// <param name="start">Inclusive start; defaults to 24 hours before end.</param>
+    /// <param name="end">Exclusive end; defaults to now or 24 hours after start.</param>
+    /// <param name="before">Exclusive timestamp cursor, paired with beforeId.</param>
+    /// <param name="beforeId">Exclusive ID tie-breaker, paired with before.</param>
+    /// <param name="ct">Request cancellation.</param>
     /// <response code="200">Returns a list of raw observations, newest first.</response>
     /// <response code="401">Missing or invalid API key.</response>
-    /// <response code="403">API key does not have the read:weather scope.</response>
+    /// <response code="400">Invalid date window, limit or cursor.</response>
     [HttpGet("raw/recent")]
-    [Authorize(Policy = "WeatherRead")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IReadOnlyList<WeatherRawResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [Produces("application/json")]
     public async Task<ActionResult<IReadOnlyList<WeatherRawResponse>>> GetRecentRaw(
-        [FromQuery] string? stationId,
+        [FromQuery][MaxLength(64)] string? stationId,
         [FromQuery][Range(1, 500)] int limit = 100,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        [FromQuery] DateTimeOffset? start = null,
+        [FromQuery] DateTimeOffset? end = null,
+        [FromQuery] DateTimeOffset? before = null,
+        [FromQuery] long? beforeId = null)
     {
-        var query = _db.WeatherRaw.AsQueryable();
+        WeatherHistoryRange range;
+        try
+        {
+            range = WeatherHistoryRange.Create(start, end, _clock);
+            if (limit is < 1 or > 500)
+                throw new ArgumentException("The raw limit must be between 1 and 500.");
+            if (before.HasValue != beforeId.HasValue || beforeId <= 0
+                || before.HasValue && (before.Value < range.Start || before.Value >= range.End))
+                throw new ArgumentException("Paging requires before and a positive beforeId within the requested window.");
+        }
+        catch (ArgumentException error)
+        {
+            return Problem(title: "Invalid Weather Query", detail: error.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+        var startUtc = range.Start.UtcDateTime;
+        var endUtc = range.End.UtcDateTime;
+        var query = _db.WeatherRaw.AsNoTracking().Where(row => row.RecordedAt >= startUtc && row.RecordedAt < endUtc);
 
         if (!string.IsNullOrWhiteSpace(stationId))
             query = query.Where(r => r.StationId == stationId);
 
+        if (before.HasValue)
+        {
+            var beforeUtc = before.Value.UtcDateTime;
+            query = query.Where(row => row.RecordedAt < beforeUtc || row.RecordedAt == beforeUtc && row.Id < beforeId);
+        }
+
         var records = await query
-            .OrderByDescending(r => r.RecordedAt)
-            .Take(limit)
+            .OrderByDescending(r => r.RecordedAt).ThenByDescending(r => r.Id)
+            .Take(limit + 1)
             .ToListAsync(ct);
 
-        return Ok(records.Select(MapToResponse).ToList());
+        Response.Headers["X-Weather-Start"] = range.Start.ToString("O");
+        Response.Headers["X-Weather-End"] = range.End.ToString("O");
+        if (records.Count > limit)
+        {
+            var last = records[limit - 1];
+            Response.Headers["X-Weather-Next-Before"] = new DateTimeOffset(DateTime.SpecifyKind(last.RecordedAt, DateTimeKind.Utc)).ToString("O");
+            Response.Headers["X-Weather-Next-Before-Id"] = last.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        return Ok(records.Take(limit).Select(MapToResponse).ToList());
     }
 
     /// <summary>
-    /// Returns recent hourly weather summaries.
+    /// Aggregates public hourly summaries from raw observations within at most 24 hours.
     /// </summary>
     /// <param name="stationId">Filter by station ID (optional).</param>
-    /// <param name="limit">Maximum number of records to return (1–168, default 24).</param>
+    /// <param name="limit">Maximum number of records to return (1–168, default 25).</param>
+    /// <param name="start">Inclusive start; defaults to 24 hours before end.</param>
+    /// <param name="end">Exclusive end; defaults to now or 24 hours after start.</param>
+    /// <param name="ct">Request cancellation.</param>
     /// <response code="200">Returns a list of hourly summaries, newest first.</response>
     /// <response code="401">Missing or invalid API key.</response>
-    /// <response code="403">API key does not have the read:weather scope.</response>
+    /// <response code="400">Invalid date window or limit.</response>
     [HttpGet("hourly/recent")]
-    [Authorize(Policy = "WeatherRead")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IReadOnlyList<WeatherHourlyResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [Produces("application/json")]
     public async Task<ActionResult<IReadOnlyList<WeatherHourlyResponse>>> GetRecentHourly(
-        [FromQuery] string? stationId,
-        [FromQuery][Range(1, 168)] int limit = 24,
-        CancellationToken ct = default)
+        [FromQuery][MaxLength(64)] string? stationId,
+        [FromQuery][Range(1, 168)] int limit = 25,
+        CancellationToken ct = default,
+        [FromQuery] DateTimeOffset? start = null,
+        [FromQuery] DateTimeOffset? end = null)
     {
-        var query = _db.WeatherHourly.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(stationId))
-            query = query.Where(r => r.StationId == stationId);
-
-        var records = await query
-            .OrderByDescending(r => r.PeriodStart)
-            .Take(limit)
-            .ToListAsync(ct);
-
-        return Ok(records.Select(MapToHourlyResponse).ToList());
+        WeatherHistoryRange range;
+        try
+        {
+            range = WeatherHistoryRange.Create(start, end, _clock);
+            if (limit is < 1 or > 168)
+                throw new ArgumentException("The hourly limit must be between 1 and 168.");
+        }
+        catch (ArgumentException error)
+        {
+            return Problem(title: "Invalid Weather Query", detail: error.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+        var summaries = await WeatherHourlyHistory.ReadAsync(_db, range, stationId, limit, ct);
+        Response.Headers["X-Weather-Start"] = range.Start.ToString("O");
+        Response.Headers["X-Weather-End"] = range.End.ToString("O");
+        return Ok(summaries);
     }
 
     // -------------------------------------------------------------------------
@@ -436,7 +485,7 @@ public class WeatherIngestController : ControllerBase
     {
         Id = r.Id,
         StationId = r.StationId,
-        RecordedAt = r.RecordedAt,
+        RecordedAt = DateTime.SpecifyKind(r.RecordedAt, DateTimeKind.Utc),
         TemperatureF = r.TemperatureF,
         HumidityPercent = r.HumidityPercent,
         DewPointF = r.DewPointF,

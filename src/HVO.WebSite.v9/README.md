@@ -31,15 +31,16 @@ Main observatory dashboard for Hualapai Valley Observatory. Built with ASP.NET C
 |--------|-------|------|-------------|
 | `POST` | `/api/v1/weather/raw` | API key `ingest:weather` | Ingest a single raw weather reading |
 | `POST` | `/api/v1/weather/raw/batch` | API key `ingest:weather` | Ingest a batch of raw readings (idempotent) |
-| `GET`  | `/api/v1/weather/raw/recent` | API key `read:weather` or `read:api` | Recent raw readings (paginated, default 100) |
-| `GET`  | `/api/v1/weather/hourly/recent` | API key `read:weather` or `read:api` | Recent hourly aggregates (paginated, default 24) |
+| `GET`  | `/api/v1/weather/raw/recent` | Anonymous | Raw history within 24 hours (default 100, maximum 500 per page) |
+| `GET`  | `/api/v1/weather/hourly/recent` | Anonymous | Hourly aggregates within 24 hours (default 25, maximum 168) |
 | `GET`  | `/api/v1/weather/latest` | API key `read:weather` or `read:api` | Latest weather record |
 | `GET`  | `/api/v1/weather/current` | Anonymous | Live current conditions with today's highs/lows |
-| `GET`  | `/api/v1/weather/highs-lows` | API key `read:weather` or `read:api` | Highs/lows for a date range |
+| `GET`  | `/api/v1/weather/highs-lows` | Anonymous | Highs/lows within a positive date range of at most 24 hours |
 
 `/api/v1/weather/current` reads the newest live gateway observation from `v9.WeatherRaw`.
 Clients can request `https://www.hualapaivalleyobservatory.org/api/v1/weather/current`
-without an API key. Other weather read and ingest endpoints retain their API-key policies.
+without an API key. Raw history, hourly history and highs/lows are also public;
+`/weather/latest` and weather ingest retain their API-key policies.
 If an optional `X-Api-Key` header is supplied, it must contain a valid active key.
 Its response keeps the existing `current` and `todaysExtremes` fields. Daily extremes are
 computed from observations for the same station during the server's local day (UTC in
@@ -50,7 +51,9 @@ used as a substitute for daily rainfall. If the newest observation is from an ea
 day, its acquisition timestamp is preserved and `todaysExtremes` is `null`. An empty
 live table returns 404.
 
-`/weather/latest` and `/weather/highs-lows` still use the legacy weather database objects.
+`/weather/latest` still uses legacy weather database objects. The public history endpoints
+read current `v9.WeatherRaw`; see [public weather history](../../docs/development/public-weather-history.md)
+for dates, paging, hourly aggregation and missing-data semantics.
 
 ### BMS ingest
 

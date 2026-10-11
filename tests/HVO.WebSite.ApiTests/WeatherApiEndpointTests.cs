@@ -148,13 +148,13 @@ public sealed class WeatherApiEndpointTests
     }
 
     [TestMethod]
-    public async Task GetRecentRaw_Returns403_WhenKeyHasIngestScopeOnly()
+    public async Task GetRecentRaw_Returns200_WhenKeyHasIngestScopeOnly()
     {
         _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
 
         var response = await _client.GetAsync("/api/v1/weather/raw/recent");
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [TestMethod]
@@ -188,13 +188,13 @@ public sealed class WeatherApiEndpointTests
     }
 
     [TestMethod]
-    public async Task GetRecentHourly_Returns403_WhenKeyHasIngestScopeOnly()
+    public async Task GetRecentHourly_Returns200_WhenKeyHasIngestScopeOnly()
     {
         _client.DefaultRequestHeaders.Add("X-Api-Key", IngestPlaintext);
 
         var response = await _client.GetAsync("/api/v1/weather/hourly/recent");
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     // -------------------------------------------------------------------------

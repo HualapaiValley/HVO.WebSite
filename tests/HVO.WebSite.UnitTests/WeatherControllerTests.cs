@@ -60,4 +60,18 @@ public class WeatherControllerTests
         details.Should().NotBeNull();
         details!.Title.Should().Be("Weather Data Not Found");
     }
+
+    [TestMethod]
+    public async Task HighsLows_DatabaseFailureReturns500WithSanitizedDetails()
+    {
+        var service = new Mock<IWeatherService>();
+        service.Setup(value => value.GetWeatherHighsLowsAsync(
+                It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new InvalidOperationException("Private provider failure"));
+        var controller = new WeatherController(service.Object, NullLogger<WeatherController>.Instance);
+        var action = await controller.GetWeatherHighsLows();
+        var result = action.Result.Should().BeOfType<ObjectResult>().Which;
+        result.StatusCode.Should().Be(500);
+        result.Value.Should().BeOfType<ProblemDetails>().Which.Detail.Should().NotContain("Private provider failure");
+    }
 }

@@ -34,12 +34,12 @@ public class WeatherV9ControllerTests
             TemperatureF = tempF
         };
 
-    private static WeatherHourly MakeHourly(string stationId, DateTime periodStart) =>
+    private static WeatherRaw MakeHourly(string stationId, DateTime periodStart) =>
         new()
         {
             StationId = stationId,
-            PeriodStart = periodStart,
-            AvgTemperatureF = 68.0
+            RecordedAt = periodStart,
+            TemperatureF = 68.0
         };
 
     // -------------------------------------------------------------------------
@@ -201,7 +201,7 @@ public class WeatherV9ControllerTests
     {
         await using var db = CreateDbContext(nameof(GetRecentHourly_ReturnsRecords_OrderedNewestFirst));
         var now = DateTime.UtcNow;
-        db.WeatherHourly.AddRange(
+        db.WeatherRaw.AddRange(
             MakeHourly("hvo-01", now.AddHours(-3)),
             MakeHourly("hvo-01", now.AddHours(-2)),
             MakeHourly("hvo-01", now.AddHours(-1)));
@@ -224,7 +224,7 @@ public class WeatherV9ControllerTests
     {
         await using var db = CreateDbContext(nameof(GetRecentHourly_FiltersByStationId));
         var now = DateTime.UtcNow;
-        db.WeatherHourly.AddRange(
+        db.WeatherRaw.AddRange(
             MakeHourly("hvo-01", now.AddHours(-2)),
             MakeHourly("hvo-02", now.AddHours(-1)),
             MakeHourly("hvo-01", now));
@@ -243,7 +243,7 @@ public class WeatherV9ControllerTests
     {
         await using var db = CreateDbContext(nameof(GetRecentHourly_RespectsLimit));
         var now = DateTime.UtcNow;
-        db.WeatherHourly.AddRange(Enumerable.Range(0, 24)
+        db.WeatherRaw.AddRange(Enumerable.Range(0, 24)
             .Select(i => MakeHourly("hvo-01", now.AddHours(-i))));
         await db.SaveChangesAsync();
 
@@ -259,28 +259,27 @@ public class WeatherV9ControllerTests
     {
         await using var db = CreateDbContext(nameof(GetRecentHourly_MapsAllFields_Correctly));
         var now = new DateTime(2026, 4, 27, 12, 0, 0, DateTimeKind.Utc);
-        db.WeatherHourly.Add(new WeatherHourly
+        db.WeatherRaw.AddRange(new WeatherRaw
         {
             StationId = "hvo-01",
-            PeriodStart = now,
-            AvgTemperatureF = 68.4,
-            MinTemperatureF = 64.1,
-            MaxTemperatureF = 72.8,
-            AvgHumidityPercent = 35.0,
-            AvgWindSpeedMph = 7.2,
-            MaxWindGustMph = 14.0,
-            DominantWindDirectionDegrees = 270,
-            TotalRainfallInches = 0.0,
-            AvgSolarRadiationWm2 = 512.0,
-            MaxUvIndex = 3.2
-        });
+            RecordedAt = now,
+            TemperatureF = 64.1,
+            HumidityPercent = 35.0,
+            WindSpeedMph = 7.2,
+            WindGustMph = 14.0,
+            WindDirectionDegrees = 270,
+            RainfallInches = 0.0,
+            SolarRadiationWm2 = 512.0,
+            UvIndex = 3.2
+        }, new WeatherRaw { StationId = "hvo-01", RecordedAt = now.AddMinutes(1), TemperatureF = 72.8 });
         await db.SaveChangesAsync();
 
         var controller = CreateController(db);
-        var action = await controller.GetRecentHourly(null, 1, CancellationToken.None);
+        var action = await controller.GetRecentHourly(null, 1, CancellationToken.None,
+            start: new DateTimeOffset(now), end: new DateTimeOffset(now.AddHours(1)));
 
         var record = ((action.Result as OkObjectResult)!.Value as IReadOnlyList<WeatherHourlyResponse>)![0];
-        record.AvgTemperatureF.Should().Be(68.4);
+        record.AvgTemperatureF.Should().BeApproximately(68.45, .00001);
         record.MinTemperatureF.Should().Be(64.1);
         record.MaxTemperatureF.Should().Be(72.8);
         record.MaxWindGustMph.Should().Be(14.0);

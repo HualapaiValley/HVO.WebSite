@@ -28,6 +28,55 @@ public sealed class V9WeatherIngestQueryTests
     private static readonly DateTime At = new(2026, 8, 12, 17, 30, 0, DateTimeKind.Utc);
 
     [TestMethod]
+    public async Task PublicHistory_ExecutesHourlyAndExtremesAgainstSqlServerWithoutLegacyObjects()
+    {
+        await using var database = await SqlServerDatabase.CreateAsync();
+        await using (var db = database.CreateContext())
+        {
+            await db.Database.MigrateAsync();
+            db.WeatherRaw.AddRange(
+                new WeatherRaw { StationId = "davis-history", RecordedAt = At.AddTicks(-1), TemperatureF = -999 },
+                new WeatherRaw { StationId = "davis-history", RecordedAt = At, TemperatureF = 70, WindDirectionDegrees = 359, UvIndex = 1.5 },
+                new WeatherRaw { StationId = "davis-history", RecordedAt = At.AddMinutes(1), TemperatureF = null, WindDirectionDegrees = 1 },
+                new WeatherRaw { StationId = "davis-history", RecordedAt = At.AddMinutes(2), TemperatureF = 90, WindDirectionDegrees = 1, UvIndex = 3.5 },
+                new WeatherRaw { StationId = "davis-history", RecordedAt = At.AddMinutes(30), TemperatureF = null },
+                new WeatherRaw { StationId = "davis-history", RecordedAt = At.AddHours(1), TemperatureF = 999 },
+                new WeatherRaw { StationId = "other", RecordedAt = At, TemperatureF = 999 });
+            await db.SaveChangesAsync();
+        }
+        var clock = new ManualClock { Now = new DateTimeOffset(At.AddHours(1)) };
+        using var application = new WeatherApplication(database, clock);
+        using var client = application.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var query = $"?stationId=davis-history&start={Uri.EscapeDataString(new DateTimeOffset(At).ToString("O"))}&end={Uri.EscapeDataString(clock.Now.ToString("O"))}";
+        using var hourly = await client.GetAsync("/api/v1/weather/hourly/recent" + query);
+        hourly.StatusCode.Should().Be(HttpStatusCode.OK);
+        var hours = (await hourly.Content.ReadFromJsonAsync<List<WeatherHourlyResponse>>())!;
+        hours.Should().HaveCount(2);
+        hours[0].AvgTemperatureF.Should().BeNull();
+        hours[1].AvgTemperatureF.Should().Be(80);
+        hours[1].DominantWindDirectionDegrees.Should().Be(1);
+        hours.Should().OnlyContain(row => row.TotalRainfallInches == null);
+        using var extremes = await client.GetAsync("/api/v1/weather/highs-lows" + query);
+        extremes.StatusCode.Should().Be(HttpStatusCode.OK);
+        var summary = (await extremes.Content.ReadFromJsonAsync<WeatherHighsLowsResponse>())!;
+        summary.Data.OutsideTemperatureHigh.Should().Be(90);
+        summary.Data.OutsideTemperatureHighDateTime.Should().Be(new DateTimeOffset(At.AddMinutes(2)));
+        summary.Data.OutsideTemperatureLow.Should().Be(70);
+        summary.Data.UVIndexHigh.Should().Be(3.5m);
+        summary.Data.InsideTemperatureHighDateTime.Should().BeNull();
+        using var raw = await client.GetAsync("/api/v1/weather/raw/recent" + query + "&limit=2");
+        raw.StatusCode.Should().Be(HttpStatusCode.OK);
+        var first = (await raw.Content.ReadFromJsonAsync<List<WeatherRawResponse>>())!;
+        first.Select(row => row.TemperatureF).Should().Equal(null, 90);
+        var nextQuery = query + "&limit=2&before=" + Uri.EscapeDataString(raw.Headers.GetValues("X-Weather-Next-Before").Single())
+            + "&beforeId=" + raw.Headers.GetValues("X-Weather-Next-Before-Id").Single();
+        using var next = await client.GetAsync("/api/v1/weather/raw/recent" + nextQuery);
+        next.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await next.Content.ReadFromJsonAsync<List<WeatherRawResponse>>())!.Select(row => row.TemperatureF).Should().Equal(null, 70);
+        next.Headers.Contains("X-Weather-Next-Before").Should().BeFalse();
+    }
+
+    [TestMethod]
     [DataRow(null)]
     [DataRow("20260528073744_AddGatewayStatusSnapshots")]
     [DataRow("20260812031452_AddSmartShuntDetailSnapshots")]

@@ -2,9 +2,12 @@
 
 New website features should inject `IV9WeatherQueryService`. It reads only
 `HvoV9DbContext.WeatherRaw` and `WeatherArchive`, where the Davis outbox currently
-sends its canonical observations. `IWeatherService` remains the legacy API boundary.
-Registering the new service does not redirect, retire or change any existing route.
-There is no new public HTTP endpoint or change to read/ingest authorization.
+sends its canonical observations. `IWeatherService` retains the existing API response
+boundary; current weather and public highs/lows now read v9 raw observations while
+the legacy latest endpoint is unchanged. [Public weather history](public-weather-history.md)
+documents the anonymous HTTP endpoints' separate 24-hour limit and hourly aggregation.
+Registering the internal query service does not itself change public routes or
+authorization; the explicit public-history controller changes are documented separately.
 
 ## Service scope and concurrency
 
@@ -20,12 +23,12 @@ than the service for the circuit. Do not overlap calls on the same service insta
 | Boundary | Source and current repository consumer | Decision |
 |---|---|---|
 | `GET /api/v1/weather/latest` | `WeatherController` → `IWeatherService` → legacy `DavisVantageProConsoleRecordsNew` through `HvoDbContext` | Preserve response shape, legacy selection and WeatherRead policy |
-| `GET /api/v1/weather/current` | Same legacy table plus `sp__GetWeatherRecordHighLowSummary` | Preserve current/extremes contract; no silent v9 fallback |
-| `GET /api/v1/weather/highs-lows` | Legacy stored procedure through `HvoDbContext` | Preserve historical access, units and existing date behavior |
+| `GET /api/v1/weather/current` | v9 `WeatherRaw` through `IWeatherService` | Anonymous current/extremes contract, latest station and server-local daily extremes |
+| `GET /api/v1/weather/highs-lows` | v9 `WeatherRaw` through `IWeatherService` | Anonymous flat response, null-aware extremes, optional dates and positive 24-hour limit |
 | `POST /api/v1/weather/raw`, `.../raw/batch` | v9 `WeatherRaw`; active Davis live outbox uses batch, HA exporter can also use raw when enabled | Preserve writes; station is required for the new reads, so data from other stations is not merged |
 | `POST /api/v1/weather/archive/batch` | v9 `WeatherArchive`; Davis archive outbox | Preserve separate archive observations and console-local metadata |
-| `GET /api/v1/weather/raw/recent` | v9 `WeatherRaw`, existing paginated API | Preserve endpoint/query/DTO behavior |
-| `GET /api/v1/weather/hourly/recent` | v9 `WeatherHourly`, existing API | Preserve endpoint; new service does not assume a canonical aggregate writer |
+| `GET /api/v1/weather/raw/recent` | v9 `WeatherRaw`, public paged API | Preserve array shape; optional UTC dates within 24 hours and timestamp/ID continuation |
+| `GET /api/v1/weather/hourly/recent` | v9 `WeatherRaw`, hourly SQL aggregation | Public 24-hour window; no dependency on an aggregate-table writer |
 | New website DI boundary | `IV9WeatherQueryService`, scoped with `HvoV9DbContext` and existing `TimeProvider` | Explicit latest/current/raw history/archive history typed queries |
 
 `WeatherController` is the repository consumer of `IWeatherService`; current website
@@ -33,7 +36,7 @@ components do not consume it. This inventory describes source code, not deployed
 processes. **External production writers to legacy tables, users of the legacy API,
 and external writers to v9 aggregates remain unknown.** Inventory those operations
 before proposing any separately reviewed versioned transition. The existing legacy
-service retains its host-local day behavior; new UTC semantics do not retroactively
+current-weather method retains its host-local day behavior; new UTC semantics do not retroactively
 change old contracts or reinterpret their historical timestamps.
 
 Davis station identity comes from `Station:StationId` (validated against the edge
