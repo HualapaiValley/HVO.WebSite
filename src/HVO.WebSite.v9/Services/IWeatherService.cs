@@ -17,10 +17,13 @@ public interface IWeatherService
     /// <summary>
     /// Gets weather highs and lows for a specified date range
     /// </summary>
-    /// <param name="startDate">Start date for the range (defaults to today if null)</param>
-    /// <param name="endDate">End date for the range (defaults to tomorrow if null)</param>
+    /// <param name="startDate">Inclusive start; defaults to 24 hours before end.</param>
+    /// <param name="endDate">Exclusive end; defaults to now, or 24 hours after start.</param>
+    /// <param name="stationId">Station filter; otherwise uses the latest station in the range.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
     /// <returns>Result containing weather highs/lows data or error information</returns>
-    Task<Result<WeatherHighsLowsResponse>> GetWeatherHighsLowsAsync(DateTimeOffset? startDate, DateTimeOffset? endDate);
+    Task<Result<WeatherHighsLowsResponse>> GetWeatherHighsLowsAsync(DateTimeOffset? startDate, DateTimeOffset? endDate,
+        string? stationId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets current weather conditions including today's highs and lows

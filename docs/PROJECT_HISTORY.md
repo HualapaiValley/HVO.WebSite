@@ -2,6 +2,16 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
+## 2026-10-11 — Public weather history within 24 hours (#446)
+
+Raw history, hourly summaries and highs/lows support anonymous reads with optional
+UTC-normalized dates and a strict positive 24-hour window. Raw reads retain the array
+response with bounded timestamp/ID paging. Hourly summaries calculate from collected
+v9 observations on demand; highs/lows no longer requires the legacy stored procedure.
+Missing sensor values remain unknown, and ingest authentication is preserved.
+[Query and compatibility rules](development/public-weather-history.md) explain the
+defaults, station selection, partial hours and remaining Davis rain-storage limitation.
+
 ## 2026-10-04 - Documentation ownership and preservation (#416 candidate)
 
 Grouped navigation now names all active project owners. EF schema references follow actual singular entities/context/migrations; headless collector manuals distinguish implemented bounded commands from future control. Complete marked archives preserve protocol/session/model/deployment evidence before old planning pages become compatibility pointers. Staging remains production-used pending #372/SDK #82; HA exporter stays disabled and authority cutovers retain the #414 contract. This candidate does not perform deployment, hardware writes, migration application or missing DR drills. The [disposition ledger](archive/2026-10-04-documentation-dispositions.md) accounts for every original review path and later guide.

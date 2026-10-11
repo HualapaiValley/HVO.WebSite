@@ -47,7 +47,7 @@ namespace HVO.WebSite.v9.Models
         /// <summary>
         /// Weather highs and lows summary data
         /// </summary>
-        public WeatherRecordHighLowSummary Data { get; set; } = new();
+        public WeatherHighsLowsData Data { get; set; } = new();
     }
 
     /// <summary>

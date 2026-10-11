@@ -69,35 +69,38 @@ public class WeatherService : IWeatherService
     }
 
     /// <inheritdoc />
-    public async Task<Result<WeatherHighsLowsResponse>> GetWeatherHighsLowsAsync(DateTimeOffset? startDate, DateTimeOffset? endDate)
+    public async Task<Result<WeatherHighsLowsResponse>> GetWeatherHighsLowsAsync(DateTimeOffset? startDate, DateTimeOffset? endDate,
+        string? stationId = null, CancellationToken cancellationToken = default)
     {
         try
         {
-            // Default to today if no dates provided
-            var start = startDate ?? DateTimeOffset.Now.Date;
-            var end = endDate ?? start.AddDays(1);
-
-            _logger.LogInformation("Retrieving weather highs/lows from {StartDate} to {EndDate}", start, end);
-
-            var summary = await _context.GetWeatherRecordHighLowSummary(start, end);
-
-            if (summary == null)
-            {
-                _logger.LogWarning("No weather summary found for date range {StartDate} to {EndDate}", start, end);
-                return new InvalidOperationException($"No weather data found for the specified date range: {start:yyyy-MM-dd} to {end:yyyy-MM-dd}");
-            }
-
-            _logger.LogInformation("Successfully retrieved weather highs/lows summary");
+            var range = WeatherHistoryRange.Create(startDate, endDate, _timeProvider);
+            var start = range.Start.UtcDateTime;
+            var end = range.End.UtcDateTime;
+            var readings = _liveContext.WeatherRaw.AsNoTracking()
+                .Where(row => row.RecordedAt >= start && row.RecordedAt < end);
+            if (!string.IsNullOrWhiteSpace(stationId))
+                readings = readings.Where(row => row.StationId == stationId.Trim());
+            var latest = await readings.OrderByDescending(row => row.RecordedAt).ThenByDescending(row => row.Id)
+                .Select(row => new { row.StationId }).FirstOrDefaultAsync(cancellationToken);
+            if (latest is null)
+                return new WeatherDataNotFoundException("No weather observations found for the requested range.");
+            readings = readings.Where(row => row.StationId == latest.StationId);
+            var extremes = await ReadTodaysExtremesAsync(readings, cancellationToken) ?? new TodaysExtremesData();
 
             var response = new WeatherHighsLowsResponse
             {
-                Timestamp = DateTime.UtcNow,
+                Timestamp = _timeProvider.GetUtcNow().UtcDateTime,
                 MachineName = Environment.MachineName,
-                DateRange = new DateRangeInfo { Start = start, End = end },
-                Data = summary
+                DateRange = new DateRangeInfo { Start = range.Start, End = range.End },
+                Data = MapHighsLows(extremes, range)
             };
 
             return Result<WeatherHighsLowsResponse>.Success(response);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -171,6 +174,24 @@ public class WeatherService : IWeatherService
             OutsideDewpoint = (decimal?)record.DewPointF
         };
     }
+
+    private static WeatherHighsLowsData MapHighsLows(TodaysExtremesData extremes, WeatherHistoryRange range) => new()
+    {
+        StartRecordDateTime = range.Start, EndRecordDateTime = range.End,
+        BarometerHigh = extremes.Barometer.High, BarometerLow = extremes.Barometer.Low,
+        BarometerHighDateTime = extremes.Barometer.HighTime, BarometerLowDateTime = extremes.Barometer.LowTime,
+        OutsideTemperatureHigh = extremes.OutsideTemperature.High, OutsideTemperatureLow = extremes.OutsideTemperature.Low,
+        OutsideTemperatureHighDateTime = extremes.OutsideTemperature.HighTime, OutsideTemperatureLowDateTime = extremes.OutsideTemperature.LowTime,
+        OutsideHumidityHigh = extremes.OutsideHumidity.High, OutsideHumidityLow = extremes.OutsideHumidity.Low,
+        OutsideHumidityHighDateTime = extremes.OutsideHumidity.HighTime, OutsideHumidityLowDateTime = extremes.OutsideHumidity.LowTime,
+        WindSpeedHigh = extremes.WindSpeed.High, WindSpeedLow = extremes.WindSpeed.Low,
+        WindSpeedHighDateTime = extremes.WindSpeed.HighTime, WindSpeedLowDateTime = extremes.WindSpeed.LowTime,
+        WindSpeedHighDirection = extremes.WindSpeed.HighDirection, WindSpeedLowDirection = extremes.WindSpeed.LowDirection,
+        SolarRadiationHigh = extremes.SolarRadiation.High, SolarRadiationHighDateTime = extremes.SolarRadiation.HighTime,
+        UVIndexHigh = extremes.UvIndex.High, UVIndexHighDateTime = extremes.UvIndex.HighTime,
+        OutsideDewpointHigh = extremes.DewPoint.High, OutsideDewpointLow = extremes.DewPoint.Low,
+        OutsideDewpointHighDateTime = extremes.DewPoint.HighTime, OutsideDewpointLowDateTime = extremes.DewPoint.LowTime
+    };
 
     private static async Task<TodaysExtremesData?> ReadTodaysExtremesAsync(
         IQueryable<WeatherRaw> readings, CancellationToken cancellationToken)
@@ -290,4 +311,6 @@ public class WeatherService : IWeatherService
         public int? Direction { get; init; }
     }
 }
+
+internal sealed class WeatherDataNotFoundException(string message) : InvalidOperationException(message);
 

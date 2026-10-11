@@ -23,16 +23,18 @@ namespace HVO.WebSite.v9.Controllers
     {
         private readonly IWeatherService _weatherService;
         private readonly ILogger<WeatherController> _logger;
+        private readonly TimeProvider _clock;
 
         /// <summary>
         /// Initializes a new instance of the WeatherController
         /// </summary>
         /// <param name="weatherService">Service for weather data operations</param>
         /// <param name="logger">Logger for tracking weather API operations</param>
-        public WeatherController(IWeatherService weatherService, ILogger<WeatherController> logger)
+        public WeatherController(IWeatherService weatherService, ILogger<WeatherController> logger, TimeProvider? clock = null)
         {
             _weatherService = weatherService;
             _logger = logger;
+            _clock = clock ?? TimeProvider.System;
         }
 
         /// <summary>
@@ -77,40 +79,60 @@ namespace HVO.WebSite.v9.Controllers
         /// <summary>
         /// Gets weather highs and lows for a specified date range
         /// </summary>
-        /// <param name="startDate">Start date in ISO format (defaults to today if not provided)</param>
-        /// <param name="endDate">End date in ISO format (defaults to tomorrow if not provided)</param>
+        /// <param name="startDate">Compatible alias for start.</param>
+        /// <param name="endDate">Compatible alias for end.</param>
+        /// <param name="start">Inclusive start; defaults to 24 hours before end.</param>
+        /// <param name="end">Exclusive end; defaults to now or 24 hours after start.</param>
+        /// <param name="stationId">Station identifier; defaults to the latest station in the range.</param>
+        /// <param name="cancellationToken">Request cancellation.</param>
         /// <returns>Weather highs and lows summary for the specified date range</returns>
         /// <remarks>
         /// Sample request:
         /// 
         ///     GET /api/v1.0/weather/highs-lows?startDate=2025-07-13T00:00:00Z&amp;endDate=2025-07-14T00:00:00Z
         /// 
-        /// If no dates are provided, defaults to today's date range.
+        /// If no dates are provided, defaults to the preceding 24 hours. Longer ranges return 400.
         /// </remarks>
         /// <response code="200">Returns weather highs and lows for the specified date range</response>
         /// <response code="401">Missing or invalid API key.</response>
-        /// <response code="403">API key does not have the read:weather or read:api scope.</response>
         /// <response code="404">No weather data found for the specified date range</response>
         /// <response code="500">Internal server error occurred while retrieving weather data</response>
         [HttpGet("highs-lows")]
-        [Authorize(Policy = "WeatherRead")]
+        [AllowAnonymous]
         [ProducesResponseType(typeof(WeatherHighsLowsResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
         [Produces("application/json")]
         public async Task<ActionResult<WeatherHighsLowsResponse>> GetWeatherHighsLows(
             [FromQuery] DateTimeOffset? startDate = null,
-            [FromQuery] DateTimeOffset? endDate = null)
+            [FromQuery] DateTimeOffset? endDate = null,
+            [FromQuery] DateTimeOffset? start = null,
+            [FromQuery] DateTimeOffset? end = null,
+            [FromQuery][System.ComponentModel.DataAnnotations.MaxLength(64)] string? stationId = null,
+            CancellationToken cancellationToken = default)
         {
-            var result = await _weatherService.GetWeatherHighsLowsAsync(startDate, endDate);
+            WeatherHistoryRange range;
+            try
+            {
+                if (start.HasValue && startDate.HasValue && start != startDate
+                    || end.HasValue && endDate.HasValue && end != endDate)
+                    throw new ArgumentException("Use matching start/startDate and end/endDate values, or only one spelling.");
+                range = WeatherHistoryRange.Create(start ?? startDate, end ?? endDate, _clock);
+            }
+            catch (ArgumentException error)
+            {
+                return Problem(title: "Invalid Weather Range", detail: error.Message, statusCode: StatusCodes.Status400BadRequest);
+            }
+            var result = await _weatherService.GetWeatherHighsLowsAsync(range.Start, range.End, stationId, cancellationToken);
             
             return result.Match(
                 success: data => Ok(data),
                 failure: error => error switch
                 {
-                    InvalidOperationException => Problem(
+                    ArgumentException => Problem(title: "Invalid Weather Range", detail: error.Message, statusCode: StatusCodes.Status400BadRequest),
+                    WeatherDataNotFoundException => Problem(
                         title: "Weather Data Not Found",
                         detail: error.Message,
                         statusCode: StatusCodes.Status404NotFound
