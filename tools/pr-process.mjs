@@ -6,7 +6,7 @@ export const PHASES = ['draft', 'review', 'changes-required', 'ci', 'ready-to-me
 export const DEPTHS = ['mechanical', 'standard', 'deep'];
 export const TERMINAL = ['CORRECTED', 'DEFERRED', 'NON_ACTIONABLE', 'SUPERSEDED'];
 export const LOCAL_IDS = { build: 'local:pinned-sdk-build-zero-warnings', tests: 'local:non-live-tests', process: 'local:pr-process-tests' };
-export const PINNED_SDK = '10.0.400';
+export const PINNED_SDK = '10.0.402';
 export const CI_JOBS = ['review-evidence', 'plan', 'build-and-test', 'docker-smoke'];
 export const ciTitle = pr => `HVO-PR-CI v1 pr=${pr.number} head=${pr.head.sha} base=${pr.base.sha} merge=${pr.merge_commit_sha}`;
 const unknown = value => !value || /^(unknown|unavailable|provider-managed|auto|n\/a)$/i.test(value);

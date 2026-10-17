@@ -1,8 +1,8 @@
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.11 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.13@sha256:d5633778c754e89a386882eddf8dbee6942447a8a4b8267c19cf1e1158d0b0ac AS base
 WORKDIR /app
 EXPOSE 8080
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0.400 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.402@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa AS build
 WORKDIR /src
 COPY ["Directory.Build.props", "."]
 COPY ["Directory.Packages.props", "."]
@@ -16,9 +16,9 @@ COPY ["src/HVO.Edge.Outbox/HVO.Edge.Outbox.csproj", "src/HVO.Edge.Outbox/"]
 COPY ["src/HVO.Edge.Hosting/HVO.Edge.Hosting.csproj", "src/HVO.Edge.Hosting/"]
 COPY ["src/HVO.Edge.Exporter.HomeAssistant/HVO.Edge.Exporter.HomeAssistant.csproj", "src/HVO.Edge.Exporter.HomeAssistant/"]
 COPY . .
-RUN dotnet restore "src/HVO.Edge.Exporter.HomeAssistant/HVO.Edge.Exporter.HomeAssistant.csproj" --locked-mode
+RUN dotnet restore -nodeReuse:false -p:UseSharedCompilation=false "src/HVO.Edge.Exporter.HomeAssistant/HVO.Edge.Exporter.HomeAssistant.csproj" --locked-mode
 WORKDIR "/src/src/HVO.Edge.Exporter.HomeAssistant"
-RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish -nodeReuse:false -p:UseSharedCompilation=false -c Release -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*

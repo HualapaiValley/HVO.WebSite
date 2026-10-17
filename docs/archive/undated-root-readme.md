@@ -124,7 +124,7 @@ See [src/HVO.WebSite.Themes/README.md](../../src/HVO.WebSite.Themes/README.md) f
 
 ## Quick Start
 
-Start from the repository root with the exact SDK in `global.json` (10.0.400),
+Start from the repository root with the exact SDK in `global.json` (10.0.402),
 PowerShell and the tools listed in [testing](../development/testing.md).
 This path builds and exercises test-owned website/ThemeSandbox fixtures without
 production secrets, a running website, SQL Server or physical gateways:
