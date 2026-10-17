@@ -37,7 +37,7 @@
         "baseSha": "2222222222222222222222222222222222222222",
         "command": "dotnet build HVO.WebSite.sln --no-restore --nologo",
         "result": "pass",
-        "sdk": "10.0.400",
+        "sdk": "10.0.402",
         "metrics": {
           "warnings": 0,
           "errors": 0

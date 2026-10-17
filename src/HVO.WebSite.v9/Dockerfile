@@ -3,7 +3,7 @@
 # -------------------------
 # Build the application
 # -------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0.400 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.402@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa AS build
 WORKDIR /src
 
 # Copy solution metadata and project files to warm the restore cache
@@ -20,14 +20,14 @@ COPY ["src/HVO.WebSite.v9/HVO.WebSite.v9.csproj", "src/HVO.WebSite.v9/"]
 COPY . ./
 
 # Restore dependencies
-RUN dotnet restore "src/HVO.WebSite.v9/HVO.WebSite.v9.csproj" \
+RUN dotnet restore -nodeReuse:false -p:UseSharedCompilation=false "src/HVO.WebSite.v9/HVO.WebSite.v9.csproj" \
     --locked-mode \
     --disable-parallel
 
 # Copy the remainder of the source tree and publish the app
 WORKDIR /src/src/HVO.WebSite.v9
 
-RUN dotnet publish "HVO.WebSite.v9.csproj" \
+RUN dotnet publish -nodeReuse:false -p:UseSharedCompilation=false "HVO.WebSite.v9.csproj" \
     --configuration Release \
     -p:PublishReadyToRun=false \
     --self-contained false \
@@ -37,7 +37,7 @@ RUN dotnet publish "HVO.WebSite.v9.csproj" \
 # -------------------------
 # Runtime image
 # -------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.11 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.13@sha256:d5633778c754e89a386882eddf8dbee6942447a8a4b8267c19cf1e1158d0b0ac AS runtime
 WORKDIR /app
 
 # Install minimal native dependencies for fonts and health checks

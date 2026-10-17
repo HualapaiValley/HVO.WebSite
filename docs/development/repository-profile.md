@@ -8,7 +8,7 @@ Process revision: `2026-10-04.1` (selective CI adopted by PR #426).
 | Feature merge | Squash; no direct issue commits to main |
 | Workspace | Dedicated branch/checkout; preserve other owners' claims/work |
 | Required local application evidence | Pinned SDK build, zero warnings/errors; applicable non-live tests |
-| SDK | `global.json` is authoritative; currently 10.0.400 with roll-forward disabled |
+| SDK | `global.json` is authoritative; currently 10.0.402 with roll-forward disabled |
 | Independent reviewer default | One distinct non-implementation person/session; qualified human or configured eligible agent route |
 | Default selection | Auto; explicit Preferred/Required and separation constraints override within authorized scope |
 | Publication | Direct GitHub comments/reviews; faithful attributed relay when needed; no mandatory bot |
@@ -30,7 +30,7 @@ dotnet test HVO.WebSite.sln --no-build --no-restore --filter "TestCategory!=Inte
 
 Dependency-aware post-review PR CI selects whole test assemblies, provisioned lanes, application builds and Docker images from both base and candidate graphs plus explicit input ownership. Main/nightly/default manual runs retain all work, and the ci:full PR label broadens selection. Full local solution validation remains required. The HA runner provisions only its HA category; simulator execution is separate. Integration and browser lanes need their documented fixtures. UI changes include applicable Playwright/screenshots. Workflow changes require focused planner, transition/gate, runner and workflow-syntax checks. Record unavailable checks and their remaining acceptance. A container using the exact pinned SDK is valid local evidence when the host differs. See [testing](testing.md) and [selective CI](selective-ci.md) for commands, partitions, source binding, measured adoption results and fixture qualification.
 
-The trusted WebSite gate requires source-bound local evidence with stable IDs: `local:pinned-sdk-build-zero-warnings`, `local:non-live-tests`, and, for workflow/helper changes, `local:pr-process-tests`. Required local evidence must pass; the build records SDK 10.0.400, zero errors and zero warnings. An author cannot waive these prerequisites with a `required: false` field or an explained blocked result. Post-review integration/container CI is a separate stage and does not become a prerequisite to start itself. Draft preflight still permits honest failing or blocked preparation.
+The trusted WebSite gate requires source-bound local evidence with stable IDs: `local:pinned-sdk-build-zero-warnings`, `local:non-live-tests`, and, for workflow/helper changes, `local:pr-process-tests`. Required local evidence must pass; the build records SDK 10.0.402, zero errors and zero warnings. An author cannot waive these prerequisites with a `required: false` field or an explained blocked result. Post-review integration/container CI is a separate stage and does not become a prerequisite to start itself. Draft preflight still permits honest failing or blocked preparation.
 
 Keep CSS/theme/offline-gateway, Key Vault, logging, hardware, contract and curated project-history rules from [project guidance](../AGENT_PROJECT_GUIDANCE.md). The exporter remains disabled in production and retired collector apps are not deployment targets.
 
