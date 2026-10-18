@@ -182,6 +182,33 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ThemeSandbox_ReadOnlyInputPreservesValueAcrossBlur(bool lightTheme)
+    {
+        var page = await OpenPageAsync("/controls");
+        if (lightTheme)
+        {
+            await page.GetByRole(AriaRole.Button, new() { Name = "Switch to light theme" }).ClickAsync();
+            await Assertions.Expect(page.Locator(".shell-theme-light")).ToBeVisibleAsync();
+        }
+        else
+        {
+            await Assertions.Expect(page.Locator(".shell-theme-dark")).ToBeVisibleAsync();
+        }
+
+        var input = page.GetByRole(AriaRole.Textbox, new() { Name = "Read-only input", Exact = true });
+        await Assertions.Expect(input).ToHaveAttributeAsync("readonly", "");
+        await Assertions.Expect(input).ToHaveValueAsync("");
+        await input.FocusAsync();
+        await page.Keyboard.TypeAsync("must remain read-only");
+        await page.Keyboard.PressAsync("Tab");
+        await Assertions.Expect(input).Not.ToBeFocusedAsync();
+        await Assertions.Expect(input).ToHaveValueAsync("");
+        await AssertNoBlazorErrorAsync(page);
+    }
+
+    [TestMethod]
     public async Task ThemeSandbox_ShouldKeepCircuitAliveAcrossAllReferenceRoutes()
     {
         var page = await OpenPageAsync();

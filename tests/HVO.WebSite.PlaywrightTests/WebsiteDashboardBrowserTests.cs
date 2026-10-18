@@ -2,6 +2,7 @@ using FluentAssertions;
 using HVO.WebSite.PlaywrightTests.Infrastructure;
 using HVO.WebSite.v9;
 using HVO.WebSite.v9.Models;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Playwright;
 using System.Text.RegularExpressions;
 
@@ -29,10 +30,8 @@ public sealed class WebsiteDashboardBrowserTests
         var bootstrap = await page.Context.APIRequest.GetAsync(new Uri(application.Address, "_framework/blazor.web.js").ToString());
         bootstrap.Status.Should().Be(200);
         await AssertHealthyAsync(browser);
-        await page.RouteAsync("https://login.microsoftonline.com/**", route => route.FulfillAsync(new()
-        { Status = 200, ContentType = "text/plain", Body = "Identity provider navigation intercepted by the test" }));
         await page.GetByRole(AriaRole.Link, new() { Name = "Sign in", Exact = true }).ClickAsync();
-        await page.WaitForURLAsync("https://login.microsoftonline.com/**");
+        await application.IdentityProvider.AssertNavigationAsync(page, application.IdentityProvider.AuthorizationEndpoint);
         page.Url.Should().Contain("redirect_uri=");
         browser.AssertNoUnexpectedErrors();
     }
@@ -44,11 +43,11 @@ public sealed class WebsiteDashboardBrowserTests
         application.Power.Data = WebsitePowerState.Populated(application.Clock.GetUtcNow().UtcDateTime);
         await using var browser = await BrowserSession.OpenAsync(TestContext);
         var page = browser.Page;
-        await SetRoleAsync(page, AppRoles.Admin);
+        var cookieName = await application.SignInWithCookieAsync(page.Context, AppRoles.Admin);
         await page.GotoAsync(new Uri(application.Address, "/admin?view=dashboard#top").ToString());
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Administration" })).ToBeVisibleAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Browser User" }).ClickAsync();
-        await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Sign out" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Menu).GetByRole(AriaRole.Menuitem, new() { Name = "Sign out", Exact = true })).ToBeVisibleAsync();
         await page.Keyboard.PressAsync("Escape");
         var drawer = page.Locator(".mud-drawer");
         await Assertions.Expect(drawer).ToHaveClassAsync(new Regex("mud-drawer--open"));
@@ -65,6 +64,9 @@ public sealed class WebsiteDashboardBrowserTests
         (await page.EvaluateAsync<string>("window.hvoNavigationMarker")).Should().Be("same-document");
         await Assertions.Expect(page.Locator(".power-metric--battery strong")).ToHaveTextAsync("+500 W");
         await AssertHealthyAsync(browser);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Browser User" }).ClickAsync();
+        await SignOutAndAssertAnonymousAsync(page, application, cookieName);
+        await AssertHealthyAsync(browser);
     }
 
     [TestMethod]
@@ -73,11 +75,9 @@ public sealed class WebsiteDashboardBrowserTests
         await using var application = new WebsiteBrowserApplication();
         await using var browser = await BrowserSession.OpenAsync(TestContext);
         var page = browser.Page;
-        // The actual challenge redirect is followed by the browser, but no external IdP is contacted.
-        await page.RouteAsync("https://login.microsoftonline.com/**", route => route.FulfillAsync(new()
-        { Status = 200, ContentType = "text/plain", Body = "Identity provider navigation intercepted by the test" }));
+        // Follow the real challenge redirect to the owned loopback provider.
         await page.GotoAsync(new Uri(application.Address, "/admin").ToString());
-        page.Url.Should().StartWith("https://login.microsoftonline.com/");
+        await application.IdentityProvider.AssertNavigationAsync(page, application.IdentityProvider.AuthorizationEndpoint);
         page.Url.Should().Contain("redirect_uri=");
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Administration" })).ToHaveCountAsync(0);
         application.Power.CurrentCalls.Should().Be(0);
@@ -94,11 +94,14 @@ public sealed class WebsiteDashboardBrowserTests
         await page.GotoAsync(new Uri(application.Address, "/admin").ToString());
         page.Url.Should().Contain("AccessDenied");
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Administration" })).ToHaveCountAsync(0);
-        await SetRoleAsync(page, "");
+        var cookieName = await application.SignInWithCookieAsync(page.Context, "");
         await page.GotoAsync(application.Address.ToString());
         await Assertions.Expect(page.Locator(".power-unauthenticated-card")).ToBeVisibleAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Browser User" }).ClickAsync();
-        await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Sign out" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Menu).GetByRole(AriaRole.Menuitem, new() { Name = "Sign out", Exact = true })).ToBeVisibleAsync();
+        application.Power.CurrentCalls.Should().Be(0);
+        await AssertHealthyAsync(browser, "Failed to load resource: the server responded with a status of 404");
+        await SignOutAndAssertAnonymousAsync(page, application, cookieName);
         application.Power.CurrentCalls.Should().Be(0);
         await AssertHealthyAsync(browser, "Failed to load resource: the server responded with a status of 404");
     }
@@ -197,6 +200,30 @@ public sealed class WebsiteDashboardBrowserTests
         await Assertions.Expect(page.Locator(".power-metric--battery strong")).ToHaveTextAsync("+500 W");
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Reload dashboard" })).ToHaveCountAsync(0);
         await AssertHealthyAsync(browser);
+    }
+
+    private static async Task SignOutAndAssertAnonymousAsync(IPage page, WebsiteBrowserApplication application, string cookieName)
+    {
+        (await page.Context.CookiesAsync()).Should().Contain(cookie => cookie.Name == cookieName);
+        var signOut = page.GetByRole(AriaRole.Menu).GetByRole(AriaRole.Menuitem, new() { Name = "Sign out", Exact = true });
+        await Assertions.Expect(signOut).ToBeVisibleAsync();
+        await signOut.ClickAsync();
+        await application.IdentityProvider.AssertNavigationAsync(page, application.IdentityProvider.LogoutEndpoint);
+        var logout = new Uri(page.Url);
+        var query = QueryHelpers.ParseQuery(logout.Query);
+        query["post_logout_redirect_uri"].ToString().Should().Be(new Uri(application.Address, "/signout-callback-oidc").ToString());
+        query["state"].ToString().Should().NotBeNullOrWhiteSpace();
+        (await page.Context.CookiesAsync()).Should().NotContain(cookie => cookie.Name == cookieName,
+            "the real sign-out endpoint must expire the authentication cookie");
+
+        await page.GotoAsync(application.Address.ToString());
+        await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Sign in", Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Browser User" })).ToHaveCountAsync(0);
+        await Assertions.Expect(page.Locator(".power-unauthenticated-card")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".power-metric--battery")).ToHaveCountAsync(0);
+        await page.GotoAsync(new Uri(application.Address, "/admin").ToString());
+        await application.IdentityProvider.AssertNavigationAsync(page, application.IdentityProvider.AuthorizationEndpoint);
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Administration" })).ToHaveCountAsync(0);
     }
 
     private static Task SetRoleAsync(IPage page, string role) => page.Context.SetExtraHTTPHeadersAsync(new Dictionary<string, string> { ["X-Test-Role"] = role });

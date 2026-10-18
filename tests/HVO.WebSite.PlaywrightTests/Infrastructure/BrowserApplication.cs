@@ -32,6 +32,7 @@ internal sealed class BrowserApplication<TEntryPoint> : IAsyncDisposable where T
     }
 
     public Uri Address { get; }
+    public IServiceProvider Services => factory.Services;
 
     public static string RepositoryRoot
     {

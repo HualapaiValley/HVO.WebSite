@@ -3,7 +3,6 @@ using HVO.WebSite.PlaywrightTests.Infrastructure;
 using HVO.WebSite.v9;
 using HVO.Edge.Contracts.PowerSystem;
 using Microsoft.Playwright;
-using System.Text.RegularExpressions;
 
 namespace HVO.WebSite.PlaywrightTests;
 
@@ -92,11 +91,9 @@ public sealed class MainSitePlaywrightTests
     {
         var page = session.Page;
 
-        await page.RouteAsync("https://login.microsoftonline.com/**", route => route.FulfillAsync(new()
-        { Status = 200, ContentType = "text/plain", Body = "Test-owned identity provider landing page" }));
         await page.GotoAsync(BuildUrl("/admin"));
 
-        await Assertions.Expect(page).ToHaveURLAsync(new Regex("https://login.microsoftonline.com/", RegexOptions.IgnoreCase));
+        await application.IdentityProvider.AssertNavigationAsync(page, application.IdentityProvider.AuthorizationEndpoint);
         page.Url.Should().Contain("redirect_uri=");
     }
 
