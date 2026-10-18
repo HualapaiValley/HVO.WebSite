@@ -13,6 +13,7 @@ internal sealed class BrowserSession : IAsyncDisposable
     private readonly TestContext testContext;
     private readonly ConcurrentQueue<string> messages = new();
     private readonly ConcurrentQueue<string> errors = new();
+    private readonly ConcurrentQueue<string> requestUrls = new();
 
     private BrowserSession(IPlaywright playwright, IBrowser browser, IBrowserContext context, IPage page, TestContext testContext)
     {
@@ -26,6 +27,7 @@ internal sealed class BrowserSession : IAsyncDisposable
         var name = string.Concat((testContext.TestName ?? "browser").Select(c => char.IsLetterOrDigit(c) ? c : '-'));
         ArtifactDirectory = Path.Combine(root, name + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(ArtifactDirectory);
+        context.Request += (_, request) => requestUrls.Enqueue(request.Url);
         page.Console += (_, message) =>
         {
             messages.Enqueue($"{message.Type}: {message.Text}");
@@ -59,9 +61,16 @@ internal sealed class BrowserSession : IAsyncDisposable
         }
     }
 
-    public void AssertNoUnexpectedErrors(string? allowedPrefix = null) =>
+    public void AssertNoExternalRequests() =>
+        requestUrls.Where(url => new Uri(url) is { IsLoopback: false, Scheme: "http" or "https" })
+            .Should().BeEmpty("owned browser fixtures must never request a real identity provider or other external host");
+
+    public void AssertNoUnexpectedErrors(string? allowedPrefix = null)
+    {
+        AssertNoExternalRequests();
         errors.Where(message => allowedPrefix is null || !message.StartsWith(allowedPrefix, StringComparison.Ordinal))
             .Should().BeEmpty("the browser/circuit must remain healthy");
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -82,8 +91,15 @@ internal sealed class BrowserSession : IAsyncDisposable
         }
         finally
         {
-            await browser.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
-            playwright.Dispose();
+            try { await browser.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10)); }
+            finally
+            {
+                playwright.Dispose();
+                var requests = Path.Combine(ArtifactDirectory, "requests.log");
+                await File.WriteAllLinesAsync(requests, requestUrls);
+                testContext.AddResultFile(requests);
+                AssertNoExternalRequests();
+            }
         }
     }
 }

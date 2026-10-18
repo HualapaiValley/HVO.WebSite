@@ -41,7 +41,7 @@ HomeAssistantIntegration and SqlServerIntegration require Integration and cannot
 
 ## Owned website and ThemeSandbox browser fixtures
 
-Website and ThemeSandbox checks run against actual application hosts on OS-assigned loopback ports. The website replaces only test services with deterministic in-memory data, a fake clock and request authentication; the real authorization/challenge path remains exercised while the identity-provider redirect is intercepted. No production keys, external base URL or running application are required. The application project references build both targets. Each test owns its browser context and host, with bounded actions and teardown.
+Website and ThemeSandbox checks run against actual application hosts on OS-assigned loopback ports. The website replaces only test services with deterministic in-memory data, a fake clock and request authentication; the real authorization/challenge and logout paths redirect to an owned loopback identity-provider stub. Browser request logs include redirect-chain destinations and fail on any external host. No production keys, external base URL or running application are required. The application project references build both targets. Each test owns its browser context and host, with bounded actions and teardown.
 
 ```bash
 dotnet test tests/HVO.WebSite.PlaywrightTests/HVO.WebSite.PlaywrightTests.csproj --no-build --no-restore --settings integration.runsettings --filter "TestCategory!=Integration&TestCategory!=Live" --logger trx --results-directory TestResults/browser/HVO.WebSite.PlaywrightTests

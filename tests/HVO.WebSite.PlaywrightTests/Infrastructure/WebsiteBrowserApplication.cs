@@ -31,12 +31,14 @@ internal sealed class WebsiteBrowserApplication : IAsyncDisposable
     public WebsitePowerState Power { get; } = new();
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 10, 4, 0, 0, 0, TimeSpan.Zero));
     public Uri Address => _application.Address;
+    public IdentityProviderApplication IdentityProvider { get; }
 
     public WebsiteBrowserApplication()
     {
-        Directory.CreateDirectory(_directory);
+        IdentityProvider = new IdentityProviderApplication();
         try
         {
+            Directory.CreateDirectory(_directory);
             _application = new("HVO.WebSite.v9", builder =>
             {
                 builder.UseEnvironment("Testing");
@@ -78,14 +80,19 @@ internal sealed class WebsiteBrowserApplication : IAsyncDisposable
                         options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(new()
                         {
                             Issuer = "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000002/v2.0",
-                            AuthorizationEndpoint = "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000002/oauth2/v2.0/authorize",
-                            EndSessionEndpoint = "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000002/oauth2/v2.0/logout",
+                            AuthorizationEndpoint = IdentityProvider.AuthorizationEndpoint.ToString(),
+                            EndSessionEndpoint = IdentityProvider.LogoutEndpoint.ToString(),
                         });
                     });
                 });
             });
         }
-        catch { Directory.Delete(_directory, recursive: true); throw; }
+        catch
+        {
+            IdentityProvider.Dispose();
+            if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);
+            throw;
+        }
     }
 
     /// <summary>Seed a ticket protected by the real cookie handler, so sign-out must actually remove it.</summary>
@@ -122,7 +129,11 @@ internal sealed class WebsiteBrowserApplication : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         try { await _application.DisposeAsync(); }
-        finally { Directory.Delete(_directory, recursive: true); }
+        finally
+        {
+            try { await IdentityProvider.DisposeAsync(); }
+            finally { Directory.Delete(_directory, recursive: true); }
+        }
     }
 
     private sealed class BrowserAuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
