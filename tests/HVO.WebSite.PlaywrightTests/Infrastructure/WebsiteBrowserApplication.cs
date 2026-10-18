@@ -6,6 +6,7 @@ using HVO.WebSite.v9;
 using HVO.WebSite.v9.Models;
 using HVO.WebSite.v9.Services;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
@@ -18,6 +19,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.Playwright;
 
 namespace HVO.WebSite.PlaywrightTests.Infrastructure;
 
@@ -77,12 +79,34 @@ internal sealed class WebsiteBrowserApplication : IAsyncDisposable
                         {
                             Issuer = "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000002/v2.0",
                             AuthorizationEndpoint = "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000002/oauth2/v2.0/authorize",
+                            EndSessionEndpoint = "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000002/oauth2/v2.0/logout",
                         });
                     });
                 });
             });
         }
         catch { Directory.Delete(_directory, recursive: true); throw; }
+    }
+
+    /// <summary>Seed a ticket protected by the real cookie handler, so sign-out must actually remove it.</summary>
+    public async Task<string> SignInWithCookieAsync(IBrowserContext browser, string role)
+    {
+        var scheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        var options = _application.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
+        var cookieName = options.Cookie.Name ?? throw new InvalidOperationException("Authentication cookie has no name.");
+        var claims = new List<Claim> { new(ClaimTypes.Name, "Browser User"), new(ClaimTypes.NameIdentifier, "browser-user") };
+        if (!string.IsNullOrWhiteSpace(role)) claims.Add(new(ClaimTypes.Role, role));
+        var now = options.TimeProvider?.GetUtcNow() ?? DateTimeOffset.UtcNow;
+        var ticket = new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, scheme)),
+            new AuthenticationProperties { IssuedUtc = now, ExpiresUtc = now.AddHours(1) }, scheme);
+        // Header authentication would reauthenticate after logout and conceal cookie behavior.
+        await browser.SetExtraHTTPHeadersAsync(new Dictionary<string, string>());
+        await browser.AddCookiesAsync([new Cookie
+        {
+            Name = cookieName, Value = options.TicketDataFormat.Protect(ticket), Url = Address.ToString(),
+            HttpOnly = true, SameSite = SameSiteAttribute.Lax,
+        }]);
+        return cookieName;
     }
 
     private static void ReplaceDatabase<T>(IServiceCollection services, string name) where T : DbContext
@@ -107,7 +131,8 @@ internal sealed class WebsiteBrowserApplication : IAsyncDisposable
         public const string SchemeName = "WebsiteBrowser";
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-            if (!Request.Headers.TryGetValue("X-Test-Role", out var role)) return Task.FromResult(AuthenticateResult.NoResult());
+            if (!Request.Headers.TryGetValue("X-Test-Role", out var role))
+                return Context.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             var claims = new List<Claim> { new(ClaimTypes.Name, "Browser User"), new(ClaimTypes.NameIdentifier, "browser-user") };
             if (!string.IsNullOrWhiteSpace(role)) claims.Add(new(ClaimTypes.Role, role.ToString()));
             var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
