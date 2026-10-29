@@ -9,15 +9,15 @@ authorized rollout. No deployment is implied by repository validation.
 
 ## Davis collector migration
 
-The separately managed Davis Compose project is planned to move beside the
-website under [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462).
+The separately managed Davis Compose project runs beside the website under
+[#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462).
 Its [placement and migration notes](davis/README.md) retain the existing Davis
-Compose file, mounted secrets and durable outbox contract. The migration is
-incomplete: the MTU-repaired retry was rolled back when CWOP timed out during
-the required 15-minute WU/CWOP/MQTT observation. devpi5 is again the sole active
-collector. The stopped target retains its MTU 1450 bridge and existing amd64
-image; the historical host-network build overlay is retained for an approved
-missing-image rebuild. Never start the target alongside the preserved Pi.
+Compose file, mounted secrets and durable outbox contract. Runtime uses its
+MTU 1450 bridge and existing amd64 image. Roy's final acceptance requires 15
+minutes of healthy collection/ingest before disabling restart of the stopped
+Pi; CWOP/WU/MQTT errors are recorded for diagnosis and do not trigger rollback.
+The historical host-network build overlay is retained for an approved
+missing-image rebuild. Never restart the preserved Pi alongside this collector.
 
 ## Prerequisites and configuration
 

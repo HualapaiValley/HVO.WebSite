@@ -11,7 +11,7 @@ a second collector on the preserved Pi.
 
 | Responsibility | Authority |
 |---|---|
-| WeatherLink IP TCP session | `HVO.Hardware.DavisVantagePro2` on `devpi5` after #462 rollback; hvo-docker target stopped |
+| WeatherLink IP TCP session | `HVO.Hardware.DavisVantagePro2` on `hvo-docker` under #462; preserved Pi stopped |
 | Live and archive acquisition | Davis vNext collector |
 | Canonical history writer | Davis collector outbox to the website raw/archive APIs |
 | Home Assistant presentation | Davis collector to local MQTT to HA |

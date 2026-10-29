@@ -2,28 +2,22 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
-## 2026-10-29 — Davis host migration and MTU retry (#462)
+## 2026-10-29 — Davis acquisition moves to hvo-docker (#462)
 
-The authorized Davis move to hvo-docker retains its existing standalone Compose
-project and durable outbox contract. The owner resolved stale local package-cache
-hash failures and approved build-only host networking for the host/bridge MTU
-mismatch. The amd64 build and 1,411 non-live tests passed. The stopped databases
-were checksum verified; target acquisition, rapid central ingest and MQTT worked,
-but WU timed out. The target was stopped and its current outbox was preserved,
-integrity checked and checksum copied back before restarting devpi5. Original
-databases and `outbox.db.old` were retained; the failed target was stopped with
-`restart=no` before the later retry.
-The owner subsequently repaired Docker's default MTU and authorized replacement
-of only the stopped target container/old bridge, retaining image and volume.
-The retry reused the image, checksum-copied fresh stopped Pi state and verified
-the recreated Davis bridge at MTU 1450. Target backlog drained and WU/MQTT
-worked, but CWOP timed out on its second transport attempt during the required
-15-minute observation. The current target outbox was preserved, integrity
-checked and checksum copied back before restarting the sole Pi collector;
-target remains stopped with `restart=no`. The
-[target placement and resume notes](../deploy/hvo-docker/davis/README.md) preserve
-the one-owner, checksum, no-deletion and rollback requirements. Live acceptance
-and the failed-attempt evidence remain on [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462).
+Davis now uses its original standalone Compose project, mounted configuration/
+secrets and durable outbox on hvo-docker. The owner repaired stale package-cache
+hashes and Docker defaults; the retained amd64 image was built with the approved
+build-only host-network workaround, then reused on an MTU 1450 runtime bridge.
+Earlier WU/CWOP failures caused verified, record-preserving rollbacks under the
+old rule. Roy's final authorization keeps acquisition off the Pi: only inability
+to run/stay healthy, no LOOP for 10+ minutes or outright website-ingest failure
+permit rollback. Optional CWOP/WU/MQTT faults are recorded for later diagnosis.
+A fresh stopped/checksum-verified transfer and 15 minutes of healthy core
+collection/ingest precede disabling restart on the preserved Pi. All databases,
+old snapshots, images and volumes remain retained. The
+[placement and rollback runbook](../deploy/hvo-docker/davis/README.md) records
+this contract; [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462)
+holds actual observation boundaries, final restart state and delivery errors.
 
 ## 2026-10-11 — Public weather history within 24 hours (#446)
 
