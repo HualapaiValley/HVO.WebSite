@@ -64,8 +64,8 @@ The upload credential is the Weather Underground **station key**. Azure Key Vaul
 ## Disabled-First Rollout
 
 1. Copy the tracked `gateway.json.example` to the ignored Davis `gateway.json` if needed, leave `WeatherUnderground.Enabled` set to `false`, and do not create a placeholder key.
-2. Run `bash tools/validate-davis-weather-underground-deployment.sh` and `./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 davis`.
-3. Deploy the disabled build with `./scripts/deploy-pi-gateway.sh --context devpi5 davis`. Verify Davis acquisition, Home Assistant MQTT, central outbox delivery, and protected diagnostics remain healthy.
+2. Run `bash tools/validate-davis-weather-underground-deployment.sh` and `./scripts/deploy-pi-gateway.sh --dry-run --context hvo-docker --no-build davis` against the existing image. Follow the [host-placement runbook](../../../deploy/hvo-docker/davis/README.md) for #462; do not restart the preserved Pi.
+3. Deploy the disabled configuration with `./scripts/deploy-pi-gateway.sh --context hvo-docker --no-build davis`. Verify Davis acquisition, Home Assistant MQTT, central outbox delivery, and protected diagnostics remain healthy.
 4. Change only the ignored local `gateway.json` to `WeatherUnderground.Enabled=true`.
 5. Satisfy the [root-bootstrap and whole-helper prerequisites](../../development/key-vault-materialization.md), then run the separately approved `./scripts/sync-secrets-from-keyvault.sh --apply`. Confirm the station-key file exists and has mode `0600` without printing its contents. Do not retrieve or create a Weather Underground API-key file.
 6. Re-run the Davis deployment dry run. The preflight must reject an absent/empty station-key file, a station other than `KAZKINGM12`, a cadence other than five seconds, an unbounded timeout, or a different secret filename before SSH synchronization.
@@ -85,7 +85,7 @@ For an enabled publisher, verify:
 - Davis LOOP acquisition, MQTT projection, and central outbox forwarding continue through publication failures;
 - recovery publishes the latest eligible reading and does not replay a stale queue.
 
-Use `docker --context devpi5 logs --since 10m hvo-davis` and the protected `/diagnostics/status` endpoint. Search by station ID and outcome only. Never enable HTTP client URI/query logging for this publisher.
+Use `docker --context hvo-docker logs --since 10m davis-hvo-davis-1` and the protected `/diagnostics/status` endpoint. Search by station ID and outcome only. Never enable HTTP client URI/query logging for this publisher. Under Roy's final #462 migration rule, WU delivery failures are recorded for later diagnosis and do not move healthy collection/ingest back to the Pi.
 
 ## Rollback
 

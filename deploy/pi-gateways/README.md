@@ -1,6 +1,8 @@
 # Pi Gateway Deployments
 
-Minimal per-gateway Docker Compose deployments for Pi-class edge hosts.
+Minimal per-gateway Docker Compose deployments for edge hosts. Davis runs on
+hvo-docker using the same Compose definition; other active collectors retain
+their Pi-class hosts.
 
 ## Website upstream policy
 
@@ -116,6 +118,15 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 
 ## Davis deployment notes
 
+- The move from devpi5 to hvo-docker is tracked in
+  [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462). hvo-docker is
+  the acquisition authority; the preserved Pi must stay stopped. Reuse this
+  directory's Compose file and existing amd64 image as project `davis`. The
+  [hvo-docker runbook](../hvo-docker/davis/README.md) records Roy's final
+  core-only rollback rule, 15-minute collection/ingest gate and diagnostic-only
+  treatment of CWOP/WU/MQTT failures.
+  Never start collectors on both hosts. Keep the Pi container/image/volume and
+  `outbox.db.old`; exclude that old database from the transfer.
 - Weather Underground publication is disabled by default in `davis/gateway.json.example` and targets station `KAZKINGM12` on a five-second cadence with a two-second request timeout.
 - The upload station key is stored in Key Vault as `WeatherUnderground--StationKey`. It is materialized as the ignored `davis/secrets/weather-underground-station-key` file only when the ignored local Davis `gateway.json` enables publication.
 - `WeatherUnderground--ApiKey` is a separate query credential and is never retrieved or mounted for PWS upload. No Weather Underground credential belongs in `.env` or Compose environment entries.
@@ -162,13 +173,15 @@ docker compose --env-file deploy/pi-gateways/davis/.env \
    Inspect that output for the intended daemon-host paths.
 
 ```bash
-./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 davis
+./scripts/deploy-pi-gateway.sh --dry-run --context hvo-docker --no-build davis
 ```
 
-6. Only with rollout authorization, deploy the selected Pi collector:
+6. Only with rollout authorization, deploy the selected collector on its owning
+   host. The first Davis host migration must follow the stopped-copy runbook
+   above before this ordinary deployment workflow is applicable:
 
 ```bash
-./scripts/deploy-pi-gateway.sh --context devpi5 davis
+./scripts/deploy-pi-gateway.sh --context hvo-docker --no-build davis
 ./scripts/deploy-pi-gateway.sh --context devpi5 eg4
 ./scripts/deploy-pi-gateway.sh --context devpi5 jkbms
 ./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt
@@ -237,7 +250,7 @@ and retain retired recovery archives.
 
 ## Current local ports
 
-- Davis headless health and protected diagnostics: `http://<pi-host>:5100`
+- Davis headless health and protected diagnostics: `http://hvo-docker:5100`
 - JK BMS headless health and protected diagnostics: `http://<pi-host>:5200`
 - SmartShunt headless health and protected diagnostics: `http://<pi-host>:5400`
 - EG4 headless health and protected diagnostics: `http://<pi-host>:5600`

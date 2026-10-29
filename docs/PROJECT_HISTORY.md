@@ -2,6 +2,23 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
+## 2026-10-29 — Davis acquisition moves to hvo-docker (#462)
+
+Davis now uses its original standalone Compose project, mounted configuration/
+secrets and durable outbox on hvo-docker. The owner repaired stale package-cache
+hashes and Docker defaults; the retained amd64 image was built with the approved
+build-only host-network workaround, then reused on an MTU 1450 runtime bridge.
+Earlier WU/CWOP failures caused verified, record-preserving rollbacks under the
+old rule. Roy's final authorization keeps acquisition off the Pi: only inability
+to run/stay healthy, no LOOP for 10+ minutes or outright website-ingest failure
+permit rollback. Optional CWOP/WU/MQTT faults are recorded for later diagnosis.
+A fresh stopped/checksum-verified transfer and 15 minutes of healthy core
+collection/ingest precede disabling restart on the preserved Pi. All databases,
+old snapshots, images and volumes remain retained. The
+[placement and rollback runbook](../deploy/hvo-docker/davis/README.md) records
+this contract; [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462)
+holds actual observation boundaries, final restart state and delivery errors.
+
 ## 2026-10-11 — Public weather history within 24 hours (#446)
 
 Raw history, hourly summaries and highs/lows support anonymous reads with optional
