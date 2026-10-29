@@ -56,8 +56,12 @@ release-tag CI workflow. Davis retains its existing `hvo-davis` repository and
 registry credential names, adding required semver and multi-arch readback.
 
 After this workflow is on `main`, either dispatch it **on main** with a new
-`version` (for example `1.0.0-rc.1`), or push a `davis-v<version>` tag whose commit
-is contained in main. Versions use semver without `+build` metadata, which Docker
+`version` (for example `1.0.0-rc.1`), or push a `davis-v<version>` tag. Stable
+release tags must point to a commit contained in main. For explicit publication
+qualification while a PR remains draft, the owner may push a **prerelease** tag
+(for example `davis-v0.0.0-ci.464.1`) on the independently reviewed candidate.
+This runs the tag's workflow without a merge, ready transition or deployment;
+it never publishes a stable version from an unmerged branch. Versions use semver without `+build` metadata, which Docker
 tags cannot represent. The workflow rejects invalid sources, missing credentials,
 existing image versions and registry errors; it never moves `latest`. Publications
 are serialized, but the registry itself must restrict other writers to preserve
