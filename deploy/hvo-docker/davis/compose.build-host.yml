@@ -1,0 +1,6 @@
+# Build-only workaround for hvo-docker eth0 MTU 1450 / Docker bridge MTU 1500.
+# This does not change the collector's runtime bridge network or Docker settings.
+services:
+  hvo-davis:
+    build:
+      network: host

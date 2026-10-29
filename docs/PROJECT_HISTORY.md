@@ -2,13 +2,17 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
-## 2026-10-29 — Davis host migration held before cutover (#462)
+## 2026-10-29 — Davis host migration rolled back on WU timeout (#462)
 
 The authorized Davis move to hvo-docker retains its existing standalone Compose
-project and durable outbox contract. Preparation stopped on a locked package-hash
-validation failure; the target image build also encountered a package-index
-connection failure and was cancelled. devpi5 remains the sole active collector;
-no configuration/secrets or database transfer occurred. The
+project and durable outbox contract. The owner resolved stale local package-cache
+hash failures and approved build-only host networking for the host/bridge MTU
+mismatch. The amd64 build and 1,411 non-live tests passed. The stopped databases
+were checksum verified; target acquisition, rapid central ingest and MQTT worked,
+but WU timed out. The target was stopped and its current outbox was preserved,
+integrity checked and checksum copied back before restarting devpi5. Original
+databases and `outbox.db.old` remain retained; the target has `restart=no`.
+devpi5 remains the sole active collector. The
 [target placement and resume notes](../deploy/hvo-docker/davis/README.md) preserve
 the one-owner, checksum, no-deletion and rollback requirements. Live acceptance
 and the failed-attempt evidence remain on [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462).

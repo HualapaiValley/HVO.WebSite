@@ -13,8 +13,10 @@ The separately managed Davis Compose project is planned to move beside the
 website under [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462).
 Its [placement and migration notes](davis/README.md) retain the existing Davis
 Compose file, mounted secrets and durable outbox contract. The migration is
-incomplete; devpi5 remains the active collector until the issue records a
-successful cutover. Do not start a second collector from this website stack.
+incomplete after a Weather Underground timeout triggered rollback; devpi5
+remains the active collector. The target-specific overlay uses host networking
+for the image build because of the host/bridge MTU mismatch, while runtime stays
+on its bridge network. Do not start the retained target alongside the Pi.
 
 ## Prerequisites and configuration
 
