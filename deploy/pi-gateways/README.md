@@ -116,6 +116,13 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 
 ## Davis deployment notes
 
+- The move from devpi5 to hvo-docker is tracked in
+  [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462). It remains
+  incomplete; devpi5 is still the active acquisition authority. Reuse this
+  directory's Compose file as project `davis` on amd64 after the
+  [hvo-docker migration prerequisites](../hvo-docker/davis/README.md) pass.
+  Never start collectors on both hosts. Keep the Pi container/image/volume and
+  `outbox.db.old`; exclude that old database from the transfer.
 - Weather Underground publication is disabled by default in `davis/gateway.json.example` and targets station `KAZKINGM12` on a five-second cadence with a two-second request timeout.
 - The upload station key is stored in Key Vault as `WeatherUnderground--StationKey`. It is materialized as the ignored `davis/secrets/weather-underground-station-key` file only when the ignored local Davis `gateway.json` enables publication.
 - `WeatherUnderground--ApiKey` is a separate query credential and is never retrieved or mounted for PWS upload. No Weather Underground credential belongs in `.env` or Compose environment entries.

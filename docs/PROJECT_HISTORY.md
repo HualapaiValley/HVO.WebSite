@@ -2,6 +2,17 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
+## 2026-10-29 — Davis host migration held before cutover (#462)
+
+The authorized Davis move to hvo-docker retains its existing standalone Compose
+project and durable outbox contract. Preparation stopped on a locked package-hash
+validation failure; the target image build also encountered a package-index
+connection failure and was cancelled. devpi5 remains the sole active collector;
+no configuration/secrets or database transfer occurred. The
+[target placement and resume notes](../deploy/hvo-docker/davis/README.md) preserve
+the one-owner, checksum, no-deletion and rollback requirements. Live acceptance
+and the failed-attempt evidence remain on [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462).
+
 ## 2026-10-11 — Public weather history within 24 hours (#446)
 
 Raw history, hourly summaries and highs/lows support anonymous reads with optional

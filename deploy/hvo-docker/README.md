@@ -7,6 +7,15 @@ to its internal API. Read [publishing](../../docs/CONTAINER_PUBLISHING.md),
 [infrastructure/recovery ownership](../../docs/SHARED_INFRASTRUCTURE.md) before an
 authorized rollout. No deployment is implied by repository validation.
 
+## Davis collector migration
+
+The separately managed Davis Compose project is planned to move beside the
+website under [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462).
+Its [placement and migration notes](davis/README.md) retain the existing Davis
+Compose file, mounted secrets and durable outbox contract. The migration is
+incomplete; devpi5 remains the active collector until the issue records a
+successful cutover. Do not start a second collector from this website stack.
+
 ## Prerequisites and configuration
 
 - Docker CLI/Compose, the authorized `hvo-docker` SSH context and target access.
