@@ -246,9 +246,9 @@ replace the placeholder before validation or an authorized rollout.
 
 | Common variable | Purpose | Default | Required |
 |---|---|---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base URL for logs, traces and metrics | `http://192.168.1.238:4318` when unset/empty | No |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | OTLP transport; `http/protobuf` or `grpc` | `http/protobuf` when unset/empty | No |
-| `OTEL_SERVICE_NAME` | Telemetry service identity | `hvo-davis`, `hvo-jkbms`, `hvo-smartshunt`, `hvo-eg4` respectively when unset/empty | No |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base URL for logs, traces and metrics | `http://192.168.1.238:4318` when unset/empty at the Compose layer; explicit runtime empty stays empty | No |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | OTLP transport; `http/protobuf` or `grpc` | `http/protobuf` when unset/empty at the Compose layer; explicit runtime empty stays empty | No |
+| `OTEL_SERVICE_NAME` | Telemetry service identity | `hvo-davis`, `hvo-jkbms`, `hvo-smartshunt`, `hvo-eg4` respectively when unset/empty at the Compose layer; explicit runtime empty stays empty | No |
 
 These are **Compose/env-example defaults**, used during container creation.
 The runtime loader supplies only values present in its file. Removing a runtime
