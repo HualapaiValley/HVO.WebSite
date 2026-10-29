@@ -30,6 +30,14 @@ CWOP defaults disabled. Its distinct [APRS-IS guide](../../docs/gateways/davis-v
 
 The preserved named volume is `davis-outbox`, mounted at `/app/data`.
 
+Planned hvo-docker placement uses Compose project `davis`, retaining
+`deploy/pi-gateways/davis/docker-compose.yml` and the named
+`davis_davis-outbox` volume. After the #462 CWOP rollback, devpi5 remains the
+active collector with health/diagnostics at `devpi5:5100`; the target is stopped.
+Follow
+the [host migration and rollback notes](../../deploy/hvo-docker/davis/README.md)
+for #462; never run collectors on both hosts.
+
 ## Endpoints
 
 - `/health/live`: process liveness

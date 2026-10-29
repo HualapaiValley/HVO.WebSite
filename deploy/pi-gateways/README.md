@@ -1,6 +1,8 @@
 # Pi Gateway Deployments
 
-Minimal per-gateway Docker Compose deployments for Pi-class edge hosts.
+Minimal per-gateway Docker Compose deployments for edge hosts. Davis's planned
+hvo-docker placement reuses the same Compose definition; devpi5 remains its
+active host after the #462 rollback.
 
 ## Website upstream policy
 
@@ -118,10 +120,10 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 
 - The move from devpi5 to hvo-docker is tracked in
   [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462). It remains
-  incomplete after a target WU timeout and verified rollback; devpi5 is still
-  the active acquisition authority. Reuse this
-  directory's Compose file with the target's build-only host-network overlay as
-  project `davis` on amd64 after the
+  incomplete after a CWOP timeout during the MTU-repaired retry's required
+  15-minute observation. devpi5 is again the sole active collector. Reuse this
+  directory's Compose file and the existing
+  amd64 image as project `davis` after the
   [hvo-docker migration prerequisites](../hvo-docker/davis/README.md) pass.
   Never start collectors on both hosts. Keep the Pi container/image/volume and
   `outbox.db.old`; exclude that old database from the transfer.
@@ -174,7 +176,9 @@ docker compose --env-file deploy/pi-gateways/davis/.env \
 ./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 davis
 ```
 
-6. Only with rollout authorization, deploy the selected Pi collector:
+6. Only with rollout authorization, deploy the selected collector on its owning
+   host. The first Davis host migration must follow the stopped-copy runbook
+   above before this ordinary deployment workflow is applicable:
 
 ```bash
 ./scripts/deploy-pi-gateway.sh --context devpi5 davis
@@ -246,7 +250,7 @@ and retain retired recovery archives.
 
 ## Current local ports
 
-- Davis headless health and protected diagnostics: `http://<pi-host>:5100`
+- Davis headless health and protected diagnostics after rollback: `http://devpi5:5100`; move to `http://hvo-docker:5100` only after #462 succeeds
 - JK BMS headless health and protected diagnostics: `http://<pi-host>:5200`
 - SmartShunt headless health and protected diagnostics: `http://<pi-host>:5400`
 - EG4 headless health and protected diagnostics: `http://<pi-host>:5600`

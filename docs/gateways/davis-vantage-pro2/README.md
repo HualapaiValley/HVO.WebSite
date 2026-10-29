@@ -41,7 +41,7 @@ This table is HVO documentation metadata unless a row explicitly references a Da
 | HVO integration role | Source |
 | Hardware model | Davis Vantage Pro2 family; exact console model is read via `WRD 12 4D` and `StationInfo` |
 | HVO project/service | `src/HVO.Hardware.DavisVantagePro2` |
-| HVO deployment target | Pi gateway container, compose file `deploy/pi-gateways/davis/docker-compose.yml` |
+| HVO deployment target | Headless collector on `devpi5` after #462 rollback; hvo-docker target remains stopped. Compose file `deploy/pi-gateways/davis/docker-compose.yml`; [placement and migration evidence](../../../deploy/hvo-docker/davis/README.md) |
 | Native UI exists | Console display; no rich web UI |
 | Native UI is primary | No |
 | HVO presentation responsibility | Shared protected diagnostics and bounded HA MQTT current state; no local UI |
