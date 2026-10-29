@@ -48,12 +48,18 @@ do not add another collector to the website stack.
 The reused image is
 `sha256:06e0e5aad579d3ca4b06b8d35faf07f63b03cb8f9e154ab62c45dde991d1741d`,
 built from main `1dced139fcb811fd1a20c09e230457130148e962`. The operational
-checkout is `/home/roys/deploy/HVO.WebSite-462` on hvo-docker. **Do not rebuild
-there unless the image is missing.** The retained Pi image is arm64.
+checkout is `/home/roys/deploy/HVO.WebSite-462` on hvo-docker. The retained Pi
+image is arm64. **Never build on hvo-docker or home-docker**, including when an
+image is missing. The one-off image remains in use until Kepler/Roy separately
+cuts over to the registry image from
+[#464](https://github.com/HualapaiValley/HVO.WebSite/issues/464).
 
-The [historical build-only host-network overlay](compose.build-host.yml) was
-approved for the earlier eth0 MTU 1450 / bridge MTU 1500 build failure. It does
-not change runtime networking. The owner subsequently repaired Docker's default
+The historical build-only host-network overlay has been removed under #464.
+Its earlier approval for the eth0 MTU 1450 / bridge MTU 1500 build failure does
+not authorize future target-host builds. CI publishes a versioned multi-arch
+`registry.hualapaivalleyobservatory.org/hvo-davis` image; target hosts pull the
+reviewed version and immutable index digest. Publishing and pulling do not
+authorize a deployment/restart. The owner subsequently repaired Docker's default
 MTU outside this migration session; the Davis bridge now reports
 `{"com.docker.network.driver.mtu":"1450"}`.
 
