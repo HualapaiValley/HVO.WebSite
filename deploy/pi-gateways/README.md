@@ -199,8 +199,12 @@ The file supports flat `KEY=value` lines, `#`/`;` comment lines and double-quote
 values. It is parsed as data: **no `export`, sections, shell expressions,
 variable expansion or command substitution**. Duplicate setting names, including
 aliases such as `DAVIS_STATION_HOST` plus `Station__Host`, fail startup without
-printing file contents. Credentials stay in mounted secret files; configuration
-may name those files but must not contain the credential values.
+printing file contents. Keys containing `Password`, `Token`, `Secret`, `ApiKey`
+or `ConnectionString` are rejected case-insensitively after ignoring separators,
+including unknown flat credential keys. Neither key nor value appears in the
+generic error. Keep secret-file references in mounted `gateway.json` and raw
+credentials in mounted secret files. Ordinary single-underscore Compose
+`*_SECRETS_DIRECTORY` path fields remain allowed ignored metadata.
 
 Startup precedence is app defaults → mounted `gateway.json` → creation-time
 environment → mounted runtime `.env`. The last provider maps supported
@@ -209,8 +213,12 @@ environment → mounted runtime `.env`. The last provider maps supported
 Davis env compatibility. Other Compose variables (pins, ports, paths and overlay
 switches) are ignored by the app loader. The mounted JSON selector remains fixed.
 Existing option validation and sole-source/device-identity rules still apply.
+This precedence is intentional: a selected runtime setting wins over real
+environment values from `docker run -e` or Compose `environment:`. Omitting or
+removing a runtime key falls through to the container's original environment,
+then JSON/app defaults. The loader does not synthesize deployment defaults.
 
-Examples of optional app overrides (omit to retain mounted JSON/app defaults):
+Examples of optional app overrides (omit to retain environment/JSON/app defaults):
 
 | Variable | Purpose | Default / requirement |
 |---|---|---|
@@ -242,8 +250,12 @@ replace the placeholder before validation or an authorized rollout.
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | OTLP transport; `http/protobuf` or `grpc` | `http/protobuf` when unset/empty | No |
 | `OTEL_SERVICE_NAME` | Telemetry service identity | `hvo-davis`, `hvo-jkbms`, `hvo-smartshunt`, `hvo-eg4` respectively when unset/empty | No |
 
-The runtime file uses these same telemetry defaults, including after a setting
-is removed, rather than reusing an old container environment value. For gRPC,
+These are **Compose/env-example defaults**, used during container creation.
+The runtime loader supplies only values present in its file. Removing a runtime
+setting exposes the original container environment; explicitly empty values
+remain empty. In particular, an empty runtime base endpoint disables that base
+exporter, while empty protocol/service values are not suitable overrides: use a
+supported protocol and nonempty identity. For gRPC,
 select the collector's configured gRPC listener (normally port 4317) together
 with `grpc`. The former `OTEL_COLLECTOR_ENDPOINT` alias is no longer used by these
 four Compose definitions; migrate to `OTEL_EXPORTER_OTLP_ENDPOINT`. Verify the

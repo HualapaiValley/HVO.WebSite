@@ -64,19 +64,102 @@ public sealed class EdgeRuntimeEnvironmentFileTests
     }
 
     [TestMethod]
-    [DataRow("")]
-    [DataRow("OTEL_EXPORTER_OTLP_ENDPOINT=\nOTEL_EXPORTER_OTLP_PROTOCOL=\nOTEL_SERVICE_NAME=\n")]
-    public void StartupFile_UnsetOrEmptyTelemetrySettingsUseComposeDefaults(string contents)
+    public void StartupFile_UnsetTelemetryDoesNotInventDeploymentDefaults()
     {
         WithDirectory(root =>
         {
             var path = Path.Combine(root, ".env");
-            File.WriteAllText(path, contents);
-            var builder = Builder(root, path).AddHvoEdgeMountedConfiguration();
+            File.WriteAllText(path, "Outbox__BatchSize=12\n");
+            var overrides = EdgeRuntimeEnvironmentFile.Read(path, root);
 
-            builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"].Should().Be("http://192.168.1.238:4318");
-            builder.Configuration["OTEL_EXPORTER_OTLP_PROTOCOL"].Should().Be("http/protobuf");
-            builder.Configuration["OTEL_SERVICE_NAME"].Should().Be("fixture-default");
+            overrides.Should().ContainSingle().Which.Key.Should().Be("Outbox:BatchSize");
+            overrides.Keys.Should().NotContain(key => key.StartsWith("OTEL_", StringComparison.OrdinalIgnoreCase));
+        });
+    }
+
+    [TestMethod]
+    public void StartupFile_ExplicitlyEmptyTelemetryValuesRemainEmpty()
+    {
+        WithDirectory(root =>
+        {
+            var path = Path.Combine(root, ".env");
+            File.WriteAllText(path, "OTEL_EXPORTER_OTLP_ENDPOINT=\nOTEL_EXPORTER_OTLP_PROTOCOL=\nOTEL_SERVICE_NAME=\n");
+            var overrides = EdgeRuntimeEnvironmentFile.Read(path, root);
+
+            overrides.Should().HaveCount(3);
+            overrides.Values.Should().OnlyContain(value => value == string.Empty);
+        });
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public void StartupFile_IntentionallyWinsOverRealEnvironmentWhichWinsOverJson()
+    {
+        const string key = "HvoFixturePrecedence__Value";
+        var previous = Environment.GetEnvironmentVariable(key);
+        try
+        {
+            WithDirectory(root =>
+            {
+                var path = Path.Combine(root, ".env");
+                File.WriteAllText(path, $"{key}=startup-file\n");
+                Environment.SetEnvironmentVariable(key, "creation-environment");
+                var startup = Builder(root, path).AddHvoEdgeMountedConfiguration();
+                startup.Configuration["HvoFixturePrecedence:Value"].Should().Be("startup-file");
+
+                File.WriteAllText(path, string.Empty);
+                var withoutFileOverride = Builder(root, path).AddHvoEdgeMountedConfiguration();
+                withoutFileOverride.Configuration["HvoFixturePrecedence:Value"].Should().Be("creation-environment");
+
+                Environment.SetEnvironmentVariable(key, null);
+                var withoutEnvironmentOverride = Builder(root, path).AddHvoEdgeMountedConfiguration();
+                withoutEnvironmentOverride.Configuration["HvoFixturePrecedence:Value"].Should().Be("mounted-json");
+            });
+        }
+        finally { Environment.SetEnvironmentVariable(key, previous); }
+    }
+
+    [TestMethod]
+    [DataRow("HomeAssistant__Mqtt__Password")]
+    [DataRow("service__ACCESS_TOKEN")]
+    [DataRow("Station__CentralApiKeySecret")]
+    [DataRow("service__api_key")]
+    [DataRow("ConnectionStrings__Hvo")]
+    [DataRow("PASSWORD")]
+    [DataRow("DATABASE_CONNECTION_STRING")]
+    [DataRow("ApiKey")]
+    [DataRow("OTEL_ACCESS_TOKEN")]
+    [DataRow("Fixture__sEcReT")]
+    [DataRow("Edge__Paths__SecretsDirectory")]
+    public void StartupFile_RejectsSecretLikeKeysBeforeIgnoringUnknownNames_WithoutLeakingNamesOrValues(string key)
+    {
+        WithDirectory(root =>
+        {
+            var path = Path.Combine(root, ".env");
+            File.WriteAllText(path, $"{key}=fixture-value-must-not-leak\n");
+            var read = () => Builder(root, path).AddHvoEdgeMountedConfiguration();
+
+            var error = read.Should().Throw<InvalidOperationException>().Which;
+            error.ToString().Should().NotContain(key).And.NotContain("fixture-value-must-not-leak");
+            error.InnerException.Should().BeNull();
+            error.Message.Should().Be("Cannot read runtime .env; require a readable, flat KEY=value file with unique non-secret setting names.");
+        });
+    }
+
+    [TestMethod]
+    public void StartupFile_IgnoresComposeSecretDirectoryMetadataWithoutTreatingItAsAppOverrides()
+    {
+        WithDirectory(root =>
+        {
+            var path = Path.Combine(root, ".env");
+            File.WriteAllText(path, string.Join('\n', new[] { "DAVIS", "JKBMS", "SMARTSHUNT", "EG4" }
+                .SelectMany(prefix => new[]
+                {
+                    $"{prefix}_SECRETS_DIRECTORY=./secrets",
+                    $"{prefix}_REMOTE_SECRETS_DIRECTORY=/fixture/secrets"
+                })));
+
+            EdgeRuntimeEnvironmentFile.Read(path, root).Should().BeEmpty();
         });
     }
 
@@ -122,7 +205,7 @@ public sealed class EdgeRuntimeEnvironmentFileTests
     private static WebApplicationBuilder Builder(string root, string runtimeFile)
     {
         var json = Path.Combine(root, "gateway.json");
-        File.WriteAllText(json, """{"Edge":{"Runtime":{"ServiceName":"fixture-default"}},"Outbox":{"BatchSize":50}}""");
+        File.WriteAllText(json, """{"Edge":{"Runtime":{"ServiceName":"fixture-default"}},"Outbox":{"BatchSize":50},"HvoFixturePrecedence":{"Value":"mounted-json"}}""");
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {

@@ -121,6 +121,11 @@ self-hosted `[self-hosted, Linux, X64, hvo-website, docker]` runner builds both
 linux/amd64 and linux/arm64 via QEMU; no Pi/docker-host image build is permitted.
 No runner-group or Docker-daemon configuration change is part of publishing.
 
+Push release tags individually when qualifying all four collectors. GitHub does
+not emit tag push events for a push containing more than three tags, even when
+the refs were successfully created. A successful Git push alone is not evidence
+that a publication workflow started; require the matching source/tag Actions run.
+
 After the workflows merge, dispatch the selected workflow **on main** with a new
 semver `version`, or push its version tag at an authorized commit. Stable tags
 must be contained in main. For #466 the owner specifically permits these three

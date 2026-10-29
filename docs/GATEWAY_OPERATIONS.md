@@ -14,6 +14,23 @@ The OTLP endpoint/protocol/service defaults are `http://192.168.1.238:4318`,
 require no-build recreation. No new live telemetry or rollout qualification is
 implied by a runbook/configuration change.
 
+Startup precedence is intentionally **runtime `.env` > real creation-time
+environment > mounted `gateway.json` > app defaults**. This includes values
+provided by Compose `environment:` or `docker run -e`: a matching runtime-file
+key wins so an authorized restart can change that value without recreation.
+Removing a runtime key exposes the container's original environment/JSON value;
+the loader supplies no deployment-specific OTLP fallback. Keep the desired
+endpoint/protocol/service explicitly in the runtime file. The LAN defaults
+above live in Compose and the env examples, not in shared Edge.Hosting code.
+An explicitly empty runtime base endpoint disables that base exporter, unlike
+Compose's unset/empty interpolation fallback during container creation.
+
+Runtime keys containing `Password`, `Token`, `Secret`, `ApiKey` or
+`ConnectionString` (case/separator insensitive) fail with a generic error that
+prints neither key nor value. Secret-file references remain in `gateway.json`
+and credentials remain mounted secret files. Ordinary single-underscore Compose
+`*_SECRETS_DIRECTORY` path fields are ignored metadata, not app overrides.
+
 ## Health Contract
 
 The [shared endpoint implementation](../src/HVO.Edge.Hosting/Diagnostics/EdgeDiagnosticsEndpointRouteBuilderExtensions.cs)

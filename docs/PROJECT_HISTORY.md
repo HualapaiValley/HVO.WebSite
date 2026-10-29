@@ -33,6 +33,16 @@ Each readback verified exactly linux/amd64 + linux/arm64 and the version tag's
 index digest. #466 / its draft PR retains the complete immutable references;
 these qualification images must not be described as containing later changes.
 
+All four loader-containing `0.0.0-ci.466.2` images later passed CI and independent
+registry readback at `4991e0286cfdc89347491c7388215182c525bca8`; the
+[immutable digest record](https://github.com/HualapaiValley/HVO.WebSite/pull/467#issuecomment-6509540318)
+verifies exactly linux/amd64 + linux/arm64. Their source predates Kepler's
+subsequent review corrections: intentional runtime-file > environment > JSON
+precedence is now explicit, the deployment OTLP default belongs only in
+Compose/env examples, and credential-like runtime keys fail with a generic error.
+Ignored Compose secret-directory paths stay compatible; secret-file references
+remain in mounted JSON. These corrections do not move the published tags.
+
 ## 2026-10-29 — Davis registry publishing candidate (#464)
 
 Added an explicit semver/tag CI publication path for `hvo-davis`, using the

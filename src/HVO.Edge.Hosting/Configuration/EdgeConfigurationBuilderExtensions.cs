@@ -25,7 +25,8 @@ public static class EdgeConfigurationBuilderExtensions
         var optional = !builder.Environment.IsProduction();
 
         builder.Configuration.AddJsonFile(path, optional, reloadOnChange: false);
-        // Explicit runtime overrides must win over the mounted file.
+        // Creation-time environment overrides mounted JSON. The optional startup
+        // .env is intentionally added last so restart-only changes override both.
         builder.Configuration.AddEnvironmentVariables();
         var runtimeEnvironmentFile = builder.Configuration[EdgeRuntimeEnvironmentFile.EnvironmentVariable];
         if (!string.IsNullOrWhiteSpace(runtimeEnvironmentFile))
@@ -33,7 +34,7 @@ public static class EdgeConfigurationBuilderExtensions
             // This mounted file wins over creation-time env so a process/container
             // restart can pick up settings without recreating or rebuilding it.
             builder.Configuration.AddInMemoryCollection(EdgeRuntimeEnvironmentFile.Read(
-                runtimeEnvironmentFile, configRoot, builder.Configuration["Edge:Runtime:ServiceName"]));
+                runtimeEnvironmentFile, configRoot));
         }
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {

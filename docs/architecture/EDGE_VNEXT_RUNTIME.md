@@ -76,7 +76,13 @@ never creates mounted configuration or secret files.
 Configuration precedence is application defaults, mounted `gateway.json`, then
 creation-time environment-variable overrides. When `HVO_EDGE_RUNTIME_ENV_FILE`
 selects a startup `.env` under the config root, its OTEL/`Section__Key` overrides
-win last; the mounted JSON selector remains pinned. Production requires JSON;
+intentionally win over real environment values; the mounted JSON selector stays
+pinned. Missing runtime keys fall through to that original environment/JSON;
+the loader supplies no deployment OTLP defaults. Those belong to Compose/env
+examples. Credential-like keys (`Password`, `Token`, `Secret`, `ApiKey`,
+`ConnectionString`, case/separator insensitive) are rejected without exposing
+names or values. Secret-file references remain in JSON. Ordinary Compose
+`*_SECRETS_DIRECTORY` paths are ignored metadata. Production requires JSON;
 it is optional outside Production. A selected runtime `.env` is required in all
 environments and invalid/unreadable content fails before device workers start,
 without printing values. Neither file is hot-loaded; secret files are resolved
