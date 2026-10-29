@@ -2,6 +2,18 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
+## 2026-10-29 — Davis registry publishing candidate (#464)
+
+Added an explicit semver/tag CI publication path for `hvo-davis`, using the
+organization's x64 website runners and QEMU for arm64 because WebSite has no
+native ARM runner-group grant. Buildx publishes and reads back a two-platform
+index; deployment Compose requires the version and immutable index digest.
+The [registry handoff](../deploy/pi-gateways/davis/README.md) replaces target-host
+build instructions, including #463's historical host-network overlay. Workflow
+adoption, configured credentials and first publication remain separately
+verifiable; the draft candidate does not deploy or restart the Davis collector.
+Kepler/Roy owns the cutover from #462's one-off image.
+
 ## 2026-10-11 — Public weather history within 24 hours (#446)
 
 Raw history, hourly summaries and highs/lows support anonymous reads with optional

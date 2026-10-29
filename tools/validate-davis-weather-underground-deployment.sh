@@ -21,6 +21,8 @@ write_env_file() {
 	local env_file="${tmp_dir}/${name}.env"
 	{
 		printf 'DAVIS_HTTP_PORT=5100\n'
+		printf 'HVO_DAVIS_IMAGE_VERSION=0.0.0-ci\n'
+		printf 'HVO_DAVIS_IMAGE_DIGEST=sha256:%064d\n' 0
 		printf 'DAVIS_STATION_HOST=192.0.2.10\n'
 		printf 'DAVIS_CONFIG_FILE=%s\n' "${config}"
 		printf 'DAVIS_SECRETS_DIRECTORY=%s\n' "${secrets_dir}"
@@ -139,6 +141,8 @@ docker compose --env-file "${disabled_env}" -f "${compose_file}" config --quiet
 resolved="$(docker compose --env-file "${disabled_env}" -f "${compose_file}" config --format json)"
 jq -e '
 	(.services | keys) == ["hvo-davis"] and
+	(.services["hvo-davis"] | has("build") | not) and
+	(.services["hvo-davis"].image == "registry.hualapaivalleyobservatory.org/hvo-davis:0.0.0-ci@sha256:" + ("0" * 64)) and
 	(.services["hvo-davis"].volumes | any(.type == "bind" and .target == "/run/secrets" and .read_only == true)) and
 	([.services["hvo-davis"].environment | keys[] | select(test("WeatherUnderground|WEATHER_UNDERGROUND|API.?KEY"; "i"))] | length) == 0
 ' <<<"${resolved}" >/dev/null || fail 'Compose secret mount is not read-only or a credential entered the environment'
@@ -147,6 +151,17 @@ disabled_output="$(run_deploy_dry_run "${disabled_env}")"
 [[ "${disabled_output}" == *'config --quiet'* && "${disabled_output}" == *'up -d --wait'* ]] ||
 	fail 'disabled profile did not reach the secret-safe deployment dry run'
 [[ "${disabled_output}" != *"${sentinel}"* ]] || fail 'disabled dry run exposed a mounted secret'
+[[ "${disabled_output}" == *'--no-build'* && "${disabled_output}" != *' --build'* ]] ||
+	fail 'Davis deployment must never request a host build'
+
+# Missing release identity must fail Compose rendering before a pull or startup.
+for key in HVO_DAVIS_IMAGE_VERSION HVO_DAVIS_IMAGE_DIGEST; do
+	sed "/^${key}=/d" "${disabled_env}" >"${tmp_dir}/missing-image.env"
+	if env -u HVO_DAVIS_IMAGE_VERSION -u HVO_DAVIS_IMAGE_DIGEST docker compose \
+		--env-file "${tmp_dir}/missing-image.env" -f "${compose_file}" config --quiet >/dev/null 2>&1; then
+		fail "Compose accepted missing ${key}"
+	fi
+done
 
 configurable_cwop_output="$(run_deploy_dry_run "${configurable_cwop_env}")"
 [[ "${configurable_cwop_output}" == *'config --quiet'* && "${configurable_cwop_output}" == *'up -d --wait'* ]] ||

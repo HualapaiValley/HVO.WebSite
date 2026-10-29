@@ -116,6 +116,12 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 
 ## Davis deployment notes
 
+Davis uses the [versioned registry image and pull-only handoff](davis/README.md).
+Its current acquisition owner is hvo-docker (amd64); the stopped Pi is a possible
+arm64 fallback only through an authorized sole-owner cutover. Set
+`HVO_DAVIS_IMAGE_VERSION` and `HVO_DAVIS_IMAGE_DIGEST` from a successful CI publish
+before rendering or pulling Compose. Never build on hvo-docker or home-docker.
+
 - Weather Underground publication is disabled by default in `davis/gateway.json.example` and targets station `KAZKINGM12` on a five-second cadence with a two-second request timeout.
 - The upload station key is stored in Key Vault as `WeatherUnderground--StationKey`. It is materialized as the ignored `davis/secrets/weather-underground-station-key` file only when the ignored local Davis `gateway.json` enables publication.
 - `WeatherUnderground--ApiKey` is a separate query credential and is never retrieved or mounted for PWS upload. No Weather Underground credential belongs in `.env` or Compose environment entries.
@@ -162,13 +168,14 @@ docker compose --env-file deploy/pi-gateways/davis/.env \
    Inspect that output for the intended daemon-host paths.
 
 ```bash
-./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 davis
+./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 --pull --no-build davis
 ```
 
 6. Only with rollout authorization, deploy the selected Pi collector:
 
 ```bash
-./scripts/deploy-pi-gateway.sh --context devpi5 davis
+# Davis: only on the separately authorized target after the registry handoff.
+./scripts/deploy-pi-gateway.sh --context devpi5 --pull --no-build davis
 ./scripts/deploy-pi-gateway.sh --context devpi5 eg4
 ./scripts/deploy-pi-gateway.sh --context devpi5 jkbms
 ./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt
