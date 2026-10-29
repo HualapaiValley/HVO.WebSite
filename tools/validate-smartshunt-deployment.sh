@@ -23,6 +23,7 @@ env_file="${tmp_dir}/smartshunt.env"
   printf 'SMARTSHUNT_HTTP_PORT=5400\nSMARTSHUNT_CONFIG_FILE=%s\nSMARTSHUNT_SECRETS_DIRECTORY=%s\n' "${config}" "${secrets_dir}"
   printf 'SMARTSHUNT_REMOTE_CONFIG_FILE=/home/test/.local/share/hvo-edge/smartshunt/gateway.json\n'
   printf 'SMARTSHUNT_REMOTE_SECRETS_DIRECTORY=/home/test/.local/share/hvo-edge/smartshunt/secrets\n'
+  printf 'SMARTSHUNT_REMOTE_RUNTIME_DIRECTORY=/home/test/.local/share/hvo-edge/smartshunt/runtime\n'
 } >"${env_file}"
 
 docker compose --env-file "${env_file}" -f "${compose_file}" config --quiet

@@ -45,6 +45,7 @@ sync_remote_mounts() {
 	local local_secrets="$3"
 	local remote_config="$4"
 	local remote_secrets="$5"
+	local local_env="$6"
 	local ssh_target remote_root staging_root staging_config staging_secrets
 	command -v ssh >/dev/null 2>&1 || fail 'Required command not found: ssh'
 	command -v scp >/dev/null 2>&1 || fail 'Required command not found: scp'
@@ -55,6 +56,10 @@ sync_remote_mounts() {
 	[[ "${remote_secrets}" =~ ^/[A-Za-z0-9._/-]+$ ]] || fail "${gateway} remote secrets path contains unsupported characters."
 	remote_root="$(dirname "${remote_config}")"
 	[[ "${remote_secrets}" == "${remote_root}/secrets" ]] || fail "${gateway} remote secrets directory must be ${remote_root}/secrets."
+	local runtime_directory
+	runtime_directory="$(read_env_value "${local_env}" "${gateway^^}_REMOTE_RUNTIME_DIRECTORY")"
+	runtime_directory="${runtime_directory:-/home/roys/.local/share/hvo-edge/${gateway}/runtime}"
+	[[ "${runtime_directory}" == "${remote_root}/runtime" ]] || fail "${gateway^^}_REMOTE_RUNTIME_DIRECTORY must be ${remote_root}/runtime."
 	if [[ "${dry_run}" == true ]]; then
 		ssh_target="docker-context-${docker_context}"
 	else
@@ -64,18 +69,19 @@ sync_remote_mounts() {
 	staging_config="${staging_root}/gateway.json"
 	staging_secrets="${staging_root}/secrets"
 
-	run_cmd ssh "${ssh_target}" install -d -m 700 "${remote_root}" "${staging_root}" "${staging_secrets}"
+	run_cmd ssh "${ssh_target}" install -d -m 700 "${remote_root}" "${staging_root}" "${staging_secrets}" "${staging_root}/runtime"
 	run_cmd scp "${local_config}" "${ssh_target}:${staging_config}"
+	run_cmd scp "${local_env}" "${ssh_target}:${staging_root}/runtime/.env"
 	run_cmd scp "${repo_root}/scripts/activate-remote-gateway-config.sh" "${ssh_target}:${staging_root}/activate.sh"
 	if [[ "${dry_run}" == true ]]; then
 		printf '[dry-run] scp %q %q\n' "${local_secrets}/." "${ssh_target}:${staging_secrets}/"
 	else
 		scp -r "${local_secrets}/." "${ssh_target}:${staging_secrets}/"
 	fi
-	run_cmd ssh "${ssh_target}" chmod 600 "${staging_config}" "${staging_root}/activate.sh"
+	run_cmd ssh "${ssh_target}" chmod 600 "${staging_config}" "${staging_root}/activate.sh" "${staging_root}/runtime/.env"
 	run_cmd ssh "${ssh_target}" find "${staging_secrets}" -type f -exec chmod 600 {} +
 	# The uploaded script performs same-filesystem activation and restores the previous
-	# active files if either staged rename fails.
+	# active config/secrets/runtime files if activation fails.
 	run_cmd ssh "${ssh_target}" sh "${staging_root}/activate.sh" \
 		"${remote_root}" "${staging_root}" "${remote_config}" "${remote_secrets}"
 }
@@ -336,13 +342,13 @@ deploy_target() {
 		[[ -n "${eg4_remote_config}" ]] || fail "EG4_REMOTE_CONFIG_FILE is required in the EG4 .env file."
 		eg4_remote_secrets="$(read_env_value "${env_file}" EG4_REMOTE_SECRETS_DIRECTORY)"
 		[[ -n "${eg4_remote_secrets}" ]] || fail "EG4_REMOTE_SECRETS_DIRECTORY is required in the EG4 .env file."
-		sync_remote_mounts eg4 "${eg4_config_path}" "${eg4_secrets_path}" "${eg4_remote_config}" "${eg4_remote_secrets}"
+		sync_remote_mounts eg4 "${eg4_config_path}" "${eg4_secrets_path}" "${eg4_remote_config}" "${eg4_remote_secrets}" "${env_file}"
 	fi
 	if [[ "${gateway}" == davis ]]; then
 		local davis_config_path davis_secrets_path davis_remote_config davis_remote_secrets
 		preflight_davis_contract "${env_file}" "${compose_dir}" \
 			davis_config_path davis_secrets_path davis_remote_config davis_remote_secrets
-		sync_remote_mounts davis "${davis_config_path}" "${davis_secrets_path}" "${davis_remote_config}" "${davis_remote_secrets}"
+		sync_remote_mounts davis "${davis_config_path}" "${davis_secrets_path}" "${davis_remote_config}" "${davis_remote_secrets}" "${env_file}"
 	fi
 	if [[ "${gateway}" == jkbms ]]; then
 		local jkbms_config_setting jkbms_config_path jkbms_secrets_setting jkbms_secrets_path jkbms_remote_config jkbms_remote_secrets
@@ -382,13 +388,13 @@ deploy_target() {
 		[[ -n "${jkbms_remote_config}" ]] || fail "JKBMS_REMOTE_CONFIG_FILE is required in the JK BMS .env file."
 		jkbms_remote_secrets="$(read_env_value "${env_file}" JKBMS_REMOTE_SECRETS_DIRECTORY)"
 		[[ -n "${jkbms_remote_secrets}" ]] || fail "JKBMS_REMOTE_SECRETS_DIRECTORY is required in the JK BMS .env file."
-		sync_remote_mounts jkbms "${jkbms_config_path}" "${jkbms_secrets_path}" "${jkbms_remote_config}" "${jkbms_remote_secrets}"
+		sync_remote_mounts jkbms "${jkbms_config_path}" "${jkbms_secrets_path}" "${jkbms_remote_config}" "${jkbms_remote_secrets}" "${env_file}"
 	fi
 	if [[ "${gateway}" == smartshunt ]]; then
 		local smartshunt_config_path smartshunt_secrets_path smartshunt_remote_config smartshunt_remote_secrets
 		preflight_smartshunt_contract "${env_file}" "${compose_dir}" \
 			smartshunt_config_path smartshunt_secrets_path smartshunt_remote_config smartshunt_remote_secrets
-		sync_remote_mounts smartshunt "${smartshunt_config_path}" "${smartshunt_secrets_path}" "${smartshunt_remote_config}" "${smartshunt_remote_secrets}"
+		sync_remote_mounts smartshunt "${smartshunt_config_path}" "${smartshunt_secrets_path}" "${smartshunt_remote_config}" "${smartshunt_remote_secrets}" "${env_file}"
 	fi
 
 	local compose_args=(--context "${docker_context}" compose --env-file "${env_file}")

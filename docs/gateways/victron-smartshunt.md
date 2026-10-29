@@ -32,7 +32,7 @@ The central `PowerReading` remains the summary contract. `SmartShuntDetailPayloa
 
 ## Runtime And Deployment
 
-- Configuration: non-secret read-only `/app/config/gateway.json`, required in Production; environment overrides win, JSON reload is disabled.
+- Configuration: non-secret read-only `/app/config/gateway.json`, required in Production; creation-time environment overrides JSON. With #466's opt-in mounted runtime `.env`, startup overrides win last. No JSON/env hot reload exists; see the [complete variable/restart reference](../../deploy/pi-gateways/README.md#runtime-configuration-without-image-rebuilds).
 - Secrets: distinct startup-read filenames under read-only `/run/secrets`; configuration/secret changes require an approved restart/replacement.
 - Durable state: `/app/data/outbox.db` on the unchanged `smartshunt-outbox` Compose volume.
 - Liveness: `GET /health/live` proves process liveness only.

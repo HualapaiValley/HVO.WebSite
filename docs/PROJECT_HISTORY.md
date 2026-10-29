@@ -14,6 +14,25 @@ volumes. [#466](https://github.com/HualapaiValley/HVO.WebSite/issues/466) author
 draft delivery and prerelease publication qualification only; actual deployments,
 restarts and stable releases remain outside this candidate's scope.
 
+Roy's [added scope](https://github.com/HualapaiValley/HVO.WebSite/issues/466#issuecomment-6508970538)
+extends configurable OTLP endpoint/protocol/service identity to all four direct
+collectors, including Davis's shared hvo-docker/Pi definition. An opt-in mounted
+non-secret runtime `.env` is read after JSON and creation-time environment,
+allowing app-setting updates on an authorized restart without changing images.
+The directory bind and staged file replacement preserve mount visibility and
+restore previous config/secrets/env on activation failure. Docker-owned settings
+still require recreation. The earlier prerelease source predates this loader;
+adoption needs a later publication and separately authorized replacement.
+
+The three `0.0.0-ci.466.1` publications passed at the pre-loader source
+`f8c5acd0e6bd564a45c26977fba13f112f0b9468`:
+[JK BMS](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/40959423836),
+[SmartShunt](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/40959425058),
+[EG4](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/40959425617).
+Each readback verified exactly linux/amd64 + linux/arm64 and the version tag's
+index digest. #466 / its draft PR retains the complete immutable references;
+these qualification images must not be described as containing later changes.
+
 ## 2026-10-29 — Davis registry publishing candidate (#464)
 
 Added an explicit semver/tag CI publication path for `hvo-davis`, using the

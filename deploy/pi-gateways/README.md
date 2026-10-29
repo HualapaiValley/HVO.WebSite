@@ -59,9 +59,10 @@ Important:
 Current collectors require non-secret `gateway.json` mounted read-only at
 `/app/config/gateway.json`, secret files read-only at `/run/secrets` and their
 durable named volume at `/app/data`. Production startup requires the mounted
-JSON. Environment overrides win; JSON reload is disabled and secrets are
-resolved at startup, so changed configuration/credentials need an approved
-restart or replacement. See the [runtime contract](../../docs/architecture/EDGE_VNEXT_RUNTIME.md).
+JSON. Creation-time environment overrides JSON; the mounted runtime `.env`
+then supplies startup overrides as described below. JSON/env reload is disabled
+and secrets are resolved at startup, so changed app configuration/credentials
+need an approved restart. See the [runtime contract](../../docs/architecture/EDGE_VNEXT_RUNTIME.md).
 
 First establish the [existing root bootstrap and global sync prerequisites](../../docs/development/key-vault-materialization.md),
 including its sourced SSH field, parsable SQL string and full vault-read scope.
@@ -182,6 +183,144 @@ older binary cannot consume current data, use the contract's isolated recovery
 volume and reconcile the post-checkpoint interval. Never overwrite/prune the
 current volume, move a published tag or start a second acquisition owner.
 
+## Runtime configuration without image rebuilds
+
+All four collectors read a **non-secret runtime `.env` at process startup**.
+Compose maps the daemon-host `*_REMOTE_RUNTIME_DIRECTORY` read-only to
+`/app/config/runtime` and sets `HVO_EDGE_RUNTIME_ENV_FILE=/app/config/runtime/.env`.
+The directory mount allows an operator to atomically replace `.env`; a single
+file bind could retain the old inode. Docker must not create a missing host
+directory automatically. The deploy helper stages the selected local `.env`
+beside JSON/secrets, applies directory `0700` / file `0600`, and restores the
+previous complete set if activation fails. This is future-rollout behavior;
+#466 performs no deployment or restart.
+
+The file supports flat `KEY=value` lines, `#`/`;` comment lines and double-quoted
+values. It is parsed as data: **no `export`, sections, shell expressions,
+variable expansion or command substitution**. Duplicate setting names, including
+aliases such as `DAVIS_STATION_HOST` plus `Station__Host`, fail startup without
+printing file contents. Credentials stay in mounted secret files; configuration
+may name those files but must not contain the credential values.
+
+Startup precedence is app defaults → mounted `gateway.json` → creation-time
+environment → mounted runtime `.env`. The last provider maps supported
+`Section__Key` names to .NET configuration, including indexed arrays such as
+`JkBms__Devices__0__Alias`. `DAVIS_STATION_HOST` maps to `Station:Host` for existing
+Davis env compatibility. Other Compose variables (pins, ports, paths and overlay
+switches) are ignored by the app loader. The mounted JSON selector remains fixed.
+Existing option validation and sole-source/device-identity rules still apply.
+
+Examples of optional app overrides (omit to retain mounted JSON/app defaults):
+
+| Variable | Purpose | Default / requirement |
+|---|---|---|
+| `Outbox__BatchSize` | Delivery batch size | Optional; shared default 50, valid range 1–500 |
+| `Station__SocketTimeoutSeconds` | Davis socket timeout | Optional; default 8 seconds, valid range 4–60 |
+| `JkBms__HciAdapter` | Default JK BlueZ adapter | Optional; default `hci0`; preserve per-device ownership |
+| `SmartShunt__Adapter` | Direct SmartShunt BlueZ adapter | Optional; default `hci0`; preserve paired ownership |
+
+There are **no application command-line flags** in the four Compose files or
+Dockerfile launchers to convert. `ENTRYPOINT ["dotnet", "<collector>.dll"]` is
+the executable/assembly launch contract. Docker health checks' `CMD curl --fail`
+and their fixed localhost 8080 paths belong to Docker, not .NET configuration;
+retain `/health` for Davis/EG4 and `/health/live` for JK/SmartShunt. Container
+port 8080, Production mode, `/app/data` and mounted-config/secret locations stay
+aligned with those contracts. Dockerfile defaults such as `ASPNETCORE_URLS`,
+`OUTBOX__DATABASEPATH` and `HVO_EDGE_CONFIG_FILE` are already configuration values,
+not collector arguments. Avoid overriding durable paths or host/probe ports
+without separately reviewing the complete runtime contract.
+
+### Variable reference
+
+Every active assignment in the checked-in env examples is documented below;
+the examples also annotate each variable inline. `None` means no usable default:
+replace the placeholder before validation or an authorized rollout.
+
+| Common variable | Purpose | Default | Required |
+|---|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base URL for logs, traces and metrics | `http://192.168.1.238:4318` when unset/empty | No |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | OTLP transport; `http/protobuf` or `grpc` | `http/protobuf` when unset/empty | No |
+| `OTEL_SERVICE_NAME` | Telemetry service identity | `hvo-davis`, `hvo-jkbms`, `hvo-smartshunt`, `hvo-eg4` respectively when unset/empty | No |
+
+The runtime file uses these same telemetry defaults, including after a setting
+is removed, rather than reusing an old container environment value. For gRPC,
+select the collector's configured gRPC listener (normally port 4317) together
+with `grpc`. The former `OTEL_COLLECTOR_ENDPOINT` alias is no longer used by these
+four Compose definitions; migrate to `OTEL_EXPORTER_OTLP_ENDPOINT`. Verify the
+collector's LAN listener/bind and reachability before a future authorized rollout.
+
+| Davis variable | Purpose | Default | Required |
+|---|---|---|---|
+| `DAVIS_HTTP_PORT` | Host HTTP publication | 5100 | No |
+| `HVO_DAVIS_IMAGE_VERSION` | Published semver | None | Yes |
+| `HVO_DAVIS_IMAGE_DIGEST` | Immutable multi-arch index digest | None | Yes |
+| `DAVIS_STATION_HOST` | WeatherLink host / `Station:Host` | None | Yes |
+| `DAVIS_CONFIG_FILE` | Workstation JSON for preflight/sync | `./gateway.json` | No |
+| `DAVIS_SECRETS_DIRECTORY` | Workstation secret directory | `./secrets` | No |
+| `DAVIS_REMOTE_CONFIG_FILE` | Absolute daemon-host JSON file | None; example `/home/roys/.local/share/hvo-edge/davis/gateway.json` | Yes |
+| `DAVIS_REMOTE_SECRETS_DIRECTORY` | Absolute daemon-host secrets beside JSON | None; example `/home/roys/.local/share/hvo-edge/davis/secrets` | Yes |
+| `DAVIS_REMOTE_RUNTIME_DIRECTORY` | Daemon-host startup `.env` directory | `/home/roys/.local/share/hvo-edge/davis/runtime` | No; must be beside JSON |
+
+| JK BMS variable | Purpose | Default | Required |
+|---|---|---|---|
+| `JKBMS_HTTP_PORT` | Host HTTP publication | 5200 | No |
+| `HVO_JKBMS_IMAGE_VERSION` | Published semver | None | Yes |
+| `HVO_JKBMS_IMAGE_DIGEST` | Immutable multi-arch index digest | None | Yes |
+| `JKBMS_CONFIG_FILE` | Workstation JSON for preflight/sync | `./gateway.json` | No |
+| `JKBMS_SECRETS_DIRECTORY` | Workstation secret directory | `./secrets` | No |
+| `JKBMS_REMOTE_CONFIG_FILE` | Absolute daemon-host JSON file | None; example `/home/roys/.local/share/hvo-edge/jkbms/gateway.json` | Yes |
+| `JKBMS_REMOTE_SECRETS_DIRECTORY` | Absolute daemon-host secrets beside JSON | None; example `/home/roys/.local/share/hvo-edge/jkbms/secrets` | Yes |
+| `JKBMS_REMOTE_RUNTIME_DIRECTORY` | Daemon-host startup `.env` directory | `/home/roys/.local/share/hvo-edge/jkbms/runtime` | No; must be beside JSON |
+
+| SmartShunt variable | Purpose | Default | Required |
+|---|---|---|---|
+| `SMARTSHUNT_HTTP_PORT` | Host HTTP publication | 5400 | No |
+| `HVO_SMARTSHUNT_IMAGE_VERSION` | Published semver | None | Yes |
+| `HVO_SMARTSHUNT_IMAGE_DIGEST` | Immutable multi-arch index digest | None | Yes |
+| `SMARTSHUNT_CONFIG_FILE` | Workstation JSON for preflight/sync | `./gateway.json` | No |
+| `SMARTSHUNT_SECRETS_DIRECTORY` | Workstation secret directory | `./secrets` | No |
+| `SMARTSHUNT_REMOTE_CONFIG_FILE` | Absolute daemon-host JSON file | None; example `/home/roys/.local/share/hvo-edge/smartshunt/gateway.json` | Yes |
+| `SMARTSHUNT_REMOTE_SECRETS_DIRECTORY` | Absolute daemon-host secrets beside JSON | None; example `/home/roys/.local/share/hvo-edge/smartshunt/secrets` | Yes |
+| `SMARTSHUNT_REMOTE_RUNTIME_DIRECTORY` | Daemon-host startup `.env` directory | `/home/roys/.local/share/hvo-edge/smartshunt/runtime` | No; must be beside JSON |
+
+| EG4 variable | Purpose | Default | Required |
+|---|---|---|---|
+| `EG4_HTTP_PORT` | Host HTTP publication | 5600 | No |
+| `HVO_EG4_IMAGE_VERSION` | Published semver | None | Yes |
+| `HVO_EG4_IMAGE_DIGEST` | Immutable multi-arch index digest | None | Yes |
+| `EG4_CONFIG_FILE` | Workstation JSON for preflight/sync | `./gateway.json` | No |
+| `EG4_SECRETS_DIRECTORY` | Workstation secret directory | `./secrets` | No |
+| `EG4_REMOTE_CONFIG_FILE` | Absolute daemon-host JSON file | None; example `/home/roys/.local/share/hvo-edge/eg4/gateway.json` | Yes |
+| `EG4_REMOTE_SECRETS_DIRECTORY` | Absolute daemon-host secrets beside JSON | None; example `/home/roys/.local/share/hvo-edge/eg4/secrets` | Yes |
+| `EG4_REMOTE_RUNTIME_DIRECTORY` | Daemon-host startup `.env` directory | `/home/roys/.local/share/hvo-edge/eg4/runtime` | No; must be beside JSON |
+| `EG4_DEVICE_0_PORT` | First inverter stable HID node | `/dev/hvo/eg4-6500ex-a` | No |
+| `EG4_MPPT_0_ENABLED` | Select MPPT overlay; match JSON enabled state | `false` | No |
+| `EG4_MPPT_0_PORT` | Stable MPPT adapter identity | None | Only when MPPT enabled |
+| `EG4_DEVICE_1_ENABLED` | Select second-inverter overlay; match JSON | `false` | No |
+| `EG4_DEVICE_1_PORT` | Second inverter stable HID node | `/dev/hvo/eg4-6500ex-b` | Only when second inverter enabled |
+
+### Applying a future authorized setting change
+
+First adoption of the new loader/mount needs a newly published image and an
+authorized container replacement. Existing one-off images and the earlier
+`0.0.0-ci.466.1` qualification images do not contain this added loader. Preserve
+their exact source/digest evidence; do not retag them.
+
+After adoption, edit the actual daemon-host `runtime/.env` (or atomically replace
+it within the mounted directory), preserve mode `0600`, and synchronize the
+corresponding ignored workstation `.env` so a later deployment will not undo the
+change. With explicit restart authorization, restart only the existing named
+collector, then verify its health, source freshness, protected diagnostics,
+outbox and telemetry. This uses the same image/container/volumes; no image build
+or deployment helper is needed for an app-setting update. Files are not hot-loaded.
+
+Editing **only** the Compose workstation `.env` followed by `docker restart`
+does not update a container's environment or its remote runtime file. Image pins,
+ports, mount paths, device mappings, privilege and overlay selection are Docker
+creation settings and still require an authorized no-build recreation. The
+deployment helper also synchronizes files and recreates containers; never run it
+as a restart-only or pull-only check. No command here authorizes a live restart.
+
 ## Davis deployment notes
 
 Davis uses the [versioned registry image and pull-only handoff](davis/README.md).
@@ -223,6 +362,8 @@ chmod 600 deploy/pi-gateways/davis/.env deploy/pi-gateways/davis/gateway.json
 
 2. Keep device endpoints such as `DAVIS_STATION_HOST` in `.env`; fill mounted gateway configuration and create the required files under the configured local secrets directory.
 3. Set the absolute `*_REMOTE_CONFIG_FILE` and `*_REMOTE_SECRETS_DIRECTORY` paths from `.env.example`. For SSH Docker contexts, the deploy script copies the local files to those daemon-host paths with owner-only permissions before Compose starts the container.
+   The `*_REMOTE_RUNTIME_DIRECTORY` must be `runtime` beside that remote JSON;
+   the helper stages the selected local `.env` there as the startup file.
    Set the collector's required image version/digest pair using the registry
    procedure above before Compose validation. Preserve existing `.env` files.
 4. Validate syntax and expected non-secret mount/probe facts. `config --quiet`
@@ -274,7 +415,7 @@ To verify deployed endpoints after rollout:
 ## Current telemetry status
 
 - All gateway hosts emit compact structured logs to stdout and conditionally export logs, traces, and metrics to the shared collector.
-- The collector is Pi-reachable at `http://192.168.1.238:4318` using `http/protobuf` only when the observability stack sets `HVO_OBSERVABILITY_BIND_ADDRESS=192.168.1.238`; verify the resolved bind and connectivity before configuring each stack's `OTEL_COLLECTOR_ENDPOINT` value.
+- The collector is Pi-reachable at `http://192.168.1.238:4318` using `http/protobuf` only when the observability stack sets `HVO_OBSERVABILITY_BIND_ADDRESS=192.168.1.238`; verify the resolved bind and connectivity before a rollout using each stack's `OTEL_EXPORTER_OTLP_ENDPOINT` default or override.
 - Use `docker logs <container>` for short-term local diagnostics and Grafana/Loki for centralized logs. Gateway applications do not create `/app/logs` or manage local log files.
 - Every gateway has a nominal 34 MB local budget: three compressed 10 MB files plus a 4 MB non-blocking buffer. When full, new stdout records are dropped rather than blocking device polling.
 - Core dumps are disabled in every gateway container. The deploy script verifies both logging and core policies after recreation.

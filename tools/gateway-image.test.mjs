@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -139,7 +139,8 @@ test('JK deployment defaults to no-build without touching a daemon or device', (
     writeFileSync(envFile, [
       'HVO_JKBMS_IMAGE_VERSION=0.0.0-ci.466.1', `HVO_JKBMS_IMAGE_DIGEST=${digest}`,
       `JKBMS_CONFIG_FILE=${join(directory, 'gateway.json')}`, `JKBMS_SECRETS_DIRECTORY=${join(directory, 'secrets')}`,
-      'JKBMS_REMOTE_CONFIG_FILE=/tmp/hvo-fixture/jkbms/gateway.json', 'JKBMS_REMOTE_SECRETS_DIRECTORY=/tmp/hvo-fixture/jkbms/secrets'
+      'JKBMS_REMOTE_CONFIG_FILE=/tmp/hvo-fixture/jkbms/gateway.json', 'JKBMS_REMOTE_SECRETS_DIRECTORY=/tmp/hvo-fixture/jkbms/secrets',
+      'JKBMS_REMOTE_RUNTIME_DIRECTORY=/tmp/hvo-fixture/jkbms/runtime'
     ].join('\n') + '\n');
     const output = execFileSync('bash', ['scripts/deploy-pi-gateway.sh', '--dry-run', '--context', 'fixture-no-daemon', 'jkbms'], {
       env: { PATH: process.env.PATH, HOME: process.env.HOME, HVO_PI_GATEWAY_ENV_FILE: envFile }, encoding: 'utf8'
@@ -148,3 +149,64 @@ test('JK deployment defaults to no-build without touching a daemon or device', (
     assert.doesNotMatch(output, /--build|fixture-secret/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+for (const collector of ['davis', ...COLLECTORS]) {
+  test(`${collector}: telemetry defaults and explicit settings render with a read-only startup directory`, () => {
+    const prefix = collector.toUpperCase();
+    const env = {
+      PATH: process.env.PATH, HOME: process.env.HOME,
+      [`HVO_${prefix}_IMAGE_VERSION`]: '0.0.0-ci.466.1', [`HVO_${prefix}_IMAGE_DIGEST`]: digest,
+      [`${prefix}_REMOTE_CONFIG_FILE`]: `/tmp/hvo-fixture/${collector}/gateway.json`,
+      [`${prefix}_REMOTE_SECRETS_DIRECTORY`]: `/tmp/hvo-fixture/${collector}/secrets`,
+      [`${prefix}_REMOTE_RUNTIME_DIRECTORY`]: `/tmp/hvo-fixture/${collector}/runtime`,
+      DAVIS_STATION_HOST: 'fixture-console'
+    };
+    const args = ['compose', '--env-file', '/dev/null', '-f', `deploy/pi-gateways/${collector}/docker-compose.yml`, 'config', '--format', 'json'];
+    const render = overrides => JSON.parse(execFileSync('docker', args, { env: { ...env, ...overrides }, encoding: 'utf8' })).services[`hvo-${collector}`];
+    for (const overrides of [{}, { OTEL_EXPORTER_OTLP_ENDPOINT: '', OTEL_EXPORTER_OTLP_PROTOCOL: '', OTEL_SERVICE_NAME: '' }]) {
+      const service = render(overrides);
+      assert.equal(service.environment.OTEL_EXPORTER_OTLP_ENDPOINT, 'http://192.168.1.238:4318');
+      assert.equal(service.environment.OTEL_EXPORTER_OTLP_PROTOCOL, 'http/protobuf');
+      assert.equal(service.environment.OTEL_SERVICE_NAME, `hvo-${collector}`);
+      assert.equal(service.environment.HVO_EDGE_RUNTIME_ENV_FILE, '/app/config/runtime/.env');
+      const runtime = service.volumes.find(volume => volume.target === '/app/config/runtime');
+      assert.equal(runtime.source, `/tmp/hvo-fixture/${collector}/runtime`);
+      assert.equal(runtime.read_only, true);
+      assert.equal(runtime.bind.create_host_path, false);
+    }
+    const custom = { OTEL_EXPORTER_OTLP_ENDPOINT: 'http://fixture:4317', OTEL_EXPORTER_OTLP_PROTOCOL: 'grpc', OTEL_SERVICE_NAME: `fixture-${collector}` };
+    const service = render(custom);
+    for (const [key, value] of Object.entries(custom)) assert.equal(service.environment[key], value);
+  });
+}
+
+for (const failure of [null, 'missing-json', 'missing-runtime-env']) {
+  test(`staged config/secrets/runtime activation ${failure ? `restores all files after ${failure}` : 'retains a complete previous set'}`, () => {
+    const root = mkdtempSync(join(tmpdir(), 'hvo-runtime-activation-'));
+    const staged = join(root, 'staged');
+    try {
+      for (const directory of [root, staged]) {
+        mkdirSync(join(directory, 'secrets'), { recursive: true });
+        mkdirSync(join(directory, 'runtime'), { recursive: true });
+        const marker = directory === root ? 'before' : 'after';
+        writeFileSync(join(directory, 'gateway.json'), marker);
+        writeFileSync(join(directory, 'secrets', 'fixture-key'), marker);
+        writeFileSync(join(directory, 'runtime', '.env'), `OTEL_SERVICE_NAME=${marker}\n`);
+      }
+      if (failure === 'missing-json') rmSync(join(staged, 'gateway.json'));
+      if (failure === 'missing-runtime-env') rmSync(join(staged, 'runtime', '.env'));
+      const directoryInode = statSync(join(root, 'runtime')).ino;
+      const result = spawnSync('sh', ['scripts/activate-remote-gateway-config.sh', root, staged, join(root, 'gateway.json'), join(root, 'secrets')], { encoding: 'utf8' });
+      assert.equal(result.status === 0, failure === null, result.stderr);
+      const expected = failure ? 'before' : 'after';
+      assert.equal(readFileSync(join(root, 'gateway.json'), 'utf8'), expected);
+      assert.equal(readFileSync(join(root, 'secrets', 'fixture-key'), 'utf8'), expected);
+      assert.equal(readFileSync(join(root, 'runtime', '.env'), 'utf8'), `OTEL_SERVICE_NAME=${expected}\n`);
+      assert.equal(statSync(join(root, 'runtime')).ino, directoryInode, 'Directory bind must observe later file replacement');
+      if (!failure) {
+        assert.equal(statSync(join(root, 'runtime', '.env')).mode & 0o777, 0o600);
+        assert.equal(readFileSync(join(root, '.previous', 'runtime', '.env'), 'utf8'), 'OTEL_SERVICE_NAME=before\n');
+      }
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+}

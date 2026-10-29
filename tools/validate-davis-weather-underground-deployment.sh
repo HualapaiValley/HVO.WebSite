@@ -28,6 +28,7 @@ write_env_file() {
 		printf 'DAVIS_SECRETS_DIRECTORY=%s\n' "${secrets_dir}"
 		printf 'DAVIS_REMOTE_CONFIG_FILE=/home/test/.local/share/hvo-edge/davis/gateway.json\n'
 		printf 'DAVIS_REMOTE_SECRETS_DIRECTORY=/home/test/.local/share/hvo-edge/davis/secrets\n'
+		printf 'DAVIS_REMOTE_RUNTIME_DIRECTORY=/home/test/.local/share/hvo-edge/davis/runtime\n'
 	} >"${env_file}"
 	printf '%s\n' "${env_file}"
 }

@@ -61,7 +61,7 @@ The container runs as root but receives only the explicitly mapped HID nodes; it
 5. Set `EG4_MPPT_0_PORT` to the verified stable `/dev/serial/by-id` identity. Enable the MPPT in both `.env` and `gateway.json` only when its overlay and fixed read profile are ready.
 6. Keep source and device IDs stable; list indexes are configuration positions, not identity.
 7. Configure the local HA Mosquitto address and mounted MQTT secret names in `gateway.json`.
-8. Leave `OTEL_COLLECTOR_ENDPOINT` empty unless collector reachability has been verified.
+8. Configure the documented `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL` and `OTEL_SERVICE_NAME` settings. Defaults are `http://192.168.1.238:4318`, `http/protobuf` and `hvo-eg4`; verify collector reachability before an authorized rollout. The [runtime env reference](../../../deploy/pi-gateways/README.md#runtime-configuration-without-image-rebuilds) covers startup overrides and restart-only app-setting updates after initial adoption.
 
 The base stack maps only `EG4_DEVICE_0_PORT`. When `EG4_MPPT_0_ENABLED=true`, `deploy-pi-gateway.sh` adds `docker-compose.mppt.yml` and maps only the configured stable serial path. When `EG4_DEVICE_1_ENABLED=true`, it also adds `docker-compose.two-device.yml`; both stable HID nodes must then exist before container creation.
 
@@ -107,7 +107,7 @@ Include every enabled overlay in manual Compose checks. Verify that every enable
 If OTLP is configured, verify basic HTTP connectivity from the Pi before deployment. A 404 response at the collector root is acceptable; a DNS, connection, or timeout failure is not:
 
 ```bash
-ssh devpi5 "curl --show-error --connect-timeout 5 --max-time 10 --output /dev/null '${OTEL_COLLECTOR_ENDPOINT%/}/'"
+ssh devpi5 "curl --show-error --connect-timeout 5 --max-time 10 --output /dev/null '${OTEL_EXPORTER_OTLP_ENDPOINT:-http://192.168.1.238:4318}/'"
 ```
 
 ## Rollout

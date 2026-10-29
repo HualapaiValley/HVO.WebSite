@@ -4,6 +4,16 @@ Current source-backed runbook for Davis, JK BMS, EG4 and SmartShunt. Commands
 against `devpi5`, `hvo-docker`, HA or Azure require applicable operational
 authorization; routine repository validation uses disposable fixtures instead.
 
+For Davis, JK BMS, SmartShunt and EG4, the
+[runtime env reference](../deploy/pi-gateways/README.md#runtime-configuration-without-image-rebuilds)
+documents every `.env` variable and the non-secret startup override contract.
+Once a loader-capable image and directory mount are adopted, editing the actual
+daemon-host `runtime/.env` needs only an authorized restart for app settings.
+The OTLP endpoint/protocol/service defaults are `http://192.168.1.238:4318`,
+`http/protobuf` and `hvo-<collector>`. Docker image/port/mount/device changes still
+require no-build recreation. No new live telemetry or rollout qualification is
+implied by a runbook/configuration change.
+
 ## Health Contract
 
 The [shared endpoint implementation](../src/HVO.Edge.Hosting/Diagnostics/EdgeDiagnosticsEndpointRouteBuilderExtensions.cs)

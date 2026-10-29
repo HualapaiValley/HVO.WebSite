@@ -1,5 +1,16 @@
 # Davis registry image handoff
 
+The [runtime env reference](../README.md#runtime-configuration-without-image-rebuilds)
+covers Davis on both hvo-docker and an authorized Pi fallback. The canonical
+[env example](.env.example) documents every variable; hvo-docker also has a
+[matching example](../../hvo-docker/davis/.env.example). Endpoint, protocol and
+service name use `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL` and
+`OTEL_SERVICE_NAME`, defaulting to `http://192.168.1.238:4318`, `http/protobuf` and
+`hvo-davis`. Once the new image/runtime directory mount is adopted, non-secret
+settings in the daemon-host `runtime/.env` are reread on an authorized restart.
+The current one-off image and earlier publication do not gain this behavior
+until an authorized replacement; #466 performs neither replacement nor restart.
+
 The active Davis collector is on **hvo-docker (amd64)** after
 [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462). The preserved
 devpi5 (arm64) collector is stopped with restart disabled. Keep exactly one
