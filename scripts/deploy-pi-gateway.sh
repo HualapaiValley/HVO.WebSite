@@ -399,8 +399,8 @@ deploy_target() {
 		compose_args+=(-f "${file}")
 	done
 
-	if [[ "${gateway}" == davis ]]; then
-		# Davis is published by CI; deploy hosts only pull the pinned registry image.
+	if [[ "${gateway}" =~ ^(davis|eg4|jkbms|smartshunt)$ ]]; then
+		# Collectors are published by CI; deploy hosts only pull pinned registry images.
 		up_args+=(--no-build)
 	elif [[ "${build_images}" == true ]]; then
 		up_args+=(--build)

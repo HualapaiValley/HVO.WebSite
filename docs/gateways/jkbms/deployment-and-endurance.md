@@ -12,6 +12,14 @@ preserves refactor rationale and settings-query uncertainty.
 
 ## Preflight
 
+Use [CI publishing](../../CONTAINER_PUBLISHING.md#pi-collector-ci-publishing)
+and the [registry pin/verification/rollback procedure](../../../deploy/pi-gateways/README.md#collector-registry-publishing-and-pins).
+Set `HVO_JKBMS_IMAGE_VERSION` and `HVO_JKBMS_IMAGE_DIGEST` from a successful
+**Publish JK BMS image** run before rendering Compose. Both Linux architectures
+share one immutable index; never build on the Pi or Docker deployment hosts.
+The deploy helper forces `--no-build`, preserving the existing D-Bus access,
+Compose project and `jkbms-outbox` volume. Publishing alone authorizes no rollout.
+
 For any new cutover or rollback checkpoint, use the
 [canonical SQLite backup contract](../sqlite-backup-and-rollback.md). It requires
 stopped/proven-quiescent volumes, a durable operator-workstation archive streamed
@@ -28,7 +36,7 @@ August evidence below is historical and is not a claim of new qualification.
    is enabled.
 5. Verify `Outbox:DatabasePath` remains `/app/data/outbox.db` and the Compose
    volume remains `jkbms-outbox`. Do not create a replacement volume.
-6. Run `./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 jkbms`. Resolve
+6. Run `./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 --pull --no-build jkbms`. Resolve
    all mounted-config, secret, and shell-override failures before cutover.
 
 The application migrates the legacy database after DI is built but before host

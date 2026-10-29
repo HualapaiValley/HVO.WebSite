@@ -65,7 +65,12 @@ The container runs as root but receives only the explicitly mapped HID nodes; it
 
 The base stack maps only `EG4_DEVICE_0_PORT`. When `EG4_MPPT_0_ENABLED=true`, `deploy-pi-gateway.sh` adds `docker-compose.mppt.yml` and maps only the configured stable serial path. When `EG4_DEVICE_1_ENABLED=true`, it also adds `docker-compose.two-device.yml`; both stable HID nodes must then exist before container creation.
 
-The deployment intentionally builds the image natively through the remote `devpi5` Docker context. The current registry publishing script runs on x64 and does not publish EG4 until a multi-architecture publishing workflow is implemented.
+EG4 now uses the [CI multi-arch registry publication](../../CONTAINER_PUBLISHING.md#pi-collector-ci-publishing)
+and [pin/verification/rollback handoff](../../../deploy/pi-gateways/README.md#collector-registry-publishing-and-pins).
+Set `HVO_EG4_IMAGE_VERSION` and `HVO_EG4_IMAGE_DIGEST` from a successful
+**Publish EG4 image** run before Compose validation. Compose requires both pins;
+the deploy helper always uses `--no-build`. Never build on devpi5 or a Docker
+deployment host. The base, MPPT and second-inverter profiles use the same index.
 
 ## Preflight
 
@@ -94,7 +99,7 @@ docker compose \
   -f deploy/pi-gateways/eg4/docker-compose.yml \
   config --quiet
 
-./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 eg4
+./scripts/deploy-pi-gateway.sh --dry-run --context devpi5 --pull --no-build eg4
 ```
 
 Include every enabled overlay in manual Compose checks. Verify that every enabled `gateway.json` device has exactly one rendered Compose device mapping and that disabled devices are not exposed.

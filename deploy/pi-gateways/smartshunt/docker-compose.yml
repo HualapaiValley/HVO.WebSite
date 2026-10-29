@@ -11,9 +11,7 @@ x-hvo-local-logging: &hvo-local-logging
 
 services:
   hvo-smartshunt:
-    build:
-      context: ../../..
-      dockerfile: src/HVO.Hardware.VictronSmartShunt/Dockerfile
+    image: registry.hualapaivalleyobservatory.org/hvo-smartshunt:${HVO_SMARTSHUNT_IMAGE_VERSION:?Set the published semver version}@${HVO_SMARTSHUNT_IMAGE_DIGEST:?Set the published multi-arch sha256 digest}
     privileged: true
     ports:
       - "${SMARTSHUNT_HTTP_PORT:-5400}:8080"

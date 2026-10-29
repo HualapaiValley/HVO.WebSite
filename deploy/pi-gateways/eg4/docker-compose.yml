@@ -11,9 +11,7 @@ x-hvo-local-logging: &hvo-local-logging
 
 services:
   hvo-eg4:
-    build:
-      context: ../../..
-      dockerfile: src/HVO.Hardware.Eg4/Dockerfile
+    image: registry.hualapaivalleyobservatory.org/hvo-eg4:${HVO_EG4_IMAGE_VERSION:?Set the published semver version}@${HVO_EG4_IMAGE_DIGEST:?Set the published multi-arch sha256 digest}
     ports:
       - "${EG4_HTTP_PORT:-5600}:8080"
     devices:

@@ -116,6 +116,72 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 
 `deploy/pi-gateways/home-assistant-exporter` retains the implemented exporter deployment template, but the exporter is intentionally disabled in production with no mappings or source claims. Do not deploy or enable it without a separately approved source-authority change. The retired direct SolarAssistant and TP-Link/Kasa deployment stacks, containers, images, and Docker volumes have been removed. A checksum-verified SolarAssistant archive is retained outside Docker storage.
 
+## Collector registry publishing and pins
+
+All four active collectors follow the Davis pattern: CI builds and pushes one
+semver image index for **linux/amd64 and linux/arm64**, using Buildx/QEMU on the
+self-hosted AMD runner. Never build images on a Pi, hvo-docker or home-docker.
+Publishing does not deploy or restart a collector. Govee BLE proxy publishing
+is outside this repository's Dockerfile scope.
+
+| Collector | Publish workflow / tag prefix | Required settings in its ignored `.env` |
+|---|---|---|
+| Davis | [Publish Davis image](../../.github/workflows/publish-davis.yml), `davis-v` | `HVO_DAVIS_IMAGE_VERSION`, `HVO_DAVIS_IMAGE_DIGEST` |
+| JK BMS | [Publish JK BMS image](../../.github/workflows/publish-jkbms.yml), `jkbms-v` | `HVO_JKBMS_IMAGE_VERSION`, `HVO_JKBMS_IMAGE_DIGEST` |
+| SmartShunt | [Publish SmartShunt image](../../.github/workflows/publish-smartshunt.yml), `smartshunt-v` | `HVO_SMARTSHUNT_IMAGE_VERSION`, `HVO_SMARTSHUNT_IMAGE_DIGEST` |
+| EG4 | [Publish EG4 image](../../.github/workflows/publish-eg4.yml), `eg4-v` | `HVO_EG4_IMAGE_VERSION`, `HVO_EG4_IMAGE_DIGEST` |
+
+1. Follow [CI publishing](../../docs/CONTAINER_PUBLISHING.md#pi-collector-ci-publishing)
+   to publish a new version. Stable tags must be on main; a separately authorized
+   prerelease tag can qualify a draft candidate. Each workflow also supports a
+   `version` dispatch on main after that workflow is merged. It rejects duplicate
+   versions and never moves `latest`.
+2. Require a successful publish run. Verify the run's source SHA, both Linux
+   architectures and the multi-arch **index** digest. From an approved build or
+   operator workstation authenticated to the registry, repeat the read-only
+   check (JK BMS example):
+
+   ```bash
+   image=registry.hualapaivalleyobservatory.org/hvo-jkbms
+   version=0.0.0-ci.466.1
+   digest=sha256:REPLACE_WITH_PUBLISHED_INDEX_DIGEST
+   docker buildx imagetools inspect "$image@$digest"
+   test "$(docker buildx imagetools inspect "$image:$version" --format '{{.Manifest.Digest}}')" = "$digest"
+   ```
+
+   Expect exactly linux/amd64 and linux/arm64; do not substitute a child-platform
+   digest. The successful workflow performs the same registry readback and
+   records the complete reference in its summary. Do not print credentials.
+3. Record the previous immutable image/runtime reference before editing the
+   existing ignored collector `.env`. Set its version and digest pair from that
+   run, preserving device identity, mounted config/secrets and telemetry values.
+   The checked-in `.env.example` placeholders are not published versions.
+   Compose resolves to `registry.hualapaivalleyobservatory.org/hvo-<name>:<version>@<digest>`,
+   requires both values, contains no `build:` and selects the target's native
+   architecture from the same index.
+4. Validate with `docker compose --env-file deploy/pi-gateways/jkbms/.env -f
+   deploy/pi-gateways/jkbms/docker-compose.yml config --quiet`. For EG4 include
+   each enabled device overlay. With separate pull authorization, use the same
+   files and target context with `pull hvo-jkbms` (or the named collector).
+   Authenticate using the approved credential handoff and password-stdin.
+   Verify the selected architecture/RepoDigests without printing a full rendered
+   environment. A pull alone leaves the running container unchanged.
+5. Replacement requires its own rollout authorization and the collector's
+   existing preflight/checkpoint/health/ingest gates. The deploy helper forces
+   `--no-build` for Davis, JK BMS, SmartShunt and EG4, including when omitted.
+   It synchronizes files and replaces containers; it is not a pull-only command.
+
+For an authorized rollback, stop the candidate and preserve a new quiescent
+checkpoint of the complete current outbox volume and later observations under
+the [SQLite recovery contract](../../docs/gateways/sqlite-backup-and-rollback.md).
+Restore the recorded previous version/digest pair in the existing `.env`, verify
+the previous image's schema/payload compatibility, then pull and replace only
+the named collector under its normal rollout gates. Keep the same Compose
+project, `/app/data` named volume, device mappings and mounted files. If the
+older binary cannot consume current data, use the contract's isolated recovery
+volume and reconcile the post-checkpoint interval. Never overwrite/prune the
+current volume, move a published tag or start a second acquisition owner.
+
 ## Davis deployment notes
 
 Davis uses the [versioned registry image and pull-only handoff](davis/README.md).
@@ -157,6 +223,8 @@ chmod 600 deploy/pi-gateways/davis/.env deploy/pi-gateways/davis/gateway.json
 
 2. Keep device endpoints such as `DAVIS_STATION_HOST` in `.env`; fill mounted gateway configuration and create the required files under the configured local secrets directory.
 3. Set the absolute `*_REMOTE_CONFIG_FILE` and `*_REMOTE_SECRETS_DIRECTORY` paths from `.env.example`. For SSH Docker contexts, the deploy script copies the local files to those daemon-host paths with owner-only permissions before Compose starts the container.
+   Set the collector's required image version/digest pair using the registry
+   procedure above before Compose validation. Preserve existing `.env` files.
 4. Validate syntax and expected non-secret mount/probe facts. `config --quiet`
    alone does not establish effective values. Shell exports override `--env-file`:
 
@@ -190,9 +258,9 @@ docker compose --env-file deploy/pi-gateways/davis/.env \
 ```bash
 # Davis: only on the separately authorized target after the registry handoff.
 ./scripts/deploy-pi-gateway.sh --context hvo-docker --pull --no-build davis
-./scripts/deploy-pi-gateway.sh --context devpi5 eg4
-./scripts/deploy-pi-gateway.sh --context devpi5 jkbms
-./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt
+./scripts/deploy-pi-gateway.sh --context devpi5 --pull --no-build eg4
+./scripts/deploy-pi-gateway.sh --context devpi5 --pull --no-build jkbms
+./scripts/deploy-pi-gateway.sh --context devpi5 --pull --no-build smartshunt
 ```
 
 Deploy only the named active collector being changed. The HA exporter is not a production target.

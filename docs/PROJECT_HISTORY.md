@@ -2,6 +2,18 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
+## 2026-10-29 — Remaining Pi collectors use CI registry images (#466 candidate)
+
+JK BMS, SmartShunt and EG4 now follow the Davis per-collector semver workflows:
+self-hosted AMD runners use Buildx/QEMU to publish linux/amd64 + linux/arm64,
+then verify registry platforms and the immutable index digest. Their Pi Compose
+files require version/digest pins and the deployment helper forces `--no-build`
+for every active direct collector. The [publishing and rollback handoff](../deploy/pi-gateways/README.md#collector-registry-publishing-and-pins)
+replaces the former Pi build path while retaining device access and durable
+volumes. [#466](https://github.com/HualapaiValley/HVO.WebSite/issues/466) authorizes
+draft delivery and prerelease publication qualification only; actual deployments,
+restarts and stable releases remain outside this candidate's scope.
+
 ## 2026-10-29 — Davis registry publishing candidate (#464)
 
 Added an explicit semver/tag CI publication path for `hvo-davis`, using the

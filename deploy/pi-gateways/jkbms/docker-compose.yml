@@ -11,9 +11,7 @@ x-hvo-local-logging: &hvo-local-logging
 
 services:
   hvo-jkbms:
-    build:
-      context: ../../..
-      dockerfile: src/HVO.Hardware.JkBms/Dockerfile
+    image: registry.hualapaivalleyobservatory.org/hvo-jkbms:${HVO_JKBMS_IMAGE_VERSION:?Set the published semver version}@${HVO_JKBMS_IMAGE_DIGEST:?Set the published multi-arch sha256 digest}
     privileged: true
     ports:
       - "${JKBMS_HTTP_PORT:-5200}:8080"

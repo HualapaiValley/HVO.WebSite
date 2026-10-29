@@ -54,6 +54,14 @@ For a future #352 rollback, stop/disable the failed native mapping and release i
 
 ## Exactly-One-Owner Cutover
 
+Use [CI publishing](../CONTAINER_PUBLISHING.md#pi-collector-ci-publishing)
+and the [registry pin/verification/rollback procedure](../../deploy/pi-gateways/README.md#collector-registry-publishing-and-pins).
+Set `HVO_SMARTSHUNT_IMAGE_VERSION` and `HVO_SMARTSHUNT_IMAGE_DIGEST` from a
+successful **Publish SmartShunt image** run before Compose validation. The same
+index supports linux/amd64 and linux/arm64. Never build on the Pi or Docker
+deployment hosts; the deploy helper forces `--no-build`. Registry publishing
+does not authorize replacement, device access or a second acquisition owner.
+
 This is the historical #326 direct-collector vNext cutover. Future native-HA
 replacement is tracked separately by [#352](https://github.com/HualapaiValley/HVO.WebSite/issues/352)
 and its parity, exporter and soak gates; it is not this procedure's deployment target.
@@ -62,7 +70,7 @@ and its parity, exporter and soak gates; it is not this procedure's deployment t
 2. Follow the [canonical SQLite backup contract](sqlite-backup-and-rollback.md): record the current immutable image/runtime contract, inspected volume names, outbox counts and latest central source timestamp. Prepare the utility image and a durable operator-workstation backup directory before shutdown. The `smartshunt_smartshunt-outbox` volume is owned by the `devpi5` Docker daemon; streamed archives and checksums are owned by the workstation, not a remote `/tmp` bind.
 3. Confirm no HA/ESPHome SmartShunt integration is acquiring the device and no HA exporter mapping owns `smartshunt-main`.
 4. Stop the legacy SmartShunt container. Confirm it no longer owns the Bluetooth connection or writes centrally, and prove no process writes the volume. Archive the entire quiescent volume, retain a durable checksum-verified copy, and verify SQLite integrity plus a disposable restore before calling it a usable checkpoint. Preserve the current named volume; do not proceed with an unqualified checkpoint.
-5. Place `gateway.json` and separate secrets on the deployment workstation, then run `./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt`. The script validates and synchronizes mounted files over the Docker context's SSH endpoint.
+5. Place `gateway.json` and separate secrets on the deployment workstation, then run `./scripts/deploy-pi-gateway.sh --context devpi5 --pull --no-build smartshunt`. The script validates and synchronizes mounted files over the Docker context's SSH endpoint.
 6. Verify `/health`, protected diagnostics, MQTT availability/state, outbox drainage, and one summary/detail row for the same source timestamp. Reconcile counts before promotion:
 
 ```bash

@@ -19,6 +19,7 @@ config="${tmp_dir}/gateway.json"
 jq '.SmartShunt.Address = "AA:BB:CC:DD:EE:FF"' "${config_example}" >"${config}"
 env_file="${tmp_dir}/smartshunt.env"
 {
+  printf 'HVO_SMARTSHUNT_IMAGE_VERSION=0.0.0-ci\nHVO_SMARTSHUNT_IMAGE_DIGEST=sha256:%064d\n' 0
   printf 'SMARTSHUNT_HTTP_PORT=5400\nSMARTSHUNT_CONFIG_FILE=%s\nSMARTSHUNT_SECRETS_DIRECTORY=%s\n' "${config}" "${secrets_dir}"
   printf 'SMARTSHUNT_REMOTE_CONFIG_FILE=/home/test/.local/share/hvo-edge/smartshunt/gateway.json\n'
   printf 'SMARTSHUNT_REMOTE_SECRETS_DIRECTORY=/home/test/.local/share/hvo-edge/smartshunt/secrets\n'
@@ -39,6 +40,7 @@ jq -e '
 
 dry_run="$(env -i PATH="${PATH}" HOME="${HOME}" HVO_PI_GATEWAY_ENV_FILE="${env_file}" bash "${repo_root}/scripts/deploy-pi-gateway.sh" --dry-run --context devpi5 smartshunt 2>&1)"
 [[ "${dry_run}" == *'config --quiet'* && "${dry_run}" == *'up -d --wait'* ]] || fail 'dry run omitted validation or rollout'
+[[ "${dry_run}" == *'--no-build'* && "${dry_run}" != *'--build'* ]] || fail 'registry deployment must never build on the target'
 [[ "${dry_run}" == *'.staging.'* && "${dry_run}" == *'chmod 600'* && "${dry_run}" == *'activate-remote-gateway-config.sh'* ]] || fail 'dry run omitted restrictive staged replacement'
 [[ "${dry_run}" != *"${sentinel}"* ]] || fail 'dry run exposed secret values'
 
