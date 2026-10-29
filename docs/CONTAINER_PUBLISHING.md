@@ -46,6 +46,59 @@ failure context, not a newly observed publisher defect or publish proof.
 
 ## Authorized publish sequence
 
+### Davis CI publishing
+
+The [Publish Davis image workflow](../.github/workflows/publish-davis.yml) builds
+`src/HVO.Hardware.DavisVantagePro2/Dockerfile` with Buildx and publishes
+`registry.hualapaivalleyobservatory.org/hvo-davis`. Website publishing remains
+the explicit-version `publish-image.sh` path described below; it has no current
+release-tag CI workflow. Davis retains its existing `hvo-davis` repository and
+registry credential names, adding required semver and multi-arch readback.
+
+After this workflow is on `main`, either dispatch it **on main** with a new
+`version` (for example `1.0.0-rc.1`), or push a `davis-v<version>` tag. Stable
+release tags must point to a commit contained in main. For explicit publication
+qualification while a PR remains draft, the owner may push a **prerelease** tag
+(for example `davis-v0.0.0-ci.464.1`) on the independently reviewed candidate.
+This runs the tag's workflow without a merge, ready transition or deployment;
+it never publishes a stable version from an unmerged branch. Versions use semver without `+build` metadata, which Docker
+tags cannot represent. The workflow rejects invalid sources, missing credentials,
+existing image versions and registry errors; it never moves `latest`. Publications
+are serialized, but the registry itself must restrict other writers to preserve
+version tags. The digest is the immutable deployment identity.
+
+Prerequisites for the repository owner:
+
+- Configure Actions secrets `HVO_CONTAINER_REGISTRY_USERNAME` and
+  `HVO_CONTAINER_REGISTRY_PASSWORD` from the existing approved Key Vault registry
+  credentials. Never paste values into an issue, PR, workflow or log. This workflow
+  does not materialize the global secret helper or need collector secrets.
+- Permit this repository to use the organization `hvo-linux-x64` runner group.
+  The workflow selects `[self-hosted, Linux, X64, hvo-website, docker]`. The
+  2026-10-29 inspection found six online AMD/x64 runners (`gh-runner-01` through
+  `06`). The `ARM64`, `pi5`, `hvo-skymonitor-arm64` runner is in a group selected
+  only for SkyMonitor, so Davis uses QEMU arm64 emulation on the AMD runner.
+  Native ARM access would require a separately reviewed owner configuration change.
+- Ensure the runner reaches the HTTPS registry and Microsoft/Docker/NuGet sources.
+  The workflow prints link MTUs and default bridge options before building.
+  hvo-docker's eth0 1450 / Docker bridge 1500 mismatch was a prior stall cause;
+  investigate the same mismatch on a stalled runner. Do not change host networking
+  or use a target-host build as a workaround.
+
+Buildx builds `linux/amd64` and `linux/arm64` into a single versioned index. Registry
+readback requires exactly those two platforms and valid child digests, then checks
+the version tag resolves to the build's index digest. The run summary records the
+source SHA and complete `hvo-davis:<version>@sha256:<digest>` reference. No collector
+starts during publishing. A failed post-push verification can leave a version in
+the registry: investigate it and use a new version rather than overwriting it.
+
+Use the [Davis registry-pull handoff](../deploy/pi-gateways/davis/README.md) for
+hvo-docker or an authorized Pi fallback. **Never build on hvo-docker or home-docker.**
+The historical host-network build overlay from draft PR #463 is retired; its
+one-off image remains historical evidence, not the deployment build path.
+
+### Existing manual publisher
+
 1. Select and review the actual publish env file, repository and image version.
 2. Compare its managed credentials with Key Vault. `sync-secrets-from-keyvault.sh`
    defaults to read-only drift detection; `--apply` materializes approved local
@@ -54,7 +107,8 @@ failure context, not a newly observed publisher defect or publish proof.
    first; also review the
    [gateway secret exceptions](../deploy/pi-gateways/README.md#mounted-configuration-and-secrets).
    A custom `HVO_PUBLISH_ENV_FILE` is not automatically synchronized.
-3. Inspect the commands with `--dry-run`, then publish only the intended target.
+3. Inspect the commands with `--dry-run`, then publish only the intended target
+   on an approved build machine. Davis production publishing uses CI above.
 4. Independently verify the pushed tag/digest. The script prints commands/status;
    it does not perform a registry readback or deploy the image.
 5. Record the actual image/release change in [CHANGELOG.md](../CHANGELOG.md).
