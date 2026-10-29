@@ -19,6 +19,7 @@ test('publishing stays outside PR CI with source admission, pinned actions and m
   for (const step of steps.filter(step => step.uses)) assert.match(step.uses, /@[a-f0-9]{40}$/);
   const admission = steps.findIndex(step => step.id === 'release');
   assert.match(steps[admission].run, /git merge-base --is-ancestor "\$GITHUB_SHA" origin\/main/);
+  assert.match(steps[admission].run, /"\$GITHUB_EVENT_NAME" != push \|\| "\$GITHUB_REF_NAME" != davis-v\*-\*/);
   assert.match(steps[admission].run, /\*hvo-docker\*\|\*home-docker\*/);
   assert.ok(admission < steps.findIndex(step => step.uses?.startsWith('docker/login-action')));
   assert.match(source, /node tools\/davis-image\.mjs manifest/);
