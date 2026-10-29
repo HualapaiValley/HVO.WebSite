@@ -69,7 +69,7 @@ function testProjects(plan, lane) {
 }
 
 function policies() {
-  run(process.execPath, ['--test', 'tools/ci-plan.test.mjs', 'tools/ci-source.test.mjs', 'tools/ci-run.test.mjs', 'tools/pr-process.test.mjs', 'tools/test-categories.test.mjs']);
+  run(process.execPath, ['--test', 'tools/ci-plan.test.mjs', 'tools/ci-source.test.mjs', 'tools/ci-run.test.mjs', 'tools/pr-process.test.mjs', 'tools/test-categories.test.mjs', 'tools/davis-image.test.mjs']);
   run('python3', ['-m', 'unittest', 'discover', '-s', 'tools', '-p', 'ci_*_test.py']);
   run('python3', ['tools/verify-home-assistant-runner.py']);
   for (const name of ['validate-test-categories', 'validate-observability-policy', 'validate-davis-weather-underground-deployment', 'validate-eg4-deployment', 'validate-smartshunt-deployment', 'verify-alert-rules']) run('bash', [`tools/${name}.sh`]);

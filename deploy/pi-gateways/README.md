@@ -118,10 +118,17 @@ Each gateway is deployed independently so Pi rollouts do not depend on the main 
 
 ## Davis deployment notes
 
+Davis uses the [versioned registry image and pull-only handoff](davis/README.md).
+Its current acquisition owner is hvo-docker (amd64); the stopped Pi is a possible
+arm64 fallback only through an authorized sole-owner cutover. Set
+`HVO_DAVIS_IMAGE_VERSION` and `HVO_DAVIS_IMAGE_DIGEST` from a successful CI publish
+before rendering or pulling Compose. Never build on hvo-docker or home-docker.
+
 - The move from devpi5 to hvo-docker is tracked in
   [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462). hvo-docker is
   the acquisition authority; the preserved Pi must stay stopped. Reuse this
-  directory's Compose file and existing amd64 image as project `davis`. The
+  directory's Compose file as project `davis`. The existing one-off amd64 image
+  stays in service until Kepler/Roy cuts over to the registry image. The
   [hvo-docker runbook](../hvo-docker/davis/README.md) records Roy's final
   core-only rollback rule, 15-minute collection/ingest gate and diagnostic-only
   treatment of CWOP/WU/MQTT failures.
@@ -173,7 +180,7 @@ docker compose --env-file deploy/pi-gateways/davis/.env \
    Inspect that output for the intended daemon-host paths.
 
 ```bash
-./scripts/deploy-pi-gateway.sh --dry-run --context hvo-docker --no-build davis
+./scripts/deploy-pi-gateway.sh --dry-run --context hvo-docker --pull --no-build davis
 ```
 
 6. Only with rollout authorization, deploy the selected collector on its owning
@@ -181,7 +188,8 @@ docker compose --env-file deploy/pi-gateways/davis/.env \
    above before this ordinary deployment workflow is applicable:
 
 ```bash
-./scripts/deploy-pi-gateway.sh --context hvo-docker --no-build davis
+# Davis: only on the separately authorized target after the registry handoff.
+./scripts/deploy-pi-gateway.sh --context hvo-docker --pull --no-build davis
 ./scripts/deploy-pi-gateway.sh --context devpi5 eg4
 ./scripts/deploy-pi-gateway.sh --context devpi5 jkbms
 ./scripts/deploy-pi-gateway.sh --context devpi5 smartshunt
