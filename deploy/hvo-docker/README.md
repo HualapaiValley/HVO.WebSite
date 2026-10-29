@@ -16,8 +16,11 @@ Compose file, mounted secrets and durable outbox contract. Runtime uses its
 MTU 1450 bridge and existing amd64 image. Roy's final acceptance requires 15
 minutes of healthy collection/ingest before disabling restart of the stopped
 Pi; CWOP/WU/MQTT errors are recorded for diagnosis and do not trigger rollback.
-The historical host-network build overlay is retained for an approved
-missing-image rebuild. Never restart the preserved Pi alongside this collector.
+The historical host-network build overlay has been removed. Obtain new Davis
+images through [CI publishing](../../docs/CONTAINER_PUBLISHING.md#davis-ci-publishing)
+and the [registry-pull handoff](../pi-gateways/davis/README.md). Never build on
+hvo-docker or home-docker, including when an image is missing. Kepler/Roy owns
+the registry-image cutover; never restart the preserved Pi alongside this collector.
 
 ## Prerequisites and configuration
 
@@ -37,8 +40,9 @@ missing-image rebuild. Never restart the preserved Pi alongside this collector.
 - Durable `hvo-website-data-protection` volume, restricted checkpoint and a
   recovery owner. Preserve `DataProtection__ApplicationName=HVO.WebSite.v9`
   and access to every older protector still needed by retained keys.
-- A reviewed image available on the target Docker daemon, or explicitly approved
-  target build. Publishing a registry tag does not prove target availability.
+- A reviewed registry image pulled onto the target Docker daemon. Publishing a
+  registry tag does not prove target availability; do not build on hvo-docker
+  or home-docker.
 
 From the repository root, initialize only on **first install**. Existing files,
 including symlinks, stop this sequence; do not overwrite an operator's settings:
