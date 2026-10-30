@@ -32,6 +32,26 @@ boundaries and any remaining optional-delivery issues.
 Reuse [the original Davis Compose definition](../../pi-gateways/davis/docker-compose.yml);
 do not add another collector to the website stack.
 
+The [hvo-docker env example](.env.example) matches the
+[canonical Davis example](../../pi-gateways/davis/.env.example) and is used with
+that same Compose definition; do not create a second collector or overwrite an
+existing ignored `.env`. Local `DAVIS_CONFIG_FILE` / `DAVIS_SECRETS_DIRECTORY`
+paths retain the shared Pi-directory deployment-helper semantics. The
+[complete variable and startup reference](../../pi-gateways/README.md#runtime-configuration-without-image-rebuilds)
+documents purpose, defaults and required values, including both image pins.
+
+Under #466's candidate, Davis telemetry defaults to
+`OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.1.238:4318`,
+`OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`, `OTEL_SERVICE_NAME=hvo-davis`.
+`DAVIS_REMOTE_RUNTIME_DIRECTORY` defaults to
+`/home/roys/.local/share/hvo-edge/davis/runtime`; its non-secret `.env` is mounted
+read-only by directory and read at each startup. After adopting the new image
+and mount in a separate authorized replacement, app-setting edits to this
+daemon-host file need only an authorized restart. A plain restart does not
+reread the workstation Compose `.env`; keep its copy synchronized. Image/port/
+mount changes still require recreation. The presently running one-off image
+does not include the new loader, and this PR makes no live telemetry/restart claim.
+
 | Item | Contract |
 |---|---|
 | Host / architecture | hvo-docker / amd64 |
@@ -41,6 +61,7 @@ do not add another collector to the website stack.
 | WeatherLink logger | `192.168.1.210:22222`; no device mappings, privilege or host networking |
 | Mounted configuration | `/home/roys/.local/share/hvo-edge/davis/gateway.json` to `/app/config/gateway.json`, read-only |
 | Mounted secrets | `/home/roys/.local/share/hvo-edge/davis/secrets/` to `/run/secrets`, read-only |
+| Candidate runtime configuration (#466) | `/home/roys/.local/share/hvo-edge/davis/runtime/` to `/app/config/runtime`, read-only; `.env` read at startup after separate adoption |
 | Durable state | `davis_davis-outbox` to `/app/data` |
 | Central ingest | `http://hvo-docker.hvo.lan/` |
 | Optional consumers | CWOP `DW4515`, WU `KAZKINGM12`, HA MQTT `192.168.1.113:1883` |

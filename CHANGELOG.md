@@ -7,6 +7,11 @@ Dates below are verified delivery dates, not inferred deployments.
 
 ## Unreleased
 
+- [#466](https://github.com/HualapaiValley/HVO.WebSite/issues/466): JK BMS,
+  SmartShunt and EG4 CI multi-arch publishing candidates, immutable registry
+  Compose pins and publishing/rollback runbooks; all four collectors also gain
+  documented OTLP `.env` settings and mounted startup overrides for restart-only
+  app changes after separate adoption. Deployment remains separate.
 - Grouped navigation, useful active-project owners, corrected schema/headless
   references and marked protocol/model/session archives are proposed by
   [#416](https://github.com/HualapaiValley/HVO.WebSite/issues/416).

@@ -11,21 +11,26 @@ x-hvo-local-logging: &hvo-local-logging
 
 services:
   hvo-jkbms:
-    build:
-      context: ../../..
-      dockerfile: src/HVO.Hardware.JkBms/Dockerfile
+    image: registry.hualapaivalleyobservatory.org/hvo-jkbms:${HVO_JKBMS_IMAGE_VERSION:?Set the published semver version}@${HVO_JKBMS_IMAGE_DIGEST:?Set the published multi-arch sha256 digest}
     privileged: true
     ports:
       - "${JKBMS_HTTP_PORT:-5200}:8080"
     environment:
       DOTNET_ENVIRONMENT: Production
-      OTEL_SERVICE_NAME: hvo-jkbms
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
-      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      HVO_EDGE_RUNTIME_ENV_FILE: /app/config/runtime/.env
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-hvo-jkbms}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://192.168.1.238:4318}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
     volumes:
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
       - "${JKBMS_REMOTE_CONFIG_FILE:?JKBMS_REMOTE_CONFIG_FILE is required}:/app/config/gateway.json:ro"
       - "${JKBMS_REMOTE_SECRETS_DIRECTORY:?JKBMS_REMOTE_SECRETS_DIRECTORY is required}:/run/secrets:ro"
+      - type: bind
+        source: ${JKBMS_REMOTE_RUNTIME_DIRECTORY:-/home/roys/.local/share/hvo-edge/jkbms/runtime}
+        target: /app/config/runtime
+        read_only: true
+        bind:
+          create_host_path: false
       - jkbms-outbox:/app/data
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health/live"]

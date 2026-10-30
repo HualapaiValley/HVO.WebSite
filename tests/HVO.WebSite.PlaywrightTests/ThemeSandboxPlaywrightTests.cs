@@ -245,13 +245,19 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
-    public async Task ThemeSandbox_CssReference_ShouldValidateControlsAndCardsStyling()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ThemeSandbox_CssReference_ShouldValidateControlsAndCardsStyling(bool lightTheme)
     {
         var page = await OpenPageAsync("/css-reference");
+        if (lightTheme)
+        {
+            await BrowserBehaviorAssertions.SwitchToLightAsync(page);
+        }
 
-        await AssertThemedSurfaceAsync(page.Locator(".hvo-card-shell").First, "CSS reference card shell");
-        await AssertThemedSurfaceAsync(page.Locator(".hvo-card").First, "CSS reference card");
-        await AssertThemedSurfaceAsync(page.Locator(".hvo-control").First, "CSS reference form control");
+        await BrowserBehaviorAssertions.ThemedSurfaceAsync(page.Locator(".hvo-card-shell").First, "CSS reference card shell", "24px");
+        await BrowserBehaviorAssertions.ThemedSurfaceAsync(page.Locator(".hvo-card").First, "CSS reference card", "24px");
+        await BrowserBehaviorAssertions.ThemedSurfaceAsync(page.Locator(".hvo-control").First, "CSS reference form control", "14px");
         await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "hvo-button-primary" })).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator(".hvo-chip-success").Filter(new() { HasText = "hvo-chip-success" })).ToBeVisibleAsync();
         await AssertNoBlazorErrorAsync(page);
@@ -284,29 +290,5 @@ public sealed class ThemeSandboxPlaywrightTests
     {
         await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
         session.AssertNoUnexpectedErrors();
-    }
-
-    private static async Task AssertThemedSurfaceAsync(ILocator locator, string label)
-    {
-        await Assertions.Expect(locator).ToBeVisibleAsync();
-        var styleText = await locator.EvaluateAsync<string>(
-            "el => { const s = window.getComputedStyle(el); return [s.getPropertyValue('background-color'), s.getPropertyValue('border-color'), s.getPropertyValue('border-radius')].join('|'); }");
-        var parts = styleText.Split('|');
-        var backgroundColor = parts.ElementAtOrDefault(0) ?? string.Empty;
-        var borderColor = parts.ElementAtOrDefault(1) ?? string.Empty;
-        var borderRadius = parts.ElementAtOrDefault(2) ?? string.Empty;
-        var hasBackground = !string.Equals(backgroundColor, "rgba(0, 0, 0, 0)", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(backgroundColor, "transparent", StringComparison.OrdinalIgnoreCase);
-        var hasBorder = !string.Equals(borderColor, "rgba(0, 0, 0, 0)", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(borderColor, "transparent", StringComparison.OrdinalIgnoreCase);
-
-        Assert.IsTrue(hasBackground || hasBorder, $"{label} should have themed background or border styling.");
-        Assert.IsTrue(ParsePixels(borderRadius) >= 8, $"{label} should have themed rounded styling.");
-    }
-
-    private static double ParsePixels(string value)
-    {
-        var firstValue = value.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "0";
-        return double.TryParse(firstValue.Replace("px", string.Empty, StringComparison.OrdinalIgnoreCase), out var pixels) ? pixels : 0;
     }
 }

@@ -56,6 +56,7 @@ secrets, directories, and SQLite schema are ready before ordinary workers start.
 | Path | Purpose | Mount |
 |------|---------|-------|
 | `/app/config/gateway.json` | Typed non-secret gateway configuration | Read-only |
+| `/app/config/runtime/.env` | Opt-in non-secret startup overrides for direct collectors (#466) | Read-only directory bind; app reads the file at startup |
 | `/app/data/outbox.db` | Durable SQLite outbox | Read-write volume |
 | `/run/secrets/*` | One secret value per referenced file | Read-only secret mount |
 
@@ -73,12 +74,24 @@ resolve under the secret root. Runtime code creates only the data directory; it
 never creates mounted configuration or secret files.
 
 Configuration precedence is application defaults, mounted `gateway.json`, then
-environment-variable overrides. Production requires the mounted file; it is
-optional outside Production. JSON reload is disabled, and secret files are
-resolved at startup: changing either requires an approved container restart or
-replacement. `HVO_EDGE_CONFIG_FILE` can select a different mounted file for
-commissioning and tests. Follow [gateway commissioning](../../deploy/pi-gateways/README.md)
-for Key Vault materialization and daemon-host mount synchronization.
+creation-time environment-variable overrides. When `HVO_EDGE_RUNTIME_ENV_FILE`
+selects a startup `.env` under the config root, its OTEL/`Section__Key` overrides
+intentionally win over real environment values; the mounted JSON selector stays
+pinned. Missing runtime keys fall through to that original environment/JSON;
+the loader supplies no deployment OTLP defaults. Those belong to Compose/env
+examples. Credential-like keys (`Password`, `Token`, `Secret`, `ApiKey`,
+`ConnectionString`, case/separator insensitive) are rejected without exposing
+names or values. Secret-file references remain in JSON. Ordinary Compose
+`*_SECRETS_DIRECTORY` paths are ignored metadata. Production requires JSON;
+it is optional outside Production. A selected runtime `.env` is required in all
+environments and invalid/unreadable content fails before device workers start,
+without printing values. Neither file is hot-loaded; secret files are resolved
+at startup as well. The read-only runtime **directory** bind permits atomically
+replacing `.env` before an authorized restart without recreating the container.
+Docker-owned image/port/mount/device settings still need recreation.
+`HVO_EDGE_CONFIG_FILE` can select a different mounted JSON for commissioning and
+tests. Follow [gateway commissioning](../../deploy/pi-gateways/README.md) for
+the complete env reference, Key Vault materialization and daemon-host synchronization.
 
 ## Runtime Identity
 

@@ -1,12 +1,16 @@
 # Container Publishing
 
 Publishing builds and pushes an image; deployment is a separate authorized
-operation. Current supported publish targets are website, Davis, JK BMS and
-SmartShunt. EG4 is built through the Pi deployment workflow. The HA exporter is
+operation. Davis, JK BMS, SmartShunt and EG4 use CI multi-arch publishing below;
+the website retains its manual publisher. The HA exporter is
 implemented but disabled in production; retired SolarAssistant/Kasa images are
 not targets.
 
 ## Publishing configuration
+
+This section describes the legacy manual publisher, which supports website,
+Davis, JK BMS and SmartShunt. Active collector release publishing uses CI;
+EG4 is supported by its CI workflow, not by this manual script.
 
 [publish-image.sh](../scripts/publish-image.sh) reads allowlisted publishing keys
 from **`deploy/hvo-docker/.env` by default**, or `HVO_PUBLISH_ENV_FILE` when set.
@@ -97,6 +101,57 @@ hvo-docker or an authorized Pi fallback. **Never build on hvo-docker or home-doc
 The historical host-network build overlay from draft PR #463 is retired; its
 one-off image remains historical evidence, not the deployment build path.
 
+### Pi collector CI publishing
+
+JK BMS, SmartShunt and EG4 follow the Davis workflow above with the same
+read-only repository permission, runner labels, pinned Actions/BuildKit/QEMU,
+main-only manual dispatch, stable-source ancestry check, unused-version check,
+two-architecture build and registry readback. Each collector has its own
+publication concurrency group and image repository:
+
+| Workflow | Tag | Registry repository | Dockerfile project |
+|---|---|---|---|
+| [Publish JK BMS image](../.github/workflows/publish-jkbms.yml) | `jkbms-v<semver>` | `hvo-jkbms` | `HVO.Hardware.JkBms` |
+| [Publish SmartShunt image](../.github/workflows/publish-smartshunt.yml) | `smartshunt-v<semver>` | `hvo-smartshunt` | `HVO.Hardware.VictronSmartShunt` |
+| [Publish EG4 image](../.github/workflows/publish-eg4.yml) | `eg4-v<semver>` | `hvo-eg4` | `HVO.Hardware.Eg4` |
+
+All use `registry.hualapaivalleyobservatory.org` and the existing Actions registry
+credentials described above. No collector/device secret is needed. The existing
+self-hosted `[self-hosted, Linux, X64, hvo-website, docker]` runner builds both
+linux/amd64 and linux/arm64 via QEMU; no Pi/docker-host image build is permitted.
+No runner-group or Docker-daemon configuration change is part of publishing.
+
+Push release tags individually when qualifying all four collectors. GitHub does
+not emit tag push events for a push containing more than three tags, even when
+the refs were successfully created. A successful Git push alone is not evidence
+that a publication workflow started; require the matching source/tag Actions run.
+
+After the workflows merge, dispatch the selected workflow **on main** with a new
+semver `version`, or push its version tag at an authorized commit. Stable tags
+must be contained in main. For #466 the owner specifically permits these three
+prerelease qualification tags at the draft candidate's exact SHA (replace the
+placeholder with that recorded SHA; never retag an existing publication):
+
+```bash
+candidate=REPLACE_WITH_CANDIDATE_SHA
+git tag jkbms-v0.0.0-ci.466.1 "$candidate"
+git tag smartshunt-v0.0.0-ci.466.1 "$candidate"
+git tag eg4-v0.0.0-ci.466.1 "$candidate"
+git push https://github.com/HualapaiValley/HVO.WebSite.git \
+  refs/tags/jkbms-v0.0.0-ci.466.1 \
+  refs/tags/smartshunt-v0.0.0-ci.466.1 \
+  refs/tags/eg4-v0.0.0-ci.466.1
+```
+
+Require a successful run for each tag and record its source, version and
+multi-arch index digest. A failure after push can leave an occupied registry
+version; investigate rather than overwrite it. The workflow verifies exactly
+the two Linux platforms and checks the version tag still resolves to that
+index. It does not move `latest`, pull to a deployment host or start collectors.
+See [registry pins, verification and rollback](../deploy/pi-gateways/README.md#collector-registry-publishing-and-pins)
+for the Compose/env handoff. Publishing qualification is separate from PR
+review/standard CI and from future deployment authorization.
+
 ### Existing manual publisher
 
 1. Select and review the actual publish env file, repository and image version.
@@ -108,7 +163,7 @@ one-off image remains historical evidence, not the deployment build path.
    [gateway secret exceptions](../deploy/pi-gateways/README.md#mounted-configuration-and-secrets).
    A custom `HVO_PUBLISH_ENV_FILE` is not automatically synchronized.
 3. Inspect the commands with `--dry-run`, then publish only the intended target
-   on an approved build machine. Davis production publishing uses CI above.
+   on an approved build machine. Active collector publishing uses CI above.
 4. Independently verify the pushed tag/digest. The script prints commands/status;
    it does not perform a registry readback or deploy the image.
 5. Record the actual image/release change in [CHANGELOG.md](../CHANGELOG.md).

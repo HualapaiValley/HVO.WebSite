@@ -42,6 +42,7 @@ jobs:
           node --check tools/pr-process-control.mjs
           node --test tools/pr-process.test.mjs
           node --test tools/davis-image.test.mjs
+          node --test tools/gateway-image.test.mjs
           node --check tools/test-categories.mjs
           node --test tools/test-categories.test.mjs
       - name: Validate documentation navigation
