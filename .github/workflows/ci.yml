@@ -121,7 +121,7 @@ jobs:
           ref: ${{ fromJSON(needs.plan.outputs.plan).source.merge }}
           path: candidate
           persist-credentials: false
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: candidate/global.json
       - name: Run planned validation work
@@ -156,7 +156,7 @@ jobs:
           ref: ${{ fromJSON(needs.plan.outputs.plan).source.merge }}
           path: candidate
           persist-credentials: false
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: candidate/global.json
       - name: Run planned home-assistant work
@@ -191,7 +191,7 @@ jobs:
           ref: ${{ fromJSON(needs.plan.outputs.plan).source.merge }}
           path: candidate
           persist-credentials: false
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: candidate/global.json
       - name: Run planned sql-server work
@@ -226,7 +226,7 @@ jobs:
           ref: ${{ fromJSON(needs.plan.outputs.plan).source.merge }}
           path: candidate
           persist-credentials: false
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: candidate/global.json
       - name: Run planned browser work
@@ -261,7 +261,7 @@ jobs:
           ref: ${{ fromJSON(needs.plan.outputs.plan).source.merge }}
           path: candidate
           persist-credentials: false
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: candidate/global.json
       - name: Run planned operations work
