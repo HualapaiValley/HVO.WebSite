@@ -30,6 +30,14 @@ CWOP defaults disabled. Its distinct [APRS-IS guide](../../docs/gateways/davis-v
 
 The preserved named volume is `davis-outbox`, mounted at `/app/data`.
 
+Production hvo-docker placement uses Compose project `davis`, retaining
+`deploy/pi-gateways/davis/docker-compose.yml` and the named
+`davis_davis-outbox` volume. Health/diagnostics are at `hvo-docker:5100`;
+the preserved Pi must remain stopped. Follow
+the [host migration and rollback notes](../../deploy/hvo-docker/davis/README.md)
+for #462, including Roy's final core-only rollback and optional-delivery
+diagnostics rule; never run collectors on both hosts.
+
 ## Endpoints
 
 - `/health/live`: process liveness

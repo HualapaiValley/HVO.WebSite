@@ -2,6 +2,78 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
+## 2026-10-29 — Remaining Pi collectors use CI registry images (#466 candidate)
+
+JK BMS, SmartShunt and EG4 now follow the Davis per-collector semver workflows:
+self-hosted AMD runners use Buildx/QEMU to publish linux/amd64 + linux/arm64,
+then verify registry platforms and the immutable index digest. Their Pi Compose
+files require version/digest pins and the deployment helper forces `--no-build`
+for every active direct collector. The [publishing and rollback handoff](../deploy/pi-gateways/README.md#collector-registry-publishing-and-pins)
+replaces the former Pi build path while retaining device access and durable
+volumes. [#466](https://github.com/HualapaiValley/HVO.WebSite/issues/466) authorizes
+draft delivery and prerelease publication qualification only; actual deployments,
+restarts and stable releases remain outside this candidate's scope.
+
+Roy's [added scope](https://github.com/HualapaiValley/HVO.WebSite/issues/466#issuecomment-6508970538)
+extends configurable OTLP endpoint/protocol/service identity to all four direct
+collectors, including Davis's shared hvo-docker/Pi definition. An opt-in mounted
+non-secret runtime `.env` is read after JSON and creation-time environment,
+allowing app-setting updates on an authorized restart without changing images.
+The directory bind and staged file replacement preserve mount visibility and
+restore previous config/secrets/env on activation failure. Docker-owned settings
+still require recreation. The earlier prerelease source predates this loader;
+adoption needs a later publication and separately authorized replacement.
+
+The three `0.0.0-ci.466.1` publications passed at the pre-loader source
+`f8c5acd0e6bd564a45c26977fba13f112f0b9468`:
+[JK BMS](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/40959423836),
+[SmartShunt](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/40959425058),
+[EG4](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/40959425617).
+Each readback verified exactly linux/amd64 + linux/arm64 and the version tag's
+index digest. #466 / its draft PR retains the complete immutable references;
+these qualification images must not be described as containing later changes.
+
+All four loader-containing `0.0.0-ci.466.2` images later passed CI and independent
+registry readback at `4991e0286cfdc89347491c7388215182c525bca8`; the
+[immutable digest record](https://github.com/HualapaiValley/HVO.WebSite/pull/467#issuecomment-6509540318)
+verifies exactly linux/amd64 + linux/arm64. Their source predates Kepler's
+subsequent review corrections: intentional runtime-file > environment > JSON
+precedence is now explicit, the deployment OTLP default belongs only in
+Compose/env examples, and credential-like runtime keys fail with a generic error.
+Ignored Compose secret-directory paths stay compatible; secret-file references
+remain in mounted JSON. These corrections do not move the published tags.
+
+## 2026-10-29 — Davis registry publishing candidate (#464)
+
+Added an explicit semver/tag CI publication path for `hvo-davis`, using the
+organization's x64 website runners and QEMU for arm64 because WebSite has no
+native ARM runner-group grant. Buildx publishes and reads back a two-platform
+index; deployment Compose requires the version and immutable index digest.
+The [registry handoff](../deploy/pi-gateways/davis/README.md) replaces target-host
+build instructions, including #463's historical host-network overlay. The first
+prerelease `0.0.0-ci.464.1` passed
+[CI publication and registry readback](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/40923542379)
+at source `76bc0972e43187ba5bdaa7748e2dde192c95ea49`. The draft candidate does
+not deploy or restart the Davis collector; target qualification remains open.
+Kepler/Roy owns the cutover from #462's one-off image.
+
+## 2026-10-29 — Davis acquisition moves to hvo-docker (#462)
+
+Davis now uses its original standalone Compose project, mounted configuration/
+secrets and durable outbox on hvo-docker. The owner repaired stale package-cache
+hashes and Docker defaults; the retained amd64 image was built with the approved
+build-only host-network workaround, then reused on an MTU 1450 runtime bridge.
+Earlier WU/CWOP failures caused verified, record-preserving rollbacks under the
+old rule. Roy's final authorization keeps acquisition off the Pi: only inability
+to run/stay healthy, no LOOP for 10+ minutes or outright website-ingest failure
+permit rollback. Optional CWOP/WU/MQTT faults are recorded for later diagnosis.
+A fresh stopped/checksum-verified transfer and 15 minutes of healthy core
+collection/ingest precede disabling restart on the preserved Pi. All databases,
+old snapshots, images and volumes remain retained. The
+[placement and rollback runbook](../deploy/hvo-docker/davis/README.md) records
+this contract; [#462](https://github.com/HualapaiValley/HVO.WebSite/issues/462)
+holds actual observation boundaries, final restart state and delivery errors.
+
 ## 2026-10-11 — Public weather history within 24 hours (#446)
 
 Raw history, hourly summaries and highs/lows support anonymous reads with optional

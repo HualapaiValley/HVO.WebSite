@@ -36,6 +36,7 @@ write_profile() {
 		if $reordered then .Eg4.Devices = [.Eg4.Devices[2], .Eg4.Devices[1], .Eg4.Devices[0]] else . end
 	' "${config_example}" >"${config}"
 	{
+		printf 'HVO_EG4_IMAGE_VERSION=0.0.0-ci\nHVO_EG4_IMAGE_DIGEST=sha256:%064d\n' 0
 		printf 'EG4_HTTP_PORT=5600\n'
 		printf 'EG4_CONFIG_FILE=%s\n' "${config}"
 		printf 'EG4_SECRETS_DIRECTORY=%s\n' "${secrets_dir}"
@@ -99,6 +100,7 @@ dry_run_output="$(env -i PATH="${PATH}" HOME="${HOME}" HVO_PI_GATEWAY_ENV_FILE="
 	bash "${repo_root}/scripts/deploy-pi-gateway.sh" --dry-run --context devpi5 eg4 2>&1)"
 [[ "${dry_run_output}" == *'--project-name eg4'* && "${dry_run_output}" == *'config --quiet'* && "${dry_run_output}" == *'up -d --wait'* ]] ||
 	fail 'EG4 deploy dry run omitted Compose validation or rollout commands'
+[[ "${dry_run_output}" == *'--no-build'* && "${dry_run_output}" != *'--build'* ]] || fail 'registry deployment must never build on the target'
 [[ "${dry_run_output}" != *"${sentinel}"* ]] || fail 'EG4 deploy dry run exposed a mounted secret'
 [[ "${dry_run_output}" != *'docker-compose.two-device.yml'* ]] || fail 'disabled second device unexpectedly enabled the overlay'
 

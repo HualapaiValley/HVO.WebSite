@@ -7,9 +7,23 @@ Dates below are verified delivery dates, not inferred deployments.
 
 ## Unreleased
 
+- [#466](https://github.com/HualapaiValley/HVO.WebSite/issues/466): JK BMS,
+  SmartShunt and EG4 CI multi-arch publishing candidates, immutable registry
+  Compose pins and publishing/rollback runbooks; all four collectors also gain
+  documented OTLP `.env` settings and mounted startup overrides for restart-only
+  app changes after separate adoption. Deployment remains separate.
 - Grouped navigation, useful active-project owners, corrected schema/headless
   references and marked protocol/model/session archives are proposed by
   [#416](https://github.com/HualapaiValley/HVO.WebSite/issues/416).
+
+## 2026-10-29
+
+- [#464 / PR #465](https://github.com/HualapaiValley/HVO.WebSite/pull/465):
+  CI published the Davis prerelease `0.0.0-ci.464.1` for linux/amd64 and
+  linux/arm64 to `registry.hualapaivalleyobservatory.org/hvo-davis`, index digest
+  `sha256:75112b5aa5834ca89992c8f79f29c8926f5ddd9e48c9b8e2435ac42761231343`.
+  [Publication and registry verification passed](https://github.com/HualapaiValley/HVO.WebSite/actions/runs/40923542379);
+  the PR remains draft and no collector deployment is included.
 
 ## 2026-10-04
 

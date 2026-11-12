@@ -2,11 +2,16 @@
 
 This runbook records the Davis slice of issue #330. It does not close the broader source-retirement issue.
 
+For the later Pi-to-hvo-docker move under #462, use the
+[host-placement runbook](../../../deploy/hvo-docker/davis/README.md). The legacy
+cutover commands below are historical #330 procedures; do not use them to start
+a second collector on the preserved Pi.
+
 ## Authority
 
 | Responsibility | Authority |
 |---|---|
-| WeatherLink IP TCP session | `HVO.Hardware.DavisVantagePro2` on `devpi5` |
+| WeatherLink IP TCP session | `HVO.Hardware.DavisVantagePro2` on `hvo-docker` under #462; preserved Pi stopped |
 | Live and archive acquisition | Davis vNext collector |
 | Canonical history writer | Davis collector outbox to the website raw/archive APIs |
 | Home Assistant presentation | Davis collector to local MQTT to HA |

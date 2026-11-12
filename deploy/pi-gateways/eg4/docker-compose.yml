@@ -11,21 +11,26 @@ x-hvo-local-logging: &hvo-local-logging
 
 services:
   hvo-eg4:
-    build:
-      context: ../../..
-      dockerfile: src/HVO.Hardware.Eg4/Dockerfile
+    image: registry.hualapaivalleyobservatory.org/hvo-eg4:${HVO_EG4_IMAGE_VERSION:?Set the published semver version}@${HVO_EG4_IMAGE_DIGEST:?Set the published multi-arch sha256 digest}
     ports:
       - "${EG4_HTTP_PORT:-5600}:8080"
     devices:
       - "${EG4_DEVICE_0_PORT:-/dev/hvo/eg4-6500ex-a}:${EG4_DEVICE_0_PORT:-/dev/hvo/eg4-6500ex-a}:rw"
     environment:
       DOTNET_ENVIRONMENT: Production
-      OTEL_SERVICE_NAME: hvo-eg4
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_COLLECTOR_ENDPOINT:-}
-      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      HVO_EDGE_RUNTIME_ENV_FILE: /app/config/runtime/.env
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-hvo-eg4}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://192.168.1.238:4318}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
     volumes:
       - "${EG4_REMOTE_CONFIG_FILE:?EG4_REMOTE_CONFIG_FILE is required}:/app/config/gateway.json:ro"
       - "${EG4_REMOTE_SECRETS_DIRECTORY:?EG4_REMOTE_SECRETS_DIRECTORY is required}:/run/secrets:ro"
+      - type: bind
+        source: ${EG4_REMOTE_RUNTIME_DIRECTORY:-/home/roys/.local/share/hvo-edge/eg4/runtime}
+        target: /app/config/runtime
+        read_only: true
+        bind:
+          create_host_path: false
       - eg4-outbox:/app/data
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
