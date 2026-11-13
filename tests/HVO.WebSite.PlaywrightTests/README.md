@@ -37,12 +37,27 @@ authenticated website headers and the Sandbox gateway, public and admin layouts
 at 320, 390, 768, 1024 and 1600 pixels, with an 844-pixel viewport height, in both
 themes. They check text/control nonintersection, viewport bounds, pointer and
 focus reachability, keyboard navigation/theme/account/drawer interaction, and
-space reserved above the page canvas. Header rows and brand text intentionally
-wrap; the shared header stays in layout flow and spans the viewport regardless
-of admin drawer state. No navigation is hidden behind a new collapse control.
+space reserved above the page canvas. Painted brand text is measured with a DOM
+Range and checked for overflow inside its own box; the logo is also included.
+Header rows and brand text intentionally wrap; the logo remains beside its copy.
+The shared header stays in layout flow and spans the viewport regardless of
+admin drawer state. The persistent admin drawer is contained below that header
+by `MudDrawerContainer` (`shell-admin-body`), with independent scrolling. Both
+website `/admin` and Sandbox `/admin-layout` demonstrate this shared behavior.
+No navigation is hidden behind a new collapse control.
 Each case retains `header-<width>-dark.png` and `header-<width>-light.png` alongside
 the normal diagnostics. The initial five cases failed against the original CSS
 for hidden or out-of-bounds header content (Refs #434).
+
+`AdminDrawer_ShouldKeepEveryItemUncovered` hit-tests the heading and every drawer
+link at all five widths in both themes, scrolling the drawer as needed. Disabled
+website placeholders must still be uncovered, but retain their disabled behavior.
+Website navigation starts at `/Error` before activating Home. Sandbox navigation
+activates a non-current link (Breakpoints on a later row at 320px, or Controls in
+the public layout), verifies the changed URL/current pill, and navigates back.
+Focus assertions verify focus acquisition; the former vacuous Tab-away check was
+removed. Mutation qualification cases reject nowrap text at 320/390px and
+suppressed Enter activation on the website and Sandbox, then verify recovery.
 
 The [main-site](MainSitePlaywrightTests.cs) and [sandbox](ThemeSandboxPlaywrightTests.cs) suites exercise public/authorized navigation, controls, reference routes and responsive surfaces. [Dashboard](WebsiteDashboardBrowserTests.cs), [chart/theme](ScopedChartThemeBrowserTests.cs), [instrument styles](ThemeSandboxInstrumentStyleBrowserTests.cs) and [power history](PowerHistoryBrowserTests.cs) cases assert actual Chart.js instances/data/configuration, nullable gaps, theme changes, computed styles, UTC spacing/display-zone labels, provider failure recovery and empty states. A visible canvas, stylesheet request or button alone is insufficient.
 

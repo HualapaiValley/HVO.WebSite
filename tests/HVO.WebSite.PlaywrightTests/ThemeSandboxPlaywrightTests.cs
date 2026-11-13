@@ -75,39 +75,64 @@ public sealed class ThemeSandboxPlaywrightTests
     [DataRow("/admin-layout")]
     public async Task ResponsiveHeader_ShouldKeepControlsReachable(string route)
     {
-        var page = await OpenPageAsync(route);
         foreach (var width in new[] { 320, 390, 768, 1024, 1600 })
+        foreach (var light in new[] { false, true })
         {
-            await page.SetViewportSizeAsync(width, 844);
+            await session.Page.SetViewportSizeAsync(width, 844);
+            var page = await OpenPageAsync(route);
+            if (light) await BrowserBehaviorAssertions.SwitchToLightAsync(page);
             await HeaderAssertions.ReachableAsync(page);
-            await page.ScreenshotAsync(new() { Path = System.IO.Path.Combine(session.ArtifactDirectory, $"header-{width}-dark.png") });
-            await AssertHeaderNavigationAsync(page, route);
-            var toggle = page.GetByRole(AriaRole.Button, new() { Name = "Switch to light theme" });
-            await toggle.PressAsync("Enter");
-            await Assertions.Expect(page.Locator(".shell-theme-light")).ToBeVisibleAsync();
-            await HeaderAssertions.ReachableAsync(page);
-            await AssertHeaderNavigationAsync(page, route);
-            await page.ScreenshotAsync(new() { Path = System.IO.Path.Combine(session.ArtifactDirectory, $"header-{width}-light.png") });
-            await page.GetByRole(AriaRole.Button, new() { Name = "Switch to dark theme" }).PressAsync("Enter");
-            await Assertions.Expect(page.Locator(".shell-theme-dark")).ToBeVisibleAsync();
+            await page.ScreenshotAsync(new() { Path = Path.Combine(session.ArtifactDirectory, $"header-{width}-{(light ? "light" : "dark")}.png") });
+            if (route == "/admin-layout")
+            {
+                await HeaderAssertions.DrawerReachableAsync(page);
+                var toggle = page.GetByRole(AriaRole.Button, new() { Name = "Toggle admin navigation" });
+                await toggle.PressAsync("Enter");
+                await Assertions.Expect(page.Locator(".mud-drawer")).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("mud-drawer--closed"));
+                await toggle.PressAsync("Enter");
+                await HeaderAssertions.DrawerReachableAsync(page);
+            }
+            else
+            {
+                var destination = route == "/dashboard" ? "/responsive" : "/controls";
+                var link = page.Locator($".shell-header-nav a[href='{destination}']");
+                await HeaderAssertions.NavigateAsync(page, link, destination);
+                await Assertions.Expect(page.Locator(".shell-header-nav .shell-nav-link-current")).ToHaveAttributeAsync("href", destination);
+                await page.GoBackAsync();
+                await Assertions.Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(route + "$"));
+                await Assertions.Expect(page.Locator(".shell-header-nav .shell-nav-link-current")).ToHaveAttributeAsync("href", route);
+            }
         }
     }
 
-    private static async Task AssertHeaderNavigationAsync(IPage page, string route)
+    [TestMethod]
+    [DataRow(320)]
+    [DataRow(390)]
+    [DataRow(768)]
+    [DataRow(1024)]
+    [DataRow(1600)]
+    public async Task AdminDrawer_ShouldKeepEveryItemUncovered(int width)
     {
-        if (route == "/admin-layout")
-        {
-            var toggle = page.GetByRole(AriaRole.Button, new() { Name = "Toggle admin navigation" });
-            await toggle.PressAsync("Enter");
-            await Assertions.Expect(page.Locator(".mud-drawer")).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("mud-drawer--closed"));
-            await toggle.PressAsync("Enter");
-            await Assertions.Expect(page.Locator(".mud-drawer")).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("mud-drawer--open"));
-        }
-        else
-        {
-            await page.Locator(".shell-header-nav .shell-nav-link-current").PressAsync("Enter");
-            await Assertions.Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(route + "$"));
-        }
+        await session.Page.SetViewportSizeAsync(width, 844);
+        var page = await OpenPageAsync("/admin-layout");
+        await HeaderAssertions.DrawerReachableAsync(page);
+        await BrowserBehaviorAssertions.SwitchToLightAsync(page);
+        await HeaderAssertions.DrawerReachableAsync(page);
+        await HeaderAssertions.ReachableAsync(page);
+    }
+
+    [TestMethod]
+    public async Task WrappedNavigationAssertion_ShouldRejectSuppressedEnterThenRecover()
+    {
+        await session.Page.SetViewportSizeAsync(320, 844);
+        var page = await OpenPageAsync("/dashboard");
+        var link = page.GetByRole(AriaRole.Link, new() { Name = "Breakpoints", Exact = true });
+        await link.EvaluateAsync("e => { window.blockHeaderKey = event => { event.preventDefault(); event.stopImmediatePropagation(); }; e.addEventListener('keydown', window.blockHeaderKey, true); }");
+        Func<Task> verify = () => HeaderAssertions.NavigateAsync(page, link, "/responsive");
+        await verify.Should().ThrowAsync<PlaywrightException>();
+        await OpenPageAsync("/dashboard");
+        await HeaderAssertions.NavigateAsync(page, link, "/responsive");
+        await Assertions.Expect(page.Locator(".shell-nav-link-current")).ToHaveTextAsync("Breakpoints");
     }
 
     [TestMethod]

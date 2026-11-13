@@ -67,32 +67,75 @@ public sealed class MainSitePlaywrightTests
         var page = session.Page;
         if (authorized)
             await page.Context.SetExtraHTTPHeadersAsync(new Dictionary<string, string> { ["X-Test-Role"] = AppRoles.User });
-        await page.GotoAsync(BuildUrl("/"));
         foreach (var width in new[] { 320, 390, 768, 1024, 1600 })
+        foreach (var light in new[] { false, true })
         {
             await page.SetViewportSizeAsync(width, 844);
+            // Begin on a different real route: suppressing Enter or changing Home's
+            // href must fail the URL assertion, even if a Home heading exists.
+            await page.GotoAsync(BuildUrl("/Error"));
+            if (light) await BrowserBehaviorAssertions.SwitchToLightAsync(page);
             await HeaderAssertions.ReachableAsync(page);
-            await page.ScreenshotAsync(new() { Path = System.IO.Path.Combine(session.ArtifactDirectory, $"header-{width}-dark.png") });
-            await AssertHeaderInteractionAsync(page, authorized);
-            await BrowserBehaviorAssertions.SwitchToLightAsync(page);
-            await AssertHeaderInteractionAsync(page, authorized);
+            await HeaderAssertions.NavigateAsync(page, page.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true }), "/");
+            await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Home", Exact = true })).ToBeVisibleAsync();
             await HeaderAssertions.ReachableAsync(page);
-            await page.ScreenshotAsync(new() { Path = System.IO.Path.Combine(session.ArtifactDirectory, $"header-{width}-light.png") });
-            await page.GetByRole(AriaRole.Button, new() { Name = "Switch to dark theme" }).PressAsync("Enter");
-            await Assertions.Expect(page.Locator(".shell-theme-dark")).ToBeVisibleAsync();
+            if (authorized)
+            {
+                await page.GetByRole(AriaRole.Button, new() { Name = "Browser User" }).PressAsync("Enter");
+                await Assertions.Expect(page.GetByRole(AriaRole.Menuitem, new() { Name = "Sign out", Exact = true })).ToBeVisibleAsync();
+                await page.Keyboard.PressAsync("Escape");
+            }
+            await page.ScreenshotAsync(new() { Path = Path.Combine(session.ArtifactDirectory, $"header-{width}-{(light ? "light" : "dark")}.png") });
         }
     }
 
-    private static async Task AssertHeaderInteractionAsync(IPage page, bool authorized)
+    [TestMethod]
+    [DataRow(320)]
+    [DataRow(390)]
+    [DataRow(768)]
+    [DataRow(1024)]
+    [DataRow(1600)]
+    public async Task AdminDrawer_ShouldKeepEveryItemUncovered(int width)
     {
-        await page.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true }).PressAsync("Enter");
-        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Home", Exact = true })).ToBeVisibleAsync();
-        if (authorized)
-        {
-            await page.GetByRole(AriaRole.Button, new() { Name = "Browser User" }).PressAsync("Enter");
-            await Assertions.Expect(page.GetByRole(AriaRole.Menuitem, new() { Name = "Sign out", Exact = true })).ToBeVisibleAsync();
-            await page.Keyboard.PressAsync("Escape");
-        }
+        var page = session.Page;
+        await page.Context.SetExtraHTTPHeadersAsync(new Dictionary<string, string> { ["X-Test-Role"] = AppRoles.Admin });
+        await page.SetViewportSizeAsync(width, 844);
+        await page.GotoAsync(BuildUrl("/admin"));
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Switch to light theme" })).ToBeEnabledAsync();
+        await HeaderAssertions.DrawerReachableAsync(page);
+        await BrowserBehaviorAssertions.SwitchToLightAsync(page);
+        await HeaderAssertions.DrawerReachableAsync(page);
+        await HeaderAssertions.ReachableAsync(page);
+    }
+
+    [TestMethod]
+    [DataRow(320)]
+    [DataRow(390)]
+    public async Task HeaderTextAssertion_ShouldRejectNowrapThenRecover(int width)
+    {
+        var page = session.Page;
+        await page.SetViewportSizeAsync(width, 844);
+        await page.GotoAsync(BuildUrl("/"));
+        await HeaderAssertions.TextAndControlsAsync(page);
+        var mutation = await page.AddStyleTagAsync(new() { Content = ".shell-brand-text { white-space: nowrap; }" });
+        Func<Task> verify = () => HeaderAssertions.TextAndControlsAsync(page);
+        await verify.Should().ThrowAsync<AssertFailedException>();
+        await mutation.EvaluateAsync("e => e.remove()");
+        await HeaderAssertions.TextAndControlsAsync(page);
+    }
+
+    [TestMethod]
+    public async Task HomeNavigationAssertion_ShouldRejectSuppressedEnterThenRecover()
+    {
+        var page = session.Page;
+        await page.SetViewportSizeAsync(320, 844);
+        await page.GotoAsync(BuildUrl("/Error"));
+        var home = page.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true });
+        await home.EvaluateAsync("e => { window.blockHeaderKey = event => { event.preventDefault(); event.stopImmediatePropagation(); }; e.addEventListener('keydown', window.blockHeaderKey, true); }");
+        Func<Task> verify = () => HeaderAssertions.NavigateAsync(page, home, "/");
+        await verify.Should().ThrowAsync<PlaywrightException>();
+        await page.ReloadAsync();
+        await HeaderAssertions.NavigateAsync(page, home, "/");
     }
 
     [TestMethod]

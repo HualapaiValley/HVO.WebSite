@@ -257,6 +257,23 @@ textarea {
     overflow: hidden;
 }
 
+/* Admin body: contain the non-fixed persistent drawer below the in-flow header.
+   WebSite /admin and ThemeSandbox /admin-layout share this reference layout.
+   The drawer scrolls independently; its header toggle remains above it. */
+.shell-admin-body {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.shell-admin-body .shell-frame {
+    width: 100%;
+    min-width: 0;
+}
+
 .shell-content {
     flex: 1 1 auto;
     display: flex;
@@ -310,6 +327,11 @@ textarea {
     flex: 0 1 auto;
     max-width: 100%;
     flex-wrap: wrap;
+}
+
+/* Keep the mark beside wrapping brand copy, including at phone widths. */
+.shell-brand-block:has(.shell-brand-copy) {
+    flex-wrap: nowrap;
 }
 
 .shell-brand-mark {
