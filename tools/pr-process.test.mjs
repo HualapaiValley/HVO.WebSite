@@ -255,6 +255,92 @@ test('label replacement preserves owner/blocked/component overlays', async () =>
   await replacePhase({ repository: 'test/repo', request: async (...args) => calls.push(args) }, pr, 'workflow:ci', 'deep');
   assert.equal(calls.filter(x => x[1] === 'DELETE').length, 2); assert.ok(calls.every(x => !/blocked|in-progress|component/.test(x[0]))); assert.ok(PHASES.includes(calls.find(x => x[1] === 'POST')[2].labels[0]));
 });
+for (const missing of ['workflow:review', 'review:standard']) {
+  test(`metadata reconciliation converges when ${missing} disappears after the snapshot`, async () => {
+    const f = fixture(); f.sync();
+    const overlays = ['workflow:blocked', 'workflow:in-progress', 'component:web', 'bug', 'P3'];
+    const labels = new Set(['workflow:draft', 'workflow:review', 'review:mechanical', 'review:standard', ...overlays]);
+    const calls = [];
+    const api = new GitHub('test/repo', 'test-token', async (url, options) => {
+      const path = new URL(url).pathname;
+      calls.push({ path, method: options.method });
+      if (options.method === 'GET' && path.endsWith('/actions/workflows/ci.yml/runs')) return Response.json({ workflow_runs: [] });
+      if (options.method === 'GET' && path.endsWith('/pulls/1')) return Response.json(f.snapshot.pr);
+      if (options.method === 'DELETE') {
+        const label = decodeURIComponent(path.split('/').at(-1));
+        assert.ok(['workflow:draft', 'workflow:review', 'review:mechanical', 'review:standard'].includes(label));
+        if (!labels.delete(label)) return Response.json({ message: 'Label does not exist' }, { status: 404 });
+        return Response.json([...labels].map(name => ({ name })));
+      }
+      if (options.method === 'POST' && path.endsWith('/labels')) {
+        for (const label of JSON.parse(options.body).labels) labels.add(label);
+        return Response.json([...labels].map(name => ({ name })));
+      }
+      if (options.method === 'POST' && path.includes('/statuses/')) return Response.json({});
+      assert.fail(`Unexpected request: ${options.method} ${path}`);
+    });
+    api.snapshot = async () => {
+      const snapshot = structuredClone(f.snapshot);
+      snapshot.pr.labels = [...labels].map(name => ({ name }));
+      labels.delete(missing);
+      labels.add('external:added');
+      return snapshot;
+    };
+    const result = await reconcile(api, 1);
+    assert.equal(result.phase, 'workflow:ci');
+    assert.equal(result.eligible, true);
+    assert.deepEqual([...labels].sort(), ['workflow:ci', 'review:deep', ...overlays, 'external:added'].sort());
+    assert.ok(calls.some(x => x.method === 'DELETE' && x.path.endsWith(encodeURIComponent(missing))));
+    calls.length = 0;
+    assert.equal((await reconcile(api, 1)).phase, 'workflow:ci');
+    assert.ok(calls.every(x => !x.path.includes('/labels')));
+  });
+  test(`deleting ${missing} propagates permission, transport and other API failures`, async () => {
+    const failures = [
+      ...[401, 403, 429, 500].map(status => ({ name: `HTTP ${status}`, status, text: '{"message":"Label does not exist"}' })),
+      { name: 'generic not found', status: 404, text: '{"message":"Not Found"}' },
+      { name: 'hidden permission failure', status: 404, text: '{"message":"Resource not accessible by integration"}' },
+      { name: 'different message', status: 404, text: '{"message":"Label does not exist."}' },
+      { name: 'nested message', status: 404, text: '{"errors":[{"message":"Label does not exist"}]}' },
+      { name: 'JSON string', status: 404, text: '"Label does not exist"' },
+      { name: 'plain text', status: 404, text: 'Label does not exist' },
+      { name: 'malformed JSON', status: 404, text: '{"message":"Label does not exist"' },
+      { name: 'empty body', status: 404, text: '' },
+      { name: 'network failure', error: new TypeError('fetch failed') },
+      { name: 'timeout', error: new DOMException('Request timed out', 'TimeoutError') },
+    ];
+    const path = `/repos/test/repo/issues/1/labels/${encodeURIComponent(missing)}`;
+    for (const failure of failures) {
+      const calls = [];
+      const api = new GitHub('test/repo', 'test-token', async (url, options) => {
+        calls.push([new URL(url).pathname, options.method]);
+        if (failure.error) throw failure.error;
+        return new Response(failure.text, { status: failure.status });
+      });
+      const pr = { number: 1, labels: ['workflow:ci', missing].map(name => ({ name })) };
+      await assert.rejects(replacePhase(api, pr, 'workflow:ci', 'deep'), error => {
+        if (failure.error) assert.equal(error, failure.error);
+        else {
+          assert.equal(error.status, failure.status);
+          assert.equal(error.message, `GitHub DELETE ${path}: ${failure.status} ${failure.text}`);
+        }
+        return true;
+      }, failure.name);
+      assert.deepEqual(calls, [[path, 'DELETE']], failure.name);
+    }
+  });
+}
+test('label additions still reject the label-absent 404 response', async () => {
+  for (const labels of [[], ['workflow:ci']]) {
+    const calls = [];
+    const api = new GitHub('test/repo', 'test-token', async (url, options) => {
+      calls.push([new URL(url).pathname, options.method]);
+      return Response.json({ message: 'Label does not exist' }, { status: 404 });
+    });
+    await assert.rejects(replacePhase(api, { number: 1, labels: labels.map(name => ({ name })) }, 'workflow:ci', 'deep'), { status: 404 });
+    assert.deepEqual(calls, [['/repos/test/repo/issues/1/labels', 'POST']]);
+  }
+});
 test('metadata controller source invalidation converts draft and cancels active PR run', async () => {
   const f = fixture(); f.sync(); const calls = [];
   const api = { repository: 'test/repo', snapshot: async () => f.snapshot, pull: async () => f.snapshot.pr, graphql: async (...args) => calls.push(['graphql', ...args]), request: async (...args) => { calls.push(args); return args[0].includes('/runs?') ? { workflow_runs: [{ id: 99, status: 'in_progress', head_sha: f.snapshot.pr.head.sha, pull_requests: [{ number: 1 }], created_at: '2026-01-02T00:00:00Z' }] } : {}; } };

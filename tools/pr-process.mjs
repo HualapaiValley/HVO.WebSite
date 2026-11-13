@@ -271,7 +271,12 @@ export class GitHub {
   }
   async request(path, method = 'GET', body) {
     const response = await this.fetcher(`${this.root}${path}`, { method, headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
-    if (!response.ok) throw Object.assign(new Error(`GitHub ${method} ${path}: ${response.status} ${await response.text()}`), { status: response.status });
+    if (!response.ok) {
+      const text = await response.text();
+      let data;
+      try { data = JSON.parse(text); } catch { /* Non-JSON errors still propagate with their original response text. */ }
+      throw Object.assign(new Error(`GitHub ${method} ${path}: ${response.status} ${text}`), { status: response.status, data });
+    }
     return response.status === 204 ? null : response.json();
   }
   async list(path) {
