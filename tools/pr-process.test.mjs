@@ -255,6 +255,33 @@ test('label replacement preserves owner/blocked/component overlays', async () =>
   await replacePhase({ repository: 'test/repo', request: async (...args) => calls.push(args) }, pr, 'workflow:ci', 'deep');
   assert.equal(calls.filter(x => x[1] === 'DELETE').length, 2); assert.ok(calls.every(x => !/blocked|in-progress|component/.test(x[0]))); assert.ok(PHASES.includes(calls.find(x => x[1] === 'POST')[2].labels[0]));
 });
+test('label replacement converges after concurrent phase and depth removal', async () => {
+  const labels = new Set(['workflow:review', 'review:standard', 'workflow:blocked', 'component:web']);
+  const pr = { number: 1, labels: [...labels].map(name => ({ name })) };
+  labels.delete('workflow:review'); labels.delete('review:standard');
+  const api = new GitHub('test/repo', 'test-token', async (url, options) => {
+    const label = decodeURIComponent(new URL(url).pathname.split('/').at(-1));
+    if (options.method === 'DELETE' && !labels.delete(label)) return { ok: false, status: 404, text: async () => JSON.stringify({ message: 'Label does not exist' }) };
+    if (options.method === 'POST') for (const name of JSON.parse(options.body).labels) labels.add(name);
+    return { ok: true, status: 200, json: async () => [] };
+  });
+  await replacePhase(api, pr, 'workflow:ci', 'deep');
+  assert.deepEqual([...labels].sort(), ['component:web', 'review:deep', 'workflow:blocked', 'workflow:ci']);
+});
+test('label replacement propagates other removal errors and all addition errors', async () => {
+  for (const stale of ['workflow:review', 'review:standard']) {
+    for (const [status, text] of [[404, '{"message":"Not Found"}'], [404, 'Label does not exist'], [404, 'null'], [403, '{"message":"Label does not exist"}'], [500, '{"message":"Label does not exist"}'], [404, '{"message":"Label does not exist elsewhere"}']]) {
+      const api = new GitHub('test/repo', 'test-token', async (_url, options) => options.method === 'DELETE'
+        ? { ok: false, status, text: async () => text }
+        : { ok: true, status: 200, json: async () => [] });
+      await assert.rejects(() => replacePhase(api, { number: 1, labels: [{ name: stale }] }, 'workflow:ci', 'deep'), error => error.status === status);
+    }
+  }
+  const networkError = new Error('network unavailable');
+  await assert.rejects(() => replacePhase(new GitHub('test/repo', 'test-token', async () => { throw networkError; }), { number: 1, labels: [{ name: 'workflow:review' }] }, 'workflow:ci', 'deep'), error => error === networkError);
+  const api = new GitHub('test/repo', 'test-token', async () => ({ ok: false, status: 404, text: async () => JSON.stringify({ message: 'Label does not exist' }) }));
+  await assert.rejects(() => replacePhase(api, { number: 1, labels: [] }, 'workflow:ci', 'deep'), error => error.status === 404);
+});
 test('metadata controller source invalidation converts draft and cancels active PR run', async () => {
   const f = fixture(); f.sync(); const calls = [];
   const api = { repository: 'test/repo', snapshot: async () => f.snapshot, pull: async () => f.snapshot.pr, graphql: async (...args) => calls.push(['graphql', ...args]), request: async (...args) => { calls.push(args); return args[0].includes('/runs?') ? { workflow_runs: [{ id: 99, status: 'in_progress', head_sha: f.snapshot.pr.head.sha, pull_requests: [{ number: 1 }], created_at: '2026-01-02T00:00:00Z' }] } : {}; } };
