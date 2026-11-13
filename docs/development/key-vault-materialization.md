@@ -54,11 +54,16 @@ preparation leaves managed destination contents and metadata unchanged. Sourcing
 the bootstrap still executes trusted owner shell code; this is not a sandbox.
 Because `.devcontainer/post-create.sh` invokes apply under `set -e`, a preparation failure stops the remaining devcontainer setup, including developer-certificate generation.
 
-Plain dotenv secrets must be shell-safe without quoting: preparation rejects any
-value that Bash `printf %q` would change, including spaces, dollar expansion,
-backticks and command substitution. SQL passwords also reject single quotes
-before insertion into the owner's quoted SQL string. Errors name the field,
-never the rejected value. Existing website/handoff CRLF dotenv inputs are read
+Only the root `.env` requires shell-safe plain secret assignments. Its validation
+uses `LC_ALL=C` and rejects ASCII whitespace, dollar signs, backticks, quotes,
+backslashes, semicolons, ampersands, pipes, angle brackets, parentheses and a tilde
+at the start or immediately after `:` or `=`. Literal assignment characters such
+as `!`, `,`, `*`, `?`, brackets, braces, `^`, `#` and non-ASCII text remain valid
+regardless of the caller's locale. Website, handoff and gateway dotenv files are
+not shell-sourced by the helper and retain their existing one-line value checks.
+Root SQL is derived first so its explicit single-quote password check runs before
+plain-secret validation. Errors name the field, never the rejected value.
+Existing website/handoff CRLF dotenv inputs are read
 with one trailing carriage return removed from each line; matching files need
 no rewrite. Selected JK BMS/Davis JSON must parse and have the expected
 secret-selection types; jq errors fail preparation rather than disabling secrets.
@@ -114,6 +119,10 @@ python3 -m unittest discover -s tools -p secrets_materialization_test.py
 ```
 
 The existing Davis deployment-policy validator also runs these regressions in CI.
+
+Before merge, Roy or an authorized operator may separately run a real `--check`
+to confirm compatibility with current vault values without exposing them; offline
+stub validation does not establish that operational result.
 
 For private-gist preview/update behavior, see [publishing](../CONTAINER_PUBLISHING.md#root-bootstrap-gist).
 That preview does not run this helper or validate credentials.

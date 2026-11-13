@@ -121,6 +121,39 @@ class MaterializationTests(unittest.TestCase):
         self.assertNotIn("Detected ", log, "drift must not hide a preparation failure")
         self.assertNotIn("jq:", log, "raw configuration diagnostics escaped")
         self.assertIn("Error:", log)
+        return log
+
+    def accept_literal_secret(self, secret, value, key, mode, locale, relative_file):
+        self.settings["values"][secret] = value
+        self.environment["LC_ALL"] = locale
+        if mode == "--check":
+            before = self.snapshot()
+            result, log = self.run_sync(mode)
+            self.assertNotEqual(0, result.returncode, "initial check must report existing drift")
+            self.assertIn("Detected ", log, "literal input failed preparation")
+            self.assertNotIn("Error:", log)
+            self.assertTrue(before == self.snapshot(), "check changed destinations")
+        self.materialize()
+        before = self.snapshot()
+        result, _ = self.run_sync(mode)
+        self.assertEqual(0, result.returncode, "literal secret was rejected")
+        self.assertTrue(before == self.snapshot(), "matching literal input was rewritten")
+        if relative_file == ".env":
+            result = subprocess.run([
+                "bash", "-euo", "pipefail", "-c",
+                'source "$1" >/dev/null 2>&1; key="$3"; [[ "${!key}" == "$2" ]]',
+                "--", str(self.root / relative_file), value, key,
+            ], env=self.environment, capture_output=True, timeout=10)
+            self.assertEqual(0, result.returncode, "root secret failed a byte-for-byte shell round trip")
+        else:
+            for path in (WEBSITE, HANDOFF):
+                self.assertTrue(f"{key}={value}" in (self.root / path).read_text(),
+                                "website-only secret was not preserved")
+        result, _ = self.run_sync("--check")
+        self.assertEqual(0, result.returncode, "literal secret prevented the following check")
+        result, _ = self.run_sync("--apply")
+        self.assertEqual(0, result.returncode, "literal secret prevented re-apply")
+        self.assertTrue(before == self.snapshot(), "re-apply changed matching destinations")
 
     def materialize(self):
         result, _ = self.run_sync("--apply")
@@ -342,6 +375,20 @@ REJECTIONS = {
     "plain_secret_dollar": lambda t: t.settings["values"].update({"obs-github-token": "abc$x"}),
     "plain_secret_backtick": lambda t: t.settings["values"].update({"obs-github-token": "x`touch PWNED`y"}),
     "plain_secret_substitution": lambda t: t.settings["values"].update({"obs-github-token": "x$(touch PWNED)y"}),
+    "plain_secret_tab": lambda t: t.settings["values"].update({"obs-github-token": "token\tvalue"}),
+    "plain_secret_single_quote": lambda t: t.settings["values"].update({"obs-github-token": "token'value"}),
+    "plain_secret_double_quote": lambda t: t.settings["values"].update({"obs-github-token": 'token"value'}),
+    "plain_secret_backslash": lambda t: t.settings["values"].update({"obs-github-token": "token\\value"}),
+    "plain_secret_semicolon": lambda t: t.settings["values"].update({"obs-github-token": "token;value"}),
+    "plain_secret_ampersand": lambda t: t.settings["values"].update({"obs-github-token": "token&value"}),
+    "plain_secret_pipe": lambda t: t.settings["values"].update({"obs-github-token": "token|value"}),
+    "plain_secret_less_than": lambda t: t.settings["values"].update({"obs-github-token": "token<value"}),
+    "plain_secret_greater_than": lambda t: t.settings["values"].update({"obs-github-token": "token>value"}),
+    "plain_secret_open_parenthesis": lambda t: t.settings["values"].update({"obs-github-token": "token(value"}),
+    "plain_secret_close_parenthesis": lambda t: t.settings["values"].update({"obs-github-token": "token)value"}),
+    "plain_secret_leading_tilde": lambda t: t.settings["values"].update({"obs-github-token": "~/fixture"}),
+    "plain_secret_colon_tilde": lambda t: t.settings["values"].update({"obs-github-token": "token:~/fixture"}),
+    "plain_secret_equals_tilde": lambda t: t.settings["values"].update({"obs-github-token": "token=~/fixture"}),
     "sql_password_single_quote": lambda t: t.settings["values"].update({SQL_SECRET: "sql'password-sentinel"}),
     "jkbms_truncated_json": lambda t: t.write("deploy/pi-gateways/jkbms/gateway.json.example", '{"JkBms":'),
     "jkbms_missing_devices": lambda t: t.write("deploy/pi-gateways/jkbms/gateway.json.example", '{"JkBms":{}}'),
@@ -356,15 +403,49 @@ REJECTIONS = {
 }
 
 
-def rejection_test(mode, configure):
+def rejection_test(mode, configure, expected_error=None):
     def test(self):
-        self.reject(mode, configure)
+        log = self.reject(mode, configure)
+        if expected_error:
+            self.assertIn(expected_error, log)
     return test
 
 
 for case, configure in REJECTIONS.items():
     for mode in ("--check", "--apply"):
-        setattr(MaterializationTests, f"test_reject_{case}_{mode[2:]}", rejection_test(mode, configure))
+        expected_error = "The SQL password cannot contain a single quote." if case == "sql_password_single_quote" else None
+        setattr(MaterializationTests, f"test_reject_{case}_{mode[2:]}", rejection_test(mode, configure, expected_error))
+
+LITERAL_SECRETS = {
+    "exclamation": ("obs-github-token", "literal!sentinel", "GH_PAT", "C", ".env"),
+    "comma": ("obs-github-token", "literal,sentinel", "GH_PAT", "C", ".env"),
+    "asterisk": ("obs-github-token", "literal*sentinel", "GH_PAT", "C", ".env"),
+    "question_mark": ("obs-github-token", "literal?sentinel", "GH_PAT", "C", ".env"),
+    "square_brackets": ("obs-github-token", "literal[sentinel]", "GH_PAT", "C", ".env"),
+    "braces": ("obs-github-token", "literal{sentinel}", "GH_PAT", "C", ".env"),
+    "caret": ("obs-github-token", "literal^sentinel", "GH_PAT", "C", ".env"),
+    "midword_hash": ("obs-github-token", "literal#sentinel", "GH_PAT", "C", ".env"),
+    "leading_hash": ("obs-github-token", "#literal-sentinel", "GH_PAT", "C", ".env"),
+    "midword_tilde": ("obs-github-token", "literal~sentinel", "GH_PAT", "C", ".env"),
+    "sql_punctuation": (SQL_SECRET, "P@ss!w0rd,1*", "MSSQL_SA_PASSWORD", "C", ".env"),
+    "wifi_punctuation": ("obs-wifi-hvo-password", "wifi!pass?", "ESPHOME_HVO_PROXY_WIFI_PASSWORD", "C", ".env"),
+    "unicode_c": ("obs-wifi-hvo-password", "café-wifi", "ESPHOME_HVO_PROXY_WIFI_PASSWORD", "C", ".env"),
+    "unicode_utf8": ("obs-wifi-hvo-password", "café-wifi", "ESPHOME_HVO_PROXY_WIFI_PASSWORD", "C.UTF-8", ".env"),
+    "website_only_punctuation": ("WebsiteRuntime--AzureClientSecret", "rt!secret{x}", "AZURE_CLIENT_SECRET", "C", WEBSITE),
+    "website_only_space": ("WebsiteRuntime--AzureClientSecret", "runtime secret!{x}", "AZURE_CLIENT_SECRET", "C", WEBSITE),
+}
+
+
+def literal_test(mode, parameters):
+    def test(self):
+        secret, value, key, locale, relative_file = parameters
+        self.accept_literal_secret(secret, value, key, mode, locale, relative_file)
+    return test
+
+
+for case, parameters in LITERAL_SECRETS.items():
+    for mode in ("--check", "--apply"):
+        setattr(MaterializationTests, f"test_accept_literal_{case}_{mode[2:]}", literal_test(mode, parameters))
 
 for path in (WEBSITE, HANDOFF):
     for mode in ("--check", "--apply"):

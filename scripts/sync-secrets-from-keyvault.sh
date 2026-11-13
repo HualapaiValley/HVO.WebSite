@@ -158,10 +158,17 @@ apply_dotenv_value() {
 }
 
 sync_dotenv_secret() {
-	local shell_value
 	get_secret "$3"
-	printf -v shell_value '%q' "$secret_value"
-	[[ "$shell_value" == "$secret_value" ]] || fail "$2 cannot be safely represented as a plain shell dotenv value."
+	if [[ "$1" == .env ]]; then
+		# Root .env is sourced by Bash. Assignment values do not expand globs,
+		# braces or history; reject shell syntax and tilde-expansion positions.
+		local LC_ALL=C
+		case "$secret_value" in
+			*[[:space:]]*|*'$'*|*'`'*|*'"'*|*"'"*|*\\*|*';'*|*'&'*|*'|'*|*'<'*|*'>'*|*'('*|*')'*|'~'*|*':~'*|*'=~'*)
+				fail "$2 cannot be safely represented as a plain shell dotenv value."
+				;;
+		esac
+	fi
 	sync_dotenv_value "$1" "$2" "$secret_value"
 }
 
@@ -313,6 +320,7 @@ central_uri="https://${vault_name}.vault.azure.net/"
 
 # Prepare the entire selected synchronization in memory before managed writes.
 validate_bootstrap
+derive_local_connection_string .env
 
 # Root devcontainer materialization. Non-secret deployment settings remain untouched.
 sync_dotenv_secret .env TAILSCALE_AUTHKEY obs-tailscale-authkey
@@ -335,7 +343,6 @@ sync_dotenv_secret .env MSSQL_SA_PASSWORD obs-docker-mssql-sa-password
 sync_dotenv_secret .env HOME_ASSISTANT_TOKEN HomeAssistant--Token
 sync_dotenv_secret .env ESPHOME_HOME_PROXY_WIFI_PASSWORD obs-wifi-home-express-is-password
 sync_dotenv_secret .env ESPHOME_HVO_PROXY_WIFI_PASSWORD obs-wifi-hvo-password
-derive_local_connection_string .env
 sync_dotenv_value .env ConnectionStrings__HualapaiValleyObservatory "$derived_connection_string"
 
 # Website deployment and handoff materializations.
