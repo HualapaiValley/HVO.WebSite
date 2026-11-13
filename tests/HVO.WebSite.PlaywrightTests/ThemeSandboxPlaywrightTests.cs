@@ -42,8 +42,31 @@ public sealed class ThemeSandboxPlaywrightTests
 
     private async Task<IPage> OpenPageAsync(string path = "/")
     {
-        await session.Page.GotoAsync(new Uri(application.Address, path).ToString());
-        return session.Page;
+        var page = session.Page;
+        var allowHydration = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task Negotiate(IRoute route)
+        {
+            await allowHydration.Task;
+            await route.ContinueAsync();
+        }
+
+        // Capture the prerendered shell before allowing Blazor to replace it. A
+        // visible SSR button is actionable to Playwright but has no handler yet.
+        await page.RouteAsync("**/_blazor/negotiate?*", Negotiate);
+        try
+        {
+            await page.GotoAsync(new Uri(application.Address, path).ToString());
+            var prerenderedShell = await page.Locator(".shell-theme-dark").ElementHandleAsync()
+                ?? throw new AssertFailedException("Expected the prerendered sandbox shell.");
+            allowHydration.SetResult();
+            await page.WaitForFunctionAsync("shell => !shell.isConnected", prerenderedShell);
+            return page;
+        }
+        finally
+        {
+            allowHydration.TrySetResult();
+            await page.UnrouteAsync("**/_blazor/negotiate?*", Negotiate);
+        }
     }
 
     [TestMethod]

@@ -33,7 +33,7 @@ Additional labels have separate purposes:
 - One review-depth label, `review:mechanical`, `review:standard` or `review:deep`, stays on the issue/PR as the required coverage. Escalate when risk changes. Depth is independent of model/effort and reviewer count; record Auto/Preferred/Required selection and any exact-model or multiple-reviewer constraint separately, as defined in the [review procedure](../../hvo-code-review/references/review-format.md).
 - `workflow:blocked` is an overlay on the issue/PR when awaiting a dependency, unavailable reviewer or required decision. Retain the owner and underlying phase; remove the overlay when the blocker clears. An ordinary running CI job is not a blocker by itself.
 - Retain the repository's issue type, scheduling priority, component and risk labels. Phase updates must not delete them.
-- `workflow:finalizing` remains an optional reservation only for repositories whose profile requires it; WebSite does not acquire a fleet-wide lock by default.
+- `workflow:finalizing` remains an optional reservation only for repositories whose profile requires it.
 
 The common pilot uses `workflow:*` lifecycle labels and `review:*` depth labels. Older `review:requested`, `review:changes-required` and `review:converged` state labels are legacy equivalents, not an additional competing state system. Reconcile them during a reviewed adoption rather than removing labels from unrelated live work.
 

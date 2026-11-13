@@ -30,12 +30,18 @@ public sealed class BrowserFailureQualificationTests
                 ?? throw new AssertFailedException("Expected a prerendered form control.");
             (await prerenderedControl.EvaluateAsync<bool>("el => el.isConnected")).Should().BeTrue();
             (await prerenderedControl.EvaluateAsync<string>("el => getComputedStyle(el).borderRadius")).Should().Be("14px");
+            // A click can succeed against SSR markup while its Blazor handler is
+            // still unavailable: visibility alone cannot qualify interactivity.
+            await page.GetByRole(AriaRole.Button, new() { Name = "Switch to light theme" }).ClickAsync();
+            await Assertions.Expect(page.Locator(".shell-theme-dark")).ToBeVisibleAsync();
+            await Assertions.Expect(page.Locator(".shell-theme-light")).ToHaveCountAsync(0);
 
             allowHydration.SetResult();
             await page.WaitForFunctionAsync("el => !el.isConnected", prerenderedControl);
             // This is the empty-style failure of the old one-shot ElementHandle read.
             (await prerenderedControl.EvaluateAsync<string>("el => getComputedStyle(el).borderRadius")).Should().BeEmpty();
             await BrowserBehaviorAssertions.ThemedSurfaceAsync(control, "Hydrated reference control", "14px");
+            await BrowserBehaviorAssertions.SwitchToLightAsync(page);
             await Assertions.Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
             browser.AssertNoUnexpectedErrors();
         }
