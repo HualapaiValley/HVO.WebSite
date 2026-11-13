@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import signal
 import stat
 import subprocess
 import tempfile
@@ -67,7 +68,7 @@ class MaterializationTests(unittest.TestCase):
             "STUB_CALLS": str(self.root / "az-calls"),
         }
 
-    def write(self, path, content, mode=0o600):
+    def write(self, path, content, mode=0o644):
         target = self.root / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content)
@@ -80,15 +81,15 @@ class MaterializationTests(unittest.TestCase):
 
     def snapshot(self):
         result = {}
-        for relative in (".env", "deploy", ".env-handoff", "custom"):
-            path = self.root / relative
-            for entry in [path, *sorted(path.rglob("*"))]:
-                if entry.exists():
-                    info = entry.stat()
-                    result[str(entry.relative_to(self.root))] = (
-                        info.st_mode, info.st_ino, info.st_mtime_ns,
-                        entry.read_bytes() if entry.is_file() else None,
-                    )
+        for entry in sorted(self.root.rglob("*")):
+            relative = entry.relative_to(self.root)
+            if relative.parts[0] in ("bin", "settings.json", "az-calls"):
+                continue
+            info = entry.stat()
+            result[str(relative)] = (
+                info.st_mode, info.st_ino, info.st_mtime_ns,
+                entry.read_bytes() if entry.is_file() else None,
+            )
         return result
 
     def run_sync(self, mode, trace=False):
@@ -100,6 +101,7 @@ class MaterializationTests(unittest.TestCase):
         log = result.stdout + result.stderr
         forbidden = [SSH, "second-ssh-line", "bootstrap-output-sentinel", "old-sql-sentinel", "old-davis-sentinel",
                      "old-bms-sentinel", "old-mqtt-sentinel", "old-wifi-sentinel",
+                     "jq-error-secret-sentinel",
                      "offline-vault-sentinel-", "failed-read-stdout-sentinel",
                      "failed-read-stderr-sentinel", *self.settings["values"].values()]
         self.assertFalse(any(value and value in log for value in forbidden), "a secret value reached logs")
@@ -116,6 +118,8 @@ class MaterializationTests(unittest.TestCase):
         self.assertNotIn("updated ", log)
         self.assertNotIn("Applied ", log)
         self.assertNotIn("All allowlisted", log)
+        self.assertNotIn("Detected ", log, "drift must not hide a preparation failure")
+        self.assertNotIn("jq:", log, "raw configuration diagnostics escaped")
         self.assertIn("Error:", log)
 
     def materialize(self):
@@ -147,8 +151,12 @@ class MaterializationTests(unittest.TestCase):
         applied, _ = self.run_sync("--apply")
         self.assertEqual(0, applied.returncode, "idempotent apply failed")
         self.assertTrue(before == self.snapshot(), "idempotent apply changed destinations")
-        for entry in (self.root / "deploy").rglob("*"):
-            if entry.is_file() and ("secrets" in entry.parts or entry.name in (".env", "secrets.yaml")):
+        for entry in self.root.rglob("*"):
+            relative = entry.relative_to(self.root)
+            managed = relative.parts[0] != "custom" and (
+                "secrets" in relative.parts or entry.name in (".env", "secrets.yaml")
+                or relative.parts[0] == ".env-handoff")
+            if entry.is_file() and managed:
                 self.assertEqual(0o600, stat.S_IMODE(entry.stat().st_mode))
             if entry.is_dir() and entry.name == "secrets":
                 self.assertEqual(0o700, stat.S_IMODE(entry.stat().st_mode))
@@ -213,6 +221,100 @@ class MaterializationTests(unittest.TestCase):
         self.assertIn("partial", log.lower())
         self.assertNotIn("Applied ", log)
         self.assertTrue("TAILSCALE_AUTHKEY=" in (self.root / ".env").read_text(), "failure did not exercise a partial apply")
+        self.assertFalse(list(self.root.rglob("*.tmp.*")), "credential temporary file survived failure")
+
+    def fail_rename(self, destination):
+        self.write("bin/mv", '#!/bin/bash\nif [[ "${@: -1}" == "' + str(self.root / destination)
+                   + '" ]]; then exit 31; fi\nexec /bin/mv "$@"\n', 0o700)
+
+    def test_f6_root_temp_cleanup_on_write_failure(self):
+        self.fail_rename(".env")
+        original = (self.root / ".env").read_bytes()
+        result, _ = self.run_sync("--apply")
+        self.assertNotEqual(0, result.returncode)
+        self.assertTrue(original == (self.root / ".env").read_bytes(), "failed rename changed destination")
+        self.assertFalse(list(self.root.rglob("*.tmp.*")), "root credential temporary file survived failure")
+
+    def test_yaml_temp_cleanup_on_write_failure(self):
+        self.fail_rename(YAML)
+        original = (self.root / YAML).read_bytes()
+        result, _ = self.run_sync("--apply")
+        self.assertNotEqual(0, result.returncode)
+        self.assertTrue(original == (self.root / YAML).read_bytes())
+        self.assertFalse(list(self.root.rglob("*.tmp.*")), "YAML credential temporary file survived failure")
+
+    def test_secret_file_write_failure_preserves_old_content(self):
+        self.materialize()
+        target = "deploy/pi-gateways/davis/secrets/central-ingest-api-key"
+        self.write(target, "previous-credential-sentinel\n", 0o600)
+        original = (self.root / target).read_bytes()
+        script = self.root / "scripts/sync-secrets-from-keyvault.sh"
+        # Fail the first secret-file write after all preparation has completed.
+        script.write_text(script.read_text().replace("umask 077", "umask 077\n\t\ttrap '' XFSZ\n\t\tulimit -f 0"))
+        result, log = self.run_sync("--apply")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("partial", log.lower())
+        self.assertTrue(original == (self.root / target).read_bytes(), "failed write damaged the existing credential")
+        self.assertFalse(list(self.root.rglob("*.tmp.*")))
+
+    def test_temp_ignore_patterns(self):
+        content = (SCRIPT.parents[1] / ".gitignore").read_text()
+        self.write(".gitignore", content)
+        subprocess.run(["git", "init", "--quiet", str(self.root)], check=True, capture_output=True)
+        for path in (".env.tmp.X", "deploy/hvo-docker/.env.tmp.X", ".env-handoff/hvo-docker.env.tmp.X",
+                     ".env-handoff/davis.env.tmp.X", "deploy/pi-gateways/davis/.env.tmp.X",
+                     "deploy/pi-gateways/jkbms/.env.tmp.X"):
+            result = subprocess.run(["git", "-C", str(self.root), "check-ignore", "--no-index", "-q", path],
+                                    capture_output=True)
+            self.assertEqual(0, result.returncode, "credential temporary path is not ignored")
+
+    def signal_during_write(self, number):
+        self.write("bin/mv", f'#!/bin/bash\nkill -{number} "$PPID"\nexit 0\n', 0o700)
+        result, log = self.run_sync("--apply")
+        self.assertEqual(128 + number, result.returncode)
+        self.assertIn("partial", log.lower())
+        self.assertNotIn("Applied ", log)
+        self.assertFalse(list(self.root.rglob("*.tmp.*")), "credential temporary file survived a signal")
+
+    def test_sigterm_cleans_temporary_file(self):
+        self.signal_during_write(signal.SIGTERM)
+
+    def test_sigint_cleans_temporary_file(self):
+        self.signal_during_write(signal.SIGINT)
+
+    def crlf_control(self, path, mode):
+        self.materialize()
+        target = self.root / path
+        target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n"))
+        before = self.snapshot()
+        result, _ = self.run_sync(mode)
+        self.assertEqual(0, result.returncode, "CRLF SQL input was rejected")
+        self.assertTrue(before == self.snapshot(), "already matching CRLF input was rewritten")
+        result, _ = self.run_sync("--check")
+        self.assertEqual(0, result.returncode)
+
+    def test_snapshot_detects_root_temp_creation(self):
+        before = self.snapshot()
+        self.write(".env.tmp.sentinel", "fixture-only\n")
+        self.assertTrue(before != self.snapshot(), "snapshot missed a root temporary file")
+
+    def fail_selection(self, gateway):
+        if gateway == "davis":
+            self.write("deploy/pi-gateways/davis/gateway.json", '{"WeatherUnderground":{"Enabled":true}}')
+        else:
+            self.write("deploy/pi-gateways/jkbms/gateway.json.example", json.dumps({"JkBms": {"Devices": [
+                {"DeviceId": "bank-2a", "Enabled": True, "SettingsPasswordSecret": "jkbms-bank-2a-settings-password"},
+            ]}}))
+        self.write("bin/jq", '#!/bin/bash\nfor arg in "$@"; do\n'
+                   'if [[ "$arg" == *"select("* || "$arg" == ".WeatherUnderground.Enabled == true" ]]; then\n'
+                   'printf "jq-error-secret-sentinel" >&2\nexit 5\nfi\ndone\nexec /usr/bin/jq "$@"\n', 0o700)
+
+    def test_rejection_detects_nonfatal_derivation_mutant(self):
+        script = self.root / "scripts/sync-secrets-from-keyvault.sh"
+        script.write_text(script.read_text().replace(
+            '[[ "$current" == *Password=* ]] || fail', '[[ "$current" == *Password=* ]] || printf'))
+        with self.assertRaises(AssertionError):
+            self.reject("--check", REJECTIONS["missing_password_segment"])
 
 
 REJECTIONS = {
@@ -236,6 +338,21 @@ REJECTIONS = {
     "empty_sql_secret": lambda t: t.settings["values"].update({SQL_SECRET: ""}),
     "multiline_dotenv_secret": lambda t: t.settings["values"].update({"obs-github-token": "multiline-secret-sentinel\nsecond-line"}),
     "unsafe_yaml_secret": lambda t: t.settings["values"].update({LATE_SECRET: 'yaml-secret-sentinel"unsafe'}),
+    "plain_secret_space": lambda t: t.settings["values"].update({"obs-github-token": "tok en"}),
+    "plain_secret_dollar": lambda t: t.settings["values"].update({"obs-github-token": "abc$x"}),
+    "plain_secret_backtick": lambda t: t.settings["values"].update({"obs-github-token": "x`touch PWNED`y"}),
+    "plain_secret_substitution": lambda t: t.settings["values"].update({"obs-github-token": "x$(touch PWNED)y"}),
+    "sql_password_single_quote": lambda t: t.settings["values"].update({SQL_SECRET: "sql'password-sentinel"}),
+    "jkbms_truncated_json": lambda t: t.write("deploy/pi-gateways/jkbms/gateway.json.example", '{"JkBms":'),
+    "jkbms_missing_devices": lambda t: t.write("deploy/pi-gateways/jkbms/gateway.json.example", '{"JkBms":{}}'),
+    "jkbms_wrong_devices_type": lambda t: t.write("deploy/pi-gateways/jkbms/gateway.json.example", '{"JkBms":{"Devices":{}}}'),
+    "jkbms_wrong_enabled_type": lambda t: t.write("deploy/pi-gateways/jkbms/gateway.json.example", '{"JkBms":{"Devices":[{"DeviceId":"bank-2a","Enabled":"yes"}]}}'),
+    "davis_truncated_json": lambda t: t.write("deploy/pi-gateways/davis/gateway.json", '{"WeatherUnderground":'),
+    "davis_wrong_section_type": lambda t: t.write("deploy/pi-gateways/davis/gateway.json", '{"WeatherUnderground":"yes"}'),
+    "davis_wrong_enabled_type": lambda t: t.write("deploy/pi-gateways/davis/gateway.json", '{"WeatherUnderground":{"Enabled":"yes"}}'),
+    "cwop_wrong_section_type": lambda t: t.write("deploy/pi-gateways/davis/gateway.json", '{"Cwop":true}'),
+    "jkbms_selection_error": lambda t: t.fail_selection("jkbms"),
+    "davis_selection_error": lambda t: t.fail_selection("davis"),
 }
 
 
@@ -248,6 +365,13 @@ def rejection_test(mode, configure):
 for case, configure in REJECTIONS.items():
     for mode in ("--check", "--apply"):
         setattr(MaterializationTests, f"test_reject_{case}_{mode[2:]}", rejection_test(mode, configure))
+
+for path in (WEBSITE, HANDOFF):
+    for mode in ("--check", "--apply"):
+        def crlf_test(self, path=path, mode=mode):
+            self.crlf_control(path, mode)
+        case = "website" if path == WEBSITE else "handoff"
+        setattr(MaterializationTests, f"test_crlf_{case}_{mode[2:]}", crlf_test)
 
 
 if __name__ == "__main__":

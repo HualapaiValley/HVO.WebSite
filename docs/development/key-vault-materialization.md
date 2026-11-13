@@ -52,6 +52,16 @@ Empty required secrets, failed reads/derivations, and values that cannot use the
 existing dotenv/YAML representation fail nonzero during preparation. Rejected
 preparation leaves managed destination contents and metadata unchanged. Sourcing
 the bootstrap still executes trusted owner shell code; this is not a sandbox.
+Because `.devcontainer/post-create.sh` invokes apply under `set -e`, a preparation failure stops the remaining devcontainer setup, including developer-certificate generation.
+
+Plain dotenv secrets must be shell-safe without quoting: preparation rejects any
+value that Bash `printf %q` would change, including spaces, dollar expansion,
+backticks and command substitution. SQL passwords also reject single quotes
+before insertion into the owner's quoted SQL string. Errors name the field,
+never the rejected value. Existing website/handoff CRLF dotenv inputs are read
+with one trailing carriage return removed from each line; matching files need
+no rewrite. Selected JK BMS/Davis JSON must parse and have the expected
+secret-selection types; jq errors fail preparation rather than disabling secrets.
 
 After preparation succeeds, root stages run before website or gateway stages.
 They compare/materialize allowlisted Tailscale/GitHub, developer Azure,
@@ -82,8 +92,13 @@ restricted file permissions, across the scope above. It does not rotate vault
 secrets, deploy files to hosts, restart runtimes or provide an atomic rollback.
 Writes after preparation are sequential, not a multi-file transaction. An I/O
 failure exits nonzero, prints an explicit warning that partial updates may
-remain, and does not print the final successful-apply summary. Earlier updates
-and restricted temporary files may remain; there is no automatic rollback.
+remain, and does not print the final successful-apply summary. Each dotenv, YAML
+and secret-file replacement uses a mode-0600 temporary file beside the destination
+and renames it only after a successful write, preserving the old destination if
+writing fails. The exit handler removes the in-flight temporary file on failure,
+SIGINT and SIGTERM; ignored dotenv temporary-file patterns provide additional
+protection against accidental staging. Earlier completed replacements may remain;
+there is no automatic rollback across files.
 Review this entire scope and checkpoint owner files before authorized apply.
 After a write failure or reported drift, inspect affected file metadata and
 approved values securely before retrying. Avoid concurrent edits or concurrent
