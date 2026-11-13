@@ -32,7 +32,9 @@ prove image contents, availability or freshness.
 
 The parser handles JSONC comments/trailing commas in the devcontainer, Docker
 comments, case-insensitive instructions, platform flags, line continuations and
-`RUN`/`COPY` heredoc contents.
+`RUN`/`COPY`/`ADD` heredoc contents. Doubled terminal escape characters and shell
+here-strings do not consume subsequent Docker instructions. Symlinked CLI paths
+run the same check, including macOS paths through `/tmp`.
 Image/version/digest build-argument expressions are rejected with a file/line
 diagnostic; use explicit image references so offline checks can verify them.
 Keep `PINNED_SDK` as one exported string literal so the gate can inspect the

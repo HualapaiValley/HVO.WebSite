@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -161,6 +161,48 @@ test('only leading parser directives change the Docker escape character', () => 
   assert.deepEqual(checkSources(files).errors, []);
 });
 
+test('doubled Docker escape characters do not hide a later unpinned wrong-SDK FROM', () => {
+  for (const escape of ['\\', '`']) {
+    const files = fixture();
+    const directive = escape === '`' ? ['# escape=`'] : [];
+    files['Dockerfile'] = [
+      ...directive, `FROM alpine:3.20@${digest} AS tools`, `RUN echo C:${escape.repeat(2)}`,
+      'FROM mcr.microsoft.com/dotnet/sdk:9.0.100 AS old'
+    ].join('\n');
+    const location = `Dockerfile:${3 + directive.length}`;
+    rejects(files, new RegExp(`${location}.*FROM mcr.*@sha256`), new RegExp(`${location}.*SDK FROM tag.*9\\.0\\.100.*10\\.0\\.402`));
+  }
+});
+
+for (const operator of ['<<<EOF', 'embedded<<EOF']) {
+  test(`${operator} is not a heredoc and cannot hide a later unpinned FROM`, () => {
+    const files = fixture();
+    files['Dockerfile'] = [
+      `FROM alpine:3.20@${digest} AS tools`, `RUN tr a-z A-Z ${operator}`,
+      'FROM node:latest AS web', 'RUN <<EOF', 'echo hi', 'EOF'
+    ].join('\n');
+    rejects(files, /Dockerfile:3.*FROM node:latest.*@sha256/);
+  });
+}
+
+test('a quoted here-string does not create an unterminated Docker heredoc', () => {
+  const files = fixture();
+  files['Dockerfile'] = `FROM ${sdkImage(sdk)}\nRUN grep -q x <<<"$VAR"\n`;
+  assert.deepEqual(checkSources(files).errors, []);
+});
+
+test('ADD heredoc contents beginning with FROM are data', () => {
+  const files = fixture();
+  files['Dockerfile'] = `FROM ${sdkImage(sdk)}\nADD <<EOF /app/message\nFROM not-an-image:latest\nEOF\n`;
+  assert.deepEqual(checkSources(files).errors, []);
+});
+
+test('Docker heredoc words allow file descriptors and whitespace before quoted markers', () => {
+  const files = fixture();
+  files['Dockerfile'] = `FROM ${sdkImage(sdk)}\nRUN cat 3<< "EOF"\nFROM literal-content\nEOF\n`;
+  assert.deepEqual(checkSources(files).errors, []);
+});
+
 test('dynamic image expressions fail instead of bypassing SDK or digest checks', () => {
   const files = fixture();
   files['Dockerfile'] = `ARG SDK=${sdk}\nFROM mcr.microsoft.com/dotnet/sdk:\${SDK}@${digest}\n`;
@@ -278,6 +320,25 @@ test('Preflight runs both the fixture tests and the repository gate', () => {
   const commands = workflow.jobs['simple-checks'].steps.map(step => step.run ?? '').join('\n');
   assert.match(commands, /node --test tools\/sdk-consistency.test.mjs/);
   assert.match(commands, /node tools\/sdk-consistency.mjs/);
+});
+
+test('a symlinked CLI invocation rejects a mismatching tracked repository', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ws-452-sdk-link-'));
+  try {
+    const files = fixture();
+    files['src/App/Dockerfile'] = `FROM ${sdkImage('10.0.400')} AS build\n`;
+    for (const [path, source] of Object.entries(files)) {
+      mkdirSync(dirname(join(root, path)), { recursive: true });
+      writeFileSync(join(root, path), source);
+    }
+    execFileSync('git', ['init', '-q', root]);
+    execFileSync('git', ['-C', root, 'add', '.']);
+    const linkedTool = join(root, 'gate.mjs');
+    symlinkSync(tool, linkedTool);
+    const result = spawnSync(process.execPath, [linkedTool, root], { encoding: 'utf8' });
+    assert.equal(result.status, 1, 'A symlinked entry point must execute the gate');
+    assert.match(result.stderr, /src\/App\/Dockerfile:1.*10\.0\.400.*10\.0\.402/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test('the current tracked repository satisfies the SDK and base-image policy', () => {

@@ -1,8 +1,8 @@
 // Offline policy: inspect tracked configuration as data; never execute candidate tooling.
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const required = ['global.json', '.devcontainer/devcontainer.json', 'tools/pr-process.mjs', 'tools/pr-process-fixture.json'];
 const dockerfile = path => !/\.dockerignore$/i.test(path) && /(?:^|\/)(?:Dockerfile(?:\.[^/]+)?|[^/]+\.Dockerfile)$/i.test(path);
@@ -36,13 +36,14 @@ function instructions(source) {
     if (!line.trim() || /^\s*#/.test(line)) continue;
     if (!text) start = index + 1;
     const part = line.trim();
-    const continued = part.endsWith(escape);
+    // BuildKit treats doubled terminal escape characters as literal text.
+    const continued = part.endsWith(escape) && part.at(-2) !== escape;
     text += (continued ? part.slice(0, -1) : part) + ' ';
     if (!continued) {
       result.push({ text: text.trim(), line: start });
-      if (/^(RUN|COPY)\s/i.test(text)) {
+      if (/^(RUN|COPY|ADD)\s/i.test(text)) {
         // Quoted shell strings can contain << without declaring a heredoc.
-        const markers = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|<<(-?)(?:"([^"]+)"|'([^']+)'|([a-zA-Z0-9_.-]+))(?=\s|$)/g;
+        const markers = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|(?:^|\s)\d*<<(-?)(?!<)\s*(?:"([^"]+)"|'([^']+)'|([a-zA-Z0-9_.-]+))(?=\s|$)/g;
         for (const match of text.matchAll(markers)) {
           if (!match[1]) heredocs.push({ name: match[3] ?? match[4] ?? match[5], tabs: match[2] === '-', line: start });
         }
@@ -129,7 +130,7 @@ export function checkRepository(root) {
   return checkSources(files);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const result = checkRepository(resolve(process.argv[2] ?? fileURLToPath(new URL('..', import.meta.url))));
     if (result.errors.length) {
