@@ -100,7 +100,10 @@ failure exits nonzero, prints an explicit warning that partial updates may
 remain, and does not print the final successful-apply summary. Each dotenv, YAML
 and secret-file replacement uses a mode-0600 temporary file beside the destination
 and renames it only after a successful write, preserving the old destination if
-writing fails. The exit handler removes the in-flight temporary file on failure,
+writing fails. Preparation rejects, in both modes and before any write, a managed
+destination that exists but is not a regular file, such as a directory or a link
+to one; the rename also refuses a directory target, so a credential file is never
+placed inside a directory. The exit handler removes the in-flight temporary file on failure,
 SIGINT and SIGTERM; ignored dotenv temporary-file patterns provide additional
 protection against accidental staging. Earlier completed replacements may remain;
 there is no automatic rollback across files.

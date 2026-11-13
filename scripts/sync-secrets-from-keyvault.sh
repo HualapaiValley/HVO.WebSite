@@ -29,6 +29,16 @@ create_temp_file() {
 	chmod 600 "$pending_temp_file"
 }
 
+# Rename the completed temporary file over the exact destination. A directory,
+# or a link to one, would otherwise receive the credential file as a child.
+# The cleanup pointer is cleared only after the rename succeeds.
+replace_destination() {
+	local file="$1"
+	[[ ! -d "$file" ]] || fail "A managed destination is a directory, not a file: ${file#"$repo_root"/}"
+	mv -f -- "$pending_temp_file" "$file"
+	pending_temp_file=""
+}
+
 usage() {
 	printf 'Usage: %s [--check | --apply]\n' "$(basename "$0")"
 	printf '\n'
@@ -73,6 +83,17 @@ plan_value() {
 	plan_files+=("$2")
 	plan_keys+=("$3")
 	plan_values+=("$4")
+}
+
+# Every planned destination must be absent or a regular file. Reject directories,
+# links to directories and special files in both modes before any write.
+validate_destinations() {
+	local relative
+	for relative in "${plan_files[@]}"; do
+		if [[ -e "$repo_root/$relative" && ! -f "$repo_root/$relative" ]]; then
+			fail "A managed destination exists but is not a regular file: $relative"
+		fi
+	done
 }
 
 get_secret() {
@@ -127,8 +148,7 @@ write_dotenv_value() {
 	if [[ "$found" == false ]]; then
 		printf '\n%s=%s\n' "$wanted" "$value" >> "$pending_temp_file"
 	fi
-	mv "$pending_temp_file" "$file"
-	pending_temp_file=""
+	replace_destination "$file"
 	chmod 600 "$file"
 }
 
@@ -240,8 +260,7 @@ apply_secret_file() {
 		umask 077
 		create_temp_file "$file"
 		printf '%s\n' "$expected" > "$pending_temp_file"
-		mv "$pending_temp_file" "$file"
-		pending_temp_file=""
+		replace_destination "$file"
 		printf 'updated %s\n' "$relative_file"
 	else
 		printf 'drift   %s\n' "$relative_file"
@@ -296,8 +315,7 @@ apply_yaml_value() {
 	if [[ "$found" == false ]]; then
 		printf '%s: "%s"\n' "$key" "$expected" >> "$pending_temp_file"
 	fi
-	mv "$pending_temp_file" "$file"
-	pending_temp_file=""
+	replace_destination "$file"
 	chmod 600 "$file"
 	printf 'updated %s:%s\n' "$relative_file" "$key"
 }
@@ -462,6 +480,8 @@ if [[ -f "$repo_root/$esphome_secrets" ]]; then
 else
 	printf 'skipped %s (SSIDs not materialized)\n' "$esphome_secrets"
 fi
+
+validate_destinations
 
 # No vault reads or SQL derivations remain after this boundary. Local writes are
 # sequential, not transactional; an I/O failure exits nonzero without rollback.

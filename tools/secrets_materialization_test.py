@@ -342,6 +342,30 @@ class MaterializationTests(unittest.TestCase):
                    'if [[ "$arg" == *"select("* || "$arg" == ".WeatherUnderground.Enabled == true" ]]; then\n'
                    'printf "jq-error-secret-sentinel" >&2\nexit 5\nfi\ndone\nexec /usr/bin/jq "$@"\n', 0o700)
 
+    def directory_destination(self, path="deploy/pi-gateways/davis/secrets/central-ingest-api-key"):
+        self.write(f"{path}/owner-note", "owner-directory-sentinel\n")
+
+    def linked_directory_destination(self, path="deploy/pi-gateways/eg4/secrets/central-ingest-api-key"):
+        self.write("linked-owner-directory/owner-note", "owner-directory-sentinel\n")
+        target = self.root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.symlink_to(self.root / "linked-owner-directory", target_is_directory=True)
+
+    def test_rename_guard_rejects_directory_when_preparation_check_is_bypassed(self):
+        # Defense in depth for a destination that becomes a directory after preparation.
+        script = self.root / "scripts/sync-secrets-from-keyvault.sh"
+        script.write_text(script.read_text().replace("\nvalidate_destinations\n", "\n:\n"))
+        self.directory_destination()
+        result, log = self.run_sync("--apply")
+        self.assertNotEqual(0, result.returncode, "directory destination was accepted")
+        self.assertIn("partial updates may remain", log)
+        self.assertNotIn("Applied ", log)
+        destination = self.root / "deploy/pi-gateways/davis/secrets/central-ingest-api-key"
+        self.assertTrue(destination.is_dir() and not destination.is_symlink(), "directory destination was replaced")
+        self.assertEqual(["owner-note"], sorted(entry.name for entry in destination.iterdir()),
+                         "a credential file was placed inside the directory")
+        self.assertEqual([], [str(entry) for entry in self.root.rglob("*.tmp.*")], "a temporary credential file remains")
+
     def test_rejection_detects_nonfatal_derivation_mutant(self):
         script = self.root / "scripts/sync-secrets-from-keyvault.sh"
         script.write_text(script.read_text().replace(
@@ -400,6 +424,15 @@ REJECTIONS = {
     "cwop_wrong_section_type": lambda t: t.write("deploy/pi-gateways/davis/gateway.json", '{"Cwop":true}'),
     "jkbms_selection_error": lambda t: t.fail_selection("jkbms"),
     "davis_selection_error": lambda t: t.fail_selection("davis"),
+    "secret_file_directory": lambda t: t.directory_destination(),
+    "secret_file_linked_directory": lambda t: t.linked_directory_destination(),
+}
+
+
+EXPECTED_REJECTION_ERRORS = {
+    "sql_password_single_quote": "The SQL password cannot contain a single quote.",
+    "secret_file_directory": "A managed destination exists but is not a regular file: deploy/pi-gateways/davis/secrets/central-ingest-api-key",
+    "secret_file_linked_directory": "A managed destination exists but is not a regular file: deploy/pi-gateways/eg4/secrets/central-ingest-api-key",
 }
 
 
@@ -413,7 +446,7 @@ def rejection_test(mode, configure, expected_error=None):
 
 for case, configure in REJECTIONS.items():
     for mode in ("--check", "--apply"):
-        expected_error = "The SQL password cannot contain a single quote." if case == "sql_password_single_quote" else None
+        expected_error = EXPECTED_REJECTION_ERRORS.get(case)
         setattr(MaterializationTests, f"test_reject_{case}_{mode[2:]}", rejection_test(mode, configure, expected_error))
 
 LITERAL_SECRETS = {
