@@ -1,7 +1,7 @@
 # Use a plain Ubuntu LTS base — .NET SDK is installed via the devcontainer
 # dotnet feature so the SDK stays controlled by devcontainer.json, while the
 # OS stays on a feature-compatible release instead of floating to newer codenames.
-FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
+FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04@sha256:d94c97dd9cacf183d0a6fd12a8e87b526e9e928307674ae9c94139139c0c6eae
 
 # Skip XML doc extraction for faster NuGet restores
 ENV NUGET_XMLDOC_MODE=skip

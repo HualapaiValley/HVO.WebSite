@@ -45,6 +45,10 @@ jobs:
           node --test tools/gateway-image.test.mjs
           node --check tools/test-categories.mjs
           node --test tools/test-categories.test.mjs
+      - name: Validate SDK and base-image consistency
+        run: |
+          node --test tools/sdk-consistency.test.mjs
+          node tools/sdk-consistency.mjs
       - name: Validate documentation navigation
         run: |
           python3 -m venv "$RUNNER_TEMP/hvo-docs-navigation"
