@@ -2,6 +2,18 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
+## 2026-11-12 — Prepare secret materialization before writes (#437 candidate)
+
+The global Key Vault helper now validates the trusted root/SSH bootstrap and
+selected existing SQL inputs, reads required secrets, and checks dotenv/YAML
+representations before managed writes. Failed preparation exits nonzero in both
+modes and preserves destinations. The [materialization contract](development/key-vault-materialization.md)
+retains owner SQL targets, optional paths and manually rotated SSH input.
+Subsequent I/O failures explicitly report possible partial updates without
+claiming rollback or synchronization success. Offline stub regressions run in
+the existing deployment-policy lane; no live materialization or deployment was
+performed. Refs #437.
+
 ## 2026-10-29 — Remaining Pi collectors use CI registry images (#466 candidate)
 
 JK BMS, SmartShunt and EG4 now follow the Davis per-collector semver workflows:

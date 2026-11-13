@@ -9,7 +9,10 @@ obj/
 ## Secrets — never commit
 .env
 *.env
+.env.tmp.*
+*.env.tmp.*
 deploy/pi-gateways/*/.env
+deploy/pi-gateways/*/.env.tmp.*
 deploy/home-assistant/configuration/esphome/
 
 ## NuGet
