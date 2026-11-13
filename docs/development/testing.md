@@ -4,6 +4,48 @@ The active solution uses MSTest with FluentAssertions, bUnit for component behav
 
 Install the development container or equivalent host tools: exact .NET SDK, Node.js, Ruby with stdlib YAML/JSON, Bash, Docker Compose, Python3, jq, curl and openssl. Ruby is provisioned in the container and bootstrapped if missing in bounded draft preflight. Ruby ENOENT in workflow tests means the environment is incomplete. Browser execution also needs Chromium and its system dependencies.
 
+## SDK and base-image consistency
+
+`global.json` `sdk.version` is the single SDK source of truth. Every Dockerfile
+`mcr.microsoft.com/dotnet/sdk` tag, the devcontainer dotnet feature version,
+`tools/pr-process.mjs` `PINNED_SDK`, and the build-evidence SDK in
+`tools/pr-process-fixture.json` must equal it exactly. Runtime image versions are
+separate from SDK versions.
+
+PR Preflight's `simple-checks` runs the offline static gate and its deliberate
+mismatch fixtures. Run the same checks locally, without Docker or an installed SDK:
+
+```bash
+node --test tools/sdk-consistency.test.mjs
+node tools/sdk-consistency.mjs
+```
+
+The gate reads tracked `Dockerfile`, `Dockerfile.*` and `*.Dockerfile` files
+(excluding `.dockerignore` files),
+including `.devcontainer`, tools and test fixtures. Every external `FROM` must
+have a literal `@sha256:<64 lowercase hex digits>` pin. References to a previously
+declared build stage and `scratch` are exempt. Repeated literal image references
+(including their tag, when present) must use the same digest across all files;
+use a multi-platform image-index digest when a shared image supports multiple
+platforms. The gate compares pins locally; it does not contact a registry or
+prove image contents, availability or freshness.
+
+The parser handles JSONC comments/trailing commas in the devcontainer, Docker
+comments, case-insensitive instructions, platform flags, line continuations and
+`RUN`/`COPY` heredoc contents.
+Image/version/digest build-argument expressions are rejected with a file/line
+diagnostic; use explicit image references so offline checks can verify them.
+Keep `PINNED_SDK` as one exported string literal so the gate can inspect the
+trusted tooling without executing it.
+
+A future SDK move is one coordinated change: update `global.json`, all SDK image
+tags and their verified digests, the devcontainer feature, `PINNED_SDK` and its
+build-evidence fixture, then run both commands above. The synthetic regression
+fixture versions are independent test inputs. The gate reports the offending
+file, actual/expected version or conflicting digest location. Because PR-process
+tooling is trusted from the base branch, a new SDK pin still needs owner adoption
+on the trusted branch; candidate tooling does not authorize its own SDK move.
+
 ## Preparation and full local checks
 
 ```bash
