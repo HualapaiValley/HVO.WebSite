@@ -60,6 +60,42 @@ public sealed class MainSitePlaywrightTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ResponsiveHeader_ShouldKeepControlsReachable(bool authorized)
+    {
+        var page = session.Page;
+        if (authorized)
+            await page.Context.SetExtraHTTPHeadersAsync(new Dictionary<string, string> { ["X-Test-Role"] = AppRoles.User });
+        await page.GotoAsync(BuildUrl("/"));
+        foreach (var width in new[] { 320, 390, 768, 1024, 1600 })
+        {
+            await page.SetViewportSizeAsync(width, 844);
+            await HeaderAssertions.ReachableAsync(page);
+            await page.ScreenshotAsync(new() { Path = System.IO.Path.Combine(session.ArtifactDirectory, $"header-{width}-dark.png") });
+            await AssertHeaderInteractionAsync(page, authorized);
+            await BrowserBehaviorAssertions.SwitchToLightAsync(page);
+            await AssertHeaderInteractionAsync(page, authorized);
+            await HeaderAssertions.ReachableAsync(page);
+            await page.ScreenshotAsync(new() { Path = System.IO.Path.Combine(session.ArtifactDirectory, $"header-{width}-light.png") });
+            await page.GetByRole(AriaRole.Button, new() { Name = "Switch to dark theme" }).PressAsync("Enter");
+            await Assertions.Expect(page.Locator(".shell-theme-dark")).ToBeVisibleAsync();
+        }
+    }
+
+    private static async Task AssertHeaderInteractionAsync(IPage page, bool authorized)
+    {
+        await page.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true }).PressAsync("Enter");
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Home", Exact = true })).ToBeVisibleAsync();
+        if (authorized)
+        {
+            await page.GetByRole(AriaRole.Button, new() { Name = "Browser User" }).PressAsync("Enter");
+            await Assertions.Expect(page.GetByRole(AriaRole.Menuitem, new() { Name = "Sign out", Exact = true })).ToBeVisibleAsync();
+            await page.Keyboard.PressAsync("Escape");
+        }
+    }
+
+    [TestMethod]
     public async Task MainSite_ShouldRenderPublicHomeShell()
     {
         var page = session.Page;

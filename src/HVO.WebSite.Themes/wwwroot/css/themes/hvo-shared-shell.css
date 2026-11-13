@@ -107,6 +107,8 @@ textarea {
 }
 
 .mud-layout {
+    display: flex;
+    flex-direction: column;
     height: 100vh;
     min-height: 100vh;
     background: var(--shell-page-background);
@@ -213,6 +215,22 @@ textarea {
     padding-bottom: 0;
 }
 
+/* Public, gateway and admin headers share intrinsic wrapping. Keep the header
+   in layout flow so extra navigation rows reserve real space above the canvas.
+   Reference surfaces: ThemeSandbox dashboard/public-layout/admin-layout. */
+.mud-layout .shell-appbar.mud-appbar:not(.shell-appbar-footer) {
+    position: relative;
+    height: auto !important;
+    flex: 0 0 auto;
+    /* Drawer state must not offset a viewport-wide shared header frame. */
+    margin-inline: 0;
+    width: 100%;
+}
+
+.shell-appbar:not(.shell-appbar-footer).mud-appbar .mud-toolbar-appbar {
+    height: auto;
+}
+
 .shell-appbar-footer {
     height: var(--shell-footer-height) !important;
 }
@@ -230,10 +248,10 @@ textarea {
 }
 
 .shell-main {
+    flex: 1 1 auto;
     min-width: 0;
     display: flex;
-    height: 100vh;
-    min-height: 100vh;
+    min-height: 0;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
     overflow: hidden;
@@ -244,7 +262,7 @@ textarea {
     display: flex;
     min-width: 0;
     height: 100%;
-    padding: calc(var(--shell-header-height) + var(--shell-card-gap)) 0 calc(var(--shell-footer-height) + var(--shell-card-gap));
+    padding: var(--shell-card-gap) 0 calc(var(--shell-footer-height) + var(--shell-card-gap));
     box-sizing: border-box;
     overflow: hidden;
 }
@@ -275,15 +293,23 @@ textarea {
 
 .shell-header-frame {
     min-height: var(--shell-header-height);
+    flex-wrap: wrap;
+    padding-block: var(--shell-card-gap);
+}
+
+.shell-header-frame > .mud-spacer {
+    display: none;
 }
 
 .shell-brand-block {
     display: flex;
     align-items: center;
     gap: 0.72rem;
-    margin-right: 1.1rem;
+    margin-right: 0;
     min-width: 0;
-    flex-shrink: 1;
+    flex: 0 1 auto;
+    max-width: 100%;
+    flex-wrap: wrap;
 }
 
 .shell-brand-mark {
@@ -319,23 +345,29 @@ textarea {
 
 .shell-brand-text {
     flex-shrink: 0;
+    min-width: 0;
+    max-width: 100%;
     font-size: var(--shell-brand-title-size) !important;
     font-weight: 800 !important;
     line-height: 1.02 !important;
     letter-spacing: 0.012em !important;
     color: var(--shell-brand-title) !important;
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 22px rgba(2, 8, 23, 0.34) !important;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .shell-brand-subtitle {
+    min-width: 0;
+    max-width: 100%;
     color: var(--shell-brand-subtitle) !important;
     font-size: var(--shell-brand-subtitle-size) !important;
     font-weight: 500 !important;
     line-height: 1.08 !important;
     letter-spacing: 0.04em !important;
     text-transform: uppercase !important;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .shell-header-actions {
@@ -343,6 +375,9 @@ textarea {
     align-items: center;
     gap: 0.18rem;
     flex-shrink: 0;
+    flex-wrap: wrap;
+    margin-left: auto;
+    max-width: 100%;
 }
 
 .shell-header-nav {
@@ -350,7 +385,8 @@ textarea {
     align-items: center;
     gap: 0.62rem;
     min-width: 0;
-    margin-left: 1.6rem;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
 }
 
 .shell-nav-link,

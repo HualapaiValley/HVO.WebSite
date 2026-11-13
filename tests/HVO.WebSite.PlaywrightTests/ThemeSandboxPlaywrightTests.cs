@@ -70,6 +70,47 @@ public sealed class ThemeSandboxPlaywrightTests
     }
 
     [TestMethod]
+    [DataRow("/dashboard")]
+    [DataRow("/public-layout")]
+    [DataRow("/admin-layout")]
+    public async Task ResponsiveHeader_ShouldKeepControlsReachable(string route)
+    {
+        var page = await OpenPageAsync(route);
+        foreach (var width in new[] { 320, 390, 768, 1024, 1600 })
+        {
+            await page.SetViewportSizeAsync(width, 844);
+            await HeaderAssertions.ReachableAsync(page);
+            await page.ScreenshotAsync(new() { Path = System.IO.Path.Combine(session.ArtifactDirectory, $"header-{width}-dark.png") });
+            await AssertHeaderNavigationAsync(page, route);
+            var toggle = page.GetByRole(AriaRole.Button, new() { Name = "Switch to light theme" });
+            await toggle.PressAsync("Enter");
+            await Assertions.Expect(page.Locator(".shell-theme-light")).ToBeVisibleAsync();
+            await HeaderAssertions.ReachableAsync(page);
+            await AssertHeaderNavigationAsync(page, route);
+            await page.ScreenshotAsync(new() { Path = System.IO.Path.Combine(session.ArtifactDirectory, $"header-{width}-light.png") });
+            await page.GetByRole(AriaRole.Button, new() { Name = "Switch to dark theme" }).PressAsync("Enter");
+            await Assertions.Expect(page.Locator(".shell-theme-dark")).ToBeVisibleAsync();
+        }
+    }
+
+    private static async Task AssertHeaderNavigationAsync(IPage page, string route)
+    {
+        if (route == "/admin-layout")
+        {
+            var toggle = page.GetByRole(AriaRole.Button, new() { Name = "Toggle admin navigation" });
+            await toggle.PressAsync("Enter");
+            await Assertions.Expect(page.Locator(".mud-drawer")).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("mud-drawer--closed"));
+            await toggle.PressAsync("Enter");
+            await Assertions.Expect(page.Locator(".mud-drawer")).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("mud-drawer--open"));
+        }
+        else
+        {
+            await page.Locator(".shell-header-nav .shell-nav-link-current").PressAsync("Enter");
+            await Assertions.Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(route + "$"));
+        }
+    }
+
+    [TestMethod]
     public async Task ThemeSandbox_GatewayLayout_RendersBrandText()
     {
         var page = await OpenPageAsync();

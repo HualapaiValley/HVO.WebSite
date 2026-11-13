@@ -32,6 +32,18 @@ The full local solution filter also includes these Browser tests; focused execut
 
 ## Behavior and failure evidence
 
+The `ResponsiveHeader_ShouldKeepControlsReachable` cases cover anonymous and
+authenticated website headers and the Sandbox gateway, public and admin layouts
+at 320, 390, 768, 1024 and 1600 pixels, with an 844-pixel viewport height, in both
+themes. They check text/control nonintersection, viewport bounds, pointer and
+focus reachability, keyboard navigation/theme/account/drawer interaction, and
+space reserved above the page canvas. Header rows and brand text intentionally
+wrap; the shared header stays in layout flow and spans the viewport regardless
+of admin drawer state. No navigation is hidden behind a new collapse control.
+Each case retains `header-<width>-dark.png` and `header-<width>-light.png` alongside
+the normal diagnostics. The initial five cases failed against the original CSS
+for hidden or out-of-bounds header content (Refs #434).
+
 The [main-site](MainSitePlaywrightTests.cs) and [sandbox](ThemeSandboxPlaywrightTests.cs) suites exercise public/authorized navigation, controls, reference routes and responsive surfaces. [Dashboard](WebsiteDashboardBrowserTests.cs), [chart/theme](ScopedChartThemeBrowserTests.cs), [instrument styles](ThemeSandboxInstrumentStyleBrowserTests.cs) and [power history](PowerHistoryBrowserTests.cs) cases assert actual Chart.js instances/data/configuration, nullable gaps, theme changes, computed styles, UTC spacing/display-zone labels, provider failure recovery and empty states. A visible canvas, stylesheet request or button alone is insufficient.
 
 [BrowserFailureQualificationTests](BrowserFailureQualificationTests.cs) injects a missing chart script and a blocked theme handler, proves the same positive assertions fail, then verifies recovery. Expected injected diagnostics are distinguished from unexpected page/console errors. Shared visual changes must also satisfy [CSS governance](../../docs/CSS_GOVERNANCE.md): reachable sandbox demos/sign-off, affected website and sandbox surfaces in both themes, and relevant responsive states.
