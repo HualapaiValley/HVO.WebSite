@@ -22,22 +22,24 @@
         </div>
     </MudAppBar>
 
-    <MudDrawer @bind-Open="_drawerOpen" Variant="_drawerVariant" Anchor="Anchor.Left">
-        <MudDrawerHeader>
-            <MudText Typo="Typo.h6">Navigation</MudText>
-        </MudDrawerHeader>
-        <MudNavMenu>
-            @SidebarItems
-        </MudNavMenu>
-    </MudDrawer>
+    <MudDrawerContainer Class="shell-admin-body">
+        <MudDrawer Fixed="false" @bind-Open="_drawerOpen" Variant="_drawerVariant" Anchor="Anchor.Left">
+            <MudDrawerHeader>
+                <MudText Typo="Typo.h6">Navigation</MudText>
+            </MudDrawerHeader>
+            <MudNavMenu>
+                @SidebarItems
+            </MudNavMenu>
+        </MudDrawer>
 
-    <MudMainContent Class="shell-main">
-        <div class="shell-frame shell-content">
-            <MudPaper Class="layout-canvas shell-page" Elevation="0">
-                @(Body ?? ChildContent)
-            </MudPaper>
-        </div>
-    </MudMainContent>
+        <MudMainContent Class="shell-main">
+            <div class="shell-frame shell-content">
+                <MudPaper Class="layout-canvas shell-page" Elevation="0">
+                    @(Body ?? ChildContent)
+                </MudPaper>
+            </div>
+        </MudMainContent>
+    </MudDrawerContainer>
 
     <div id="blazor-error-ui" data-nosnippet>
         <div class="shell-blazor-error-card">

@@ -60,6 +60,99 @@ public sealed class MainSitePlaywrightTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ResponsiveHeader_ShouldKeepControlsReachable(bool authorized)
+    {
+        var page = session.Page;
+        if (authorized)
+            await page.Context.SetExtraHTTPHeadersAsync(new Dictionary<string, string> { ["X-Test-Role"] = AppRoles.User });
+        foreach (var width in new[] { 320, 390, 768, 1024, 1600 })
+        foreach (var light in new[] { false, true })
+        {
+            await page.SetViewportSizeAsync(width, 844);
+            // Begin on a different real route: suppressing Enter or changing Home's
+            // href must fail the URL assertion, even if a Home heading exists.
+            await page.GotoAsync(BuildUrl("/Error"));
+            await WaitForInteractivityAsync();
+            if (light) await BrowserBehaviorAssertions.SwitchToLightAsync(page);
+            await HeaderAssertions.ReachableAsync(page);
+            await HeaderAssertions.NavigateAsync(page, page.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true }), "/");
+            await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Home", Exact = true })).ToBeVisibleAsync();
+            await HeaderAssertions.ReachableAsync(page);
+            if (authorized)
+            {
+                await page.GetByRole(AriaRole.Button, new() { Name = "Browser User" }).PressAsync("Enter");
+                await Assertions.Expect(page.GetByRole(AriaRole.Menuitem, new() { Name = "Sign out", Exact = true })).ToBeVisibleAsync();
+                await page.Keyboard.PressAsync("Escape");
+            }
+            await page.ScreenshotAsync(new() { Path = Path.Combine(session.ArtifactDirectory, $"header-{width}-{(light ? "light" : "dark")}.png") });
+        }
+    }
+
+    [TestMethod]
+    [DataRow(320)]
+    [DataRow(390)]
+    [DataRow(768)]
+    [DataRow(1024)]
+    [DataRow(1600)]
+    public async Task AdminDrawer_ShouldKeepEveryItemUncovered(int width)
+    {
+        var page = session.Page;
+        await page.Context.SetExtraHTTPHeadersAsync(new Dictionary<string, string> { ["X-Test-Role"] = AppRoles.Admin });
+        await page.SetViewportSizeAsync(width, 844);
+        await page.GotoAsync(BuildUrl("/admin"));
+        await WaitForInteractivityAsync();
+        await HeaderAssertions.DrawerReachableAsync(page);
+        await BrowserBehaviorAssertions.SwitchToLightAsync(page);
+        await HeaderAssertions.DrawerReachableAsync(page);
+        await HeaderAssertions.ReachableAsync(page);
+    }
+
+    [TestMethod]
+    [DataRow(320)]
+    [DataRow(390)]
+    public async Task HeaderTextAssertion_ShouldRejectNowrapThenRecover(int width)
+    {
+        var page = session.Page;
+        await page.SetViewportSizeAsync(width, 844);
+        await page.GotoAsync(BuildUrl("/"));
+        await WaitForInteractivityAsync();
+        await HeaderAssertions.TextAndControlsAsync(page);
+        var mutation = await page.AddStyleTagAsync(new() { Content = ".shell-brand-text { white-space: nowrap; }" });
+        Func<Task> verify = () => HeaderAssertions.TextAndControlsAsync(page);
+        await verify.Should().ThrowAsync<AssertFailedException>();
+        await mutation.EvaluateAsync("e => e.remove()");
+        await HeaderAssertions.TextAndControlsAsync(page);
+    }
+
+    [TestMethod]
+    public async Task HomeNavigationAssertion_ShouldRejectSuppressedEnterThenRecover()
+    {
+        var page = session.Page;
+        await page.SetViewportSizeAsync(320, 844);
+        await page.GotoAsync(BuildUrl("/Error"));
+        await WaitForInteractivityAsync();
+        var home = page.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true });
+        await home.EvaluateAsync("e => { window.blockHeaderKey = event => { event.preventDefault(); event.stopImmediatePropagation(); }; e.addEventListener('keydown', window.blockHeaderKey, true); }");
+        Func<Task> verify = () => HeaderAssertions.NavigateAsync(page, home, "/");
+        var blocked = await verify.Should().ThrowAsync<PlaywrightException>();
+        blocked.Which.Message.Should().Contain("Page URL expected");
+        new Uri(page.Url).AbsolutePath.Should().Be("/Error", "the post-hydration blocker must prevent navigation");
+        await page.ReloadAsync();
+        await WaitForInteractivityAsync();
+        await HeaderAssertions.NavigateAsync(page, home, "/");
+    }
+
+    private async Task WaitForInteractivityAsync()
+    {
+        // ShellActions enables this control only after its interactive render.
+        // Fonts/animations alone do not prevent Blazor replacing prerendered nodes.
+        await Assertions.Expect(session.Page.GetByRole(AriaRole.Button,
+            new() { Name = "Switch to light theme" })).ToBeEnabledAsync();
+    }
+
+    [TestMethod]
     public async Task MainSite_ShouldRenderPublicHomeShell()
     {
         var page = session.Page;
