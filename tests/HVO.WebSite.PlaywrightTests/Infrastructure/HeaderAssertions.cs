@@ -24,7 +24,7 @@ internal static class HeaderAssertions
             var text = await element.EvaluateAsync<bool>("e => e.matches('.shell-brand-text,.shell-brand-subtitle')");
             var box = text
                 ? await element.EvaluateAsync<LocatorBoundingBoxResult>("e => { const r = document.createRange(); r.selectNodeContents(e); const b = r.getBoundingClientRect(); return { x:b.x, y:b.y, width:b.width, height:b.height }; }")
-                : (await element.BoundingBoxAsync())!;
+                : await RequiredBoxAsync(element, name);
             boxes.Add((box, name, element, text));
         }
         // Compare all painted text first, so a title/nav collision is reported
@@ -53,8 +53,8 @@ internal static class HeaderAssertions
     public static async Task ReachableAsync(IPage page)
     {
         await TextAndControlsAsync(page);
-        var headerBox = (await page.Locator(".shell-header-frame").BoundingBoxAsync())!;
-        var canvasBox = (await page.Locator(".shell-content > .layout-canvas").BoundingBoxAsync())!;
+        var headerBox = await RequiredBoxAsync(page.Locator(".shell-header-frame"), "shared header");
+        var canvasBox = await RequiredBoxAsync(page.Locator(".shell-content > .layout-canvas"), "page canvas");
         canvasBox.Y.Should().BeGreaterThanOrEqualTo(headerBox.Y + headerBox.Height,
             "wrapped header rows must reserve space above page content");
         canvasBox.Height.Should().BeGreaterThan(0);
@@ -95,4 +95,8 @@ internal static class HeaderAssertions
         await link.PressAsync("Enter");
         await Assertions.Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(System.Text.RegularExpressions.Regex.Escape(destination) + "$"));
     }
+
+    private static async Task<LocatorBoundingBoxResult> RequiredBoxAsync(ILocator element, string name) =>
+        await element.BoundingBoxAsync()
+            ?? throw new AssertFailedException($"Expected a visible bounding box for {name}; the element may have detached or become hidden.");
 }

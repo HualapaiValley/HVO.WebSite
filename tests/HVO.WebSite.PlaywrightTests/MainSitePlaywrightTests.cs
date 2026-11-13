@@ -74,6 +74,7 @@ public sealed class MainSitePlaywrightTests
             // Begin on a different real route: suppressing Enter or changing Home's
             // href must fail the URL assertion, even if a Home heading exists.
             await page.GotoAsync(BuildUrl("/Error"));
+            await WaitForInteractivityAsync();
             if (light) await BrowserBehaviorAssertions.SwitchToLightAsync(page);
             await HeaderAssertions.ReachableAsync(page);
             await HeaderAssertions.NavigateAsync(page, page.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true }), "/");
@@ -101,7 +102,7 @@ public sealed class MainSitePlaywrightTests
         await page.Context.SetExtraHTTPHeadersAsync(new Dictionary<string, string> { ["X-Test-Role"] = AppRoles.Admin });
         await page.SetViewportSizeAsync(width, 844);
         await page.GotoAsync(BuildUrl("/admin"));
-        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Switch to light theme" })).ToBeEnabledAsync();
+        await WaitForInteractivityAsync();
         await HeaderAssertions.DrawerReachableAsync(page);
         await BrowserBehaviorAssertions.SwitchToLightAsync(page);
         await HeaderAssertions.DrawerReachableAsync(page);
@@ -116,6 +117,7 @@ public sealed class MainSitePlaywrightTests
         var page = session.Page;
         await page.SetViewportSizeAsync(width, 844);
         await page.GotoAsync(BuildUrl("/"));
+        await WaitForInteractivityAsync();
         await HeaderAssertions.TextAndControlsAsync(page);
         var mutation = await page.AddStyleTagAsync(new() { Content = ".shell-brand-text { white-space: nowrap; }" });
         Func<Task> verify = () => HeaderAssertions.TextAndControlsAsync(page);
@@ -130,12 +132,24 @@ public sealed class MainSitePlaywrightTests
         var page = session.Page;
         await page.SetViewportSizeAsync(320, 844);
         await page.GotoAsync(BuildUrl("/Error"));
+        await WaitForInteractivityAsync();
         var home = page.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true });
         await home.EvaluateAsync("e => { window.blockHeaderKey = event => { event.preventDefault(); event.stopImmediatePropagation(); }; e.addEventListener('keydown', window.blockHeaderKey, true); }");
         Func<Task> verify = () => HeaderAssertions.NavigateAsync(page, home, "/");
-        await verify.Should().ThrowAsync<PlaywrightException>();
+        var blocked = await verify.Should().ThrowAsync<PlaywrightException>();
+        blocked.Which.Message.Should().Contain("Page URL expected");
+        new Uri(page.Url).AbsolutePath.Should().Be("/Error", "the post-hydration blocker must prevent navigation");
         await page.ReloadAsync();
+        await WaitForInteractivityAsync();
         await HeaderAssertions.NavigateAsync(page, home, "/");
+    }
+
+    private async Task WaitForInteractivityAsync()
+    {
+        // ShellActions enables this control only after its interactive render.
+        // Fonts/animations alone do not prevent Blazor replacing prerendered nodes.
+        await Assertions.Expect(session.Page.GetByRole(AriaRole.Button,
+            new() { Name = "Switch to light theme" })).ToBeEnabledAsync();
     }
 
     [TestMethod]
