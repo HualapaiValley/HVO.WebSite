@@ -210,5 +210,6 @@ if grep -Ern 'WeatherUnderground.*(Key|Secret)|WEATHER_UNDERGROUND.*(KEY|SECRET)
 fi
 
 validate_key_vault_sync
+python3 -m unittest discover -s "${repo_root}/tools" -p secrets_materialization_test.py
 
 printf 'Davis Weather Underground and CWOP preflight, secret sync, Compose, ignore, and credential isolation contracts validated.\n'
