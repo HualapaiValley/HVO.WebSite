@@ -1,57 +1,29 @@
 ---
 name: hvo-coordination
-description: CANDIDATE — not activated. Apply the tool-neutral HVO ownership, dispatch and reconciliation contract only within the pilot preparation scope.
+description: Candidate procedure for HVO ownership, coordination and reconciliation.
 ---
 
-# Coordination contract — pilot candidate
+# Coordination procedure
 
 Read [common policy](../../../docs/development/policy/common.md) and the
-[adoption profile](../../../docs/development/policy/website.md). This is a procedure
-contract, not an installed dispatcher/watchdog or proof of unattended recovery.
-The [disabled local journal](../../../tools/policy-pilot/README.md) implements
-intent/event persistence and recovery inspection only; its observations are
-unverified and never authorize dispatch, retry, completion or merge.
-Do not activate dispatch before the profile's qualification is complete.
+[WebSite profile](../../../docs/development/policy/website.md). One accountable
+coordinator owns each work domain; a standalone worker may be lifecycle owner.
+Record the assignment, owner, scope, risk, endpoint, source, evidence and state.
+Do not take over ambiguous ownership or treat silence as failure.
 
-One authoritative coordinator owns the work domain on one host. A standalone
-worker can be the lifecycle owner. Until atomic fencing is implemented and tested,
-ambiguous ownership stops all further mutations; do not silently take a stale claim.
+Use the T3 hub MCP. Before launch record a unique `clientRequestId` and title
+nonce, along with project/environment, time window and prompt digest. Pass the
+request ID and nonce at launch. Record the returned thread ID and other handles.
+Poll with `t3_thread_read`; never call `task_status` as a read.
 
-Persist before dispatch: repository/issue/assignment-revision work key, owner and
-session, ownership generation, policy/profile versions, scope/risk/endpoint,
-acceptance evidence, checkout/branch/base/head, worker/reviewer handles, requested
-and observed model/effort, PR/check/queue/merge IDs, current state and next action.
-Child tasks receive child keys. Each attempt has a distinct attempt ID under the
-same work key. Record dispatch intent durably before calling transport; pass a
-provider idempotency key only if actually supported and capture the returned handle.
+Treat any uncertain launch, send, push or merge as AMBIGUOUS. Reconcile before
+any retry against all available bindings: clientRequestId, thread ID,
+environment/project, time window, prompt digest and title nonce. A single title
+match is not proof. Never relaunch blindly. A later run on a completed thread
+requires fresh evidence review.
 
-Callbacks contain work key, generation, attempt ID, event ID, timestamp, source,
-state and evidence. Persist receipt before acknowledging; deduplicate by event ID
-within the attempt. Reject/quarantine wrong-owner or obsolete-generation callbacks;
-retain them for reconciliation. Callback order must not regress terminal state.
-Start, meaningful milestones, blockers and terminal outcomes are required signals.
-
-A durable watchdog must survive the coordinator conversation. Proposed heartbeat:
-10 minutes; investigate after 20 minutes. These are configuration defaults to
-validate, not installed schedules. Silence proves neither failure nor safe replay.
-On restart, reload journal and reconcile authoritative worker/run, PR/source,
-checks and queue. Uncertain launch/push/PR/gate/merge/notification is AMBIGUOUS;
-failed lookup is not evidence of absence. Resume only after safe outcome/ownership
-is established. No blind retry or automatic stale-owner takeover.
-
-Finalization follows the common lifecycle and existing PR contract through observed
-merge and acceptance. Record terminal state, merge SHA, post-merge obligations,
-remaining blockers and next owner; do not report queue admission as completion.
-
-Before activation, implement and test durable journal/write failures, duplicate and
-lost callbacks, reordered events, coordinator restart, launch timeout after remote
-success, stale owner, provider failure, changed PR head/target and failed CI.
-Assert no second dispatch on ambiguity and no merge without current evidence.
-An unimplemented transport/watchdog leaves the assignment blocked; this contract
-does not promise exactly-once dispatch, cross-owner fencing or unattended recovery.
-
-The disabled offline coordinator journal and collector do not implement transport,
-activation, dispatch, replay or resume. Recovery and watchdog planning produce
-reports only. All-binding resolution leaves partial matches ambiguous; a later run
-reopens and voids evidence. Family and session distinctness remain unknown. The
-CI retry budget is modeled only; power-loss durability remains unverified.
+A read-only watchdog is separate from recovery that can resume work. Until recovery
+is tested, it stops at a report to the human. Record requested and provider-reported
+model and effort separately; unknown provenance stays unknown. Distinct thread IDs
+are observable, but distinct environment sessions may not be. Follow the common
+review and authorization rules before finalization.

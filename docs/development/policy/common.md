@@ -1,4 +1,4 @@
-# HVO engineering policy — 2026-11-16.4 pilot
+# HVO engineering policy — 2026-11-16.6 pilot
 
 This is the canonical common-policy source for the local WebSite pilot. Other
 repositories have not adopted it. The [manifest](manifest.json) pins the portable
@@ -19,8 +19,8 @@ these documents neither grant assignment authority nor publish a passing gate.
 
 ## Authority and precedence
 
-Platform/security restrictions come first. This common contract and the repository
-profile establish minimum requirements. An assignment may narrow the permitted
+Platform/security requirements come first, then this common policy, then repository
+profile additions. Stop and resolve conflicts rather than guessing. An assignment may narrow the permitted
 scope or add requirements; it cannot lower review-tier minima, required model-family
 separation, required validation, protections or safety boundaries. An explicit
 assignment is not a waiver. Resolve conflicts before the affected action.
@@ -28,8 +28,8 @@ Max, Kepler and other identities have no
 special privileges. A coordinator is optional and follows the same policy.
 
 Record owner, scope, acceptance criteria, risk and endpoint (research,
-implementation, PR-ready, merged or deployed). Authorized issue-to-merge work may
-progress autonomously through review, CI and merge only after every gate passes.
+implementation, PR-ready, merged or deployed). Only an explicitly authorized lifecycle owner may merge autonomously, after all
+required review and check gates pass. A draft-only assignment never merges.
 Release publication, deployment and physical operations each require their own
 explicit authorization, independent of merge authority and of each other. Physical
 operations include operating the real roof or any other physical device.
@@ -73,9 +73,12 @@ An uncertain remote mutation must be reconciled before any replay.
 | High: safety, security, durability, state/migrations, concurrency/recovery, deployment, cross-component effects, camera lifecycle, CI trust or policy enforcement | Two independent reviewers from different model families, at least one deep review |
 
 A reviewer must not author/modify the candidate or finalize it during that review.
-Different harnesses or aliases alone do not establish model diversity. Record
-requested and observable actual model/effort, session, scope, base/head/target,
-coverage, checks and limitations; unknown provenance remains unknown. A high-risk
+Never infer model family from a name or alias. Record requested and provider-reported
+model/effort separately, session, scope, base/head/target, coverage, checks and
+limitations; unknown provenance remains unknown. While model family cannot be
+authenticated, automated High-risk admission is blocked; reviews can still inform
+a human decision when labeled honestly. Distinct thread IDs are observable;
+distinct environment sessions may not be. A high-risk
 finalizer should be distinct from the implementer where practical.
 
 Verdicts are CLEAN, CHANGES_REQUIRED, INCOMPLETE or BLOCKED. Findings have stable
@@ -94,8 +97,9 @@ review; protected-branch checks must qualify the actual candidate before merge.
 Use established host resource gates for heavy jobs; cancel only obsolete owned jobs.
 Do not weaken checks or tests to obtain green. CI/queue optimization is separate.
 
-Retain failed evidence. Deterministic failures require correction. The default
-unchanged-source infrastructure budget is two retries; a stricter repo budget wins.
+Retain failed evidence. Deterministic failures require correction. As procedure, the default
+unchanged-source infrastructure budget is two retries; a stricter repo rule wins.
+This budget is not claimed to be implemented.
 Route selection is assignment configuration, not hardcoded model names. Validate
 capability and supported effort in the actual launch context. Record requested and
 observed settings and fallback reason. A catalog entry is not proof of execution.

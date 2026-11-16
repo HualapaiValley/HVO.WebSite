@@ -28,30 +28,10 @@ do not infer it from configuration labels. Missing strict model provenance block
 that route. Do not invent command flags or elevate access to satisfy a policy.
 Model preferences and authorized fallbacks belong in assignment configuration.
 
-## Kepler transport contract
+## Kepler coordination
 
-Kepler is a coordinator identity using the same [coordination skill](../../../.agents/skills/hvo-coordination/SKILL.md).
-Its adapter supplies only these capabilities:
-
-| Operation | Required behavior |
-|---|---|
-| Persist | Durable work/attempt/event records before dispatch or callback acknowledgment |
-| Launch | Pass complete scope, source, acceptance and policy paths; retain returned provider handle and supported idempotency key |
-| Inspect | Query exact recorded worker/run and authoritative repository state without inferring absence from failure |
-| Receive | Persist and deduplicate callback IDs; reject stale generation; preserve event/source evidence |
-| Monitor | Durable watchdog independent of the conversation; reconcile before any retry |
-| Finalize | Use the existing PR contract, assignment endpoint and qualified trusted gates; observe actual merge and acceptance |
-
-No provider API or watchdog has been implemented/installed by this pilot preparation.
-The [disabled local journal](../../../tools/policy-pilot/README.md) retains unverified
-callback observations but supplies no authenticated callback transport or replay.
-Missing capabilities are blockers, not permission to substitute
-conversation memory or polling with unbounded replay. Validate each transport's
-uncertain-outcome semantics before use. Legacy hvo worker/coordinator instructions
-are historical audit evidence; never install them as a prerequisite here.
-
-The disabled offline coordinator journal and collector add no Kepler transport.
-Saved-read resolution requires all bindings; partial matches remain ambiguous,
-and later runs reopen evidence. Recovery and watchdog planning produce reports
-only. No activation, dispatch, replay or resume is implemented; model family and
-session distinctness are unknown. The CI retry budget is a model, not live CI.
+Kepler follows the [coordination procedure](../../../.agents/skills/hvo-coordination/SKILL.md)
+using the T3 hub MCP. Record requested and provider-reported settings separately;
+missing provenance stays unknown. A harness or alias does not prove model family
+or distinct environment sessions. Missing required capability blocks the affected
+operation.

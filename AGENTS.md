@@ -2,10 +2,11 @@
 
 ## Unified-policy pilot candidate
 
-The repository-contained [HVO policy 2026-11-16.4](docs/development/policy/common.md)
+The repository-contained [HVO policy 2026-11-16.6](docs/development/policy/common.md)
 and [WebSite adoption profile](docs/development/policy/website.md) define the
-reviewable single-host pilot and its activation blockers. Read them when preparing
-the unified-policy pilot. Existing procedures below remain in force for current
+reviewable single-host pilot and its activation blockers. Read them for this work.
+Platform/security requirements take precedence over common policy, which takes
+precedence over repository profile additions; stop and resolve conflicts. Existing procedures below remain in force for current
 work; this candidate does not activate autonomous merge or replace trusted gates.
 During candidate preparation, policy/enforcement changes require two independent
 reviewers from different model families, at least one deep review, as specified

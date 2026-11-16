@@ -2,7 +2,14 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
-<a id="unified-policy-pilot-baseline"></a>
+## 2026-11-16 — Pilot rescope
+
+Roy rescoped the pilot to AGENTS.md, policy, profile and skills files only. The
+offline journal/collector/review-policy tooling was parked unchanged at branch
+`parking/website-policy-pilot-tooling-20261116` (2513350) and removed from the
+pilot; it is not part of the policy and enforces nothing.
+
+<a id="unified-policy-baseline"></a>
 
 ## 2026-11-16 — Unified engineering policy preparation
 
@@ -12,31 +19,14 @@ and CI requirements while defining common review tiers, coordination and thin
 harness adapters. This is preparation against main at
 `add1adc273ab0b3413acdd2541f499c427125af1`, based on the owner-approved
 HVO-policy-proposal.md version 1. No active PR, CI producer, protection setting or
-host configuration changes are included. Autonomous merge remains blocked until
-trusted enforcement and recovery are implemented and qualified.
+host configuration changes are included. The first pilot stops at PR-ready; any first merge needs Roy’s separate
+authorization after evidence inspection.
 
 Read-only observations on 16 November 2026: main was the SHA above; protection
 was disabled and the ruleset list was empty. The remote allowed squash, merge and
 rebase methods. Open PRs #477–480 and #485 were untouched; #434, #437 and #452
 retained Roy's claims. No low-risk unclaimed pilot issue was selected or created.
 These observations are historical evidence and must be refreshed before use.
-
-The later [disabled local prototype](../tools/policy-pilot/README.md) adds policy
-minimum inspection and transactional single-host intent/event recording without changing
-the existing CI or live controller. Missing authenticated impact/runtime/outcome
-adapters keep admission and dispatch disabled. The ordinary-session precedence
-rule is now in AGENTS.md; runtime discovery and operational qualification remain
-separate prerequisites. Power-loss durability is unverified; relying on journal
-acknowledgments for external operations remains blocked. Authenticated canonical
-family mapping and adversarial qualification are hard activation prerequisites;
-declared aliases or lookalikes do not prove independent model families.
-
-The offline coordinator journal and evidence collector remain disabled. Saved-read
-resolution requires all bindings; partial matches stay ambiguous, and later runs
-reopen evidence. Recovery and watchdog planning report only; dispatch, replay and
-resume are absent. Model family and session distinctness remain unknown. The CI
-retry budget is modeled only; live CI has no budget counter or transient classifier.
-
 
 ## 2026-10-29 — Remaining Pi collectors use CI registry images (#466 candidate)
 

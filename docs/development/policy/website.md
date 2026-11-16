@@ -1,12 +1,12 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-16.4`. Status: local preparation; no live rollout or
+Policy version: `2026-11-16.6`. Status: local preparation; no live rollout or
 autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
 and [automation evidence](../automation-evidence.md) retain their requirements.
 
-The dated [repository baseline](../../PROJECT_HISTORY.md#unified-policy-pilot-baseline)
+The dated [repository baseline](../../PROJECT_HISTORY.md#unified-policy-baseline)
 records observed branch/protection/merge settings and active work. Re-query those
 facts before future work; unassigned issues are not proof of availability.
 
@@ -29,14 +29,8 @@ Load [common policy](common.md), the existing issue/review/PR skills and
 The [manifest](manifest.json) pins the new common/adoption/adapter/coordination
 snapshot; existing WebSite skills remain repository-versioned dependencies.
 
-The unconditional AGENTS.md routing now states local/global skill precedence for
-ordinary sessions (N1); actual discovery in each launch context remains unqualified.
-The [disabled local prototype](../../../tools/policy-pilot/README.md) implements
-conservative policy-minimum inspection and transactional intent/event persistence.
-It cannot authenticate evidence, publish approval, dispatch, replay or merge.
-Power-loss durability of the transactional journal is unverified; no adapter may
-rely on its acknowledgments for external operations before storage and power-loss
-recovery qualification. Process-exit tests or PRAGMA changes alone cannot qualify it.
+AGENTS.md states local/global skill precedence. Actual discovery in each launch
+context remains unqualified.
 
 ## Preserved validation and boundaries
 
@@ -49,8 +43,8 @@ as blocked; this document grants no documentation-only admission exemption.
 
 Preserve source-bound evidence IDs, trusted target evaluator/controller, immutable
 merge-source execution, selected execution unions, main/full lanes and full-SHA
-Action pins. Infrastructure recovery retains WebSite's stricter one fresh complete
-run budget. No workflow, schema, gate producer or CI selection changes belong to
+Action pins. WebSite live admission counts only first-attempt (`run_attempt` 1) `ci.yml`
+runs. This stricter rule wins over the common procedural retry budget. No workflow, schema, gate producer or CI selection changes belong to
 this preparation. Production exporter stays disabled; retired collectors are not
 deployment targets. Archived `src/HVO.Database` stays outside the solution;
 `HVO.DataModels` migrations remain schema authority. Never operate physical devices
@@ -81,71 +75,18 @@ Authenticated canonical model-family mapping is a hard activation blocker. Deriv
 families from authenticated runtime provider/model receipts through a trusted
 mapping, never from declared family strings or caller-supplied mappings. Qualify
 aliases, Unicode lookalikes/invisible characters, unmapped or ambiguous identities
-and forged mappings before activation. The offline inspector's adversarial tests
-prove only that admission stays disabled, not that family provenance is verified.
+and forged mappings before activation.
 
-## Proposed minimal protection and enforcement — not activated
+## Pilot boundary
 
-Use a main-branch protection/ruleset requiring PRs, conversation resolution,
-up-to-date candidates, and exactly the existing candidate-head contexts:
-`Review Evidence`, `build-and-test`, `docker-smoke`. Disable force pushes and
-deletions; enforce for administrators with no routine bypass actors. Native approval
-count may stay zero only with a qualified independent-session evidence gate.
-Do not require target-event native checks as substitutes for the controller's
-candidate-head statuses. No merge queue or CI optimization is proposed here.
+The first WebSite pilot stops at PR-ready. Roy separately authorizes any first
+merge after inspecting the evidence. WebSite branch protection is a separate later
+decision. Existing PR Process workflow and `Review Evidence` checks remain unchanged.
+WebSite does not currently produce or require `hvo/reviewed-head`. Keep that
+compatibility gate where currently required by SkyMonitor and RoofController;
+remove no live required gate before a verified replacement.
 
-Designate a trusted publisher identity before activation. Bind required contexts
-to that GitHub App where supported and verify that wrong-app publications cannot
-satisfy them. Existing shared credentials/status provenance are insufficient proof
-of independent review. The trusted target-side evaluator must authenticate evidence,
-reject implementer-as-reviewer/finalizer, enforce risk minimums and actual family
-separation, and bind acceptance/reviews/checks to repository, PR, target, raw head
-and verified merge SHA. Candidate code must never control its own admission.
-Preserve `hvo/reviewed-head` on repositories already requiring it; WebSite has its
-own existing `Review Evidence` context and must not rename it during this pilot.
-
-Before merge, an authorized finalizer re-reads source, ownership, threads, trusted
-verdict and complete successful run; requests squash with expected raw head SHA;
-then observes actual merged SHA and required post-merge results. A moving target
-invalidates source evidence and requires requalification. GitHub's required
-up-to-date check plus trusted tuple validation must close target-race gaps; do not
-claim a head-only API precondition protects the target. Test this race before use.
-
-Qualification must prove rejection of stale head/target/merge, self-review, missing
-reviewer/family evidence, wrong publisher, forged/edited records, failed/partial/old
-CI, unresolved threads and unauthorized direct pushes. Also prove a positive
-independent exact-source candidate and post-merge observation in an authorized
-disposable fixture. Existing unit fixtures alone do not prove GitHub enforcement.
-Qualify first in an isolated fixture repository before production. Capture
-authenticated settings and active-PR impact before any protection change. Review
-Phase B runner and credential exposure, and measure strict up-to-date re-review cost.
-Plan an authorized repair route when a protection blocks its own repair. Live tests
-require authorization separate from watchdog approval. Protection changes, publisher
-credentials and live qualification require a separate authorized step; until then autonomous merge is BLOCKED.
-
-## Rollback and remaining acceptance
-
-Before activation, snapshot protections, trusted producer revision, policy version,
-active ownership and runs. Stop new dispatch on failure; reconcile in-flight work;
-restore only the recorded approved baseline and verify protections. Stop if the
-baseline is unknown or a concurrent change prevents safe restoration. Retain
-evidence; never replay uncertain operations or delete unrelated worktrees.
-
-Still required: independent high-risk policy review on the exact current head,
-reconciliation of the existing review-format's depth-only one-review default and
-one-review Deep example with the candidate's two-family minimum before broader
-activation, full source-bound local gates,
-chosen low-risk assignment, actual harness/model/full-access qualification,
-authoritative coordination/outcome adapters and live recovery qualification,
-trusted enforcement implementation
-and protected-branch qualification. No launch, recovery, merge or deployment success
-is claimed by this document.
-
-The disabled offline collector and coordinator journal inspect saved reads only.
-All-binding resolution leaves partial matches ambiguous; a later run reopens and
-voids prior evidence. Recovery and watchdog planning stop at a report, with no
-activation, dispatch, replay or resume. Model family and session distinctness are
-unknown. WebSite admission already requires a CI run with attempt 1. The initial
-run plus two new runs budget is modeled only; live CI has no budget counter or
-transient-cause classifier. Power-loss durability
-is unverified.
+Before any authorized merge, the lifecycle owner verifies the current source,
+review, required checks and resolved findings under the existing PR procedure.
+A moving target requires requalification. Separate authorization is required for
+release publication, production deployment and real roof or hardware operation.

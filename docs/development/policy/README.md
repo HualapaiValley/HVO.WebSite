@@ -8,8 +8,8 @@ the repository root, verify the pinned portable files with:
 shasum -a 256 -c docs/development/policy/snapshot.sha256
 ```
 
-The manifest version identifies the snapshot revision; `policyVersion` identifies
-the unchanged common-policy version. On an intentional policy change, bump the snapshot version and regenerate the checksum
+The manifest version and `policyVersion` identify the same policy version. On an
+intentional policy change, update both and regenerate the checksum
 file for exactly the manifest's file list; review both content and digest changes.
 On distribution, copy that complete snapshot and compare version/digests against
 the reviewed canonical commit. Do not regenerate hashes to hide an unexplained
