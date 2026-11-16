@@ -77,8 +77,8 @@ takeover or recovery reset. Generations cannot be advanced by this prototype.
 
 Even a claimed success, absence or provider failure cannot release an intent or
 authorize a new attempt. Without an authoritative outcome verifier, stopping is the
-implemented recovery behavior. Dispatch, verified run-handle reconciliation,
-terminal transitions, retries, watchdog/heartbeats, merge finalization, post-merge
+implemented recovery behavior. Live dispatch, authenticated run-handle reconciliation,
+transport-driven transitions, retries, watchdog/heartbeats, merge finalization, post-merge
 verification and cross-host fencing remain unimplemented. There is no exactly-once
 claim. A future adapter must not infer permission from `created` or `persisted`.
 
@@ -98,3 +98,26 @@ uncommitted rollback, callback write failure/lost acknowledgment, duplicates,
 stale owners/generations/heads and refusal to replay after apparent success or
 failure. This does not qualify live harness discovery, authenticated evidence,
 GitHub protection, power-loss hardware behavior or unattended operations.
+
+## Disabled coordinator and offline evidence
+
+`coordinator_journal.py` adds a separate version 2 journal. It records intent,
+launch sent, observed launch, terminal state and evidence collection, and supports
+blocked, duplicate and reopened states. Launch sent is ambiguous. The client
+request ID is a replay key, never proof. Saved coordinator-recorded hub reads can
+identify one launch only when every available binding agrees and pagination is
+complete; a partial match stays ambiguous. The current conservative resolver
+accepts only a single complete list page because saved pages do not prove their sequence. Duplicate titles are not counted. A later
+run reopens evidence and voids its prior collection. Ownership cannot transfer.
+Recovery and watchdog planning are read-only reports; there is no dispatch, replay,
+resume, activation flag, or transport. SQLite uses DELETE journal mode and FULL
+synchronous; power-loss durability remains unverified.
+
+`evidence_collector.py` reads only saved JSON files. The CLI takes a JSON config
+with `threadFile`, `listFiles` and `githubFile` paths and metadata, prints a
+sorted JSON envelope, and always exits 2. It cannot authenticate evidence, grant
+admission or publish. Requested and executed model strings never establish family;
+session distinctness remains unknown. Re-check the source and checks after collection.
+The modeled CI budget allows an initial attempt-1 run and at most two new attempt-1
+runs on an unchanged head/base/merge tuple. Attempt 2 or later does not qualify.
+Neither a budget counter nor a transient-cause classifier exists in live CI.

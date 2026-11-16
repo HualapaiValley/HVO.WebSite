@@ -21,6 +21,12 @@ rebase methods. Open PRs #477–480 and #485 were untouched; #434, #437 and #452
 retained Roy's claims. No low-risk unclaimed pilot issue was selected or created.
 These observations are historical evidence and must be refreshed before use.
 
+The offline coordinator journal and evidence collector remain disabled. Saved-read
+resolution requires all bindings; partial matches stay ambiguous, and later runs
+reopen evidence. Recovery and watchdog planning report only; dispatch, replay and
+resume are absent. Model family and session distinctness remain unknown. The CI
+retry budget is modeled only; live CI has no budget counter or transient classifier.
+
 The later [disabled local prototype](../tools/policy-pilot/README.md) adds policy
 minimum inspection and transactional single-host intent/event recording without changing
 the existing CI or live controller. Missing authenticated impact/runtime/outcome

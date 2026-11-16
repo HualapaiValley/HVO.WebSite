@@ -49,3 +49,9 @@ Missing capabilities are blockers, not permission to substitute
 conversation memory or polling with unbounded replay. Validate each transport's
 uncertain-outcome semantics before use. Legacy hvo worker/coordinator instructions
 are historical audit evidence; never install them as a prerequisite here.
+
+The disabled offline coordinator journal and collector add no Kepler transport.
+Saved-read resolution requires all bindings; partial matches remain ambiguous,
+and later runs reopen evidence. Recovery and watchdog planning produce reports
+only. No activation, dispatch, replay or resume is implemented; model family and
+session distinctness are unknown. The CI retry budget is a model, not live CI.

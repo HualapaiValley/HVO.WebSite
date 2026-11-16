@@ -49,3 +49,9 @@ success, stale owner, provider failure, changed PR head/target and failed CI.
 Assert no second dispatch on ambiguity and no merge without current evidence.
 An unimplemented transport/watchdog leaves the assignment blocked; this contract
 does not promise exactly-once dispatch, cross-owner fencing or unattended recovery.
+
+The disabled offline coordinator journal and collector do not implement transport,
+activation, dispatch, replay or resume. Recovery and watchdog planning produce
+reports only. All-binding resolution leaves partial matches ambiguous; a later run
+reopens and voids evidence. Family and session distinctness remain unknown. The
+CI retry budget is modeled only; power-loss durability remains unverified.

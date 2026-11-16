@@ -135,3 +135,11 @@ authoritative coordination/outcome adapters and live recovery qualification,
 trusted enforcement implementation
 and protected-branch qualification. No launch, recovery, merge or deployment success
 is claimed by this document.
+
+The disabled offline collector and coordinator journal inspect saved reads only.
+All-binding resolution leaves partial matches ambiguous; a later run reopens and
+voids prior evidence. Recovery and watchdog planning stop at a report, with no
+activation, dispatch, replay or resume. Model family and session distinctness are
+unknown. The first-attempt CI rule and two-new-run retry budget are modeled only;
+live CI has no budget counter or transient-cause classifier. Power-loss durability
+is unverified.
