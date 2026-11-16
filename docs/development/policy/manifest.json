@@ -25,5 +25,14 @@
     "mode": "offline-disabled",
     "activationSupported": false,
     "authenticationAvailable": false
+  },
+  "policyVersion": "2026-11-16.4",
+  "prototypeDesign": {
+    "name": "HVO unified agent workflow design",
+    "version": "0.3",
+    "author": "Kepler",
+    "date": "2026-11-16",
+    "location": "not in repository",
+    "status": "design reference; not approved policy"
   }
 }

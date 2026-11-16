@@ -121,3 +121,12 @@ session distinctness remains unknown. Re-check the source and checks after colle
 The modeled CI budget allows an initial attempt-1 run and at most two new attempt-1
 runs on an unchanged head/base/merge tuple. Attempt 2 or later does not qualify.
 Neither a budget counter nor a transient-cause classifier exists in live CI.
+
+Saved collector inputs are strict UTF-8 JSON objects, one per regular file; wrappers,
+trailing text and non-finite numbers are rejected. `githubFile` contains `pr`,
+`statuses` (the combined status, including `sha`), and `workflowRuns` (the GitHub
+list object with `total_count` and `workflow_runs`). CI tuple bindings come from
+the exact HVO-PR-CI display title. Saved list pages used for resolution must include
+the coordinator-recorded `request`: environmentId, allProjects and includeSubagents
+true, the exact titleContains nonce, no status filter and cursor absent or zero.
+Live WebSite admission requires CI attempt 1; only the retry budget is modeled.

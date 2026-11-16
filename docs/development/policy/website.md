@@ -116,14 +116,19 @@ reviewer/family evidence, wrong publisher, forged/edited records, failed/partial
 CI, unresolved threads and unauthorized direct pushes. Also prove a positive
 independent exact-source candidate and post-merge observation in an authorized
 disposable fixture. Existing unit fixtures alone do not prove GitHub enforcement.
-Protection changes, publisher credentials and live qualification require a separate
-authorized step; until then autonomous merge is BLOCKED.
+Qualify first in an isolated fixture repository before production. Capture
+authenticated settings and active-PR impact before any protection change. Review
+Phase B runner and credential exposure, and measure strict up-to-date re-review cost.
+Plan an authorized repair route when a protection blocks its own repair. Live tests
+require authorization separate from watchdog approval. Protection changes, publisher
+credentials and live qualification require a separate authorized step; until then autonomous merge is BLOCKED.
 
 ## Rollback and remaining acceptance
 
 Before activation, snapshot protections, trusted producer revision, policy version,
 active ownership and runs. Stop new dispatch on failure; reconcile in-flight work;
-restore only the recorded approved configuration and verify protections. Retain
+restore only the recorded approved baseline and verify protections. Stop if the
+baseline is unknown or a concurrent change prevents safe restoration. Retain
 evidence; never replay uncertain operations or delete unrelated worktrees.
 
 Still required: independent high-risk policy review on the exact current head,
@@ -140,6 +145,7 @@ The disabled offline collector and coordinator journal inspect saved reads only.
 All-binding resolution leaves partial matches ambiguous; a later run reopens and
 voids prior evidence. Recovery and watchdog planning stop at a report, with no
 activation, dispatch, replay or resume. Model family and session distinctness are
-unknown. The first-attempt CI rule and two-new-run retry budget are modeled only;
-live CI has no budget counter or transient-cause classifier. Power-loss durability
+unknown. WebSite admission already requires a CI run with attempt 1. The initial
+run plus two new runs budget is modeled only; live CI has no budget counter or
+transient-cause classifier. Power-loss durability
 is unverified.
