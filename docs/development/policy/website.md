@@ -1,6 +1,6 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-16.2`. Status: local preparation; no live rollout or
+Policy version: `2026-11-16.3`. Status: local preparation; no live rollout or
 autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
@@ -28,6 +28,12 @@ Load [common policy](common.md), the existing issue/review/PR skills and
 [harness and Kepler adapters](adapters.md) add discovery and transport only.
 The [manifest](manifest.json) pins the new common/adoption/adapter/coordination
 snapshot; existing WebSite skills remain repository-versioned dependencies.
+
+The unconditional AGENTS.md routing now states local/global skill precedence for
+ordinary sessions (N1); actual discovery in each launch context remains unqualified.
+The [disabled local prototype](../../../tools/policy-pilot/README.md) implements
+conservative policy-minimum inspection and transactional intent/event persistence.
+It cannot authenticate evidence, publish approval, dispatch, replay or merge.
 
 ## Preserved validation and boundaries
 
@@ -114,7 +120,8 @@ Still required: independent high-risk policy review on the exact current head,
 reconciliation of the existing review-format's depth-only one-review default and
 one-review Deep example with the candidate's two-family minimum before broader
 activation, full source-bound local gates,
-chosen low-risk assignment, actual harness/model/full-access qualification, durable
-coordinator implementation and recovery tests, trusted enforcement implementation
+chosen low-risk assignment, actual harness/model/full-access qualification,
+authoritative coordination/outcome adapters and live recovery qualification,
+trusted enforcement implementation
 and protected-branch qualification. No launch, recovery, merge or deployment success
 is claimed by this document.

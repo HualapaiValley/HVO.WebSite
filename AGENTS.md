@@ -2,7 +2,7 @@
 
 ## Unified-policy pilot candidate
 
-The repository-contained [HVO policy 2026-11-16.2](docs/development/policy/common.md)
+The repository-contained [HVO policy 2026-11-16.3](docs/development/policy/common.md)
 and [WebSite adoption profile](docs/development/policy/website.md) define the
 reviewable single-host pilot and its activation blockers. Read them when preparing
 the unified-policy pilot. Existing procedures below remain in force for current
@@ -21,6 +21,12 @@ These instructions apply to HVO.WebSite. Other repositories remain read-only unl
 Use a dedicated branch/checkout from `main`; never commit issue work directly to `main`. Do not overwrite another owner's work. Releases, deployment, live hardware operations and other repositories need applicable authorization. An explicitly authorized full issue lifecycle includes reviewed, green merge and closeout; do not stop at PR creation or repeatedly ask to continue. An epic assignment includes its authorized child work and final acceptance. If merge is not authorized, stop with the reviewed, green PR and report its state.
 
 ## Mandatory procedure routing
+
+For all WebSite work, repository-local procedures govern over legacy global
+`hvo-review`, `hvo-worker` and `hvo-plan` procedures. Auto-surfacing a global skill
+does not invoke it, authorize dispatch/installation, or replace the local files.
+Platform/security requirements and the assignment's narrower scope still apply;
+resolve a conflict before acting. Do not edit or uninstall global skills.
 
 Before acting, read [the repository profile](docs/development/repository-profile.md) and the applicable files below. These are required local instructions, even when the tool does not automatically discover skills.
 

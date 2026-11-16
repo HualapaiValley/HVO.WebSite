@@ -8,6 +8,9 @@ description: CANDIDATE — not activated. Apply the tool-neutral HVO ownership, 
 Read [common policy](../../../docs/development/policy/common.md) and the
 [adoption profile](../../../docs/development/policy/website.md). This is a procedure
 contract, not an installed dispatcher/watchdog or proof of unattended recovery.
+The [disabled local journal](../../../tools/policy-pilot/README.md) implements
+intent/event persistence and recovery inspection only; its observations are
+unverified and never authorize dispatch, retry, completion or merge.
 Do not activate dispatch before the profile's qualification is complete.
 
 One authoritative coordinator owns the work domain on one host. A standalone

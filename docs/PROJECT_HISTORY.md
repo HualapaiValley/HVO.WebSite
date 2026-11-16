@@ -21,6 +21,13 @@ rebase methods. Open PRs #477–480 and #485 were untouched; #434, #437 and #452
 retained Roy's claims. No low-risk unclaimed pilot issue was selected or created.
 These observations are historical evidence and must be refreshed before use.
 
+The later [disabled local prototype](../tools/policy-pilot/README.md) adds policy
+minimum inspection and durable single-host intent/event recording without changing
+the existing CI or live controller. Missing authenticated impact/runtime/outcome
+adapters keep admission and dispatch disabled. The ordinary-session precedence
+rule is now in AGENTS.md; runtime discovery and operational qualification remain
+separate prerequisites.
+
 ## 2026-10-29 — Remaining Pi collectors use CI registry images (#466 candidate)
 
 JK BMS, SmartShunt and EG4 now follow the Davis per-collector semver workflows:

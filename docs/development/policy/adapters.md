@@ -42,8 +42,10 @@ Its adapter supplies only these capabilities:
 | Monitor | Durable watchdog independent of the conversation; reconcile before any retry |
 | Finalize | Use the existing PR contract, assignment endpoint and qualified trusted gates; observe actual merge and acceptance |
 
-No provider API, callback store or watchdog has been implemented/installed by this
-pilot preparation. Missing capabilities are blockers, not permission to substitute
+No provider API or watchdog has been implemented/installed by this pilot preparation.
+The [disabled local journal](../../../tools/policy-pilot/README.md) retains unverified
+callback observations but supplies no authenticated callback transport or replay.
+Missing capabilities are blockers, not permission to substitute
 conversation memory or polling with unbounded replay. Validate each transport's
 uncertain-outcome semantics before use. Legacy hvo worker/coordinator instructions
 are historical audit evidence; never install them as a prerequisite here.

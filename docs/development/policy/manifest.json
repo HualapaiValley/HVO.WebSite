@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-16.2",
+  "version": "2026-11-16.3",
   "status": "candidate-not-activated",
   "canonicalSource": "HualapaiValley/HVO.WebSite:docs/development/policy/common.md",
   "design": {
@@ -19,5 +19,11 @@
     "docs/development/policy/website.md",
     "docs/development/policy/adapters.md",
     ".agents/skills/hvo-coordination/SKILL.md"
-  ]
+  ],
+  "localPrototype": {
+    "path": "tools/policy-pilot",
+    "mode": "offline-disabled",
+    "activationSupported": false,
+    "authenticationAvailable": false
+  }
 }
