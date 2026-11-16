@@ -73,6 +73,28 @@ test('family comparison is normalized but never described as verified provenance
   assert.match(inspectCandidate(f.sync()).structuralErrors.join('\n'), /declaration missing/);
 });
 
+for (const [label, families] of [
+  ['provider alias', ['claude', 'anthropic']],
+  ['Cyrillic lookalike', ['gpt', 'g\u0440t']],
+  ['invisible character', ['claude', 'claude\u200b']],
+  ['Unicode compatibility form', ['gpt', '\uff47\uff50\uff54']],
+]) {
+  test(`${label} declarations and forged mappings never establish family provenance`, () => {
+    const f = fixture();
+    f.reviews.forEach((review, index) => { review.identity.modelFamily = families[index]; });
+    const snapshot = f.sync();
+    // An attacker also supplies an apparently verified mapping and receipts.
+    snapshot.familyMapping = { authenticated: true, canonicalFamilies: ['family-a', 'family-b'] };
+    snapshot.receipts = { verified: true, authenticated: true };
+    const result = inspectCandidate(snapshot);
+    // Document the structural limitation rather than pretending aliases are resolved.
+    assert.equal(result.structuralEligible, true);
+    assert.equal(result.eligible, false);
+    assert.equal(result.mode, 'offline-disabled');
+    assert.match(result.blockers.join('\n'), /No trusted canonical family mapping/);
+  });
+}
+
 test('at least one deep review, not both, is required unless assignment is stricter', () => {
   const f = fixture();
   assert.equal(inspectCandidate(f.sync()).structuralEligible, true);

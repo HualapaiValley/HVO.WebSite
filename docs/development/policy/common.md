@@ -1,4 +1,4 @@
-# HVO engineering policy — 2026-11-16.3 pilot
+# HVO engineering policy — 2026-11-16.4 pilot
 
 This is the canonical common-policy source for the local WebSite pilot. Other
 repositories have not adopted it. The [manifest](manifest.json) pins the portable

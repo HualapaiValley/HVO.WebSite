@@ -1,7 +1,8 @@
 """Disabled single-host journal. No network, dispatch, merge, or trusted receipt adapter.
 
 Observations are unverified and cannot clear an ambiguous attempt. SQLite provides
-transactional durability for an owned local file; this is not cross-host fencing
+transactional recording for an owned local file; power-loss durability is unverified.
+This is not cross-host fencing
 or protection against an actor who can edit that file. No import-time writes.
 """
 import contextlib
@@ -66,7 +67,7 @@ class Journal:
             ''')
             db.execute('INSERT INTO domain VALUES (?, 1)', (owner,))
             db.commit()
-        # Ensure the newly created directory entry is persisted as well.
+        # Request an initial directory sync; this does not qualify power-loss durability.
         parent = os.open(journal.path.parent, os.O_RDONLY)
         try:
             os.fsync(parent)

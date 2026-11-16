@@ -18,6 +18,8 @@ export function minimumForRisk(risk) {
 
 const UNKNOWN = /^(unknown|unavailable|provider-managed|auto|n\/a)$/i;
 function declaredFamily(identity) {
+  // Structural strings only: aliases/lookalikes may appear distinct. Admission
+  // requires authenticated runtime identities and a trusted canonical mapping.
   const value = identity?.modelFamily;
   return typeof value === 'string' && value.trim() && !UNKNOWN.test(value.trim())
     ? value.trim().toLowerCase() : null;
@@ -73,6 +75,7 @@ export function inspectCandidate(input) {
     blockers: [
       'No authenticated candidate/source or impact-assessment adapter',
       'No authenticated contributor, reviewer-session or model-family receipts',
+      'No trusted canonical family mapping from authenticated runtime receipts; aliases and lookalikes are unresolved',
       'No qualified trusted publisher or protected-branch integration',
       'Pilot admission is disabled; structural consistency is not approval',
     ],

@@ -3,7 +3,7 @@
 These modules are not imported by the live evaluator/controller, installed into a
 harness, or invoked by CI. There is no enable flag, external transport, credential
 creation, scheduler, status publisher or merge operation. They implement local
-validation and durable recording without activating the proposed policy.
+validation and transactional recording without activating the proposed policy.
 
 ## Review-policy inspection
 
@@ -31,6 +31,16 @@ completeness checks; qualified publisher and branch enforcement. A field named
 `authenticated`, an account permission lookup or a family string cannot supply
 these. Do not integrate this inspector as a passing CI gate.
 
+**Hard activation blocker:** derive canonical family IDs from authenticated runtime
+provider/model receipts through a trusted mapping, never from declared strings.
+Trimming/lowercasing is only a structural comparison: aliases (`claude`/`anthropic`),
+Unicode lookalikes and invisible characters can still appear distinct. Before
+activation, qualify rejection of unmapped/ambiguous identities and forged mappings,
+and prove aliases of the same family cannot fill separate family slots. Normalizing
+text or accepting a caller-supplied mapping does not establish provenance. The local
+adversarial tests demonstrate these declarations can be structurally consistent
+while admission remains blocked; they do not implement authenticated mapping.
+
 ## Journal and recovery inspection
 
 `journal.py` is an explicit-call library with no import-time writes. It creates a
@@ -50,11 +60,17 @@ Implemented operations:
   collisions. Quarantine unknown work/attempts and stale generations/source.
   A persistence acknowledgment is returned only after commit; it is not a trust
   acknowledgment. Callback order cannot advance or regress execution state.
-- `recover`: read the durable journal after restart without writes or replay.
+- `recover`: read the transactional journal after restart without writes or replay.
   All attempts remain AMBIGUOUS, with dispatch and merge explicitly disallowed.
 
-SQLite transactions, FULL synchronous commits and initial directory fsync provide
-local durability under the filesystem's guarantees. Ownership/generation checks
+SQLite transactions, FULL synchronous commits and initial directory fsync support
+the tested process-exit recovery cases. Power-loss durability is unverified:
+the current rollback journal uses DELETE mode, with fullfsync off by default.
+`persisted: true` acknowledges a SQLite commit, not survival of a power failure.
+Neither current tests nor a future PRAGMA change alone qualifies hardware durability.
+Before any adapter relies on recorded intent or acknowledgments, qualify the storage
+configuration and power-loss recovery on the actual filesystem/hardware; until then
+that reliance is blocked. Ownership/generation checks
 are cooperative local consistency checks, not authentication or fencing against
 an actor able to modify the database. There is no ownership transfer, stale-owner
 takeover or recovery reset. Generations cannot be advanced by this prototype.

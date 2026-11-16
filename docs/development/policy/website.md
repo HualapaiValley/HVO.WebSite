@@ -1,6 +1,6 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-16.3`. Status: local preparation; no live rollout or
+Policy version: `2026-11-16.4`. Status: local preparation; no live rollout or
 autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
@@ -34,6 +34,9 @@ ordinary sessions (N1); actual discovery in each launch context remains unqualif
 The [disabled local prototype](../../../tools/policy-pilot/README.md) implements
 conservative policy-minimum inspection and transactional intent/event persistence.
 It cannot authenticate evidence, publish approval, dispatch, replay or merge.
+Power-loss durability of the transactional journal is unverified; no adapter may
+rely on its acknowledgments for external operations before storage and power-loss
+recovery qualification. Process-exit tests or PRAGMA changes alone cannot qualify it.
 
 ## Preserved validation and boundaries
 
@@ -73,6 +76,13 @@ minimum risk/count from trusted policy and changed scope; validate reviewer fami
 provenance separately from model-string inequality. Existing publisher permission
 checks do not attest execution or review quality. Keep the trusted schema/producer
 unchanged here and qualify its successor separately.
+
+Authenticated canonical model-family mapping is a hard activation blocker. Derive
+families from authenticated runtime provider/model receipts through a trusted
+mapping, never from declared family strings or caller-supplied mappings. Qualify
+aliases, Unicode lookalikes/invisible characters, unmapped or ambiguous identities
+and forged mappings before activation. The offline inspector's adversarial tests
+prove only that admission stays disabled, not that family provenance is verified.
 
 ## Proposed minimal protection and enforcement — not activated
 

@@ -22,11 +22,14 @@ retained Roy's claims. No low-risk unclaimed pilot issue was selected or created
 These observations are historical evidence and must be refreshed before use.
 
 The later [disabled local prototype](../tools/policy-pilot/README.md) adds policy
-minimum inspection and durable single-host intent/event recording without changing
+minimum inspection and transactional single-host intent/event recording without changing
 the existing CI or live controller. Missing authenticated impact/runtime/outcome
 adapters keep admission and dispatch disabled. The ordinary-session precedence
 rule is now in AGENTS.md; runtime discovery and operational qualification remain
-separate prerequisites.
+separate prerequisites. Power-loss durability is unverified; relying on journal
+acknowledgments for external operations remains blocked. Authenticated canonical
+family mapping and adversarial qualification are hard activation prerequisites;
+declared aliases or lookalikes do not prove independent model families.
 
 ## 2026-10-29 — Remaining Pi collectors use CI registry images (#466 candidate)
 
