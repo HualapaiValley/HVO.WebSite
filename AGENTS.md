@@ -2,13 +2,17 @@
 
 ## Unified-policy pilot candidate
 
-The repository-contained [HVO policy 2026-11-16.1](docs/development/policy/common.md)
+The repository-contained [HVO policy 2026-11-16.2](docs/development/policy/common.md)
 and [WebSite adoption profile](docs/development/policy/website.md) define the
 reviewable single-host pilot and its activation blockers. Read them when preparing
 the unified-policy pilot. Existing procedures below remain in force for current
 work; this candidate does not activate autonomous merge or replace trusted gates.
-The [thin adapters](docs/development/policy/adapters.md) route every harness to the
-same contracts, with no global installation prerequisite.
+During candidate preparation, policy/enforcement changes require two independent
+reviewers from different model families, at least one deep review, as specified
+in the adoption profile. The existing skill's depth-only default cannot lower
+that minimum. The [thin adapters](docs/development/policy/adapters.md) describe
+explicit loading for the listed harnesses; automatic discovery is unqualified.
+No global installation is a prerequisite.
 
 ## Scope and authorization
 

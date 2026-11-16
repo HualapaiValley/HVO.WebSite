@@ -1,26 +1,27 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-16.1`. Status: local preparation; no live rollout or
+Policy version: `2026-11-16.2`. Status: local preparation; no live rollout or
 autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
-Target: `main`. Use squash for feature merges; the remote currently permits all
-three merge methods. The [existing repository profile](../repository-profile.md),
+Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
 and [automation evidence](../automation-evidence.md) retain their requirements.
 
-Read-only baseline on 16 November 2026: main was
-`add1adc273ab0b3413acdd2541f499c427125af1`; branch protection was disabled and the
-ruleset list was empty. This is a snapshot, not a continuing guarantee. Re-query
-before future work. Open PRs #477–480 and #485 were left untouched; #434, #437 and
-#452 retained Roy's existing claims. Unassigned issues are not proof of availability.
-No suitably low-risk unclaimed pilot issue was selected or created in this task.
+The dated [repository baseline](../../PROJECT_HISTORY.md#unified-policy-pilot-baseline)
+records observed branch/protection/merge settings and active work. Re-query those
+facts before future work; unassigned issues are not proof of availability.
 
 ## Scope and discovery
 
 The common policy is a reviewable candidate for a single-host, low-risk WebSite
 pilot. Existing lifecycle skills continue to define current operations; the new
 contract cannot authorize active work to bypass them. Before an operational pilot,
-reconcile differences and qualify trusted enforcement. Treat policy/enforcement
-changes themselves as high risk, even though the pilot workload will be low risk.
+qualify trusted enforcement. Treat policy/enforcement changes themselves as high
+risk, even though the pilot workload will be low risk. During this candidate period,
+their review requires two independent reviewers from different model families,
+at least one deep review. This stricter minimum applies to this candidate and
+overrides the existing review-format statement that Deep does not automatically
+require multiple reviews; the skill's other coverage/publication requirements stay
+in force. Neither this rule nor a passing review authorizes dispatch or activation.
 
 Load [common policy](common.md), the existing issue/review/PR skills and
 [coordination](../../../.agents/skills/hvo-coordination/SKILL.md). Thin
@@ -52,8 +53,12 @@ Keep WebSite's `hvo-pr-process` version 1 format unchanged. Common CLEAN maps to
 WebSite APPROVE only when coverage is complete and all mandatory conditions pass;
 CHANGES_REQUIRED and INCOMPLETE map directly. BLOCKED is non-approval: publish
 INCOMPLETE with the blocker, never invent an unsupported machine verdict.
-Mechanical/Standard/Deep map to low/standard/high coverage respectively, while
-reviewer count and actual model separation remain independent requirements.
+The existing profile/review-format Deep triggers (including deployment, durability
+and cross-component effects) are High risk for this pilot. Mechanical/Standard/Deep
+map to low/standard/high coverage, with reviewer minima from the common contract.
+Camera lifecycle is a cross-repository common-policy example, not an assertion that
+WebSite operates cameras. Standard review permits the same model in a distinct
+independent session unless the assignment adds separation requirements.
 
 The current author record can request `minReviewers`, `differentModel`, panel
 selectors and `modelComparison: all-contributors`. Those declarations do not prove
@@ -105,7 +110,10 @@ active ownership and runs. Stop new dispatch on failure; reconcile in-flight wor
 restore only the recorded approved configuration and verify protections. Retain
 evidence; never replay uncertain operations or delete unrelated worktrees.
 
-Still required: independent high-risk policy review, full source-bound local gates,
+Still required: independent high-risk policy review on the exact current head,
+reconciliation of the existing review-format's depth-only one-review default and
+one-review Deep example with the candidate's two-family minimum before broader
+activation, full source-bound local gates,
 chosen low-risk assignment, actual harness/model/full-access qualification, durable
 coordinator implementation and recovery tests, trusted enforcement implementation
 and protected-branch qualification. No launch, recovery, merge or deployment success

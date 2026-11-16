@@ -2,6 +2,8 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
+<a id="unified-policy-pilot-baseline"></a>
+
 ## 2026-11-16 — Unified engineering policy preparation
 
 The [local pilot policy](development/policy/common.md) and
@@ -12,6 +14,12 @@ harness adapters. This is preparation against main at
 HVO-policy-proposal.md version 1. No active PR, CI producer, protection setting or
 host configuration changes are included. Autonomous merge remains blocked until
 trusted enforcement and recovery are implemented and qualified.
+
+Read-only observations on 16 November 2026: main was the SHA above; protection
+was disabled and the ruleset list was empty. The remote allowed squash, merge and
+rebase methods. Open PRs #477–480 and #485 were untouched; #434, #437 and #452
+retained Roy's claims. No low-risk unclaimed pilot issue was selected or created.
+These observations are historical evidence and must be refreshed before use.
 
 ## 2026-10-29 — Remaining Pi collectors use CI registry images (#466 candidate)
 

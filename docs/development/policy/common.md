@@ -1,4 +1,4 @@
-# HVO engineering policy — 2026-11-16.1 pilot
+# HVO engineering policy — 2026-11-16.2 pilot
 
 This is the canonical common-policy source for the local WebSite pilot. Other
 repositories have not adopted it. The [manifest](manifest.json) pins the portable
@@ -8,22 +8,31 @@ designated before distributing further snapshots. Edit here, update the manifest
 and review the complete snapshot together. A digest proves consistency, not trust.
 
 This implements the accepted decisions in HVO-policy-proposal.md, Library version
-1, design v0.2 (16 November 2026). The [WebSite adoption profile](website.md) fixes
+1, design v0.2 (16 November 2026), pinned by identity and byte digest in the
+[manifest](manifest.json). The source remains in Library; access is required to
+inspect it, and a digest alone cannot replace that inspection. Roy subsequently
+clarified that ordinary review requires independence, not a different model; that
+clarification supersedes the design's Standard-tier different-model proposal.
+The [WebSite adoption profile](website.md) fixes
 the current activation boundary. Existing trusted evaluators remain authoritative;
 these documents neither grant assignment authority nor publish a passing gate.
 
 ## Authority and precedence
 
-Platform/security restrictions come first, followed by explicit assignment scope,
-this common contract and the repository profile's additional project requirements.
-No exception silently waives protections, safety or required validation. Resolve
-conflicts before the affected action. Max, Kepler and other identities have no
+Platform/security restrictions come first. This common contract and the repository
+profile establish minimum requirements. An assignment may narrow the permitted
+scope or add requirements; it cannot lower review-tier minima, required model-family
+separation, required validation, protections or safety boundaries. An explicit
+assignment is not a waiver. Resolve conflicts before the affected action.
+Max, Kepler and other identities have no
 special privileges. A coordinator is optional and follows the same policy.
 
 Record owner, scope, acceptance criteria, risk and endpoint (research,
 implementation, PR-ready, merged or deployed). Authorized issue-to-merge work may
 progress autonomously through review, CI and merge only after every gate passes.
-Release publication, deployment and physical operations need separate authority.
+Release publication, deployment and physical operations each require their own
+explicit authorization, independent of merge authority and of each other. Physical
+operations include operating the real roof or any other physical device.
 Full-access, noninteractive execution is allowed only where supported and authorized;
 it never overrides platform restrictions or authorizes credential/network bypass.
 
@@ -60,8 +69,8 @@ An uncertain remote mutation must be reconciled before any replay.
 | Risk | Minimum review |
 |---|---|
 | Low: non-executable documentation/presentation without behavior or security impact | One independent person/session; suitable lightweight model allowed |
-| Standard: ordinary behavior/API changes | One independent reviewer; agent model differs from implementation models |
-| High: safety, security, state/migrations, concurrency/recovery, camera lifecycle, CI trust or policy enforcement | Two independent reviewers from different model families, at least one deep review |
+| Standard: ordinary behavior/API changes | One independent person/session; a different model is optional unless explicitly required by the assignment |
+| High: safety, security, durability, state/migrations, concurrency/recovery, deployment, cross-component effects, camera lifecycle, CI trust or policy enforcement | Two independent reviewers from different model families, at least one deep review |
 
 A reviewer must not author/modify the candidate or finalize it during that review.
 Different harnesses or aliases alone do not establish model diversity. Record

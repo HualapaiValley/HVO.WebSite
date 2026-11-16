@@ -1,6 +1,6 @@
 ---
 name: hvo-coordination
-description: Apply the tool-neutral HVO ownership, dispatch and reconciliation contract for an explicitly authorized coordinated assignment.
+description: CANDIDATE — not activated. Apply the tool-neutral HVO ownership, dispatch and reconciliation contract only within the pilot preparation scope.
 ---
 
 # Coordination contract — pilot candidate
