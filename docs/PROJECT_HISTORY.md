@@ -2,6 +2,17 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
+## 2026-11-16 — Unified engineering policy preparation
+
+The [local pilot policy](development/policy/common.md) and
+[WebSite adoption profile](development/policy/website.md) preserve existing product
+and CI requirements while defining common review tiers, coordination and thin
+harness adapters. This is preparation against main at
+`add1adc273ab0b3413acdd2541f499c427125af1`, based on the owner-approved
+HVO-policy-proposal.md version 1. No active PR, CI producer, protection setting or
+host configuration changes are included. Autonomous merge remains blocked until
+trusted enforcement and recovery are implemented and qualified.
+
 ## 2026-10-29 — Remaining Pi collectors use CI registry images (#466 candidate)
 
 JK BMS, SmartShunt and EG4 now follow the Davis per-collector semver workflows:

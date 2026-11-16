@@ -1,5 +1,9 @@
 # WebSite process profile
 
+The [unified-policy pilot adoption profile](policy/website.md) records the proposed
+common-policy version, preserved WebSite requirements and enforcement qualification
+needed before activation. It does not change this profile's live CI contract.
+
 Process revision: `2026-10-04.1` (selective CI adopted by PR #426).
 
 | Setting | WebSite value |

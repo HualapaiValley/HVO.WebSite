@@ -1,0 +1,19 @@
+{
+  "version": "2026-11-16.1",
+  "status": "candidate-not-activated",
+  "canonicalSource": "HualapaiValley/HVO.WebSite:docs/development/policy/common.md",
+  "design": {
+    "name": "HVO-policy-proposal.md",
+    "libraryVersion": 1,
+    "designVersion": "0.2"
+  },
+  "baseline": "add1adc273ab0b3413acdd2541f499c427125af1",
+  "target": "main",
+  "checksums": "docs/development/policy/snapshot.sha256",
+  "files": [
+    "docs/development/policy/common.md",
+    "docs/development/policy/website.md",
+    "docs/development/policy/adapters.md",
+    ".agents/skills/hvo-coordination/SKILL.md"
+  ]
+}
