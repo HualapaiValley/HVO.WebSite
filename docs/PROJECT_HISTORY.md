@@ -2,6 +2,47 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
+## 2026-11-16 — Manual review bootstrapping
+
+Roy accepted (5:09 PM PST) the two round-2 independent reviews of 8c16c3bc — Sol
+(requested model only (codex_cliproxy/gpt-6.1-sol xhigh); T3 reported no executed
+model) and
+Opus deep (requested claude_cliproxy/claude-opus-5-5 max; provider-reported
+claude-opus-5-5, unauthenticated), both CLEAN — as a manual bootstrapping decision
+for the High-risk review minimum. Family identity was not authenticated; this is
+not authenticated proof of two families. The decision covers only disclosed family
+uncertainty and waives no other requirement, including coverage, independence,
+required checks, local evidence, the PR-ready stop or merge authorization. It does
+not carry over to another head: each new head needs its own reviews and, if needed,
+its own recorded decision with the same disclosure. Max's review of 8c16c3bc found the procedure-only
+direction sound, did not reject it, and requested clarifications.
+
+## 2026-11-16 — Pilot rescope
+
+Roy rescoped the pilot to AGENTS.md, policy, profile and skills files only. The
+offline journal/collector/review-policy tooling was parked unchanged at branch
+`parking/website-policy-pilot-tooling-20261116` (2513350) and removed from the
+pilot; it is not part of the policy and enforces nothing.
+
+<a id="unified-policy-baseline"></a>
+
+## 2026-11-16 — Unified engineering policy preparation
+
+The [local pilot policy](development/policy/common.md) and
+[WebSite adoption profile](development/policy/website.md) preserve existing product
+and CI requirements while defining common review tiers, coordination and thin
+harness adapters. This is preparation against main at
+`add1adc273ab0b3413acdd2541f499c427125af1`, based on the owner-approved
+HVO-policy-proposal.md version 1. No active PR, CI producer, protection setting or
+host configuration changes are included. The first pilot stops at PR-ready; any first merge needs Roy’s separate
+authorization after evidence inspection.
+
+Read-only observations on 16 November 2026: main was the SHA above; protection
+was disabled and the ruleset list was empty. The remote allowed squash, merge and
+rebase methods. Open PRs #477–480 and #485 were untouched; #434, #437 and #452
+retained Roy's claims. No low-risk unclaimed pilot issue was selected or created.
+These observations are historical evidence and must be refreshed before use.
+
 ## 2026-10-29 — Remaining Pi collectors use CI registry images (#466 candidate)
 
 JK BMS, SmartShunt and EG4 now follow the Davis per-collector semver workflows:
@@ -20,7 +61,7 @@ collectors, including Davis's shared hvo-docker/Pi definition. An opt-in mounted
 non-secret runtime `.env` is read after JSON and creation-time environment,
 allowing app-setting updates on an authorized restart without changing images.
 The directory bind and staged file replacement preserve mount visibility and
-restore previous config/secrets/env on activation failure. Docker-owned settings
+restore previous config/secrets/env if application fails. Docker-owned settings
 still require recreation. The earlier prerelease source predates this loader;
 adoption needs a later publication and separately authorized replacement.
 
@@ -198,7 +239,7 @@ See [canonical weather queries](development/canonical-weather-queries.md).
 - Standardized actual author/reviewer/model/effort provenance, validation performers, independently verified finding threads, and the draft -> review -> gated CI lifecycle.
 - Kept main/squash and operational authorization boundaries; archived the fixed #187–#198 campaign instructions as history. Adoption is tracked by #394; metadata automation becomes active once adopted on main.
 - Excluded the archived `HVO.Database.sqlproj` from the active solution at the owner's direction. Preserved its SQL reference files and direct file-reading tests; EF Core migrations remain authoritative. The active build retains the zero-warning requirement.
-- The owner adopted PR #395 and its first hosted main build/test and Docker smoke passed. Live controller qualification exposed GitHub's additional contents-write requirement for draft conversion; the follow-up scopes that capability to the trusted metadata job and requires a live token check. Independent follow-up review also identified that Actions run/job metadata associates target-event runs with the PR head; the controller now separates that association from trusted base admission and tested-merge binding, with realistic success/failure regression coverage. Candidate CI stays read-only; branch-protection activation remains open until qualification finishes.
+- The owner adopted PR #395 and its first hosted main build/test and Docker smoke passed. Live controller qualification exposed GitHub's additional contents-write requirement for draft conversion; the follow-up scopes that capability to the trusted metadata job and requires a live token check. Independent follow-up review also identified that Actions run/job metadata associates target-event runs with the PR head; the controller now separates that association from trusted base admission and tested-merge binding, with realistic success/failure regression coverage. Candidate CI stays read-only; branch-protection enablement remained open pending qualification.
 
 ## 2026-08-18
 

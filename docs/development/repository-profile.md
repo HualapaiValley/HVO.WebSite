@@ -1,5 +1,11 @@
 # WebSite process profile
 
+The [unified-policy pilot adoption profile](policy/website.md) records the proposed
+common-policy version and preserved WebSite requirements. Enforcement/protection
+qualification is a future requirement for stage (c) autonomous enforcement and any
+protection or ruleset change; the stage (b) supervised trial needs none of it.
+It does not change this profile's live CI contract.
+
 Process revision: `2026-10-04.1` (selective CI adopted by PR #426).
 
 | Setting | WebSite value |
@@ -38,7 +44,7 @@ Keep CSS/theme/offline-gateway, Key Vault, logging, hardware, contract and curat
 
 The original pilot was introduced by issue #394. Its adoption PR could not make its own evaluator or controller an approval authority; the owner performed state writes manually until the trusted code reached main. The same boundary applied to #411: the existing trusted full policy validated the selective-CI implementation before the new planner/workflow/controller became authoritative. Keep historical adoption evidence separate from current qualification.
 
-The original CI required an `hvo-website` self-hosted Linux x64 runner; GitHub reported none when this pilot started. Any hosted-runner migration must preserve the standard checks and be stated in the reviewed PR. Repository-required-check configuration is a separate GitHub setting and must be recorded when changed; committed policy alone does not activate protection.
+The original CI required an `hvo-website` self-hosted Linux x64 runner; GitHub reported none when this pilot started. Any hosted-runner migration must preserve the standard checks and be stated in the reviewed PR. Repository-required-check configuration is a separate GitHub setting and must be recorded when changed; committed policy alone does not enable protection.
 
 The pilot moved standard CI to hosted Ubuntu, using ephemeral Docker smoke resources and installing Chromium's required system dependencies. All existing application/integration/deployment-policy checks remain. The trusted `Review Evidence` status and standard `build-and-test` / `docker-smoke` checks, plus required conversation resolution and an up-to-date candidate, are the intended main-branch protection profile after adoption. Required native approval count can remain zero for attributed same-account independent sessions. Do not claim these repository settings are active until their GitHub state is verified.
 
