@@ -31,7 +31,7 @@ The author replies to each finding; the independent reviewer verifies its termin
 
 Kepler marks ready only after the current candidate meets review/acceptance requirements. Standard CI then runs; Kepler merges only after required CI and final checks pass and merge is authorized. Failure/new source returns to draft and invalidates readiness; independently review source corrections after the named exact-head draft checks pass before the next ready/run. Diagnosed infrastructure failure with unchanged source can retain existing source review through the profile's one fresh complete run.
 
-Verify merge SHA/target and actual issue closure; publish closeout, release active ownership/reservations and safely clean completed branches/workspaces. The common standing rule authorizes merge subject to assignment limits; release/deployment is separately scoped. An epic continues through ready authorized children and closes only when epic acceptance is verified.
+Verify merge SHA/target and actual issue closure; publish closeout, release active ownership/reservations. Branch and workspace deletion remains subject to the common deletion stop. The common standing rule authorizes merge subject to assignment limits; release/deployment is separately scoped. An epic continues through ready authorized children and closes only when epic acceptance is verified.
 
 ## Reviewer selection and provenance
 

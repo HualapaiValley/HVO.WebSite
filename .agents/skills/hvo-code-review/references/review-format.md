@@ -68,7 +68,7 @@ Fallback: Another eligible independent frontier model under common policy
 
 An exact-model request can instead say `Required: one of <provider/model/settings A> OR <provider/model/settings B>; no other fallback`. A two-model request says `Required: two independent reviews, one from A AND one from B`. These describe selection constraints, not reviews already performed or blanket authorization to launch extra agents.
 
-An explicit all-of panel requires a distinct reviewer session for each requested selector. A Preferred panel may replace a missing slot only through its declared fallback, with a substitution reason from the reviewer filling that slot; fallback must satisfy common policy and assignment constraints. Two A reviewers cannot satisfy A AND B when fallback is prohibited. A permitted fallback applies even if the substitute matches another preferred selector; one reviewer cannot fill two slots. A panel marked Required with no substitution does not substitute.
+An explicit all-of panel requires a distinct reviewer session for each requested selector. A Preferred panel may replace a missing slot only through its declared fallback, with a substitution reason from the reviewer filling that slot; fallback must satisfy common policy and assignment constraints. Two A reviewers cannot satisfy A AND B when fallback is prohibited. A permitted fallback applies even if the substitute matches another preferred selector; one reviewer cannot fill two slots. A Required panel never substitutes.
 
 **How to perform the review**
 
@@ -244,7 +244,7 @@ The independent reviewer checks that claim and supplies the reply to Kepler for 
 
 Equivalent terminal replies are `VERIFIED_DEFERRED`, `VERIFIED_NON_ACTIONABLE` and `VERIFIED_SUPERSEDED`. A failed correction is `STILL_OPEN`, with the remaining behavior/evidence. The implementer cannot supply its own independent verification.
 
-An authorized PR owner or maintainer resolves the thread only after the reviewer's terminal verification is present. This need not require an additional routine human approval when the assignment already authorizes the lifecycle. A reply saying "fixed", an outdated annotation, or reaching a round cap is not independent verification. Keep the original finding and replies; do not erase the history or reset IDs.
+An authorized PR owner or maintainer resolves the thread only after the reviewer's terminal verification is present. This need not require an additional routine human approval when the common standing authorization applies and no assignment limit narrows it. A reply saying "fixed", an outdated annotation, or reaching a round cap is not independent verification. Keep the original finding and replies; do not erase the history or reset IDs.
 
 **Correction summaries and completion**
 

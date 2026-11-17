@@ -25,7 +25,7 @@ Each PR has exactly one lifecycle label from the table. Changing phase replaces 
 | Findings or CI failure being addressed | Draft | `workflow:changes-required` | Diagnose, correct, locally validate, then return to review. |
 | Review complete; standard CI queued/running | Ready | `workflow:ci` | Run the standard profile on the reviewed current candidate. |
 | Required CI green and final conditions verified | Ready | `workflow:ready-to-merge` | Merge under common standing authorization, subject to assignment limits. |
-| Merged and closeout recorded | Merged | `workflow:complete` | Verify issue closure and cleanup. |
+| Merged and closeout recorded | Merged | `workflow:complete` | Verify issue closure and release of ownership and reservations. |
 | Closed without merging | Closed | `workflow:cancelled` | Record the outcome/handoff; do not claim implementation completion. |
 
 Additional labels have separate purposes:
@@ -73,4 +73,4 @@ For a diagnosed infrastructure failure with no source change, the existing revie
 
 Any new source commit after review, including a correction made after CI passed, invalidates the relevant current-head approval and readiness. Kepler returns it to draft before pushing where possible. The guard must also catch a push made while still ready, block standard jobs for the unreviewed head, clear `workflow:ready-to-merge`, and route the candidate back to review. Source synchronization follows the same applicable review rules.
 
-Once required checks are green for the current reviewed candidate, verify target/source currency and conversation resolution, then apply `workflow:ready-to-merge`. Kepler merges using the repository profile when authorized. Complete the issue/epic progress record, remove active ownership/blocker labels, apply `workflow:complete`, release reservations and clean up safely.
+Once required checks are green for the current reviewed candidate, verify target/source currency and conversation resolution, then apply `workflow:ready-to-merge`. Kepler merges using the repository profile when authorized. Complete the issue/epic progress record, remove active ownership/blocker labels, apply `workflow:complete`, and release reservations. Branch and workspace deletion remains subject to the common deletion stop.
