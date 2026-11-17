@@ -110,12 +110,12 @@ get_secret() {
 import json, sys
 try:
     value = json.load(sys.stdin)
-    if not isinstance(value, str) or "\0" in value:
+    if not isinstance(value, str) or "\0" in value or (value.endswith("\n") and sys.argv[1] != "obs-ssh-private-key"):
         sys.exit(1)
     sys.stdout.write(value + "\x1c")
 except (ValueError, UnicodeError):
     sys.exit(1)
-' 2>/dev/null)" || fail "Required Key Vault secret is unavailable or contains unsupported bytes: $secret_name"
+' "$secret_name" 2>/dev/null)" || fail "Required Key Vault secret is unavailable or contains unsupported bytes: $secret_name"
 		secret_cache["$secret_name"]="${secret_cache[$secret_name]%$'\034'}"
 		[[ -n "${secret_cache[$secret_name]}" ]] || fail "Required Key Vault secret is empty: $secret_name"
 	fi
@@ -223,8 +223,9 @@ validate_bootstrap() {
 		unset SSH_PRIVATE_KEY
 		source "$1" >/dev/null 2>&1
 		[[ -n "${SSH_PRIVATE_KEY-}" ]]
-		printf "%s" "$SSH_PRIVATE_KEY"
+		printf "%s\034" "$SSH_PRIVATE_KEY"
 	' -- "$file" 2>/dev/null)" || fail 'Root .env could not supply the required SSH_PRIVATE_KEY.'
+	bootstrap_ssh="${bootstrap_ssh%$'\034'}"
 	[[ -n "$bootstrap_ssh" ]] || fail 'Root .env has no SSH_PRIVATE_KEY.'
 }
 

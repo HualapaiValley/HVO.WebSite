@@ -56,7 +56,8 @@ Because `.devcontainer/post-create.sh` invokes apply under `set -e`, a
 preparation failure stops the remaining devcontainer setup, including
 developer-certificate generation. Azure CLI and Python 3 are required; JSON
 secret values are checked for NUL bytes before Bash reads them, preserving
-trailing newlines for destination validation.
+trailing newlines. Required secrets other than the manually compared SSH key
+reject a trailing newline before materialization; the SSH comparison preserves it.
 
 Only the root `.env` requires shell-safe plain secret assignments. Its validation
 uses `LC_ALL=C` and rejects ASCII whitespace, dollar signs, backticks, quotes,

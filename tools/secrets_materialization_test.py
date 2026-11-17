@@ -394,6 +394,15 @@ class MaterializationTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.test_bootstrap_stdout_is_suppressed()
 
+    def test_ssh_trailing_newline_round_trip(self):
+        value = SSH + "\n"
+        self.bootstrap(ssh=value)
+        self.settings["values"]["obs-ssh-private-key"] = value
+        self.materialize()
+        checked, log = self.run_sync("--check")
+        self.assertEqual(0, checked.returncode)
+        self.assertNotIn("approved manual rotation", log)
+
     def test_yaml_round_trip(self):
         value = "valid yaml: # punctuation!"
         self.settings["values"][LATE_SECRET] = value
@@ -453,6 +462,7 @@ REJECTIONS = {
     "late_secret_read_failure": lambda t: t.settings.update(fail=LATE_SECRET),
     "empty_sql_secret": lambda t: t.settings["values"].update({SQL_SECRET: ""}),
     "multiline_dotenv_secret": lambda t: t.settings["values"].update({"obs-github-token": "multiline-secret-sentinel\nsecond-line"}),
+    "file_trailing_newline": lambda t: t.settings["values"].update({"HomeAssistant--MqttPassword": "badfile\n"}),
     "root_nul": lambda t: t.settings["values"].update({"obs-github-token": "bad\0root"}),
     "root_trailing_newline": lambda t: t.settings["values"].update({"obs-github-token": "badroot\n"}),
     "website_nul": lambda t: t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": "bad\0website"}),
