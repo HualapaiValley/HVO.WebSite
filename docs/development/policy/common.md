@@ -1,4 +1,4 @@
-# HVO engineering policy — 2026-11-16.7 pilot
+# HVO engineering policy — 2026-11-16.8 pilot
 
 This is the canonical common-policy source for the local WebSite pilot. Other
 repositories have not adopted it. The [manifest](manifest.json) pins the portable
@@ -22,10 +22,17 @@ these documents neither grant assignment authority nor publish a passing gate.
 Pilot work means assignments explicitly designated as pilot work by Roy in the
 assignment, and reviews of those assignments; it does not mean all work on this
 host or repository. Policy text means normative agent workflow instructions and
-adapters: AGENTS.md, CLAUDE.md, docs/development/policy/**,
-docs/development/repository-profile.md, .agents/skills/** and harness adapters
-such as opencode.json or Copilot instructions when they carry workflow rules.
-Product or user documentation that merely mentions a policy is not policy text.
+adapters, including AGENTS.md, CLAUDE.md, docs/development/policy/**,
+docs/development/repository-profile.md, docs/development/PROCESS.md,
+docs/development/automation-evidence.md, CONTRIBUTING.md,
+.github/PULL_REQUEST_TEMPLATE.md, .agents/skills/**, .opencode/**, opencode.json
+and Copilot instructions where they carry workflow rules. Product or user
+documentation that merely mentions a policy is not policy text.
+
+Enforcement changes are changes that gate, block, admit or merge work, or change
+branch protection, rulesets, required checks, review-evidence/admission logic or
+CI gating, wherever they live (for example .github/workflows/**, tools/pr-process*,
+tools/ci-plan* or repository settings).
 
 ## Authority and precedence
 
@@ -33,8 +40,9 @@ For unified-policy pilot work and policy text or enforcement changes,
 platform/security requirements come first, then this common policy, then repository
 profile additions. Other WebSite work follows existing procedures unchanged.
 For WebSite work, repository-local skills govern over legacy global hvo-* skills;
-auto-surfacing a global skill does not invoke it or replace local files. Stop and
-resolve conflicts rather than guessing. An assignment may narrow the permitted
+global skills are not substitutes and do not authorize dispatch or installation.
+No global installation is a prerequisite; no adapter grants broader scope or
+waives gates. Stop and resolve conflicts rather than guessing. An assignment may narrow the permitted
 scope or add requirements; it cannot lower review-tier minima, required model-family
 separation, required validation, protections or safety boundaries. An explicit
 assignment is not a waiver. Resolve conflicts before the affected action.
@@ -56,12 +64,15 @@ it never overrides platform restrictions or authorizes credential/network bypass
    changes, policy/profile version, existing PRs and ownership. Map each acceptance
    criterion to evidence; classify by impact rather than line count.
 2. **Claimed:** establish one accountable owner and durable work key. Use an
-   isolated task branch/checkout. Stale activity is not permission to take ownership.
+   each worker’s own isolated, owned git worktree, never a shared or main checkout;
+   record its path. Fetch and verify the assigned base SHA before implementation.
+   Stale activity is not permission to take ownership.
 3. **Implementing:** make the smallest coherent change; preserve unrelated work.
    Reproduce faults when feasible and test relevant behavior/failure boundaries.
    Record actual commands, source, performer, results and unavailable checks.
-4. **Independent review:** reviewers inspect the intended merge range, requirements,
-   affected interactions and all carried findings. Correct blockers and obtain a
+4. **Independent review:** reviewers check the exact candidate head and base..head
+   range read-only, stopping if the head differs; inspect requirements, affected
+   interactions and all carried findings. Correct blockers and obtain a
    fresh verdict for the exact new head. An incomplete review is not approval.
 5. **Ready:** finalizer verifies ownership, current target/head, acceptance, local
    validation, review independence/count and independently verified dispositions.
@@ -96,12 +107,16 @@ and at least one deep review for High risk, is checked at Ready and before any
 merge decision; it does not block
 implementing, committing, pushing or opening a draft PR. Automated High-risk
 admission means an automated ready/CI/merge decision that relies on model-family
-separation; until family can be authenticated, a human decides using honestly
-labeled reviews. If two reported reviews are accepted for bootstrapping the
+separation; until family can be authenticated, Roy decides and records the
+decision using honestly labeled reviews. If two reported reviews are accepted for bootstrapping the
 High-risk two-family minimum while families cannot be authenticated, Roy makes and
 records that manual decision, disclosing family uncertainty and each reviewer's
 requested and provider-reported model. Never describe it as authenticated proof
-of two families.
+of two families. The decision covers only disclosed model-family uncertainty and
+waives no other requirement: coverage, independence, required checks, local
+evidence, the PR-ready stop and merge authorization remain required. Acceptance
+for one head never carries over: each new head needs its own reviews and, if needed,
+its own recorded decision.
 
 Distinct thread IDs are observable;
 distinct environment sessions may not be. A high-risk

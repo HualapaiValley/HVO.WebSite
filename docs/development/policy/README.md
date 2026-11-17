@@ -10,11 +10,14 @@ shasum -a 256 -c docs/development/policy/snapshot.sha256
 
 On an intentional policy change, update the version string in manifest.json
 (`version` and `policyVersion`), the common.md title, website.md and AGENTS.md.
-Keep the brief scope, precedence and review-timing summaries in AGENTS.md and
-adapters.md, and the local-skill reference in CLAUDE.md, consistent with common.md.
+Keep the scope, precedence and review-timing summaries in AGENTS.md, the scope
+link in adapters.md, and the local-skill statements in AGENTS.md and CLAUDE.md
+consistent with common.md.
 Regenerate snapshot.sha256 for exactly the manifest's file list; review both content and digest changes.
 On distribution, copy that complete snapshot and compare version/digests against
 the reviewed canonical commit. Do not regenerate hashes to hide an unexplained
 mismatch. This local consistency check is not independent review, protected-branch
 enforcement or a live adoption test. Existing repository skills and requirements
 are pinned by the repository revision and are not portable common-policy files.
+
+Parked tooling at `parking/website-policy-pilot-tooling-20261116` (2513350) is not a pilot requirement.

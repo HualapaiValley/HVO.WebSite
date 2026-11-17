@@ -2,12 +2,15 @@
 
 ## Unified-policy pilot candidate
 
-The [HVO policy 2026-11-16.7](docs/development/policy/common.md) defines scope,
+The [HVO policy 2026-11-16.8](docs/development/policy/common.md) defines scope,
 platform/security > common policy > repo profile precedence, and local skills;
 see the [WebSite profile and pilot stages](docs/development/policy/website.md#pilot-stages)
 and [adapters](docs/development/policy/adapters.md). The review minimum is checked
 at Ready and before merge, and does not block implementing, committing, pushing or
 opening a draft PR; see the [review contract](docs/development/policy/common.md#independent-review-contract).
+
+The pilot policy applies only to designated pilot work and policy text or
+enforcement changes; all other WebSite work follows the existing procedures below unchanged.
 
 ## Scope and authorization
 
@@ -17,7 +20,7 @@ Use a dedicated branch/checkout from `main`; never commit issue work directly to
 
 ## Mandatory procedure routing
 
-Follow [common policy precedence and local skill routing](docs/development/policy/common.md#authority-and-precedence); do not edit or uninstall global skills.
+For WebSite work, repository-local skills (`.agents/skills`) govern; global `hvo-*` skills on the host are not substitutes and do not authorize dispatch or installation — see [common policy precedence](docs/development/policy/common.md#authority-and-precedence). Do not edit or uninstall global skills.
 
 Before acting, read [the repository profile](docs/development/repository-profile.md) and the applicable files below. These are required local instructions, even when the tool does not automatically discover skills.
 

@@ -1,6 +1,6 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-16.7`. Status: local preparation; no live rollout or
+Policy version: `2026-11-16.8`. Status: local preparation; no live rollout or
 autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
@@ -22,8 +22,8 @@ Load [common policy](common.md), the existing issue/review/PR skills and
 The [manifest](manifest.json) pins the new common/adoption/adapter/coordination
 snapshot; existing WebSite skills remain repository-versioned dependencies.
 
-AGENTS.md states local/global skill precedence. Actual discovery in each launch
-context is not verified.
+See [common policy precedence](common.md#authority-and-precedence); automatic
+discovery in each launch context is not verified.
 
 ## Pilot stages
 
@@ -95,10 +95,12 @@ WebSite does not currently produce or require `hvo/reviewed-head`. Keep that
 compatibility gate where currently required by SkyMonitor and RoofController;
 remove no live required gate before a verified replacement.
 
-Future qualification requirements for autonomous enforcement include fixture-repo
-testing before production; authenticated settings and active-PR impact capture;
-rollback to the verified baseline, stopping for an unknown baseline or concurrent
-change, and a plan for protection that blocks its own repair; runner and credential
+Before any WebSite protection or ruleset change, qualify in a fixture repository,
+capture authenticated settings and active-PR impact, and plan rollback to a verified
+baseline, stopping for an unknown baseline or concurrent change. These are also
+future qualification requirements for stage (c) autonomous enforcement, but not for
+stage (b). Other stage (c) requirements include a plan for protection that blocks
+its own repair; runner and credential
 exposure review of any app identities; measured strict up-to-date re-review cost;
 live-test authorization separate from watchdog approval; and reconciliation of
 [review-format.md](../../../.agents/skills/hvo-code-review/references/review-format.md)'s one-reviewer Deep wording with the

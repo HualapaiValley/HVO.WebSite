@@ -1,6 +1,6 @@
 ---
 name: hvo-coordination
-description: Candidate coordination procedure for unified-policy pilot work only; not activated for other work.
+description: Candidate coordination procedure for unified-policy pilot work only; not applicable to other work.
 ---
 
 # Coordination procedure
@@ -9,11 +9,14 @@ Read [common policy](../../../docs/development/policy/common.md) and the
 [WebSite profile](../../../docs/development/policy/website.md). One accountable
 coordinator owns each work domain; a standalone worker may be lifecycle owner.
 Record the assignment, owner, scope, risk, endpoint, source, evidence and state.
-Do not take over ambiguous ownership or treat silence as failure.
+Do not take over ambiguous ownership or treat silence as failure. Each worker uses
+its own isolated, owned git worktree, never a shared or main checkout; record the
+path. Fetch and verify the assigned base SHA before implementation. Review the
+exact candidate head and base..head range read-only; stop if the head differs.
 
 For pilot work, dispatch and observation go through the T3 hub MCP. The
 hvo-epic-work SSH-to-T3-Code route remains the existing procedure for non-pilot
-epic work. The assignment names the route; never dispatch the same work through
+epic work. The pilot designation selects the route; never dispatch the same work through
 both. Before launch record a unique `clientRequestId` and title
 nonce, along with project/environment, time window and prompt digest. Pass the
 request ID and nonce at launch. Record the returned thread ID and other handles.
