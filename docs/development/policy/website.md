@@ -1,6 +1,6 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-16.10`. Status: local preparation; no live rollout or
+Policy version: `2026-11-16.11`. Status: local preparation; no live rollout or
 autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
@@ -65,9 +65,7 @@ only first-attempt CI admission, and its v1 schema has no BLOCKED verdict.
 
 ## Transitional retained procedures
 
-Each item below stays in force until it is retired or promoted to common policy,
-and each item must be retired or promoted by the next policy release; none relaxes
-common policy. Status: retained, must be retired or promoted by the next policy release.
+Each item below stays in force until Roy records a decision to retire it or promote it to common policy, or until the next policy release, whichever comes first; none relaxes common policy. "Next policy release" means the next shared-policy version bump. Status: retained, remains in force until Roy records a decision or until the next policy release, whichever comes first.
 
 - Review-format coverage, publication and Deep-trigger mapping remain required, subject to the common tier and Kepler relay rules.
 - Repository-local skill precedence and non-pilot epic dispatch route remain in force.

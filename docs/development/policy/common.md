@@ -1,4 +1,4 @@
-# HVO engineering policy — 2026-11-16.10
+# HVO engineering policy — 2026-11-16.11
 
 The [manifest](manifest.json) identifies the canonical source and pins the portable
 files; distribution is an explicit reviewed copy with digest verification, never
@@ -44,9 +44,7 @@ profile lists only structural differences: branch, queue or merge route, require
 merge gate and who sets it (trusted automation, Kepler or Roy), required checks, required pre-post checks such as a
 secret scan, and SDK pin location, plus repository facts such as paths and
 toolchain. It may not relax or add procedural rules except for a clearly labeled
-“Transitional retained procedures” list. Each listed item remains in force until it is retired or promoted to common,
-and each item must be retired or promoted by the next policy release; it may only
-be stricter, never relax common policy. The repository adoption profile describes local skill discovery.
+“Transitional retained procedures” list. Each listed item remains in force until Roy records a decision to retire it or promote it to common, or until the next policy release, whichever comes first; it may only be stricter, never relax common policy. "Next policy release" means the next shared-policy version bump. The repository adoption profile describes local skill discovery.
 No global installation is a prerequisite; no adapter grants broader scope or
 waives gates. Stop and resolve conflicts rather than guessing. An assignment may narrow the permitted
 scope or add requirements; it cannot lower review-tier minima, required model-family
@@ -178,9 +176,7 @@ Use established host resource gates for heavy jobs; cancel only obsolete owned j
 Do not weaken checks or tests to obtain green. CI/queue optimization is separate.
 
 Retain failed evidence. Deterministic failures require correction. As procedure, the default
-unchanged-source infrastructure budget is two retries; a stricter transitional
-retained procedure takes precedence until it is retired or promoted by the next
-policy release.
+unchanged-source infrastructure budget is two retries; a stricter transitional retained procedure takes precedence until Roy records a decision to retire it or promote it, or until the next policy release, whichever comes first.
 This budget is not claimed to be implemented.
 Sol and Opus are required reviewer models as specified above. Harness, provider
 instance, effort and any fallback route remain assignment configuration; a fallback
