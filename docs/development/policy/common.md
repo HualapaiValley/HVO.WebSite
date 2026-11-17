@@ -1,7 +1,6 @@
-# HVO engineering policy — 2026-11-16.8 pilot
+# HVO engineering policy — 2026-11-16.9
 
-This is the canonical common-policy source for the local WebSite pilot. Other
-repositories have not adopted it. The [manifest](manifest.json) pins the portable
+The [manifest](manifest.json) identifies the canonical source and pins the portable
 files; distribution is an explicit reviewed copy with digest verification, never
 a runtime fetch or a global symlink. A future common-source repository must be
 designated before distributing further snapshots. Edit here, update the manifest,
@@ -13,8 +12,8 @@ This implements the accepted decisions in HVO-policy-proposal.md, Library versio
 inspect it, and a digest alone cannot replace that inspection. Roy subsequently
 clarified that ordinary review requires independence, not a different model; that
 clarification supersedes the design's Standard-tier different-model proposal.
-The [WebSite adoption profile](website.md) fixes
-the pilot stages. Existing trusted evaluators remain authoritative;
+The repository adoption profile fixes the pilot stages. The manifest names that
+profile, and root AGENTS.md links it. Existing trusted evaluators remain authoritative;
 these documents neither grant assignment authority nor publish a passing gate.
 
 ## Scope
@@ -22,25 +21,21 @@ these documents neither grant assignment authority nor publish a passing gate.
 Pilot work means assignments explicitly designated as pilot work by Roy in the
 assignment, and reviews of those assignments; it does not mean all work on this
 host or repository. Policy text means normative agent workflow instructions and
-adapters, including AGENTS.md, CLAUDE.md, docs/development/policy/**,
-docs/development/repository-profile.md, docs/development/PROCESS.md,
-docs/development/automation-evidence.md, CONTRIBUTING.md,
-.github/PULL_REQUEST_TEMPLATE.md, .agents/skills/**, .opencode/**, opencode.json
-and Copilot instructions where they carry workflow rules. Product or user
+adapters where they carry workflow rules; the repository adoption profile lists
+the concrete paths. Product or user
 documentation that merely mentions a policy is not policy text.
 
 Enforcement changes are changes that gate, block, admit or merge work, or change
 branch protection, rulesets, required checks, review-evidence/admission logic or
-CI gating, wherever they live (for example .github/workflows/**, tools/pr-process*,
-tools/ci-plan* or repository settings).
+CI gating, wherever they live. The repository adoption profile lists the concrete
+paths and settings.
 
 ## Authority and precedence
 
 For unified-policy pilot work and policy text or enforcement changes,
 platform/security requirements come first, then this common policy, then repository
-profile additions. Other WebSite work follows existing procedures unchanged.
-For WebSite work, repository-local skills govern over legacy global hvo-* skills;
-global skills are not substitutes and do not authorize dispatch or installation.
+profile additions. The repository adoption profile specifies the procedures for
+other work and any repository-local skill precedence.
 No global installation is a prerequisite; no adapter grants broader scope or
 waives gates. Stop and resolve conflicts rather than guessing. An assignment may narrow the permitted
 scope or add requirements; it cannot lower review-tier minima, required model-family

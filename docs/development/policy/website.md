@@ -1,6 +1,6 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-16.8`. Status: local preparation; no live rollout or
+Policy version: `2026-11-16.9`. Status: local preparation; no live rollout or
 autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
@@ -19,11 +19,36 @@ publication requirements remain in force.
 Load [common policy](common.md), the existing issue/review/PR skills and
 [coordination](../../../.agents/skills/hvo-coordination/SKILL.md). Thin
 [harness and Kepler adapters](adapters.md) add discovery and transport only.
-The [manifest](manifest.json) pins the new common/adoption/adapter/coordination
-snapshot; existing WebSite skills remain repository-versioned dependencies.
+The [manifest](manifest.json) pins the portable common/adapter/coordination
+snapshot and names this repository adoption profile; existing WebSite skills remain repository-versioned dependencies.
 
 See [common policy precedence](common.md#authority-and-precedence); automatic
 discovery in each launch context is not verified.
+
+## Repository-specific scope and discovery
+
+This repository is the canonical common-policy source for the local WebSite pilot;
+other repositories have not adopted it. The canonical source location is recorded
+in the manifest. Other WebSite work follows existing procedures unchanged.
+For WebSite work, repository-local skills govern over legacy global hvo-* skills;
+global skills are not substitutes and do not authorize dispatch or installation.
+
+Policy text includes AGENTS.md, CLAUDE.md, docs/development/policy/**,
+docs/development/repository-profile.md, docs/development/PROCESS.md,
+docs/development/automation-evidence.md, CONTRIBUTING.md,
+.github/PULL_REQUEST_TEMPLATE.md, .agents/skills/**, .opencode/**, opencode.json
+and Copilot instructions where they carry workflow rules. Enforcement examples
+include .github/workflows/**, tools/pr-process*, tools/ci-plan* and repository settings.
+
+Existing CLAUDE.md routes to AGENTS.md; verify local skill-link resolution and
+explicitly load canonical `.agents/skills`. The `.claude/skills` link is part of
+that local skill discovery. Existing opencode.json loads AGENTS.md and Copilot
+guidance; existing `.opencode` wrappers remain adapters to canonical procedures.
+Existing `.github/copilot-instructions.md` routes to AGENTS.md and the same local
+skills. No repository Cursor rules/discovery adapter is installed or qualified.
+The hvo-epic-work SSH-to-T3-Code route remains the existing procedure for non-pilot
+epic work. Parked tooling at `parking/website-policy-pilot-tooling-20261116`
+(2513350) is not a pilot requirement.
 
 ## Pilot stages
 
