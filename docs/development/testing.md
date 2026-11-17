@@ -2,7 +2,9 @@
 
 The active solution uses MSTest with FluentAssertions, bUnit for component behavior and MSTest/Playwright for browser behavior. Use discovery and retained reports for current counts. The exact SDK in global.json is authoritative. Dependency selection changes CI execution, not the requirement to validate the full solution locally before review.
 
-Install the development container or equivalent host tools: exact .NET SDK, Node.js, Ruby with stdlib YAML/JSON, Bash, Docker Compose, Python3, jq, curl and openssl. Ruby is provisioned in the container and bootstrapped if missing in bounded draft preflight. Ruby ENOENT in workflow tests means the environment is incomplete. Browser execution also needs Chromium and its system dependencies.
+Install the development container or equivalent host tools: exact .NET SDK from `global.json`, Node 24, Ruby with stdlib YAML/JSON, Bash, Docker Compose, Python3, jq, curl and openssl. CI uses `actions/setup-node` with `node-version: '24'` in [ci.yml](../../.github/workflows/ci.yml). Ruby is provisioned in the container and bootstrapped if missing in bounded draft preflight. Ruby ENOENT in workflow tests means the environment is incomplete. Browser execution also needs Chromium and its system dependencies.
+
+The [SQL Server lane](sql-server-integration-tests.md) requires a local Linux x64 Docker daemon on the default Unix socket. The browser install below uses `--with-deps`; on Debian/Ubuntu it may refresh the apt index and install OS packages via `sudo apt-get`. To run it unmodified, the host needs those packages already present or authorized passwordless sudo. If prerequisites are unmet, report the affected lane as blocked, never as a pass or by weakening or filtering tests.
 
 ## Preparation and full local checks
 
