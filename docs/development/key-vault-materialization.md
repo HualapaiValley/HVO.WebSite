@@ -59,8 +59,7 @@ uses `LC_ALL=C` and rejects ASCII whitespace, dollar signs, backticks, quotes,
 backslashes, semicolons, ampersands, pipes, angle brackets, parentheses and a tilde
 at the start or immediately after `:` or `=`. Literal assignment characters such
 as `!`, `,`, `*`, `?`, brackets, braces, `^`, `#` and non-ASCII text remain valid
-regardless of the caller's locale. Website, handoff and gateway dotenv files are
-not shell-sourced by the helper and retain their existing one-line value checks.
+regardless of the caller's locale. Website and website handoff dotenv values must be printable ASCII and reject dollar signs, quotes, backslashes, hashes, and leading or trailing spaces so Compose reads them literally. Other gateway dotenv files retain their one-line value checks. ESPHome YAML values must be printable ASCII and reject double quotes and backslashes before writing.
 Root SQL is derived first so its explicit single-quote password check runs before
 plain-secret validation. Errors name the field, never the rejected value.
 Existing website/handoff CRLF dotenv inputs are read
@@ -101,9 +100,7 @@ remain, and does not print the final successful-apply summary. Each dotenv, YAML
 and secret-file replacement uses a mode-0600 temporary file beside the destination
 and renames it only after a successful write, preserving the old destination if
 writing fails. Preparation rejects, in both modes and before any write, a managed
-destination that exists but is not a regular file, such as a directory or a link
-to one; the rename also refuses a directory target, so a credential file is never
-placed inside a directory. The exit handler removes the in-flight temporary file on failure,
+selected destination that exists but is not a regular file, including any symbolic link or FIFO. Optional paths that are directories are skipped when selection requires an existing regular file. GNU mv uses an exact destination rename and refuses a directory target, including one created after preparation. The exit handler removes the in-flight temporary file on failure,
 SIGINT and SIGTERM; ignored dotenv temporary-file patterns provide additional
 protection against accidental staging. Earlier completed replacements may remain;
 there is no automatic rollback across files.
@@ -115,7 +112,9 @@ only allowlisted equality for the observed inputs, not runtime authentication
 or a restore drill.
 
 Offline regression command (copies the helper to disposable fixtures and stubs
-Azure CLI; does not read a real vault or owner materializations):
+Azure CLI; does not read a real vault or owner materializations). Docker Compose
+and either Ruby with its standard YAML library or Python with PyYAML are required
+for consumer parsing checks:
 
 ```sh
 python3 -m unittest discover -s tools -p secrets_materialization_test.py
@@ -123,7 +122,7 @@ python3 -m unittest discover -s tools -p secrets_materialization_test.py
 
 The existing Davis deployment-policy validator also runs these regressions in CI.
 
-Before merge, Roy or an authorized operator may separately run a real `--check`
+Roy or an authorized operator may separately run a real `--check`
 to confirm compatibility with current vault values without exposing them; offline
 stub validation does not establish that operational result.
 

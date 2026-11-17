@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import signal
 import stat
 import subprocess
@@ -85,10 +86,10 @@ class MaterializationTests(unittest.TestCase):
             relative = entry.relative_to(self.root)
             if relative.parts[0] in ("bin", "settings.json", "az-calls"):
                 continue
-            info = entry.stat()
+            info = entry.lstat()
             result[str(relative)] = (
                 info.st_mode, info.st_ino, info.st_mtime_ns,
-                entry.read_bytes() if entry.is_file() else None,
+                os.readlink(entry) if entry.is_symlink() else entry.read_bytes() if entry.is_file() else None,
             )
         return result
 
@@ -125,6 +126,8 @@ class MaterializationTests(unittest.TestCase):
 
     def accept_literal_secret(self, secret, value, key, mode, locale, relative_file):
         self.settings["values"][secret] = value
+        if not value.isascii() and relative_file == ".env":
+            (self.root / YAML).unlink()  # Exercise root grammar independently of YAML restrictions.
         self.environment["LC_ALL"] = locale
         if mode == "--check":
             before = self.snapshot()
@@ -147,8 +150,13 @@ class MaterializationTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, "root secret failed a byte-for-byte shell round trip")
         else:
             for path in (WEBSITE, HANDOFF):
-                self.assertTrue(f"{key}={value}" in (self.root / path).read_text(),
-                                "website-only secret was not preserved")
+                compose = self.root / "compose.yaml"
+                compose.write_text("services:\n  fixture:\n    image: fixture\n    environment:\n      VALUE: ${" + key + "}\n")
+                parsed = subprocess.run(["docker", "compose", "--env-file", str(self.root / path),
+                                         "-f", str(compose), "config", "--format", "json"],
+                                        env=self.environment, capture_output=True, text=True, check=True)
+                self.assertEqual(value, json.loads(parsed.stdout)["services"]["fixture"]["environment"]["VALUE"])
+                compose.unlink()
         result, _ = self.run_sync("--check")
         self.assertEqual(0, result.returncode, "literal secret prevented the following check")
         result, _ = self.run_sync("--apply")
@@ -235,10 +243,12 @@ class MaterializationTests(unittest.TestCase):
             self.assertNotIn(name, calls)
 
     def test_ssh_drift_is_preserved_and_reported(self):
+        self.materialize()
         self.settings["values"]["obs-ssh-private-key"] = "different-ssh-sentinel"
         result, log = self.run_sync("--apply")
         self.assertEqual(0, result.returncode)
         self.assertIn("approved manual rotation", log)
+        self.assertIn("Applied 0 Key Vault synchronization update(s).", log)
         self.assertTrue(shlex.quote(SSH) in (self.root / ".env").read_text(), "SSH was rewritten")
         result, _ = self.run_sync("--check")
         self.assertNotEqual(0, result.returncode, "SSH drift was lost")
@@ -366,6 +376,43 @@ class MaterializationTests(unittest.TestCase):
                          "a credential file was placed inside the directory")
         self.assertEqual([], [str(entry) for entry in self.root.rglob("*.tmp.*")], "a temporary credential file remains")
 
+    def test_bootstrap_stdout_is_suppressed(self):
+        with (self.root / ".env").open("a") as bootstrap:
+            bootstrap.write("printf bootstrap-output-sentinel\n")
+        result, _ = self.run_sync("--apply")
+        self.assertEqual(0, result.returncode)
+
+    def test_yaml_round_trip(self):
+        value = "valid yaml: # punctuation!"
+        self.settings["values"][LATE_SECRET] = value
+        self.materialize()
+        if shutil.which("ruby"):
+            parsed = subprocess.run(["ruby", "-ryaml", "-e", 'exit(YAML.safe_load_file(ARGV[0])["hvo_bluetooth_proxy_fallback_password"] == ARGV[1] ? 0 : 1)', str(self.root / YAML), value], capture_output=True)
+            self.assertEqual(0, parsed.returncode, "YAML parser did not preserve the credential")
+        else:
+            import yaml
+            self.assertEqual(value, yaml.safe_load((self.root / YAML).read_text())["hvo_bluetooth_proxy_fallback_password"])
+        result, _ = self.run_sync("--check")
+        self.assertEqual(0, result.returncode)
+
+    def special_destination(self, kind):
+        target = self.root / "deploy/pi-gateways/davis/secrets/central-ingest-api-key"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if kind == "fifo":
+            os.mkfifo(target)
+        else:
+            if kind == "regular":
+                self.write("owner-target", "owner sentinel\n")
+            target.symlink_to(self.root / ("owner-target" if kind == "regular" else "missing-target"))
+
+    def test_rename_race_does_not_move_into_directory(self):
+        target = self.root / "deploy/pi-gateways/davis/secrets/central-ingest-api-key"
+        self.write("bin/mv", '#!/bin/bash\nif [[ "${@: -1}" == "' + str(target) + '" ]]; then mkdir -p "${@: -1}"; fi\nexec /bin/mv "$@"\n', 0o700)
+        result, log = self.run_sync("--apply")
+        self.assertNotEqual(0, result.returncode)
+        self.assertNotIn("Applied ", log)
+        self.assertEqual([], list(target.iterdir()))
+
     def test_rejection_detects_nonfatal_derivation_mutant(self):
         script = self.root / "scripts/sync-secrets-from-keyvault.sh"
         script.write_text(script.read_text().replace(
@@ -394,6 +441,15 @@ REJECTIONS = {
     "late_secret_read_failure": lambda t: t.settings.update(fail=LATE_SECRET),
     "empty_sql_secret": lambda t: t.settings["values"].update({SQL_SECRET: ""}),
     "multiline_dotenv_secret": lambda t: t.settings["values"].update({"obs-github-token": "multiline-secret-sentinel\nsecond-line"}),
+    "yaml_backslash_q": lambda t: t.settings["values"].update({LATE_SECRET: r"pa\qss"}),
+    "yaml_backslash_n": lambda t: t.settings["values"].update({LATE_SECRET: r"pa\nss"}),
+    "yaml_control": lambda t: t.settings["values"].update({LATE_SECRET: "pa\tss"}),
+    "compose_dollar": lambda t: t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": "$UNSET_PROBE"}),
+    "compose_quote": lambda t: t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": '"unmatched'}),
+    "compose_comment": lambda t: t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": "value # comment"}),
+    "dangling_link": lambda t: t.special_destination("dangling"),
+    "regular_link": lambda t: t.special_destination("regular"),
+    "fifo": lambda t: t.special_destination("fifo"),
     "unsafe_yaml_secret": lambda t: t.settings["values"].update({LATE_SECRET: 'yaml-secret-sentinel"unsafe'}),
     "plain_secret_space": lambda t: t.settings["values"].update({"obs-github-token": "tok en"}),
     "plain_secret_dollar": lambda t: t.settings["values"].update({"obs-github-token": "abc$x"}),

@@ -8,6 +8,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 vault_name="${HVO_KEY_VAULT_NAME:-hvo-central-kv}"
 mode="check"
 drift_count=0
+applied_count=0
 writes_started=false
 pending_temp_file=""
 
@@ -35,7 +36,7 @@ create_temp_file() {
 replace_destination() {
 	local file="$1"
 	[[ ! -d "$file" ]] || fail "A managed destination is a directory, not a file: ${file#"$repo_root"/}"
-	mv -f -- "$pending_temp_file" "$file"
+	mv -fT -- "$pending_temp_file" "$file"
 	pending_temp_file=""
 }
 
@@ -90,7 +91,7 @@ plan_value() {
 validate_destinations() {
 	local relative
 	for relative in "${plan_files[@]}"; do
-		if [[ -e "$repo_root/$relative" && ! -f "$repo_root/$relative" ]]; then
+		if [[ -L "$repo_root/$relative" || ( -e "$repo_root/$relative" && ! -f "$repo_root/$relative" ) ]]; then
 			fail "A managed destination exists but is not a regular file: $relative"
 		fi
 	done
@@ -154,6 +155,13 @@ write_dotenv_value() {
 
 sync_dotenv_value() {
 	[[ "$3" != *$'\n'* && "$3" != *$'\r'* ]] || fail "$2 cannot be represented as a one-line dotenv value."
+	if [[ "$1" == deploy/hvo-docker/.env || "$1" == .env-handoff/hvo-docker.env ]]; then
+		local LC_ALL=C
+		case "$3" in
+			*[![:print:]]*|*'$'*|*'"'*|*"'"*|*\\*|*'#'*|' '*|*' ')
+				fail "$2 cannot be safely represented as a Compose dotenv value." ;;
+		esac
+	fi
 	plan_value dotenv "$1" "$2" "$3"
 }
 
@@ -171,6 +179,7 @@ apply_dotenv_value() {
 	((drift_count += 1))
 	if [[ "$mode" == "apply" ]]; then
 		write_dotenv_value "$file" "$key" "$expected"
+		((applied_count += 1))
 		printf 'updated %s:%s\n' "$relative_file" "$key"
 	else
 		printf 'drift   %s:%s\n' "$relative_file" "$key"
@@ -261,6 +270,7 @@ apply_secret_file() {
 		create_temp_file "$file"
 		printf '%s\n' "$expected" > "$pending_temp_file"
 		replace_destination "$file"
+		((applied_count += 1))
 		printf 'updated %s\n' "$relative_file"
 	else
 		printf 'drift   %s\n' "$relative_file"
@@ -269,7 +279,8 @@ apply_secret_file() {
 
 sync_yaml_secret() {
 	get_secret "$3"
-	[[ "$secret_value" != *$'\n'* && "$secret_value" != *$'\r'* && "$secret_value" != *'"'* ]] || fail "$3 cannot be safely represented in the ESPHome YAML file."
+	local LC_ALL=C
+	[[ "$secret_value" != *[![:print:]]* && "$secret_value" != *\\* && "$secret_value" != *'"'* ]] || fail "$3 cannot be safely represented in the ESPHome YAML file."
 	plan_value yaml "$1" "$2" "$secret_value"
 }
 
@@ -317,6 +328,7 @@ apply_yaml_value() {
 	fi
 	replace_destination "$file"
 	chmod 600 "$file"
+	((applied_count += 1))
 	printf 'updated %s:%s\n' "$relative_file" "$key"
 }
 
@@ -501,7 +513,7 @@ if [[ "$mode" == "check" && "$drift_count" -gt 0 ]]; then
 fi
 
 if [[ "$mode" == "apply" ]]; then
-	printf 'Applied %d Key Vault synchronization update(s).\n' "$drift_count"
+	printf 'Applied %d Key Vault synchronization update(s).\n' "$applied_count"
 else
 	printf 'All allowlisted local credentials match Key Vault %s.\n' "$vault_name"
 fi
