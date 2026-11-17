@@ -24,7 +24,7 @@ Each PR has exactly one lifecycle label from the table. Changing phase replaces 
 | Independent review requested or running | Draft | `workflow:review` | Initial, correction or synchronization review. |
 | Findings or CI failure being addressed | Draft | `workflow:changes-required` | Diagnose, correct, locally validate, then return to review. |
 | Review complete; standard CI queued/running | Ready | `workflow:ci` | Run the standard profile on the reviewed current candidate. |
-| Required CI green and final conditions verified | Ready | `workflow:ready-to-merge` | Merge when the assignment authorizes it. |
+| Required CI green and final conditions verified | Ready | `workflow:ready-to-merge` | Merge under common standing authorization, subject to assignment limits. |
 | Merged and closeout recorded | Merged | `workflow:complete` | Verify issue closure and cleanup. |
 | Closed without merging | Closed | `workflow:cancelled` | Record the outcome/handoff; do not claim implementation completion. |
 
@@ -69,7 +69,7 @@ A failed, cancelled, timed-out or otherwise invalid standard run cannot satisfy 
 
 For a code defect, correct it, run affected local checks and request correction review of the previous reviewed head to the new head. Carry all outstanding findings and the CI failure evidence. After independent verification and thread resolution, Kepler marks ready and starts standard CI again.
 
-For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head/target. Kepler returns to draft; document the infrastructure correction and re-establish ready conditions; the stricter transitional budget permits one fresh complete CI run for the same tuple without inventing a code correction or redundant code review. Partial reruns of old admission do not qualify in this profile. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
+For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head/target. Kepler returns to draft; document the infrastructure correction and re-establish ready conditions; the standing stricter profile budget permits one fresh complete CI run for the same tuple without inventing a code correction or redundant code review. Partial reruns of old admission do not qualify in this profile. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
 
 Any new source commit after review, including a correction made after CI passed, invalidates the relevant current-head approval and readiness. Kepler returns it to draft before pushing where possible. The guard must also catch a push made while still ready, block standard jobs for the unreviewed head, clear `workflow:ready-to-merge`, and route the candidate back to review. Source synchronization follows the same applicable review rules.
 
