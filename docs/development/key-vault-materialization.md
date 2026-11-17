@@ -23,7 +23,8 @@ the helper **sources it as shell code** when checking `SSH_PRIVATE_KEY`. Its
 existing inputs must include:
 
 - `SSH_PRIVATE_KEY`, whose sourced value is compared with `obs-ssh-private-key`.
-  A mismatch is reported as drift; even `--apply` does not rewrite this multiline
+  A mismatch after ignoring trailing line feeds is reported as drift; even
+  `--apply` does not rewrite this multiline
   field. Arrange its approved manual materialization separately.
 - `ConnectionStrings__HualapaiValleyObservatory`, with the intended existing SQL
   host/database/options and the exact `Password=` segment followed by a semicolon.
@@ -54,10 +55,12 @@ preparation leaves managed destination contents and metadata unchanged. Sourcing
 the bootstrap still executes trusted owner shell code; this is not a sandbox.
 Because `.devcontainer/post-create.sh` invokes apply under `set -e`, a
 preparation failure stops the remaining devcontainer setup, including
-developer-certificate generation. Azure CLI and Python 3 are required; JSON
+developer-certificate generation. Azure CLI, Python 3 and GNU coreutils `mv`
+with `-T` support are required; JSON
 secret values are checked for NUL bytes before Bash reads them, preserving
 trailing newlines. Required secrets other than the manually compared SSH key
-reject a trailing newline before materialization; the SSH comparison preserves it.
+reject a trailing newline before materialization. The SSH comparison ignores
+trailing line feeds on both sides, matching the earlier helper behavior.
 
 Only the root `.env` requires shell-safe plain secret assignments. Its validation
 uses `LC_ALL=C` and rejects ASCII whitespace, dollar signs, backticks, quotes,
@@ -139,7 +142,7 @@ python3 -m unittest discover -s tools -p secrets_materialization_test.py
 
 The existing Davis deployment-policy validator also runs these regressions in CI.
 
-Roy or an authorized operator may separately run a real `--check`
+Before merge, Roy or an authorized operator may separately run a real `--check`
 to confirm compatibility with current vault values without exposing them; offline
 stub validation does not establish that operational result.
 

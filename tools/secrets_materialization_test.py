@@ -40,7 +40,14 @@ if name == settings.get("fail"):
     print("failed-read-stdout-sentinel", end="")
     print("failed-read-stderr-sentinel", file=sys.stderr)
     sys.exit(23)
-print(json.dumps(settings.get("values", {}).get(name, "offline-vault-sentinel-" + name)))
+value = settings.get("values", {}).get(name, "offline-vault-sentinel-" + name)
+output = args[args.index("--output") + 1]
+if output == "json":
+    print(json.dumps(value))
+elif output == "tsv":
+    print(value)
+else:
+    sys.exit(98)
 '''
 
 
@@ -110,7 +117,7 @@ class MaterializationTests(unittest.TestCase):
             self.assertTrue(not result.stderr, "success wrote diagnostics")
         return result, log
 
-    def reject(self, mode, configure):
+    def reject(self, mode, configure, expected_secret=None):
         configure(self)
         before = self.snapshot()
         result, log = self.run_sync(mode)
@@ -122,6 +129,8 @@ class MaterializationTests(unittest.TestCase):
         self.assertNotIn("Detected ", log, "drift must not hide a preparation failure")
         self.assertNotIn("jq:", log, "raw configuration diagnostics escaped")
         self.assertIn("Error:", log)
+        if expected_secret:
+            self.assertIn(expected_secret, log, "error did not identify the probed secret")
         return log
 
     def accept_literal_secret(self, secret, value, key, mode, locale, relative_file):
@@ -403,6 +412,43 @@ class MaterializationTests(unittest.TestCase):
         self.assertEqual(0, checked.returncode)
         self.assertNotIn("approved manual rotation", log)
 
+    def test_ssh_trailing_newline_compatibility(self):
+        for vault, local in ((SSH + "\n", SSH), (SSH, SSH + "\n")):
+            with self.subTest(vault_has_lf=vault.endswith("\n")):
+                self.bootstrap(ssh=local)
+                self.settings["values"]["obs-ssh-private-key"] = vault
+                self.materialize()
+                checked, log = self.run_sync("--check")
+                self.assertEqual(0, checked.returncode)
+                self.assertNotIn("approved manual rotation", log)
+
+    def test_python_filter_ignores_cwd_modules(self):
+        self.write("json.py", "raise RuntimeError('cwd-import-sentinel')\n")
+        self.materialize()
+        result, _ = self.run_sync("--check")
+        self.assertEqual(0, result.returncode)
+
+    def test_content_and_read_failures_have_distinct_diagnostics(self):
+        self.settings["values"]["obs-github-token"] = "bad\0root"
+        result, content_log = self.run_sync("--check")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("contains unsupported content or invalid JSON: obs-github-token", content_log)
+        self.settings["values"].pop("obs-github-token")
+        self.settings["fail"] = "obs-github-token"
+        result, access_log = self.run_sync("--check")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("secret is unavailable: obs-github-token", access_log)
+        self.assertNotIn("unsupported content", access_log)
+
+    def test_tsv_mutant_fails_named_probe(self):
+        script = self.root / "scripts/sync-secrets-from-keyvault.sh"
+        original = script.read_text()
+        mutant = original.replace("--output json", "--output tsv")
+        self.assertNotEqual(original, mutant)
+        script.write_text(mutant)
+        with self.assertRaises(AssertionError):
+            self.reject("--check", REJECTIONS["root_nul"], "obs-github-token")
+
     def test_yaml_round_trip(self):
         value = "valid yaml: # punctuation!"
         self.settings["values"][LATE_SECRET] = value
@@ -527,9 +573,18 @@ EXPECTED_REJECTION_ERRORS = {
 }
 
 
-def rejection_test(mode, configure, expected_error=None):
+PROBED_SECRETS = {
+    "root_nul": "obs-github-token", "root_trailing_newline": "obs-github-token",
+    "website_nul": "WebsiteRuntime--AzureClientSecret",
+    "website_trailing_newline": "WebsiteRuntime--AzureClientSecret",
+    "yaml_nul": LATE_SECRET, "yaml_trailing_newline": LATE_SECRET,
+    "file_trailing_newline": "HomeAssistant--MqttPassword",
+}
+
+
+def rejection_test(mode, configure, expected_error=None, expected_secret=None):
     def test(self):
-        log = self.reject(mode, configure)
+        log = self.reject(mode, configure, expected_secret)
         if expected_error:
             self.assertIn(expected_error, log)
     return test
@@ -538,7 +593,7 @@ def rejection_test(mode, configure, expected_error=None):
 for case, configure in REJECTIONS.items():
     for mode in ("--check", "--apply"):
         expected_error = EXPECTED_REJECTION_ERRORS.get(case)
-        setattr(MaterializationTests, f"test_reject_{case}_{mode[2:]}", rejection_test(mode, configure, expected_error))
+        setattr(MaterializationTests, f"test_reject_{case}_{mode[2:]}", rejection_test(mode, configure, expected_error, PROBED_SECRETS.get(case)))
 
 LITERAL_SECRETS = {
     "exclamation": ("obs-github-token", "literal!sentinel", "GH_PAT", "C", ".env"),

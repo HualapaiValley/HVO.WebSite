@@ -72,6 +72,7 @@ while (($# > 0)); do
 done
 
 command -v az >/dev/null 2>&1 || fail "Azure CLI is required."
+command -v python3 >/dev/null 2>&1 || fail "Python 3 is required."
 az account show --output none >/dev/null 2>&1 || fail "Azure CLI is not authenticated."
 az keyvault show --name "$vault_name" --output none >/dev/null 2>&1 || fail "Cannot access Key Vault '$vault_name'."
 
@@ -98,15 +99,16 @@ validate_destinations() {
 }
 
 get_secret() {
-	local secret_name="$1"
+	local secret_name="$1" json_value
 	if [[ ! -v "secret_cache[$secret_name]" ]]; then
 		# JSON preserves credential newlines and NUL escapes separately from CLI framing.
 		# Reject NUL before Bash sees the bytes; the sentinel preserves trailing newlines.
-		secret_cache["$secret_name"]="$(az keyvault secret show \
+		json_value="$(az keyvault secret show \
 			--vault-name "$vault_name" \
 			--name "$secret_name" \
 			--query value \
-			--output json 2>/dev/null | python3 -c '
+			--output json 2>/dev/null)" || fail "Required Key Vault secret is unavailable: $secret_name"
+		secret_cache["$secret_name"]="$(printf '%s' "$json_value" | python3 -I -c '
 import json, sys
 try:
     value = json.load(sys.stdin)
@@ -115,7 +117,7 @@ try:
     sys.stdout.write(value + "\x1c")
 except (ValueError, UnicodeError):
     sys.exit(1)
-' "$secret_name" 2>/dev/null)" || fail "Required Key Vault secret is unavailable or contains unsupported bytes: $secret_name"
+' "$secret_name" 2>/dev/null)" || fail "Required Key Vault secret contains unsupported content or invalid JSON: $secret_name"
 		secret_cache["$secret_name"]="${secret_cache[$secret_name]%$'\034'}"
 		[[ -n "${secret_cache[$secret_name]}" ]] || fail "Required Key Vault secret is empty: $secret_name"
 	fi
@@ -237,6 +239,9 @@ check_sourced_dotenv_secret() {
 	current="$bootstrap_ssh"
 	get_secret "$secret_name"
 	expected="$secret_value"
+	# SSH is compared only; match the historical shell comparison's LF handling.
+	while [[ "$current" == *$'\n' ]]; do current="${current%$'\n'}"; done
+	while [[ "$expected" == *$'\n' ]]; do expected="${expected%$'\n'}"; done
 	if [[ "$current" == "$expected" ]]; then
 		printf 'ok      %s:%s\n' "$relative_file" "$key"
 		return
