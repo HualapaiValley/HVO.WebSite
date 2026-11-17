@@ -52,14 +52,25 @@ Empty required secrets, failed reads/derivations, and values that cannot use the
 existing dotenv/YAML representation fail nonzero during preparation. Rejected
 preparation leaves managed destination contents and metadata unchanged. Sourcing
 the bootstrap still executes trusted owner shell code; this is not a sandbox.
-Because `.devcontainer/post-create.sh` invokes apply under `set -e`, a preparation failure stops the remaining devcontainer setup, including developer-certificate generation.
+Because `.devcontainer/post-create.sh` invokes apply under `set -e`, a
+preparation failure stops the remaining devcontainer setup, including
+developer-certificate generation. Azure CLI and Python 3 are required; JSON
+secret values are checked for NUL bytes before Bash reads them, preserving
+trailing newlines for destination validation.
 
 Only the root `.env` requires shell-safe plain secret assignments. Its validation
 uses `LC_ALL=C` and rejects ASCII whitespace, dollar signs, backticks, quotes,
 backslashes, semicolons, ampersands, pipes, angle brackets, parentheses and a tilde
 at the start or immediately after `:` or `=`. Literal assignment characters such
 as `!`, `,`, `*`, `?`, brackets, braces, `^`, `#` and non-ASCII text remain valid
-regardless of the caller's locale. Website and website handoff dotenv values must be printable ASCII and reject dollar signs, quotes, backslashes, hashes, and leading or trailing spaces so Compose reads them literally. Other gateway dotenv files retain their one-line value checks. ESPHome YAML values must be printable ASCII and reject double quotes and backslashes before writing.
+regardless of the caller's locale. Website and website handoff dotenv values
+must be printable ASCII and reject dollar signs, quotes, backslashes, hashes,
+and leading or trailing spaces so Compose reads them literally. This conservative
+rule also requires unquoted website SQL strings and disallows `#` in
+website-bound secrets, including SQL passwords; values Compose could otherwise
+accept may therefore stop post-create during preparation. Other gateway dotenv
+files retain their one-line value checks. ESPHome YAML values must be printable
+ASCII and reject double quotes and backslashes before writing.
 Root SQL is derived first so its explicit single-quote password check runs before
 plain-secret validation. Errors name the field, never the rejected value.
 Existing website/handoff CRLF dotenv inputs are read
@@ -100,7 +111,12 @@ remain, and does not print the final successful-apply summary. Each dotenv, YAML
 and secret-file replacement uses a mode-0600 temporary file beside the destination
 and renames it only after a successful write, preserving the old destination if
 writing fails. Preparation rejects, in both modes and before any write, a managed
-selected destination that exists but is not a regular file, including any symbolic link or FIFO. Optional paths that are directories are skipped when selection requires an existing regular file. GNU mv uses an exact destination rename and refuses a directory target, including one created after preparation. The exit handler removes the in-flight temporary file on failure,
+selected destination that exists but is not a regular file, including any
+symbolic link or FIFO. Optional paths that are not existing regular files are
+skipped when selection requires an existing regular file; this includes FIFOs,
+dangling links and directories. GNU mv uses an exact destination rename and
+refuses a directory target, including one created after preparation. The exit
+handler removes the in-flight temporary file on failure,
 SIGINT and SIGTERM; ignored dotenv temporary-file patterns provide additional
 protection against accidental staging. Earlier completed replacements may remain;
 there is no automatic rollback across files.

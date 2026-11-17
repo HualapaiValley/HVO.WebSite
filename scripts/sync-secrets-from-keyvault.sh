@@ -100,11 +100,23 @@ validate_destinations() {
 get_secret() {
 	local secret_name="$1"
 	if [[ ! -v "secret_cache[$secret_name]" ]]; then
+		# JSON preserves credential newlines and NUL escapes separately from CLI framing.
+		# Reject NUL before Bash sees the bytes; the sentinel preserves trailing newlines.
 		secret_cache["$secret_name"]="$(az keyvault secret show \
 			--vault-name "$vault_name" \
 			--name "$secret_name" \
 			--query value \
-			--output tsv 2>/dev/null)" || fail "Required Key Vault secret is unavailable: $secret_name"
+			--output json 2>/dev/null | python3 -c '
+import json, sys
+try:
+    value = json.load(sys.stdin)
+    if not isinstance(value, str) or "\0" in value:
+        sys.exit(1)
+    sys.stdout.write(value + "\x1c")
+except (ValueError, UnicodeError):
+    sys.exit(1)
+' 2>/dev/null)" || fail "Required Key Vault secret is unavailable or contains unsupported bytes: $secret_name"
+		secret_cache["$secret_name"]="${secret_cache[$secret_name]%$'\034'}"
 		[[ -n "${secret_cache[$secret_name]}" ]] || fail "Required Key Vault secret is empty: $secret_name"
 	fi
 	secret_value="${secret_cache[$secret_name]}"

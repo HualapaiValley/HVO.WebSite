@@ -47,7 +47,9 @@ These observations are historical evidence and must be refreshed before use.
 
 The global Key Vault helper now validates the trusted root/SSH bootstrap and
 selected existing SQL inputs, reads required secrets, and checks dotenv/YAML
-representations before managed writes, including Compose interpolation and YAML escape constraints. Selected symbolic links and special files are rejected. Failed preparation exits nonzero in both
+representations before managed writes, including Compose interpolation and YAML
+escape constraints. Selected symbolic links and special files are rejected.
+Failed preparation exits nonzero in both
 modes and preserves destinations. The [materialization contract](development/key-vault-materialization.md)
 retains owner SQL targets, optional paths and manually rotated SSH input.
 Subsequent I/O failures explicitly report possible partial updates without

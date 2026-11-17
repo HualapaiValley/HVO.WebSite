@@ -21,8 +21,8 @@ projection. Retain Staging until the consumer/package prerequisite is reconciled
 
 ## Decisions without an assigned implementation issue
 
-- Decide how to address cross-file synchronization rollback; earlier completed replacements can require secure partial-write recovery after a later failure.
-
+- Decide how to address cross-file synchronization rollback; earlier completed
+  replacements can require secure partial-write recovery after a later failure.
 - Decide the first central gateway-status audience: public status, private operator
   dashboard or both. Existing device-rich diagnostics are inputs.
 - Design selective handling of permanent dead letters; automatic RetryExhausted

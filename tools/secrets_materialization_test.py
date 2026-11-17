@@ -40,7 +40,7 @@ if name == settings.get("fail"):
     print("failed-read-stdout-sentinel", end="")
     print("failed-read-stderr-sentinel", file=sys.stderr)
     sys.exit(23)
-print(settings.get("values", {}).get(name, "offline-vault-sentinel-" + name), end="")
+print(json.dumps(settings.get("values", {}).get(name, "offline-vault-sentinel-" + name)))
 '''
 
 
@@ -155,7 +155,7 @@ class MaterializationTests(unittest.TestCase):
                 parsed = subprocess.run(["docker", "compose", "--env-file", str(self.root / path),
                                          "-f", str(compose), "config", "--format", "json"],
                                         env=self.environment, capture_output=True, text=True, check=True)
-                self.assertEqual(value, json.loads(parsed.stdout)["services"]["fixture"]["environment"]["VALUE"])
+                self.assertTrue(value == json.loads(parsed.stdout)["services"]["fixture"]["environment"]["VALUE"], "Compose did not preserve the credential")
                 compose.unlink()
         result, _ = self.run_sync("--check")
         self.assertEqual(0, result.returncode, "literal secret prevented the following check")
@@ -381,6 +381,18 @@ class MaterializationTests(unittest.TestCase):
             bootstrap.write("printf bootstrap-output-sentinel\n")
         result, _ = self.run_sync("--apply")
         self.assertEqual(0, result.returncode)
+        checked, log = self.run_sync("--check")
+        self.assertEqual(0, checked.returncode, "bootstrap stdout changed sourced SSH")
+        self.assertNotIn("approved manual rotation", log)
+
+    def test_bootstrap_stdout_mutant_is_detected(self):
+        script = self.root / "scripts/sync-secrets-from-keyvault.sh"
+        original = script.read_text()
+        mutant = original.replace('source "$1" >/dev/null 2>&1', 'source "$1"')
+        self.assertNotEqual(original, mutant)
+        script.write_text(mutant)
+        with self.assertRaises(AssertionError):
+            self.test_bootstrap_stdout_is_suppressed()
 
     def test_yaml_round_trip(self):
         value = "valid yaml: # punctuation!"
@@ -391,7 +403,7 @@ class MaterializationTests(unittest.TestCase):
             self.assertEqual(0, parsed.returncode, "YAML parser did not preserve the credential")
         else:
             import yaml
-            self.assertEqual(value, yaml.safe_load((self.root / YAML).read_text())["hvo_bluetooth_proxy_fallback_password"])
+            self.assertTrue(value == yaml.safe_load((self.root / YAML).read_text())["hvo_bluetooth_proxy_fallback_password"], "YAML did not preserve the credential")
         result, _ = self.run_sync("--check")
         self.assertEqual(0, result.returncode)
 
@@ -441,6 +453,19 @@ REJECTIONS = {
     "late_secret_read_failure": lambda t: t.settings.update(fail=LATE_SECRET),
     "empty_sql_secret": lambda t: t.settings["values"].update({SQL_SECRET: ""}),
     "multiline_dotenv_secret": lambda t: t.settings["values"].update({"obs-github-token": "multiline-secret-sentinel\nsecond-line"}),
+    "root_nul": lambda t: t.settings["values"].update({"obs-github-token": "bad\0root"}),
+    "root_trailing_newline": lambda t: t.settings["values"].update({"obs-github-token": "badroot\n"}),
+    "website_nul": lambda t: t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": "bad\0website"}),
+    "website_trailing_newline": lambda t: t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": "badwebsite\n"}),
+    "yaml_nul": lambda t: t.settings["values"].update({LATE_SECRET: "bad\0yaml"}),
+    "yaml_trailing_newline": lambda t: t.settings["values"].update({LATE_SECRET: "badyaml\n"}),
+    "compose_single_quote": lambda t: t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": "bad'quote"}),
+    "compose_backslash": lambda t: t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": r"bad\path"}),
+    "compose_tab": lambda t: t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": "bad\tvalue"}),
+    "compose_leading_space": lambda t: t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": " bad"}),
+    "compose_trailing_space": lambda t: t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": "bad "}),
+    "compose_unicode_utf8": lambda t: (t.environment.update(LC_ALL="C.UTF-8"), t.settings["values"].update({"WebsiteRuntime--AzureClientSecret": "café-secret"})),
+    "yaml_unicode_utf8": lambda t: (t.environment.update(LC_ALL="C.UTF-8"), t.settings["values"].update({LATE_SECRET: "café-secret"})),
     "yaml_backslash_q": lambda t: t.settings["values"].update({LATE_SECRET: r"pa\qss"}),
     "yaml_backslash_n": lambda t: t.settings["values"].update({LATE_SECRET: r"pa\nss"}),
     "yaml_control": lambda t: t.settings["values"].update({LATE_SECRET: "pa\tss"}),

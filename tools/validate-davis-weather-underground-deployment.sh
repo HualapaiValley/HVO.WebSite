@@ -78,7 +78,7 @@ validate_key_vault_sync() {
 		printf '%s\n' '    shift'
 		printf '%s\n' '  done'
 		printf '%s\n' '  printf "%s\n" "${secret_name}" >>"${AZ_CALL_LOG:?}"'
-		printf '%s\n' '  printf "%s" "${AZ_SECRET_VALUE:?}"'
+		printf '%s\n' "  python3 -c 'import json, os; print(json.dumps(os.environ[\"AZ_SECRET_VALUE\"]))'"
 		printf '%s\n' '  exit 0'
 		printf '%s\n' 'fi'
 		printf '%s\n' 'exit 1'
