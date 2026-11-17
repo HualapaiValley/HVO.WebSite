@@ -1,5 +1,17 @@
 # Agent instructions
 
+## Unified-policy pilot candidate
+
+The [HVO policy 2026-11-16.8](docs/development/policy/common.md) defines scope,
+platform/security > common policy > repo profile precedence, and local skills;
+see the [WebSite profile and pilot stages](docs/development/policy/website.md#pilot-stages)
+and [adapters](docs/development/policy/adapters.md). The review minimum is checked
+at Ready and before merge, and does not block implementing, committing, pushing or
+opening a draft PR; see the [review contract](docs/development/policy/common.md#independent-review-contract).
+
+The pilot policy applies only to designated pilot work and policy text or
+enforcement changes; all other WebSite work follows the existing procedures below unchanged.
+
 ## Scope and authorization
 
 These instructions apply to HVO.WebSite. Other repositories remain read-only unless the user authorizes their changes. Read-only inspection does not authorize unrelated implementation. Preserve current user scope and authorization when resuming work.
@@ -7,6 +19,8 @@ These instructions apply to HVO.WebSite. Other repositories remain read-only unl
 Use a dedicated branch/checkout from `main`; never commit issue work directly to `main`. Do not overwrite another owner's work. Releases, deployment, live hardware operations and other repositories need applicable authorization. An explicitly authorized full issue lifecycle includes reviewed, green merge and closeout; do not stop at PR creation or repeatedly ask to continue. An epic assignment includes its authorized child work and final acceptance. If merge is not authorized, stop with the reviewed, green PR and report its state.
 
 ## Mandatory procedure routing
+
+For WebSite work, repository-local skills (`.agents/skills`) govern; global `hvo-*` skills on the host are not substitutes and do not authorize dispatch or installation — see [common policy precedence](docs/development/policy/common.md#authority-and-precedence). Do not edit or uninstall global skills.
 
 Before acting, read [the repository profile](docs/development/repository-profile.md) and the applicable files below. These are required local instructions, even when the tool does not automatically discover skills.
 
