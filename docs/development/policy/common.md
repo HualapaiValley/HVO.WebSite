@@ -44,7 +44,7 @@ profile lists only structural differences: branch, queue or merge route, require
 merge gate and who sets it (trusted automation, Kepler or Roy), required checks, required pre-post checks such as a
 secret scan, and SDK pin location, plus repository facts such as paths and
 toolchain. It may not relax or add procedural rules except for a clearly labeled
-“Transitional retained procedures” list. Each listed item remains in force until Roy records a decision to retire it or promote it to common, or until the next policy release, whichever comes first; it may only be stricter, never relax common policy. "Next policy release" means the next shared-policy version bump. The repository adoption profile describes local skill discovery.
+“Transitional retained procedures” list. Each listed item remains in force until Roy records a decision to retire it or promote it to common, or until the next policy release, whichever comes first; it may only be stricter, never relax common policy. "Next policy release" means the next shared-policy version bump. A profile may also set a stricter retry budget as described in [Validation and runtime routes](#validation-and-runtime-routes). The repository adoption profile describes local skill discovery.
 No global installation is a prerequisite; no adapter grants broader scope or
 waives gates. Stop and resolve conflicts rather than guessing. An assignment may narrow the permitted
 scope or add requirements; it cannot lower review-tier minima, required distinct-model
@@ -73,14 +73,16 @@ with explicit authorization: this standing rule supplies that authorization, sub
 to any assignment-specific limit and all required gates. An assignment may narrow
 its endpoint to draft-only or PR-ready. After required CLEAN reviews on the exact
 head, required independence and coverage, and resolution of eligible review threads,
-Kepler continues without a further manual signal from Roy: mark ready, publish any
-remaining review and verification records, wait for qualified CI and Review Evidence
-(or the profile equivalent) on the non-draft head, apply the ready-to-merge label if
+Kepler continues without a further manual signal from Roy: publish any remaining review
+and verification records, then mark ready, wait for qualified CI and the profile’s
+review-evidence gate on the non-draft head, apply the ready-to-merge label if
 used, and merge by the profile method bound to the exact reviewed head SHA. Never use
 admin rights or bypass actors. CHANGES_REQUIRED, INCOMPLETE or BLOCKED review,
 unresolved blocking threads, failed or unqualified CI, or a decision only Roy can make
 stops the merge. Ask Roy for release publication, deployment (including staging),
-production changes, physical or hardware operations, waivers, protection or ruleset
+production changes, reboots, deletions (including production, user data, repositories
+or machines, but excluding safe cleanup of an agent’s own completed feature branch or
+scratch workspace after merge), physical or hardware operations, waivers, protection or ruleset
 changes, unresolved policy conflicts and other decisions only he can make. Physical
 operations include operating the real roof or any other physical device. Release,
 deployment and physical operations each require their own explicit authorization.
@@ -120,7 +122,7 @@ it never overrides platform restrictions or authorizes credential/network bypass
 7. **Merged → Verified complete:** observe actual merge SHA/target and required
    post-merge results, then verify acceptance and closure. Queue admission is not
    completion. Clean up only owned, recorded, provably merged resources after
-   checking active bindings. Report deployment obligations separately.
+   checking active bindings; reboots and Roy-reserved deletions still require Roy’s decision. Report deployment obligations separately.
 
 Blocked, paused, canceled, failed and ambiguous are explicit non-complete states.
 An uncertain remote mutation must be reconciled before any replay.
@@ -155,10 +157,12 @@ effort separately, session, scope, base/head/target, coverage, checks and limita
 Unknown provenance stays unknown and cannot satisfy a strict model requirement.
 
 Reported model IDs and distinct-model independence are reported, not authenticated.
-Automated HIGH admission relying on distinct-model independence has the same limit.
-Until identity can be authenticated, Roy decides and records any manual acceptance
-using honestly labeled reviews, disclosing identity uncertainty and each reviewer’s
-requested and provider-reported model for that exact head. Roy may accept a review with contributor overlap
+Automated HIGH admission means an automated ready, CI or merge decision for HIGH
+work. When the author and required reviewers are distinct reported models, requested
+and provider-reported identity is sufficient for that admission, with the unauthenticated
+identity limit recorded; no additional per-head Roy acceptance is required. Merge
+authorization remains separate under the standing rule. Roy decides exceptions, such
+as reviewer overlap with contributors or identity that is not distinct. Roy may accept a review with contributor overlap
 only by a manual per-PR decision for that exact head, disclosing that model identity
 is reported, not authenticated, and naming each reviewer's requested and
 provider-reported model. The decision waives only the disclosed independence or

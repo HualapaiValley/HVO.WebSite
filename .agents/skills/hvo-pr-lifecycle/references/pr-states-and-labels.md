@@ -1,6 +1,6 @@
 HualapaiValley PR states and labels
 
-This is the WebSite pilot policy. Every PR starts as draft. Drafts can receive simple preflight checks, while standard CI waits for completed independent review and verified resolution of findings. A green current candidate can be merged within the owner's authorization. A CI failure returns the PR to draft for diagnosis, correction and review of any source changes.
+This is the WebSite pilot policy. Every PR starts as draft. Drafts can receive simple preflight checks, while standard CI waits for completed independent review and verified resolution of findings. A green current candidate can be merged within the common standing authorization and any assignment limit. A CI failure returns the PR to draft for diagnosis, correction and review of any source changes.
 
 ```text
 claim issue -> implement -> draft PR -> independent review
@@ -53,7 +53,7 @@ Before marking ready, verify that:
 2. Every finding has a verified terminal disposition. Deferral is allowed only where the adopted policy and owner authorization permit it; it is never silently treated as a correction.
 3. Actionable threads are resolved and acceptance evidence is complete.
 4. The target synchronization and affected local validation required by the profile are complete.
-5. Owner authorization and label/claim records are current.
+5. The common standing authorization, any assignment limits and label/claim records are current.
 
 Then replace the phase label with `workflow:ci`; Kepler marks the PR ready. A lightweight Review Evidence guard runs before the standard jobs. It checks the actual current head and finding records; a manually marked-ready but unreviewed PR does not qualify for the standard pipeline.
 

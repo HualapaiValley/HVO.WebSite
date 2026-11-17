@@ -45,7 +45,7 @@ Record selection separately from depth. A system/harness is the reviewing tool, 
 |---|---|---|
 | Auto | Select an eligible independent reviewer using the repository's configured reviewer profiles and capabilities available in the current environment. | Try another eligible route; if none can complete the required coverage, record the blocker and retain draft state. |
 | Preferred | Try an ordered list of systems/models/settings, with a stated permitted fallback. | Use only the declared fallback and report the substitution. If no permitted route is available, keep the requirement unmet. |
-| Required | Use the specified route or one of the explicitly allowed alternatives, including any mandatory model/settings and reviewer-count constraints. | Do not silently substitute. Record the unmet requirement and retain draft state; an owner cannot waive the common required models. |
+| Required | Use the specified route or one of the explicitly allowed alternatives, including any mandatory model/settings and reviewer-count constraints. | Do not silently substitute. Record the unmet requirement and retain draft state; an owner cannot waive the common reviewer minima. |
 
 The common policy requires one independent frontier model for LOW and two for HIGH; Sol and Opus are defaults, with substitutions governed by common policy. Auto selects eligible routes. Configuration identifies eligible routes and settings; a human or managed-model route cannot fill a required model role without the exact reported model identity. Do not guess that every available model is suitable. Discover current capabilities at assignment time and check access to the full diff/context, validation evidence, requested lenses and publication route. A model name alone cannot establish review quality.
 
@@ -53,7 +53,7 @@ An allowed list normally means **one of these alternatives**, not one review fro
 
 Effort controls are specific to the model and tool. Resolve supported settings through the actual environment; do not equate Deep with `high` or `xhigh`, or treat similarly named settings across providers as proven equivalents. A prompt asking for thorough review does not prove that a runtime effort setting was applied. [OpenAI reasoning-effort documentation](https://developers.openai.com/api/docs/guides/reasoning) likewise identifies supported effort values as model-dependent.
 
-For a managed reviewer that hides the model or effort, record the available metadata and the visibility limit. An Auto or Preferred policy may permit that route when it can establish the required coverage; it cannot satisfy a strict, unverifiable exact-model/effort or provider-diversity requirement. For that required role, record `INCOMPLETE` rather than treating hidden metadata as compliance; an unavailable required model or contributor-model collision leaves the role BLOCKED under common policy. A supplementary bot review can still provide useful findings without satisfying the required review role.
+For a managed reviewer that hides the model or effort, record the available metadata and the visibility limit. An Auto or Preferred policy may permit that route when it can establish the required coverage; it cannot satisfy a strict, unverifiable exact-model/effort or provider-diversity requirement. For that required role, record `INCOMPLETE` rather than treating hidden metadata as compliance; an unavailable required model or contributor-model collision does not satisfy that role; substitution, BLOCKED and manual acceptance follow common policy. A supplementary bot review can still provide useful findings without satisfying the required review role.
 
 Example request for this pilot:
 
@@ -63,12 +63,12 @@ Required reviewers: two distinct independent frontier models, same head (default
 Focus: CI gates, source/review binding, failure recovery, permissions
 Selection: Auto from configured eligible reviewer profiles
 Model / effort: default Sol and Opus / resolve supported effort from the selected tools
-Fallback: Another eligible route using the same required model; blocked if unavailable
+Fallback: Another eligible independent frontier model under common policy
 ```
 
 An exact-model request can instead say `Required: one of <provider/model/settings A> OR <provider/model/settings B>; no other fallback`. A two-model request says `Required: two independent reviews, one from A AND one from B`. These describe selection constraints, not reviews already performed or blanket authorization to launch extra agents.
 
-An explicit all-of panel requires a distinct reviewer session for each requested selector. A Preferred panel may replace a missing slot only through its declared fallback, with a substitution reason from the reviewer filling that slot; no fallback may replace a required reviewer model. Two A reviewers cannot satisfy A AND B when fallback is prohibited. A permitted fallback applies even if the substitute matches another preferred selector; one reviewer cannot fill two slots. Required panels never substitute.
+An explicit all-of panel requires a distinct reviewer session for each requested selector. A Preferred panel may replace a missing slot only through its declared fallback, with a substitution reason from the reviewer filling that slot; fallback must satisfy common policy and assignment constraints. Two A reviewers cannot satisfy A AND B when fallback is prohibited. A permitted fallback applies even if the substitute matches another preferred selector; one reviewer cannot fill two slots. A panel marked Required with no substitution does not substitute.
 
 **How to perform the review**
 

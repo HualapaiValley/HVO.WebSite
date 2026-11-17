@@ -1,7 +1,7 @@
 # WebSite pilot adoption profile
 
 Policy version: `2026-11-17.1`. Status: local preparation; no live rollout or
-autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
+autonomous enforcement enabled; Kepler merges under the common standing rule. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
 and [automation evidence](../automation-evidence.md) retain their requirements.
@@ -66,20 +66,20 @@ only first-attempt CI admission, and its v1 schema has no BLOCKED verdict.
 ## Transitional retained procedures
 
 There are currently no transitional retained procedures. For this bump, the following
-dispositions are proposed here, not prior per-item Roy decisions except the retired
+dispositions are recorded at this bump, not prior per-item Roy decisions except the retired
 first-pilot stop (t589u).
 
 | Former item | Disposition | Standing substance |
 |---|---|---|
-| Review coverage, publication and Deep triggers | Promote | Evidence translation |
-| Local skill precedence and non-pilot epic route | Promote | Repository-specific scope and discovery |
-| Physical operations and live tests | Promote | Common validation and authority; preserved boundaries |
-| One-run infrastructure recovery | Promote | Common permits stricter profile budgets; preserved boundaries |
-| Trusted enforcement and model qualification | Promote | Pilot stages and evidence translation |
-| Protection and ruleset qualification | Promote | Common validation and pilot boundary |
-| Moving merge source requalification | Promote | Common lifecycle and pilot boundary |
+| Review coverage, publication and Deep triggers | Retain as standing profile text | Evidence translation |
+| Local skill precedence and non-pilot epic route | Retain as standing profile text | Repository-specific scope and discovery |
+| Physical operations and live tests | Retain as standing profile text | Common validation and authority; preserved boundaries |
+| One-run infrastructure recovery | Retain as standing profile text | Common permits stricter profile budgets; preserved boundaries |
+| Trusted enforcement and model qualification | Retain as standing profile text | Pilot stages and evidence translation |
+| Protection and ruleset qualification | Retain as standing profile text | Common validation and pilot boundary |
+| Moving merge source requalification | Retain as standing profile text | Common lifecycle and pilot boundary |
 | Source-bound evidence and validation safeguards | Retire | Preserved validation and boundaries |
-| First-pilot PR-ready stop; stage (c) qualification | Retire stop; promote qualification | Standing merge continuation in common; pilot stages and boundary |
+| First-pilot PR-ready stop; stage (c) qualification | Retire stop; retain qualification as standing profile text | Standing merge continuation in common; pilot stages and boundary |
 
 ## Pilot stages
 
@@ -91,7 +91,7 @@ first-pilot stop (t589u).
    enforcement, protection or automation, including the parked tooling, is required.
    Continue through merge under the common standing rule and assignment limits.
 3. **Autonomous enforcement:** a later, separately authorized stage with trusted
-   enforcement, authenticated distinct-model qualification, protection and autonomous merge.
+   enforcement, authenticated distinct-model qualification, protection and automated merge by trusted enforcement.
    Its qualification requirements below are future requirements, not implemented
    functionality; they do not block a supervised trial.
 
