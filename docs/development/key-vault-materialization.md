@@ -60,7 +60,8 @@ with `-T` support are required; JSON
 secret values are checked for NUL bytes before Bash reads them, preserving
 trailing newlines. Required secrets other than the manually compared SSH key
 reject a trailing newline before materialization. The SSH comparison ignores
-trailing line feeds on both sides, matching the earlier helper behavior.
+trailing line feeds on both sides. This preserves matches accepted by the earlier
+helper and also accepts a root key with extra trailing line feeds.
 
 Only the root `.env` requires shell-safe plain secret assignments. Its validation
 uses `LC_ALL=C` and rejects ASCII whitespace, dollar signs, backticks, quotes,

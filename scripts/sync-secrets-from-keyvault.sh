@@ -239,7 +239,7 @@ check_sourced_dotenv_secret() {
 	current="$bootstrap_ssh"
 	get_secret "$secret_name"
 	expected="$secret_value"
-	# SSH is compared only; match the historical shell comparison's LF handling.
+	# SSH is compared only; preserve historical matches and ignore LF on both sides.
 	while [[ "$current" == *$'\n' ]]; do current="${current%$'\n'}"; done
 	while [[ "$expected" == *$'\n' ]]; do expected="${expected%$'\n'}"; done
 	if [[ "$current" == "$expected" ]]; then
