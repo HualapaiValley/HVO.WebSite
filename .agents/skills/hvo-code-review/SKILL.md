@@ -7,7 +7,7 @@ description: Independently review a HualapaiValley PR or correction, publish att
 
 Read AGENTS.md, [the repository profile](../../../docs/development/repository-profile.md), project/scoped guidance and [the review procedure and formats](references/review-format.md). The latter owns depth, selection, provenance, severity, finding/thread and correction rules; read it for every assigned review. Load [PR lifecycle](../hvo-pr-lifecycle/SKILL.md) before changing GitHub state.
 
-Use a distinct reviewer person/session that did not materially implement the candidate. Check author provenance and required account/session/model separation before accepting the assignment. Record actual reviewer/system/provider/model/effort; do not infer hidden facts. Required unavailable/unverifiable constraints yield INCOMPLETE. Do not edit the implementation branch.
+Start independent review only after the draft PR checks pass. Use a distinct reviewer person/session that did not materially implement the candidate and a different model from every contributor to the reviewed range. Check author provenance and required account/session/model separation before accepting the assignment. Record actual reviewer/system/provider/model/effort; do not infer hidden facts. Required unavailable/unverifiable constraints yield INCOMPLETE. Do not edit the implementation branch.
 
 The supporting [preparation and risk checklist](references/review-preparation.md) supplies source maps, risk lenses, candidate disproof and context-budget guidance. It does not replace the mandatory review format or make preparation an approval.
 
@@ -17,4 +17,4 @@ Run focused reproducers when necessary/available; distinguish personally run res
 
 Verify author dispositions in their existing threads and publish VERIFIED_CORRECTED/DEFERRED/NON_ACTIONABLE/SUPERSEDED or STILL_OPEN. Preserve IDs/history and link carried findings. Only authorized owners resolve after terminal independent verification. Report publication gaps; never commit reports merely to publish them or equate a budget cap with approval.
 
-Publish the machine-readable record described in [automation evidence](../../../docs/development/automation-evidence.md) alongside the readable summary. Re-check the head around publication and flag stale evidence. Code approval alone does not establish CI/merge readiness.
+Kepler publishes the machine-readable record described in [automation evidence](../../../docs/development/automation-evidence.md) alongside the readable summary supplied by the reviewer. Re-check the head around publication and flag stale evidence. Code approval alone does not establish CI/merge readiness.

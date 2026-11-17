@@ -55,7 +55,7 @@ Before marking ready, verify that:
 4. The target synchronization and affected local validation required by the profile are complete.
 5. Owner authorization and label/claim records are current.
 
-Then replace the phase label with `workflow:ci` and mark the PR ready. A lightweight Review Evidence guard runs before the standard jobs. It checks the actual current head and finding records; a manually marked-ready but unreviewed PR does not qualify for the standard pipeline.
+Then replace the phase label with `workflow:ci`; Kepler marks the PR ready. A lightweight Review Evidence guard runs before the standard jobs. It checks the actual current head and finding records; a manually marked-ready but unreviewed PR does not qualify for the standard pipeline.
 
 Record the PR head and the base or synthetic merge source actually tested. GitHub's PR workflow can test a merge commit, so final CI evidence must identify that binding rather than assuming every check tested the raw head. GitHub exposes both `ready_for_review` and `converted_to_draft`; they must be explicitly selected when workflows need those transitions because the default PR triggers are opened, synchronize and reopened. [GitHub PR workflow events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request).
 
@@ -65,12 +65,12 @@ This rule applies to dependency and other automatically generated PRs too. Befor
 
 **CI recovery and source changes**
 
-A failed, cancelled, timed-out or otherwise invalid standard run cannot satisfy merge readiness. Return the PR to draft, replace the phase with `workflow:changes-required`, retain the issue claim and publish the diagnostic evidence. Cancel obsolete active standard runs when returning to draft.
+A failed, cancelled, timed-out or otherwise invalid standard run cannot satisfy merge readiness. Kepler returns the PR to draft; replace the phase with `workflow:changes-required`, retain the issue claim and publish the diagnostic evidence. Cancel obsolete active standard runs when returning to draft.
 
-For a code defect, correct it, run affected local checks and request correction review of the previous reviewed head to the new head. Carry all outstanding findings and the CI failure evidence. After independent verification and thread resolution, mark ready and start standard CI again.
+For a code defect, correct it, run affected local checks and request correction review of the previous reviewed head to the new head. Carry all outstanding findings and the CI failure evidence. After independent verification and thread resolution, Kepler marks ready and starts standard CI again.
 
-For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head/target. Return to draft, document the infrastructure correction and re-establish ready conditions; one fresh complete CI run for the same tuple need not invent a code correction or redundant code review. Partial reruns of old admission do not qualify in this profile. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
+For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head/target. Kepler returns to draft; document the infrastructure correction and re-establish ready conditions; one fresh complete CI run for the same tuple need not invent a code correction or redundant code review. Partial reruns of old admission do not qualify in this profile. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
 
-Any new source commit after review, including a correction made after CI passed, invalidates the relevant current-head approval and readiness. Return to draft before pushing where possible. The guard must also catch a push made while still ready, block standard jobs for the unreviewed head, clear `workflow:ready-to-merge`, and route the candidate back to review. Source synchronization follows the same applicable review rules.
+Any new source commit after review, including a correction made after CI passed, invalidates the relevant current-head approval and readiness. Kepler returns it to draft before pushing where possible. The guard must also catch a push made while still ready, block standard jobs for the unreviewed head, clear `workflow:ready-to-merge`, and route the candidate back to review. Source synchronization follows the same applicable review rules.
 
-Once required checks are green for the current reviewed candidate, verify target/source currency and conversation resolution, then apply `workflow:ready-to-merge`. Merge using the repository profile when authorized. Complete the issue/epic progress record, remove active ownership/blocker labels, apply `workflow:complete`, release reservations and clean up safely.
+Once required checks are green for the current reviewed candidate, verify target/source currency and conversation resolution, then apply `workflow:ready-to-merge`. Kepler merges using the repository profile when authorized. Complete the issue/epic progress record, remove active ownership/blocker labels, apply `workflow:complete`, release reservations and clean up safely.

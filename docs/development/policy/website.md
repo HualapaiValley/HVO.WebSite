@@ -77,7 +77,8 @@ Preserve source-bound evidence IDs, trusted target evaluator/controller, immutab
 merge-source execution, selected execution unions, main/full lanes and full-SHA
 Action pins. WebSite live admission counts only first-attempt (`run_attempt` 1) `ci.yml`
 runs. Infrastructure recovery retains WebSite's stricter one fresh complete run
-budget. This stricter rule wins over the common procedural retry budget. No
+budget. This stricter rule wins over the common procedural retry budget. (Superseded by
+the common profile rule; pending Roy: keep as WebSite exception or lift to common.) No
 workflow, schema, gate producer or CI selection changes belong to
 this preparation. Production exporter stays disabled; retired collectors are not
 deployment targets. Archived `src/HVO.Database` stays outside the solution;
@@ -89,13 +90,17 @@ or use live tests as ordinary validation.
 Keep WebSite's `hvo-pr-process` version 1 format unchanged. Common CLEAN maps to
 WebSite APPROVE only when coverage is complete and all mandatory conditions pass;
 CHANGES_REQUIRED and INCOMPLETE map directly. BLOCKED is non-approval: publish
-INCOMPLETE with the blocker, never invent an unsupported machine verdict.
+INCOMPLETE with the blocker, never invent an unsupported machine verdict. (Pending
+Roy: keep as WebSite exception or lift to common.)
 The existing profile/review-format Deep triggers (including deployment, durability
 and cross-component effects) are High risk for this pilot. Mechanical/Standard/Deep
 map to low/standard/high coverage, with reviewer minima from the common contract.
+(Pending Roy: keep as WebSite exception or lift to common.)
 Camera lifecycle is a cross-repository common-policy example, not an assertion that
 WebSite operates cameras. Standard review permits the same model in a distinct
-independent session unless the assignment adds separation requirements.
+independent session unless the assignment adds separation requirements. (Superseded
+by the common policy’s different-model rule; pending Roy: keep as WebSite exception
+or lift to common.)
 
 The current author record can request `minReviewers`, `differentModel`, panel
 selectors and `modelComparison: all-contributors`. Those declarations do not prove
