@@ -5,9 +5,11 @@ Start with [common policy](common.md) and the repository adoption profile. The
 canonical source, and lists the portable files. Root AGENTS.md links the profile.
 The layout consists of the portable files plus one repository-specific profile and
 manifest. The repository adoption profile lists only structural differences:
-branch, queue or merge route, required merge gate and who sets it, required checks,
+branch, queue or merge route, required merge gate and who sets it (trusted automation,
+Kepler or Roy), required checks,
 required pre-post checks such as a secret scan, and SDK pin location, plus facts
-such as paths and toolchain. It may not relax or add procedural rules. From the
+such as paths and toolchain. It may not relax or add procedural rules except the
+clearly labeled, stricter transitional retained procedures described in common policy. From the
 repository root, verify the pinned portable files with:
 
 ```sh

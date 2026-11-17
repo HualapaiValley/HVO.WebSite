@@ -20,7 +20,7 @@ Load [common policy](common.md), the existing issue/review/PR skills and
 [coordination](../../../.agents/skills/hvo-coordination/SKILL.md). Thin
 [harness and Kepler adapters](adapters.md) add discovery and transport only.
 The [manifest](manifest.json) pins the portable common/adapter/coordination
-snapshot and names this repository adoption profile; existing WebSite skills remain repository-versioned dependencies.
+and README snapshot and names this repository adoption profile; existing WebSite skills remain repository-versioned dependencies.
 
 See [common policy precedence](common.md#authority-and-precedence); automatic
 discovery in each launch context is not verified.
@@ -29,7 +29,8 @@ discovery in each launch context is not verified.
 
 This repository is the canonical common-policy source for the local WebSite pilot;
 other repositories have not adopted it. The canonical source location is recorded
-in the manifest. Other WebSite work follows existing procedures unchanged.
+in the manifest. The six folded common rules apply to all WebSite agent work;
+other existing procedures continue subject to those rules.
 For WebSite work, repository-local skills govern over legacy global hvo-* skills;
 global skills are not substitutes and do not authorize dispatch or installation.
 
@@ -49,6 +50,31 @@ skills. No repository Cursor rules/discovery adapter is installed or qualified.
 The hvo-epic-work SSH-to-T3-Code route remains the existing procedure for non-pilot
 epic work. Parked tooling at `parking/website-policy-pilot-tooling-20261116`
 (2513350) is not a pilot requirement.
+
+## Draft and gate facts
+
+The draft checks required before review are the latest PR Preflight `simple-checks`
+run and PR Process `metadata` job on the exact head. `Review Evidence`,
+`build-and-test` and `docker-smoke` deliberately fail on drafts and are not draft
+checks. Preflight requires a closing keyword for the issue in the PR title: a
+partial slice closes its child with `Closes #child` and references its parent with
+`Refs #parent`. The gate requires zero-warning build and non-live evidence, counts
+only first-attempt CI admission, and its v1 schema has no BLOCKED verdict.
+
+## Transitional retained procedures
+
+Each item below stays in force until Roy records a decision to retire it or promote
+it to common policy; none relaxes common policy. Status: retained, pending Roy.
+
+- Review-format coverage, publication and Deep-trigger mapping remain required, subject to the common tier and Kepler relay rules.
+- Repository-local skill precedence and non-pilot epic dispatch route remain in force.
+- Never operate physical devices or use live tests as ordinary validation.
+- Infrastructure recovery permits one fresh complete run for unchanged source, a stricter limit than common's default two retries.
+- Autonomous enforcement requires trusted enforcement and authenticated family qualification, including the mapping and adversarial checks below.
+- Protection or ruleset changes require fixture qualification, authenticated baseline and impact evidence, and a verified rollback plan; stop for unknown baseline or concurrent change.
+- Requalify a moving merge source before authorized merge; verify source, review, checks and resolved findings.
+- Preserve source-bound evidence, trusted evaluator/controller, immutable merge-source execution, execution unions, full lanes and full-SHA Action pins; workflow/helper changes require focused checks.
+- The first pilot stops at PR-ready; Roy separately authorizes its first merge. Stage (c) qualification retains the additional requirements below.
 
 ## Pilot stages
 
@@ -77,8 +103,7 @@ Preserve source-bound evidence IDs, trusted target evaluator/controller, immutab
 merge-source execution, selected execution unions, main/full lanes and full-SHA
 Action pins. WebSite live admission counts only first-attempt (`run_attempt` 1) `ci.yml`
 runs. Infrastructure recovery retains WebSite's stricter one fresh complete run
-budget. This stricter rule wins over the common procedural retry budget. (Superseded by
-the common profile rule; pending Roy: keep as WebSite exception or lift to common.) No
+budget as a transitional retained procedure. No
 workflow, schema, gate producer or CI selection changes belong to
 this preparation. Production exporter stays disabled; retired collectors are not
 deployment targets. Archived `src/HVO.Database` stays outside the solution;
@@ -90,17 +115,14 @@ or use live tests as ordinary validation.
 Keep WebSite's `hvo-pr-process` version 1 format unchanged. Common CLEAN maps to
 WebSite APPROVE only when coverage is complete and all mandatory conditions pass;
 CHANGES_REQUIRED and INCOMPLETE map directly. BLOCKED is non-approval: publish
-INCOMPLETE with the blocker, never invent an unsupported machine verdict. (Pending
-Roy: keep as WebSite exception or lift to common.)
+INCOMPLETE with the blocker, never invent an unsupported machine verdict.
 The existing profile/review-format Deep triggers (including deployment, durability
 and cross-component effects) are High risk for this pilot. Mechanical/Standard/Deep
 map to low/standard/high coverage, with reviewer minima from the common contract.
-(Pending Roy: keep as WebSite exception or lift to common.)
 Camera lifecycle is a cross-repository common-policy example, not an assertion that
-WebSite operates cameras. Standard review permits the same model in a distinct
-independent session unless the assignment adds separation requirements. (Superseded
-by the common policy’s different-model rule; pending Roy: keep as WebSite exception
-or lift to common.)
+WebSite operates cameras. Before .9, Standard review permitted the same model in a
+distinct independent session; common policy now requires a different model from
+every contributor in the reviewed range.
 
 The current author record can request `minReviewers`, `differentModel`, panel
 selectors and `modelComparison: all-contributors`. Those declarations do not prove
@@ -132,11 +154,11 @@ future qualification requirements for stage (c) autonomous enforcement, but not 
 stage (b). Other stage (c) requirements include a plan for protection that blocks
 its own repair; runner and credential
 exposure review of any app identities; measured strict up-to-date re-review cost;
-live-test authorization separate from watchdog approval; and reconciliation of
-[review-format.md](../../../.agents/skills/hvo-code-review/references/review-format.md)'s one-reviewer Deep wording with the
-two-family High rule. These inputs are not complete.
+live-test authorization separate from watchdog approval. The prior one-reviewer
+Deep wording in [review-format.md](../../../.agents/skills/hvo-code-review/references/review-format.md)
+has been reconciled with the HIGH panel. The other inputs are not complete.
 
-Before any authorized merge, the lifecycle owner verifies the current source,
+Before any authorized merge, Kepler verifies the current source,
 review, required checks and resolved findings under the existing PR procedure.
 A moving target requires requalification. Separate authorization is required for
 release publication, any deployment (including staging), and real roof or hardware operation.

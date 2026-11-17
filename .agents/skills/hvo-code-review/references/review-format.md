@@ -45,9 +45,9 @@ Record selection separately from depth. A system/harness is the reviewing tool, 
 |---|---|---|
 | Auto | Select an eligible independent reviewer using the repository's configured reviewer profiles and capabilities available in the current environment. | Try another eligible route; if none can complete the required coverage, record the blocker and retain draft state. |
 | Preferred | Try an ordered list of systems/models/settings, with a stated permitted fallback. | Use only the declared fallback and report the substitution. If no permitted route is available, keep the requirement unmet. |
-| Required | Use the specified route or one of the explicitly allowed alternatives, including any mandatory model/settings and reviewer-count constraints. | Do not silently substitute. Record the unmet requirement and retain draft state until it can be met or the authorized owner changes it. |
+| Required | Use the specified route or one of the explicitly allowed alternatives, including any mandatory model/settings and reviewer-count constraints. | Do not silently substitute. Record the unmet requirement and retain draft state; an owner cannot waive the common required models. |
 
-The common policy requires Sol for LOW and both Sol and Opus for HIGH. Auto selects eligible routes for those required models, not replacement models. Such configuration must identify eligible models/settings and any permitted human or managed-model route; do not guess that every available model is suitable. Discover current capabilities at assignment time and check access to the full diff/context, validation evidence, requested lenses and publication route. A model name alone cannot establish review quality.
+The common policy requires Sol for LOW and both Sol and Opus for HIGH. Auto selects eligible routes for those required models, not replacement models. Configuration identifies eligible routes and settings; a human or managed-model route cannot fill a required model role without the exact reported model identity. Discover current capabilities at assignment time and check access to the full diff/context, validation evidence, requested lenses and publication route. A model name alone cannot establish review quality.
 
 An allowed list normally means **one of these alternatives**, not one review from every entry. The common HIGH tier requires two independent reviewers, Sol and Opus, with its stated family requirements. Each required reviewer produces an attributed report on the same current candidate; carry all findings through verification. Approval by one reviewer cannot erase a blocker reported by another. Prefer one consistent set of finding IDs and threads across rounds/reviewers.
 
@@ -232,7 +232,7 @@ For a correction:
 - Validation: <exact command/reproducer and result>
 ```
 
-The independent reviewer checks that claim and replies in the same thread:
+The independent reviewer checks that claim and supplies the reply to Kepler for faithful publication in the same thread:
 
 ```markdown
 **F1 — VERIFIED_CORRECTED**
@@ -250,6 +250,6 @@ An authorized PR owner or maintainer resolves the thread only after the reviewer
 
 Each correction summary uses the same metadata and priority groups. List every carried finding with its verified or open disposition, linking the original thread. New findings take the next unused ID. Do not recreate existing threads or repeat the original evidence in the summary.
 
-The PR lifecycle owner may record final merge readiness after verifying that the current head is reviewed, every finding has a verified terminal disposition, actionable conversations are resolved, accepted follow-ups are linked, and required CI passes. Preserve the independent reviewer's judgment as its own record. A later product correction or material synchronization invalidates the relevant approval/evidence and requires the appropriate review.
+Kepler may publish the agent merge gate after verifying that the current head is reviewed, every finding has a verified terminal disposition, actionable conversations are resolved, accepted follow-ups are linked, and required CI passes. Preserve the independent reviewer's judgment as its own record. A later product correction or material synchronization invalidates the relevant approval/evidence and requires the appropriate review.
 
 The planned required checks should verify author/reviewer provenance and summary format, a current reviewed head, required reviewer count and observable selection/separation constraints, linked finding records and dispositions, and the configured CI results. They can enforce observable records, not prove review quality or infer a hidden model. Distinguish checks of declared metadata from constraints corroborated by supported runtime evidence. Review reports, code comments and resolution replies are GitHub metadata; do not commit them to the implementation branch merely to publish them.

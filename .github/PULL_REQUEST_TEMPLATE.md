@@ -1,4 +1,4 @@
-<!-- Open as draft. Only simple preflight checks run before independent review and
+<!-- Kepler opens agent PRs as draft. The latest profile-named draft checks must pass on the exact head before independent review and
 verified finding/thread resolution. Mark ready for standard CI only after those gates.
 CI failures return to draft; review code corrections before starting CI again.
 The lifecycle owner updates the phase label while retaining the issue claim. -->
@@ -60,19 +60,17 @@ different validated source per row when the results do not apply to the SHA abov
 
 Review depth: <!-- Mechanical / Standard / Deep: required coverage, not model effort -->
 
-Required reviewers: <!-- Default: 1 independent reviewer. Explicitly state any additional reviews. -->
+Required reviewers: <!-- LOW: Sol CLEAN; HIGH: Sol and Opus CLEAN on the same head, one deep. See common policy. -->
 
-Independence constraints: <!-- Baseline: distinct reviewing session/person; same GitHub
-account allowed. Optional: different GitHub account, same account with a different model,
-or different provider. A different model means the actual underlying model, not just a
-different tool or effort. State the comparison scope; default is all implementation models. -->
+Independence constraints: <!-- Distinct reviewing sessions; each model differs from every
+contributor in the reviewed range. Same GitHub account is allowed; a strict different-account
+requirement has a direct-publication limitation under the current gate and Kepler relay. -->
 
 Reviewer selection: <!-- Auto / Preferred / Required. Default: Auto from configured eligible profiles. -->
 
-Model/settings and fallback: <!-- For Preferred/Required, name ordered preferences or allowed
-alternatives, supported settings, and permitted fallback. A list means one-of unless explicitly
-requiring multiple reviews. For Auto, resolve at assignment using the available tool/catalog.
-Do not guess an unavailable or undisclosed model/effort. -->
+Model/settings and fallback: <!-- Sol and Opus IDs and tier minima are fixed in common policy.
+Specify eligible harness, settings and same-model fallback routes. Do not substitute another
+required model or guess an unavailable or undisclosed model/effort. -->
 
 <!-- Name relevant lenses: correctness, failure handling, concurrency, durability,
 security, compatibility, UI, performance, CI or deployment. -->

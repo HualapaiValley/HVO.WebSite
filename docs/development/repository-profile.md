@@ -15,16 +15,16 @@ Process revision: `2026-10-04.1` (selective CI adopted by PR #426).
 | Workspace | Dedicated branch/checkout; preserve other owners' claims/work |
 | Required local application evidence | Pinned SDK build, zero warnings/errors; applicable non-live tests |
 | SDK | `global.json` is authoritative; currently 10.0.402 with roll-forward disabled |
-| Independent reviewer default | One distinct non-implementation person/session; qualified human or configured eligible agent route |
+| Independent reviewer minimum | Common LOW requires Sol; HIGH requires Sol and Opus, independent of contributors |
 | Default selection | Auto; explicit Preferred/Required and separation constraints override within authorized scope |
-| Publication | Direct GitHub comments/reviews; faithful attributed relay when needed; no mandatory bot |
+| Publication | Kepler faithfully relays agent review records; strict different-account gate requirements need direct publication and may be blocked |
 | CI | Bounded draft preflight, immutable-source review gate and trusted affected-work plan, then selected execution with stable build/test and Docker aggregation; main/nightly/default manual runs remain full |
 | Finalization reservation | None |
 | Release/deployment | Separate authorization; no production/hardware action implied by issue work |
 
 Depth is Mechanical for demonstrably non-behavioral changes, Standard for ordinary bounded application work, and Deep for security, concurrency, durability, migrations, safety, CI control, deployment or interactions across components. See [review coverage and selection](../../.agents/skills/hvo-code-review/references/review-format.md).
 
-Choose an eligible model/tool using its available context, repository/test access, requested risk lenses and current runtime settings. Keep exact model preferences in assignment/configuration rather than universal skill text. Discover live capabilities; verify selectable settings before promising a specific model/effort. Unavailable required choices keep review incomplete. Managed/unknown metadata is allowed only where the assignment permits it.
+Choose an eligible route using its available context, repository/test access, requested risk lenses and current runtime settings. Common policy fixes required reviewer models; harness, effort and permitted same-model fallback are assignment configuration. Discover live capabilities; verify selectable settings before promising a specific model/effort. An unavailable required model blocks its review role; unknown metadata cannot establish a required model.
 
 Local application checks:
 
@@ -50,7 +50,7 @@ The pilot moved standard CI to hosted Ubuntu, using ephemeral Docker smoke resou
 
 ## Current CI authority
 
-PR CI uses a read-only `pull_request_target` workflow whose admission evaluator, planner and aggregation code come from the immutable trusted target tip. Standard execution checks out the verified immutable GitHub merge SHA, with no write credentials or secret environment. The controller accepts only the matching PR/head/target/merge tuple, a fresh complete first attempt created after approval, and four successful internal jobs: review-evidence, plan, build-and-test and docker-smoke. Build-and-test verifies the complete planned execution union, including explicit reasons for skipped empty lanes. It publishes candidate-head statuses for the intended required checks; native target-workflow checks alone do not establish readiness. Partial or old-target reruns cannot qualify. An unchanged-source infrastructure recovery uses one fresh complete run.
+PR CI uses a read-only `pull_request_target` workflow whose admission evaluator, planner and aggregation code come from the immutable trusted target tip. Standard execution checks out the verified immutable GitHub merge SHA, with no write credentials or secret environment. The controller accepts only the matching PR/head/target/merge tuple, a fresh complete first attempt created after approval, and four successful internal jobs: review-evidence, plan, build-and-test and docker-smoke. Build-and-test verifies the complete planned execution union, including explicit reasons for skipped empty lanes. It publishes candidate-head statuses for the intended required checks; native target-workflow checks alone do not establish readiness. Partial or old-target reruns cannot qualify. An unchanged-source infrastructure recovery permits one fresh complete run as a stricter transitional retained procedure pending Roy.
 
 ## Source-bound adoption qualification
 

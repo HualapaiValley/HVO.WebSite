@@ -3,7 +3,8 @@
 The [manifest](manifest.json) identifies the canonical source and pins the portable
 files; distribution is an explicit reviewed copy with digest verification, never
 a runtime fetch or a global symlink. A future common-source repository must be
-designated before distributing further snapshots. Edit here, update the manifest,
+designated before distributing further snapshots. Edit the canonical source named
+in the manifest, update the manifest,
 and review the complete snapshot together. A digest proves consistency, not trust.
 
 This implements the accepted decisions in HVO-policy-proposal.md, Library version
@@ -31,35 +32,43 @@ paths and settings.
 
 ## Authority and precedence
 
-For unified-policy pilot work and policy text or enforcement changes,
-platform/security requirements come first, then this common policy, then the
-repository adoption profile. All repositories follow this common policy. A
+Platform/security requirements come first, then this common policy, then the
+repository adoption profile. All repositories follow this common policy. The six
+folded rules on reviewer model separation, bypass, review timing, named tiers,
+PR operations and closing keywords apply to all agent work, including non-pilot
+work. The remaining pilot scope above is unchanged. A
 profile lists only structural differences: branch, queue or merge route, required
-merge gate and who sets it, required checks, required pre-post checks such as a
+merge gate and who sets it (trusted automation, Kepler or Roy), required checks, required pre-post checks such as a
 secret scan, and SDK pin location, plus repository facts such as paths and
-toolchain. It may not relax or add procedural rules. The repository adoption
-profile describes existing procedures for other work and local skill discovery.
+toolchain. It may not relax or add procedural rules except for a clearly labeled
+“Transitional retained procedures” list. Each listed item remains in force until Roy
+records a decision to retire it or promote it to common; it may only be stricter,
+never relax common policy. The repository adoption profile describes local skill discovery.
 No global installation is a prerequisite; no adapter grants broader scope or
 waives gates. Stop and resolve conflicts rather than guessing. An assignment may narrow the permitted
 scope or add requirements; it cannot lower review-tier minima, required model-family
 separation, required validation, protections or safety boundaries. An explicit
 assignment is not a waiver. Resolve conflicts before the affected action.
 Never bypass branch protection, rulesets or required checks using admin rights or
-bypass actors. No identity, including Max or Kepler, has special authority to waive
-policy; the duties below are operational assignments. Among agents, Kepler, the
+bypass actors. No identity, including Max or Kepler, has special privileges.
+Kepler's assigned operations are duties, not privileges, and grant no authority to
+waive or lower any gate. Among agents, Kepler, the
 coordinator, alone opens PRs (including drafts), marks them ready or returns them
 to draft, publishes the merge gate (including review records or reviewed-head
 status), and enqueues or merges when authorized. Coding and reviewer threads do
 not perform these operations. Roy may act directly. Kepler follows every rule,
 cannot waive or lower any gate, and its changes receive the same review as any
-other changes. A coordinator is required for these agent PR operations.
+other changes. A coordinator is required for these agent PR operations. Kepler
+publishes reviewer output verbatim, links the reviewer session, and never writes or
+changes verdicts or findings; verification records are faithfully relayed too.
 
 Record owner, scope, acceptance criteria, risk and endpoint (research,
 implementation, PR-ready, merged or deployed). Kepler may merge autonomously
 only with explicit authorization and after all required review and check gates
 pass; Roy may act directly. A draft-only assignment never merges. Use `Closes #n`
-in the PR for the issue it completes. A partial slice uses `Refs #n` and leaves
-the parent issue open.
+in the PR for the issue it completes. A partial slice closes its own child issue
+with `Closes #child` and references its parent with `Refs #parent`, leaving the
+parent open.
 Release publication, deployment and physical operations each require their own
 explicit authorization, independent of merge authority and of each other. Physical
 operations include operating the real roof or any other physical device.
@@ -78,8 +87,8 @@ it never overrides platform restrictions or authorizes credential/network bypass
 3. **Implementing:** make the smallest coherent change; preserve unrelated work.
    Reproduce faults when feasible and test relevant behavior/failure boundaries.
    Record actual commands, source, performer, results and unavailable checks.
-4. **Independent review:** begin only after the checks that run on the draft PR
-   have passed, whether those checks are preflight alone or full CI. Reviewers
+4. **Independent review:** begin only after the draft checks named by the repository
+   adoption profile have passed on the exact head (latest run). Reviewers
    check the exact candidate head and base..head
    range read-only, stopping if the head differs; inspect requirements, affected
    interactions and all carried findings. Correct blockers and obtain a
@@ -104,13 +113,19 @@ An uncertain remote mutation must be reconciled before any replay.
 
 | Risk | Minimum review |
 |---|---|
-| LOW: non-executable documentation/presentation without behavior or security impact, and ordinary behavior/API changes | One independent Sol reviewer with a CLEAN verdict |
-| HIGH: safety, security, durability, state/migrations, concurrency/recovery, deployment, cross-component effects, camera lifecycle, CI trust, policy text or policy enforcement | Independent Sol and Opus reviewers with CLEAN verdicts on the same head; at least one deep review |
+| LOW: former Low, including non-executable documentation/presentation without behavior or security impact | One independent Sol reviewer with a CLEAN verdict |
+| HIGH: former Standard and High, including ordinary behavior/API changes, safety, security, durability, state/migrations, concurrency/recovery, deployment, cross-component effects, camera lifecycle, CI trust, policy text or policy enforcement | Independent Sol and Opus reviewers with CLEAN verdicts on the same head; at least one deep review |
 
-The former Low and Standard tiers map to LOW; former High maps to HIGH. When unsure,
-choose HIGH. Every reviewer must use a different model from the author and every
+PENDING ROY DECISION: the tier mapping above is an interim conservative rule;
+former Low maps to LOW, and former Standard and High map to HIGH until Roy records
+a decision. When unsure, choose HIGH. Sol means provider-reported model ID
+`gpt-6.1-sol`; Opus means provider-reported model ID `claude-opus-5-5`. Qualify
+by the exact reported ID, not an alias. Only Roy changes this mapping.
+Every reviewer must use a different model from the author and every
 contributor to the reviewed range. If a contributor's model equals a required
-reviewer model, that review role is BLOCKED until Roy decides. If Sol or Opus is
+reviewer model, that review role is BLOCKED until Roy decides. Roy may record a
+policy change or arrange a new candidate with a nonconflicting contributor set;
+no decision may waive the current separation requirement. If Sol or Opus is
 unavailable for a required role, that role is BLOCKED, not waived.
 
 A reviewer must not author/modify the candidate or finalize it during that review.
@@ -156,8 +171,8 @@ Use established host resource gates for heavy jobs; cancel only obsolete owned j
 Do not weaken checks or tests to obtain green. CI/queue optimization is separate.
 
 Retain failed evidence. Deterministic failures require correction. As procedure, the default
-unchanged-source infrastructure budget is two retries. Repository profiles may
-record required gate facts, but may not add or relax procedural retry rules.
+unchanged-source infrastructure budget is two retries; a stricter transitional
+retained procedure takes precedence until Roy decides its disposition.
 This budget is not claimed to be implemented.
 Sol and Opus are required reviewer models as specified above. Harness, provider
 instance, effort and any fallback route remain assignment configuration; a fallback

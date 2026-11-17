@@ -1,14 +1,13 @@
 ---
 name: hvo-coordination
-description: Candidate coordination procedure for unified-policy pilot work only; not applicable to other work.
+description: Coordination procedure for agent PR operations in all work, with pilot-specific dispatch routing.
 ---
 
 # Coordination procedure
 
 Read [common policy](../../../docs/development/policy/common.md) and the
 repository adoption profile (named by the manifest and linked from root AGENTS.md).
-One accountable
-coordinator owns each work domain. A standalone worker may own implementation;
+One accountable coordinator owns each work domain. A standalone worker may own implementation;
 Kepler performs agent PR operations under the common policy.
 Record the assignment, owner, scope, risk, endpoint, source, evidence and state.
 Do not take over ambiguous ownership or treat silence as failure. Each worker uses

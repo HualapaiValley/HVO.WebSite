@@ -41,7 +41,7 @@ The lifecycle owner verifies labels at each transition. Automation may maintain 
 
 **Checks allowed while draft**
 
-Configure a named, bounded preflight set: title/body format, linked issue/acceptance fields, whitespace, inexpensive syntax/workflow lint, a suitably bounded secret scan, and review-record structure/staleness checks. These should not start the standard application build/test/container/performance pipeline or consume its expensive runner capacity.
+Before review, the latest PR Preflight `simple-checks` run and PR Process `metadata` job must pass on the exact head, as named in the repository adoption profile. `Review Evidence`, `build-and-test` and `docker-smoke` deliberately fail on drafts and are not draft checks. The bounded draft preflight does not start the standard application build/test/container/performance pipeline.
 
 Local builds, tests and reproductions remain part of implementation and review evidence. The draft restriction controls automated PR CI; it does not prevent the owner from validating the change locally.
 
@@ -69,7 +69,7 @@ A failed, cancelled, timed-out or otherwise invalid standard run cannot satisfy 
 
 For a code defect, correct it, run affected local checks and request correction review of the previous reviewed head to the new head. Carry all outstanding findings and the CI failure evidence. After independent verification and thread resolution, Kepler marks ready and starts standard CI again.
 
-For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head/target. Kepler returns to draft; document the infrastructure correction and re-establish ready conditions; one fresh complete CI run for the same tuple need not invent a code correction or redundant code review. Partial reruns of old admission do not qualify in this profile. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
+For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head/target. Kepler returns to draft; document the infrastructure correction and re-establish ready conditions; the stricter transitional budget permits one fresh complete CI run for the same tuple without inventing a code correction or redundant code review. Partial reruns of old admission do not qualify in this profile. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
 
 Any new source commit after review, including a correction made after CI passed, invalidates the relevant current-head approval and readiness. Kepler returns it to draft before pushing where possible. The guard must also catch a push made while still ready, block standard jobs for the unreviewed head, clear `workflow:ready-to-merge`, and route the candidate back to review. Source synchronization follows the same applicable review rules.
 

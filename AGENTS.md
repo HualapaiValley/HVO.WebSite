@@ -5,12 +5,14 @@
 The [HVO policy 2026-11-16.9](docs/development/policy/common.md) defines scope,
 platform/security > common policy > repo profile precedence, and local skills;
 see the [WebSite profile and pilot stages](docs/development/policy/website.md#pilot-stages)
-and [adapters](docs/development/policy/adapters.md). The review minimum is checked
+and [adapters](docs/development/policy/adapters.md). Independent review starts after
+the profile's latest named draft checks pass on the exact head. The review minimum is checked
 at Ready and before merge, and does not block implementing, committing, pushing or
 opening a draft PR; see the [review contract](docs/development/policy/common.md#independent-review-contract).
 
-The pilot policy applies only to designated pilot work and policy text or
-enforcement changes; all other WebSite work follows the existing procedures below unchanged.
+The six folded common rules apply to all WebSite agent work. Other pilot policy
+applies to designated pilot work and policy text or enforcement changes; other
+procedures remain in force subject to those rules.
 
 ## Scope and authorization
 
@@ -20,7 +22,7 @@ Use a dedicated branch/checkout from `main`; never commit issue work directly to
 
 ## Mandatory procedure routing
 
-For WebSite work, repository-local skills (`.agents/skills`) govern; global `hvo-*` skills on the host are not substitutes and do not authorize dispatch or installation — see [common policy precedence](docs/development/policy/common.md#authority-and-precedence). Do not edit or uninstall global skills.
+For WebSite work, repository-local skills (`.agents/skills`) govern; global `hvo-*` skills on the host are not substitutes and do not authorize dispatch or installation — see [profile discovery](docs/development/policy/website.md#repository-specific-scope-and-discovery). Do not edit or uninstall global skills.
 
 Before acting, read [the repository profile](docs/development/repository-profile.md) and the applicable files below. These are required local instructions, even when the tool does not automatically discover skills.
 
@@ -42,6 +44,6 @@ Run `dotnet build` at zero warnings/errors and the applicable non-live tests bef
 
 Draft automated checks are bounded preflight only. Independent current-source review, verified finding dispositions and resolved actionable threads precede ready state and standard CI. Failed CI or changed source returns to draft for correction/review. A green current candidate can merge only within assignment authority. Labels show state but cannot create approval or merge authority.
 
-The reviewer is a distinct person/session that did not materially implement the candidate and uses a different model from every contributor to the reviewed range. The common policy specifies required reviewer models; the assignment can require a different account or provider. Same operator account with a distinct reviewer session is supported. Review summaries identify the actual reviewer and group linked findings by P0–P3; each finding has its own code comment, evidence, possible solution and independent disposition verification. Publish reviews as GitHub metadata; do not commit review reports merely to publish them.
+The reviewer is a distinct person/session that did not materially implement the candidate and uses a different model from every contributor to the reviewed range. The common policy specifies required reviewer models; the assignment can require a different account or provider. The current gate requires direct publication for strict different-account separation, which Kepler's agent relay cannot satisfy; such a requirement remains blocked unless an eligible direct human route or compatible gate is available. Same operator account with a distinct reviewer session is supported. Review summaries identify the actual reviewer and group linked findings by P0–P3; each finding has its own code comment, evidence, possible solution and independent disposition verification. Kepler faithfully publishes agent reviews as GitHub metadata; do not commit review reports merely to publish them.
 
 Keep project history curated when structure, architecture or deployment assumptions change. Do not introduce unrelated packages/frameworks, public contracts or configuration changes without explaining their need and compatibility effects. Keep changes focused; preserve existing behavior outside the assignment.
