@@ -1,6 +1,6 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-16.8`. Status: local preparation; no live rollout or
+Policy version: `2026-11-16.11`. Status: local preparation; no live rollout or
 autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
@@ -19,11 +19,63 @@ publication requirements remain in force.
 Load [common policy](common.md), the existing issue/review/PR skills and
 [coordination](../../../.agents/skills/hvo-coordination/SKILL.md). Thin
 [harness and Kepler adapters](adapters.md) add discovery and transport only.
-The [manifest](manifest.json) pins the new common/adoption/adapter/coordination
-snapshot; existing WebSite skills remain repository-versioned dependencies.
+The [manifest](manifest.json) pins the portable common/adapter/coordination
+and README snapshot and names this repository adoption profile; existing WebSite skills remain repository-versioned dependencies.
 
 See [common policy precedence](common.md#authority-and-precedence); automatic
 discovery in each launch context is not verified.
+
+## Repository-specific scope and discovery
+
+This repository is the canonical common-policy source for the local WebSite pilot;
+other repositories have not adopted it. The canonical source location is recorded
+in the manifest. The six folded common rules apply to all WebSite agent work;
+other existing procedures continue subject to those rules.
+For WebSite work, repository-local skills govern over legacy global hvo-* skills;
+global skills are not substitutes and do not authorize dispatch or installation.
+
+Policy text includes AGENTS.md, CLAUDE.md, docs/development/policy/**,
+docs/development/repository-profile.md, docs/development/PROCESS.md,
+docs/development/automation-evidence.md, CONTRIBUTING.md,
+.github/PULL_REQUEST_TEMPLATE.md, .agents/skills/**, .opencode/**, opencode.json
+and Copilot instructions where they carry workflow rules. Enforcement examples
+include .github/workflows/**, tools/pr-process*, tools/ci-plan* and repository settings.
+
+Existing CLAUDE.md routes to AGENTS.md; verify local skill-link resolution and
+explicitly load canonical `.agents/skills`. The `.claude/skills` link is part of
+that local skill discovery. Existing opencode.json loads AGENTS.md and Copilot
+guidance; existing `.opencode` wrappers remain adapters to canonical procedures.
+Existing `.github/copilot-instructions.md` routes to AGENTS.md and the same local
+skills. No repository Cursor rules/discovery adapter is installed or qualified.
+The hvo-epic-work SSH-to-T3-Code route remains the existing procedure for non-pilot
+epic work. Parked tooling at `parking/website-policy-pilot-tooling-20261116`
+(2513350) is not a pilot requirement.
+
+## Draft and gate facts
+
+The draft checks required before review are the latest PR Preflight `simple-checks`
+run and PR Process `metadata` job on the exact head. For `dependabot[bot]` PRs,
+`metadata` is skipped by design; the draft check is the latest `simple-checks`
+run on the exact head, with the required title and body format. `Review Evidence`,
+`build-and-test` and `docker-smoke` deliberately fail on drafts and are not draft
+checks. Preflight requires a closing keyword for the issue in the PR title: a
+partial slice closes its child with `Closes #child` and references its parent with
+`Refs #parent`. The gate requires zero-warning build and non-live evidence, counts
+only first-attempt CI admission, and its v1 schema has no BLOCKED verdict.
+
+## Transitional retained procedures
+
+Each item below stays in force until Roy records a decision to retire it or promote it to common policy, or until the next policy release, whichever comes first; none relaxes common policy. "Next policy release" means the next shared-policy version bump. Status: retained, remains in force until Roy records a decision or until the next policy release, whichever comes first.
+
+- Review-format coverage, publication and Deep-trigger mapping remain required, subject to the common tier and Kepler relay rules.
+- Repository-local skill precedence and non-pilot epic dispatch route remain in force.
+- Never operate physical devices or use live tests as ordinary validation.
+- Infrastructure recovery permits one fresh complete run for unchanged source, a stricter limit than common's default two retries.
+- Autonomous enforcement requires trusted enforcement and authenticated family qualification, including the mapping and adversarial checks below.
+- Protection or ruleset changes require fixture qualification, authenticated baseline and impact evidence, and a verified rollback plan; stop for unknown baseline or concurrent change.
+- Requalify a moving merge source before authorized merge; verify source, review, checks and resolved findings.
+- Preserve source-bound evidence, trusted evaluator/controller, immutable merge-source execution, execution unions, full lanes and full-SHA Action pins; workflow/helper changes require focused checks.
+- The first pilot stops at PR-ready; Roy separately authorizes its first merge. Stage (c) qualification retains the additional requirements below.
 
 ## Pilot stages
 
@@ -52,7 +104,7 @@ Preserve source-bound evidence IDs, trusted target evaluator/controller, immutab
 merge-source execution, selected execution unions, main/full lanes and full-SHA
 Action pins. WebSite live admission counts only first-attempt (`run_attempt` 1) `ci.yml`
 runs. Infrastructure recovery retains WebSite's stricter one fresh complete run
-budget. This stricter rule wins over the common procedural retry budget. No
+budget as a transitional retained procedure. No
 workflow, schema, gate producer or CI selection changes belong to
 this preparation. Production exporter stays disabled; retired collectors are not
 deployment targets. Archived `src/HVO.Database` stays outside the solution;
@@ -67,10 +119,13 @@ CHANGES_REQUIRED and INCOMPLETE map directly. BLOCKED is non-approval: publish
 INCOMPLETE with the blocker, never invent an unsupported machine verdict.
 The existing profile/review-format Deep triggers (including deployment, durability
 and cross-component effects) are High risk for this pilot. Mechanical/Standard/Deep
-map to low/standard/high coverage, with reviewer minima from the common contract.
+describe coverage. Under the accepted interim HIGH mapping, ordinary behavior/API
+changes require at least one Deep review; Standard coverage alone is insufficient.
+Reviewer minima follow the common contract.
 Camera lifecycle is a cross-repository common-policy example, not an assertion that
-WebSite operates cameras. Standard review permits the same model in a distinct
-independent session unless the assignment adds separation requirements.
+WebSite operates cameras. Before .9, Standard review permitted the same model in a
+distinct independent session; common policy now requires a different model from
+every contributor in the reviewed range.
 
 The current author record can request `minReviewers`, `differentModel`, panel
 selectors and `modelComparison: all-contributors`. Those declarations do not prove
@@ -102,11 +157,11 @@ future qualification requirements for stage (c) autonomous enforcement, but not 
 stage (b). Other stage (c) requirements include a plan for protection that blocks
 its own repair; runner and credential
 exposure review of any app identities; measured strict up-to-date re-review cost;
-live-test authorization separate from watchdog approval; and reconciliation of
-[review-format.md](../../../.agents/skills/hvo-code-review/references/review-format.md)'s one-reviewer Deep wording with the
-two-family High rule. These inputs are not complete.
+live-test authorization separate from watchdog approval. The prior one-reviewer
+Deep wording in [review-format.md](../../../.agents/skills/hvo-code-review/references/review-format.md)
+has been reconciled with the HIGH panel. The other inputs are not complete.
 
-Before any authorized merge, the lifecycle owner verifies the current source,
+Before any authorized merge, Kepler verifies the current source,
 review, required checks and resolved findings under the existing PR procedure.
 A moving target requires requalification. Separate authorization is required for
 release publication, any deployment (including staging), and real roof or hardware operation.

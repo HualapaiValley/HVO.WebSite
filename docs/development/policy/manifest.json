@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-16.8",
+  "version": "2026-11-16.11",
   "status": "candidate-preparation",
   "canonicalSource": "HualapaiValley/HVO.WebSite:docs/development/policy/common.md",
   "design": {
@@ -16,11 +16,11 @@
   "checksums": "docs/development/policy/snapshot.sha256",
   "files": [
     "docs/development/policy/common.md",
-    "docs/development/policy/website.md",
     "docs/development/policy/adapters.md",
+    "docs/development/policy/README.md",
     ".agents/skills/hvo-coordination/SKILL.md"
   ],
-  "policyVersion": "2026-11-16.8",
+  "policyVersion": "2026-11-16.11",
   "designReference": {
     "name": "HVO unified agent workflow design",
     "version": "0.3.1",
@@ -28,5 +28,6 @@
     "date": "2026-11-16",
     "location": "not in repository",
     "status": "procedure-only amendment; design reference; not approved policy"
-  }
+  },
+  "profile": "docs/development/policy/website.md"
 }
