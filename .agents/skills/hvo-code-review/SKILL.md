@@ -1,6 +1,6 @@
 ---
 name: hvo-code-review
-description: Independently review a HualapaiValley PR or correction, publish attributed P0-P3 summaries and separate evidence-backed code findings, and verify their dispositions.
+description: Independently review a HualapaiValley PR or correction, supply attributed P0-P3 summaries and separate evidence-backed code findings to Kepler, and verify their dispositions.
 ---
 
 # Independent code review

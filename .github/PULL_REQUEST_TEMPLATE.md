@@ -1,7 +1,7 @@
 <!-- Kepler opens agent PRs as draft. The latest profile-named draft checks must pass on the exact head before independent review and
-verified finding/thread resolution. Mark ready for standard CI only after those gates.
+verified finding/thread resolution. Kepler marks ready for standard CI only after those gates.
 CI failures return to draft; review code corrections before starting CI again.
-The lifecycle owner updates the phase label while retaining the issue claim. -->
+The accountable issue owner retains the claim and verifies the phase label; the controller may maintain it. -->
 
 ## Purpose
 

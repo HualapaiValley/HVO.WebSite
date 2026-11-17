@@ -37,11 +37,11 @@ Additional labels have separate purposes:
 
 The common pilot uses `workflow:*` lifecycle labels and `review:*` depth labels. Older `review:requested`, `review:changes-required` and `review:converged` state labels are legacy equivalents, not an additional competing state system. Reconcile them during a reviewed adoption rather than removing labels from unrelated live work.
 
-The lifecycle owner verifies labels at each transition. Automation may maintain them later, but labels are visibility aids: the actual PR source, review records, threads and check results establish whether a transition is valid. Setting a label never grants merge authority or supplies approval evidence. Record a failed state write instead of reporting a successful transition.
+The accountable issue owner verifies labels at each transition; the controller may maintain them. Labels are visibility aids: the actual PR source, review records, threads and check results establish whether a transition is valid. Setting a label never grants merge authority or supplies approval evidence. Record a failed state write instead of reporting a successful transition.
 
 **Checks allowed while draft**
 
-Before review, the latest PR Preflight `simple-checks` run and PR Process `metadata` job must pass on the exact head, as named in the repository adoption profile. `Review Evidence`, `build-and-test` and `docker-smoke` deliberately fail on drafts and are not draft checks. The bounded draft preflight does not start the standard application build/test/container/performance pipeline.
+Before review, the latest PR Preflight `simple-checks` run and PR Process `metadata` job must pass on the exact head, as named in the repository adoption profile. For `dependabot[bot]` PRs, `metadata` is skipped by design; the draft check is the latest `simple-checks` run on the exact head, with the required title and body format. `Review Evidence`, `build-and-test` and `docker-smoke` deliberately fail on drafts and are not draft checks. The bounded preflight may include a suitably bounded secret scan; it should not start the standard application build/test/container/performance pipeline or consume its expensive runner capacity.
 
 Local builds, tests and reproductions remain part of implementation and review evidence. The draft restriction controls automated PR CI; it does not prevent the owner from validating the change locally.
 

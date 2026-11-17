@@ -5,7 +5,7 @@ description: Pick up, implement or resume an authorized HualapaiValley issue, ma
 
 # Issue work
 
-Read repository AGENTS.md, scoped project instructions and [the repository profile](../../../docs/development/repository-profile.md). Load [hvo-pr-lifecycle](../hvo-pr-lifecycle/SKILL.md) before opening/updating the PR. Use [hvo-epic-work](../hvo-epic-work/SKILL.md) for an assigned epic.
+Read repository AGENTS.md, scoped project instructions and [the repository profile](../../../docs/development/repository-profile.md). Kepler loads [hvo-pr-lifecycle](../hvo-pr-lifecycle/SKILL.md) before opening the PR; load it before other PR updates. Use [hvo-epic-work](../hvo-epic-work/SKILL.md) for an assigned epic.
 
 ## Claim before editing
 

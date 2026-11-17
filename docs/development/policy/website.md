@@ -54,7 +54,9 @@ epic work. Parked tooling at `parking/website-policy-pilot-tooling-20261116`
 ## Draft and gate facts
 
 The draft checks required before review are the latest PR Preflight `simple-checks`
-run and PR Process `metadata` job on the exact head. `Review Evidence`,
+run and PR Process `metadata` job on the exact head. For `dependabot[bot]` PRs,
+`metadata` is skipped by design; the draft check is the latest `simple-checks`
+run on the exact head, with the required title and body format. `Review Evidence`,
 `build-and-test` and `docker-smoke` deliberately fail on drafts and are not draft
 checks. Preflight requires a closing keyword for the issue in the PR title: a
 partial slice closes its child with `Closes #child` and references its parent with
@@ -118,7 +120,9 @@ CHANGES_REQUIRED and INCOMPLETE map directly. BLOCKED is non-approval: publish
 INCOMPLETE with the blocker, never invent an unsupported machine verdict.
 The existing profile/review-format Deep triggers (including deployment, durability
 and cross-component effects) are High risk for this pilot. Mechanical/Standard/Deep
-map to low/standard/high coverage, with reviewer minima from the common contract.
+describe coverage. Under the pending interim HIGH mapping, ordinary behavior/API
+changes require at least one Deep review; Standard coverage alone is insufficient.
+Reviewer minima follow the common contract.
 Camera lifecycle is a cross-repository common-policy example, not an assertion that
 WebSite operates cameras. Before .9, Standard review permitted the same model in a
 distinct independent session; common policy now requires a different model from

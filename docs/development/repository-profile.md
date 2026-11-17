@@ -22,7 +22,7 @@ Process revision: `2026-10-04.1` (selective CI adopted by PR #426).
 | Finalization reservation | None |
 | Release/deployment | Separate authorization; no production/hardware action implied by issue work |
 
-Depth is Mechanical for demonstrably non-behavioral changes, Standard for ordinary bounded application work, and Deep for security, concurrency, durability, migrations, safety, CI control, deployment or interactions across components. See [review coverage and selection](../../.agents/skills/hvo-code-review/references/review-format.md).
+Depth is Mechanical for demonstrably non-behavioral changes, Standard for bounded coverage where the applicable tier permits it, and Deep for security, concurrency, durability, migrations, safety, CI control, deployment or interactions across components. Under the pending interim HIGH mapping, ordinary behavior/API changes require at least one Deep review. See [review coverage and selection](../../.agents/skills/hvo-code-review/references/review-format.md).
 
 Choose an eligible route using its available context, repository/test access, requested risk lenses and current runtime settings. Common policy fixes required reviewer models; harness, effort and permitted same-model fallback are assignment configuration. Discover live capabilities; verify selectable settings before promising a specific model/effort. An unavailable required model blocks its review role; unknown metadata cannot establish a required model.
 

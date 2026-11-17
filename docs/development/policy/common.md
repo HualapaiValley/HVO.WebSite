@@ -36,7 +36,10 @@ Platform/security requirements come first, then this common policy, then the
 repository adoption profile. All repositories follow this common policy. The six
 folded rules on reviewer model separation, bypass, review timing, named tiers,
 PR operations and closing keywords apply to all agent work, including non-pilot
-work. The remaining pilot scope above is unchanged. A
+work. Except for these six rules, this policy governs pilot work and policy text
+or enforcement changes as defined in Scope; other work follows the repository's
+existing procedures, described by the repository adoption profile, subject to the
+six rules. A
 profile lists only structural differences: branch, queue or merge route, required
 merge gate and who sets it (trusted automation, Kepler or Roy), required checks, required pre-post checks such as a
 secret scan, and SDK pin location, plus repository facts such as paths and
@@ -54,8 +57,12 @@ bypass actors. No identity, including Max or Kepler, has special privileges.
 Kepler's assigned operations are duties, not privileges, and grant no authority to
 waive or lower any gate. Among agents, Kepler, the
 coordinator, alone opens PRs (including drafts), marks them ready or returns them
-to draft, publishes the merge gate (including review records or reviewed-head
-status), and enqueues or merges when authorized. Coding and reviewer threads do
+to draft, publishes review and verification records, records final merge readiness
+or the reviewed-head status, and enqueues or merges when authorized. Review and
+verification records are published before Ready and CI; after qualified CI and
+final checks, Kepler records final merge readiness or reviewed-head status before
+an authorized merge. The merge gate encompasses these distinct stages; it does not
+delay review-record publication until CI. Coding and reviewer threads do
 not perform these operations. Roy may act directly. Kepler follows every rule,
 cannot waive or lower any gate, and its changes receive the same review as any
 other changes. A coordinator is required for these agent PR operations. Kepler

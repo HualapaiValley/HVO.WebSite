@@ -19,7 +19,7 @@ Use the supporting [correction checklist](references/correction-preparation.md) 
 
 ## CI recovery and merge
 
-After the evidence gate qualifies the candidate, apply `workflow:ci` and Kepler marks ready. Understand the tested head/base or synthetic-merge binding. Green CI must match the current reviewed source. On source change or invalid/failed/cancelled CI, Kepler returns it to draft; cancel obsolete runs, apply changes-required, diagnose and review source corrections before the next ready/run. Proven infrastructure failure with unchanged source may retain source review through one fresh complete run as a stricter transitional retained procedure.
+After the pre-ready checklist and verified review/finding state qualify the candidate, apply `workflow:ci` and Kepler marks ready. Understand the tested head/base or synthetic-merge binding. Green CI must match the current reviewed source. On source change or invalid/failed/cancelled CI, Kepler returns it to draft; cancel obsolete runs, apply changes-required, diagnose and review source corrections before the next ready/run. Proven infrastructure failure with unchanged source may retain source review through one fresh complete run as a stricter transitional retained procedure.
 
 Once current checks/threads/target are verified, apply `workflow:ready-to-merge`. Kepler merges using the profile only when the assignment explicitly includes merge/full lifecycle. Otherwise report a concrete reviewed, green PR. Budgets never waive blockers or authorize broader work.
 
