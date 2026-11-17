@@ -1,6 +1,6 @@
 HualapaiValley code review procedure and publication format
 
-This is the review standard for the WebSite pilot. It defines how an independent reviewer examines a change, publishes a concise summary and separate code comments, and verifies resolutions. It is the reference for `hvo-code-review`; it does not require AgentControl's experimental bot.
+This is the review standard for the WebSite pilot. It defines how an independent reviewer examines a change, supplies a concise summary and separate code comments for Kepler to publish, and verifies resolutions. It is the reference for `hvo-code-review`; it does not require AgentControl's experimental bot.
 
 The PR author maintains the submission description and local validation evidence. The independent reviewer supplies the review; Kepler publishes agent review records. CI supplies a separate record of automated checks. Keep those responsibilities distinguishable even when sessions use the same GitHub account.
 
@@ -53,7 +53,7 @@ An allowed list normally means **one of these alternatives**, not one review fro
 
 Effort controls are specific to the model and tool. Resolve supported settings through the actual environment; do not equate Deep with `high` or `xhigh`, or treat similarly named settings across providers as proven equivalents. A prompt asking for thorough review does not prove that a runtime effort setting was applied. [OpenAI reasoning-effort documentation](https://developers.openai.com/api/docs/guides/reasoning) likewise identifies supported effort values as model-dependent.
 
-For a managed reviewer that hides the model or effort, record the available metadata and the visibility limit. An Auto or Preferred policy may permit that route when it can establish the required coverage; it cannot satisfy a strict, unverifiable exact-model/effort or provider-diversity requirement. For that required role, publish `INCOMPLETE` rather than treating hidden metadata as compliance. A supplementary bot review can still provide useful findings without satisfying the required review role.
+For a managed reviewer that hides the model or effort, record the available metadata and the visibility limit. An Auto or Preferred policy may permit that route when it can establish the required coverage; it cannot satisfy a strict, unverifiable exact-model/effort or provider-diversity requirement. For that required role, record `INCOMPLETE` rather than treating hidden metadata as compliance; an unavailable required model or contributor-model collision leaves the role BLOCKED under common policy. A supplementary bot review can still provide useful findings without satisfying the required review role.
 
 Example request for this pilot:
 
@@ -68,7 +68,7 @@ Fallback: Another eligible route using the same required model; blocked if unava
 
 An exact-model request can instead say `Required: one of <provider/model/settings A> OR <provider/model/settings B>; no other fallback`. A two-model request says `Required: two independent reviews, one from A AND one from B`. These describe selection constraints, not reviews already performed or blanket authorization to launch extra agents.
 
-An explicit all-of panel requires a distinct reviewer session for each requested selector. A Preferred panel may replace a missing slot only through its declared fallback, with a substitution reason from the reviewer filling that slot. Two A reviewers cannot satisfy A AND B when fallback is prohibited. Listed fallback applies even if the substitute matches another preferred selector; one reviewer cannot fill two slots. Required panels never substitute.
+An explicit all-of panel requires a distinct reviewer session for each requested selector. A Preferred panel may replace a missing slot only through its declared fallback, with a substitution reason from the reviewer filling that slot; no fallback may replace a required reviewer model. Two A reviewers cannot satisfy A AND B when fallback is prohibited. A permitted fallback applies even if the substitute matches another preferred selector; one reviewer cannot fill two slots. Required panels never substitute.
 
 **How to perform the review**
 
@@ -172,7 +172,7 @@ prior finding/review history when needed. Keep source and performer attribution 
 
 The template's rows are illustrative; publish only real findings. A clean review still includes identity, source range, actual coverage, counts and verdict, followed by a brief statement that no actionable findings were found. Missing required acceptance evidence, coverage or reviewer-selection compliance yields `INCOMPLETE`, not an implied clean result. Unknown model metadata is a declared limitation; it fails an exact-model requirement but does not automatically invalidate a policy that permits a managed reviewer.
 
-Where the publishing tool allows it, Kepler submits the summary as a native GitHub review with individual line comments. A qualified distinct account may use the native approve/request-changes state. Kepler can publish same-account comments with provenance; they must not pretend to have submitted an independent native self-approval. If tooling requires separate publication calls, create the finding comments first and then publish the summary with their actual links. Failed publication is reported as a gap.
+Where the publishing tool allows it, Kepler submits the summary as a native GitHub review with individual line comments. A qualified distinct account may use the native approve/request-changes state subject to Kepler’s agent publication duty. Kepler can publish same-account comments with provenance; they must not pretend to have submitted an independent native self-approval. If tooling requires separate publication calls, create the finding comments first and then publish the summary with their actual links. Failed publication is reported as a gap.
 
 Presentation-only edits may improve an existing summary while preserving its source, verdict, findings, reviewer identity and machine record. Identify a faithful formatting relay in the details when another session makes that edit. Publish a new source-bound summary for a new decision, correction round or changed verdict; presentation edits must never reorder native review decisions.
 
