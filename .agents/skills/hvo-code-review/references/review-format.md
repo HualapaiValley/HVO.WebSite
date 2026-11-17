@@ -1,8 +1,8 @@
 HualapaiValley code review procedure and publication format
 
-This is the review standard for the WebSite pilot. It defines how an independent reviewer examines a change, publishes a concise summary and separate code comments, and verifies resolutions. It is the reference for `hvo-code-review`; it does not require AgentControl's experimental bot.
+This is the review standard for the WebSite pilot. It defines how an independent reviewer examines a change, supplies a concise summary and separate code comments for Kepler to publish, and verifies resolutions. It is the reference for `hvo-code-review`; it does not require AgentControl's experimental bot.
 
-The PR author maintains the submission description and local validation evidence. The independent reviewer publishes the review. CI supplies a separate record of automated checks. Keep those responsibilities distinguishable even when sessions use the same GitHub account.
+The PR author maintains the submission description and local validation evidence. The independent reviewer supplies the review; Kepler publishes agent review records. CI supplies a separate record of automated checks. Keep those responsibilities distinguishable even when sessions use the same GitHub account.
 
 All PRs start draft and remain draft through review and corrections; only simple automated preflight checks run then. Completed independent review and verified finding/thread resolution permit the ready transition and standard CI. A CI failure returns the PR to draft; changed source receives correction review before the next run. Native state, lifecycle labels and retained ownership follow the [PR state rules](../../hvo-pr-lifecycle/references/pr-states-and-labels.md).
 
@@ -13,10 +13,10 @@ Depth specifies the coverage required by the change. It is selected from the iss
 | Depth | Appropriate changes | Required coverage |
 |---|---|---|
 | Mechanical | Pure prose, spelling, formatting or other demonstrably non-behavioral edits. | Inspect the complete change, confirm meaning and executable behavior are preserved, check relevant references and applicable inexpensive validation. Promote when behavior, contracts or executable configuration change. |
-| Standard | Ordinary application changes with bounded effects. | Inspect the complete change and relevant surrounding callers/contracts; verify acceptance, ordinary edge cases, error handling and focused validation. |
+| Standard | Bounded coverage where sufficient under the applicable risk tier. Ordinary behavior/API changes require at least one Deep review under the accepted interim HIGH mapping. | Inspect the complete change and relevant surrounding callers/contracts; verify acceptance, ordinary edge cases, error handling and focused validation. |
 | Deep | Security, durability, concurrency, migration, safety, CI control, deployment or effects across components. | Standard coverage plus trace the affected interactions, challenge failure/recovery assumptions, investigate applicable security/race/data-loss risks, and examine adversarial cases and the evidence that establishes acceptance. Record material coverage limits. |
 
-All depths require an independent reviewer, the same publication format, a bound source range and verified finding dispositions. Deep does not require reviewing unrelated code, choosing the maximum available effort, or automatically obtaining multiple reviews. Scope the risk lenses explicitly. For the WebSite workflow pilot, Deep covers draft/ready transitions, CI bypass and suppression, stale review/head evidence, failure recovery, finding resolution and any permissions used by automation.
+All depths require an independent reviewer, the same publication format, a bound source range and verified finding dispositions. Deep does not require reviewing unrelated code or choosing the maximum available effort; HIGH requires the common policy’s Sol and Opus reviews. Scope the risk lenses explicitly. For the WebSite workflow pilot, Deep covers draft/ready transitions, CI bypass and suppression, stale review/head evidence, failure recovery, finding resolution and any permissions used by automation.
 
 **Author provenance and separation rules**
 
@@ -26,12 +26,12 @@ Each local validation result identifies its performer through that provenance re
 
 | Separation requirement | What must differ or match |
 |---|---|
-| Baseline independent review | A distinct reviewer person/session that did not materially author the implementation under review. The same operator/GitHub account and same model can be used in a separate reviewer session. |
+| Baseline independent review | A distinct reviewer person/session that did not materially author the implementation under review. The same operator/GitHub account can be used in a separate reviewer session, but the reviewer model must differ from every contributor to the reviewed range. |
 | Different GitHub author/reviewer | The review-performing account differs from the PR author account. Record a relayed publication account separately; a publisher is not necessarily the reviewer. |
 | Same author account, different model | The operator/GitHub account matches, but a distinct reviewing session uses a different actual underlying model from the implementation model set. |
 | Different model or provider | Require a distinct underlying model or provider respectively, in addition to session independence; changing a tool, reasoning effort or service tier is insufficient. |
 
-Different-model comparisons use the actual provider/model identities, with any verified alias mapping supplied by the tool adapter. Default comparison scope is all models that materially authored the candidate; an assignment can explicitly select a narrower role/range. Do not infer distinct underlying models from different branded tools or unverified aliases. A human reviewer can satisfy independence but cannot meet a specifically required two-model constraint unless the policy names a human alternative.
+Different-model comparisons use the actual provider/model identities, with any verified alias mapping supplied by the tool adapter. Comparison covers all contributor models in the reviewed range; an assignment cannot narrow it. Do not infer distinct underlying models from different branded tools or unverified aliases. A human reviewer can satisfy independence but cannot meet a specifically required two-model constraint unless the policy names a human alternative.
 
 Switching models in the implementation conversation is self-review and may supplement validation. To satisfy the independent-review gate under the same author account, use a distinct reviewing session with the source, acceptance, provenance and findings supplied as review inputs. If required account/session/model facts cannot be established, retain `INCOMPLETE` for that role. A different identity or model does not by itself demonstrate adequate review coverage.
 
@@ -45,30 +45,30 @@ Record selection separately from depth. A system/harness is the reviewing tool, 
 |---|---|---|
 | Auto | Select an eligible independent reviewer using the repository's configured reviewer profiles and capabilities available in the current environment. | Try another eligible route; if none can complete the required coverage, record the blocker and retain draft state. |
 | Preferred | Try an ordered list of systems/models/settings, with a stated permitted fallback. | Use only the declared fallback and report the substitution. If no permitted route is available, keep the requirement unmet. |
-| Required | Use the specified route or one of the explicitly allowed alternatives, including any mandatory model/settings and reviewer-count constraints. | Do not silently substitute. Record the unmet requirement and retain draft state until it can be met or the authorized owner changes it. |
+| Required | Use the specified route or one of the explicitly allowed alternatives, including any mandatory model/settings and reviewer-count constraints. | Do not silently substitute. Record the unmet requirement and retain draft state; an owner cannot waive the common required models. |
 
-Auto is the proposed ordinary default with one independent reviewer. A qualified human is eligible unless the assignment specifically requires an agent/model. Keep changing exact model mappings in the repository's reviewer configuration or tool adapter rather than baking them into the common skill. Such configuration must identify eligible models/settings and any permitted human or managed-model route; do not guess that every available model is suitable. Discover current capabilities at assignment time and check access to the full diff/context, validation evidence, requested lenses and publication route. A model name alone cannot establish review quality.
+The common policy requires Sol for LOW and both Sol and Opus for HIGH. Auto selects eligible routes for those required models, not replacement models. Configuration identifies eligible routes and settings; a human or managed-model route cannot fill a required model role without the exact reported model identity. Do not guess that every available model is suitable. Discover current capabilities at assignment time and check access to the full diff/context, validation evidence, requested lenses and publication route. A model name alone cannot establish review quality.
 
-An allowed list normally means **one of these alternatives**, not one review from every entry. A requirement for two or more independent reviewers must say so explicitly and name any model/provider diversity constraint. Each required reviewer produces an attributed report on the same current candidate; carry all findings through verification. Approval by one reviewer cannot erase a blocker reported by another. Prefer one consistent set of finding IDs and threads across rounds/reviewers.
+An allowed list normally means **one of these alternatives**, not one review from every entry. The common HIGH tier requires two independent reviewers, Sol and Opus, with its stated family requirements. Each required reviewer produces an attributed report on the same current candidate; carry all findings through verification. Approval by one reviewer cannot erase a blocker reported by another. Prefer one consistent set of finding IDs and threads across rounds/reviewers.
 
 Effort controls are specific to the model and tool. Resolve supported settings through the actual environment; do not equate Deep with `high` or `xhigh`, or treat similarly named settings across providers as proven equivalents. A prompt asking for thorough review does not prove that a runtime effort setting was applied. [OpenAI reasoning-effort documentation](https://developers.openai.com/api/docs/guides/reasoning) likewise identifies supported effort values as model-dependent.
 
-For a managed reviewer that hides the model or effort, record the available metadata and the visibility limit. An Auto or Preferred policy may permit that route when it can establish the required coverage; it cannot satisfy a strict, unverifiable exact-model/effort or provider-diversity requirement. For that required role, publish `INCOMPLETE` rather than treating hidden metadata as compliance. A supplementary bot review can still provide useful findings without satisfying the required review role.
+For a managed reviewer that hides the model or effort, record the available metadata and the visibility limit. An Auto or Preferred policy may permit that route when it can establish the required coverage; it cannot satisfy a strict, unverifiable exact-model/effort or provider-diversity requirement. For that required role, record `INCOMPLETE` rather than treating hidden metadata as compliance; an unavailable required model or contributor-model collision leaves the role BLOCKED under common policy. A supplementary bot review can still provide useful findings without satisfying the required review role.
 
 Example request for this pilot:
 
 ```text
 Depth: Deep
-Required reviewers: 1 independent reviewer
+Required reviewers: Sol AND Opus, independent, same head
 Focus: CI gates, source/review binding, failure recovery, permissions
 Selection: Auto from configured eligible reviewer profiles
-Model / effort: Resolve from the selected tool's live capabilities
-Fallback: Another eligible configured route; retain draft if none is available
+Model / effort: Sol and Opus / resolve supported effort from the selected tools
+Fallback: Another eligible route using the same required model; blocked if unavailable
 ```
 
 An exact-model request can instead say `Required: one of <provider/model/settings A> OR <provider/model/settings B>; no other fallback`. A two-model request says `Required: two independent reviews, one from A AND one from B`. These describe selection constraints, not reviews already performed or blanket authorization to launch extra agents.
 
-An explicit all-of panel requires a distinct reviewer session for each requested selector. A Preferred panel may replace a missing slot only through its declared fallback, with a substitution reason from the reviewer filling that slot. Two A reviewers cannot satisfy A AND B when fallback is prohibited. Listed fallback applies even if the substitute matches another preferred selector; one reviewer cannot fill two slots. Required panels never substitute.
+An explicit all-of panel requires a distinct reviewer session for each requested selector. A Preferred panel may replace a missing slot only through its declared fallback, with a substitution reason from the reviewer filling that slot; no fallback may replace a required reviewer model. Two A reviewers cannot satisfy A AND B when fallback is prohibited. A permitted fallback applies even if the substitute matches another preferred selector; one reviewer cannot fill two slots. Required panels never substitute.
 
 **How to perform the review**
 
@@ -78,7 +78,7 @@ An explicit all-of panel requires a distinct reviewer session for each requested
 4. Evaluate correctness and acceptance first, then applicable failure handling, security, concurrency, durability, compatibility, performance and UI behavior. Identify concrete, actionable defects. Distinguish an introduced regression from an unrelated pre-existing issue; do not expand the implementation scope to satisfy stylistic preference.
 5. Check the author's validation against the actual source. Run focused tests/reproducers when needed and available; distinguish tests personally run from existing results inspected. Record unavailable validation honestly. An uncertain hypothesis belongs in a clearly identified question or limitation, not a confidently asserted defect.
 6. For each finding, provide evidence, impact and a possible solution. Use a stable finding ID and severity. A suggestion is a proposed fix whose suitability the implementer must evaluate and test.
-7. Publish the summary and individual comments. Check the PR head around publication. A report tied to a previous head remains historical evidence; a changed candidate needs appropriate review. Approval must never silently migrate to a newer commit.
+7. Provide the summary and individual comments to Kepler for publication. Check the PR head around publication. A report tied to a previous head remains historical evidence; a changed candidate needs appropriate review. Approval must never silently migrate to a newer commit.
 
 The independent reviewer does not edit the implementation branch. Review budgets affect how work is organized, never whether a security, data-loss, acceptance or material-correctness blocker is considered fixed.
 
@@ -172,7 +172,7 @@ prior finding/review history when needed. Keep source and performer attribution 
 
 The template's rows are illustrative; publish only real findings. A clean review still includes identity, source range, actual coverage, counts and verdict, followed by a brief statement that no actionable findings were found. Missing required acceptance evidence, coverage or reviewer-selection compliance yields `INCOMPLETE`, not an implied clean result. Unknown model metadata is a declared limitation; it fails an exact-model requirement but does not automatically invalidate a policy that permits a managed reviewer.
 
-Where the publishing tool allows it, submit the summary as a native GitHub review with individual line comments. A qualified distinct account may use the native approve/request-changes state. Same-account sessions can publish comments with provenance; they must not pretend to have submitted an independent native self-approval. If tooling requires separate publication calls, create the finding comments first and then publish the summary with their actual links. Failed publication is reported as a gap.
+Where the publishing tool allows it, Kepler submits the summary as a native GitHub review with individual line comments. A qualified distinct account may use the native approve/request-changes state subject to Kepler’s agent publication duty. Kepler can publish same-account comments with provenance; they must not pretend to have submitted an independent native self-approval. If tooling requires separate publication calls, create the finding comments first and then publish the summary with their actual links. Failed publication is reported as a gap.
 
 Presentation-only edits may improve an existing summary while preserving its source, verdict, findings, reviewer identity and machine record. Identify a faithful formatting relay in the details when another session makes that edit. Publish a new source-bound summary for a new decision, correction round or changed verdict; presentation edits must never reorder native review decisions.
 
@@ -232,7 +232,7 @@ For a correction:
 - Validation: <exact command/reproducer and result>
 ```
 
-The independent reviewer checks that claim and replies in the same thread:
+The independent reviewer checks that claim and supplies the reply to Kepler for faithful publication in the same thread:
 
 ```markdown
 **F1 — VERIFIED_CORRECTED**
@@ -250,6 +250,6 @@ An authorized PR owner or maintainer resolves the thread only after the reviewer
 
 Each correction summary uses the same metadata and priority groups. List every carried finding with its verified or open disposition, linking the original thread. New findings take the next unused ID. Do not recreate existing threads or repeat the original evidence in the summary.
 
-The PR lifecycle owner may record final merge readiness after verifying that the current head is reviewed, every finding has a verified terminal disposition, actionable conversations are resolved, accepted follow-ups are linked, and required CI passes. Preserve the independent reviewer's judgment as its own record. A later product correction or material synchronization invalidates the relevant approval/evidence and requires the appropriate review.
+Kepler publishes review and verification records before Ready and CI. After required CI passes, Kepler records final merge readiness or reviewed-head status after verifying that the current head is reviewed, every finding has a verified terminal disposition, actionable conversations are resolved, and accepted follow-ups are linked. Preserve the independent reviewer's judgment as its own record. A later product correction or material synchronization invalidates the relevant approval/evidence and requires the appropriate review.
 
 The planned required checks should verify author/reviewer provenance and summary format, a current reviewed head, required reviewer count and observable selection/separation constraints, linked finding records and dispositions, and the configured CI results. They can enforce observable records, not prove review quality or infer a hidden model. Distinguish checks of declared metadata from constraints corroborated by supported runtime evidence. Review reports, code comments and resolution replies are GitHub metadata; do not commit them to the implementation branch merely to publish them.

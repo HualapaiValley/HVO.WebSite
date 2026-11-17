@@ -29,7 +29,7 @@ Every PR starts draft. Local validation and bounded simple preflight support rev
 
 The author replies to each finding; the independent reviewer verifies its terminal disposition; the authorized owner resolves the thread. A cap, "fixed", an outdated annotation or omitted finding never proves correction. P0/P1 and acceptance/security/data-loss/material-correctness defects block; any eligible deferral needs explicit authorization and a linked follow-up.
 
-Mark ready only when the current candidate meets review/acceptance requirements. Run standard CI, then merge using the profile when authorized. Failure/new source returns to draft and invalidates readiness; independently review source corrections before the next ready/run. Diagnosed infrastructure failure with unchanged source can retain existing source review through a bounded retry.
+Kepler marks ready only after the current candidate meets review/acceptance requirements. Standard CI then runs; Kepler merges only after required CI and final checks pass and merge is authorized. Failure/new source returns to draft and invalidates readiness; independently review source corrections after the named exact-head draft checks pass before the next ready/run. Diagnosed infrastructure failure with unchanged source can retain existing source review through the profile's one fresh complete run.
 
 Verify merge SHA/target and actual issue closure; publish closeout, release active ownership/reservations and safely clean completed branches/workspaces. A full-lifecycle assignment authorizes these steps for its defined scope; release/deployment is separately scoped. An epic continues through ready authorized children and closes only when epic acceptance is verified.
 
@@ -37,7 +37,7 @@ Verify merge SHA/target and actual issue closure; publish closeout, release acti
 
 Mechanical/Standard/Deep define coverage. Auto selects an eligible reviewer profile; Preferred uses stated choices/fallbacks; Required permits only the explicit choices/settings/count. A list of models means one of them unless multiple reviews are explicitly required. Depth is independent of tool, model effort, reviewer count and round budget.
 
-Baseline review uses a distinct non-implementation session/person. Assignments can require a different GitHub account, the same account with a different underlying model, or a different provider. Compare against all implementation models unless another scope is explicit. Switching a model inside the implementation session is supplementary self-review. Hidden model facts cannot satisfy strict unverifiable constraints. Compare actual runtime evidence when supported; editable prose alone cannot attest who ran a model.
+Review uses distinct non-implementation sessions and the common policy's required Sol/Opus models, each different from every contributor to the reviewed range. Assignments can require a different GitHub account or provider, subject to gate and relay limitations. Switching a model inside the implementation session is supplementary self-review. Hidden model facts cannot satisfy strict unverifiable constraints. Compare actual runtime evidence when supported; editable prose alone cannot attest who ran a model.
 
 ## Work started comment
 

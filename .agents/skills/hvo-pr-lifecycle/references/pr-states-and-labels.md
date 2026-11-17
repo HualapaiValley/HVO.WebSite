@@ -37,11 +37,11 @@ Additional labels have separate purposes:
 
 The common pilot uses `workflow:*` lifecycle labels and `review:*` depth labels. Older `review:requested`, `review:changes-required` and `review:converged` state labels are legacy equivalents, not an additional competing state system. Reconcile them during a reviewed adoption rather than removing labels from unrelated live work.
 
-The lifecycle owner verifies labels at each transition. Automation may maintain them later, but labels are visibility aids: the actual PR source, review records, threads and check results establish whether a transition is valid. Setting a label never grants merge authority or supplies approval evidence. Record a failed state write instead of reporting a successful transition.
+The accountable issue owner verifies labels at each transition; the controller may maintain them. Labels are visibility aids: the actual PR source, review records, threads and check results establish whether a transition is valid. Setting a label never grants merge authority or supplies approval evidence. Record a failed state write instead of reporting a successful transition.
 
 **Checks allowed while draft**
 
-Configure a named, bounded preflight set: title/body format, linked issue/acceptance fields, whitespace, inexpensive syntax/workflow lint, a suitably bounded secret scan, and review-record structure/staleness checks. These should not start the standard application build/test/container/performance pipeline or consume its expensive runner capacity.
+Before review, the latest PR Preflight `simple-checks` run and PR Process `metadata` job must pass on the exact head, as named in the repository adoption profile. For `dependabot[bot]` PRs, `metadata` is skipped by design; the draft check is the latest `simple-checks` run on the exact head, with the required title and body format. `Review Evidence`, `build-and-test` and `docker-smoke` deliberately fail on drafts and are not draft checks. The bounded preflight may include a suitably bounded secret scan; it should not start the standard application build/test/container/performance pipeline or consume its expensive runner capacity.
 
 Local builds, tests and reproductions remain part of implementation and review evidence. The draft restriction controls automated PR CI; it does not prevent the owner from validating the change locally.
 
@@ -55,7 +55,7 @@ Before marking ready, verify that:
 4. The target synchronization and affected local validation required by the profile are complete.
 5. Owner authorization and label/claim records are current.
 
-Then replace the phase label with `workflow:ci` and mark the PR ready. A lightweight Review Evidence guard runs before the standard jobs. It checks the actual current head and finding records; a manually marked-ready but unreviewed PR does not qualify for the standard pipeline.
+Then replace the phase label with `workflow:ci`; Kepler marks the PR ready. A lightweight Review Evidence guard runs before the standard jobs. It checks the actual current head and finding records; a manually marked-ready but unreviewed PR does not qualify for the standard pipeline.
 
 Record the PR head and the base or synthetic merge source actually tested. GitHub's PR workflow can test a merge commit, so final CI evidence must identify that binding rather than assuming every check tested the raw head. GitHub exposes both `ready_for_review` and `converted_to_draft`; they must be explicitly selected when workflows need those transitions because the default PR triggers are opened, synchronize and reopened. [GitHub PR workflow events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request).
 
@@ -65,12 +65,12 @@ This rule applies to dependency and other automatically generated PRs too. Befor
 
 **CI recovery and source changes**
 
-A failed, cancelled, timed-out or otherwise invalid standard run cannot satisfy merge readiness. Return the PR to draft, replace the phase with `workflow:changes-required`, retain the issue claim and publish the diagnostic evidence. Cancel obsolete active standard runs when returning to draft.
+A failed, cancelled, timed-out or otherwise invalid standard run cannot satisfy merge readiness. Kepler returns the PR to draft; replace the phase with `workflow:changes-required`, retain the issue claim and publish the diagnostic evidence. Cancel obsolete active standard runs when returning to draft.
 
-For a code defect, correct it, run affected local checks and request correction review of the previous reviewed head to the new head. Carry all outstanding findings and the CI failure evidence. After independent verification and thread resolution, mark ready and start standard CI again.
+For a code defect, correct it, run affected local checks and request correction review of the previous reviewed head to the new head. Carry all outstanding findings and the CI failure evidence. After independent verification and thread resolution, Kepler marks ready and starts standard CI again.
 
-For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head/target. Return to draft, document the infrastructure correction and re-establish ready conditions; one fresh complete CI run for the same tuple need not invent a code correction or redundant code review. Partial reruns of old admission do not qualify in this profile. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
+For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head/target. Kepler returns to draft; document the infrastructure correction and re-establish ready conditions; the stricter transitional budget permits one fresh complete CI run for the same tuple without inventing a code correction or redundant code review. Partial reruns of old admission do not qualify in this profile. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
 
-Any new source commit after review, including a correction made after CI passed, invalidates the relevant current-head approval and readiness. Return to draft before pushing where possible. The guard must also catch a push made while still ready, block standard jobs for the unreviewed head, clear `workflow:ready-to-merge`, and route the candidate back to review. Source synchronization follows the same applicable review rules.
+Any new source commit after review, including a correction made after CI passed, invalidates the relevant current-head approval and readiness. Kepler returns it to draft before pushing where possible. The guard must also catch a push made while still ready, block standard jobs for the unreviewed head, clear `workflow:ready-to-merge`, and route the candidate back to review. Source synchronization follows the same applicable review rules.
 
-Once required checks are green for the current reviewed candidate, verify target/source currency and conversation resolution, then apply `workflow:ready-to-merge`. Merge using the repository profile when authorized. Complete the issue/epic progress record, remove active ownership/blocker labels, apply `workflow:complete`, release reservations and clean up safely.
+Once required checks are green for the current reviewed candidate, verify target/source currency and conversation resolution, then apply `workflow:ready-to-merge`. Kepler merges using the repository profile when authorized. Complete the issue/epic progress record, remove active ownership/blocker labels, apply `workflow:complete`, release reservations and clean up safely.
