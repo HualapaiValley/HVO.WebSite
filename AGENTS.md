@@ -18,7 +18,7 @@ procedures remain in force subject to those rules.
 
 These instructions apply to HVO.WebSite. Other repositories remain read-only unless the user authorizes their changes. Read-only inspection does not authorize unrelated implementation. Preserve current user scope and authorization when resuming work.
 
-Use a dedicated branch/checkout from `main`; never commit issue work directly to `main`. Do not overwrite another owner's work. Releases, deployment, live hardware operations and other repositories need applicable authorization. The common standing rule authorizes reviewed, green merge and closeout subject to assignment limits, but does not authorize reboots or Roy-reserved deletions; Kepler performs agent PR operations under the common policy. Do not stop at PR creation or repeatedly ask to continue. An epic assignment includes its authorized child work and final acceptance. Honor any assignment endpoint that narrows that authority.
+Use a dedicated branch/checkout from `main`; never commit issue work directly to `main`. Do not overwrite another owner's work. Releases, deployment, live hardware operations and other repositories need applicable authorization. The common standing rule authorizes reviewed, green merge and closeout subject to assignment limits, but does not authorize reboots or deletions; Kepler performs agent PR operations under the common policy. Do not stop at PR creation or repeatedly ask to continue. An epic assignment includes its authorized child work and final acceptance. Honor any assignment endpoint that narrows that authority.
 
 ## Mandatory procedure routing
 

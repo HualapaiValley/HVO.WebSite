@@ -83,8 +83,8 @@ first-pilot stop (t589u).
 
 ## Pilot stages
 
-1. **Preparation:** write and review these candidate documents; no assignment
-   runs under them.
+1. **Preparation:** write and review these candidate documents; no designated pilot assignment runs under them; policy-text and enforcement changes,
+   including these documents, are reviewed as High risk.
 2. **Supervised trial:** one low-risk WebSite assignment explicitly authorized by
    Roy follows the procedure manually. Use existing PR Process
    and Review Evidence checks and check the review minimum by hand at Ready. No new

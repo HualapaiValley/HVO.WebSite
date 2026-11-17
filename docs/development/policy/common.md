@@ -25,7 +25,7 @@ adapters where they carry workflow rules; the repository adoption profile lists
 the concrete paths. Product or user
 documentation that merely mentions a policy is not policy text.
 
-Enforcement changes are changes that gate, block, admit or merge work, or change
+Enforcement changes are changes to mechanisms that gate, block, admit or merge work, or change
 branch protection, rulesets, required checks, review-evidence/admission logic or
 CI gating, wherever they live. The repository adoption profile lists the concrete
 paths and settings.
@@ -43,8 +43,8 @@ six rules. A
 profile lists only structural differences: branch, queue or merge route, required
 merge gate and who sets it (trusted automation, Kepler or Roy), required checks, required pre-post checks such as a
 secret scan, and SDK pin location, plus repository facts such as paths and
-toolchain. It may not relax or add procedural rules except for a clearly labeled
-“Transitional retained procedures” list. Each listed item remains in force until Roy records a decision to retire it or promote it to common, or until the next policy release, whichever comes first; it may only be stricter, never relax common policy. "Next policy release" means the next shared-policy version bump. A profile may also set a stricter retry budget as described in [Validation and runtime routes](#validation-and-runtime-routes). The repository adoption profile describes local skill discovery.
+toolchain. It may not relax common procedure; procedural additions are limited to
+the authorities below. A profile may have a clearly labeled “Transitional retained procedures” list. Each listed item remains in force until Roy records a decision to retire it or promote it to common, or until the next policy release, whichever comes first; it may only be stricter, never relax common policy. "Next policy release" means the next shared-policy version bump. A profile may retain qualification and evidence-translation requirements as standing profile text, including items recorded at this bump, provided they do not relax common procedure. A profile may also set a stricter retry budget as described in [Validation and runtime routes](#validation-and-runtime-routes). The repository adoption profile describes local skill discovery.
 No global installation is a prerequisite; no adapter grants broader scope or
 waives gates. Stop and resolve conflicts rather than guessing. An assignment may narrow the permitted
 scope or add requirements; it cannot lower review-tier minima, required distinct-model
@@ -81,8 +81,7 @@ admin rights or bypass actors. CHANGES_REQUIRED, INCOMPLETE or BLOCKED review,
 unresolved blocking threads, failed or unqualified CI, or a decision only Roy can make
 stops the merge. Ask Roy for release publication, deployment (including staging),
 production changes, reboots, deletions (including production, user data, repositories
-or machines, but excluding safe cleanup of an agent’s own completed feature branch or
-scratch workspace after merge), physical or hardware operations, waivers, protection or ruleset
+or machines), physical or hardware operations, waivers, protection or ruleset
 changes, unresolved policy conflicts and other decisions only he can make. Physical
 operations include operating the real roof or any other physical device. Release,
 deployment and physical operations each require their own explicit authorization.
@@ -121,8 +120,8 @@ it never overrides platform restrictions or authorizes credential/network bypass
    and resolved findings.
 7. **Merged → Verified complete:** observe actual merge SHA/target and required
    post-merge results, then verify acceptance and closure. Queue admission is not
-   completion. Clean up only owned, recorded, provably merged resources after
-   checking active bindings; reboots and Roy-reserved deletions still require Roy’s decision. Report deployment obligations separately.
+   completion. Complete ordinary closeout after checking active bindings; reboots and deletions
+   require Roy’s decision. Report deployment obligations separately.
 
 Blocked, paused, canceled, failed and ambiguous are explicit non-complete states.
 An uncertain remote mutation must be reconciled before any replay.
@@ -165,7 +164,7 @@ authorization remains separate under the standing rule. Roy decides exceptions, 
 as reviewer overlap with contributors or identity that is not distinct. Roy may accept a review with contributor overlap
 only by a manual per-PR decision for that exact head, disclosing that model identity
 is reported, not authenticated, and naming each reviewer's requested and
-provider-reported model. The decision waives only the disclosed independence or
+provider-reported model. Record each exception decision in GitHub PR metadata bound to the full head SHA; it may also be recorded in history after merge. The decision waives only the disclosed independence or
 overlap defect for that head, no other requirement, including coverage, checks,
 local evidence, merge method or the ban on admin bypass. It is not authenticated
 proof of distinct models. Acceptance for one head never carries over; each new head
