@@ -3,17 +3,21 @@
 ## Unified-policy pilot candidate
 
 The repository-contained [HVO policy 2026-11-16.6](docs/development/policy/common.md)
-and [WebSite adoption profile](docs/development/policy/website.md) define the
-reviewable single-host pilot and its activation blockers. Read them for this work.
-Platform/security requirements take precedence over common policy, which takes
-precedence over repository profile additions; stop and resolve conflicts. Existing procedures below remain in force for current
-work; this candidate does not activate autonomous merge or replace trusted gates.
-During candidate preparation, policy/enforcement changes require two independent
-reviewers from different model families, at least one deep review, as specified
-in the adoption profile. The existing skill's depth-only default cannot lower
-that minimum. The [thin adapters](docs/development/policy/adapters.md) describe
-explicit loading for the listed harnesses; automatic discovery is unqualified.
-No global installation is a prerequisite.
+and [WebSite adoption profile](docs/development/policy/website.md) apply to
+unified-policy pilot work and policy text or enforcement changes. All other WebSite
+work follows the existing procedures below unchanged. For the pilot policy,
+platform/security requirements take precedence over common policy, which takes
+precedence over repository profile additions; stop and resolve conflicts.
+
+The review minimum, including two independent reviewers from different model families
+and at least one deep review for High risk, is checked at Ready and before any
+merge decision; it does not block
+implementing, committing, pushing or opening a draft PR. Automated High-risk
+admission means an automated ready/CI/merge decision that relies on model-family
+separation; until family can be authenticated, a human decides using honestly
+labeled reviews.
+The [thin adapters](docs/development/policy/adapters.md) describe explicit loading;
+automatic discovery is not verified. No global installation is a prerequisite.
 
 ## Scope and authorization
 

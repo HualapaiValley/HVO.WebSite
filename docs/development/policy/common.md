@@ -19,8 +19,9 @@ these documents neither grant assignment authority nor publish a passing gate.
 
 ## Authority and precedence
 
-Platform/security requirements come first, then this common policy, then repository
-profile additions. Stop and resolve conflicts rather than guessing. An assignment may narrow the permitted
+For unified-policy pilot work and policy text or enforcement changes,
+platform/security requirements come first, then this common policy, then repository
+profile additions. Other WebSite work follows existing procedures unchanged. Stop and resolve conflicts rather than guessing. An assignment may narrow the permitted
 scope or add requirements; it cannot lower review-tier minima, required model-family
 separation, required validation, protections or safety boundaries. An explicit
 assignment is not a waiver. Resolve conflicts before the affected action.
@@ -70,14 +71,22 @@ An uncertain remote mutation must be reconciled before any replay.
 |---|---|
 | Low: non-executable documentation/presentation without behavior or security impact | One independent person/session; suitable lightweight model allowed |
 | Standard: ordinary behavior/API changes | One independent person/session; a different model is optional unless explicitly required by the assignment |
-| High: safety, security, durability, state/migrations, concurrency/recovery, deployment, cross-component effects, camera lifecycle, CI trust or policy enforcement | Two independent reviewers from different model families, at least one deep review |
+| High: safety, security, durability, state/migrations, concurrency/recovery, deployment, cross-component effects, camera lifecycle, CI trust, policy text or policy enforcement | Two independent reviewers from different model families, at least one deep review |
 
 A reviewer must not author/modify the candidate or finalize it during that review.
 Never infer model family from a name or alias. Record requested and provider-reported
 model/effort separately, session, scope, base/head/target, coverage, checks and
-limitations; unknown provenance remains unknown. While model family cannot be
-authenticated, automated High-risk admission is blocked; reviews can still inform
-a human decision when labeled honestly. Distinct thread IDs are observable;
+limitations; unknown provenance remains unknown.
+
+The review minimum, including two independent reviewers from different model families
+and at least one deep review for High risk, is checked at Ready and before any
+merge decision; it does not block
+implementing, committing, pushing or opening a draft PR. Automated High-risk
+admission means an automated ready/CI/merge decision that relies on model-family
+separation; until family can be authenticated, a human decides using honestly
+labeled reviews.
+
+Distinct thread IDs are observable;
 distinct environment sessions may not be. A high-risk
 finalizer should be distinct from the implementer where practical.
 

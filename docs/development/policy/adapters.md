@@ -1,9 +1,17 @@
 # Thin harness and Kepler adapters
 
-All adapters load [common policy](common.md), [WebSite profile](website.md),
-repository AGENTS.md and its applicable existing issue/review/PR skills before
-work. Mandatory content is repository-contained. No adapter grants broader scope,
-waives gates, installs global skills or changes security settings.
+For unified-policy pilot work and policy text or enforcement changes, adapters load
+[common policy](common.md), [WebSite profile](website.md), repository AGENTS.md
+and applicable existing issue/review/PR skills. All other WebSite work follows
+existing procedures unchanged. No adapter grants broader scope or waives gates.
+
+The review minimum, including two independent reviewers from different model families
+and at least one deep review for High risk, is checked at Ready and before any
+merge decision; it does not block
+implementing, committing, pushing or opening a draft PR. Automated High-risk
+admission means an automated ready/CI/merge decision that relies on model-family
+separation; until family can be authenticated, a human decides using honestly
+labeled reviews.
 
 These are explicit loading procedures, not verified automatic-discovery support.
 For this repository's engineering workflow, the repo-local contracts govern over
@@ -24,14 +32,13 @@ resolve an actual conflict before acting. Do not edit or uninstall global skills
 At launch, record harness/version, actual host/workspace/session, policy digest,
 assignment boundary, requested route/effort, observable actual values and effective
 permission/noninteractive mode. Verify the mode in a harmless local qualification;
-do not infer it from configuration labels. Missing strict model provenance blocks
-that route. Do not invent command flags or elevate access to satisfy a policy.
+do not infer it from configuration labels. Missing strict model provenance leaves that provenance unknown. Do not invent command flags or elevate access to satisfy a policy.
 Model preferences and authorized fallbacks belong in assignment configuration.
 
 ## Kepler coordination
 
 Kepler follows the [coordination procedure](../../../.agents/skills/hvo-coordination/SKILL.md)
-using the T3 hub MCP. Record requested and provider-reported settings separately;
+using the T3 hub MCP for pilot work. Record requested and provider-reported settings separately;
 missing provenance stays unknown. A harness or alias does not prove model family
 or distinct environment sessions. Missing required capability blocks the affected
 operation.

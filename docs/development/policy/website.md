@@ -30,7 +30,7 @@ The [manifest](manifest.json) pins the new common/adoption/adapter/coordination
 snapshot; existing WebSite skills remain repository-versioned dependencies.
 
 AGENTS.md states local/global skill precedence. Actual discovery in each launch
-context remains unqualified.
+context is not verified.
 
 ## Preserved validation and boundaries
 
@@ -44,7 +44,9 @@ as blocked; this document grants no documentation-only admission exemption.
 Preserve source-bound evidence IDs, trusted target evaluator/controller, immutable
 merge-source execution, selected execution unions, main/full lanes and full-SHA
 Action pins. WebSite live admission counts only first-attempt (`run_attempt` 1) `ci.yml`
-runs. This stricter rule wins over the common procedural retry budget. No workflow, schema, gate producer or CI selection changes belong to
+runs. Infrastructure recovery retains WebSite's stricter one fresh complete run
+budget. This stricter rule wins over the common procedural retry budget. No
+workflow, schema, gate producer or CI selection changes belong to
 this preparation. Production exporter stays disabled; retired collectors are not
 deployment targets. Archived `src/HVO.Database` stays outside the solution;
 `HVO.DataModels` migrations remain schema authority. Never operate physical devices
@@ -85,6 +87,15 @@ decision. Existing PR Process workflow and `Review Evidence` checks remain uncha
 WebSite does not currently produce or require `hvo/reviewed-head`. Keep that
 compatibility gate where currently required by SkyMonitor and RoofController;
 remove no live required gate before a verified replacement.
+
+Inputs still needed for the later protection/activation decision include fixture-repo
+testing before production; authenticated settings and active-PR impact capture;
+rollback to the verified baseline, stopping for an unknown baseline or concurrent
+change, and a plan for protection that blocks its own repair; runner and credential
+exposure review of any app identities; measured strict up-to-date re-review cost;
+live-test authorization separate from watchdog approval; and reconciliation of
+[review-format.md](../../../.agents/skills/hvo-code-review/references/review-format.md)'s one-reviewer Deep wording with the
+two-family High rule. These inputs are not complete.
 
 Before any authorized merge, the lifecycle owner verifies the current source,
 review, required checks and resolved findings under the existing PR procedure.
