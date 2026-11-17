@@ -10,6 +10,8 @@ shasum -a 256 -c docs/development/policy/snapshot.sha256
 
 On an intentional policy change, update the version string in manifest.json
 (`version` and `policyVersion`), the common.md title, website.md and AGENTS.md.
+Keep the brief scope, precedence and review-timing summaries in AGENTS.md and
+adapters.md, and the local-skill reference in CLAUDE.md, consistent with common.md.
 Regenerate snapshot.sha256 for exactly the manifest's file list; review both content and digest changes.
 On distribution, copy that complete snapshot and compare version/digests against
 the reviewed canonical commit. Do not regenerate hashes to hide an unexplained

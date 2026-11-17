@@ -1,6 +1,6 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-16.6`. Status: local preparation; no live rollout or
+Policy version: `2026-11-16.7`. Status: local preparation; no live rollout or
 autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
@@ -12,16 +12,9 @@ facts before future work; unassigned issues are not proof of availability.
 
 ## Scope and discovery
 
-The common policy is a reviewable candidate for a single-host, low-risk WebSite
-pilot. Existing lifecycle skills continue to define current operations; the new
-contract cannot authorize active work to bypass them. Before an operational pilot,
-qualify trusted enforcement. Treat policy/enforcement changes themselves as high
-risk, even though the pilot workload will be low risk. During this candidate period,
-their review requires two independent reviewers from different model families,
-at least one deep review. This stricter minimum applies to this candidate and
-overrides the existing review-format statement that Deep does not automatically
-require multiple reviews; the skill's other coverage/publication requirements stay
-in force. Neither this rule nor a passing review authorizes dispatch or activation.
+The [common policy](common.md#scope) defines pilot work and policy text. Policy
+text or enforcement changes are High risk. The existing review-format coverage and
+publication requirements remain in force.
 
 Load [common policy](common.md), the existing issue/review/PR skills and
 [coordination](../../../.agents/skills/hvo-coordination/SKILL.md). Thin
@@ -31,6 +24,20 @@ snapshot; existing WebSite skills remain repository-versioned dependencies.
 
 AGENTS.md states local/global skill precedence. Actual discovery in each launch
 context is not verified.
+
+## Pilot stages
+
+1. **Preparation:** write and review these candidate documents; no assignment
+   runs under them.
+2. **Supervised trial:** one low-risk WebSite assignment explicitly authorized by
+   Roy follows the procedure manually and stops at PR-ready. Use existing PR Process
+   and Review Evidence checks and check the review minimum by hand at Ready. No new
+   enforcement, protection or automation, including the parked tooling, is required.
+   Roy separately authorizes any first merge after inspecting the evidence.
+3. **Autonomous enforcement:** a later, separately authorized stage with trusted
+   enforcement, authenticated model-family mapping, protection and autonomous merge.
+   Its qualification requirements below are future requirements, not implemented
+   functionality; they do not block a supervised trial.
 
 ## Preserved validation and boundaries
 
@@ -67,17 +74,17 @@ independent session unless the assignment adds separation requirements.
 
 The current author record can request `minReviewers`, `differentModel`, panel
 selectors and `modelComparison: all-contributors`. Those declarations do not prove
-the common risk minimum is enforced by trusted code. Before activation, derive
+the common risk minimum is enforced by trusted code. For autonomous enforcement, derive
 minimum risk/count from trusted policy and changed scope; validate reviewer family
 provenance separately from model-string inequality. Existing publisher permission
 checks do not attest execution or review quality. Keep the trusted schema/producer
 unchanged here and qualify its successor separately.
 
-Authenticated canonical model-family mapping is a hard activation blocker. Derive
+Authenticated canonical model-family mapping is required for autonomous enforcement. Derive
 families from authenticated runtime provider/model receipts through a trusted
 mapping, never from declared family strings or caller-supplied mappings. Qualify
 aliases, Unicode lookalikes/invisible characters, unmapped or ambiguous identities
-and forged mappings before activation.
+and forged mappings before autonomous enforcement.
 
 ## Pilot boundary
 
@@ -88,7 +95,7 @@ WebSite does not currently produce or require `hvo/reviewed-head`. Keep that
 compatibility gate where currently required by SkyMonitor and RoofController;
 remove no live required gate before a verified replacement.
 
-Inputs still needed for the later protection/activation decision include fixture-repo
+Future qualification requirements for autonomous enforcement include fixture-repo
 testing before production; authenticated settings and active-PR impact capture;
 rollback to the verified baseline, stopping for an unknown baseline or concurrent
 change, and a plan for protection that blocks its own repair; runner and credential
@@ -100,4 +107,4 @@ two-family High rule. These inputs are not complete.
 Before any authorized merge, the lifecycle owner verifies the current source,
 review, required checks and resolved findings under the existing PR procedure.
 A moving target requires requalification. Separate authorization is required for
-release publication, production deployment and real roof or hardware operation.
+release publication, any deployment (including staging), and real roof or hardware operation.

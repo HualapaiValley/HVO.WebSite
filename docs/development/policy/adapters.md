@@ -1,24 +1,7 @@
 # Thin harness and Kepler adapters
 
-For unified-policy pilot work and policy text or enforcement changes, adapters load
-[common policy](common.md), [WebSite profile](website.md), repository AGENTS.md
-and applicable existing issue/review/PR skills. All other WebSite work follows
-existing procedures unchanged. No adapter grants broader scope or waives gates.
-
-The review minimum, including two independent reviewers from different model families
-and at least one deep review for High risk, is checked at Ready and before any
-merge decision; it does not block
-implementing, committing, pushing or opening a draft PR. Automated High-risk
-admission means an automated ready/CI/merge decision that relies on model-family
-separation; until family can be authenticated, a human decides using honestly
-labeled reviews.
-
-These are explicit loading procedures, not verified automatic-discovery support.
-For this repository's engineering workflow, the repo-local contracts govern over
-legacy global `hvo-review`, `hvo-worker` and `hvo-plan` procedures. An auto-surfaced
-global skill is not an instruction to invoke it or a substitute for local files.
-Platform/security requirements and the assignment's narrower scope still apply;
-resolve an actual conflict before acting. Do not edit or uninstall global skills.
+Load the [common policy scope and rules](common.md#scope), [WebSite profile](website.md),
+AGENTS.md and applicable local skills; automatic discovery is not verified.
 
 | Harness | Discovery contract |
 |---|---|
@@ -32,7 +15,10 @@ resolve an actual conflict before acting. Do not edit or uninstall global skills
 At launch, record harness/version, actual host/workspace/session, policy digest,
 assignment boundary, requested route/effort, observable actual values and effective
 permission/noninteractive mode. Verify the mode in a harmless local qualification;
-do not infer it from configuration labels. Missing strict model provenance leaves that provenance unknown. Do not invent command flags or elevate access to satisfy a policy.
+do not infer it from configuration labels. Unknown provenance does not block launching work but cannot satisfy a strict
+model/family requirement; that review role stays INCOMPLETE unless Roy records a
+manual bootstrapping decision under the [review contract](common.md#independent-review-contract).
+Do not invent command flags or elevate access to satisfy a policy.
 Model preferences and authorized fallbacks belong in assignment configuration.
 
 ## Kepler coordination

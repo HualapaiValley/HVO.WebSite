@@ -2,22 +2,12 @@
 
 ## Unified-policy pilot candidate
 
-The repository-contained [HVO policy 2026-11-16.6](docs/development/policy/common.md)
-and [WebSite adoption profile](docs/development/policy/website.md) apply to
-unified-policy pilot work and policy text or enforcement changes. All other WebSite
-work follows the existing procedures below unchanged. For the pilot policy,
-platform/security requirements take precedence over common policy, which takes
-precedence over repository profile additions; stop and resolve conflicts.
-
-The review minimum, including two independent reviewers from different model families
-and at least one deep review for High risk, is checked at Ready and before any
-merge decision; it does not block
-implementing, committing, pushing or opening a draft PR. Automated High-risk
-admission means an automated ready/CI/merge decision that relies on model-family
-separation; until family can be authenticated, a human decides using honestly
-labeled reviews.
-The [thin adapters](docs/development/policy/adapters.md) describe explicit loading;
-automatic discovery is not verified. No global installation is a prerequisite.
+The [HVO policy 2026-11-16.7](docs/development/policy/common.md) defines scope,
+platform/security > common policy > repo profile precedence, and local skills;
+see the [WebSite profile and pilot stages](docs/development/policy/website.md#pilot-stages)
+and [adapters](docs/development/policy/adapters.md). The review minimum is checked
+at Ready and before merge, and does not block implementing, committing, pushing or
+opening a draft PR; see the [review contract](docs/development/policy/common.md#independent-review-contract).
 
 ## Scope and authorization
 
@@ -27,11 +17,7 @@ Use a dedicated branch/checkout from `main`; never commit issue work directly to
 
 ## Mandatory procedure routing
 
-For all WebSite work, repository-local procedures govern over legacy global
-`hvo-review`, `hvo-worker` and `hvo-plan` procedures. Auto-surfacing a global skill
-does not invoke it, authorize dispatch/installation, or replace the local files.
-Platform/security requirements and the assignment's narrower scope still apply;
-resolve a conflict before acting. Do not edit or uninstall global skills.
+Follow [common policy precedence and local skill routing](docs/development/policy/common.md#authority-and-precedence); do not edit or uninstall global skills.
 
 Before acting, read [the repository profile](docs/development/repository-profile.md) and the applicable files below. These are required local instructions, even when the tool does not automatically discover skills.
 

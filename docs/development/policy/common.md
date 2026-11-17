@@ -1,4 +1,4 @@
-# HVO engineering policy — 2026-11-16.6 pilot
+# HVO engineering policy — 2026-11-16.7 pilot
 
 This is the canonical common-policy source for the local WebSite pilot. Other
 repositories have not adopted it. The [manifest](manifest.json) pins the portable
@@ -14,14 +14,27 @@ inspect it, and a digest alone cannot replace that inspection. Roy subsequently
 clarified that ordinary review requires independence, not a different model; that
 clarification supersedes the design's Standard-tier different-model proposal.
 The [WebSite adoption profile](website.md) fixes
-the current activation boundary. Existing trusted evaluators remain authoritative;
+the pilot stages. Existing trusted evaluators remain authoritative;
 these documents neither grant assignment authority nor publish a passing gate.
+
+## Scope
+
+Pilot work means assignments explicitly designated as pilot work by Roy in the
+assignment, and reviews of those assignments; it does not mean all work on this
+host or repository. Policy text means normative agent workflow instructions and
+adapters: AGENTS.md, CLAUDE.md, docs/development/policy/**,
+docs/development/repository-profile.md, .agents/skills/** and harness adapters
+such as opencode.json or Copilot instructions when they carry workflow rules.
+Product or user documentation that merely mentions a policy is not policy text.
 
 ## Authority and precedence
 
 For unified-policy pilot work and policy text or enforcement changes,
 platform/security requirements come first, then this common policy, then repository
-profile additions. Other WebSite work follows existing procedures unchanged. Stop and resolve conflicts rather than guessing. An assignment may narrow the permitted
+profile additions. Other WebSite work follows existing procedures unchanged.
+For WebSite work, repository-local skills govern over legacy global hvo-* skills;
+auto-surfacing a global skill does not invoke it or replace local files. Stop and
+resolve conflicts rather than guessing. An assignment may narrow the permitted
 scope or add requirements; it cannot lower review-tier minima, required model-family
 separation, required validation, protections or safety boundaries. An explicit
 assignment is not a waiver. Resolve conflicts before the affected action.
@@ -84,7 +97,11 @@ merge decision; it does not block
 implementing, committing, pushing or opening a draft PR. Automated High-risk
 admission means an automated ready/CI/merge decision that relies on model-family
 separation; until family can be authenticated, a human decides using honestly
-labeled reviews.
+labeled reviews. If two reported reviews are accepted for bootstrapping the
+High-risk two-family minimum while families cannot be authenticated, Roy makes and
+records that manual decision, disclosing family uncertainty and each reviewer's
+requested and provider-reported model. Never describe it as authenticated proof
+of two families.
 
 Distinct thread IDs are observable;
 distinct environment sessions may not be. A high-risk

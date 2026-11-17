@@ -2,6 +2,17 @@
 
 Decision-oriented context; release notes belong in the [root changelog](../CHANGELOG.md). Keep entries short, dated and source-backed. Complete prior sessions, including hardware measurements, private-GATT research and June model experiments, are preserved in the [source archive](archive/2026-10-04-project-history-source.md); observation dates not recorded there remain unknown.
 
+## 2026-11-16 — Manual review bootstrapping
+
+Roy accepted (5:09 PM PST) the two round-2 independent reviews of 8c16c3bc — Sol
+(requested codex_cliproxy/gpt-6.1-sol xhigh; provider-reported model: none) and
+Opus deep (requested claude_cliproxy/claude-opus-5-5 max; provider-reported
+claude-opus-5-5, unauthenticated), both CLEAN — as a manual bootstrapping decision
+for the High-risk review minimum. Model families were reported, not authenticated;
+this is not authenticated proof of two families. Later commits need their own
+reviews with the same disclosure. Max's review of 8c16c3bc found the procedure-only
+direction sound, did not reject it, and requested clarifications.
+
 ## 2026-11-16 — Pilot rescope
 
 Roy rescoped the pilot to AGENTS.md, policy, profile and skills files only. The
