@@ -16,7 +16,7 @@ Depth specifies the coverage required by the change. It is selected from the iss
 | Standard | Bounded coverage where sufficient under the applicable risk tier. Ordinary behavior/API changes require at least one Deep review under the accepted interim HIGH mapping. | Inspect the complete change and relevant surrounding callers/contracts; verify acceptance, ordinary edge cases, error handling and focused validation. |
 | Deep | Security, durability, concurrency, migration, safety, CI control, deployment or effects across components. | Standard coverage plus trace the affected interactions, challenge failure/recovery assumptions, investigate applicable security/race/data-loss risks, and examine adversarial cases and the evidence that establishes acceptance. Record material coverage limits. |
 
-All depths require an independent reviewer, the same publication format, a bound source range and verified finding dispositions. Deep does not require reviewing unrelated code or choosing the maximum available effort; HIGH requires the common policy’s Sol and Opus reviews. Scope the risk lenses explicitly. For the WebSite workflow pilot, Deep covers draft/ready transitions, CI bypass and suppression, stale review/head evidence, failure recovery, finding resolution and any permissions used by automation.
+All depths require an independent reviewer, the same publication format, a bound source range and verified finding dispositions. Deep does not require reviewing unrelated code or choosing the maximum available effort; HIGH requires two distinct independent frontier models; Sol and Opus are the defaults. Scope the risk lenses explicitly. For the WebSite workflow pilot, Deep covers draft/ready transitions, CI bypass and suppression, stale review/head evidence, failure recovery, finding resolution and any permissions used by automation.
 
 **Author provenance and separation rules**
 
@@ -45,30 +45,30 @@ Record selection separately from depth. A system/harness is the reviewing tool, 
 |---|---|---|
 | Auto | Select an eligible independent reviewer using the repository's configured reviewer profiles and capabilities available in the current environment. | Try another eligible route; if none can complete the required coverage, record the blocker and retain draft state. |
 | Preferred | Try an ordered list of systems/models/settings, with a stated permitted fallback. | Use only the declared fallback and report the substitution. If no permitted route is available, keep the requirement unmet. |
-| Required | Use the specified route or one of the explicitly allowed alternatives, including any mandatory model/settings and reviewer-count constraints. | Do not silently substitute. Record the unmet requirement and retain draft state; an owner cannot waive the common required models. |
+| Required | Use the specified route or one of the explicitly allowed alternatives, including any mandatory model/settings and reviewer-count constraints. | Do not silently substitute. Record the unmet requirement and retain draft state; an owner cannot waive the common reviewer minima. |
 
-The common policy requires Sol for LOW and both Sol and Opus for HIGH. Auto selects eligible routes for those required models, not replacement models. Configuration identifies eligible routes and settings; a human or managed-model route cannot fill a required model role without the exact reported model identity. Do not guess that every available model is suitable. Discover current capabilities at assignment time and check access to the full diff/context, validation evidence, requested lenses and publication route. A model name alone cannot establish review quality.
+The common policy requires one independent frontier model for LOW and two for HIGH; Sol and Opus are defaults, with substitutions governed by common policy. Auto selects eligible routes. Configuration identifies eligible routes and settings; a human or managed-model route cannot fill a required model role without the exact reported model identity. Do not guess that every available model is suitable. Discover current capabilities at assignment time and check access to the full diff/context, validation evidence, requested lenses and publication route. A model name alone cannot establish review quality.
 
-An allowed list normally means **one of these alternatives**, not one review from every entry. The common HIGH tier requires two independent reviewers, Sol and Opus, with its stated family requirements. Each required reviewer produces an attributed report on the same current candidate; carry all findings through verification. Approval by one reviewer cannot erase a blocker reported by another. Prefer one consistent set of finding IDs and threads across rounds/reviewers.
+An allowed list normally means **one of these alternatives**, not one review from every entry. The common HIGH tier requires two independent distinct frontier models, with Sol and Opus as the default pairing. Each required reviewer produces an attributed report on the same current candidate; carry all findings through verification. Approval by one reviewer cannot erase a blocker reported by another. Prefer one consistent set of finding IDs and threads across rounds/reviewers.
 
 Effort controls are specific to the model and tool. Resolve supported settings through the actual environment; do not equate Deep with `high` or `xhigh`, or treat similarly named settings across providers as proven equivalents. A prompt asking for thorough review does not prove that a runtime effort setting was applied. [OpenAI reasoning-effort documentation](https://developers.openai.com/api/docs/guides/reasoning) likewise identifies supported effort values as model-dependent.
 
-For a managed reviewer that hides the model or effort, record the available metadata and the visibility limit. An Auto or Preferred policy may permit that route when it can establish the required coverage; it cannot satisfy a strict, unverifiable exact-model/effort or provider-diversity requirement. For that required role, record `INCOMPLETE` rather than treating hidden metadata as compliance; an unavailable required model or contributor-model collision leaves the role BLOCKED under common policy. A supplementary bot review can still provide useful findings without satisfying the required review role.
+For a managed reviewer that hides the model or effort, record the available metadata and the visibility limit. An Auto or Preferred policy may permit that route when it can establish the required coverage; it cannot satisfy a strict, unverifiable exact-model/effort or provider-diversity requirement. For that required role, record `INCOMPLETE` rather than treating hidden metadata as compliance; an unavailable required model or contributor-model collision does not satisfy that role; substitution, BLOCKED and manual acceptance follow common policy. A supplementary bot review can still provide useful findings without satisfying the required review role.
 
 Example request for this pilot:
 
 ```text
 Depth: Deep
-Required reviewers: Sol AND Opus, independent, same head
+Required reviewers: two distinct independent frontier models, same head (default Sol AND Opus)
 Focus: CI gates, source/review binding, failure recovery, permissions
 Selection: Auto from configured eligible reviewer profiles
-Model / effort: Sol and Opus / resolve supported effort from the selected tools
-Fallback: Another eligible route using the same required model; blocked if unavailable
+Model / effort: default Sol and Opus / resolve supported effort from the selected tools
+Fallback: Another eligible independent frontier model under common policy
 ```
 
 An exact-model request can instead say `Required: one of <provider/model/settings A> OR <provider/model/settings B>; no other fallback`. A two-model request says `Required: two independent reviews, one from A AND one from B`. These describe selection constraints, not reviews already performed or blanket authorization to launch extra agents.
 
-An explicit all-of panel requires a distinct reviewer session for each requested selector. A Preferred panel may replace a missing slot only through its declared fallback, with a substitution reason from the reviewer filling that slot; no fallback may replace a required reviewer model. Two A reviewers cannot satisfy A AND B when fallback is prohibited. A permitted fallback applies even if the substitute matches another preferred selector; one reviewer cannot fill two slots. Required panels never substitute.
+An explicit all-of panel requires a distinct reviewer session for each requested selector. A Preferred panel may replace a missing slot only through its declared fallback, with a substitution reason from the reviewer filling that slot; fallback must satisfy common policy and assignment constraints. Two A reviewers cannot satisfy A AND B when fallback is prohibited. A permitted fallback applies even if the substitute matches another preferred selector; one reviewer cannot fill two slots. A Required panel never substitutes.
 
 **How to perform the review**
 
@@ -244,7 +244,7 @@ The independent reviewer checks that claim and supplies the reply to Kepler for 
 
 Equivalent terminal replies are `VERIFIED_DEFERRED`, `VERIFIED_NON_ACTIONABLE` and `VERIFIED_SUPERSEDED`. A failed correction is `STILL_OPEN`, with the remaining behavior/evidence. The implementer cannot supply its own independent verification.
 
-An authorized PR owner or maintainer resolves the thread only after the reviewer's terminal verification is present. This need not require an additional routine human approval when the assignment already authorizes the lifecycle. A reply saying "fixed", an outdated annotation, or reaching a round cap is not independent verification. Keep the original finding and replies; do not erase the history or reset IDs.
+An authorized PR owner or maintainer resolves the thread only after the reviewer's terminal verification is present. This need not require an additional routine human approval when the common standing authorization applies and no assignment limit narrows it. A reply saying "fixed", an outdated annotation, or reaching a round cap is not independent verification. Keep the original finding and replies; do not erase the history or reset IDs.
 
 **Correction summaries and completion**
 

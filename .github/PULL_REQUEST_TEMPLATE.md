@@ -60,7 +60,7 @@ different validated source per row when the results do not apply to the SHA abov
 
 Review depth: <!-- Mechanical / Standard / Deep: required coverage, not model effort -->
 
-Required reviewers: <!-- LOW: Sol CLEAN; HIGH: Sol and Opus CLEAN on the same head, one deep. See common policy. -->
+Required reviewers: <!-- LOW: one independent frontier model CLEAN (default Sol); HIGH: two distinct independent frontier models CLEAN on the same head, at least one Deep (default Sol + Opus). Substitution follows common policy. -->
 
 Independence constraints: <!-- Distinct reviewing sessions; each model differs from every
 contributor in the reviewed range. Same GitHub account is allowed; a strict different-account
@@ -68,9 +68,9 @@ requirement has a direct-publication limitation under the current gate and Keple
 
 Reviewer selection: <!-- Auto / Preferred / Required. Default: Auto from configured eligible profiles. -->
 
-Model/settings and fallback: <!-- Sol and Opus IDs and tier minima are fixed in common policy.
-Specify eligible harness, settings and same-model fallback routes. Do not substitute another
-required model or guess an unavailable or undisclosed model/effort. -->
+Model/settings and fallback: <!-- Tier minima and default Sol and Opus IDs are in common policy.
+Specify eligible harness, settings and fallback routes; substitution follows common policy and
+assignment constraints. Do not guess an unavailable or undisclosed model/effort. -->
 
 <!-- Name relevant lenses: correctness, failure handling, concurrency, durability,
 security, compatibility, UI, performance, CI or deployment. -->

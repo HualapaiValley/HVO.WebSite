@@ -23,4 +23,4 @@ Post progress at milestones/blockers and keep owner/claim through review, CI and
 
 ## Deliver the authorized outcome
 
-Follow the PR lifecycle through independent review, corrections and green required CI. Kepler performs agent PR operations; merge requires explicit authorization. An explicit full-lifecycle request includes merge and cleanup for its scope. Stop at the assigned boundary with a concrete durable result. Release/deployment or unrelated queue work needs its own scope.
+Follow the PR lifecycle through independent review, corrections and green required CI. Kepler performs agent PR operations; the common standing rule authorizes merge subject to assignment limits. Stop at the assigned boundary with a concrete durable result. Release/deployment or unrelated queue work needs its own scope.
