@@ -1,6 +1,6 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-16.9`. Status: local preparation; no live rollout or
+Policy version: `2026-11-16.10`. Status: local preparation; no live rollout or
 autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
@@ -65,8 +65,9 @@ only first-attempt CI admission, and its v1 schema has no BLOCKED verdict.
 
 ## Transitional retained procedures
 
-Each item below stays in force until Roy records a decision to retire it or promote
-it to common policy; none relaxes common policy. Status: retained, pending Roy.
+Each item below stays in force until it is retired or promoted to common policy,
+and each item must be retired or promoted by the next policy release; none relaxes
+common policy. Status: retained, must be retired or promoted by the next policy release.
 
 - Review-format coverage, publication and Deep-trigger mapping remain required, subject to the common tier and Kepler relay rules.
 - Repository-local skill precedence and non-pilot epic dispatch route remain in force.
@@ -120,7 +121,7 @@ CHANGES_REQUIRED and INCOMPLETE map directly. BLOCKED is non-approval: publish
 INCOMPLETE with the blocker, never invent an unsupported machine verdict.
 The existing profile/review-format Deep triggers (including deployment, durability
 and cross-component effects) are High risk for this pilot. Mechanical/Standard/Deep
-describe coverage. Under the pending interim HIGH mapping, ordinary behavior/API
+describe coverage. Under the accepted interim HIGH mapping, ordinary behavior/API
 changes require at least one Deep review; Standard coverage alone is insufficient.
 Reviewer minima follow the common contract.
 Camera lifecycle is a cross-repository common-policy example, not an assertion that

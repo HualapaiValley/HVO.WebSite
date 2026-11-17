@@ -1,4 +1,4 @@
-# HVO engineering policy — 2026-11-16.9
+# HVO engineering policy — 2026-11-16.10
 
 The [manifest](manifest.json) identifies the canonical source and pins the portable
 files; distribution is an explicit reviewed copy with digest verification, never
@@ -44,9 +44,9 @@ profile lists only structural differences: branch, queue or merge route, require
 merge gate and who sets it (trusted automation, Kepler or Roy), required checks, required pre-post checks such as a
 secret scan, and SDK pin location, plus repository facts such as paths and
 toolchain. It may not relax or add procedural rules except for a clearly labeled
-“Transitional retained procedures” list. Each listed item remains in force until Roy
-records a decision to retire it or promote it to common; it may only be stricter,
-never relax common policy. The repository adoption profile describes local skill discovery.
+“Transitional retained procedures” list. Each listed item remains in force until it is retired or promoted to common,
+and each item must be retired or promoted by the next policy release; it may only
+be stricter, never relax common policy. The repository adoption profile describes local skill discovery.
 No global installation is a prerequisite; no adapter grants broader scope or
 waives gates. Stop and resolve conflicts rather than guessing. An assignment may narrow the permitted
 scope or add requirements; it cannot lower review-tier minima, required model-family
@@ -123,16 +123,16 @@ An uncertain remote mutation must be reconciled before any replay.
 | LOW: former Low, including non-executable documentation/presentation without behavior or security impact | One independent Sol reviewer with a CLEAN verdict |
 | HIGH: former Standard and High, including ordinary behavior/API changes, safety, security, durability, state/migrations, concurrency/recovery, deployment, cross-component effects, camera lifecycle, CI trust, policy text or policy enforcement | Independent Sol and Opus reviewers with CLEAN verdicts on the same head; at least one deep review |
 
-PENDING ROY DECISION: the tier mapping above is an interim conservative rule;
-former Low maps to LOW, and former Standard and High map to HIGH until Roy records
-a decision. When unsure, choose HIGH. Sol means provider-reported model ID
+The tier mapping above is the accepted interim conservative rule (Roy, 2026-11-17,
+4:16 AM PST, widget t584s3285): former Low maps to LOW, and former Standard and
+High map to HIGH. When unsure, choose HIGH. Sol means provider-reported model ID
 `gpt-6.1-sol`; Opus means provider-reported model ID `claude-opus-5-5`. Qualify
 by the exact reported ID, not an alias. Only Roy changes this mapping.
-Every reviewer must use a different model from the author and every
-contributor to the reviewed range. If a contributor's model equals a required
-reviewer model, that review role is BLOCKED until Roy decides. Roy may record a
-policy change or arrange a new candidate with a nonconflicting contributor set;
-no decision may waive the current separation requirement. If Sol or Opus is
+Every reviewer must use a different model from the author and every contributor
+to the reviewed range. Authors and other contributors to the reviewed range must
+not use Sol or Opus. If a contributor's model equals a required reviewer model,
+that review role is BLOCKED. Arrange a new candidate with a nonconflicting
+contributor set; no decision may waive the current separation requirement. If Sol or Opus is
 unavailable for a required role, that role is BLOCKED, not waived.
 
 A reviewer must not author/modify the candidate or finalize it during that review.
@@ -179,7 +179,8 @@ Do not weaken checks or tests to obtain green. CI/queue optimization is separate
 
 Retain failed evidence. Deterministic failures require correction. As procedure, the default
 unchanged-source infrastructure budget is two retries; a stricter transitional
-retained procedure takes precedence until Roy decides its disposition.
+retained procedure takes precedence until it is retired or promoted by the next
+policy release.
 This budget is not claimed to be implemented.
 Sol and Opus are required reviewer models as specified above. Harness, provider
 instance, effort and any fallback route remain assignment configuration; a fallback
