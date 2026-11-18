@@ -26,7 +26,7 @@ Each local validation result identifies its performer through that provenance re
 
 | Separation requirement | What must differ or match |
 |---|---|
-| Baseline independent review | A distinct reviewer person/session that did not materially author the implementation under review. The same operator/GitHub account can be used in a separate reviewer session, but the reviewer model must differ from every contributor to the reviewed range. |
+| Baseline independent review | A distinct reviewer person/session that did not materially author the implementation under review. The same operator/GitHub account can be used in a separate reviewer session, and by default the reviewer model must differ from every contributor to the reviewed range. Only Roy’s recorded exact-head decision under the common review contract can address a disclosed overlap; an agent can never waive the requirement or apply that exception. |
 | Different GitHub author/reviewer | The review-performing account differs from the PR author account. Record a relayed publication account separately; a publisher is not necessarily the reviewer. |
 | Same author account, different model | The operator/GitHub account matches, but a distinct reviewing session uses a different actual underlying model from the implementation model set. |
 | Different model or provider | Require a distinct underlying model or provider respectively, in addition to session independence; changing a tool, reasoning effort or service tier is insufficient. |

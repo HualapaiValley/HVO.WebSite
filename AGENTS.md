@@ -2,7 +2,7 @@
 
 ## Unified-policy pilot candidate
 
-The [HVO policy 2026-11-17.1](docs/development/policy/common.md) defines scope,
+The [HVO policy 2026-11-17.2](docs/development/policy/common.md) defines scope,
 platform/security > common policy > repo profile precedence, and local skills;
 see the [WebSite profile and pilot stages](docs/development/policy/website.md#pilot-stages)
 and [adapters](docs/development/policy/adapters.md). Independent review starts after
@@ -44,6 +44,6 @@ Run `dotnet build` at zero warnings/errors and the applicable non-live tests bef
 
 Draft automated checks are bounded preflight only. Independent current-source review, verified finding dispositions and resolved actionable threads precede ready state and standard CI. Failed CI or changed source returns to draft for correction/review. A green current candidate can merge within the common standing authorization and any assignment limit. Labels show state but cannot create approval or merge authority.
 
-The reviewer is a distinct person/session that did not materially implement the candidate and uses a different model from every contributor to the reviewed range. The common policy specifies distinct-model reviewer minima and defaults; the assignment can require a different account or provider. The current gate requires direct publication for strict different-account separation, which Kepler's agent relay cannot satisfy; such a requirement is BLOCKED until a compatible gate exists. Same operator account with a distinct reviewer session is supported. Review summaries identify the actual reviewer and group linked findings by P0–P3; each finding has its own code comment, evidence, possible solution and independent disposition verification. Kepler faithfully publishes agent reviews as GitHub metadata; do not commit review reports merely to publish them.
+The reviewer is a distinct person/session that did not materially implement the candidate and, by default, uses a different model from every contributor to the reviewed range. Only Roy’s own recorded decision for an exact full head SHA can address a disclosed independence or overlap defect; it never carries over to a later head, and an agent can never waive the requirement or apply the exception. See the common review contract for its constraints. The common policy specifies distinct-model reviewer minima and defaults; the assignment can require a different account or provider. The current gate requires direct publication for strict different-account separation, which Kepler's agent relay cannot satisfy; such a requirement is BLOCKED until a compatible gate exists. Same operator account with a distinct reviewer session is supported. Review summaries identify the actual reviewer and group linked findings by P0–P3; each finding has its own code comment, evidence, possible solution and independent disposition verification. Kepler faithfully publishes agent reviews as GitHub metadata; do not commit review reports merely to publish them.
 
 Keep project history curated when structure, architecture or deployment assumptions change. Do not introduce unrelated packages/frameworks, public contracts or configuration changes without explaining their need and compatibility effects. Keep changes focused; preserve existing behavior outside the assignment.
