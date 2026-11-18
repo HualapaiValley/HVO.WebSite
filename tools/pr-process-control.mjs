@@ -46,12 +46,22 @@ export async function currentCI(api, pr, reviews = []) {
   return { ...result, qualified: true, invalid: false, bindingError: null };
 }
 
+async function removeLabel(api, number, label) {
+  try {
+    await api.request(`/repos/${api.repository}/issues/${number}/labels/${encodeURIComponent(label)}`, 'DELETE');
+  } catch (error) {
+    // Another lifecycle writer may remove a snapshotted label first. A generic
+    // 404 can hide permission/resource failures; only this exact response converges.
+    if (error.status !== 404 || error.data?.message !== 'Label does not exist') throw error;
+  }
+}
+
 export async function replacePhase(api, pr, next, depth) {
   const present = new Set(pr.labels.map(x => x.name));
-  for (const label of PHASES) if (label !== next && present.has(label)) await api.request(`/repos/${api.repository}/issues/${pr.number}/labels/${encodeURIComponent(label)}`, 'DELETE');
+  for (const label of PHASES) if (label !== next && present.has(label)) await removeLabel(api, pr.number, label);
   if (!present.has(next)) await api.request(`/repos/${api.repository}/issues/${pr.number}/labels`, 'POST', { labels: [next] });
   if (DEPTHS.includes(depth)) {
-    for (const value of DEPTHS) if (value !== depth && present.has(`review:${value}`)) await api.request(`/repos/${api.repository}/issues/${pr.number}/labels/${encodeURIComponent(`review:${value}`)}`, 'DELETE');
+    for (const value of DEPTHS) if (value !== depth && present.has(`review:${value}`)) await removeLabel(api, pr.number, `review:${value}`);
     if (!present.has(`review:${depth}`)) await api.request(`/repos/${api.repository}/issues/${pr.number}/labels`, 'POST', { labels: [`review:${depth}`] });
   }
 }

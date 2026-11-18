@@ -5,7 +5,7 @@ description: Pick up, implement or resume an authorized HualapaiValley issue, ma
 
 # Issue work
 
-Read repository AGENTS.md, scoped project instructions and [the repository profile](../../../docs/development/repository-profile.md). Load [hvo-pr-lifecycle](../hvo-pr-lifecycle/SKILL.md) before opening/updating the PR. Use [hvo-epic-work](../hvo-epic-work/SKILL.md) for an assigned epic.
+Read repository AGENTS.md, scoped project instructions and [the repository profile](../../../docs/development/repository-profile.md). Kepler loads [hvo-pr-lifecycle](../hvo-pr-lifecycle/SKILL.md) before opening the PR; load it before other PR updates. Use [hvo-epic-work](../hvo-epic-work/SKILL.md) for an assigned epic.
 
 ## Claim before editing
 
@@ -23,4 +23,4 @@ Post progress at milestones/blockers and keep owner/claim through review, CI and
 
 ## Deliver the authorized outcome
 
-Follow the PR lifecycle through independent review, corrections and green required CI. Merge/closeout only when assignment authorization includes it; an explicit full-lifecycle request includes merge and cleanup for its scope. Stop at the assigned boundary with a concrete durable result. Release/deployment or unrelated queue work needs its own scope.
+Follow the PR lifecycle through independent review, corrections and green required CI. Kepler performs agent PR operations; the common standing rule authorizes merge subject to assignment limits. Stop at the assigned boundary with a concrete durable result. Release/deployment or unrelated queue work needs its own scope.
