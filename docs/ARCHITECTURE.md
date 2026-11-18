@@ -88,8 +88,9 @@ Separate runtime/migration Entra identities remain an open modernization decisio
 [data flows](architecture/EDGE_DATA_FLOWS.md) define dependencies, mounted
 gateway.json, environment precedence and startup-only secret files. Secret mounts
 are read-only; ingest/MQTT/vendor credentials are not ordinary settings.
-[Materialization prerequisites and #437](development/key-vault-materialization.md)
-remain visible; this documentation does not repair that runtime helper.
+[Materialization prerequisites and failure handling](development/key-vault-materialization.md)
+require successful bootstrap/SQL/secret preparation before managed writes.
+Subsequent local writes remain sequential and can require partial-failure recovery.
 
 `/health/live` reports process liveness. `/health` and `/health/ready` evaluate
 device/outbox snapshots; critical health returns 503. Protected

@@ -43,6 +43,20 @@ rebase methods. Open PRs #477–480 and #485 were untouched; #434, #437 and #452
 retained Roy's claims. No low-risk unclaimed pilot issue was selected or created.
 These observations are historical evidence and must be refreshed before use.
 
+## 2026-11-12 — Prepare secret materialization before writes (#437 candidate)
+
+The global Key Vault helper now validates the trusted root/SSH bootstrap and
+selected existing SQL inputs, reads required secrets, and checks dotenv/YAML
+representations before managed writes, including Compose interpolation and YAML
+escape constraints. Selected symbolic links and special files are rejected.
+Failed preparation exits nonzero in both
+modes and preserves destinations. The [materialization contract](development/key-vault-materialization.md)
+retains owner SQL targets, optional paths and manually rotated SSH input.
+Subsequent I/O failures explicitly report possible partial updates without
+claiming rollback or synchronization success. Offline stub regressions run in
+the existing deployment-policy lane; no live materialization or deployment was
+performed. Refs #437.
+
 ## 2026-10-29 — Remaining Pi collectors use CI registry images (#466 candidate)
 
 JK BMS, SmartShunt and EG4 now follow the Davis per-collector semver workflows:

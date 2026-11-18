@@ -13,7 +13,6 @@ does not authorize deployment or control.
 | [#385](https://github.com/HualapaiValley/HVO.WebSite/issues/385) | Permanent Bluetooth proxy/RF placement, H5179 and temporary bridge/fallback credential retirement |
 | [#320](https://github.com/HualapaiValley/HVO.WebSite/issues/320) | HA canonical history/exporter rollout; currently disabled, unmapped and unclaimed |
 | [#372](https://github.com/HualapaiValley/HVO.WebSite/issues/372), [SDK #82](https://github.com/RoySalisbury/HVO.SDK/issues/82) | Promote staged APIs before retiring the production-used bridge |
-| [#437](https://github.com/HualapaiValley/HVO.WebSite/issues/437) | Secret-helper SQL-derivation failure propagation and partial writes; separate runtime fix |
 
 For #352, current [quiescent backup and exactly-one-writer rollback](gateways/sqlite-backup-and-rollback.md)
 governs operations; historical issue ordering is not an executable runbook.
@@ -22,6 +21,8 @@ projection. Retain Staging until the consumer/package prerequisite is reconciled
 
 ## Decisions without an assigned implementation issue
 
+- Decide how to address cross-file synchronization rollback; earlier completed
+  replacements can require secure partial-write recovery after a later failure.
 - Decide the first central gateway-status audience: public status, private operator
   dashboard or both. Existing device-rich diagnostics are inputs.
 - Design selective handling of permanent dead letters; automatic RetryExhausted
