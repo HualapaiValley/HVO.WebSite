@@ -78,9 +78,11 @@ files retain their one-line value checks. ESPHome YAML values must be printable
 ASCII and reject double quotes and backslashes before writing.
 Root SQL is derived first so its explicit single-quote password check runs before
 plain-secret validation. Errors name the field, never the rejected value.
-Existing website/handoff CRLF dotenv inputs are read
-with one trailing carriage return removed from each line; matching files need
-no rewrite. Selected JK BMS/Davis JSON must parse and have the expected
+Dotenv inputs are read with one trailing carriage return removed for SQL
+derivation and for comparisons outside the root `.env`. Managed root assignments
+are compared with their carriage returns intact: a CR-terminated managed line
+is drift and apply rewrites that line with LF. Matching website and handoff CRLF
+inputs need no rewrite. Selected JK BMS/Davis JSON must parse and have the expected
 secret-selection types; jq errors fail preparation rather than disabling secrets.
 
 After preparation succeeds, root stages run before website or gateway stages.

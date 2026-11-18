@@ -334,6 +334,41 @@ class MaterializationTests(unittest.TestCase):
     def test_sigint_cleans_temporary_file(self):
         self.signal_during_write(signal.SIGINT)
 
+    def root_managed_crlf_control(self):
+        self.materialize()
+        root = self.root / ".env"
+        content = root.read_bytes()
+        content, count = re.subn(rb"^(GH_PAT=[^\r\n]*)\n", rb"\1\r\n", content, flags=re.MULTILINE)
+        self.assertEqual(1, count, "managed fixture line missing")
+        root.write_bytes(content)
+        before = self.snapshot()
+        checked, log = self.run_sync("--check")
+        self.assertNotEqual(0, checked.returncode, "root CR was not reported as drift")
+        self.assertIn("drift   .env:GH_PAT", log)
+        self.assertTrue(before == self.snapshot(), "check changed destinations")
+        applied, log = self.run_sync("--apply")
+        self.assertEqual(0, applied.returncode)
+        self.assertIn("updated .env:GH_PAT", log)
+        sourced = subprocess.run(["bash", "-c", 'source "$1" >/dev/null 2>&1; [[ "$GH_PAT" == "$2" ]]',
+                                 "--", str(root), "offline-vault-sentinel-obs-github-token"],
+                                env=self.environment, capture_output=True)
+        self.assertEqual(0, sourced.returncode, "root secret did not round-trip through Bash")
+        self.assertNotRegex(root.read_bytes(), rb"(?m)^GH_PAT=[^\n]*\r\n")
+        checked, _ = self.run_sync("--check")
+        self.assertEqual(0, checked.returncode)
+
+    def test_root_managed_crlf_is_repaired(self):
+        self.root_managed_crlf_control()
+
+    def test_root_crlf_mutant_is_detected(self):
+        script = self.root / "scripts/sync-secrets-from-keyvault.sh"
+        original = script.read_text()
+        mutant = original.replace('if [[ "${3:-}" != preserve-cr ]]; then', 'if true; then')
+        self.assertTrue(original != mutant, "CR mutant was not installed")
+        script.write_text(mutant)
+        with self.assertRaises(AssertionError):
+            self.root_managed_crlf_control()
+
     def crlf_control(self, path, mode):
         self.materialize()
         target = self.root / path

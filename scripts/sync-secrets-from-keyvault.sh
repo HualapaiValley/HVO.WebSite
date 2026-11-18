@@ -130,7 +130,9 @@ read_dotenv_value() {
 	local line
 	[[ -f "$file" ]] || return 1
 	while IFS= read -r line || [[ -n "$line" ]]; do
-		line="${line%$'\r'}"
+		if [[ "${3:-}" != preserve-cr ]]; then
+			line="${line%$'\r'}"
+		fi
 		line="${line#export }"
 		if [[ "$line" == "$wanted="* ]]; then
 			printf '%s' "${line#*=}"
@@ -184,8 +186,9 @@ apply_dotenv_value() {
 	local key="$2"
 	local expected="$3"
 	local file="$repo_root/$relative_file"
-	local current=""
-	current="$(read_dotenv_value "$file" "$key" || true)"
+	local current="" read_mode=""
+	[[ "$relative_file" != .env ]] || read_mode=preserve-cr
+	current="$(read_dotenv_value "$file" "$key" "$read_mode" || true)"
 	if [[ "$current" == "$expected" ]]; then
 		printf 'ok      %s:%s\n' "$relative_file" "$key"
 		return
