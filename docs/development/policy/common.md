@@ -165,7 +165,7 @@ identity limit recorded; no additional per-head Roy acceptance is required. Merg
 authorization remains separate under the standing rule. The only exception to the
 independence requirement is Roy's own manual decision addressing a disclosed
 independence or contributor-overlap defect for one exact full head SHA. An agent
-can never waive the requirement or apply this exception. Roy's decision must be
+can never waive the requirement or grant this exception. Roy’s decision must be
 recorded in GitHub PR metadata bound to that full SHA, disclosing that model
 identity is reported, not authenticated, and naming each reviewer's requested and
 provider-reported model; it may also be recorded in history after merge. The decision

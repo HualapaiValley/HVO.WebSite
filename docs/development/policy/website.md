@@ -130,8 +130,8 @@ Camera lifecycle is a cross-repository common-policy example, not an assertion t
 WebSite operates cameras. Before .9, Standard review permitted the same model in a
 distinct independent session; common policy requires by default a different model from
 every contributor in the reviewed range, subject only to Roy’s recorded exact-head
-exception in the [review contract](common.md#independent-review-contract), which
-an agent can never waive or apply.
+exception in the [review contract](common.md#independent-review-contract). An agent
+can never waive the requirement or grant that exception.
 
 The current author record can request `minReviewers`, `differentModel`, panel
 selectors and `modelComparison: all-contributors`. Those declarations do not prove
@@ -144,7 +144,7 @@ Authenticated distinct-model qualification is required for autonomous enforcemen
 Derive identity from authenticated runtime provider/model receipts through a trusted
 mapping, never from caller-supplied mappings. Qualify aliases, Unicode lookalikes or
 invisible characters, unmapped or ambiguous identities and forged mappings. Current
-model IDs are reported, not authenticated; manual acceptance is governed by common policy.
+model IDs are reported, not authenticated; Roy’s recorded exact-head decision is governed by common policy.
 
 ## Pilot boundary
 
