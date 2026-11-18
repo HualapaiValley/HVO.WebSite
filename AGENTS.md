@@ -2,7 +2,7 @@
 
 ## Unified-policy pilot candidate
 
-The [HVO policy 2026-11-16.11](docs/development/policy/common.md) defines scope,
+The [HVO policy 2026-11-17.1](docs/development/policy/common.md) defines scope,
 platform/security > common policy > repo profile precedence, and local skills;
 see the [WebSite profile and pilot stages](docs/development/policy/website.md#pilot-stages)
 and [adapters](docs/development/policy/adapters.md). Independent review starts after
@@ -18,7 +18,7 @@ procedures remain in force subject to those rules.
 
 These instructions apply to HVO.WebSite. Other repositories remain read-only unless the user authorizes their changes. Read-only inspection does not authorize unrelated implementation. Preserve current user scope and authorization when resuming work.
 
-Use a dedicated branch/checkout from `main`; never commit issue work directly to `main`. Do not overwrite another owner's work. Releases, deployment, live hardware operations and other repositories need applicable authorization. An explicitly authorized full issue lifecycle includes reviewed, green merge and closeout; Kepler performs agent PR operations under the common policy. Do not stop at PR creation or repeatedly ask to continue. An epic assignment includes its authorized child work and final acceptance. If merge is not authorized, stop with the reviewed, green PR and report its state.
+Use a dedicated branch/checkout from `main`; never commit issue work directly to `main`. Do not overwrite another owner's work. Releases, deployment, live hardware operations and other repositories need applicable authorization. The common standing rule authorizes reviewed, green merge and closeout subject to assignment limits, but does not authorize reboots or deletions; Kepler performs agent PR operations under the common policy. Do not stop at PR creation or repeatedly ask to continue. An epic assignment includes its authorized child work and final acceptance. Honor any assignment endpoint that narrows that authority.
 
 ## Mandatory procedure routing
 
@@ -42,8 +42,8 @@ Every PR starts draft. Use [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUE
 
 Run `dotnet build` at zero warnings/errors and the applicable non-live tests before requesting review. The SDK pin is authoritative; use its exact SDK locally or in a container. Record failed/unavailable checks and source-bound results honestly. New tests should verify meaningful behavior, failure handling or workflow invariants; documentation alone does not require invented tests.
 
-Draft automated checks are bounded preflight only. Independent current-source review, verified finding dispositions and resolved actionable threads precede ready state and standard CI. Failed CI or changed source returns to draft for correction/review. A green current candidate can merge only within assignment authority. Labels show state but cannot create approval or merge authority.
+Draft automated checks are bounded preflight only. Independent current-source review, verified finding dispositions and resolved actionable threads precede ready state and standard CI. Failed CI or changed source returns to draft for correction/review. A green current candidate can merge within the common standing authorization and any assignment limit. Labels show state but cannot create approval or merge authority.
 
-The reviewer is a distinct person/session that did not materially implement the candidate and uses a different model from every contributor to the reviewed range. The common policy specifies required reviewer models; the assignment can require a different account or provider. The current gate requires direct publication for strict different-account separation, which Kepler's agent relay cannot satisfy; such a requirement is BLOCKED until a compatible gate exists. Same operator account with a distinct reviewer session is supported. Review summaries identify the actual reviewer and group linked findings by P0–P3; each finding has its own code comment, evidence, possible solution and independent disposition verification. Kepler faithfully publishes agent reviews as GitHub metadata; do not commit review reports merely to publish them.
+The reviewer is a distinct person/session that did not materially implement the candidate and uses a different model from every contributor to the reviewed range. The common policy specifies distinct-model reviewer minima and defaults; the assignment can require a different account or provider. The current gate requires direct publication for strict different-account separation, which Kepler's agent relay cannot satisfy; such a requirement is BLOCKED until a compatible gate exists. Same operator account with a distinct reviewer session is supported. Review summaries identify the actual reviewer and group linked findings by P0–P3; each finding has its own code comment, evidence, possible solution and independent disposition verification. Kepler faithfully publishes agent reviews as GitHub metadata; do not commit review reports merely to publish them.
 
 Keep project history curated when structure, architecture or deployment assumptions change. Do not introduce unrelated packages/frameworks, public contracts or configuration changes without explaining their need and compatibility effects. Keep changes focused; preserve existing behavior outside the assignment.

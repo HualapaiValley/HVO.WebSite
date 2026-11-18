@@ -1,6 +1,6 @@
 HualapaiValley PR states and labels
 
-This is the WebSite pilot policy. Every PR starts as draft. Drafts can receive simple preflight checks, while standard CI waits for completed independent review and verified resolution of findings. A green current candidate can be merged within the owner's authorization. A CI failure returns the PR to draft for diagnosis, correction and review of any source changes.
+This is the WebSite pilot policy. Every PR starts as draft. Drafts can receive simple preflight checks, while standard CI waits for completed independent review and verified resolution of findings. A green current candidate can be merged within the common standing authorization and any assignment limit. A CI failure returns the PR to draft for diagnosis, correction and review of any source changes.
 
 ```text
 claim issue -> implement -> draft PR -> independent review
@@ -24,8 +24,8 @@ Each PR has exactly one lifecycle label from the table. Changing phase replaces 
 | Independent review requested or running | Draft | `workflow:review` | Initial, correction or synchronization review. |
 | Findings or CI failure being addressed | Draft | `workflow:changes-required` | Diagnose, correct, locally validate, then return to review. |
 | Review complete; standard CI queued/running | Ready | `workflow:ci` | Run the standard profile on the reviewed current candidate. |
-| Required CI green and final conditions verified | Ready | `workflow:ready-to-merge` | Merge when the assignment authorizes it. |
-| Merged and closeout recorded | Merged | `workflow:complete` | Verify issue closure and cleanup. |
+| Required CI green and final conditions verified | Ready | `workflow:ready-to-merge` | Merge under common standing authorization, subject to assignment limits. |
+| Merged and closeout recorded | Merged | `workflow:complete` | Verify issue closure and release of ownership and reservations. |
 | Closed without merging | Closed | `workflow:cancelled` | Record the outcome/handoff; do not claim implementation completion. |
 
 Additional labels have separate purposes:
@@ -53,7 +53,7 @@ Before marking ready, verify that:
 2. Every finding has a verified terminal disposition. Deferral is allowed only where the adopted policy and owner authorization permit it; it is never silently treated as a correction.
 3. Actionable threads are resolved and acceptance evidence is complete.
 4. The target synchronization and affected local validation required by the profile are complete.
-5. Owner authorization and label/claim records are current.
+5. The common standing authorization, any assignment limits and label/claim records are current.
 
 Then replace the phase label with `workflow:ci`; Kepler marks the PR ready. A lightweight Review Evidence guard runs before the standard jobs. It checks the actual current head and finding records; a manually marked-ready but unreviewed PR does not qualify for the standard pipeline.
 
@@ -69,8 +69,8 @@ A failed, cancelled, timed-out or otherwise invalid standard run cannot satisfy 
 
 For a code defect, correct it, run affected local checks and request correction review of the previous reviewed head to the new head. Carry all outstanding findings and the CI failure evidence. After independent verification and thread resolution, Kepler marks ready and starts standard CI again.
 
-For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head/target. Kepler returns to draft; document the infrastructure correction and re-establish ready conditions; the stricter transitional budget permits one fresh complete CI run for the same tuple without inventing a code correction or redundant code review. Partial reruns of old admission do not qualify in this profile. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
+For a diagnosed infrastructure failure with no source change, the existing review remains attached to the same head/target. Kepler returns to draft; document the infrastructure correction and re-establish ready conditions; the standing stricter profile budget permits one fresh complete CI run for the same tuple without inventing a code correction or redundant code review. Partial reruns of old admission do not qualify in this profile. If the cause is uncertain, keep the failure unresolved rather than guessing it is infrastructure.
 
 Any new source commit after review, including a correction made after CI passed, invalidates the relevant current-head approval and readiness. Kepler returns it to draft before pushing where possible. The guard must also catch a push made while still ready, block standard jobs for the unreviewed head, clear `workflow:ready-to-merge`, and route the candidate back to review. Source synchronization follows the same applicable review rules.
 
-Once required checks are green for the current reviewed candidate, verify target/source currency and conversation resolution, then apply `workflow:ready-to-merge`. Kepler merges using the repository profile when authorized. Complete the issue/epic progress record, remove active ownership/blocker labels, apply `workflow:complete`, release reservations and clean up safely.
+Once required checks are green for the current reviewed candidate, verify target/source currency and conversation resolution, then apply `workflow:ready-to-merge`. Kepler merges using the repository profile when authorized. Complete the issue/epic progress record, remove active ownership/blocker labels, apply `workflow:complete`, and release reservations. Branch and workspace deletion remains subject to the common deletion stop.

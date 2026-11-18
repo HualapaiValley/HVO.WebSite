@@ -1,7 +1,7 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-16.11`. Status: local preparation; no live rollout or
-autonomous merge enabled. Canonical repository: `HualapaiValley/HVO.WebSite`.
+Policy version: `2026-11-17.1`. Status: local preparation; no live rollout or
+autonomous enforcement enabled; Kepler merges under the common standing rule. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
 and [automation evidence](../automation-evidence.md) retain their requirements.
@@ -65,29 +65,33 @@ only first-attempt CI admission, and its v1 schema has no BLOCKED verdict.
 
 ## Transitional retained procedures
 
-Each item below stays in force until Roy records a decision to retire it or promote it to common policy, or until the next policy release, whichever comes first; none relaxes common policy. "Next policy release" means the next shared-policy version bump. Status: retained, remains in force until Roy records a decision or until the next policy release, whichever comes first.
+There are currently no transitional retained procedures. For this bump, the following
+dispositions are recorded at this bump, not prior per-item Roy decisions except the retired
+first-pilot stop (t589u).
 
-- Review-format coverage, publication and Deep-trigger mapping remain required, subject to the common tier and Kepler relay rules.
-- Repository-local skill precedence and non-pilot epic dispatch route remain in force.
-- Never operate physical devices or use live tests as ordinary validation.
-- Infrastructure recovery permits one fresh complete run for unchanged source, a stricter limit than common's default two retries.
-- Autonomous enforcement requires trusted enforcement and authenticated family qualification, including the mapping and adversarial checks below.
-- Protection or ruleset changes require fixture qualification, authenticated baseline and impact evidence, and a verified rollback plan; stop for unknown baseline or concurrent change.
-- Requalify a moving merge source before authorized merge; verify source, review, checks and resolved findings.
-- Preserve source-bound evidence, trusted evaluator/controller, immutable merge-source execution, execution unions, full lanes and full-SHA Action pins; workflow/helper changes require focused checks.
-- The first pilot stops at PR-ready; Roy separately authorizes its first merge. Stage (c) qualification retains the additional requirements below.
+| Former item | Disposition | Standing substance |
+|---|---|---|
+| Review coverage, publication and Deep triggers | Retain as standing profile text | Evidence translation |
+| Local skill precedence and non-pilot epic route | Retain as standing profile text | Repository-specific scope and discovery |
+| Physical operations and live tests | Retain as standing profile text | Common validation and authority; preserved boundaries |
+| One-run infrastructure recovery | Retain as standing profile text | Common permits stricter profile budgets; preserved boundaries |
+| Trusted enforcement and model qualification | Retain as standing profile text | Pilot stages and evidence translation |
+| Protection and ruleset qualification | Retain as standing profile text | Common validation and pilot boundary |
+| Moving merge source requalification | Retain as standing profile text | Common lifecycle and pilot boundary |
+| Source-bound evidence and validation safeguards | Retire | Preserved validation and boundaries |
+| First-pilot PR-ready stop; stage (c) qualification | Retire stop; retain qualification as standing profile text | Standing merge continuation in common; pilot stages and boundary |
 
 ## Pilot stages
 
-1. **Preparation:** write and review these candidate documents; no assignment
-   runs under them.
+1. **Preparation:** write and review these candidate documents; no designated pilot assignment runs under them; policy-text and enforcement changes,
+   including these documents, are reviewed as High risk.
 2. **Supervised trial:** one low-risk WebSite assignment explicitly authorized by
-   Roy follows the procedure manually and stops at PR-ready. Use existing PR Process
+   Roy follows the procedure manually. Use existing PR Process
    and Review Evidence checks and check the review minimum by hand at Ready. No new
    enforcement, protection or automation, including the parked tooling, is required.
-   Roy separately authorizes any first merge after inspecting the evidence.
+   Continue through merge under the common standing rule and assignment limits.
 3. **Autonomous enforcement:** a later, separately authorized stage with trusted
-   enforcement, authenticated model-family mapping, protection and autonomous merge.
+   enforcement, authenticated distinct-model qualification, protection and automated merge by trusted enforcement.
    Its qualification requirements below are future requirements, not implemented
    functionality; they do not block a supervised trial.
 
@@ -104,7 +108,7 @@ Preserve source-bound evidence IDs, trusted target evaluator/controller, immutab
 merge-source execution, selected execution unions, main/full lanes and full-SHA
 Action pins. WebSite live admission counts only first-attempt (`run_attempt` 1) `ci.yml`
 runs. Infrastructure recovery retains WebSite's stricter one fresh complete run
-budget as a transitional retained procedure. No
+budget as a standing profile requirement. No
 workflow, schema, gate producer or CI selection changes belong to
 this preparation. Production exporter stays disabled; retired collectors are not
 deployment targets. Archived `src/HVO.Database` stays outside the solution;
@@ -118,7 +122,7 @@ WebSite APPROVE only when coverage is complete and all mandatory conditions pass
 CHANGES_REQUIRED and INCOMPLETE map directly. BLOCKED is non-approval: publish
 INCOMPLETE with the blocker, never invent an unsupported machine verdict.
 The existing profile/review-format Deep triggers (including deployment, durability
-and cross-component effects) are High risk for this pilot. Mechanical/Standard/Deep
+and cross-component effects) are High risk. Mechanical/Standard/Deep
 describe coverage. Under the accepted interim HIGH mapping, ordinary behavior/API
 changes require at least one Deep review; Standard coverage alone is insufficient.
 Reviewer minima follow the common contract.
@@ -130,22 +134,20 @@ every contributor in the reviewed range.
 The current author record can request `minReviewers`, `differentModel`, panel
 selectors and `modelComparison: all-contributors`. Those declarations do not prove
 the common risk minimum is enforced by trusted code. For autonomous enforcement, derive
-minimum risk/count from trusted policy and changed scope; validate reviewer family
-provenance separately from model-string inequality. Existing publisher permission
+minimum risk/count from trusted policy and changed scope; authenticate reviewer model identity and distinctness separately from model-string inequality. Existing publisher permission
 checks do not attest execution or review quality. Keep the trusted schema/producer
 unchanged here and qualify its successor separately.
 
-Authenticated canonical model-family mapping is required for autonomous enforcement. Derive
-families from authenticated runtime provider/model receipts through a trusted
-mapping, never from declared family strings or caller-supplied mappings. Qualify
-aliases, Unicode lookalikes/invisible characters, unmapped or ambiguous identities
-and forged mappings before autonomous enforcement.
+Authenticated distinct-model qualification is required for autonomous enforcement.
+Derive identity from authenticated runtime provider/model receipts through a trusted
+mapping, never from caller-supplied mappings. Qualify aliases, Unicode lookalikes or
+invisible characters, unmapped or ambiguous identities and forged mappings. Current
+model IDs are reported, not authenticated; manual acceptance is governed by common policy.
 
 ## Pilot boundary
 
-The first WebSite pilot stops at PR-ready. Roy separately authorizes any first
-merge after inspecting the evidence. WebSite branch protection is a separate later
-decision. Existing PR Process workflow and `Review Evidence` checks remain unchanged.
+Kepler continues through merge under the common standing rule, subject to any
+assignment limit. WebSite branch protection is a separate later decision. Existing PR Process workflow and `Review Evidence` checks remain unchanged.
 WebSite does not currently produce or require `hvo/reviewed-head`. Keep that
 compatibility gate where currently required by SkyMonitor and RoofController;
 remove no live required gate before a verified replacement.

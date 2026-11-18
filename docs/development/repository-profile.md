@@ -15,16 +15,16 @@ Process revision: `2026-10-04.1` (selective CI adopted by PR #426).
 | Workspace | Dedicated branch/checkout; preserve other owners' claims/work |
 | Required local application evidence | Pinned SDK build, zero warnings/errors; applicable non-live tests |
 | SDK | `global.json` is authoritative; currently 10.0.402 with roll-forward disabled |
-| Independent reviewer minimum | Common LOW requires Sol; HIGH requires Sol and Opus, independent of contributors |
+| Independent reviewer minimum | Common LOW requires one independent frontier model (default Sol); HIGH requires two (default Sol and Opus), independent of contributors |
 | Default selection | Auto; explicit Preferred/Required and separation constraints override within authorized scope |
-| Publication | Kepler faithfully relays agent review records; strict different-account gate requirements need direct publication and may be blocked |
+| Publication | Kepler faithfully relays agent review records; strict different-account gate requirements need direct publication and are BLOCKED until a compatible gate exists |
 | CI | Bounded draft preflight, immutable-source review gate and trusted affected-work plan, then selected execution with stable build/test and Docker aggregation; main/nightly/default manual runs remain full |
 | Finalization reservation | None |
 | Release/deployment | Separate authorization; no production/hardware action implied by issue work |
 
 Depth is Mechanical for demonstrably non-behavioral changes, Standard for bounded coverage where the applicable tier permits it, and Deep for security, concurrency, durability, migrations, safety, CI control, deployment or interactions across components. Under the accepted interim HIGH mapping, ordinary behavior/API changes require at least one Deep review. See [review coverage and selection](../../.agents/skills/hvo-code-review/references/review-format.md).
 
-Choose an eligible route using its available context, repository/test access, requested risk lenses and current runtime settings. Common policy fixes required reviewer models; harness, effort and permitted same-model fallback are assignment configuration. Discover live capabilities; verify selectable settings before promising a specific model/effort. An unavailable required model blocks its review role; unknown metadata cannot establish a required model.
+Choose an eligible route using its available context, repository/test access, requested risk lenses and current runtime settings. Common policy sets reviewer minima and defaults; harness, effort and permitted same-model fallback are assignment configuration. Discover live capabilities; verify selectable settings before promising a specific model/effort. An unavailable required model may be replaced as the common contract permits; otherwise its role is BLOCKED; unknown metadata cannot establish a required model.
 
 Local application checks:
 
@@ -50,7 +50,7 @@ The pilot moved standard CI to hosted Ubuntu, using ephemeral Docker smoke resou
 
 ## Current CI authority
 
-PR CI uses a read-only `pull_request_target` workflow whose admission evaluator, planner and aggregation code come from the immutable trusted target tip. Standard execution checks out the verified immutable GitHub merge SHA, with no write credentials or secret environment. The controller accepts only the matching PR/head/target/merge tuple, a fresh complete first attempt created after approval, and four successful internal jobs: review-evidence, plan, build-and-test and docker-smoke. Build-and-test verifies the complete planned execution union, including explicit reasons for skipped empty lanes. It publishes candidate-head statuses for the intended required checks; native target-workflow checks alone do not establish readiness. Partial or old-target reruns cannot qualify. An unchanged-source infrastructure recovery permits one fresh complete run as a stricter transitional retained procedure that remains in force until Roy records a decision to retire it or promote it, or until the next policy release, whichever comes first.
+PR CI uses a read-only `pull_request_target` workflow whose admission evaluator, planner and aggregation code come from the immutable trusted target tip. Standard execution checks out the verified immutable GitHub merge SHA, with no write credentials or secret environment. The controller accepts only the matching PR/head/target/merge tuple, a fresh complete first attempt created after approval, and four successful internal jobs: review-evidence, plan, build-and-test and docker-smoke. Build-and-test verifies the complete planned execution union, including explicit reasons for skipped empty lanes. It publishes candidate-head statuses for the intended required checks; native target-workflow checks alone do not establish readiness. Partial or old-target reruns cannot qualify. An unchanged-source infrastructure recovery permits one fresh complete run as a standing stricter profile budget.
 
 ## Source-bound adoption qualification
 

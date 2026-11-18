@@ -75,7 +75,7 @@ collectors, including Davis's shared hvo-docker/Pi definition. An opt-in mounted
 non-secret runtime `.env` is read after JSON and creation-time environment,
 allowing app-setting updates on an authorized restart without changing images.
 The directory bind and staged file replacement preserve mount visibility and
-restore previous config/secrets/env if application fails. Docker-owned settings
+restore previous config/secrets/env on activation failure. Docker-owned settings
 still require recreation. The earlier prerelease source predates this loader;
 adoption needs a later publication and separately authorized replacement.
 
