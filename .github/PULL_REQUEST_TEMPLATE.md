@@ -62,8 +62,10 @@ Review depth: <!-- Mechanical / Standard / Deep: required coverage, not model ef
 
 Required reviewers: <!-- LOW: one independent frontier model CLEAN (default Sol); HIGH: two distinct independent frontier models CLEAN on the same head, at least one Deep (default Sol + Opus). Substitution follows common policy. -->
 
-Independence constraints: <!-- Distinct reviewing sessions; each model differs from every
-contributor in the reviewed range. Same GitHub account is allowed; a strict different-account
+Independence constraints: <!-- Distinct reviewing sessions; by default each model differs from every
+contributor in the reviewed range. Contributor overlap leaves the role BLOCKED unless Roy’s
+sole recorded exact-head decision under the common review contract addresses it; the decision
+never carries over to a later head, and an agent can never waive the requirement or grant the exception. Same GitHub account is allowed; a strict different-account
 requirement has a direct-publication limitation under the current gate and Kepler relay. -->
 
 Reviewer selection: <!-- Auto / Preferred / Required. Default: Auto from configured eligible profiles. -->

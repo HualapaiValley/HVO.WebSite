@@ -1,6 +1,6 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-17.1`. Status: local preparation; no live rollout or
+Policy version: `2026-11-17.2`. Status: local preparation; no live rollout or
 autonomous enforcement enabled; Kepler merges under the common standing rule. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
@@ -128,8 +128,10 @@ changes require at least one Deep review; Standard coverage alone is insufficien
 Reviewer minima follow the common contract.
 Camera lifecycle is a cross-repository common-policy example, not an assertion that
 WebSite operates cameras. Before .9, Standard review permitted the same model in a
-distinct independent session; common policy now requires a different model from
-every contributor in the reviewed range.
+distinct independent session; common policy requires by default a different model from
+every contributor in the reviewed range, subject only to Roy’s recorded exact-head
+exception in the [review contract](common.md#independent-review-contract). An agent
+can never waive the requirement or grant that exception.
 
 The current author record can request `minReviewers`, `differentModel`, panel
 selectors and `modelComparison: all-contributors`. Those declarations do not prove
@@ -142,7 +144,7 @@ Authenticated distinct-model qualification is required for autonomous enforcemen
 Derive identity from authenticated runtime provider/model receipts through a trusted
 mapping, never from caller-supplied mappings. Qualify aliases, Unicode lookalikes or
 invisible characters, unmapped or ambiguous identities and forged mappings. Current
-model IDs are reported, not authenticated; manual acceptance is governed by common policy.
+model IDs are reported, not authenticated; Roy’s recorded exact-head decision is governed by common policy.
 
 ## Pilot boundary
 

@@ -15,7 +15,7 @@ Process revision: `2026-10-04.1` (selective CI adopted by PR #426).
 | Workspace | Dedicated branch/checkout; preserve other owners' claims/work |
 | Required local application evidence | Pinned SDK build, zero warnings/errors; applicable non-live tests |
 | SDK | `global.json` is authoritative; currently 10.0.402 with roll-forward disabled |
-| Independent reviewer minimum | Common LOW requires one independent frontier model (default Sol); HIGH requires two (default Sol and Opus), independent of contributors |
+| Independent reviewer minimum | Common LOW requires one independent frontier model (default Sol); HIGH requires two (default Sol and Opus), by default independent of contributors (see the common review contract) |
 | Default selection | Auto; explicit Preferred/Required and separation constraints override within authorized scope |
 | Publication | Kepler faithfully relays agent review records; strict different-account gate requirements need direct publication and are BLOCKED until a compatible gate exists |
 | CI | Bounded draft preflight, immutable-source review gate and trusted affected-work plan, then selected execution with stable build/test and Docker aggregation; main/nightly/default manual runs remain full |
@@ -24,7 +24,7 @@ Process revision: `2026-10-04.1` (selective CI adopted by PR #426).
 
 Depth is Mechanical for demonstrably non-behavioral changes, Standard for bounded coverage where the applicable tier permits it, and Deep for security, concurrency, durability, migrations, safety, CI control, deployment or interactions across components. Under the accepted interim HIGH mapping, ordinary behavior/API changes require at least one Deep review. See [review coverage and selection](../../.agents/skills/hvo-code-review/references/review-format.md).
 
-Choose an eligible route using its available context, repository/test access, requested risk lenses and current runtime settings. Common policy sets reviewer minima and defaults; harness, effort and permitted same-model fallback are assignment configuration. Discover live capabilities; verify selectable settings before promising a specific model/effort. An unavailable required model may be replaced as the common contract permits; otherwise its role is BLOCKED; unknown metadata cannot establish a required model.
+Choose an eligible route using its available context, repository/test access, requested risk lenses and current runtime settings. Common policy sets reviewer minima and defaults; harness, effort and permitted fallback routes for the same required independent reviewer model are assignment configuration. Fallback or assignment configuration cannot authorize contributor/reviewer overlap; that role is BLOCKED unless Roy’s sole recorded exact-head decision applies under the [common review contract](policy/common.md#independent-review-contract). That decision never carries over to a later head; an agent can never waive the requirement or grant the exception. Discover live capabilities; verify selectable settings before promising a specific model/effort. An unavailable required model may be replaced as the common contract permits; otherwise its role is BLOCKED; unknown metadata cannot establish a required model.
 
 Local application checks:
 
