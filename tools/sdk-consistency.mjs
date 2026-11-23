@@ -14,45 +14,66 @@ function jsonc(source) {
   return JSON.parse(withoutComments(source).replace(/("(?:\\.|[^"\\])*")|,\s*(?=[}\]])/g, (match, string) => string ?? ''));
 }
 
-// Docker ignores full-line comments even inside continued instructions.
+function heredocMarkers(text) {
+  if (!/^(?:ONBUILD\s+)?(?:RUN|COPY|ADD)\s/i.test(text) || !text.includes('<<')) return [];
+
+  // BuildKit looks for a heredoc operator at the start of a raw shell word.
+  // Quotes and backslash escapes keep whitespace inside that word.
+  const tokens = /(\p{White_Space}+)|(?:\\.?|'[^']*'|"(?:\\.|[^"\\])*"|<<[ \t\r]*|<(?!<)|[^\p{White_Space}'"\\<])+/gsuy;
+  const markers = [];
+  let consumed = 0;
+  for (const [word, whitespace] of text.matchAll(tokens)) {
+    consumed += word.length;
+    if (whitespace) continue;
+    const match = /^\d*<<(-?)([^<]*)$/.exec(word);
+    if (!match) continue;
+    const name = match[2].trimStart().replace(/'([^']*)'|"((?:\\.|[^"\\])*)"|\\(.)/gsu,
+      (_, single, double, escaped) => single ?? double?.replace(/\\([$"\x60\\])/g, '$1') ?? escaped);
+    if (name) markers.push({ name, tabs: match[1] === '-' });
+  }
+  return consumed === text.length ? markers : [];
+}
+
 function instructions(source) {
-  const lines = source.split(/\r?\n/);
+  const lines = source.replace(/^\uFEFF/, '').split('\n');
+  const leadingWhitespace = /^\p{White_Space}+/u;
   let escape = '\\';
   for (const line of lines) {
-    const directive = /^#\s*(syntax|escape|check)\s*=\s*(.+?)\s*$/i.exec(line);
+    const directive = /^#\s*(syntax|escape|check)\s*=\s*(.+?)\s*$/i.exec(line.replace(leadingWhitespace, ''));
     if (!directive) break;
     if (directive[1].toLowerCase() === 'escape' && /^[\\`]$/.test(directive[2])) escape = directive[2];
   }
   const result = [];
-  const heredocs = [];
+  let heredocs = [];
+  let heredocStart = 0;
   let text = '';
   let start = 0;
-  for (const [index, line] of lines.entries()) {
+  for (const [index, rawLine] of lines.entries()) {
+    const line = rawLine.replace(/\r+$/, '');
     if (heredocs.length) {
       const marker = heredocs[0];
       if ((marker.tabs ? line.replace(/^\t+/, '') : line) === marker.name) heredocs.shift();
       continue;
     }
-    if (!line.trim() || /^\s*#/.test(line)) continue;
-    if (!text) start = index + 1;
-    const part = line.trim();
-    // BuildKit treats doubled terminal escape characters as literal text.
-    const continued = part.endsWith(escape) && part.at(-2) !== escape;
-    text += (continued ? part.slice(0, -1) : part) + ' ';
+    const trimmed = line.replace(leadingWhitespace, '');
+    // Docker ignores full-line comments even inside continued instructions.
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const part = start ? line : trimmed;
+    if (!start) start = index + 1;
+    const tail = part.replace(/[ \t]+$/, '');
+    const continued = tail.endsWith(escape) && tail.at(-2) !== escape;
+    // Keep the continuation line's indentation and concatenate without a separator.
+    text += continued ? tail.slice(0, -1) : part;
     if (!continued) {
       result.push({ text: text.trim(), line: start });
-      if (/^(RUN|COPY|ADD)\s/i.test(text)) {
-        // Quoted shell strings can contain << without declaring a heredoc.
-        const markers = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|(?:^|\s)\d*<<(-?)(?!<)\s*(?:"([^"]+)"|'([^']+)'|([a-zA-Z0-9_.-]+))(?=\s|$)/g;
-        for (const match of text.matchAll(markers)) {
-          if (!match[1]) heredocs.push({ name: match[3] ?? match[4] ?? match[5], tabs: match[2] === '-', line: start });
-        }
-      }
+      heredocs = heredocMarkers(text.trimStart());
+      heredocStart = start;
       text = '';
+      start = 0;
     }
   }
-  if (text) result.push({ text: text.trim(), line: start, incomplete: true });
-  if (heredocs.length) result.push({ line: heredocs[0].line, error: `unterminated Docker heredoc; add its ${heredocs[0].name} terminator before the next instruction.` });
+  if (start) result.push({ text: text.trim(), line: start, incomplete: true });
+  if (heredocs.length) result.push({ line: heredocStart, error: `unterminated Docker heredoc; add its ${heredocs[0].name} terminator before the next instruction.` });
   return result;
 }
 

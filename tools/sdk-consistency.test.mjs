@@ -133,6 +133,40 @@ test('the Docker escape directive supports backtick continuations', () => {
   assert.deepEqual(checkSources(files).errors, []);
 });
 
+for (const [prefix, description] of [['\uFEFF', 'a UTF-8 BOM'], [' \t', 'leading whitespace']]) {
+  test(`an escape directive after ${description} keeps a later FROM visible`, () => {
+    const files = fixture();
+    files['Dockerfile'] = [
+      `${prefix}# escape=\x60`, `FROM alpine:3.20@${digest} AS tools`, 'RUN echo C:\\',
+      'FROM mcr.microsoft.com/dotnet/sdk:9.0.100 AS old'
+    ].join('\r\n');
+    rejects(files, /Dockerfile:4.*FROM mcr.*@sha256/, /Dockerfile:4.*SDK FROM tag.*9\.0\.100.*10\.0\.402/);
+  });
+}
+
+for (const [command, description] of [
+  [['RUN cat\\ \t', '<<EOF'], 'a joined continuation'],
+  [['RUN echo a\\ <<EOF'], 'an escaped space']
+]) {
+  test(`a heredoc-like word after ${description} keeps a later FROM visible`, () => {
+    const files = fixture();
+    files['Dockerfile'] = [
+      `FROM alpine:3.20@${digest} AS tools`, ...command, 'FROM node:latest AS web',
+      'RUN <<EOF', 'echo hi', 'EOF'
+    ].join('\n');
+    rejects(files, new RegExp(`Dockerfile:${command.length + 2}.*FROM node:latest.*@sha256`));
+  });
+}
+
+test('an indented continuation can start a heredoc with a partially quoted marker', () => {
+  const files = fixture();
+  files['Dockerfile'] = [
+    `FROM ${sdkImage(sdk)}`, 'RUN cat\\', '  <<E"O"F',
+    'FROM literal-content', 'EOF'
+  ].join('\n');
+  assert.deepEqual(checkSources(files).errors, []);
+});
+
 test('a continued mismatched FROM reports its starting line', () => {
   const files = fixture();
   files['Dockerfile'] = `# comment\nFROM \\\n  ${sdkImage('10.0.400')} AS build\n`;
