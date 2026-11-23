@@ -27,6 +27,10 @@ Do not invent command flags or elevate access to satisfy a policy.
 Reviewer minima and independent substitutions follow common policy; preferences and
 other authorized fallbacks belong in assignment configuration.
 
+When publishing PR evidence to GitHub, include `host` and `workspace` as
+non-empty strings. Either field may use `withheld` to keep internal host names
+and checkout paths off GitHub.
+
 ## Kepler coordination
 
 Kepler follows the [coordination procedure](../../../.agents/skills/hvo-coordination/SKILL.md)
