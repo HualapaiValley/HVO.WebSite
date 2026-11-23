@@ -364,14 +364,18 @@ class MaterializationTests(unittest.TestCase):
         self.materialize()
         root = self.root / ".env"
         original = root.read_bytes()
-        crlf, count = re.subn(rb"^(" + SQL_KEY.encode() + rb"=[^\r\n]*)\n", rb"\1\r\n",
-                             original, flags=re.MULTILINE)
+        crlf, count = re.subn(
+            rb"^(" + SQL_KEY.encode() + rb"=[^\r\n]*)\n", rb"\1\r\n",
+            original, flags=re.MULTILINE,
+        )
         self.assertEqual(1, count, "expected one root SQL assignment")
         root.write_bytes(crlf)
 
         before = self.snapshot()
         checked, log = self.run_sync("--check")
         self.assertEqual(1, checked.returncode, "check must report drift")
+        self.assertNotIn("Error:", log, "drift must not hide a preparation failure")
+        self.assertIn("Detected 1 Key Vault synchronization difference(s).", log)
         self.assertIn(f"drift   .env:{SQL_KEY}", log)
         self.assertTrue(before == self.snapshot(), "check changed destinations")
 
@@ -381,6 +385,19 @@ class MaterializationTests(unittest.TestCase):
         self.assertTrue(root.read_bytes() == original, "root SQL line was not restored to LF")
         checked, _ = self.run_sync("--check")
         self.assertEqual(0, checked.returncode, "re-check failed after root SQL repair")
+
+    def test_root_sql_crlf_mutant_is_detected(self):
+        script = self.root / "scripts/sync-secrets-from-keyvault.sh"
+        original = script.read_text()
+        # Keep the trailing CR during root SQL derivation, as in M3 (#501).
+        mutant = original.replace(
+            f'{SQL_KEY} || true)"',
+            f'{SQL_KEY} "$([[ $relative_file != .env ]] || echo preserve-cr)" || true)"',
+        )
+        self.assertTrue(original != mutant, "root SQL CR mutant was not installed")
+        script.write_text(mutant)
+        with self.assertRaises(AssertionError):
+            self.test_root_sql_crlf_is_derived_and_repaired()
 
     def test_root_crlf_mutant_is_detected(self):
         script = self.root / "scripts/sync-secrets-from-keyvault.sh"
