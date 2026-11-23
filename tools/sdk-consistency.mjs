@@ -64,7 +64,7 @@ export function checkSources(files) {
     try { return parser(files[path]); }
     catch { errors.push(`${path}: invalid JSON${parser === jsonc ? 'C' : ''}; correct the configuration syntax.`); }
   };
-  const sdk = readJson('global.json')?.sdk?.version;
+  const sdk = readJson('global.json', jsonc)?.sdk?.version;
   if (typeof sdk !== 'string' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(sdk)) {
     errors.push('global.json: sdk.version must be an explicit SDK version (for example 10.0.402).');
     return { errors };

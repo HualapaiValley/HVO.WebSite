@@ -47,6 +47,18 @@ test('global.json is authoritative when every other SDK reference is left behind
   rejects(files, /src\/App\/Dockerfile:1.*10\.0\.402.*10\.0\.403/, /devcontainer.*10\.0\.403/, /PINNED_SDK.*10\.0\.403/, /pr-process-fixture.*10\.0\.403/);
 });
 
+test('global.json with comments stays authoritative', () => {
+  const files = fixture();
+  files['global.json'] = `{
+    // single SDK source
+    "sdk": { "version": "${sdk}" /* exact */, "rollForward": "disable" }
+  }`;
+  assert.deepEqual(checkSources(files).errors, []);
+
+  files['global.json'] = files['global.json'].replace(sdk, '10.0.403');
+  rejects(files, /src\/App\/Dockerfile:1.*10\.0\.402.*10\.0\.403/, /PINNED_SDK.*10\.0\.403/);
+});
+
 test('a mismatched Docker SDK tag reports the file, line and expected version', () => {
   const files = fixture();
   files['src/App/Dockerfile'] = `# build stage\nFROM ${sdkImage('10.0.400')} AS build\n`;
