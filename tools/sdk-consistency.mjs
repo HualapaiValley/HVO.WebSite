@@ -1,6 +1,6 @@
 // Offline policy: inspect tracked configuration as data; never execute candidate tooling.
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -130,7 +130,19 @@ export function checkRepository(root) {
   return checkSources(files);
 }
 
-if (import.meta.main) {
+function invokedByPath() {
+  const entryPoint = process.argv[1];
+  if (!entryPoint || entryPoint === '-') return false;
+  try {
+    return realpathSync(entryPoint) === fileURLToPath(import.meta.url);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return false;
+  }
+}
+
+// Early Node 24 releases do not expose import.meta.main.
+if (import.meta.main ?? invokedByPath()) {
   try {
     const result = checkRepository(resolve(process.argv[2] ?? fileURLToPath(new URL('..', import.meta.url))));
     if (result.errors.length) {
