@@ -15,7 +15,14 @@ The [SQL Server lane](sql-server-integration-tests.md) requires a local Linux x6
 separate from SDK versions.
 
 PR Preflight's `simple-checks` runs the offline static gate and its deliberate
-mismatch fixtures. Run the same checks locally, without Docker or an installed SDK:
+mismatch fixtures. Once adopted on `main`, the trusted CI `validation` job also
+runs the gate for PR CI, `main` pushes and nightly runs. PR CI runs the gate from
+the immutable target checkout against the admitted merge checkout. The gate runs
+before build and test execution, and a validation failure fails `build-and-test`.
+The SDK fixtures also run with the validation job's other policy tests.
+
+Run the same checks locally with Node and Ruby. Docker and the .NET SDK are
+unnecessary for these checks.
 
 ```bash
 node --test tools/sdk-consistency.test.mjs
