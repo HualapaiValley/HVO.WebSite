@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { buildCommands, testFilter } from './ci-run.mjs';
 import { BROWSER_TESTS } from './ci-plan.mjs';
 import { planWork } from './ci-plan.mjs';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, resolve } from 'node:path';
@@ -29,6 +29,75 @@ test('direct lane filters partition routine, simulator and browser tests', () =>
 });
 
 const trustedRunner = fileURLToPath(new URL('./ci-run.mjs', import.meta.url));
+
+test('trusted validation reads candidate SDK pins and a mismatch fails build-and-test', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'hvo-ci-sdk-'));
+  try {
+    const sdk = '10.0.402';
+    mkdirSync(resolve(root, '.devcontainer'));
+    mkdirSync(resolve(root, 'tools'));
+    mkdirSync(resolve(root, 'bin'));
+    writeFileSync(resolve(root, 'global.json'), JSON.stringify({ sdk: { version: sdk } }));
+    writeFileSync(resolve(root, '.devcontainer/devcontainer.json'), JSON.stringify({
+      features: { 'ghcr.io/devcontainers/features/dotnet:2': { version: sdk } }
+    }));
+    writeFileSync(resolve(root, 'tools/pr-process.mjs'), `export const PINNED_SDK = '${sdk}';\n`);
+    writeFileSync(resolve(root, 'tools/pr-process-fixture.json'), JSON.stringify({
+      author: { validation: [{ id: 'local:pinned-sdk-build-zero-warnings', sdk }] }
+    }));
+    writeFileSync(resolve(root, 'tools/sdk-consistency.mjs'), 'throw new Error("candidate SDK gate executed");\n');
+
+    // Only the unrelated builds and policy steps are inert in this fixture.
+    writeFileSync(resolve(root, 'bin/dotnet'), '#!/bin/sh\nprintf "fixture dotnet %s\\n" "$1"\n', { mode: 0o755 });
+    for (const name of ['ci-plan', 'ci-source', 'ci-run', 'pr-process', 'test-categories', 'davis-image', 'gateway-image', 'sdk-consistency']) {
+      writeFileSync(resolve(root, 'tools', `${name}.test.mjs`), '');
+    }
+    writeFileSync(resolve(root, 'tools/ci_fixture_test.py'), 'import unittest\nclass Fixture(unittest.TestCase):\n    def test_noop(self):\n        pass\n');
+    writeFileSync(resolve(root, 'tools/verify-home-assistant-runner.py'), '');
+    for (const name of ['validate-test-categories', 'validate-observability-policy', 'validate-davis-weather-underground-deployment', 'validate-eg4-deployment', 'validate-smartshunt-deployment', 'verify-alert-rules']) {
+      writeFileSync(resolve(root, 'tools', `${name}.sh`), '');
+    }
+
+    const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+    git('init', '-q');
+    const graph = { projects: [{ path: 'src/Fixture/Fixture.csproj', test: false, references: [], inputs: ['Dockerfile'] }] };
+    const runWithSdk = version => {
+      writeFileSync(resolve(root, 'Dockerfile'), `FROM mcr.microsoft.com/dotnet/sdk:${version}@sha256:${'a'.repeat(64)}\n`);
+      git('add', '.');
+      git('-c', 'user.name=CI fixture', '-c', 'user.email=ci@example.test', 'commit', '-qm', 'SDK fixture', '--no-gpg-sign');
+      const sha = git('rev-parse', 'HEAD').trim();
+      const source = { head: sha, base: sha, merge: sha };
+      const plan = planWork({ source, baseGraph: graph, candidateGraph: graph, changes: [{ status: 'M', path: 'Dockerfile' }], complete: true });
+      const env = { ...process.env, PATH: `${resolve(root, 'bin')}:${process.env.PATH}`, PYTHONDONTWRITEBYTECODE: '1',
+        CI_HEAD: sha, CI_BASE: sha, CI_MERGE: sha, CI_PLAN: JSON.stringify(plan) };
+      delete env.NODE_TEST_CONTEXT;
+      const run = job => {
+        const result = spawnSync(process.execPath, [trustedRunner, job], { cwd: root, env, encoding: 'utf8', timeout: 15000 });
+        assert.ifError(result.error);
+        return result;
+      };
+      const validation = run('validation');
+      env.CI_JOB_RESULTS = JSON.stringify({ validation: validation.status === 0 ? 'success' : 'failure',
+        'home-assistant': 'skipped', 'sql-server': 'skipped', browser: 'skipped', operations: 'skipped' });
+      return { validation, aggregate: run('aggregate') };
+    };
+
+    const aligned = runWithSdk(sdk);
+    assert.equal(aligned.validation.status, 0, aligned.validation.stderr);
+    assert.match(aligned.validation.stdout, /SDK and base-image consistency check passed\./);
+    assert.match(aligned.validation.stdout, /fixture dotnet build/);
+    assert.equal(aligned.aggregate.status, 0, aligned.aggregate.stderr);
+    const mismatch = runWithSdk('10.0.400');
+    assert.equal(mismatch.validation.status, 1, mismatch.validation.stdout + mismatch.validation.stderr);
+    assert.match(mismatch.validation.stderr, /Dockerfile:1.*10\.0\.400.*expected 10\.0\.402/);
+    assert.doesNotMatch(mismatch.validation.stdout, /fixture dotnet/);
+    assert.equal(mismatch.aggregate.status, 1);
+    assert.match(mismatch.aggregate.stderr, /Planned job validation: expected success, received failure/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 const haProjects = ['HVO.Edge.HomeAssistant.Mqtt.Tests', 'HVO.Edge.Exporter.HomeAssistant.Tests']
   .map(name => `tests/${name}/${name}.csproj`).sort();
 const sqlProject = 'tests/HVO.WebSite.ApiTests/HVO.WebSite.ApiTests.csproj';

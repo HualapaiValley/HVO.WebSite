@@ -15,16 +15,22 @@ The [SQL Server lane](sql-server-integration-tests.md) requires a local Linux x6
 separate from SDK versions.
 
 PR Preflight's `simple-checks` runs the offline static gate and its deliberate
-mismatch fixtures. Run the same checks locally, without Docker or an installed SDK:
+mismatch fixtures. Once adopted on `main`, the trusted CI `validation` job also
+runs the gate for PR CI, `main` pushes and nightly runs. PR CI runs the gate from
+the immutable target checkout against the admitted merge checkout. The gate runs
+before build and test execution, and a validation failure fails `build-and-test`.
+The SDK fixtures also run with the validation job's other policy tests.
+
+The local SDK checks require Node 24 and Ruby.
 
 ```bash
 node --test tools/sdk-consistency.test.mjs
 node tools/sdk-consistency.mjs
 ```
 
-The gate reads tracked `Dockerfile`, `Dockerfile.*` and `*.Dockerfile` files
-(excluding `.dockerignore` files),
-including `.devcontainer`, tools and test fixtures. External images in `FROM`,
+The gate reads tracked `Dockerfile`, `Dockerfile.*` and `*.Dockerfile` files,
+including `.devcontainer`, tools and test fixtures. It skips `.dockerignore`
+files. External images in `FROM`,
 `COPY --from`, `RUN --mount`'s `from` option and leading `# syntax=` frontend
 directives must have a literal `@sha256:<64 lowercase hex digits>` pin. `FROM`,
 `COPY` and `RUN --mount` can reference a previously declared build stage or
@@ -40,13 +46,15 @@ image-index digest when a shared image supports multiple platforms. The gate
 compares pins offline. Image contents, availability and freshness require
 registry verification.
 
-The parser handles JSONC comments/trailing commas in the devcontainer, Docker
-comments, case-insensitive instructions, platform flags, line continuations and
-`RUN`/`COPY`/`ADD` heredoc contents. Doubled terminal escape characters and shell
-here-strings do not consume subsequent Docker instructions. Symlinked CLI paths
-run the same check, including macOS paths through `/tmp`.
-Image/version/digest build-argument expressions are rejected with a file/line
-diagnostic; use explicit image references so offline checks can verify them.
+The parser handles JSONC comments and trailing commas in `global.json` and the
+devcontainer, along with Docker comments, case-insensitive instructions and
+platform flags. It follows BuildKit's BOM and indented `# escape=` handling and
+preserves whitespace when joining Dockerfile continuations and locating
+`RUN`, `COPY` and `ADD` heredocs. Doubled terminal escape characters and shell
+here-strings leave the following Docker instruction visible. Symlinked CLI paths
+run the same check, including macOS paths through `/tmp`. Build-argument
+expressions and shell quoting or escaping within image references produce a
+file and line diagnostic.
 Keep `PINNED_SDK` as one exported string literal so the gate can inspect the
 trusted tooling without executing it.
 

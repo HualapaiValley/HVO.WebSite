@@ -69,7 +69,11 @@ function testProjects(plan, lane) {
 }
 
 function policies() {
-  run(process.execPath, ['--test', 'tools/ci-plan.test.mjs', 'tools/ci-source.test.mjs', 'tools/ci-run.test.mjs', 'tools/pr-process.test.mjs', 'tools/test-categories.test.mjs', 'tools/davis-image.test.mjs', 'tools/gateway-image.test.mjs']);
+  // Use the trusted gate with the admitted checkout as its input.
+  run(process.execPath, [resolve(directory, 'sdk-consistency.mjs'), '.']);
+  run(process.execPath, ['--test', 'tools/ci-plan.test.mjs', 'tools/ci-source.test.mjs', 'tools/ci-run.test.mjs',
+    'tools/pr-process.test.mjs', 'tools/test-categories.test.mjs', 'tools/davis-image.test.mjs',
+    'tools/gateway-image.test.mjs', 'tools/sdk-consistency.test.mjs']);
   run('python3', ['-m', 'unittest', 'discover', '-s', 'tools', '-p', 'ci_*_test.py']);
   run('python3', ['tools/verify-home-assistant-runner.py']);
   for (const name of ['validate-test-categories', 'validate-observability-policy', 'validate-davis-weather-underground-deployment', 'validate-eg4-deployment', 'validate-smartshunt-deployment', 'verify-alert-rules']) run('bash', [`tools/${name}.sh`]);
@@ -88,10 +92,10 @@ function main() {
   const checkedOut = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   if (checkedOut !== source.merge) throw new Error('Execution checkout does not match the admitted plan');
   if (job === 'validation') {
+    policies();
     build(plan.debugRoots);
     testProjects(plan, 'fast');
     testProjects(plan, 'simulator');
-    policies();
     build(plan.releaseRoots, 'Release');
   } else if (job === 'home-assistant') {
     if (!plan.lanes[job].length) throw new Error('Unexpected empty HA execution');
