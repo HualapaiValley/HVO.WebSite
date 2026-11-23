@@ -42,11 +42,14 @@ diagnostic; use explicit image references so offline checks can verify them.
 Keep `PINNED_SDK` as one exported string literal so the gate can inspect the
 trusted tooling without executing it.
 
-A future SDK move is one coordinated change: update `global.json`, all SDK image
-tags and their verified digests, the devcontainer feature, `PINNED_SDK` and its
-build-evidence fixture, then run both commands above. The synthetic regression
-fixture versions are independent test inputs. The gate reports the offending
-file, actual/expected version or conflicting digest location. Because PR-process
+For a coordinated SDK move, update `global.json`, all SDK image tags and their
+verified digests, the devcontainer feature, `PINNED_SDK` and its build-evidence
+fixture, and the SDK version in [automation evidence](automation-evidence.md#author-record),
+the SDK row and local-evidence paragraph in the [repository profile](repository-profile.md),
+and the [WebSite policy profile](policy/website.md#preserved-validation-and-boundaries),
+then run both commands above. The synthetic regression fixture versions are
+independent test inputs. The gate reports the offending file, actual/expected
+version or conflicting digest location. Because PR-process
 tooling is trusted from the base branch, a new SDK pin still needs owner adoption
 on the trusted branch; candidate tooling does not authorize its own SDK move.
 
