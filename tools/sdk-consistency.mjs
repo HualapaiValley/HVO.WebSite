@@ -119,6 +119,19 @@ function mountSource(value) {
   return consumed === value.length ? from : undefined;
 }
 
+function normalizeImage(taggedImage) {
+  const slash = taggedImage.indexOf('/');
+  const first = slash === -1 ? '' : taggedImage.slice(0, slash);
+  // Docker treats the first path component as a registry when it looks like a
+  // host or port, is localhost, or contains uppercase letters.
+  const hasRegistry = first === 'localhost' || /[.:A-Z]/.test(first);
+  let registry = hasRegistry ? first.toLowerCase().replace(/:443$/, '') : 'docker.io';
+  if (registry === 'index.docker.io') registry = 'docker.io';
+  let repository = hasRegistry ? taggedImage.slice(slash + 1) : taggedImage;
+  if (registry === 'docker.io' && !repository.includes('/')) repository = `library/${repository}`;
+  return `${registry}/${repository}`;
+}
+
 export function checkSources(files) {
   const errors = [];
   for (const path of required) if (typeof files[path] !== 'string') errors.push(`${path}: required tracked configuration is missing; restore it before running the gate.`);
@@ -152,16 +165,18 @@ export function checkSources(files) {
   const digests = new Map();
   let sdkFroms = 0;
   const checkImage = (location, source, image) => {
-    if (!image || /[\s$]/.test(image)) errors.push(`${location}: ${source} image must be literal; use a pinned reference matching global.json.`);
     const [taggedImage, pin, extra] = image.split('@');
+    // BuildKit can rewrite quoted or escaped FROM names before resolving them.
+    if (!taggedImage || /[\s$'"`\\]/.test(image)) errors.push(`${location}: ${source} image must be literal; use a pinned reference matching global.json.`);
+    const normalized = normalizeImage(taggedImage);
     if (!pin || !/^sha256:[a-f0-9]{64}$/.test(pin) || extra !== undefined) {
       errors.push(`${location}: ${source} ${taggedImage} must be pinned as <image>[:<tag>]@sha256:<64 lowercase hex digits>; retain the tag and add its verified digest.`);
     } else {
-      const previous = digests.get(taggedImage);
-      if (previous && previous.pin !== pin) errors.push(`${location}: ${taggedImage} digest ${pin} differs from ${previous.pin} at ${previous.location}; use the same verified digest for this image reference everywhere.`);
-      else if (!previous) digests.set(taggedImage, { pin, location });
+      const previous = digests.get(normalized);
+      if (previous && previous.pin !== pin) errors.push(`${location}: ${taggedImage} digest ${pin} differs from ${previous.pin} at ${previous.location}; use the same verified digest for ${normalized}.`);
+      else if (!previous) digests.set(normalized, { pin, location });
     }
-    const sdkTag = /^mcr\.microsoft\.com\/dotnet\/sdk(?::(.*))?$/.exec(taggedImage);
+    const sdkTag = /^mcr\.microsoft\.com\/dotnet\/sdk(?::(.*))?$/.exec(normalized);
     if (sdkTag) {
       if (source === 'FROM') sdkFroms++;
       compare(`${location}: SDK ${source} tag`, sdkTag[1]);

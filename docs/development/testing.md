@@ -29,12 +29,16 @@ including `.devcontainer`, tools and test fixtures. External images in `FROM`,
 directives must have a literal `@sha256:<64 lowercase hex digits>` pin. `FROM`,
 `COPY` and `RUN --mount` can reference a previously declared build stage or
 `scratch`, and `COPY --from` also accepts a previously declared stage's numeric
-index. The WebSite Dockerfile uses the builder's bundled frontend. Repeated
-literal image references (including their tag, when present) must use the same
-digest across all files;
-use a multi-platform image-index digest when a shared image supports multiple
-platforms. The gate compares pins locally; it does not contact a registry or
-prove image contents, availability or freshness.
+index. The WebSite Dockerfile uses the builder's bundled frontend.
+
+For SDK and digest comparisons, the gate lowercases registry hosts, drops the
+default HTTPS port `:443`, defaults to `docker.io`, maps `index.docker.io` to
+`docker.io` and adds `library/` to single-component Docker Hub names. The
+repository path and any explicit tag retain their spelling. The same normalized
+reference must use the same digest in every file. Use a multi-platform
+image-index digest when a shared image supports multiple platforms. The gate
+compares pins offline. Image contents, availability and freshness require
+registry verification.
 
 The parser handles JSONC comments/trailing commas in the devcontainer, Docker
 comments, case-insensitive instructions, platform flags, line continuations and

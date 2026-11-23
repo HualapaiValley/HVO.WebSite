@@ -98,6 +98,47 @@ test('digest consistency also covers runtime and non-.NET base images', () => {
   }
 });
 
+test('Docker Hub short names and registry aliases share a digest pin', () => {
+  for (const alias of ['docker.io/library/eclipse-mosquitto', 'index.docker.io/eclipse-mosquitto']) {
+    const files = fixture();
+    files['Dockerfile.one'] = `FROM eclipse-mosquitto:2.0.22@${digest}\n`;
+    files['Dockerfile.two'] = `FROM ${alias}:2.0.22@${otherDigest}\n`;
+    rejects(files, /Dockerfile.two:1.*digest.*Dockerfile.one:1/);
+    files['Dockerfile.two'] = files['Dockerfile.two'].replace(otherDigest, digest);
+    assert.deepEqual(checkSources(files).errors, []);
+  }
+});
+
+test('SDK pins agree across registry host case and image source kinds', () => {
+  const files = fixture();
+  files['z/Dockerfile'] = `FROM MCR.microsoft.com/dotnet/sdk:${sdk}@${otherDigest}\n`;
+  rejects(files, /z\/Dockerfile:1.*digest.*src\/App\/Dockerfile:1/);
+  files['z/Dockerfile'] = `FROM scratch\nCOPY --from=MCR.microsoft.com/dotnet/sdk:${sdk}@${otherDigest} /sdk /sdk\n`;
+  rejects(files, /z\/Dockerfile:2.*digest.*src\/App\/Dockerfile:1/);
+  files['z/Dockerfile'] = files['z/Dockerfile'].replace(otherDigest, digest);
+  assert.deepEqual(checkSources(files).errors, []);
+});
+
+for (const host of ['MCR.Microsoft.com', 'mcr.microsoft.com:443']) {
+  test(`SDK version checks use the canonical registry for ${host}`, () => {
+    const files = fixture();
+    files['Dockerfile'] = `FROM ${host}/dotnet/sdk:9.0.100@${digest}\n`;
+    rejects(files, /Dockerfile:1.*SDK FROM tag.*9\.0\.100.*10\.0\.402/);
+    files['Dockerfile'] = files['Dockerfile'].replace('9.0.100', sdk);
+    assert.deepEqual(checkSources(files).errors, []);
+  });
+}
+
+test('normalization preserves separate namespaces, non-default ports, and tag case', () => {
+  const files = fixture();
+  files['Dockerfile'] = [
+    `FROM busybox:Edge@${digest}`, `FROM docker.io/library/busybox:edge@${otherDigest}`,
+    `FROM custom/busybox:Edge@${otherDigest}`,
+    `FROM registry.example.com/tiny:stable@${digest}`, `FROM registry.example.com:5000/tiny:stable@${otherDigest}`
+  ].join('\n');
+  assert.deepEqual(checkSources(files).errors, []);
+});
+
 for (const image of [`mcr.microsoft.com/dotnet/sdk:${sdk}`, 'mcr.microsoft.com/dotnet/runtime:10.0.13', 'example.test/base:stable']) {
   test(`external FROM requires a digest: ${image}`, () => {
     const files = fixture();
@@ -254,6 +295,14 @@ test('dynamic image expressions fail instead of bypassing SDK or digest checks',
   const files = fixture();
   files['Dockerfile'] = `ARG SDK=${sdk}\nFROM mcr.microsoft.com/dotnet/sdk:\${SDK}@${digest}\n`;
   rejects(files, /Dockerfile:2.*literal/);
+});
+
+test('quoted or escaped image fragments cannot hide the SDK tag', () => {
+  for (const image of ['"mcr.microsoft.com/dotnet/sdk:9.0.100"', 'mcr.microsoft.com/dotnet/\\sdk:9.0.100']) {
+    const files = fixture();
+    files['Dockerfile'] = `FROM ${image}@${digest}\n`;
+    rejects(files, /Dockerfile:1.*FROM image must be literal/);
+  }
 });
 
 test('unrecognised or incomplete FROM syntax fails with a location', () => {
