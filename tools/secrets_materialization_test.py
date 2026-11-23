@@ -392,11 +392,13 @@ class MaterializationTests(unittest.TestCase):
         # Keep the trailing CR during root SQL derivation, as in M3 (#501).
         mutant = original.replace(
             f'{SQL_KEY} || true)"',
-            f'{SQL_KEY} "$([[ $relative_file != .env ]] || echo preserve-cr)" || true)"',
+            f'{SQL_KEY} "$([[ $1 != .env ]] || echo preserve-cr)" || true)"',
         )
         self.assertTrue(original != mutant, "root SQL CR mutant was not installed")
         script.write_text(mutant)
-        with self.assertRaises(AssertionError):
+        with self.assertRaisesRegex(
+            AssertionError, "drift must not hide a preparation failure"
+        ):
             self.test_root_sql_crlf_is_derived_and_repaired()
 
     def test_root_crlf_mutant_is_detected(self):
