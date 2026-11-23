@@ -1,7 +1,7 @@
-<!-- Open as draft. Only simple preflight checks run before independent review and
-verified finding/thread resolution. Mark ready for standard CI only after those gates.
+<!-- Kepler opens agent PRs as draft. The latest profile-named draft checks must pass on the exact head before independent review and
+verified finding/thread resolution. Kepler marks ready for standard CI only after those gates.
 CI failures return to draft; review code corrections before starting CI again.
-The lifecycle owner updates the phase label while retaining the issue claim. -->
+The accountable issue owner retains the claim and verifies the phase label; the controller may maintain it. -->
 
 ## Purpose
 
@@ -60,19 +60,19 @@ different validated source per row when the results do not apply to the SHA abov
 
 Review depth: <!-- Mechanical / Standard / Deep: required coverage, not model effort -->
 
-Required reviewers: <!-- Default: 1 independent reviewer. Explicitly state any additional reviews. -->
+Required reviewers: <!-- LOW: one independent frontier model CLEAN (default Sol); HIGH: two distinct independent frontier models CLEAN on the same head, at least one Deep (default Sol + Opus). Substitution follows common policy. -->
 
-Independence constraints: <!-- Baseline: distinct reviewing session/person; same GitHub
-account allowed. Optional: different GitHub account, same account with a different model,
-or different provider. A different model means the actual underlying model, not just a
-different tool or effort. State the comparison scope; default is all implementation models. -->
+Independence constraints: <!-- Distinct reviewing sessions; by default each model differs from every
+contributor in the reviewed range. Contributor overlap leaves the role BLOCKED unless Roy’s
+sole recorded exact-head decision under the common review contract addresses it; the decision
+never carries over to a later head, and an agent can never waive the requirement or grant the exception. Same GitHub account is allowed; a strict different-account
+requirement has a direct-publication limitation under the current gate and Kepler relay. -->
 
 Reviewer selection: <!-- Auto / Preferred / Required. Default: Auto from configured eligible profiles. -->
 
-Model/settings and fallback: <!-- For Preferred/Required, name ordered preferences or allowed
-alternatives, supported settings, and permitted fallback. A list means one-of unless explicitly
-requiring multiple reviews. For Auto, resolve at assignment using the available tool/catalog.
-Do not guess an unavailable or undisclosed model/effort. -->
+Model/settings and fallback: <!-- Tier minima and default Sol and Opus IDs are in common policy.
+Specify eligible harness, settings and fallback routes; substitution follows common policy and
+assignment constraints. Do not guess an unavailable or undisclosed model/effort. -->
 
 <!-- Name relevant lenses: correctness, failure handling, concurrency, durability,
 security, compatibility, UI, performance, CI or deployment. -->

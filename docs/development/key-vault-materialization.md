@@ -23,17 +23,17 @@ the helper **sources it as shell code** when checking `SSH_PRIVATE_KEY`. Its
 existing inputs must include:
 
 - `SSH_PRIVATE_KEY`, whose sourced value is compared with `obs-ssh-private-key`.
-  A mismatch is reported as drift; even `--apply` does not rewrite this multiline
+  A mismatch after ignoring trailing line feeds is reported as drift; even
+  `--apply` does not rewrite this multiline
   field. Arrange its approved manual materialization separately.
 - `ConnectionStrings__HualapaiValleyObservatory`, with the intended existing SQL
   host/database/options and the exact `Password=` segment followed by a semicolon.
   The helper replaces the password from `obs-docker-mssql-sa-password` while
   preserving the rest of that string. A missing or unparsable string produces a
-  derivation error; the helper does not invent a SQL target. The current nested
-  command substitution does not reliably abort the outer synchronization on
-  that error: apply can continue, write an empty connection string and exit zero.
-  Establish and securely validate this input before apply; an exit code alone
-  does not prove a valid SQL materialization.
+  derivation error; the helper does not invent a SQL target. Both modes reject
+  this input before any managed destination writes. The helper preserves the
+  existing exact `Password=`/semicolon format; it is not a general SQL
+  connection-string parser.
 
 Also require Azure CLI, an already authenticated account and approved read
 access to the selected vault (`HVO_KEY_VAULT_NAME`, default `hvo-central-kv`) and
@@ -43,12 +43,56 @@ their narrower grants remain separate.
 
 ## Understand the whole helper
 
-The root stages run before website or gateway stages. They compare/materialize
-allowlisted Tailscale/GitHub, developer Azure, ingest/read, registry, SQL, HA and
-ESPHome values, check the sourced SSH field, and derive the root SQL string.
-`--apply` is not a complete-bootstrap initializer: it can leave partial changes
-or continue after the SQL derivation error described above. It does not populate
-the required multiline SSH field from scratch.
+Before any managed destination writes, both modes validate and source the trusted
+root bootstrap in a separate shell, require its nonempty `SSH_PRIVATE_KEY`,
+derive SQL for the root and every selected existing website file, and read all
+selected vault secrets into memory. A caller's exported SSH value cannot replace
+the required root input. Bootstrap output and raw Azure CLI secret-read errors
+are suppressed; diagnostics identify fields or secret names without values.
+Empty required secrets, failed reads/derivations, and values that cannot use the
+existing dotenv/YAML representation fail nonzero during preparation. Rejected
+preparation leaves managed destination contents and metadata unchanged. Sourcing
+the bootstrap still executes trusted owner shell code; this is not a sandbox.
+Because `.devcontainer/post-create.sh` invokes apply under `set -e`, a
+preparation failure stops the remaining devcontainer setup, including
+developer-certificate generation. Azure CLI, Python 3 and GNU coreutils `mv`
+with `-T` support are required; JSON
+secret values are checked for NUL bytes before Bash reads them, preserving
+trailing newlines. Required secrets other than the manually compared SSH key
+reject a trailing newline before materialization. The SSH comparison ignores
+trailing line feeds on both sides. This preserves matches accepted by the earlier
+helper and also accepts a root key with extra trailing line feeds.
+
+Only the root `.env` requires shell-safe plain secret assignments. Its validation
+uses `LC_ALL=C` and rejects ASCII whitespace, dollar signs, backticks, quotes,
+backslashes, semicolons, ampersands, pipes, angle brackets, parentheses and a tilde
+at the start or immediately after `:` or `=`. Literal assignment characters such
+as `!`, `,`, `*`, `?`, brackets, braces, `^`, `#` and non-ASCII text remain valid
+regardless of the caller's locale. Website and website handoff dotenv values
+must be printable ASCII and reject dollar signs, quotes, backslashes, hashes,
+and leading or trailing spaces so Compose reads them literally. This conservative
+rule also requires unquoted website SQL strings and disallows `#` in
+website-bound secrets, including SQL passwords; values Compose could otherwise
+accept may therefore stop post-create during preparation. Other gateway dotenv
+files retain their one-line value checks. ESPHome YAML values must be printable
+ASCII and reject double quotes and backslashes before writing.
+Root SQL is derived first so its explicit single-quote password check runs before
+plain-secret validation. Errors name the field, never the rejected value.
+Dotenv inputs are read with one trailing carriage return removed for SQL
+derivation and for comparisons outside the root `.env`. Managed root assignments
+are compared with their carriage returns intact: a CR-terminated managed line
+is drift and apply rewrites that line with LF. Matching website and handoff CRLF
+inputs need no rewrite. Selected JK BMS/Davis JSON must parse and have the expected
+secret-selection types; jq errors fail preparation rather than disabling secrets.
+
+After preparation succeeds, root stages run before website or gateway stages.
+They compare/materialize allowlisted Tailscale/GitHub, developer Azure,
+ingest/read, registry, SQL, HA and ESPHome values, including the prepared root
+SQL string.
+`--apply` is not a complete-bootstrap initializer. It does not populate the
+required multiline SSH field from scratch. An existing SSH mismatch remains
+reported drift requiring approved manual rotation; apply preserves that field,
+and a subsequent check remains nonzero until it matches.
 
 Subsequent stages include:
 
@@ -68,12 +112,42 @@ writing managed destination files; a nonzero result can indicate drift or an
 unmet prerequisite. `--apply` changes approved local materializations, with
 restricted file permissions, across the scope above. It does not rotate vault
 secrets, deploy files to hosts, restart runtimes or provide an atomic rollback.
-Review this entire scope and checkpoint owner files before authorized apply;
-after any reported error or drift, inspect affected file metadata and approved
-values securely before retrying, even if apply returned zero. Correcting that
-script failure propagation requires a separate reviewed behavioral change;
-these runbooks do not alter it. A successful check is not a runtime
-authentication or restore drill.
+Writes after preparation are sequential, not a multi-file transaction. An I/O
+failure exits nonzero, prints an explicit warning that partial updates may
+remain, and does not print the final successful-apply summary. Each dotenv, YAML
+and secret-file replacement uses a mode-0600 temporary file beside the destination
+and renames it only after a successful write, preserving the old destination if
+writing fails. Preparation rejects, in both modes and before any write, a managed
+selected destination that exists but is not a regular file, including any
+symbolic link or FIFO. Optional paths that are not existing regular files are
+skipped when selection requires an existing regular file; this includes FIFOs,
+dangling links and directories. GNU mv uses an exact destination rename and
+refuses a directory target, including one created after preparation. The exit
+handler removes the in-flight temporary file on failure,
+SIGINT and SIGTERM; ignored dotenv temporary-file patterns provide additional
+protection against accidental staging. Earlier completed replacements may remain;
+there is no automatic rollback across files.
+Review this entire scope and checkpoint owner files before authorized apply.
+After a write failure or reported drift, inspect affected file metadata and
+approved values securely before retrying. Avoid concurrent edits or concurrent
+helper runs while preparing/applying owner files. A successful check establishes
+only allowlisted equality for the observed inputs, not runtime authentication
+or a restore drill.
+
+Offline regression command (copies the helper to disposable fixtures and stubs
+Azure CLI; does not read a real vault or owner materializations). Docker Compose
+and either Ruby with its standard YAML library or Python with PyYAML are required
+for consumer parsing checks:
+
+```sh
+python3 -m unittest discover -s tools -p secrets_materialization_test.py
+```
+
+The existing Davis deployment-policy validator also runs these regressions in CI.
+
+Before merge, Roy or an authorized operator may separately run a real `--check`
+to confirm compatibility with current vault values without exposing them; offline
+stub validation does not establish that operational result.
 
 For private-gist preview/update behavior, see [publishing](../CONTAINER_PUBLISHING.md#root-bootstrap-gist).
 That preview does not run this helper or validate credentials.

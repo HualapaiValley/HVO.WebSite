@@ -1,11 +1,44 @@
 #!/usr/bin/env bash
 
+# Tracing must never include sourced credentials or vault values.
+set +xv
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 vault_name="${HVO_KEY_VAULT_NAME:-hvo-central-kv}"
 mode="check"
 drift_count=0
+applied_count=0
+writes_started=false
+pending_temp_file=""
+
+report_failure() {
+	local status="$1"
+	if [[ -n "$pending_temp_file" ]]; then
+		rm -f -- "$pending_temp_file" || printf 'Error: could not remove a temporary credential file; inspect owner files securely.\n' >&2
+	fi
+	if ((status != 0)) && [[ "$writes_started" == true ]]; then
+		printf 'Error: synchronization failed during local writes; partial updates may remain. Inspect owner files securely before retrying.\n' >&2
+	fi
+}
+trap 'report_failure "$?"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+create_temp_file() {
+	pending_temp_file="$(mktemp "${1}.tmp.XXXXXX")"
+	chmod 600 "$pending_temp_file"
+}
+
+# Rename the completed temporary file over the exact destination. A directory,
+# or a link to one, would otherwise receive the credential file as a child.
+# The cleanup pointer is cleared only after the rename succeeds.
+replace_destination() {
+	local file="$1"
+	[[ ! -d "$file" ]] || fail "A managed destination is a directory, not a file: ${file#"$repo_root"/}"
+	mv -fT -- "$pending_temp_file" "$file"
+	pending_temp_file=""
+}
 
 usage() {
 	printf 'Usage: %s [--check | --apply]\n' "$(basename "$0")"
@@ -39,21 +72,56 @@ while (($# > 0)); do
 done
 
 command -v az >/dev/null 2>&1 || fail "Azure CLI is required."
+command -v python3 >/dev/null 2>&1 || fail "Python 3 is required."
 az account show --output none >/dev/null 2>&1 || fail "Azure CLI is not authenticated."
 az keyvault show --name "$vault_name" --output none >/dev/null 2>&1 || fail "Cannot access Key Vault '$vault_name'."
 
 declare -A secret_cache=()
+secret_value=""
+declare -a plan_kinds=() plan_files=() plan_keys=() plan_values=()
+
+plan_value() {
+	plan_kinds+=("$1")
+	plan_files+=("$2")
+	plan_keys+=("$3")
+	plan_values+=("$4")
+}
+
+# Every planned destination must be absent or a regular file. Reject directories,
+# links to directories and special files in both modes before any write.
+validate_destinations() {
+	local relative
+	for relative in "${plan_files[@]}"; do
+		if [[ -L "$repo_root/$relative" || ( -e "$repo_root/$relative" && ! -f "$repo_root/$relative" ) ]]; then
+			fail "A managed destination exists but is not a regular file: $relative"
+		fi
+	done
+}
 
 get_secret() {
-	local secret_name="$1"
+	local secret_name="$1" json_value
 	if [[ ! -v "secret_cache[$secret_name]" ]]; then
-		secret_cache["$secret_name"]="$(az keyvault secret show \
+		# JSON preserves credential newlines and NUL escapes separately from CLI framing.
+		# Reject NUL before Bash sees the bytes; the sentinel preserves trailing newlines.
+		json_value="$(az keyvault secret show \
 			--vault-name "$vault_name" \
 			--name "$secret_name" \
 			--query value \
-			--output tsv)" || fail "Required Key Vault secret is unavailable: $secret_name"
+			--output json 2>/dev/null)" || fail "Required Key Vault secret is unavailable: $secret_name"
+		secret_cache["$secret_name"]="$(printf '%s' "$json_value" | python3 -I -c '
+import json, sys
+try:
+    value = json.load(sys.stdin)
+    if not isinstance(value, str) or "\0" in value or (value.endswith("\n") and sys.argv[1] != "obs-ssh-private-key"):
+        sys.exit(1)
+    sys.stdout.write(value + "\x1c")
+except (ValueError, UnicodeError):
+    sys.exit(1)
+' "$secret_name" 2>/dev/null)" || fail "Required Key Vault secret contains unsupported content or invalid JSON: $secret_name"
+		secret_cache["$secret_name"]="${secret_cache[$secret_name]%$'\034'}"
+		[[ -n "${secret_cache[$secret_name]}" ]] || fail "Required Key Vault secret is empty: $secret_name"
 	fi
-	printf '%s' "${secret_cache[$secret_name]}"
+	secret_value="${secret_cache[$secret_name]}"
 }
 
 read_dotenv_value() {
@@ -62,6 +130,9 @@ read_dotenv_value() {
 	local line
 	[[ -f "$file" ]] || return 1
 	while IFS= read -r line || [[ -n "$line" ]]; do
+		if [[ "${3:-}" != preserve-cr ]]; then
+			line="${line%$'\r'}"
+		fi
 		line="${line#export }"
 		if [[ "$line" == "$wanted="* ]]; then
 			printf '%s' "${line#*=}"
@@ -75,37 +146,49 @@ write_dotenv_value() {
 	local file="$1"
 	local wanted="$2"
 	local value="$3"
-	local temp_file line found=false
+	local line found=false
 	[[ "$value" != *$'\n'* && "$value" != *$'\r'* ]] || fail "$wanted cannot be represented as a one-line dotenv value."
 	mkdir -p "$(dirname "$file")"
-	temp_file="$(mktemp "${file}.tmp.XXXXXX")"
-	chmod 600 "$temp_file"
+	create_temp_file "$file"
 	if [[ -f "$file" ]]; then
 		while IFS= read -r line || [[ -n "$line" ]]; do
 			if [[ "${line#export }" == "$wanted="* ]]; then
 				if [[ "$found" == false ]]; then
-					printf '%s=%s\n' "$wanted" "$value" >> "$temp_file"
+					printf '%s=%s\n' "$wanted" "$value" >> "$pending_temp_file"
 					found=true
 				fi
 			else
-				printf '%s\n' "$line" >> "$temp_file"
+				printf '%s\n' "$line" >> "$pending_temp_file"
 			fi
 		done < "$file"
 	fi
 	if [[ "$found" == false ]]; then
-		printf '\n%s=%s\n' "$wanted" "$value" >> "$temp_file"
+		printf '\n%s=%s\n' "$wanted" "$value" >> "$pending_temp_file"
 	fi
-	mv "$temp_file" "$file"
+	replace_destination "$file"
 	chmod 600 "$file"
 }
 
 sync_dotenv_value() {
+	[[ "$3" != *$'\n'* && "$3" != *$'\r'* ]] || fail "$2 cannot be represented as a one-line dotenv value."
+	if [[ "$1" == deploy/hvo-docker/.env || "$1" == .env-handoff/hvo-docker.env ]]; then
+		local LC_ALL=C
+		case "$3" in
+			*[![:print:]]*|*'$'*|*'"'*|*"'"*|*\\*|*'#'*|' '*|*' ')
+				fail "$2 cannot be safely represented as a Compose dotenv value." ;;
+		esac
+	fi
+	plan_value dotenv "$1" "$2" "$3"
+}
+
+apply_dotenv_value() {
 	local relative_file="$1"
 	local key="$2"
 	local expected="$3"
 	local file="$repo_root/$relative_file"
-	local current=""
-	current="$(read_dotenv_value "$file" "$key" || true)"
+	local current="" read_mode=""
+	[[ "$relative_file" != .env ]] || read_mode=preserve-cr
+	current="$(read_dotenv_value "$file" "$key" "$read_mode" || true)"
 	if [[ "$current" == "$expected" ]]; then
 		printf 'ok      %s:%s\n' "$relative_file" "$key"
 		return
@@ -113,6 +196,7 @@ sync_dotenv_value() {
 	((drift_count += 1))
 	if [[ "$mode" == "apply" ]]; then
 		write_dotenv_value "$file" "$key" "$expected"
+		((applied_count += 1))
 		printf 'updated %s:%s\n' "$relative_file" "$key"
 	else
 		printf 'drift   %s:%s\n' "$relative_file" "$key"
@@ -120,22 +204,47 @@ sync_dotenv_value() {
 }
 
 sync_dotenv_secret() {
-	sync_dotenv_value "$1" "$2" "$(get_secret "$3")"
+	get_secret "$3"
+	if [[ "$1" == .env ]]; then
+		# Root .env is sourced by Bash. Assignment values do not expand globs,
+		# braces or history; reject shell syntax and tilde-expansion positions.
+		local LC_ALL=C
+		case "$secret_value" in
+			*[[:space:]]*|*'$'*|*'`'*|*'"'*|*"'"*|*\\*|*';'*|*'&'*|*'|'*|*'<'*|*'>'*|*'('*|*')'*|'~'*|*':~'*|*'=~'*)
+				fail "$2 cannot be safely represented as a plain shell dotenv value."
+				;;
+		esac
+	fi
+	sync_dotenv_value "$1" "$2" "$secret_value"
+}
+
+validate_bootstrap() {
+	local file="$repo_root/.env"
+	[[ -f "$file" ]] || fail 'Required dotenv file is missing: .env'
+	bash -n "$file" >/dev/null 2>&1 || fail 'Root .env is not a valid shell bootstrap.'
+	# The owner-approved bootstrap is shell code. Keep its environment and output
+	# isolated, and never accept SSH_PRIVATE_KEY inherited from the caller.
+	bootstrap_ssh="$(bash -euo pipefail -c '
+		unset SSH_PRIVATE_KEY
+		source "$1" >/dev/null 2>&1
+		[[ -n "${SSH_PRIVATE_KEY-}" ]]
+		printf "%s\034" "$SSH_PRIVATE_KEY"
+	' -- "$file" 2>/dev/null)" || fail 'Root .env could not supply the required SSH_PRIVATE_KEY.'
+	bootstrap_ssh="${bootstrap_ssh%$'\034'}"
+	[[ -n "$bootstrap_ssh" ]] || fail 'Root .env has no SSH_PRIVATE_KEY.'
 }
 
 check_sourced_dotenv_secret() {
 	local relative_file="$1"
 	local key="$2"
 	local secret_name="$3"
-	local file="$repo_root/$relative_file"
 	local current expected
-	[[ -f "$file" ]] || fail "Required dotenv file is missing: $relative_file"
-	set -a
-	# shellcheck disable=SC1090
-	source "$file"
-	set +a
-	current="${!key-}"
-	expected="$(get_secret "$secret_name")"
+	current="$bootstrap_ssh"
+	get_secret "$secret_name"
+	expected="$secret_value"
+	# SSH is compared only; preserve historical matches and ignore LF on both sides.
+	while [[ "$current" == *$'\n' ]]; do current="${current%$'\n'}"; done
+	while [[ "$expected" == *$'\n' ]]; do expected="${expected%$'\n'}"; done
 	if [[ "$current" == "$expected" ]]; then
 		printf 'ok      %s:%s\n' "$relative_file" "$key"
 		return
@@ -149,20 +258,26 @@ derive_local_connection_string() {
 	local current password prefix suffix
 	current="$(read_dotenv_value "$repo_root/$relative_file" ConnectionStrings__HualapaiValleyObservatory || true)"
 	[[ "$current" == *Password=* ]] || fail "$relative_file has no local SQL Password segment to synchronize."
-	password="$(get_secret obs-docker-mssql-sa-password)"
 	prefix="${current%%Password=*}"
 	suffix="${current#*Password=}"
 	[[ "$suffix" == *';'* ]] || fail "$relative_file has a malformed local SQL connection string."
 	suffix="${suffix#*;}"
-	printf '%sPassword=%s;%s' "$prefix" "$password" "$suffix"
+	get_secret obs-docker-mssql-sa-password
+	password="$secret_value"
+	[[ "$password" != *"'"* ]] || fail 'The SQL password cannot contain a single quote.'
+	derived_connection_string="${prefix}Password=${password};${suffix}"
 }
 
 sync_secret_file() {
+	get_secret "$2"
+	plan_value file "$1" '' "$secret_value"
+}
+
+apply_secret_file() {
 	local relative_file="$1"
-	local secret_name="$2"
 	local file="$repo_root/$relative_file"
 	local expected current=""
-	expected="$(get_secret "$secret_name")"
+	expected="$2"
 	[[ -f "$file" ]] && current="$(<"$file")"
 	if [[ "$current" == "$expected" ]]; then
 		printf 'ok      %s\n' "$relative_file"
@@ -173,8 +288,10 @@ sync_secret_file() {
 		mkdir -p "$(dirname "$file")"
 		chmod 700 "$(dirname "$file")"
 		umask 077
-		printf '%s\n' "$expected" > "$file"
-		chmod 600 "$file"
+		create_temp_file "$file"
+		printf '%s\n' "$expected" > "$pending_temp_file"
+		replace_destination "$file"
+		((applied_count += 1))
 		printf 'updated %s\n' "$relative_file"
 	else
 		printf 'drift   %s\n' "$relative_file"
@@ -182,12 +299,18 @@ sync_secret_file() {
 }
 
 sync_yaml_secret() {
+	get_secret "$3"
+	local LC_ALL=C
+	[[ "$secret_value" != *[![:print:]]* && "$secret_value" != *\\* && "$secret_value" != *'"'* ]] || fail "$3 cannot be safely represented in the ESPHome YAML file."
+	plan_value yaml "$1" "$2" "$secret_value"
+}
+
+apply_yaml_value() {
 	local relative_file="$1"
 	local key="$2"
-	local secret_name="$3"
 	local file="$repo_root/$relative_file"
-	local expected current="" temp_file line found=false
-	expected="$(get_secret "$secret_name")"
+	local expected current="" line found=false
+	expected="$3"
 	if [[ -f "$file" ]]; then
 		while IFS= read -r line || [[ -n "$line" ]]; do
 			if [[ "$line" == "$key:"* ]]; then
@@ -207,31 +330,48 @@ sync_yaml_secret() {
 		printf 'drift   %s:%s\n' "$relative_file" "$key"
 		return
 	fi
-	[[ "$expected" != *$'\n'* && "$expected" != *$'\r'* && "$expected" != *'"'* ]] || fail "$secret_name cannot be safely represented in the ESPHome YAML file."
 	mkdir -p "$(dirname "$file")"
-	temp_file="$(mktemp "${file}.tmp.XXXXXX")"
-	chmod 600 "$temp_file"
+	create_temp_file "$file"
 	if [[ -f "$file" ]]; then
 		while IFS= read -r line || [[ -n "$line" ]]; do
 			if [[ "$line" == "$key:"* ]]; then
 				if [[ "$found" == false ]]; then
-					printf '%s: "%s"\n' "$key" "$expected" >> "$temp_file"
+					printf '%s: "%s"\n' "$key" "$expected" >> "$pending_temp_file"
 					found=true
 				fi
 			else
-				printf '%s\n' "$line" >> "$temp_file"
+				printf '%s\n' "$line" >> "$pending_temp_file"
 			fi
 		done < "$file"
 	fi
 	if [[ "$found" == false ]]; then
-		printf '%s: "%s"\n' "$key" "$expected" >> "$temp_file"
+		printf '%s: "%s"\n' "$key" "$expected" >> "$pending_temp_file"
 	fi
-	mv "$temp_file" "$file"
+	replace_destination "$file"
 	chmod 600 "$file"
+	((applied_count += 1))
 	printf 'updated %s:%s\n' "$relative_file" "$key"
 }
 
+config_selected() {
+	local relative_file="$1" status
+	shift
+	if jq -e "$@" "$repo_root/$relative_file" >/dev/null 2>&1; then
+		return 0
+	else
+		status="$?"
+	fi
+	case "$status" in
+		1|4) return 1 ;;
+		*) fail "Cannot evaluate secret selection in $relative_file." ;;
+	esac
+}
+
 central_uri="https://${vault_name}.vault.azure.net/"
+
+# Prepare the entire selected synchronization in memory before managed writes.
+validate_bootstrap
+derive_local_connection_string .env
 
 # Root devcontainer materialization. Non-secret deployment settings remain untouched.
 sync_dotenv_secret .env TAILSCALE_AUTHKEY obs-tailscale-authkey
@@ -254,7 +394,7 @@ sync_dotenv_secret .env MSSQL_SA_PASSWORD obs-docker-mssql-sa-password
 sync_dotenv_secret .env HOME_ASSISTANT_TOKEN HomeAssistant--Token
 sync_dotenv_secret .env ESPHOME_HOME_PROXY_WIFI_PASSWORD obs-wifi-home-express-is-password
 sync_dotenv_secret .env ESPHOME_HVO_PROXY_WIFI_PASSWORD obs-wifi-hvo-password
-sync_dotenv_value .env ConnectionStrings__HualapaiValleyObservatory "$(derive_local_connection_string .env)"
+sync_dotenv_value .env ConnectionStrings__HualapaiValleyObservatory "$derived_connection_string"
 
 # Website deployment and handoff materializations.
 for env_file in deploy/hvo-docker/.env .env-handoff/hvo-docker.env; do
@@ -273,7 +413,8 @@ for env_file in deploy/hvo-docker/.env .env-handoff/hvo-docker.env; do
 	sync_dotenv_secret "$env_file" Seeding__BmsApiKey Seeding--BmsApiKey
 	sync_dotenv_secret "$env_file" Seeding__PowerApiKey Seeding--PowerApiKey
 	sync_dotenv_secret "$env_file" Seeding__PowerReadApiKey Seeding--PowerReadApiKey
-	sync_dotenv_value "$env_file" ConnectionStrings__HualapaiValleyObservatory "$(derive_local_connection_string "$env_file")"
+	derive_local_connection_string "$env_file"
+	sync_dotenv_value "$env_file" ConnectionStrings__HualapaiValleyObservatory "$derived_connection_string"
 done
 
 # Existing environment-only gateways and handoff copies.
@@ -308,14 +449,23 @@ done
 jkbms_config=deploy/pi-gateways/jkbms/gateway.json.example
 if [[ -f "$repo_root/$jkbms_config" ]]; then
 	command -v jq >/dev/null 2>&1 || fail "jq is required to inspect $jkbms_config."
+	jq -e '
+		type == "object" and (.JkBms | type == "object") and
+		(.JkBms.Devices | type == "array") and
+		all(.JkBms.Devices[];
+			type == "object" and (.DeviceId | type == "string") and
+			(.Enabled | type == "boolean") and
+			(.SettingsPasswordSecret == null or (.SettingsPasswordSecret | type == "string")))
+	' "$repo_root/$jkbms_config" >/dev/null 2>&1 || fail "$jkbms_config has invalid JSON or secret-selection types."
 	for mapping in \
 		'bank-2a:jkbms-bank-2a-settings-password:Edge--JkBms--Bank2ASettingsPassword' \
 		'bank-2b:jkbms-bank-2b-settings-password:Edge--JkBms--Bank2BSettingsPassword' \
 		'bank-2c:jkbms-bank-2c-settings-password:Edge--JkBms--Bank2CSettingsPassword'; do
 		IFS=: read -r device_id file_name vault_secret <<< "$mapping"
-		if jq -e --arg device_id "$device_id" --arg file_name "$file_name" \
-			'.JkBms.Devices[] | select(.DeviceId == $device_id and .Enabled == true and .SettingsPasswordSecret == $file_name)' \
-			"$repo_root/$jkbms_config" >/dev/null; then
+		# jq, rather than the shell, expands these --arg variables.
+		# shellcheck disable=SC2016
+		if config_selected "$jkbms_config" --arg device_id "$device_id" --arg file_name "$file_name" \
+			'.JkBms.Devices[] | select(.DeviceId == $device_id and .Enabled == true and .SettingsPasswordSecret == $file_name)'; then
 			sync_secret_file "deploy/pi-gateways/jkbms/secrets/$file_name" "$vault_secret"
 		fi
 	done
@@ -327,13 +477,19 @@ if [[ ! -f "$repo_root/$davis_config" ]]; then
 	printf 'skipped deploy/pi-gateways/davis/secrets/cwop-passcode (Davis gateway.json not materialized)\n'
 else
 	command -v jq >/dev/null 2>&1 || fail "jq is required to inspect $davis_config."
-	jq -e . "$repo_root/$davis_config" >/dev/null || fail "$davis_config is not valid JSON."
-	if jq -e '.WeatherUnderground.Enabled == true' "$repo_root/$davis_config" >/dev/null; then
+	jq -e '
+		type == "object" and
+		all(.WeatherUnderground, .Cwop;
+			. == null or (type == "object" and
+				((has("Enabled") | not) or (.Enabled | type == "boolean")))) and
+		(.Cwop.PasscodeSecret == null or (.Cwop.PasscodeSecret | type == "string"))
+	' "$repo_root/$davis_config" >/dev/null 2>&1 || fail "$davis_config has invalid JSON or secret-selection types."
+	if config_selected "$davis_config" '.WeatherUnderground.Enabled == true'; then
 		sync_secret_file deploy/pi-gateways/davis/secrets/weather-underground-station-key WeatherUnderground--StationKey
 	else
 		printf 'skipped deploy/pi-gateways/davis/secrets/weather-underground-station-key (Weather Underground disabled)\n'
 	fi
-	if jq -e '.Cwop.Enabled == true and .Cwop.PasscodeSecret == "cwop-passcode"' "$repo_root/$davis_config" >/dev/null; then
+	if config_selected "$davis_config" '.Cwop.Enabled == true and .Cwop.PasscodeSecret == "cwop-passcode"'; then
 		sync_secret_file deploy/pi-gateways/davis/secrets/cwop-passcode Cwop--AprsIsPasscode
 	else
 		printf 'skipped deploy/pi-gateways/davis/secrets/cwop-passcode (CWOP disabled or registered passcode not configured)\n'
@@ -358,13 +514,27 @@ else
 	printf 'skipped %s (SSIDs not materialized)\n' "$esphome_secrets"
 fi
 
+validate_destinations
+
+# No vault reads or SQL derivations remain after this boundary. Local writes are
+# sequential, not transactional; an I/O failure exits nonzero without rollback.
+[[ "$mode" != apply ]] || writes_started=true
+for index in "${!plan_kinds[@]}"; do
+	case "${plan_kinds[$index]}" in
+		dotenv) apply_dotenv_value "${plan_files[$index]}" "${plan_keys[$index]}" "${plan_values[$index]}" ;;
+		file) apply_secret_file "${plan_files[$index]}" "${plan_values[$index]}" ;;
+		yaml) apply_yaml_value "${plan_files[$index]}" "${plan_keys[$index]}" "${plan_values[$index]}" ;;
+	esac
+done
+writes_started=false
+
 if [[ "$mode" == "check" && "$drift_count" -gt 0 ]]; then
 	printf 'Detected %d Key Vault synchronization difference(s). Run %s --apply.\n' "$drift_count" "$(basename "$0")" >&2
 	exit 1
 fi
 
 if [[ "$mode" == "apply" ]]; then
-	printf 'Applied %d Key Vault synchronization update(s).\n' "$drift_count"
+	printf 'Applied %d Key Vault synchronization update(s).\n' "$applied_count"
 else
 	printf 'All allowlisted local credentials match Key Vault %s.\n' "$vault_name"
 fi

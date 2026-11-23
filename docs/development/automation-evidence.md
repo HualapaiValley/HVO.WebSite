@@ -16,7 +16,7 @@ Add exactly one record per relevant PR/comment body:
 
 Each identity contains `account`, distinct `session`, `system`, `provider`, `model`, `effort`, `host`, `instance` and `workspace`. Host names the actual server; workspace is the exact checkout/worktree path. Record the harness/server instance ID only if exposed, otherwise `unknown`. Keep branch/location in expandable Agent details and update location when work moves. Human values use provider `human`, model/effort `n/a`; undisclosed agent settings use `unknown` or accurately reported `provider-managed`. Record real runtime values rather than requested model aliases or the catalog's default setting. The record's `publisher` must match the actual GitHub creator of the containing PR/comment. A relayed reviewer identity can differ from its publisher, but that route cannot prove a strict different-account requirement.
 
-The gate authenticates publication permissions separately: a qualifying review or verification is published by an account with repository write/maintain/admin permission. Public comments, display names and bot names alone cannot approve the candidate. A qualified external reviewer can have its report faithfully relayed by an authorized owner, with the original reviewer identity preserved; strict direct-account requirements still apply. This publisher check protects review admission but does not attest model execution.
+The gate authenticates publication permissions separately: a qualifying review or verification is published by an account with repository write/maintain/admin permission. Public comments, display names and bot names alone cannot approve the candidate. Kepler faithfully relays agent reviewer output with the original reviewer identity and session preserved; strict direct-account requirements still apply and cannot be met by that relay. This publisher check protects review admission but does not attest model execution.
 
 The permission lookup uses GitHub's collaborator-permission endpoint, which requires repository Metadata read access. Permission facts come from the authenticated API, outside the editable record. Unknown/inaccessible permissions cannot authorize a review. Verify the deployed workflow token's access in live CI; a local owner-token check alone does not prove it.
 
@@ -36,7 +36,7 @@ The review policy declares:
 - `selection`: `auto`, `preferred` or `required`.
 - `minReviewers`: the explicit independent reviewer count.
 - `differentAccount` and `differentModel`: required separation; `differentProvider` when a different provider is required. Distinct session is always required against every implementation contributor.
-- `modelComparison`: `all-contributors` (default recommended scope) or explicitly `primary`.
+- `modelComparison`: use `all-contributors`; although the existing schema accepts `primary`, common policy does not permit narrowing the comparison.
 - `models`: provider/model selectors with optional mandatory `effort`.
 - `modelMode`: `one-of` for alternative candidates, or explicit `all-of` for a model panel. Each panel selector occupies one slot filled by a distinct independent reviewer session, including overlapping selectors.
 - `fallback`: `any-eligible`, `listed-only` (with `fallbackModels`) or `none`. Required exact choices cannot be silently substituted.
@@ -47,7 +47,7 @@ Depth specifies coverage, not effort or reviewer count. Preferred substitution r
 
 ## Review and findings
 
-Publish the concise human [review summary](../../.agents/skills/hvo-code-review/references/review-format.md), including the actual runtime/coverage/separation outcome, plus a `kind: "review"` record. It names publisher/source/identity, `verdict` (`APPROVE`, `CHANGES_REQUIRED`, `INCOMPLETE`), actual `depth`, `coverage`, `coverageComplete`, material `limitations`, and the complete `findings` index.
+Kepler faithfully publishes the agent reviewer's concise human [review summary](../../.agents/skills/hvo-code-review/references/review-format.md), including the actual runtime/coverage/separation outcome, plus a `kind: "review"` record. It names publisher/source/identity, `verdict` (`APPROVE`, `CHANGES_REQUIRED`, `INCOMPLETE`), actual `depth`, `coverage`, `coverageComplete`, material `limitations`, and the complete `findings` index.
 
 Both PR conversation summaries and submitted native review summaries are supported. Native summaries must target the current head and be published (not pending/dismissed); a native request-changes state cannot claim an APPROVE record. Under the same account, publish native COMMENT rather than self-approval. GitHub's native review REST data provides submitted_at but no updated_at; publish a new summary for a correction or changed verdict rather than depending on edits to reorder old decisions. Reconcile native-only updates through the ready transition, a normal PR comment, CI completion or explicit metadata workflow dispatch.
 
@@ -55,7 +55,7 @@ For an initial changes-required review, publish the real findings and open state
 
 Each finding root gets its own inline code thread with `kind: "finding"`, stable `id` (`F1`, `F2`, …) and `severity` (`P0`–`P3`), alongside impact/evidence/source references/possible solution/verification. Set `nonDeferrable: true` for acceptance/security/data-loss/material-correctness blockers at any severity; P0/P1 always block regardless of the flag. Its GraphQL thread node ID is referenced by the final review index as `threadId`. Preserve IDs and threads across rounds.
 
-The author replies with the correction and source-bound validation. Independent terminal verification adds a `kind: "verification"` reply with publisher/source/identity, `findingId`, terminal `disposition` (`CORRECTED`, `DEFERRED`, `NON_ACTIONABLE`, `SUPERSEDED`) and actual `evidence`. Deferral additionally needs a `followUp` and eligible owner authorization; superseded needs `supersededBy`. These machine values correspond to readable `VERIFIED_*` replies. Resolve only after the reviewer verifies.
+The author replies with the correction and source-bound validation. The independent reviewer supplies terminal verification for Kepler to relay verbatim as a `kind: "verification"` reply with publisher/source/identity, `findingId`, terminal `disposition` (`CORRECTED`, `DEFERRED`, `NON_ACTIONABLE`, `SUPERSEDED`) and actual `evidence`. Deferral additionally needs a `followUp` and eligible owner authorization; superseded needs `supersededBy`. These machine values correspond to readable `VERIFIED_*` replies. Resolve only after the reviewer verifies.
 
 The approval's finding index lists every carried finding with ID, severity, actual thread ID and verified terminal disposition. All substantive inline threads are tracked; unresolved, omitted or unverified threads prevent readiness. If a finding cannot be anchored by the current tool, preserve an individually addressable comment with immutable path/line source and report that it needs the gate's supported tracking route before approval. The initial gate supports GitHub inline review threads; do not claim an untracked fallback satisfies automated approval.
 

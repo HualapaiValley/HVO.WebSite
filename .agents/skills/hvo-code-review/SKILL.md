@@ -1,13 +1,13 @@
 ---
 name: hvo-code-review
-description: Independently review a HualapaiValley PR or correction, publish attributed P0-P3 summaries and separate evidence-backed code findings, and verify their dispositions.
+description: Independently review a HualapaiValley PR or correction, supply attributed P0-P3 summaries and separate evidence-backed code findings to Kepler, and verify their dispositions.
 ---
 
 # Independent code review
 
 Read AGENTS.md, [the repository profile](../../../docs/development/repository-profile.md), project/scoped guidance and [the review procedure and formats](references/review-format.md). The latter owns depth, selection, provenance, severity, finding/thread and correction rules; read it for every assigned review. Load [PR lifecycle](../hvo-pr-lifecycle/SKILL.md) before changing GitHub state.
 
-Use a distinct reviewer person/session that did not materially implement the candidate. Check author provenance and required account/session/model separation before accepting the assignment. Record actual reviewer/system/provider/model/effort; do not infer hidden facts. Required unavailable/unverifiable constraints yield INCOMPLETE. Do not edit the implementation branch.
+Start independent review only after the repository adoption profile's named draft checks pass on the exact head (latest run). Use a distinct reviewer person/session that did not materially implement the candidate and, by default, a different model from every contributor to the reviewed range. Contributor overlap leaves the role BLOCKED unless Roy’s sole recorded exact-head decision under the common review contract addresses it; the decision never carries over to a later head, and an agent can never waive the requirement or grant the exception. Check author provenance and required account/session/model separation before accepting the assignment. Record actual reviewer/system/provider/model/effort; do not infer hidden facts. An unavailable or contributor-matching required model does not independently satisfy its role; substitution and Roy’s recorded exact-head decision follow common policy; other unverifiable constraints yield INCOMPLETE. Do not edit the implementation branch.
 
 The supporting [preparation and risk checklist](references/review-preparation.md) supplies source maps, risk lenses, candidate disproof and context-budget guidance. It does not replace the mandatory review format or make preparation an approval.
 
@@ -15,6 +15,6 @@ Bind initial review to immutable merge-base/head and target SHA. Inspect the ful
 
 Run focused reproducers when necessary/available; distinguish personally run results from inspected evidence. Lead the summary with verdict, short coverage, counts and linked P0-P3 finding bullets, then concise validation/limits. Keep all reviewer identity/system/provider/actual model/effort, session/host/workspace, source and selection/separation details together in expandable Agent details, as the reference template specifies. Each finding has its own code thread/comment, stable ID, evidence/source references, impact, possible solution and verification criterion. For review-only issue work, use attributed issue summary plus separately addressable finding comments with immutable code references.
 
-Verify author dispositions in their existing threads and publish VERIFIED_CORRECTED/DEFERRED/NON_ACTIONABLE/SUPERSEDED or STILL_OPEN. Preserve IDs/history and link carried findings. Only authorized owners resolve after terminal independent verification. Report publication gaps; never commit reports merely to publish them or equate a budget cap with approval.
+Verify author dispositions and supply VERIFIED_CORRECTED/DEFERRED/NON_ACTIONABLE/SUPERSEDED or STILL_OPEN to Kepler for faithful publication in their existing threads. Preserve IDs/history and link carried findings. Only authorized owners resolve after terminal independent verification. Report publication gaps; never commit reports merely to publish them or equate a budget cap with approval.
 
-Publish the machine-readable record described in [automation evidence](../../../docs/development/automation-evidence.md) alongside the readable summary. Re-check the head around publication and flag stale evidence. Code approval alone does not establish CI/merge readiness.
+Kepler publishes the machine-readable record described in [automation evidence](../../../docs/development/automation-evidence.md) alongside the readable summary supplied by the reviewer. Re-check the head around publication and flag stale evidence. Code approval alone does not establish CI/merge readiness.

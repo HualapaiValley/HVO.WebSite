@@ -16,7 +16,7 @@ Mechanical, Standard and Deep specify review coverage, independently of runtime 
 
 Draft -> review -> corrections/verification -> ready -> standard CI -> green -> authorized merge. Drafts run only bounded preflight. Failed CI or changed source returns to draft and invalidates readiness; code corrections require focused independent review before another standard run. Reaching a review budget is never approval. Use the [state and label rules](.agents/skills/hvo-pr-lifecycle/references/pr-states-and-labels.md).
 
-PRs squash into `main` only after current-source review, terminal finding verification, resolved actionable threads and current required CI. Merge must be authorized by the assignment. Verify issue closure and publish closeout; cleanup only the completed branch/workspace. Release/deployment remains separately scoped.
+PRs squash into `main` only after current-source review, terminal finding verification, resolved actionable threads and current required CI. Merge follows the common standing authorization and any assignment limit. Verify issue closure and publish closeout; reboots and deletions require Roy’s decision. Release/deployment remains separately scoped.
 
 ## Local validation and history
 
