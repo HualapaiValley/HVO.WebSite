@@ -34,16 +34,21 @@ function heredocMarkers(text) {
   return consumed === text.length ? markers : [];
 }
 
-function instructions(source) {
+function parseDockerfile(source) {
   const lines = source.replace(/^\uFEFF/, '').split('\n');
   const leadingWhitespace = /^\p{White_Space}+/u;
+  const result = [];
+  const hasShebang = lines[0].startsWith('#!');
   let escape = '\\';
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
+    // Frontend detection skips an initial shebang. Escape parsing does not.
+    if (hasShebang && index === 0) continue;
     const directive = /^#\s*(syntax|escape|check)\s*=\s*(.+?)\s*$/i.exec(line.replace(leadingWhitespace, ''));
     if (!directive) break;
-    if (directive[1].toLowerCase() === 'escape' && /^[\\`]$/.test(directive[2])) escape = directive[2];
+    const [, name, value] = directive;
+    if (!hasShebang && name.toLowerCase() === 'escape' && /^[\\`]$/.test(value)) escape = value;
+    if (name.toLowerCase() === 'syntax') result.push({ frontend: value.split(' ', 1)[0], line: index + 1 });
   }
-  const result = [];
   let heredocs = [];
   let heredocStart = 0;
   let text = '';
@@ -74,7 +79,44 @@ function instructions(source) {
   }
   if (start) result.push({ text: text.trim(), line: start, incomplete: true });
   if (heredocs.length) result.push({ line: heredocStart, error: `unterminated Docker heredoc; add its ${heredocs[0].name} terminator before the next instruction.` });
-  return result;
+  return { instructions: result, escape };
+}
+
+// Builder flags precede operands and use the Dockerfile's escape token.
+function builderFlags(args, escape) {
+  const flags = [];
+  const whitespace = /\p{White_Space}/u;
+  let offset = 0;
+  while (args.startsWith('--', offset)) {
+    let flag = '';
+    let quote = '';
+    for (; offset < args.length; offset++) {
+      const char = args[offset];
+      if (!quote && whitespace.test(char)) break;
+      if (char === escape) flag += args[++offset] ?? '';
+      else if (char === quote) quote = '';
+      else if (!quote && (char === '"' || char === "'")) quote = char;
+      else flag += char;
+    }
+    if (flag === '--') break;
+    flags.push(flag);
+    while (offset < args.length && whitespace.test(args[offset])) offset++;
+  }
+  return flags;
+}
+
+function mountSource(value) {
+  // Mount options are CSV after builder flag quotes and escapes are processed.
+  const fields = /(?:"((?:[^"]|"")*)"|([^",]*))(?:,|$)/gy;
+  let from = '';
+  let consumed = 0;
+  for (const [field, quotedField, plainField] of value.matchAll(fields)) {
+    consumed += field.length;
+    const option = plainField ?? quotedField.replaceAll('""', '"');
+    const equals = option.indexOf('=');
+    if (equals !== -1 && option.slice(0, equals).toLowerCase() === 'from') from = option.slice(equals + 1);
+  }
+  return consumed === value.length ? from : undefined;
 }
 
 export function checkSources(files) {
@@ -108,39 +150,66 @@ export function checkSources(files) {
   else compare('tools/pr-process-fixture.json: build validation sdk', builds[0].sdk);
 
   const digests = new Map();
-  let sdkImages = 0;
+  let sdkFroms = 0;
+  const checkImage = (location, source, image) => {
+    if (!image || /[\s$]/.test(image)) errors.push(`${location}: ${source} image must be literal; use a pinned reference matching global.json.`);
+    const [taggedImage, pin, extra] = image.split('@');
+    if (!pin || !/^sha256:[a-f0-9]{64}$/.test(pin) || extra !== undefined) {
+      errors.push(`${location}: ${source} ${taggedImage} must be pinned as <image>[:<tag>]@sha256:<64 lowercase hex digits>; retain the tag and add its verified digest.`);
+    } else {
+      const previous = digests.get(taggedImage);
+      if (previous && previous.pin !== pin) errors.push(`${location}: ${taggedImage} digest ${pin} differs from ${previous.pin} at ${previous.location}; use the same verified digest for this image reference everywhere.`);
+      else if (!previous) digests.set(taggedImage, { pin, location });
+    }
+    const sdkTag = /^mcr\.microsoft\.com\/dotnet\/sdk(?::(.*))?$/.exec(taggedImage);
+    if (sdkTag) {
+      if (source === 'FROM') sdkFroms++;
+      compare(`${location}: SDK ${source} tag`, sdkTag[1]);
+    }
+  };
   for (const path of Object.keys(files).filter(dockerfile).sort()) {
     const stages = new Set();
-    for (const instruction of instructions(files[path])) {
+    const isLocalSource = image => image.toLowerCase() === 'scratch' || stages.has(image.toLowerCase());
+    let stageCount = 0;
+    const { instructions, escape } = parseDockerfile(files[path]);
+    for (const instruction of instructions) {
       const location = `${path}:${instruction.line}`;
       if (instruction.error) { errors.push(`${location}: ${instruction.error}`); continue; }
-      if (!/^FROM(?:\s|$)/i.test(instruction.text)) continue;
-      const match = /^FROM\s+(?:--platform=\S+\s+)?([^\s]+)(?:\s+AS\s+([a-zA-Z0-9_][a-zA-Z0-9_.-]*))?$/i.exec(instruction.text);
-      if (!match || instruction.incomplete || match[1].startsWith('--')) {
-        errors.push(`${location}: unsupported or incomplete FROM; use FROM [--platform=<platform>] <literal-image>@sha256:<64 hex digits> [AS <stage>].`);
+      if (instruction.frontend !== undefined) {
+        checkImage(location, '# syntax', instruction.frontend);
         continue;
       }
-      const [, image, stage] = match;
-      if (!stages.has(image.toLowerCase()) && image.toLowerCase() !== 'scratch') {
-        if (image.includes('$')) errors.push(`${location}: FROM image must be literal; replace build-argument image/version/digest expressions with a pinned reference matching global.json.`);
-        const [taggedImage, pin, extra] = image.split('@');
-        if (!pin || !/^sha256:[a-f0-9]{64}$/.test(pin) || extra !== undefined) {
-          errors.push(`${location}: FROM ${taggedImage} must be pinned as <image>[:<tag>]@sha256:<64 lowercase hex digits>; retain the tag and add its verified digest.`);
-        } else {
-          const previous = digests.get(taggedImage);
-          if (previous && previous.pin !== pin) errors.push(`${location}: ${taggedImage} digest ${pin} differs from ${previous.pin} at ${previous.location}; use the same verified digest for this image reference everywhere.`);
-          else if (!previous) digests.set(taggedImage, { pin, location });
+      if (/^FROM(?:\s|$)/i.test(instruction.text)) {
+        const match = /^FROM\s+(?:--platform=\S+\s+)?([^\s]+)(?:\s+AS\s+([a-zA-Z0-9_][a-zA-Z0-9_.-]*))?$/i.exec(instruction.text);
+        if (!match || instruction.incomplete || match[1].startsWith('--')) {
+          errors.push(`${location}: unsupported or incomplete FROM; use FROM [--platform=<platform>] <literal-image>@sha256:<64 hex digits> [AS <stage>].`);
+          continue;
         }
-        const sdkTag = /^mcr\.microsoft\.com\/dotnet\/sdk(?::(.*))?$/.exec(taggedImage);
-        if (sdkTag) {
-          sdkImages++;
-          compare(`${location}: SDK FROM tag`, sdkTag[1]);
-        }
+        const [, image, stage] = match;
+        if (!isLocalSource(image)) checkImage(location, 'FROM', image);
+        if (stage) stages.add(stage.toLowerCase());
+        stageCount++;
+        continue;
       }
-      if (stage) stages.add(stage.toLowerCase());
+      const command = /^(COPY|RUN)\s+([\s\S]+)/i.exec(instruction.text);
+      if (!command) continue;
+      const copy = command[1].toUpperCase() === 'COPY';
+      const prefix = copy ? '--from=' : '--mount=';
+      for (const flag of builderFlags(command[2], escape)) {
+        if (!flag.startsWith(prefix)) continue;
+        const value = flag.slice(prefix.length);
+        const image = copy ? value : mountSource(value);
+        if (image === undefined) {
+          errors.push(`${location}: invalid RUN --mount options; use comma-separated mount fields.`);
+          continue;
+        }
+        if (!image || isLocalSource(image)) continue;
+        if (copy && /^[+-]?\d+$/.test(image) && Number(image) >= 0 && Number(image) < stageCount) continue;
+        checkImage(location, copy ? 'COPY --from' : 'RUN --mount from', image);
+      }
     }
   }
-  if (!sdkImages) errors.push('Dockerfiles: no .NET SDK FROM found; restore an explicit mcr.microsoft.com/dotnet/sdk:<global.json SDK>@sha256:<digest> build stage.');
+  if (!sdkFroms) errors.push('Dockerfiles: no .NET SDK FROM found; restore an explicit mcr.microsoft.com/dotnet/sdk:<global.json SDK>@sha256:<digest> build stage.');
   return { sdk, errors };
 }
 

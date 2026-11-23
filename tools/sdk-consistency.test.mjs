@@ -258,6 +258,51 @@ test('a stage name is exempt only after its declaration', () => {
   rejects(files, /Dockerfile:1.*@sha256/);
 });
 
+for (const [label, instruction] of [
+  ['COPY --from', image => `COPY --chown=1:1 --from="${image}" ["/sdk", "/sdk"]`],
+  ['RUN --mount from', image => `RUN --mount=type=tmpfs,target=/tmp \\\n  --mount='type=bind,"FrOm=${image}",target=/sdk' true`]
+]) {
+  test(`${label} checks literal SDK versions and digest pins for external images`, () => {
+    const files = fixture();
+    const setImage = image => { files['z/Dockerfile'] = `FROM scratch\n${instruction(image)}\n`; };
+    const diagnostic = suffix => new RegExp(`z/Dockerfile:2.*${label}.*${suffix}`);
+
+    setImage('mcr.microsoft.com/dotnet/sdk:9.0.100');
+    rejects(files, diagnostic('@sha256'), diagnostic('9\\.0\\.100.*10\\.0\\.402'));
+    setImage('mcr.microsoft.com/dotnet/sdk:${SDK}@' + digest);
+    rejects(files, diagnostic('literal'));
+    setImage(`mcr.microsoft.com/dotnet/sdk:${sdk}@${otherDigest}`);
+    rejects(files, /z\/Dockerfile:2.*digest.*src\/App\/Dockerfile:1/);
+    setImage(sdkImage(sdk));
+    assert.deepEqual(checkSources(files).errors, []);
+  });
+}
+
+test('the syntax frontend requires a pin at the directive line', () => {
+  const files = fixture();
+  const setFrontend = frontend => {
+    files['Dockerfile'] = `\uFEFF#!/usr/bin/env docker\n# SyNtAx = ${frontend} option=value\nFROM scratch\n`;
+  };
+  setFrontend('docker/dockerfile:1');
+  rejects(files, /Dockerfile:2.*# syntax.*@sha256/);
+  setFrontend(`docker/dockerfile:1@${digest}`);
+  assert.deepEqual(checkSources(files).errors, []);
+});
+
+test('COPY indexes and prior stage names are exempt; only real builder flags are checked', () => {
+  const files = fixture();
+  files['Dockerfile'] = [
+    `FROM ${sdkImage(sdk)} AS build`, 'FROM scratch',
+    'COPY --from="BUILD" /src /src', 'COPY --from=0 /src /src',
+    `RUN --mount='type=bind,"source=/data,from=unrelated:latest",from=build,target=/src' true`,
+    'RUN --mount=type=cache,target=/cache true', 'RUN echo --mount=from=unrelated:latest',
+    '# syntax=docker/dockerfile:1'
+  ].join('\n');
+  assert.deepEqual(checkSources(files).errors, []);
+  files['Dockerfile'] += '\nCOPY --from=undeclared /src /src\nRUN --mount=from=0,target=/src true\n';
+  rejects(files, /Dockerfile:9.*COPY --from.*@sha256/, /Dockerfile:10.*RUN --mount from.*@sha256/);
+});
+
 test('global.json rejects missing or invalid SDK versions and malformed JSON', () => {
   for (const source of ['{}', '{', '{"sdk":{"version":null}}', '{"sdk":{"version":"latest"}}']) {
     const files = fixture();
