@@ -1,4 +1,4 @@
-# HVO engineering policy — 2026-11-23.1
+# HVO engineering policy — 2026-11-23.2
 
 The [manifest](manifest.json) identifies the canonical source and pins the portable
 files; distribution is an explicit reviewed copy with digest verification, never

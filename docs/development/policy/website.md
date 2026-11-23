@@ -1,6 +1,6 @@
 # WebSite pilot adoption profile
 
-Policy version: `2026-11-23.1`. Status: local preparation; no live rollout or
+Policy version: `2026-11-23.2`. Status: local preparation; no live rollout or
 autonomous enforcement enabled; Kepler merges under the common standing rule. Canonical repository: `HualapaiValley/HVO.WebSite`.
 Target: `main`. Use squash for feature merges. The [existing repository profile](../repository-profile.md),
 [project guidance](../../AGENT_PROJECT_GUIDANCE.md), [CSS governance](../../CSS_GOVERNANCE.md)
