@@ -360,6 +360,28 @@ class MaterializationTests(unittest.TestCase):
     def test_root_managed_crlf_is_repaired(self):
         self.root_managed_crlf_control()
 
+    def test_root_sql_crlf_is_derived_and_repaired(self):
+        self.materialize()
+        root = self.root / ".env"
+        original = root.read_bytes()
+        crlf, count = re.subn(rb"^(" + SQL_KEY.encode() + rb"=[^\r\n]*)\n", rb"\1\r\n",
+                             original, flags=re.MULTILINE)
+        self.assertEqual(1, count, "expected one root SQL assignment")
+        root.write_bytes(crlf)
+
+        before = self.snapshot()
+        checked, log = self.run_sync("--check")
+        self.assertEqual(1, checked.returncode, "check must report drift")
+        self.assertIn(f"drift   .env:{SQL_KEY}", log)
+        self.assertTrue(before == self.snapshot(), "check changed destinations")
+
+        applied, log = self.run_sync("--apply")
+        self.assertEqual(0, applied.returncode, "apply failed to derive root SQL")
+        self.assertIn(f"updated .env:{SQL_KEY}", log)
+        self.assertTrue(root.read_bytes() == original, "root SQL line was not restored to LF")
+        checked, _ = self.run_sync("--check")
+        self.assertEqual(0, checked.returncode, "re-check failed after root SQL repair")
+
     def test_root_crlf_mutant_is_detected(self):
         script = self.root / "scripts/sync-secrets-from-keyvault.sh"
         original = script.read_text()
