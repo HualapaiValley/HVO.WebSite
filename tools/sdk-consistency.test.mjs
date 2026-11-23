@@ -11,7 +11,8 @@ const sdk = '10.0.402';
 const digest = `sha256:${'a'.repeat(64)}`;
 const otherDigest = `sha256:${'b'.repeat(64)}`;
 const sdkImage = version => `mcr.microsoft.com/dotnet/sdk:${version}@${digest}`;
-const tool = fileURLToPath(new URL('./sdk-consistency.mjs', import.meta.url));
+const toolUrl = new URL('./sdk-consistency.mjs', import.meta.url);
+const tool = fileURLToPath(toolUrl);
 const repository = fileURLToPath(new URL('..', import.meta.url));
 
 function fixture(version = sdk) {
@@ -339,6 +340,15 @@ test('a symlinked CLI invocation rejects a mismatching tracked repository', () =
     assert.equal(result.status, 1, 'A symlinked entry point must execute the gate');
     assert.match(result.stderr, /src\/App\/Dockerfile:1.*10\.0\.400.*10\.0\.402/);
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('a stdin module can import the gate without running its CLI', () => {
+  const result = spawnSync(process.execPath, ['--input-type=module', '-'], {
+    input: `import ${JSON.stringify(toolUrl.href)};`,
+    encoding: 'utf8'
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, '');
 });
 
 test('the current tracked repository satisfies the SDK and base-image policy', () => {

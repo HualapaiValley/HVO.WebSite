@@ -1,6 +1,6 @@
 // Offline policy: inspect tracked configuration as data; never execute candidate tooling.
 import { execFileSync } from 'node:child_process';
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -130,7 +130,7 @@ export function checkRepository(root) {
   return checkSources(files);
 }
 
-if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   try {
     const result = checkRepository(resolve(process.argv[2] ?? fileURLToPath(new URL('..', import.meta.url))));
     if (result.errors.length) {
