@@ -24,10 +24,14 @@ node tools/sdk-consistency.mjs
 
 The gate reads tracked `Dockerfile`, `Dockerfile.*` and `*.Dockerfile` files
 (excluding `.dockerignore` files),
-including `.devcontainer`, tools and test fixtures. Every external `FROM` must
-have a literal `@sha256:<64 lowercase hex digits>` pin. References to a previously
-declared build stage and `scratch` are exempt. Repeated literal image references
-(including their tag, when present) must use the same digest across all files;
+including `.devcontainer`, tools and test fixtures. External images in `FROM`,
+`COPY --from`, `RUN --mount`'s `from` option and leading `# syntax=` frontend
+directives must have a literal `@sha256:<64 lowercase hex digits>` pin. `FROM`,
+`COPY` and `RUN --mount` can reference a previously declared build stage or
+`scratch`, and `COPY --from` also accepts a previously declared stage's numeric
+index. The WebSite Dockerfile uses the builder's bundled frontend. Repeated
+literal image references (including their tag, when present) must use the same
+digest across all files;
 use a multi-platform image-index digest when a shared image supports multiple
 platforms. The gate compares pins locally; it does not contact a registry or
 prove image contents, availability or freshness.
