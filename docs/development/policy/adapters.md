@@ -12,8 +12,8 @@ AGENTS.md and applicable local skills; automatic discovery is not verified.
 | Cursor | Check the repository adoption profile for installed or qualified Cursor rules/discovery adapters. Explicitly load AGENTS.md and its linked local contracts; verify effective loading before use. |
 | T3 | T3 hosts an underlying harness; identify it and follow its row, explicitly loading AGENTS.md and local contracts. Record both T3 and underlying harness identities; neither T3 nor this table proves automatic discovery. |
 
-At launch, record harness/version, actual host/workspace/session, policy digest,
-assignment boundary, requested route/effort, observable actual values and effective
+In the internal launch record, capture harness/version, actual host/workspace/session,
+policy digest, assignment boundary, requested route/effort, observable actual values and effective
 permission/noninteractive mode. Verify the mode in a harmless local qualification;
 do not infer it from configuration labels. Unknown provenance does not block launching work but cannot satisfy a strict
 model requirement; that review role stays INCOMPLETE or BLOCKED as specified in
@@ -26,6 +26,10 @@ cannot satisfy a strict model requirement.
 Do not invent command flags or elevate access to satisfy a policy.
 Reviewer minima and independent substitutions follow common policy; preferences and
 other authorized fallbacks belong in assignment configuration.
+
+When publishing PR evidence to GitHub, include `host` and `workspace` as
+non-empty strings. Either field may use `withheld` to keep internal host names
+and checkout paths off GitHub. [Evidence identity fields](../automation-evidence.md#identity-and-source)
 
 ## Kepler coordination
 

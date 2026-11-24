@@ -6,6 +6,53 @@ Install the development container or equivalent host tools: exact .NET SDK from 
 
 The [SQL Server lane](sql-server-integration-tests.md) requires a local Linux x64 Docker daemon on the default Unix socket. The browser install below uses `--with-deps`; on Debian/Ubuntu it may refresh the apt index and install OS packages via `sudo apt-get`. To run it unmodified and unattended on Debian/Ubuntu, the host needs root or authorized noninteractive elevation (such as passwordless sudo), even when the packages are already present. If prerequisites are unmet, report the affected lane as blocked, never as a pass or by weakening or filtering tests.
 
+## SDK and base-image consistency
+
+`global.json` `sdk.version` is the single SDK source of truth. Every Dockerfile
+`mcr.microsoft.com/dotnet/sdk` tag, the devcontainer dotnet feature version,
+`tools/pr-process.mjs` `PINNED_SDK`, and the build-evidence SDK in
+`tools/pr-process-fixture.json` must equal it exactly. Runtime image versions are
+separate from SDK versions.
+
+PR Preflight's `simple-checks` runs the offline static gate and its deliberate
+mismatch fixtures. Run the same checks locally, without Docker or an installed SDK:
+
+```bash
+node --test tools/sdk-consistency.test.mjs
+node tools/sdk-consistency.mjs
+```
+
+The gate reads tracked `Dockerfile`, `Dockerfile.*` and `*.Dockerfile` files
+(excluding `.dockerignore` files),
+including `.devcontainer`, tools and test fixtures. Every external `FROM` must
+have a literal `@sha256:<64 lowercase hex digits>` pin. References to a previously
+declared build stage and `scratch` are exempt. Repeated literal image references
+(including their tag, when present) must use the same digest across all files;
+use a multi-platform image-index digest when a shared image supports multiple
+platforms. The gate compares pins locally; it does not contact a registry or
+prove image contents, availability or freshness.
+
+The parser handles JSONC comments/trailing commas in the devcontainer, Docker
+comments, case-insensitive instructions, platform flags, line continuations and
+`RUN`/`COPY`/`ADD` heredoc contents. Doubled terminal escape characters and shell
+here-strings do not consume subsequent Docker instructions. Symlinked CLI paths
+run the same check, including macOS paths through `/tmp`.
+Image/version/digest build-argument expressions are rejected with a file/line
+diagnostic; use explicit image references so offline checks can verify them.
+Keep `PINNED_SDK` as one exported string literal so the gate can inspect the
+trusted tooling without executing it.
+
+For a coordinated SDK move, update `global.json`, all SDK image tags and their
+verified digests, the devcontainer feature, `PINNED_SDK` and its build-evidence
+fixture, and the SDK version in [automation evidence](automation-evidence.md#author-record),
+the SDK row and local-evidence paragraph in the [repository profile](repository-profile.md),
+and the [WebSite policy profile](policy/website.md#preserved-validation-and-boundaries),
+then run both commands above. The synthetic regression fixture versions are
+independent test inputs. The gate reports the offending file, actual/expected
+version or conflicting digest location. Because PR-process
+tooling is trusted from the base branch, a new SDK pin still needs owner adoption
+on the trusted branch; candidate tooling does not authorize its own SDK move.
+
 ## Preparation and full local checks
 
 ```bash

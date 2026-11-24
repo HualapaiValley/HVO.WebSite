@@ -63,9 +63,9 @@ I’m picking up this issue to <observable outcome>. I’ll keep it updated thro
 - **Process revision:** <revision>.
 - **Session / system:** <distinct session and actual application/harness>.
 - **Provider / model / effort:** <actual values, unknown when unavailable; human N/A>.
-- **Host/server:** <actual host identifier; platform when relevant>.
+- **Host/server:** <actual host identifier or `withheld`, with platform when relevant>.
 - **Harness instance ID:** <actual instance ID, or unknown when not exposed>.
-- **Checkout/worktree:** <exact absolute repository workspace path>.
+- **Checkout/worktree:** <exact absolute repository workspace path or `withheld`>.
 - **Dependencies:** <relevant details or none>.
 
 </details>
@@ -73,7 +73,9 @@ I’m picking up this issue to <observable outcome>. I’ll keep it updated thro
 <!-- hvo-issue-claim:v1 -->
 ```
 
-Update an existing ownership comment when clarifying its plan or presentation; preserve the start time and material history. Keep host/instance/session and exact checkout/worktree location together in Agent details, and update them when work moves. A real release/transfer or blocker gets its own clear handoff/update. Failed publication or conflicting claims still prevent assuming ownership.
+Update an existing ownership comment when clarifying its plan or presentation and preserve the start time and material history. Keep host, instance, session and checkout/worktree location together in Agent details. Update publishable location details when work moves. Either host or checkout path may be `withheld` in GitHub ownership comments. [Evidence identity fields](automation-evidence.md#identity-and-source)
+
+A real release, transfer or blocker gets its own handoff or update. Failed publication or conflicting claims still prevent assuming ownership.
 
 ## State labels
 

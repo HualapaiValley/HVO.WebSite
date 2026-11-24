@@ -27,9 +27,11 @@ GitHub PR author: <!-- actual PR author account -->
 <!-- Use actual values; human model/effort = N/A, unavailable agent values = unknown.
 Record materially contributing sessions and model/settings changes as additional rows,
 with contribution ranges and task/runtime links when available. Add expandable Agent details
-with host/server, known harness instance ID, exact checkout/worktree path and branch; unknown
-instance IDs stay unknown. Keep location current if work moves. The primary author does
-not inherit credit for work or checks performed by another session. -->
+with the branch, host/server, known harness instance ID and exact checkout/worktree path.
+In GitHub PR evidence, keep `host` and `workspace` present as non-empty strings.
+Either field may use `withheld` to keep internal host names and checkout paths private.
+Use `unknown` for unavailable instance IDs and keep publishable location details current.
+Attribute each contribution and check to the session that performed it. -->
 
 ## Acceptance evidence
 
@@ -41,7 +43,7 @@ not inherit credit for work or checks performed by another session. -->
 
 Validated commit or source fingerprint: <!-- full SHA or reproducible fingerprint -->
 
-<!-- Include host, SDK, architecture or container details when they affect reproduction.
+<!-- Include publishable host, SDK, architecture or container details when they affect reproduction.
 Record exact commands, actual results and useful counts. Link lengthy output separately.
 For unavailable checks, state not run and the reason. Attach applicable UI/browser evidence. -->
 

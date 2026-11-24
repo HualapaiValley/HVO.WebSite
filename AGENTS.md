@@ -2,7 +2,7 @@
 
 ## Unified-policy pilot candidate
 
-The [HVO policy 2026-11-17.2](docs/development/policy/common.md) defines scope,
+The [HVO policy 2026-11-23.2](docs/development/policy/common.md) defines scope,
 platform/security > common policy > repo profile precedence, and local skills;
 see the [WebSite profile and pilot stages](docs/development/policy/website.md#pilot-stages)
 and [adapters](docs/development/policy/adapters.md). Independent review starts after

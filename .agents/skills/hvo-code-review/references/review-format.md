@@ -89,7 +89,7 @@ Every parent summary records the following in its expandable **Agent details**, 
 - Reviewer: the actual person or distinct agent/session that performed the review.
 - Review-performing account, and a different publication account if its report was relayed.
 - System: the reviewing application/harness, such as Copilot, Claude Code or Codex through T3; include its version when available.
-- Agent location: actual host/server, known harness instance ID and exact checkout/worktree path with branch; keep these alongside session identity in expandable Agent details. Undisclosed cloud/instance locations stay unknown or accurately provider-managed.
+- Keep the actual host/server, known harness instance ID, exact checkout/worktree path and branch alongside the session identity in expandable Agent details. Either host or checkout path may be `withheld` in GitHub evidence. Undisclosed cloud/instance locations stay unknown or accurately provider-managed. [Evidence identity fields](../../../../docs/development/automation-evidence.md#identity-and-source)
 - Provider, model and reasoning effort: actual values exposed by the runtime. A requested model/effort may be recorded separately if execution differed.
 - Required depth, reviewer-selection and independence policy, coverage actually completed, and whether selection/separation constraints were met. Reference the author's provenance record; explain permitted substitutions and visibility limits.
 - Mode, reviewed commit range and UTC time.
@@ -145,9 +145,9 @@ Reviewed <complete change/correction scope and relevant context>.
 | Model | <actual underlying model ID; N/A for human, unknown if hidden> |
 | Reasoning effort | <actual executed setting; N/A for human, unknown if hidden> |
 | Session / task | <distinct reviewing session and available task/runtime link> |
-| Host/server / platform | <actual host identifier and relevant OS/architecture, or unknown> |
+| Host/server / platform | <actual host identifier, `withheld`, or unknown, with relevant OS/architecture> |
 | Harness instance | <actual instance ID, or unknown when not exposed> |
-| Checkout/worktree | <exact absolute path, or unknown if unavailable> |
+| Checkout/worktree | <exact absolute path, `withheld`, or unknown if unavailable> |
 | Branch / target | <actual source branch and integration target> |
 | Review mode / UTC time | <Initial, Correction or Synchronization; timestamp> |
 | Depth / actual coverage | <required coverage level; completed scope and risk lenses> |

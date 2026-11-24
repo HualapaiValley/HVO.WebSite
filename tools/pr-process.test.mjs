@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { runInNewContext } from 'node:vm';
-import { evaluate, record, phase, check, preflight, GitHub, PHASES, LOCAL_IDS, CI_JOBS, ciTitle } from './pr-process.mjs';
+import { evaluate, record, phase, check, preflight, sameSession, GitHub, PHASES, LOCAL_IDS, CI_JOBS, ciTitle } from './pr-process.mjs';
 import { reconcile, replacePhase, currentCI, runBinding, returnDraft } from './pr-process-control.mjs';
 
 const examples = JSON.parse(await readFile(new URL('./pr-process-fixture.json', import.meta.url), 'utf8'));
@@ -133,6 +133,31 @@ test('same implementation session cannot self-review with another model', () => 
 test('host, instance and workspace metadata are required but unknown origin is allowed', () => {
   for (const key of ['host', 'instance', 'workspace']) { const f = fixture(); delete f.values.review.identity[key]; rejected(f.sync(), new RegExp(`review.identity.${key}`)); }
   const f = fixture(); f.values.review.identity.host = f.values.review.identity.instance = 'unknown'; assert.equal(evaluate(f.sync()).eligible, true);
+});
+test('preflight accepts withheld host and checkout fields', async () => {
+  const f = draftPreflightFixture();
+  const { identity, contributors, validation } = f.values.author;
+  for (const entry of [identity, ...contributors, ...validation.map(check => check.performer)]) {
+    entry.host = 'withheld';
+    entry.workspace = 'withheld';
+  }
+  f.sync();
+  const result = await preflight(f.api, 1);
+  assert.equal(result.eligible, true, result.errors.join('\n'));
+});
+test('an unknown origin on either side cannot distinguish a reused session ID', () => {
+  const disclosed = { session: 'example-session', instance: 'example-instance', host: 'example-host' };
+  for (const origin of [
+    { host: 'withheld' },
+    { host: ' WITHHELD ' },
+    { instance: 'withheld' },
+    { host: ' unknown ' },
+    { instance: ' unknown ' },
+  ]) {
+    const undisclosed = { ...disclosed, ...origin };
+    assert.deepEqual([sameSession(undisclosed, disclosed), sameSession(disclosed, undisclosed)], [true, true], JSON.stringify(origin));
+    assert.equal(sameSession(disclosed, { ...undisclosed, session: 'another-session' }), false);
+  }
 });
 test('known host/instance origin distinguishes reused session IDs; unknown origin is conservative', () => {
   const f = fixture(); f.values.review.identity.session = f.values.author.identity.session; f.values.review.identity.host = 'other-host'; assert.equal(evaluate(f.sync()).eligible, true);

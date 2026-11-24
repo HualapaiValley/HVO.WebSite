@@ -17,7 +17,11 @@ const sameModel = (a, b) => knownModel(a) && knownModel(b) && login(a.provider) 
 const fields = ['account', 'session', 'system', 'provider', 'model', 'effort', 'host', 'instance', 'workspace'];
 const nonempty = value => typeof value === 'string' && Boolean(value.trim());
 const selectorValid = value => nonempty(value?.provider) && !unknown(value.provider) && nonempty(value?.model) && !unknown(value.model) && (value.effort === undefined || (nonempty(value.effort) && !unknown(value.effort)));
-const knownOrigin = identity => !unknown(identity.host) && !unknown(identity.instance);
+const originUnknown = value => {
+  const normalized = login(value).trim();
+  return unknown(normalized) || normalized === 'withheld';
+};
+const knownOrigin = identity => !originUnknown(identity.host) && !originUnknown(identity.instance);
 export function sameSession(a, b) {
   if (a.session !== b.session) return false;
   // Unknown origin cannot establish that a reused session ID is independent.
