@@ -145,12 +145,18 @@ test('preflight accepts withheld host and checkout fields', async () => {
   const result = await preflight(f.api, 1);
   assert.equal(result.eligible, true, result.errors.join('\n'));
 });
-test('a withheld host on either side cannot distinguish a reused session ID', () => {
+test('an unknown origin on either side cannot distinguish a reused session ID', () => {
   const disclosed = { session: 'example-session', instance: 'example-instance', host: 'example-host' };
-  for (const host of ['withheld', ' WITHHELD ']) {
-    const redacted = { ...disclosed, host };
-    assert.deepEqual([sameSession(redacted, disclosed), sameSession(disclosed, redacted)], [true, true]);
-    assert.equal(sameSession(disclosed, { ...redacted, session: 'another-session' }), false);
+  for (const origin of [
+    { host: 'withheld' },
+    { host: ' WITHHELD ' },
+    { instance: 'withheld' },
+    { host: ' unknown ' },
+    { instance: ' unknown ' },
+  ]) {
+    const undisclosed = { ...disclosed, ...origin };
+    assert.deepEqual([sameSession(undisclosed, disclosed), sameSession(disclosed, undisclosed)], [true, true], JSON.stringify(origin));
+    assert.equal(sameSession(disclosed, { ...undisclosed, session: 'another-session' }), false);
   }
 });
 test('known host/instance origin distinguishes reused session IDs; unknown origin is conservative', () => {

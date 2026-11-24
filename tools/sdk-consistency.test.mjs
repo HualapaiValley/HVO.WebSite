@@ -38,7 +38,7 @@ test('aligned SDKs, runtime pins, repeated digests, stage aliases and scratch pa
 });
 
 test('a coordinated future SDK update passes without changing the gate', () => {
-  assert.deepEqual(checkSources(fixture('11.0.100-preview.1')).errors, []);
+  assert.deepEqual(checkSources(fixture('99.0.100-preview.1')).errors, []);
 });
 
 test('global.json is authoritative when every other SDK reference is left behind', () => {
